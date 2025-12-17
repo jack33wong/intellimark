@@ -15,6 +15,7 @@ import type { DetectedBlock } from './BlockClusteringService.js';
 import { OCRCleanupService } from './OCRCleanupService.js';
 // ========================= START OF NEW DEPENDENCY =========================
 import * as stringSimilarity from 'string-similarity';
+import { sanitizeOcrArtifacts } from '../../utils/TextNormalizationUtils.js';
 // ========================== END OF NEW DEPENDENCY ==========================
 
 
@@ -631,8 +632,9 @@ export class OCRService {
           }
         }
 
-        // Use cleaned text (without LaTeX delimiters) for the final block
-        processedLines.push({ text: cleanedText || text, coords, hasOriginalCoords, isSplitBlock });
+        // Use cleaned text (without LaTeX delimiters) AND sanitize artifacts for the final block
+        const sanitizedText = sanitizeOcrArtifacts(cleanedText || text);
+        processedLines.push({ text: sanitizedText, coords, hasOriginalCoords, isSplitBlock });
       }
 
       mathBlocks = processedLines.map(line => ({

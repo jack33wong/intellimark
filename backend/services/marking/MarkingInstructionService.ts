@@ -1,6 +1,6 @@
 import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
-import { normalizeLatexDelimiters } from '../../utils/TextNormalizationUtils.js';
+import { normalizeLatexDelimiters, sanitizeOcrArtifacts } from '../../utils/TextNormalizationUtils.js';
 
 // ========================= NEW: IMMUTABLE PAGE INDEX ARCHITECTURE =========================
 import {
@@ -214,18 +214,7 @@ export class MarkingInstructionService {
     MarkingInstructionService.hasLoggedDebugPrompt = false;
   }
 
-  /**
-   * Systematic sanitization of OCR text to remove Mathpix alignment artifacts.
-   * Replaces '&' only when followed by math operators (e.g., & =, & <).
-   * Does NOT remove standalone '&' to preserve logic/text usage.
-   */
-  private static sanitizeOcrText(text: string): string {
-    if (!text) return '';
-    // Regex: & away from operator (conservative)
-    // Replace '&' followed by optional whitespace and an alignment-relevant operator
-    // Operators: =, <, >, \le, \ge, \approx
-    return text.replace(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g, '$1');
-  }
+
 
   /**
    * Format general marking guidance into structured Markdown
@@ -314,7 +303,7 @@ export class MarkingInstructionService {
       console.log(`[OCR SANITIZE] Found matches to remove:`, debugMatches || 'None');
 
       // Sanitize immediately to remove alignment artifacts (SYSTEMATIC FIX)
-      const cleanedOcrText = MarkingInstructionService.sanitizeOcrText(rawOcrText);
+      const cleanedOcrText = sanitizeOcrArtifacts(rawOcrText);
 
       console.log(`[OCR SANITIZE] Cleaned text length: ${cleanedOcrText?.length}`);
       // Check if any remain

@@ -111,6 +111,23 @@ export function normalizeTextForComparison(text: string | null | undefined): str
 }
 
 /**
+ * Systematic sanitization of OCR text to remove Mathpix alignment artifacts.
+ * Replaces '&' only when followed by math operators (e.g., & =, & <).
+ * Does NOT remove standalone '&' to preserve logic/text usage.
+ * 
+ * Used centrally by OCRService and MarkingInstructionService.
+ * 
+ * @param text - Raw OCR text
+ * @returns Cleaned text
+ */
+export function sanitizeOcrArtifacts(text: string | null | undefined): string {
+  if (!text) return '';
+  // Regex: Detect '&' followed by optional whitespace and an alignment-relevant operator
+  // Operators: =, <, >, \le, \ge, \approx
+  return text.replace(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g, '$1');
+}
+
+/**
  * Extract base question number from a question number string
  * 
  * Extracts the leading numeric part, handling:
