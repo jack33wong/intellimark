@@ -426,8 +426,7 @@
   border-left: none;
   /* Use accent bar instead */
   position: relative;
-  overflow: hidden;
-  /* Ensure box-shadow accent stays contained */
+  /* overflow: hidden; -- REMOVED to allow dropdown to show */
 }
 
 /* Accent bar for active item */
@@ -488,13 +487,20 @@
 .mark-history-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
+  /* Remove gap as they overlap */
   flex-shrink: 0;
+  position: relative;
+  /* For absolute button positioning */
+  min-width: 40px;
+  /* Ensure space for time/button */
+  justify-content: flex-end;
 }
 
 /* Chat Item Title */
 .mark-history-item-title {
-  font-size: 12px !important;
+  font-size: 13px !important;
+  /* Slightly larger readability */
   color: var(--text-primary);
   font-weight: 500;
   white-space: nowrap;
@@ -512,13 +518,15 @@
 
 /* Last Message */
 .mark-history-last-message {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.3;
   opacity: 0.8;
+  max-width: 160px;
+  /* Prevent text from pushing time/meta too far if flex fails */
 }
 
 /* Update Time */
@@ -527,11 +535,66 @@
   color: var(--text-secondary);
   opacity: 0.6;
   white-space: nowrap;
-  position: static;
-  /* Reset absolute positioning */
+  transition: opacity 0.2s ease;
 }
 
-/* Inline Favorite Star */
+/* Hide time on hover */
+.mark-history-item:hover .mark-history-time {
+  opacity: 0;
+}
+
+/* Actions Container - Positioned over Time */
+.mark-history-actions-container {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  /* Hidden by default */
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+/* Show actions on hover */
+.mark-history-item:hover .mark-history-actions-container,
+.mark-history-actions-container:hover {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Ensure button is visible when container is visible */
+.mark-history-dropdown-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  /* Larger hit area */
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  /* Inherit from container */
+  visibility: visible;
+  /* Inherit from container */
+  width: 24px;
+  height: 24px;
+}
+
+.mark-history-dropdown-btn:hover {
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
+}
+
+.mark-history-dropdown-btn:hover svg {
+  color: var(--text-primary);
+  stroke: var(--text-primary);
+}
+
 .favorite-star-inline {
   color: var(--function-warning);
   fill: var(--function-warning);
@@ -689,63 +752,7 @@
   max-width: none !important;
 }
 
-/* Actions Container */
-.mark-history-actions-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-/* Dropdown Button - Hidden by default, show on hover */
-.mark-history-dropdown-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 3px;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  visibility: hidden;
-  transform: scale(0.8);
-  width: 16px;
-  height: 16px;
-}
-
-/* Ensure ellipsis icon uses the correct color */
-.mark-history-dropdown-btn svg {
-  color: var(--text-tertiary);
-  stroke: var(--text-tertiary);
-  width: 12px;
-  height: 12px;
-}
-
-/* Show dropdown button on hover over chat history item */
-.mark-history-item:hover .mark-history-dropdown-btn {
-  opacity: 1;
-  visibility: visible;
-  transform: scale(1);
-}
-
-/* Keep dropdown button visible when dropdown is open */
-.mark-history-actions-container:hover .mark-history-dropdown-btn {
-  opacity: 1;
-  visibility: visible;
-  transform: scale(1);
-}
-
-.mark-history-dropdown-btn:hover {
-  background: var(--background-menu-gray);
-  color: var(--text-primary);
-}
-
-.mark-history-dropdown-btn:hover svg {
-  color: var(--text-primary);
-  stroke: var(--text-primary);
-}
+/* Dropdown Button styles merged above or handled by container logic */
 
 /* Dropdown Menu - Match Task Details Dropdown Style */
 .mark-history-dropdown {
