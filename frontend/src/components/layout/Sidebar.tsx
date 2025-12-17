@@ -13,7 +13,6 @@ import {
   Heart,
   FileText,
   MessageSquare,
-  MessageSquare,
   Library,
   ClipboardCheck,
 
