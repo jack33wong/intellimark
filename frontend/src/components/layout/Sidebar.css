@@ -245,43 +245,59 @@
   color: var(--text-primary);
 }
 
-/* Main Mark Homework Button */
+/* Sidebar Section Header */
+.sidebar-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 16px;
+  margin-bottom: 8px;
+  margin-top: 8px;
+  /* Adjusted in JSX for specific sections */
+  pointer-events: none;
+}
+
+/* Main Mark Homework Button - Flat Style */
 .mark-homework-main-btn {
-  background: var(--background-nav);
-  color: var(--text-primary);
+  background: transparent;
+  color: var(--text-secondary);
   border: none;
-  padding: 10px 15px;
-  border-radius: 10px;
+  padding: 10px 16px;
+  border-radius: 8px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  margin-bottom: 0;
-  box-shadow: var(--shadow-S);
-  margin: 0 10px;
+  gap: 12px;
+  margin: 2px 8px;
+  box-shadow: none;
+  width: calc(100% - 16px);
 }
 
 .mark-homework-main-btn svg {
-  color: var(--text-white);
-  background: var(--text-brand);
-  border-radius: 50%;
-  padding: 5px;
-  width: 25px;
-  height: 25px;
+  color: var(--text-secondary);
+  background: transparent;
+  padding: 0;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: color 0.2s ease;
 }
 
 .mark-homework-main-btn:hover {
-  background: var(--background-card);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-M);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
+  transform: none;
+  box-shadow: none;
+}
+
+.mark-homework-main-btn:hover svg {
+  color: var(--text-primary);
 }
 
 /* Sidebar Section */
@@ -390,7 +406,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: calc(100% - 16px);
+  width: auto;
+  /* Allow full width minus margins */
+  margin: 4px 12px;
+  position: relative;
+  /* For absolute time */
 }
 
 .mark-history-item:hover {
@@ -398,10 +418,45 @@
   color: var(--text-brand);
 }
 
+/* Active Item Styling - Purple Theme */
 .mark-history-item.active {
-  background: var(--fill-gray);
+  background: rgba(124, 58, 237, 0.15);
+  /* Purple tint */
+  color: var(--text-primary);
+  border-left: none;
+  /* Use accent bar instead */
+  position: relative;
+  overflow: hidden;
+  /* Ensure box-shadow accent stays contained */
+}
+
+/* Accent bar for active item */
+.mark-history-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--text-brand);
+  /* Purple brand color */
+  border-radius: 4px 0 0 4px;
+}
+
+.mark-history-item.active .mark-history-item-title {
+  color: var(--text-white);
+  font-weight: 600;
+}
+
+.mark-history-item.active .mark-history-last-message {
+  color: rgba(255, 255, 255, 0.7);
+  /* Lighter purple/white for status */
+}
+
+.mark-history-item.active .mark-history-time {
   color: var(--text-brand);
-  border-left: 3px solid var(--text-brand);
+  /* Purple time for active item */
+  opacity: 1;
 }
 
 
@@ -474,12 +529,15 @@
   padding-top: 2px;
 }
 
-/* Update Time */
+/* Update Time - Absolute Positioning */
 .mark-history-time {
-  font-size: 10px;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
-  text-align: center;
-  opacity: 0.5;
+  text-align: right;
+  opacity: 0.6;
   white-space: nowrap;
 }
 

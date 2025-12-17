@@ -13,7 +13,9 @@ import {
   Heart,
   FileText,
   MessageSquare,
+  MessageSquare,
   Library,
+  ClipboardCheck,
 
   BarChart3,
   Lock
@@ -308,36 +310,45 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
         </div>
-        <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
-          <BookOpen size={20} />
-          <span>Mark Homework</span>
-        </button>
-        <button
-          className="mark-homework-main-btn"
-          onClick={() => navigate('/library')}
-          style={{ marginTop: '8px' }}
-        >
-          <Library size={20} />
-          <span>Library</span>
-        </button>
-        <button
-          className={`mark-homework-main-btn ${!canAccessAnalysis ? 'disabled-feature' : ''}`}
-          onClick={() => {
-            if (canAccessAnalysis) {
-              navigate('/analysis');
-            } else {
-              if (window.confirm('Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade?')) {
-                navigate('/upgrade');
+        <div className="sidebar-menu-group">
+          <div className="sidebar-section-header">MAIN</div>
+          <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
+            <ClipboardCheck size={20} />
+            <span>Mark Homework</span>
+          </button>
+          <button
+            className="mark-homework-main-btn"
+            onClick={() => navigate('/library')}
+            style={{ marginTop: '8px' }}
+          >
+            <Library size={20} />
+            <span>Library</span>
+          </button>
+          <button
+            className={`mark-homework-main-btn ${!canAccessAnalysis ? 'disabled-feature' : ''}`}
+            onClick={() => {
+              if (canAccessAnalysis) {
+                navigate('/analysis');
+              } else {
+                if (window.confirm('Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade?')) {
+                  navigate('/upgrade');
+                }
               }
-            }
-          }}
-          style={{ marginTop: '8px', opacity: canAccessAnalysis ? 1 : 0.6 }}
-          title={!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis"}
-        >
-          {canAccessAnalysis ? <BarChart3 size={20} /> : <Lock size={20} />}
-          <span>Analysis</span>
-        </button>
+            }}
+            style={{ marginTop: '8px', opacity: canAccessAnalysis ? 1 : 0.6 }}
+            title={!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis"}
+          >
+            {canAccessAnalysis ? <BarChart3 size={20} /> : <Lock size={20} />}
+            <span>Analysis</span>
+          </button>
+        </div>
         <div className="sidebar-section">
+          <div className="sidebar-section-header" style={{ paddingLeft: '20px', marginTop: '16px', marginBottom: '8px' }}>RECENT PAPERS</div>
+          {/* <div className="mark-history-tabs"> */}
+          {/* Tabs hidden or restyled if desired, sticking to image header for now. keeping tabs for functionality but maybe hide via CSS if purely following image? 
+                Image doesn't show tabs. I will keep them but maybe simplify or make them subtle. 
+                For now just adding the header above. */}
+          {/* </div> */}
           <div className="mark-history-tabs">
             <button className={`mark-history-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All</button>
             <button className={`mark-history-tab ${activeTab === 'mark' ? 'active' : ''}`} onClick={() => setActiveTab('mark')}>Mark</button>
@@ -394,7 +405,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
         </div>
-      </div>
+      </div >
       {isAdmin() && (
         <div className="admin-section">
           <div className="admin-link" onClick={() => navigate('/admin')}>
@@ -403,7 +414,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </div >
   );
 };
 
