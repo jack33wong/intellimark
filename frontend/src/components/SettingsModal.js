@@ -94,8 +94,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
                   <User size={40} />
                 )}
               </div>
-              <button 
-                className="settings-logout-icon" 
+              <button
+                className="settings-logout-icon"
                 onClick={handleLogout}
                 title="Logout"
               >
@@ -191,24 +191,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
             )}
           </div>
 
-          {/* Account Status Section */}
-          <div className="settings-section">
-            <div className="settings-section-header">
-              <h3>Account Status</h3>
-            </div>
-            <div className="settings-status-items">
-              <div className="settings-status-item">
-                <span>Account Status</span>
-                <span className="settings-status-badge active">Active</span>
-              </div>
-              <div className="settings-status-item">
-                <span>Email Verified</span>
-                <span className={`settings-status-badge ${user?.emailVerified ? 'active' : 'warning'}`}>
-                  {user?.emailVerified ? 'Verified' : 'Pending'}
-                </span>
-              </div>
-            </div>
-          </div>
+
 
         </div>
       </div>

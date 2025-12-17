@@ -36,6 +36,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [refreshKey, setRefreshKey] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [avatarError, setAvatarError] = useState(false);
   const profileRef = useRef(null);
   const subscriptionRef = useRef(null);
 
@@ -154,6 +155,11 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     } else if (subscriptionSuccess === 'success') {
     }
   }, [user?.uid]);
+
+  // Reset avatar error when user changes
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.photoURL]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -415,9 +421,14 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                   onClick={handleProfileClick}
                   aria-label="Profile menu"
                 >
+
                   <div className="profile-avatar">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="Profile" />
+                    {user.photoURL && !avatarError ? (
+                      <img
+                        src={user.photoURL}
+                        alt="Profile"
+                        onError={() => setAvatarError(true)}
+                      />
                     ) : (
                       <User size={20} />
                     )}
@@ -433,8 +444,12 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                   <div className={`profile-dropdown ${isProfileClosing ? 'closing' : ''}`}>
                     <div className="profile-info">
                       <div className="profile-avatar large">
-                        {user.photoURL ? (
-                          <img src={user.photoURL} alt="Profile" />
+                        {user.photoURL && !avatarError ? (
+                          <img
+                            src={user.photoURL}
+                            alt="Profile"
+                            onError={() => setAvatarError(true)}
+                          />
                         ) : (
                           <User size={24} />
                         )}
