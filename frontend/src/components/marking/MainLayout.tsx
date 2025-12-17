@@ -280,13 +280,13 @@ const MainLayout: React.FC = () => {
     // Prevent duplicate ribbon in Split Mode
     if (isChatMode && splitModeImages) return null;
 
-    if (isChatMode) {
-      // 1. Must be scrolled past header to avoid overlap
-      if (!showRibbonOnScroll) return null;
+    // Unified Visibility Rules
 
-      // 2. Table must be hidden (scrolled away)
-      if (isQuestionTableVisible) return null;
-    }
+    // 1. Must be scrolled past header (prevents overlap)
+    if (!showRibbonOnScroll) return null;
+
+    // 2. Table must be hidden (scrolled away)
+    if (isQuestionTableVisible) return null;
 
     const ribbonContent = (
       <QuestionNavigator
@@ -330,23 +330,14 @@ const MainLayout: React.FC = () => {
       />
     );
 
-    // Styling Wrapper based on Mode
-    if (isChatMode) {
-      return (
-        <div className="question-navigator-ribbon-wrapper">
-          <div className="question-navigator-ribbon-container">
-            {ribbonContent}
-          </div>
-        </div>
-      );
-    } else {
-      // Split Mode Wrapper (Simple full width of pane)
-      return (
-        <div style={{ flexShrink: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)' }}>
+    // Unified Styling Wrapper
+    return (
+      <div className="question-navigator-ribbon-wrapper">
+        <div className="question-navigator-ribbon-container">
           {ribbonContent}
         </div>
-      );
-    }
+      </div>
+    );
   };
 
   // Use simple relative positioning for standard layout
