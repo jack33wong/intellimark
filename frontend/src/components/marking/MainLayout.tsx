@@ -65,6 +65,34 @@ const MainLayout: React.FC = () => {
     }
   }, [currentSession?.id]);
 
+  // State to track if we've scrolled past the header to prevent ribbon overlap
+  const [showRibbonOnScroll, setShowRibbonOnScroll] = React.useState(false);
+
+  // Scroll Listener for Ribbon Visibility
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Toggle ribbon eligibility based on scroll past header (e.g. 60px)
+      // This prevents the ribbon from covering the session title at the very top
+      const isPastHeader = container.scrollTop > 60;
+      // Use functional update to avoid `showRibbonOnScroll` in dependency array
+      setShowRibbonOnScroll(prev => {
+        if (isPastHeader !== prev) {
+          return isPastHeader;
+        }
+        return prev;
+      });
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    // Initial check
+    handleScroll();
+
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [chatContainerRef.current]); // Only re-run if chatContainerRef.current changes
+
   // Common Chat Content Render Function to reuse in both modes
   const renderChatContent = () => {
     const displayedMessages = chatMessages || [];
@@ -204,7 +232,7 @@ const MainLayout: React.FC = () => {
       // ChatMessage handleSmartNavigation does: getSessionImages(session).
       // ChatMessage handleMultiImageClick does: map(imageDataArray).
       // If we execute handleMultiImageClick (Grid), we get only 1-2 images.
-      // If we enrich them, we assume index 0 is Page 0? No.
+      // If I enrich them, we assume index 0 is Page 0? No.
 
       // If we want badges, we probably want FULL session mode even from Grid click?
       // User said "click on 9 image thumbnail grid... enter split mode".
@@ -237,19 +265,17 @@ const MainLayout: React.FC = () => {
 
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
-    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) {
-      return null;
-    }
+    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
 
     // Prevent duplicate ribbon in Split Mode
-    // Split mode has its own dedicated ribbon, so suppress the specific "Chat Mode" one
-    if (isChatMode && splitModeImages) {
-      return null;
-    }
+    if (isChatMode && splitModeImages) return null;
 
-    // In Chat Mode, only show if table is hidden
-    if (isChatMode && isQuestionTableVisible) {
-      return null;
+    if (isChatMode) {
+      // 1. Must be scrolled past header to avoid overlap
+      if (!showRibbonOnScroll) return null;
+
+      // 2. Table must be hidden (scrolled away)
+      if (isQuestionTableVisible) return null;
     }
 
     const ribbonContent = (
@@ -263,16 +289,11 @@ const MainLayout: React.FC = () => {
           setActiveQuestionId(qNum);
 
           // If valid images are found, ALWAYS enforce split mode update.
-          // This ensures that even if the user is already in split mode (potentially with stale/broken data),
-          // Get reliable session images (same logic as Table Mode)
           const sessionImages = currentSession ? getSessionImages(currentSession) : [];
 
-          // Use a robust check: if we have images, we should be in split mode or verify split mode
           if (sessionImages.length > 0) {
-            // Always update/enter split mode with enriched images
             enterSplitModeEnriched(sessionImages, imgIdx);
           } else {
-            // Fallback for no images
             if (isChatMode) console.warn('[MainLayout] No session images found for split mode');
             setActiveImageIndex(imgIdx);
           }
@@ -302,8 +323,8 @@ const MainLayout: React.FC = () => {
     // Styling Wrapper based on Mode
     if (isChatMode) {
       return (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)', width: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
-          <div style={{ maxWidth: '1000px', width: '85vw', margin: '0 auto', paddingLeft: '48px', paddingRight: '48px' }}>
+        <div className="question-navigator-ribbon-wrapper">
+          <div className="question-navigator-ribbon-container">
             {ribbonContent}
           </div>
         </div>
