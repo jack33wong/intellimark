@@ -7,131 +7,98 @@
     border-radius: 4px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 14px;
-    line-height: 1.0;
+    line-height: 1.5;
     color: #2c3e50;
     overflow-x: auto;
-    /* Enable horizontal scroll for entire section */
 }
 
-/* Header: YOUR WORK: */
+/* Header */
 .your-work-header {
     font-weight: bold;
     font-size: 15px;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
     color: var(--function-success);
 }
 
-/* Question number */
-.your-work-question {
+/* Grid Layout */
+.your-work-grid-container {
+    display: grid;
+    /* Columns: QNum, SubLabel, Student Work, Annotation */
+    /* Use fixed width for label columns to ensure alignment? No, grid auto aligns them. */
+    /* Work column: fits content but wraps if too long. Annotation: takes remainder */
+    grid-template-columns: min-content min-content min-content 1fr;
+    column-gap: 16px;
+    row-gap: 8px;
+    align-items: baseline;
+}
+
+/* 1. Question Number (e.g. 2) */
+.yw-col-qnum {
     font-weight: 600;
-    margin-top: 4px;
-    margin-bottom: 6px;
     color: #2c3e50;
+    text-align: right;
+    /* Usually right aligned if multi-digit? Or Left? User example left. */
+    text-align: left;
+    min-width: 1ch;
 }
 
-/* Parent label (e.g., "a)") */
-.your-work-parent {
-    font-weight: 600;
-    margin-top: 6px;
-    margin-bottom: 4px;
-    padding-left: 20px;
-    color: #333;
-}
-
-/* Group container */
-.your-work-group {
-    margin-bottom: 8px;
-}
-
-/* Sub-question line container */
-.your-work-subquestion {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 4px;
-    padding-left: 40px;
-    white-space: nowrap;
-}
-
-.subquestion-label {
-    flex-shrink: 0;
-    min-width: 40px;
+/* 2. Sub-Question Label (e.g. a i)) */
+.yw-col-sublabel {
     font-weight: 600;
     color: #555;
-}
-
-.subquestion-content {
-    flex: 1;
-    color: #2c3e50;
     white-space: nowrap;
-    overflow: visible;
+    /* Ensure indentation if empty QNum? Grid cells are distinct. */
+    min-width: 40px;
 }
 
-/* Alignment for children without separate roman label (e.g. b) items) */
-.subquestion-content-no-label {
-    margin-left: 0;
+/* 3. Student Work */
+.yw-col-work {
+    color: #333;
+    font-style: italic;
+    white-space: nowrap;
+    /* Prefer single line if possible */
+    /* If content is long, wrap it? */
+    /* User request: "same line" implies horizontal flow. */
+    /* But if too long, wrap. */
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-width: 120px;
 }
 
-/* Ungrouped items with bullets */
-.your-work-bullet-item {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 4px;
-    padding-left: 20px;
-    /* Indent like a sub-question */
-}
-
-.bullet-point {
-    flex-shrink: 0;
-    min-width: 1px;
-    text-align: center;
+/* 4. Annotation */
+.yw-col-annotation {
     color: var(--text-tertiary);
-    font-weight: bold;
-}
-
-.bullet-content {
-    flex: 1;
-    color: #2c3e50;
-    white-space: nowrap;
-    overflow: visible;
-}
-
-/* Formatted Content Row */
-.your-work-formatted-row {
+    word-break: break-word;
+    /* Flex to stack multiple marks/reasons if needed */
     display: flex;
-    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.your-work-student-col {
-    flex: 0 0 280px;
-    min-width: 0;
-    padding-right: 20px;
-}
-
-.your-work-annotation-col {
-    flex: 1;
-    color: #666;
-}
-
-/* Indentation levels for fallback */
-.your-work-indent-0 {
-    padding-left: 0;
-}
-
-.your-work-indent-1 {
-    padding-left: 20px;
-}
-
-.your-work-indent-2 {
-    padding-left: 40px;
-}
-
-.your-work-indent-3 {
-    padding-left: 60px;
-}
-
-/* Base line styles (fallback) */
-.your-work-line {
-    font-family: monospace;
+.yw-marks {
+    color: var(--text-brand);
+    font-weight: bold;
     white-space: nowrap;
-    margin-bottom: 0.25rem;
+}
+
+.yw-reason {
+    color: #555;
+    /* Reason text */
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .your-work-grid-container {
+        /* On small screens, maybe stack work and annotation? */
+        /* Or allow scroll */
+        display: block;
+        /* Fallback to block stacking if grid breaks? */
+        /* Actually horizontal scroll (overflow-x on parent) handles grid well */
+    }
+
+    /* But for better readability: */
+    /* Maybe just reduce gaps */
+    .your-work-grid-container {
+        column-gap: 8px;
+    }
 }
