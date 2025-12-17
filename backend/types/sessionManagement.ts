@@ -32,6 +32,7 @@ export interface MarkingSessionContext extends SessionContext {
     llmCost: number;
     mathpixCost: number;
   };
+  overallPerformanceSummary?: string;            // AI-generated performance summary
 }
 
 export interface QuestionSessionContext extends SessionContext {

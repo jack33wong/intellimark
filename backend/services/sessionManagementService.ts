@@ -805,7 +805,22 @@ export class SessionManagementService {
     }
 
     // Create AI message content - include question-only responses if available
+    // Extract overall performance summary from question results
+    console.log(`🔍 [OVERALL SUMMARY DEBUG] Extracting from ${aiData.allQuestionResults.length} question results...`);
+    const overallPerformanceSummary = aiData.allQuestionResults
+      .find(qr => qr.overallPerformanceSummary)?.overallPerformanceSummary;
+
+    console.log(`   - Found summary: ${!!overallPerformanceSummary}`);
+    if (overallPerformanceSummary) {
+      console.log(`   - Using AI summary: "${overallPerformanceSummary.substring(0, 100)}..."`);
+    } else {
+      console.log(`   - Using fallback: "Marking completed - see results below"`);
+    }
+
+
+    // Use fallback text for content field (not the AI summary)
     let aiContent = 'Marking completed - see results below';
+
     if (questionOnlyResponses && questionOnlyResponses.length > 0) {
       aiContent += '\n\n' + questionOnlyResponses.join('\n\n');
     }
@@ -826,6 +841,11 @@ export class SessionManagementService {
       detectedQuestion: detectedQuestion,
       markingContext: markingContext // FIXED: Pass markingContext to message creation
     });
+
+    // Add AI performance summary as separate field
+    if (overallPerformanceSummary) {
+      (dbAiMessage as any).performanceSummary = overallPerformanceSummary;
+    }
 
     // Add questionOnlyResponses if provided (for mixed content)
     if (questionOnlyResponses && questionOnlyResponses.length > 0) {

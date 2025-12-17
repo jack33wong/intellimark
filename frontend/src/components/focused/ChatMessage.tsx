@@ -535,6 +535,28 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
 
+          {/* Question Navigator - Positioned BEFORE message content */}
+          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && message.detectedQuestion && message.detectedQuestion.found && (
+            <div className="navigator-top" ref={setTableObserverRef}>
+              <QuestionNavigator
+                detectedQuestion={message.detectedQuestion}
+                markingContext={(message as any).markingContext}
+                studentScore={message.studentScore}
+                mode="table"
+                idPrefix={`table-${message.id}`}
+                onNavigate={handleSmartNavigation}
+                activeQuestionId={activeQuestionId}
+              />
+            </div>
+          )}
+
+          {/* AI Performance Summary - Rendered separately before content */}
+          {!isUser && (message as any).performanceSummary && (
+            <div className="ai-performance-summary">
+              {(message as any).performanceSummary}
+            </div>
+          )}
+
           {!isUser && content && ensureStringContent(content).trim() !== '' && (() => {
             // Preprocess content to:
             // 1. Remove sub-question parts from headers (e.g., "Question 8(a, b, c)" → "Question 8")
@@ -636,33 +658,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             );
           })()}
 
-          {/* Display multi-image annotated results + Navigator side-by-sides */}
-          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && (() => {
-            return (
-              <div className="gallery-navigator-container" style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-                <div className="gallery-side" style={{ flex: '1', minWidth: '0' }}>
-                  <SimpleImageGallery
-                    images={(message as any).imageDataArray}
-                    onImageClick={handleMultiImageClick}
-                    className="multi-image-gallery"
-                  />
-                </div>
-                {message.detectedQuestion && message.detectedQuestion.found && (
-                  <div className="navigator-side" ref={setTableObserverRef}>
-                    <QuestionNavigator
-                      detectedQuestion={message.detectedQuestion}
-                      markingContext={(message as any).markingContext}
-                      studentScore={message.studentScore}
-                      mode="table"
-                      idPrefix={`table-${message.id}`}
-                      onNavigate={handleSmartNavigation}
-                      activeQuestionId={activeQuestionId}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* Display multi-image annotated results */}
+          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && (
+            <div className="gallery-side" style={{ minWidth: '0' }}>
+              <SimpleImageGallery
+                images={(message as any).imageDataArray}
+                onImageClick={handleMultiImageClick}
+                className="multi-image-gallery"
+              />
+            </div>
+          )}
 
 
           {/* Display single annotated image if only 1 image - BEFORE suggested follow-ups */}

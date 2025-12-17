@@ -410,3 +410,48 @@
   font-size: 14px;
   margin-left: 12px;
 }
+
+/* AI Performance Summary Styling */
+.ai-performance-summary {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+  border-left: 4px solid #6366f1;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
+  transition: all 0.3s ease;
+}
+
+.ai-performance-summary:hover {
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  transform: translateY(-1px);
+}
+
+/* Icon or badge for AI summary */
+.ai-performance-summary::before {
+  content: "✨ AI Performance Summary";
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  opacity: 0.9;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .ai-performance-summary {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  }
+
+  .ai-performance-summary:hover {
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  }
+}

@@ -282,7 +282,13 @@ export class MarkingInstructionService {
   /**
    * Execute complete marking flow - moved from LLMOrchestrator
    */
-  static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
+  static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & {
+    usage?: { llmTokens: number };
+    cleanedOcrText?: string;
+    markingScheme?: any;
+    schemeTextForPrompt?: string;
+    overallPerformanceSummary?: string;
+  }> {
     const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker } = inputs;
 
     // Debug log removed
@@ -512,11 +518,21 @@ export class MarkingInstructionService {
         return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
       });
 
-      const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = {
+      const result: MarkingInstructions & {
+        usage?: { llmTokens: number };
+        cleanedOcrText?: string;
+        studentScore?: any;
+        markingScheme?: any;
+        schemeTextForPrompt?: string;
+        overallPerformanceSummary?: string;
+      } = {
         annotations: stackedAnnotations, // ✅ Return stacked annotations
         usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
         cleanedOcrText: cleanedOcrText,
-        studentScore: annotationData.studentScore
+        studentScore: annotationData.studentScore,
+        markingScheme: annotationData.markingScheme, // Pass through marking scheme
+        schemeTextForPrompt: annotationData.schemeTextForPrompt, // Pass through scheme text
+        overallPerformanceSummary: annotationData.overallPerformanceSummary // Pass through AI summary
       };
 
       return result;
@@ -1380,9 +1396,16 @@ export class MarkingInstructionService {
       }
 
       // Return the correct MarkingInstructions structure
+      console.log(`🔍 [OVERALL SUMMARY DEBUG] Checking AI response for overallPerformanceSummary...`);
+      console.log(`   - Has overallPerformanceSummary: ${!!parsedResponse.overallPerformanceSummary}`);
+      if (parsedResponse.overallPerformanceSummary) {
+        console.log(`   - Summary content: "${parsedResponse.overallPerformanceSummary.substring(0, 100)}..."`);
+      }
+
       return {
         annotations: parsedResponse.annotations,
         studentScore: parsedResponse.studentScore,
+        overallPerformanceSummary: parsedResponse.overallPerformanceSummary || null, // Extract AI-generated summary
         usage: {
           llmTokens: usageTokens
         },

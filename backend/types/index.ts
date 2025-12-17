@@ -149,6 +149,7 @@ export interface MarkingInstructions {
     awardedMarks: number;
     scoreText: string;
   };
+  overallPerformanceSummary?: string; // AI-generated performance summary
 }
 
 export interface ImageClassification {
@@ -288,6 +289,9 @@ export interface UnifiedMessage {
 
   // Context for follow-up chat (Stored Once principle)
   markingContext?: MarkingContext;
+
+  // AI-generated performance summary (for marking messages)
+  performanceSummary?: string;
 
   // Firestore metadata
   createdAt?: string;
