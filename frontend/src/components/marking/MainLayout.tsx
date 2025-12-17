@@ -46,6 +46,7 @@ const MainLayout: React.FC = () => {
     activeQuestionId,
     setActiveQuestionId,
     isQuestionTableVisible,
+    visibleTableIds,
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -243,6 +244,18 @@ const MainLayout: React.FC = () => {
     if (isChatMode && splitModeImages) return null;
 
     // In Chat Mode, only show if table is hidden
+
+    if (isChatMode) {
+      console.log('[DEBUG RIBBON] Rendering Check:', {
+        isChatMode,
+        isQuestionTableVisible,
+        hasActiveDetectedQuestion: !!activeDetectedQuestion,
+        found: activeDetectedQuestion?.found,
+        visibleTableIdsSize: (visibleTableIds as any)?.size,
+        ids: Array.from((visibleTableIds as any) || [])
+      });
+    }
+
     if (isChatMode && isQuestionTableVisible) return null;
 
     const ribbonContent = (

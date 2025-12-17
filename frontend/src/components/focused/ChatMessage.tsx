@@ -73,6 +73,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
+            console.log('[DEBUG OBSERVER] Table Visibility Change:', { id: message.id, isVisible: entry.isIntersecting });
             setQuestionTableVisibility(message.id, entry.isIntersecting);
           });
         },

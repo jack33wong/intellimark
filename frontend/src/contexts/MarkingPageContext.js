@@ -470,7 +470,8 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
-    activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility
+    activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
+    visibleTableIds: state.visibleTableIds // Explicitly exposed for debugging
   ]);
 
   return (
