@@ -453,20 +453,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     </div>
 
                     <div className="profile-actions">
-                      {user.isAdmin && (
-                        <button
-                          className="profile-action"
-                          onClick={() => {
-                            navigate('/admin');
-                            handleProfileClose();
-                          }}
-                        >
-                          <LayoutDashboard size={16} />
-                          Admin
-                        </button>
-                      )}
-
-
                       <button
                         className="profile-action"
                         onClick={() => {
@@ -475,7 +461,9 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                         }}
                       >
                         <Crown size={16} />
-                        Upgrade Plan
+                        {userSubscription && userSubscription.status === 'active'
+                          ? `${SubscriptionService.getPlanDisplayName(userSubscription.planId)} - Manage`
+                          : 'Free - Upgrade'}
                       </button>
 
                       <button
