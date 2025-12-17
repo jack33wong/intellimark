@@ -13,10 +13,18 @@ export interface UseSubscriptionResult {
     checkPermission: (feature: 'analysis' | 'model_selection') => boolean;
 }
 
+// Global cache to prevent flickering on remounts
+const globalCache = {
+    subscription: null as UserSubscription | null,
+    loaded: false,
+    timestamp: 0
+};
+
 export const useSubscription = (): UseSubscriptionResult => {
     const { user } = useAuth();
-    const [subscription, setSubscription] = useState<UserSubscription | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Initialize with cached data if available (prevents flickering)
+    const [subscription, setSubscription] = useState<UserSubscription | null>(globalCache.subscription);
+    const [loading, setLoading] = useState(!globalCache.loaded);
     const [error, setError] = useState<string | null>(null);
 
     const fetchSubscription = async () => {
@@ -31,8 +39,14 @@ export const useSubscription = (): UseSubscriptionResult => {
             const response = await SubscriptionService.getUserSubscription(user.uid);
             if (response.hasSubscription && response.subscription) {
                 setSubscription(response.subscription);
+                // Update cache
+                globalCache.subscription = response.subscription;
+                globalCache.loaded = true;
+                globalCache.timestamp = Date.now();
             } else {
                 setSubscription(null);
+                globalCache.subscription = null;
+                globalCache.loaded = true;
             }
             setError(null);
         } catch (err: any) {
@@ -55,6 +69,15 @@ export const useSubscription = (): UseSubscriptionResult => {
         return () => {
             cleanup();
         };
+
+    }, [user?.uid]);
+
+    // Invalidate cache on logout
+    useEffect(() => {
+        if (!user?.uid) {
+            globalCache.subscription = null;
+            globalCache.loaded = false;
+        }
     }, [user?.uid]);
 
     const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'enterprise';
