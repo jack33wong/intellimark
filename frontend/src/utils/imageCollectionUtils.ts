@@ -44,20 +44,13 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
 
   // For marking sessions OR mixed sessions (which can contain marking content), ONLY include annotated images (final output)
   // Find the marking_annotated message which contains the final results
-  if (session.messageType === 'Marking' || session.messageType === 'Mixed') {
+  // Robust filtering: If ANY message is 'marking_annotated', we assume this is a marking session
+  // and we ONLY want to show the annotated results, not the original user uploads.
+  const annotatedMessage = session.messages.find(
+    m => m.type === 'marking_annotated' && hasImage(m)
+  );
 
-
-    // Find marking_annotated message (backend now correctly sets this type)
-    const annotatedMessage = session.messages.find(
-      m => m.type === 'marking_annotated' && hasImage(m)
-    );
-
-
-    if (!annotatedMessage) {
-      console.warn('[getSessionImages] No marking_annotated message found for marking session!');
-      return images; // Return empty if no annotated message found
-    }
-
+  if (annotatedMessage) {
     // Store in const so TypeScript knows it's defined in callbacks
     const message = annotatedMessage;
 

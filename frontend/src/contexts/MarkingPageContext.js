@@ -463,6 +463,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId,
     isQuestionTableVisible, setQuestionTableVisibility,
+    visibleTableIds: state.visibleTableIds,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
@@ -471,7 +472,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
-    visibleTableIds: state.visibleTableIds // Explicitly exposed for debugging
+    state.visibleTableIds
   ]);
 
   return (
