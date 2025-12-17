@@ -56,23 +56,19 @@
     color: #333;
     font-style: italic;
     white-space: nowrap;
-    /* Prefer single line if possible */
-    /* If content is long, wrap it? */
-    /* User request: "same line" implies horizontal flow. */
-    /* But if too long, wrap. */
-    white-space: pre-wrap;
-    word-break: break-word;
+    /* Enforce single line */
     min-width: 120px;
 }
 
 /* 4. Annotation */
 .yw-col-annotation {
     color: var(--text-tertiary);
-    word-break: break-word;
-    /* Flex to stack multiple marks/reasons if needed */
+    /* Enforce single line flow */
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    /* No wrap */
     gap: 8px;
+    white-space: nowrap;
 }
 
 .yw-marks {
@@ -83,7 +79,16 @@
 
 .yw-reason {
     color: #555;
-    /* Reason text */
+    white-space: nowrap;
+}
+
+/* Bullet styling for implicit items */
+.yw-bullet {
+    color: var(--text-tertiary);
+    font-weight: bold;
+    text-align: center;
+    width: 100%;
+    display: inline-block;
 }
 
 /* Mobile Responsive */

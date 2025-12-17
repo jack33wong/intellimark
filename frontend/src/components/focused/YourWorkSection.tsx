@@ -193,7 +193,9 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                 {rows.map((row, i) => (
                     <React.Fragment key={i}>
                         <div className="yw-col-qnum">{row.qNum}</div>
-                        <div className="yw-col-sublabel">{row.subLabel}</div>
+                        <div className="yw-col-sublabel">
+                            {row.subLabel ? row.subLabel : <span className="yw-bullet">•</span>}
+                        </div>
                         <div className="yw-col-work" dangerouslySetInnerHTML={{ __html: row.studentWork || '&nbsp;' }} />
                         <div className="yw-col-annotation">
                             {row.annotationMarks && <span className="yw-marks">{row.annotationMarks}</span>}
