@@ -231,11 +231,82 @@ const SessionHeader: React.FC = () => {
 
   const displaySession = currentSession;
 
+  // Helper to render the formatted title with colored parts
+  const renderFormattedTitle = () => {
+    if (displaySession?.id?.startsWith('temp-')) {
+      return 'Processing...';
+    }
+
+    const detectedQuestion = getDetectedQuestion();
+
+    // Get score and grade from messages
+    const messageWithScore = currentSession?.messages?.find((m: any) => m.studentScore);
+    const studentScore = messageWithScore?.studentScore;
+    const gradeMessage = currentSession?.messages?.find((m: any) => m.grade);
+    const gradeValue = gradeMessage?.grade || grade;
+
+    if (detectedQuestion && detectedQuestion.found) {
+      let examBoard, subject, examCode, examSeries, tier;
+
+      if (detectedQuestion.examPapers && Array.isArray(detectedQuestion.examPapers) && detectedQuestion.examPapers.length > 0) {
+        const firstExamPaper = detectedQuestion.examPapers[0];
+        examBoard = firstExamPaper.examBoard;
+        subject = firstExamPaper.subject;
+        examCode = firstExamPaper.examCode;
+        examSeries = firstExamPaper.examSeries || firstExamPaper.year;
+        tier = firstExamPaper.tier;
+      } else {
+        examBoard = detectedQuestion.examBoard;
+        subject = detectedQuestion.subject;
+        examCode = detectedQuestion.examCode;
+        examSeries = detectedQuestion.examSeries || detectedQuestion.year;
+        tier = detectedQuestion.tier;
+      }
+
+      const mainTitle = (examBoard && subject && examCode)
+        ? `${examBoard} ${subject} ${examCode}`
+        : sessionTitle;
+
+      const subtitleParts = [];
+      if (examSeries) subtitleParts.push(examSeries);
+      if (tier) subtitleParts.push(tier);
+
+      if (subtitleParts.length > 0) {
+        return (
+          <>
+            <span className="title-main">{mainTitle}</span>
+            <span className="title-separator"> • </span>
+            <span className="title-secondary">{subtitleParts.join(' • ')}</span>
+
+            {/* Score and Grade badges inline with title */}
+            {studentScore && studentScore.scoreText && (
+              <>
+                <span className="title-separator"> • </span>
+                <span className="title-badge-label">Score:</span>
+                <span className="title-badge score-badge">{studentScore.scoreText}</span>
+              </>
+            )}
+            {gradeValue && (
+              <>
+                <span className="title-separator"> • </span>
+                <span className="title-badge-label">Grade:</span>
+                <span className="title-badge grade-badge">{gradeValue}</span>
+              </>
+            )}
+          </>
+        );
+      }
+
+      return mainTitle;
+    }
+    return sessionTitle;
+  };
+
   return (
     <div className="session-header">
       <div className="session-title-section">
         <h1 className="session-title">
-          {displaySession?.id?.startsWith('temp-') ? 'Processing...' : sessionTitle}
+          {renderFormattedTitle()}
         </h1>
       </div>
 

@@ -280,13 +280,7 @@ const MainLayout: React.FC = () => {
     // Prevent duplicate ribbon in Split Mode
     if (isChatMode && splitModeImages) return null;
 
-    // Unified Visibility Rules
-
-    // 1. Must be scrolled past header (prevents overlap)
-    if (!showRibbonOnScroll) return null;
-
-    // 2. Table must be hidden (scrolled away)
-    if (isQuestionTableVisible) return null;
+    // Always show ribbon navigator (removed scroll and table visibility conditions)
 
     const ribbonContent = (
       <QuestionNavigator

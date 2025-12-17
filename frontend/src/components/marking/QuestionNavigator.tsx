@@ -103,72 +103,69 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
     if (mode === 'ribbon') {
         return (
             <div className="question-navigator-ribbon">
-                <button
-                    className="nav-arrow left"
-                    aria-label="Previous"
-                    onClick={() => handleScroll('left')}
-                >
-                    <ChevronLeft size={16} />
-                </button>
-                <div className="ribbon-scroll-container" ref={scrollContainerRef}>
-                    {groupedQuestions.map((q, idx) => {
-                        const color = getGroupColor(q);
-                        return (
-                            <button
-                                key={`${q.questionNumber}-${idx}`}
-                                id={`${idPrefix}-item-${q.questionNumber}`}
-                                className={`ribbon-item ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''} score-${color}-bg`}
-                                onClick={() => handleQuestionClick(q)}
-                            >
-                                <span className="q-label">Q{q.questionNumber}</span>
-                                <span className={`score-text ${color}`}>
-                                    {q.hasResults ? `${q.awardedMarks}/${q.totalMarks}` : `${q.totalMarks}`}
-                                </span>
-                            </button>
-                        );
-                    })}
+                <div className="ribbon-label">Question Breakdown</div>
+                <div className="ribbon-nav-row">
+                    <button
+                        className="nav-arrow left"
+                        aria-label="Previous"
+                        onClick={() => handleScroll('left')}
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    <div className="ribbon-scroll-container" ref={scrollContainerRef}>
+                        {groupedQuestions.map((q, idx) => {
+                            const color = getGroupColor(q);
+                            return (
+                                <button
+                                    key={`${q.questionNumber}-${idx}`}
+                                    id={`${idPrefix}-item-${q.questionNumber}`}
+                                    className={`ribbon-item ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''} score-${color}-bg`}
+                                    onClick={() => handleQuestionClick(q)}
+                                >
+                                    <span className="q-label">Q{q.questionNumber}</span>
+                                    <span className={`score-text ${color}`}>
+                                        {q.hasResults ? `${q.awardedMarks}/${q.totalMarks}` : `${q.totalMarks}`}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <button
+                        className="nav-arrow right"
+                        aria-label="Next"
+                        onClick={() => handleScroll('right')}
+                    >
+                        <ChevronRight size={16} />
+                    </button>
                 </div>
-                <button
-                    className="nav-arrow right"
-                    aria-label="Next"
-                    onClick={() => handleScroll('right')}
-                >
-                    <ChevronRight size={16} />
-                </button>
             </div>
         );
     }
 
-    // Table Mode
+    // Table Mode - Now rendered as horizontal ribbon
     return (
-        <div className="question-navigator-table-wrapper">
-            <div className="question-navigator-table-container">
-                <table className="question-navigator-table">
-                    <tbody>
-                        {groupedQuestions.map((q, idx) => {
-                            const scoreText = q.hasResults
-                                ? `${q.awardedMarks} / ${q.totalMarks}`
-                                : `- / ${q.totalMarks || '-'}`;
-                            const color = getGroupColor(q);
+        <div className="question-navigator-table-horizontal">
+            <div className="table-ribbon-scroll-container">
+                {groupedQuestions.map((q, idx) => {
+                    const color = getGroupColor(q);
+                    const scoreText = q.hasResults
+                        ? `${q.awardedMarks}/${q.totalMarks}`
+                        : `${q.totalMarks}`;
 
-                            return (
-                                <tr
-                                    key={`${q.questionNumber}-${idx}`}
-                                    id={`${idPrefix}-item-${q.questionNumber}`}
-                                    onClick={() => handleQuestionClick(q)}
-                                    className={`clickable-row ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''}`}
-                                >
-                                    <td className="col-question">
-                                        Q{q.questionNumber}
-                                    </td>
-                                    <td className={`col-score right-align score-${color}`}>
-                                        {scoreText}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                    return (
+                        <button
+                            key={`${q.questionNumber}-${idx}`}
+                            id={`${idPrefix}-item-${q.questionNumber}`}
+                            className={`table-ribbon-item ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''} score-${color}-bg`}
+                            onClick={() => handleQuestionClick(q)}
+                        >
+                            <span className="q-label">Q{q.questionNumber}</span>
+                            <span className={`score-text ${color}`}>
+                                {scoreText}
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );

@@ -1095,7 +1095,7 @@
 /* Question Navigator Ribbon - Float Overlay */
 .question-navigator-ribbon-wrapper {
   position: absolute;
-  top: 30px;
+  top: 50px;
   left: 0;
   right: 0;
   z-index: 90;
@@ -1108,9 +1108,8 @@
 }
 
 .question-navigator-ribbon-container {
-  max-width: 1000px;
   width: 100%;
-  margin: 0 auto;
-  padding-left: 35px;
-  padding-right: 55px;
+  margin: 0;
+  padding-left: 20px;
+  padding-right: 20px;
 }

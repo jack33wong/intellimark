@@ -1402,9 +1402,21 @@ export class MarkingInstructionService {
         console.log(`   - Summary content: "${parsedResponse.overallPerformanceSummary.substring(0, 100)}..."`);
       }
 
+      // CRITICAL: Override totalMarks with actual value from marking scheme
+      // We should NEVER trust AI to calculate this - we have the accurate data
+      const studentScore = parsedResponse.studentScore || {};
+      if (normalizedScheme && normalizedScheme.totalMarks > 0) {
+        studentScore.totalMarks = normalizedScheme.totalMarks;
+        // Update scoreText to reflect correct total
+        if (studentScore.awardedMarks !== undefined) {
+          studentScore.scoreText = `${studentScore.awardedMarks}/${studentScore.totalMarks}`;
+        }
+        console.log(`✅ [TOTAL MARKS] Overrode AI's totalMarks with scheme value: ${studentScore.totalMarks}`);
+      }
+
       return {
         annotations: parsedResponse.annotations,
-        studentScore: parsedResponse.studentScore,
+        studentScore: studentScore,
         overallPerformanceSummary: parsedResponse.overallPerformanceSummary || null, // Extract AI-generated summary
         usage: {
           llmTokens: usageTokens

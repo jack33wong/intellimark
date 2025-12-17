@@ -1,9 +1,22 @@
-import React, { useState } from 'react';
-import { Settings, Moon, Sun, Monitor } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, Moon, Sun, Monitor, Grid, List } from 'lucide-react';
 
 const SettingsSection = () => {
     // Basic state for appearance, persistence would need Context or localStorage
     const [theme, setTheme] = useState('dark'); // 'dark', 'light', 'system'
+
+    // Gallery view preference - read from localStorage on mount
+    const [galleryView, setGalleryView] = useState(() => {
+        const saved = localStorage.getItem('galleryViewMode');
+        return saved || 'grid'; // default to 'grid' if not set
+    });
+
+    // Save gallery view to localStorage whenever it changes
+    useEffect(() => {
+        localStorage.setItem('galleryViewMode', galleryView);
+        // Dispatch custom event so SimpleImageGallery can listen and update
+        window.dispatchEvent(new CustomEvent('galleryViewModeChanged', { detail: galleryView }));
+    }, [galleryView]);
 
     const handleThemeChange = (newTheme) => {
         setTheme(newTheme);
@@ -11,81 +24,81 @@ const SettingsSection = () => {
         // For now, this is a UI mockup as requested.
     };
 
+    const handleGalleryViewChange = (newView) => {
+        setGalleryView(newView);
+    };
+
     return (
-        <div className="settings-section-container">
-            <div className="section-title">
-                <Settings size={24} />
-                <h2>Settings</h2>
+        <div className="settings-page">
+            {/* Page Title */}
+            <div className="settings-page-header">
+                <h1 className="settings-page-title">Settings</h1>
             </div>
 
-            <div className="section-group">
-                <div className="section-group-header">
-                    <h3>Appearance</h3>
+            {/* Appearance Section */}
+            <div className="settings-section">
+                <h2 className="settings-section-title">Appearance</h2>
+
+                {/* Theme Setting */}
+                <div className="settings-item">
+                    <label className="settings-item-label">Theme</label>
+                    <div className="theme-options">
+                        <button
+                            className={`theme-option ${theme === 'light' ? 'active' : ''}`}
+                            onClick={() => handleThemeChange('light')}
+                        >
+                            <div className="theme-preview light-preview">
+                                <Sun size={20} />
+                            </div>
+                            <span className="theme-option-label">Light</span>
+                        </button>
+
+                        <button
+                            className={`theme-option ${theme === 'dark' ? 'active' : ''}`}
+                            onClick={() => handleThemeChange('dark')}
+                        >
+                            <div className="theme-preview dark-preview">
+                                <Moon size={20} />
+                            </div>
+                            <span className="theme-option-label">Dark</span>
+                        </button>
+
+                        <button
+                            className={`theme-option ${theme === 'system' ? 'active' : ''}`}
+                            onClick={() => handleThemeChange('system')}
+                        >
+                            <div className="theme-preview system-preview">
+                                <Monitor size={20} />
+                            </div>
+                            <span className="theme-option-label">Follow System</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div className="appearance-options" style={{ display: 'flex', gap: '16px' }}>
-                    <button
-                        className={`appearance-option-btn ${theme === 'light' ? 'active' : ''}`}
-                        onClick={() => handleThemeChange('light')}
-                        style={{
-                            flex: 1,
-                            padding: '16px',
-                            borderRadius: '8px',
-                            border: `1px solid ${theme === 'light' ? 'var(--text-brand)' : 'var(--border-subtle)'}`,
-                            background: 'var(--background-secondary)',
-                            color: 'var(--text-primary)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '8px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <Sun size={24} />
-                        <span>Light</span>
-                    </button>
+                {/* Gallery View Setting */}
+                <div className="settings-item">
+                    <label className="settings-item-label">Gallery View</label>
+                    <div className="theme-options">
+                        <button
+                            className={`theme-option ${galleryView === 'grid' ? 'active' : ''}`}
+                            onClick={() => handleGalleryViewChange('grid')}
+                        >
+                            <div className="theme-preview">
+                                <Grid size={20} />
+                            </div>
+                            <span className="theme-option-label">Grid View</span>
+                        </button>
 
-                    <button
-                        className={`appearance-option-btn ${theme === 'dark' ? 'active' : ''}`}
-                        onClick={() => handleThemeChange('dark')}
-                        style={{
-                            flex: 1,
-                            padding: '16px',
-                            borderRadius: '8px',
-                            border: `1px solid ${theme === 'dark' ? 'var(--text-brand)' : 'var(--border-subtle)'}`,
-                            background: 'var(--background-secondary)',
-                            color: 'var(--text-primary)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '8px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <Moon size={24} />
-                        <span>Dark</span>
-                    </button>
-
-                    <button
-                        className={`appearance-option-btn ${theme === 'system' ? 'active' : ''}`}
-                        onClick={() => handleThemeChange('system')}
-                        style={{
-                            flex: 1,
-                            padding: '16px',
-                            borderRadius: '8px',
-                            border: `1px solid ${theme === 'system' ? 'var(--text-brand)' : 'var(--border-subtle)'}`,
-                            background: 'var(--background-secondary)',
-                            color: 'var(--text-primary)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '8px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <Monitor size={24} />
-                        <span>System</span>
-                    </button>
+                        <button
+                            className={`theme-option ${galleryView === 'horizontal' ? 'active' : ''}`}
+                            onClick={() => handleGalleryViewChange('horizontal')}
+                        >
+                            <div className="theme-preview">
+                                <List size={20} />
+                            </div>
+                            <span className="theme-option-label">Horizontal Scroll</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

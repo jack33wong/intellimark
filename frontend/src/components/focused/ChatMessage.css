@@ -418,6 +418,8 @@
   padding: 16px 20px;
   border-radius: 12px;
   margin-bottom: 20px;
+  margin-left: 24px;
+  margin-right: 24px;
   font-size: 15px;
   line-height: 1.6;
   color: var(--text-primary);
@@ -447,6 +449,7 @@
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   .ai-performance-summary {
+    margin-left: 24px;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
   }

@@ -10,6 +10,14 @@
   padding: 0px 25px 10px;
 }
 
+/* Inline mode - for displaying badges inline with title */
+.exam-paper-tab.inline {
+  padding: 0;
+  display: inline-flex;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+
 .exam-paper-tab-content {
   display: flex;
   flex-direction: column;
@@ -19,15 +27,16 @@
 }
 
 .tab-item {
-  padding: 6px;
+  padding: 6px 12px;
   background: var(--background-gray-main);
-  border-radius: 6px;
+  border-radius: 50px;
+  /* Circular borders */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border-dark);
   font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 .tab-item.marks {
@@ -42,20 +51,29 @@
   font-weight: bold;
 }
 
-.tab-item.total-score {
-  color: #ef4444;
-  /* Red color */
+/* Score badge - green color */
+.tab-item.total-score-badge {
+  color: #22c55e;
+  /* Green */
   background: var(--background-gray-main);
-  border: 1px solid var(--border-dark);
-  font-weight: bold;
+  border: 1px solid #22c55e40;
+  /* Green border with transparency */
+  font-weight: 600;
 }
 
-.tab-item.grade {
+/* Grade badge - blue color */
+.tab-item.grade-badge {
   color: var(--text-blue);
-  /* Blue color */
   background: var(--background-gray-main);
   border: 1px solid var(--border-dark);
   font-weight: 600;
+}
+
+/* Badge labels */
+.badge-label {
+  opacity: 0.7;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
 .exam-paper-line {

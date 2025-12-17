@@ -63,14 +63,14 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
                   const questionNumbers = examPaper.questions
                     .map(q => q.questionNumber.split('_')[0])
                     .filter(qNum => qNum && qNum.length > 0);
-                  
+
                   if (questionNumbers.length === 0) {
                     return '';
                   }
-                  
+
                   // Check if all questions have sub-question parts
                   const allHaveSubParts = questionNumbers.every(qNum => hasSubQuestionPart(qNum));
-                  
+
                   // If all have sub-parts, show them all
                   if (allHaveSubParts) {
                     // Group by base number
@@ -84,7 +84,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
                         grouped.get(baseNum)!.push(qNum);
                       }
                     });
-                    
+
                     // Sort base numbers and format
                     const sortedBases = Array.from(grouped.keys()).sort((a, b) => a - b);
                     return sortedBases.map(baseNum => {
@@ -95,23 +95,23 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
                       return `Q${subQuestions.join(', Q')}`;
                     }).join(', ');
                   }
-                  
+
                   // Extract base question numbers
                   const baseNumbers = questionNumbers
                     .map(qNum => getBaseQuestionNumber(qNum))
                     .filter(num => num > 0)
                     .sort((a, b) => a - b);
                   const uniqueNumbers = Array.from(new Set(baseNumbers));
-                  
+
                   if (uniqueNumbers.length === 0) {
                     return questionNumbers.map(qNum => `Q${qNum}`).join(', ');
                   }
-                  
+
                   // Check if sequential
                   if (isSequence(uniqueNumbers)) {
                     return `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
                   }
-                  
+
                   // Not sequential - show all unique base numbers
                   return uniqueNumbers.map(num => `Q${num}`).join(', ');
                 })()}
@@ -140,53 +140,53 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
       const firstExamPaper = detectedQuestion.examPapers[0];
       const parts = [];
-      
+
       if (firstExamPaper.examBoard) {
         parts.push(firstExamPaper.examBoard);
       }
-      
+
       if (firstExamPaper.subject) {
         parts.push(firstExamPaper.subject);
       }
-      
+
       if (firstExamPaper.examCode) {
         parts.push(firstExamPaper.examCode);
       }
-      
+
       if (firstExamPaper.examSeries) {
         parts.push(`(${firstExamPaper.examSeries})`);
       }
-      
+
       if (firstExamPaper.tier) {
         // Don't add "Tier" prefix if tier already contains "Tier" (e.g., "Foundation Tier")
-        const tierDisplay = firstExamPaper.tier.toLowerCase().includes('tier') 
-          ? firstExamPaper.tier 
+        const tierDisplay = firstExamPaper.tier.toLowerCase().includes('tier')
+          ? firstExamPaper.tier
           : `Tier ${firstExamPaper.tier}`;
         parts.push(tierDisplay);
       }
-      
+
       return parts.join(' ');
     }
-    
+
     return '';
   };
 
   // Helper function to format question numbers
   const formatQuestionNumbers = (questions: any[]): string => {
     if (questions.length === 0) return '';
-    
+
     // Get all question numbers (remove suffix after '_' if present)
     const questionNumbers = questions
       .map(q => (q.questionNumber || '').split('_')[0])
       .filter(qNum => qNum && qNum.length > 0);
-    
+
     if (questionNumbers.length === 0) {
       return '';
     }
-    
+
     // Check if all questions have sub-question parts
     const allHaveSubParts = questionNumbers.every(qNum => hasSubQuestionPart(qNum));
-    
+
     // If all have sub-parts, show them all grouped by base number
     if (allHaveSubParts) {
       // Group by base number
@@ -200,7 +200,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
           grouped.get(baseNum)!.push(qNum);
         }
       });
-      
+
       // Sort base numbers and format
       const sortedBases = Array.from(grouped.keys()).sort((a, b) => a - b);
       return sortedBases.map(baseNum => {
@@ -211,26 +211,26 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
         return `Q${subQuestions.join(', Q')}`;
       }).join(', ');
     }
-    
+
     // Extract base question numbers
     const baseNumbers = questionNumbers
       .map(qNum => getBaseQuestionNumber(qNum))
       .filter(num => num > 0)
       .sort((a, b) => a - b);
-    
+
     // Remove duplicates
     const uniqueNumbers = Array.from(new Set(baseNumbers));
-    
+
     if (uniqueNumbers.length === 0) {
       // Fallback: show all question numbers as-is
       return questionNumbers.map(qNum => `Q${qNum}`).join(', ');
     }
-    
+
     // Check if in sequence
     if (isSequence(uniqueNumbers)) {
       return `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
     }
-    
+
     // Not in sequence, show all unique base numbers
     return uniqueNumbers.map(num => `Q${num}`).join(', ');
   };
@@ -241,21 +241,26 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
       const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
       return formatQuestionNumbers(allQuestions);
     }
-    
+
     return '';
   };
 
   const questionInfo = formatQuestionInfo();
 
   return (
-    <div className="exam-paper-tab">
+    <div className="exam-paper-tab inline">
       <div className="exam-paper-tab-content">
         <div className="exam-paper-line">
-          <span className="tab-item">{formatExamInfo()}</span>
-          {questionInfo && (
+          {/* Exam info badge - HIDDEN per user request */}
+          {/* <span className="tab-item">{formatExamInfo()}</span> */}
+
+          {/* Question range badge - HIDDEN per user request */}
+          {/* {questionInfo && (
             <span className="tab-item">{questionInfo}</span>
-          )}
-          {detectedQuestion.totalMarks && (
+          )} */}
+
+          {/* Marks breakdown badge - HIDDEN per user request */}
+          {/* {detectedQuestion.totalMarks && (
             <span className="tab-item marks">
               {(() => {
                 // Extract all questions from examPapers
@@ -273,12 +278,17 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
                 return `${detectedQuestion.totalMarks} marks`;
               })()}
             </span>
-          )}
+          )} */}
+
           {studentScore && studentScore.scoreText && (
-            <span className="tab-item total-score">{studentScore.scoreText}</span>
+            <span className="tab-item total-score-badge">
+              <span className="badge-label">Score:</span> {studentScore.scoreText}
+            </span>
           )}
           {gradeFromProps && (
-            <span className="tab-item grade">Grade: {gradeFromProps}</span>
+            <span className="tab-item grade-badge">
+              <span className="badge-label">Grade:</span> {gradeFromProps}
+            </span>
           )}
         </div>
       </div>

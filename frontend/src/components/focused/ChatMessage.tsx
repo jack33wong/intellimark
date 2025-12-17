@@ -496,13 +496,15 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               )}
             </div>
           )}
-          {!isUser && message.detectedQuestion && message.detectedQuestion.found && (
+          {/* ExamPaperTab - HIDDEN per user request */}
+          {/* {!isUser && message.detectedQuestion && message.detectedQuestion.found && (
             <ExamPaperTab
               detectedQuestion={message.detectedQuestion}
               studentScore={message.studentScore}
               grade={(message as any).grade || null}
             />
-          )}
+          )} */}
+
 
           {showProgressDetails && message.progressData?.allSteps && (
             <div className="progress-details-container">
@@ -535,8 +537,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
 
-          {/* Question Navigator - Positioned BEFORE message content */}
-          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && message.detectedQuestion && message.detectedQuestion.found && (
+          {/* Question Navigator Table - HIDDEN per user request */}
+          {/* {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && message.detectedQuestion && message.detectedQuestion.found && (
             <div className="navigator-top" ref={setTableObserverRef}>
               <QuestionNavigator
                 detectedQuestion={message.detectedQuestion}
@@ -548,14 +550,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 activeQuestionId={activeQuestionId}
               />
             </div>
-          )}
+          )} */}
+
 
           {/* AI Performance Summary - Rendered separately before content */}
           {!isUser && (message as any).performanceSummary && (
             <div className="ai-performance-summary">
-              {(message as any).performanceSummary}
+              <MarkdownMathRenderer content={(message as any).performanceSummary} />
             </div>
           )}
+
 
           {!isUser && content && ensureStringContent(content).trim() !== '' && (() => {
             // Preprocess content to:
