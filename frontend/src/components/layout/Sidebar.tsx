@@ -18,7 +18,8 @@ import {
 
   BarChart3,
   Lock,
-  ChevronDown
+  ChevronDown,
+  PanelLeft
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -316,9 +317,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       <div className="sidebar-content">
         <div className="sidebar-header">
-          <button className="sidebar-menu-toggle" onClick={onMenuToggle} aria-label="Toggle menu">
-            {isOpen ? <Menu size={24} /> : <X size={24} />}
-          </button>
           <div className="sidebar-logo" onClick={handleGoToMarkHomework}>
             <img src="/images/logo.png" alt="IntelliMark Logo" className="sidebar-logo-img" />
             <div>
@@ -326,9 +324,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               {/* <p className="sidebar-logo-subtitle">powered by AI</p> */}
             </div>
           </div>
+          <button className="sidebar-menu-toggle" onClick={onMenuToggle} aria-label="Toggle menu">
+            <PanelLeft size={18} />
+          </button>
         </div>
         <div className="sidebar-menu-group">
-          <div className="sidebar-section-header">MAIN</div>
+          <div className="sidebar-section-header-row">
+            <div className="sidebar-section-header">MAIN</div>
+          </div>
           <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
             <ClipboardCheck size={20} />
             <span>Mark Homework</span>
