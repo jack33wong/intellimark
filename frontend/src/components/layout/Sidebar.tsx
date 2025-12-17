@@ -17,7 +17,8 @@ import {
   ClipboardCheck,
 
   BarChart3,
-  Lock
+  Lock,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -56,7 +57,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
+
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const { checkPermission, loading: subLoading } = useSubscription();
@@ -150,16 +153,20 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [editingSessionId]);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownSessionId && !(event.target as HTMLElement).closest('.mark-history-actions-container')) {
+      const target = event.target as HTMLElement;
+      if (dropdownSessionId && !target.closest('.mark-history-actions-container')) {
         setDropdownSessionId(null);
+      }
+      if (isFilterDropdownOpen && !target.closest('.mark-history-filter-container')) {
+        setIsFilterDropdownOpen(false);
       }
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownSessionId]);
+  }, [dropdownSessionId, isFilterDropdownOpen]);
 
 
   const handleGoToMarkHomework = () => {
@@ -353,18 +360,27 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
         <div className="sidebar-section">
-          <div className="sidebar-section-header" style={{ paddingLeft: '20px', marginTop: '16px', marginBottom: '8px' }}>RECENT PAPERS</div>
-          {/* <div className="mark-history-tabs"> */}
-          {/* Tabs hidden or restyled if desired, sticking to image header for now. keeping tabs for functionality but maybe hide via CSS if purely following image? 
-                Image doesn't show tabs. I will keep them but maybe simplify or make them subtle. 
-                For now just adding the header above. */}
-          {/* </div> */}
-          <div className="mark-history-tabs">
-            <button className={`mark-history-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All</button>
-            <button className={`mark-history-tab ${activeTab === 'mark' ? 'active' : ''}`} onClick={() => setActiveTab('mark')}>Mark</button>
-            <button className={`mark-history-tab ${activeTab === 'question' ? 'active' : ''}`} onClick={() => setActiveTab('question')}>Question</button>
-            <button className={`mark-history-tab ${activeTab === 'favorite' ? 'active' : ''}`} onClick={() => setActiveTab('favorite')}>Favorite</button>
+          <div className="sidebar-section-header-row">
+            <div className="sidebar-section-header">RECENT PAPERS</div>
+            <div className="mark-history-filter-container">
+              <button
+                className="mark-history-filter-trigger"
+                onClick={(e) => { e.stopPropagation(); setIsFilterDropdownOpen(!isFilterDropdownOpen); }}
+              >
+                <span>{activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+                <ChevronDown size={14} className={`filter-chevron ${isFilterDropdownOpen ? 'open' : ''}`} />
+              </button>
+              {isFilterDropdownOpen && (
+                <div className="mark-history-filter-dropdown">
+                  <div className={`filter-option ${activeTab === 'all' ? 'selected' : ''}`} onClick={() => { setActiveTab('all'); setIsFilterDropdownOpen(false); }}>All</div>
+                  <div className={`filter-option ${activeTab === 'mark' ? 'selected' : ''}`} onClick={() => { setActiveTab('mark'); setIsFilterDropdownOpen(false); }}>Mark</div>
+                  <div className={`filter-option ${activeTab === 'question' ? 'selected' : ''}`} onClick={() => { setActiveTab('question'); setIsFilterDropdownOpen(false); }}>Question</div>
+                  <div className={`filter-option ${activeTab === 'favorite' ? 'selected' : ''}`} onClick={() => { setActiveTab('favorite'); setIsFilterDropdownOpen(false); }}>Favorite</div>
+                </div>
+              )}
+            </div>
           </div>
+          {/* Tabs removed in favor of dropdown above */}
           <div className="mark-history-scrollable">
             {getFilteredSessions().map((session) => (
               <div

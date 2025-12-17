@@ -310,40 +310,95 @@
   overflow: hidden;
 }
 
-/* Tab Menu */
-.mark-history-tabs {
+/* Filter Dropdown Header Layout */
+.sidebar-section-header-row {
   display: flex;
-  gap: 4px;
-  padding: 16px 20px 12px 20px;
-  position: sticky;
-  top: 0;
-  background: var(--background-nav);
-  z-index: 10;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  margin-top: 16px;
+  margin-bottom: 8px;
 }
 
-.mark-history-tab {
-  flex: 0 0 auto;
-  padding: 6px 10px;
-  border-radius: 20px;
+.sidebar-section-header {
+  margin: 0;
+  /* Reset margin as parent handles it */
+  padding: 0;
+}
+
+/* Filter Trigger Button */
+.mark-history-filter-container {
+  position: relative;
+}
+
+.mark-history-filter-trigger {
+  background: transparent;
   border: none;
-  background: var(--background-card);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
   transition: all 0.2s ease;
-  text-align: left;
+  text-transform: capitalize;
 }
 
-.mark-history-tab:hover {
-  background: var(--fill-gray);
+.mark-history-filter-trigger:hover {
+  background: var(--background-menu-gray);
   color: var(--text-primary);
 }
 
-.mark-history-tab.active {
+.mark-history-filter-trigger .filter-chevron {
+  transition: transform 0.2s ease;
+  opacity: 0.7;
+}
+
+.mark-history-filter-trigger .filter-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* Filter Dropdown Menu */
+.mark-history-filter-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #1f2937;
+  /* Opaque Dark Gray */
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 120px;
+  z-index: 200;
+  overflow: hidden;
+  padding: 4px;
+  animation: dropdownSlideIn 0.2s ease-out;
+}
+
+.filter-option {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.filter-option:hover {
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
+}
+
+.filter-option.selected {
   background: var(--text-brand);
   color: var(--text-white);
+  font-weight: 500;
 }
 
 .mark-history-scrollable {
