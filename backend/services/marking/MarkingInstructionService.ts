@@ -307,8 +307,20 @@ export class MarkingInstructionService {
       // ========================= START OF FIX =========================
       // Use the plain text OCR text that was passed in, not the JSON format from OCR service
       const rawOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText;
+
+      // DEBUG: Trace OCR Sanitization
+      console.log(`[OCR SANITIZE] Raw text length: ${rawOcrText?.length}`);
+      const debugMatches = rawOcrText?.match(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g);
+      console.log(`[OCR SANITIZE] Found matches to remove:`, debugMatches || 'None');
+
       // Sanitize immediately to remove alignment artifacts (SYSTEMATIC FIX)
       const cleanedOcrText = MarkingInstructionService.sanitizeOcrText(rawOcrText);
+
+      console.log(`[OCR SANITIZE] Cleaned text length: ${cleanedOcrText?.length}`);
+      // Check if any remain
+      const remaining = cleanedOcrText?.match(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g);
+      if (remaining) console.warn('[OCR SANITIZE] WARNING: Artifacts still remain after sanitization!', remaining);
+
       // ========================== END OF FIX ==========================
       const unifiedLookupTable = (processedImage as any).unifiedLookupTable;
 
