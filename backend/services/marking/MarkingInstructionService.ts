@@ -215,6 +215,19 @@ export class MarkingInstructionService {
   }
 
   /**
+   * Systematic sanitization of OCR text to remove Mathpix alignment artifacts.
+   * Replaces '&' only when followed by math operators (e.g., & =, & <).
+   * Does NOT remove standalone '&' to preserve logic/text usage.
+   */
+  private static sanitizeOcrText(text: string): string {
+    if (!text) return '';
+    // Regex: & away from operator (conservative)
+    // Replace '&' followed by optional whitespace and an alignment-relevant operator
+    // Operators: =, <, >, \le, \ge, \approx
+    return text.replace(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g, '$1');
+  }
+
+  /**
    * Format general marking guidance into structured Markdown
    */
   private static formatGeneralMarkingGuidance(guidance: any): string {
@@ -293,7 +306,9 @@ export class MarkingInstructionService {
       let cleanDataForMarking = (processedImage as any).cleanDataForMarking;
       // ========================= START OF FIX =========================
       // Use the plain text OCR text that was passed in, not the JSON format from OCR service
-      const cleanedOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText;
+      const rawOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText;
+      // Sanitize immediately to remove alignment artifacts (SYSTEMATIC FIX)
+      const cleanedOcrText = MarkingInstructionService.sanitizeOcrText(rawOcrText);
       // ========================== END OF FIX ==========================
       const unifiedLookupTable = (processedImage as any).unifiedLookupTable;
 
