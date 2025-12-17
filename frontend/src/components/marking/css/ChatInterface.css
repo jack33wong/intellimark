@@ -274,9 +274,9 @@
 
 
 .chat-header {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 100 !important;
+  position: relative !important;
+  /* top: 0 !important; sticky removed to prevent overlap with ribbon */
+  z-index: 10 !important;
   /* Above main header (9998) */
   display: flex !important;
   justify-content: space-between !important;
@@ -1099,7 +1099,8 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  background: var(--surface-primary);
+  background: var(--background-gray-main);
+  /* Ensure opaque background */
   border-bottom: 1px solid var(--border-color);
   width: 100%;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);

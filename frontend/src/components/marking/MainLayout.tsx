@@ -84,9 +84,9 @@ const MainLayout: React.FC = () => {
     if (!container) return;
 
     const handleScroll = () => {
-      // Toggle ribbon eligibility based on scroll past header (e.g. 60px)
-      // This prevents the ribbon from covering the session title at the very top
-      const isPastHeader = container.scrollTop > 60;
+      // Toggle ribbon eligibility based on scroll past header (e.g. 150px)
+      // This prevents the ribbon from covering the session title at the very top (increased threshold)
+      const isPastHeader = container.scrollTop > 150;
       // Use functional update to avoid `showRibbonOnScroll` in dependency array
       setShowRibbonOnScroll(prev => {
         if (isPastHeader !== prev) {
