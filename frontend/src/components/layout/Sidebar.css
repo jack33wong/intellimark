@@ -460,24 +460,8 @@
 }
 
 
-/* Message Type Icon */
-.mark-history-icon {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--fill-gray);
-  border-radius: 50%;
-  color: var(--text-secondary);
-  opacity: 0.9;
-}
-
-.mark-history-icon svg {
-  width: 12px;
-  height: 12px;
-}
+/* Message Type Icon - REMOVED */
+/* .mark-history-icon styles removed */
 
 /* Content Area */
 .mark-history-content {
@@ -485,7 +469,27 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+}
+
+.mark-history-item-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mark-history-item-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.mark-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 /* Chat Item Title */
@@ -517,28 +521,14 @@
   opacity: 0.8;
 }
 
-/* Actions Column (Time + Delete Button) */
-.mark-history-actions {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 25px;
-  align-self: flex-start;
-  padding-top: 2px;
-}
-
-/* Update Time - Absolute Positioning */
+/* Update Time */
 .mark-history-time {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   font-size: 11px;
   color: var(--text-secondary);
-  text-align: right;
   opacity: 0.6;
   white-space: nowrap;
+  position: static;
+  /* Reset absolute positioning */
 }
 
 /* Inline Favorite Star */

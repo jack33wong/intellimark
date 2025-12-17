@@ -357,47 +357,50 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="mark-history-scrollable">
             {getFilteredSessions().map((session) => (
               <div key={session.id} className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''}`} onClick={() => handleSessionClick(session)}>
-                <div className="mark-history-icon">{getMessageTypeIcon(session.messageType)}</div>
                 <div className="mark-history-content">
-                  <div className="mark-history-item-title">
-                    {session.favorite && <Star size={14} className="favorite-star-inline" />}
-                    {editingSessionId === session.id ? (
-                      <input
-                        ref={editInputRef}
-                        type="text"
-                        className="title-edit-input"
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSaveTitle(session.id);
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault();
-                            handleCancelEdit();
-                          }
-                        }}
-                        onBlur={() => handleSaveTitle(session.id)}
-                        style={{ width: '100%' }}
-                      />
-                    ) : getSessionTitle(session)}
+                  <div className="mark-history-item-top-row">
+                    <div className="mark-history-item-title">
+                      {session.favorite && <Star size={14} className="favorite-star-inline" />}
+                      {editingSessionId === session.id ? (
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          className="title-edit-input"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSaveTitle(session.id);
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              handleCancelEdit();
+                            }
+                          }}
+                          onBlur={() => handleSaveTitle(session.id)}
+                          style={{ width: '100%' }}
+                        />
+                      ) : getSessionTitle(session)}
+                    </div>
                   </div>
-                  <div className="mark-history-last-message">{getLastMessage(session)}</div>
-                </div>
-                <div className="mark-history-actions">
-                  <div className="mark-history-time">{formatSessionDate(session)}</div>
-                  <div className="mark-history-actions-container">
-                    <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
-                      <MoreHorizontal size={16} />
-                    </button>
-                    {dropdownSessionId === session.id && (
-                      <div className="mark-history-dropdown">
-                        <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
-                        <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
-                        <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
+                  <div className="mark-history-item-bottom-row">
+                    <div className="mark-history-last-message">{getLastMessage(session)}</div>
+                    <div className="mark-history-meta">
+                      <span className="mark-history-time">{formatSessionDate(session)}</span>
+                      <div className="mark-history-actions-container">
+                        <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
+                          <MoreHorizontal size={16} />
+                        </button>
+                        {dropdownSessionId === session.id && (
+                          <div className="mark-history-dropdown">
+                            <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
+                            <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
+                            <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
