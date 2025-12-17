@@ -274,9 +274,9 @@
 
 
 .chat-header {
-  position: relative !important;
-  /* top: 0 !important; sticky removed to prevent overlap with ribbon */
-  z-index: 10 !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
   /* Above main header (9998) */
   display: flex !important;
   justify-content: space-between !important;
@@ -1095,10 +1095,11 @@
 /* Question Navigator Ribbon - Float Overlay */
 .question-navigator-ribbon-wrapper {
   position: absolute;
-  top: 0;
+  top: 50px;
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: 90;
+  /* Just below header z-index 100 */
   background: var(--background-gray-main);
   /* Ensure opaque background */
   border-bottom: 1px solid var(--border-color);
