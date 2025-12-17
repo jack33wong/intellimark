@@ -1247,7 +1247,17 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
   }
 
   // Build title: "Board Subject PaperCode (Series) Q1 to Q27 80 marks"
-  const { examBoard, subject, examCode, examSeries } = examPaper;
+  let { examBoard, subject, examCode, examSeries } = examPaper;
+
+  // Transform "Pearson Edexcel" -> "Edexcel"
+  if (examBoard === 'Pearson Edexcel') {
+    examBoard = 'Edexcel';
+  }
+
+  // Transform "Mathematics" -> "Maths"
+  if (subject && subject.toLowerCase() === 'mathematics') {
+    subject = 'Maths';
+  }
 
   if (examBoard && subject && examCode && examSeries) {
     return `${examBoard} ${subject} ${examCode} (${examSeries}) ${questionNumberDisplay} ${totalMarks} marks`;

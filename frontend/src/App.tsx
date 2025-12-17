@@ -11,6 +11,7 @@ import LibraryPage from './pages/LibraryPage';
 import AnalysisPage from './pages/AnalysisPage';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
+import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -185,10 +186,10 @@ const App: React.FC = () => {
         v7_relativeSplatPath: true
       }}>
         <AppContent />
+        <UnifiedProfileModal />
       </Router>
     </AuthProvider>
   );
 }
 
 export default App;
-

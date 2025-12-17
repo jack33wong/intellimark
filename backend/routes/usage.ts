@@ -108,20 +108,22 @@ router.get('/me', async (req: Request, res: Response) => {
             userId: string;
             createdAt: string;
             totalCost: number;
-            llmCost: number;
-            geminiCost: number;
-            gptCost: number;
+            modelCost: number;
             mathpixCost: number;
             modelUsed: string;
             apiRequests: number;
             mode: string;
-            modeHistory?: Array<{ mode: string; timestamp: string; costAtSwitch: number }>;
+            modeHistory?: Array<{
+                mode: string;
+                timestamp: string;
+                costAtSwitch: number;
+                modelCostAtSwitch: number;
+                modelUsed: string;
+            }>;
         }> = [];
 
         let totalCost = 0;
-        let totalLLMCost = 0;
-        let totalGeminiCost = 0;
-        let totalGptCost = 0;
+        let totalModelCost = 0;
         let totalMathpixCost = 0;
         let totalApiRequests = 0;
 
@@ -130,10 +132,8 @@ router.get('/me', async (req: Request, res: Response) => {
 
             const createdAt = record.createdAt.toDate().toISOString();
 
-            // Handle legacy records
-            const geminiCost = record.geminiCost ?? 0;
-            const gptCost = record.gptCost ?? 0;
-            const llmCost = record.llmCost ?? (geminiCost + gptCost);
+            // Handle new schema directly
+            const modelCost = record.modelCost || 0;
             const apiRequests = record.apiRequests || 0;
             // Handle mode mapping. DB might store it as 'mode' or 'usageMode' or miss it
             const mode = record.mode || record.usageMode || 'chat';
@@ -145,9 +145,7 @@ router.get('/me', async (req: Request, res: Response) => {
                 userId: record.userId,
                 createdAt,
                 totalCost: record.totalCost,
-                llmCost,
-                geminiCost,
-                gptCost,
+                modelCost,
                 mathpixCost: record.mathpixCost,
                 modelUsed: record.modelUsed,
                 apiRequests,
@@ -157,9 +155,7 @@ router.get('/me', async (req: Request, res: Response) => {
 
             // Update totals
             totalCost += record.totalCost;
-            totalLLMCost += llmCost;
-            totalGeminiCost += geminiCost;
-            totalGptCost += gptCost;
+            totalModelCost += modelCost;
             totalMathpixCost += record.mathpixCost;
             totalApiRequests += apiRequests;
         });
@@ -173,9 +169,7 @@ router.get('/me', async (req: Request, res: Response) => {
 
         // Round totals to 2 decimal places
         totalCost = Math.round(totalCost * 100) / 100;
-        totalLLMCost = Math.round(totalLLMCost * 100) / 100;
-        totalGeminiCost = Math.round(totalGeminiCost * 100) / 100;
-        totalGptCost = Math.round(totalGptCost * 100) / 100;
+        totalModelCost = Math.round(totalModelCost * 100) / 100;
         totalMathpixCost = Math.round(totalMathpixCost * 100) / 100;
 
         res.json({
@@ -183,9 +177,7 @@ router.get('/me', async (req: Request, res: Response) => {
             filter,
             summary: {
                 totalCost,
-                totalLLMCost,
-                totalGeminiCost,
-                totalGptCost,
+                totalModelCost,
                 totalMathpixCost,
                 totalUsers: 1, // Always 1 for user-specific query
                 totalSessions: usageData.length,

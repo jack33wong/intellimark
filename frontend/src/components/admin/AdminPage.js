@@ -118,9 +118,7 @@ function AdminPage() {
   const [usageData, setUsageData] = useState([]);
   const [usageSummary, setUsageSummary] = useState({
     totalCost: 0,
-    totalLLMCost: 0,
-    totalGeminiCost: 0,
-    totalGptCost: 0,
+    totalModelCost: 0,
     totalMathpixCost: 0,
     totalUsers: 0,
     totalSessions: 0,
@@ -129,6 +127,7 @@ function AdminPage() {
   const [usageFilter, setUsageFilter] = useState('day');
   const [loadingUsage, setLoadingUsage] = useState(false);
   const [isClearingUsage, setIsClearingUsage] = useState(false);
+  const [expandedAdminSessions, setExpandedAdminSessions] = useState(new Set());
 
   // Subscriptions tab state
   const [searchUserId, setSearchUserId] = useState('');
@@ -324,19 +323,7 @@ function AdminPage() {
   });
 
   // Expanded usage sessions state
-  const [expandedAdminSessions, setExpandedAdminSessions] = useState(new Set());
 
-  const toggleAdminUsageExpanded = (sessionId) => {
-    setExpandedAdminSessions(prev => {
-      const next = new Set(prev);
-      if (next.has(sessionId)) {
-        next.delete(sessionId);
-      } else {
-        next.add(sessionId);
-      }
-      return next;
-    });
-  };
 
   // Load usage data
   const loadUsageData = useCallback(async (filter = 'all') => {
@@ -352,12 +339,11 @@ function AdminPage() {
         setUsageData(data.usage || []);
         setUsageSummary(data.summary || {
           totalCost: 0,
-          totalLLMCost: 0,
-          totalGeminiCost: 0,
-          totalGptCost: 0,
+          totalModelCost: 0,
           totalMathpixCost: 0,
           totalUsers: 0,
-          totalSessions: 0
+          totalSessions: 0,
+          totalApiRequests: 0
         });
       }
     } catch (e) {
@@ -638,6 +624,19 @@ function AdminPage() {
       setLoading(false);
     }
   }, [loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
+
+  const toggleAdminUsageExpanded = useCallback((sessionId) => {
+    setExpandedAdminSessions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      return newSet;
+    });
+  }, []);
+
   const handleJsonInputChange = useCallback((field, value) => {
     setJsonForm(prev => ({ ...prev, [field]: value }));
   }, []);
@@ -853,8 +852,8 @@ function AdminPage() {
                 <div className="usage-summary-value">${usageSummary.totalCost.toFixed(2)}</div>
               </div>
               <div className="usage-summary-card">
-                <div className="usage-summary-label">AI Cost</div>
-                <div className="usage-summary-value">${(usageSummary.totalGeminiCost + usageSummary.totalGptCost).toFixed(2)}</div>
+                <div className="usage-summary-label">Model Cost</div>
+                <div className="usage-summary-value">${(usageSummary.totalModelCost || 0).toFixed(2)}</div>
               </div>
               <div className="usage-summary-card">
                 <div className="usage-summary-label">Mathpix Cost</div>
@@ -948,7 +947,7 @@ function AdminPage() {
                         <th className="admin-table__header">Model Used</th>
                         <th className="admin-table__header">API Requests</th>
                         <th className="admin-table__header">Total Cost</th>
-                        <th className="admin-table__header">AI Cost</th>
+                        <th className="admin-table__header">Model Cost</th>
                         <th className="admin-table__header">Mathpix Cost</th>
                       </tr>
                     </thead>
@@ -997,7 +996,7 @@ function AdminPage() {
                               <td className="admin-table__cell">{session.modelUsed}</td>
                               <td className="admin-table__cell">{session.apiRequests || 0}</td>
                               <td className="admin-table__cell">${session.totalCost.toFixed(4)}</td>
-                              <td className="admin-table__cell">${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(4)}</td>
+                              <td className="admin-table__cell">${(session.modelCost || 0).toFixed(4)}</td>
                               <td className="admin-table__cell">${session.mathpixCost.toFixed(4)}</td>
                             </tr>
                             {isExpanded && session.modeHistory && session.modeHistory.map((h, i, arr) => {
@@ -1016,15 +1015,15 @@ function AdminPage() {
                                   ? (session.apiRequests - h.apiRequestsAtSwitch)
                                   : null;
 
-                              const aiCostDelta = (h.geminiCostAtSwitch !== undefined && h.gptCostAtSwitch !== undefined && i < arr.length - 1)
-                                ? ((arr[i + 1].geminiCostAtSwitch + arr[i + 1].gptCostAtSwitch) - (h.geminiCostAtSwitch + h.gptCostAtSwitch))
-                                : (h.geminiCostAtSwitch !== undefined && h.gptCostAtSwitch !== undefined)
-                                  ? ((session.geminiCost + session.gptCost) - (h.geminiCostAtSwitch + h.gptCostAtSwitch))
+                              const aiCostDelta = (h.modelCostAtSwitch !== undefined && i < arr.length - 1)
+                                ? (arr[i + 1].modelCostAtSwitch - h.modelCostAtSwitch)
+                                : (h.modelCostAtSwitch !== undefined)
+                                  ? ((session.modelCost || 0) - h.modelCostAtSwitch)
                                   : null;
 
                               return (
                                 <tr key={`history-${i}`} className="usage-history-row">
-                                  <td className="admin-table__cell"></td> {/* Spacer for User ID column */}
+                                  <td className="admin-table__cell">{/* Spacer for User ID column */}</td>
                                   <td className="admin-table__cell" style={{ paddingLeft: '32px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                                     {new Date(h.timestamp).toLocaleString(undefined, {
                                       year: 'numeric', month: '2-digit', day: '2-digit',
@@ -1034,7 +1033,9 @@ function AdminPage() {
                                   <td className="admin-table__cell">
                                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{formatMode(h.mode)}</span>
                                   </td>
-                                  <td className="admin-table__cell" style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>-</td>
+                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                    {h.modelUsed || '-'}
+                                  </td>
                                   <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                                     {apiDelta !== null ? apiDelta : '-'}
                                   </td>
@@ -1044,7 +1045,7 @@ function AdminPage() {
                                   <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                                     {aiCostDelta !== null ? `$${aiCostDelta.toFixed(4)}` : '-'}
                                   </td>
-                                  <td className="admin-table__cell"></td> {/* Mathpix column removed/empty per request */}
+                                  <td className="admin-table__cell">{/* Mathpix column removed/empty per request */}</td>
                                 </tr>
                               );
                             })}

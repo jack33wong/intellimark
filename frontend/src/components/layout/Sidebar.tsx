@@ -20,7 +20,8 @@ import {
   BarChart3,
   Lock,
   ChevronDown,
-  PanelLeft
+  PanelLeft,
+  User
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -28,8 +29,8 @@ import MarkingHistoryService from '../../services/markingHistoryService';
 import { simpleSessionService } from '../../services/markingApiService';
 import { ensureStringContent } from '../../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
+
 import type { UnifiedSession } from '../../types';
-import SettingsModal from '../SettingsModal';
 import './Sidebar.css';
 
 // Define the types for the props this component receives from App.tsx
@@ -60,7 +61,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+
 
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
@@ -446,9 +448,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div >
       <div className="admin-section">
-        <div className="admin-link" onClick={() => setIsSettingsModalOpen(true)}>
-          <Settings2 className="text-[var(--icon-secondary)]" size={18} />
-          <span>Settings</span>
+        <div className="admin-link" onClick={() => EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'account' })}>
+          <User className="text-[var(--icon-secondary)]" size={18} />
+          <span>Account</span>
         </div>
 
         {isAdmin() && (
@@ -459,10 +461,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-      />
     </div >
   );
 };

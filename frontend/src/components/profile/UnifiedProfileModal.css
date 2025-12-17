@@ -1,0 +1,678 @@
+/* Base Variables - Matching Manus Dark Theme */
+:root {
+    --modal-bg: #222222;
+    /* Dark grey */
+    --modal-border: #333333;
+    --sidebar-width: 200px;
+    /* Slightly narrower sidebar based on screenshot */
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --accent-color: #ffffff;
+    /* Using white for active state icon/text like screenshot */
+    --radius-lg: 12px;
+    --radius-md: 8px;
+}
+
+.unified-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    /* Semi-transparent black */
+    backdrop-filter: blur(2px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.unified-modal {
+    background: var(--modal-bg);
+    width: 800px;
+    height: 550px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--modal-border);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+}
+
+/* Header */
+.unified-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--modal-bg);
+    /* Match modal background */
+    /* border-bottom: 1px solid var(--modal-border); -- Removed to match clean look if desired, or keep light separator */
+    border-bottom: none;
+    /* Screenshot looks clean */
+}
+
+/* Screenshot has logo/brand top left? Or just "Account"? 
+   The Manus screenshot shows "manus" logo top left in sidebar.
+   Our modal header title "User Profile Settings" might be better placed or removed if sidebar takes over.
+   Let's keep text title for now but match style.
+*/
+.unified-modal-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    /* Subtle header */
+}
+
+.unified-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.unified-modal-close:hover {
+    color: var(--text-primary);
+}
+
+/* Body */
+.unified-modal-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    border-top: 1px solid var(--modal-border);
+    /* Separator between header and body */
+}
+
+/* Sidebar */
+.unified-sidebar {
+    width: var(--sidebar-width);
+    background: var(--modal-bg);
+    border-right: 1px solid var(--modal-border);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.unified-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    font-weight: 400;
+    text-decoration: none;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    border-radius: 6px;
+}
+
+.unified-sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.unified-sidebar-item.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    /* font-weight: 500; */
+}
+
+.unified-sidebar-item svg {
+    width: 16px;
+    height: 16px;
+    opacity: 0.8;
+}
+
+.unified-sidebar-item.active svg {
+    opacity: 1;
+}
+
+/* Content */
+.unified-content {
+    flex: 1;
+    padding: 24px 32px;
+    overflow-y: auto;
+    background: var(--modal-bg);
+    /* Same bg as sidebar */
+}
+
+/* Scrollbar styles to match dark theme */
+.unified-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.unified-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.unified-content::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+/* Section specific overrides */
+.section-title {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    color: var(--text-primary);
+    display: none;
+    /* Hide internal titles if not needed, as layout is clean */
+}
+
+/* If we want to show title inside: */
+/* .unified-content h2 { ... } */
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+    .unified-modal {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        border: none;
+    }
+
+    .unified-modal-body {
+        flex-direction: column;
+    }
+
+    .unified-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--modal-border);
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 8px;
+    }
+}
+
+/* Usage Section Styles */
+.usage-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 20px;
+}
+
+.usage-summary-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--modal-border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+}
+
+.usage-plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.usage-plan-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.usage-upgrade-btn {
+    background: var(--text-primary);
+    /* White */
+    color: #000;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.usage-upgrade-btn:hover {
+    opacity: 0.9;
+}
+
+.usage-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.usage-stat-row:last-child {
+    margin-bottom: 0;
+}
+
+.usage-stat-label {
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.usage-stat-value {
+    color: var(--text-primary);
+    font-family: monospace;
+    /* number alignment */
+}
+
+.usage-list-subitem {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr;
+    padding: 8px 0 8px 24px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.usage-row-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.usage-chevron {
+    opacity: 0.5;
+    transition: transform 0.2s;
+}
+
+.usage-chevron:hover {
+    opacity: 1;
+}
+
+/* Account Section Styles */
+.account-container {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    max-width: 600px;
+}
+
+.profile-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--modal-border);
+    border-radius: var(--radius-lg);
+}
+
+.profile-avatar-large {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: var(--text-secondary);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile-avatar-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-info-primary {
+    flex: 1;
+}
+
+.profile-display-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.profile-email-text {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.account-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--modal-border);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.action-btn.primary {
+    background: var(--text-primary);
+    color: #000;
+    border-color: var(--text-primary);
+}
+
+.action-btn.primary:hover {
+    opacity: 0.9;
+}
+
+.action-btn.danger {
+    color: white;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.action-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.account-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.form-input {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--modal-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--text-secondary);
+}
+
+.form-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.account-details-grid {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 16px 24px;
+    align-items: center;
+}
+
+.detail-label {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.detail-value {
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.usage-details-list {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.usage-list-header {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr;
+    padding: 8px 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    border-bottom: 1px solid var(--modal-border);
+    margin-bottom: 8px;
+}
+
+.usage-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.usage-list-item {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr;
+    padding: 10px 0;
+    font-size: 13px;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.usage-list-item:last-child {
+    border-bottom: none;
+}
+
+.usage-list-date {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.usage-list-cost {
+    text-align: right;
+    font-family: monospace;
+}
+
+/* Plan Section Styles */
+.plan-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    height: 100%;
+}
+
+.plan-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.plan-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    gap: 16px;
+    padding: 32px;
+}
+
+.plan-icon-large {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.plan-header-card {
+    background: rgba(255, 255, 255, 0.05);
+    /* Slightly lighter than modal bg */
+    border: 1px solid var(--modal-border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.plan-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.plan-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.plan-crown-icon {
+    color: var(--text-secondary);
+}
+
+.plan-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.plan-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #2a2a2a;
+    /* Dark badge bg */
+    border: 1px solid var(--modal-border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.plan-details-grid {
+    display: grid;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    /* Darker specific bg for details */
+    padding: 24px;
+    border-radius: var(--radius-md);
+}
+
+.plan-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.plan-detail-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.plan-detail-label svg {
+    opacity: 0.7;
+}
+
+.plan-detail-value {
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.plan-interval {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.credits-negative {
+    color: #ef4444;
+    /* Red for negative/low if desired, user screenshot shows yellow/orange logic potentially */
+    color: #fbbf24;
+    /* Match screenshot yellow for -1664 example */
+    font-weight: 600;
+}
+
+.credits-total {
+    color: var(--text-secondary);
+}
+
+.plan-warning-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+    color: #fca5a5;
+    font-size: 13px;
+}
+
+.manage-subscription-btn {
+    margin-top: auto;
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--modal-border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.manage-subscription-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--text-secondary);
+}

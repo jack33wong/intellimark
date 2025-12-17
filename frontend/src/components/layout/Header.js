@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import SettingsModal from '../SettingsModal';
-import UsageModal from '../UsageModal';
+import EventManager from '../../utils/eventManager';
+import CreditIcon from '../common/CreditIcon';
 import {
   User,
   LogOut,
@@ -29,8 +29,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
   const [userCredits, setUserCredits] = useState(null);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
+
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -318,98 +317,70 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         <div className="header-right">
           {user ? (
             <>
-              <div className="subscription-section" ref={subscriptionRef}>
+              <div
+                className="subscription-section"
+                ref={subscriptionRef}
+                onMouseEnter={() => setIsSubscriptionDetailsOpen(true)}
+              >
                 <button
-                  className="nav-item upgrade-nav"
-                  onClick={handleUpgradeClick}
+                  className="nav-item credits-nav"
+                  onClick={() => setIsSubscriptionDetailsOpen(!isSubscriptionDetailsOpen)}
                 >
-                  {getUpgradeButtonIcon()}
-                  {getUpgradeButtonText()}
+                  <CreditIcon size={16} className="credits-icon" />
+                  <span className="credits-count">{userCredits?.remainingCredits ?? 0}</span>
                 </button>
 
                 {/* Subscription Details Dropdown */}
-                {isSubscriptionDetailsOpen && userSubscription && (
+                {isSubscriptionDetailsOpen && (
                   <div className={`subscription-dropdown ${isSubscriptionDetailsClosing ? 'closing' : ''}`}>
-                    <div className="subscription-dropdown-header">
-                      <div className="subscription-title">
-                        <Crown size={20} />
-                        <span>{SubscriptionService.getPlanDisplayName(userSubscription.planId)} Plan</span>
-                      </div>
-                      <div className="subscription-status">
-                        <CheckCircle size={16} />
-                        <span className={`status ${userSubscription.status}`}>
-                          {userSubscription.status.charAt(0).toUpperCase() + userSubscription.status.slice(1)}
+                    <div className="credits-dropdown-header">
+                      <div className="plan-info">
+                        <span className="plan-name-large">
+                          {userSubscription && userSubscription.status === 'active'
+                            ? SubscriptionService.getPlanDisplayName(userSubscription.planId)
+                            : 'Free'}
                         </span>
                       </div>
+                      {(!userSubscription || userSubscription.status !== 'active') && (
+                        <button
+                          className="upgrade-btn-small"
+                          onClick={() => {
+                            navigate('/upgrade');
+                            setIsSubscriptionDetailsOpen(false);
+                          }}
+                        >
+                          Upgrade
+                        </button>
+                      )}
                     </div>
 
-                    <div className="subscription-details">
-                      <div className="subscription-detail-item">
-                        <CreditCard size={16} />
-                        <div className="detail-content">
-                          <span className="detail-label">Amount</span>
-                          <span className="detail-value">
-                            {formatAmount(userSubscription.amount, userSubscription.currency)}
-                            <span className="billing-cycle">/{userSubscription.billingCycle}</span>
-                          </span>
-                        </div>
-                      </div>
+                    <div className="credits-divider"></div>
 
-                      <div className="subscription-detail-item">
-                        <Calendar size={16} />
-                        <div className="detail-content">
-                          <span className="detail-label">Current Period</span>
-                          <span className="detail-value">
-                            {formatDate(userSubscription.currentPeriodStart)} - {formatDate(userSubscription.currentPeriodEnd)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="subscription-detail-item">
-                        <Calendar size={16} />
-                        <div className="detail-content">
-                          <span className="detail-label">Next Billing</span>
-                          <span className="detail-value">
-                            {formatDate(userSubscription.currentPeriodEnd)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {userCredits && (
-                        <div className="subscription-detail-item">
-                          <Coins size={16} />
-                          <div className="detail-content">
-                            <span className="detail-label">Credits</span>
-                            <span className="detail-value">
-                              <span className={userCredits.remainingCredits < 5 ? 'low-credits' : ''}>
-                                {userCredits.remainingCredits}
-                              </span>
-                              <span className="credit-total"> / {userCredits.totalCredits}</span>
-                            </span>
+                    <div className="credits-details-row">
+                      <div className="credits-label-group">
+                        <CreditIcon size={16} className="credits-icon" />
+                        <div>
+                          <div className="credits-label-main">Credits</div>
+                          <div className="credits-label-sub">
+                            {userSubscription && userSubscription.status === 'active' ? 'Monthly credits' : 'Free credits'}
                           </div>
                         </div>
-                      )}
-
-                      {userSubscription?.scheduledPlanId && (
-                        <div className="scheduled-change-warning">
-                          <AlertCircle size={14} />
-                          <span>
-                            Downgrade to <strong>{userSubscription.scheduledPlanId}</strong> scheduled for{' '}
-                            {new Date(userSubscription.scheduleEffectiveDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
+                      </div>
+                      <div className="credits-value-group">
+                        <div className="credits-value-main">{userCredits?.remainingCredits ?? 0}</div>
+                        <div className="credits-value-sub">{userCredits?.totalCredits ?? 0}</div>
+                      </div>
                     </div>
 
-                    <div className="subscription-actions">
+                    <div className="credits-footer">
                       <button
-                        className="subscription-action manage"
+                        className="view-usage-link"
                         onClick={() => {
-                          navigate('/upgrade');
-                          handleSubscriptionDetailsClose();
+                          setIsSubscriptionDetailsOpen(false);
+                          EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'usage' });
                         }}
                       >
-                        Manage Subscription
+                        View usage &gt;
                       </button>
                     </div>
                   </div>
@@ -471,21 +442,32 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       <button
                         className="profile-action"
                         onClick={() => {
-                          handleUpgradeClick();
                           handleProfileClose();
+                          EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'plan' });
                         }}
                       >
                         <Crown size={16} />
                         {userSubscription && userSubscription.status === 'active'
-                          ? `${SubscriptionService.getPlanDisplayName(userSubscription.planId)} - Manage`
-                          : 'Free - Upgrade'}
+                          ? `Manage Plan - ${SubscriptionService.getPlanDisplayName(userSubscription.planId)}`
+                          : 'Upgrade Plan'}
                       </button>
 
                       <button
                         className="profile-action"
                         onClick={() => {
-                          setIsUsageModalOpen(true);
                           handleProfileClose();
+                          EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'account' });
+                        }}
+                      >
+                        <User size={16} />
+                        Account
+                      </button>
+
+                      <button
+                        className="profile-action"
+                        onClick={() => {
+                          handleProfileClose();
+                          EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'usage' });
                         }}
                       >
                         <BarChart3 size={16} />
@@ -494,8 +476,8 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       <button
                         className="profile-action"
                         onClick={() => {
-                          setIsSettingsModalOpen(true);
                           handleProfileClose();
+                          EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'settings' });
                         }}
                       >
                         <Settings size={16} />
@@ -531,18 +513,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           )}
         </div>
       </div>
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-      />
-
-      {/* Usage Modal */}
-      <UsageModal
-        isOpen={isUsageModalOpen}
-        onClose={() => setIsUsageModalOpen(false)}
-      />
     </header>
   );
 };

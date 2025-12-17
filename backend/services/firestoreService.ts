@@ -1295,15 +1295,10 @@ export class FirestoreService {
     }
 
     const createdAtDate = new Date(createdAt);
-    const llmCost = costBreakdown.llmCost;
+    const modelCost = costBreakdown.llmCost; // Consolidated model cost
     const mathpixCost = costBreakdown.mathpixCost;
     const totalCost = sessionStats.totalCost;
-    const modelUsed = sessionStats.lastModelUsed;
-
-    // Determine if model is Gemini or GPT and split costs accordingly
-    const isGemini = modelUsed && (modelUsed.startsWith('gemini-') || modelUsed === 'auto');
-    const geminiCost = isGemini ? llmCost : 0;
-    const gptCost = !isGemini ? llmCost : 0;
+    const modelUsed = sessionStats.lastModelUsed || 'unknown';
 
     // Check for existing usage record to track mode history
     // UPDATED: Include detailed snapshots for granular breakdown
@@ -1312,13 +1307,12 @@ export class FirestoreService {
       timestamp: string;
       costAtSwitch: number;
       apiRequestsAtSwitch: number;
-      geminiCostAtSwitch: number;
-      gptCostAtSwitch: number;
+      modelCostAtSwitch: number;
       mathpixCostAtSwitch: number;
+      modelUsed: string;
     }> = [];
 
     const apiRequests = sessionStats.apiRequests || 0;
-    // const mathpixCost = sessionStats.costBreakdown?.mathpixCost || 0;
 
     try {
       const existingDoc = await db.collection(COLLECTIONS.USAGE_RECORDS).doc(sessionId).get();
@@ -1333,9 +1327,9 @@ export class FirestoreService {
             timestamp: existingData.createdAt ? existingData.createdAt.toDate().toISOString() : new Date().toISOString(),
             costAtSwitch: 0,
             apiRequestsAtSwitch: 0,
-            geminiCostAtSwitch: 0,
-            gptCostAtSwitch: 0,
-            mathpixCostAtSwitch: 0
+            modelCostAtSwitch: 0,
+            mathpixCostAtSwitch: 0,
+            modelUsed: existingData.modelUsed || 'unknown' // Use existing modelUsed for backfill
           });
         }
 
@@ -1346,21 +1340,21 @@ export class FirestoreService {
           // This ensures the cost of the *current* operation is attributed to the *new* mode (by subtraction later)
           const prevTotalCost = existingData.totalCost || 0;
           const prevApiRequests = existingData.apiRequests || 0;
-
-          // Helper to safely get nested cost breakdown
-          const prevCostBreakdown = existingData.costBreakdown || {};
-          const prevGeminiCost = prevCostBreakdown.geminiCost || (existingData.geminiCost || 0); // Handle flat or nested structure
-          const prevGptCost = prevCostBreakdown.gptCost || (existingData.gptCost || 0);
-          const prevMathpixCost = prevCostBreakdown.mathpixCost || (existingData.mathpixCost || 0);
+          const prevModelCost = existingData.modelCost || 0;
+          const prevMathpixCost = existingData.mathpixCost || 0;
+          // For the modelUsed in history, we record the *new* model that is starting to be used? 
+          // Or the model used *until now*? 
+          // Usually history records "Started Mode X with Model Y".
+          // So we use the current `modelUsed` passed in (which is the model for this update).
 
           modeHistory.push({
             mode: mode,
             timestamp: new Date().toISOString(),
             costAtSwitch: prevTotalCost,
             apiRequestsAtSwitch: prevApiRequests,
-            geminiCostAtSwitch: prevGeminiCost,
-            gptCostAtSwitch: prevGptCost,
-            mathpixCostAtSwitch: prevMathpixCost
+            modelCostAtSwitch: prevModelCost,
+            mathpixCostAtSwitch: prevMathpixCost,
+            modelUsed: modelUsed
           });
         }
       } else {
@@ -1370,9 +1364,9 @@ export class FirestoreService {
           timestamp: new Date().toISOString(),
           costAtSwitch: 0,
           apiRequestsAtSwitch: 0,
-          geminiCostAtSwitch: 0,
-          gptCostAtSwitch: 0,
-          mathpixCostAtSwitch: 0
+          modelCostAtSwitch: 0,
+          mathpixCostAtSwitch: 0,
+          modelUsed: modelUsed
         });
       }
     } catch (err) {
@@ -1383,9 +1377,9 @@ export class FirestoreService {
         timestamp: new Date().toISOString(),
         costAtSwitch: 0,
         apiRequestsAtSwitch: 0,
-        geminiCostAtSwitch: 0,
-        gptCostAtSwitch: 0,
-        mathpixCostAtSwitch: 0
+        modelCostAtSwitch: 0,
+        mathpixCostAtSwitch: 0,
+        modelUsed: modelUsed
       });
     }
 
@@ -1395,19 +1389,12 @@ export class FirestoreService {
       userId,
       createdAt: admin.firestore.Timestamp.fromDate(createdAtDate),
       totalCost: Math.round(totalCost * 1000000) / 1000000,
-      llmCost: Math.round(llmCost * 1000000) / 1000000,
-      geminiCost: Math.round(geminiCost * 1000000) / 1000000,
-      gptCost: Math.round(gptCost * 1000000) / 1000000,
+      modelCost: Math.round(modelCost * 1000000) / 1000000,
       mathpixCost: Math.round(mathpixCost * 1000000) / 1000000,
       modelUsed,
-      date: createdAtDate.toISOString().split('T')[0], // YYYY-MM-DD format
-      // NEW: Mode field (Current Mode)
-      mode: mode,
-      // NEW: Mode History
-      modeHistory: modeHistory,
-      // NEW: API request tracking
-      apiRequests: sessionStats.apiRequests || 0,
-      apiRequestBreakdown: sessionStats.apiRequestBreakdown || {}
+      apiRequests,
+      mode,
+      modeHistory
     };
 
     // Use sessionId as document ID

@@ -1277,3 +1277,136 @@
     justify-content: center;
   }
 }
+/* Credits Nav Item */
+.nav-item.credits-nav {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: #111827;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.nav-item.credits-nav:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.credits-icon {
+  color: var(--text-tertiary); /* Or specific color from screenshot */
+}
+
+.credits-count {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Credits Dropdown Re-styling */
+/* Reuse subscription-dropdown structure but override internals */
+.credits-dropdown-header {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.plan-info {
+  display: flex;
+  align-items: center;
+}
+
+.plan-name-large {
+  font-size: 20px; 
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: serif; /* Screenshot has serif font for 'Free' */
+}
+
+.upgrade-btn-small {
+  background: white;
+  color: black;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.upgrade-btn-small:hover {
+  transform: scale(1.05);
+}
+
+.credits-divider {
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  margin: 0 20px;
+}
+
+.credits-details-row {
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.credits-label-group {
+  display: flex;
+  gap: 12px;
+}
+
+.credits-label-group .credits-icon {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.credits-label-main {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.credits-label-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.credits-value-group {
+  text-align: right;
+}
+
+.credits-value-main {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.credits-value-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.credits-footer {
+  padding: 0 20px 20px;
+}
+
+.view-usage-link {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.view-usage-link:hover {
+  color: var(--text-primary);
+}
