@@ -585,6 +585,12 @@
   height: 24px;
 }
 
+/* Force visibility when dropdown is open */
+.mark-history-actions-container.dropdown-open {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
 .mark-history-dropdown-btn:hover {
   background: var(--background-menu-gray);
   color: var(--text-primary);
@@ -760,17 +766,15 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: #363537;
-  /* Match task details dropdown background */
-  border: 1px solid #111827;
-  /* Darker border to match task details */
-  border-radius: 16px;
-  /* More rounded corners like task details */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  min-width: 200px;
+  background: var(--background-card);
+  /* Opaque background */
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  min-width: 160px;
   z-index: 10000 !important;
   overflow: hidden;
-  animation: dropdownSlideIn 0.3s ease-out;
+  animation: dropdownSlideIn 0.2s ease-out;
 }
 
 .mark-history-dropdown.closing {

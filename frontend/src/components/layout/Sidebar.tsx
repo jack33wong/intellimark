@@ -150,6 +150,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [editingSessionId]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownSessionId && !(event.target as HTMLElement).closest('.mark-history-actions-container')) {
+        setDropdownSessionId(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [dropdownSessionId]);
+
 
   const handleGoToMarkHomework = () => {
     setSelectedSessionId(null);
@@ -388,7 +399,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <div className="mark-history-last-message">{getLastMessage(session)}</div>
                     <div className="mark-history-meta">
                       <span className="mark-history-time">{formatSessionDate(session)}</span>
-                      <div className="mark-history-actions-container">
+                      <div className={`mark-history-actions-container ${dropdownSessionId === session.id ? 'dropdown-open' : ''}`}>
                         <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
                           <MoreHorizontal size={16} />
                         </button>
