@@ -148,13 +148,20 @@ const MainLayout: React.FC = () => {
     // 2. Update States
     setActiveQuestionId(qNum);
 
-    // If not in split mode, entering it will set the activeImageIndex as well
+    // If not in split mode, we only AUTO-ENTER it if the user explicitly clicked (Ribbon/Image)
+    // Scrolling through the chat should NOT suddenly pop the user into split mode.
     if (!splitModeImages) {
-      const sessionImages = currentSession ? getSessionImages(currentSession) : [];
-      if (sessionImages.length > 0) {
-        enterSplitMode(sessionImages, targetImgIdx);
+      if (source !== 'scroll') {
+        const sessionImages = currentSession ? getSessionImages(currentSession) : [];
+        if (sessionImages.length > 0) {
+          enterSplitMode(sessionImages, targetImgIdx);
+        }
+      } else {
+        // Just keep the target index in sync background-ly
+        setActiveImageIndex(targetImgIdx);
       }
     } else {
+      // If already in split mode, always sync the image
       setActiveImageIndex(targetImgIdx);
     }
 

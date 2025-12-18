@@ -44,16 +44,16 @@
   overflow: hidden;
 }
 
-/* Follow-up Chat Input Container - Bottom position (Systematic Fix) */
+/* Follow-up Chat Input Container - Bottom position (Absolute Fix) */
 .follow-up-chat-input-container.follow-up-bottom {
-  position: relative;
-  margin-top: -160px;
-  /* Move the transition area much higher */
-  /* Overlap the chat container for the blur effect */
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   width: 100%;
   max-width: none;
-  z-index: 100;
-  flex: 0 0 auto;
+  z-index: 1000;
+  /* Ensure it's above chat messages */
   display: flex;
   justify-content: center;
   background: transparent !important;
@@ -66,20 +66,22 @@
 .follow-up-chat-input-container.follow-up-bottom::before {
   content: "";
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  backdrop-filter: blur(100px) saturate(180%);
-  -webkit-backdrop-filter: blur(100px) saturate(180%);
+  height: 170px;
+  /* Restored height to be functional */
+  backdrop-filter: blur(10px) saturate(110%);
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
   background: linear-gradient(to bottom,
-      transparent 0%,
-      var(--background-gray-main) 15%,
-      /* More rapid transition to solid background */
+      rgba(39, 39, 40, 0) 0%,
+      rgba(39, 39, 40, 0.7) 15%,
+      var(--background-gray-main) 10%,
+      /* Solid point is now higher */
       var(--background-gray-main) 100%);
-  /* Full width mask, no rounded corners to avoid "border" look */
-  mask-image: linear-gradient(to top, black 96%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to top, black 96%, transparent 100%);
+  /* Unified mask for smooth top edge */
+  mask-image: linear-gradient(to top, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, black 80%, transparent 100%);
   z-index: -1;
   pointer-events: none;
 }
@@ -234,6 +236,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
+  /* Anchor for absolute children */
 }
 
 /* Header Section */
@@ -291,8 +295,6 @@
   /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--background-gray-main);
-  max-height: 88vh;
-  /* Limit the viewable height */
   flex: 1;
   /* Take up remaining space in chat-mode */
   min-height: 0;
@@ -1141,8 +1143,8 @@
   right: 0;
   height: 20px;
   /* Height of the blur transition area */
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
   background: linear-gradient(to bottom,
       var(--background-gray-main) 0%,
       rgba(39, 39, 40, 0.4) 40%,
@@ -1208,6 +1210,8 @@
   width: 50%;
   min-width: 320px;
   background: transparent;
+  overflow: hidden;
+  /* Added to constrain absolute children */
 }
 
 .split-canvas-panel {
