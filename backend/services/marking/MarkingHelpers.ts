@@ -1290,9 +1290,10 @@ export function calculateOverallScore(
 
     // Only set if not already set (first occurrence wins)
     if (!baseQuestionToTotalMarks.has(baseQNum)) {
-      // Use parent marks from marking scheme (database) instead of AI score
-      const parentMarks = qr.markingScheme?.parentQuestionMarks || 0;
-      baseQuestionToTotalMarks.set(baseQNum, parentMarks);
+      // Use detected total marks from marking scheme instead of parent marks
+      // Priority: scheme.totalMarks (sum of detected parts) > scheme.parentQuestionMarks (whole question) > score.totalMarks (AI)
+      const qTotalMarks = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0;
+      baseQuestionToTotalMarks.set(baseQNum, qTotalMarks);
     }
   });
 
@@ -1340,7 +1341,9 @@ export function calculatePerPageScores(
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
     const pageBaseQMap = pageBaseQuestionToTotalMarks.get(pageIndex)!;
     if (!pageBaseQMap.has(baseQNum)) {
-      pageBaseQMap.set(baseQNum, qr.score?.totalMarks || 0);
+      // Use detected total marks from marking scheme
+      const qTotalMarks = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0;
+      pageBaseQMap.set(baseQNum, qTotalMarks);
     }
   });
 

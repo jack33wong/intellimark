@@ -27,7 +27,7 @@
     /* Use fixed width for label columns to ensure alignment? No, grid auto aligns them. */
     /* Work column: fits content but wraps if too long. Annotation: takes remainder */
     grid-template-columns: min-content min-content min-content 1fr;
-    column-gap: 16px;
+    column-gap: 6px;
     row-gap: 8px;
     align-items: baseline;
 }
@@ -89,6 +89,7 @@
     text-align: center;
     width: 100%;
     display: inline-block;
+    font-size: 8px;
 }
 
 /* Mobile Responsive */

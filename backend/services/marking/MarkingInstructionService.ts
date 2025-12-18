@@ -31,6 +31,7 @@ interface NormalizedMarkingScheme {
   subQuestionAnswersMap?: { [subLabel: string]: string }; // Map sub-question label to its answer (e.g., "a" -> "53000")
   hasAlternatives?: boolean; // Flag indicating if alternative method exists
   alternativeMethod?: any; // Alternative method details
+  parentQuestionMarks?: number; // Total marks for the parent question (from database)
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -51,7 +52,8 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
         marks: parsed.marks || [],
         totalMarks: input.match?.marks || 0,
         questionNumber: input.match?.questionNumber || '1',
-        questionLevelAnswer: questionLevelAnswer
+        questionLevelAnswer: questionLevelAnswer,
+        parentQuestionMarks: input.match?.parentQuestionMarks || input.match?.marks // Fallback to marks if parentMarks missing
       };
 
       return normalized;
@@ -138,7 +140,8 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       subQuestionMaxScores: subQuestionMaxScores, // Preserve max scores from database
       subQuestionAnswersMap: subQuestionAnswersMap, // Map sub-question label to its answer
       alternativeMethod: alternativeMethod, // Include alternative method if available
-      hasAlternatives: hasAlternatives // Flag indicating if alternative exists
+      hasAlternatives: hasAlternatives, // Flag indicating if alternative exists
+      parentQuestionMarks: input.parentQuestionMarks // Preserve parent question marks for total score
     };
 
 
@@ -176,7 +179,8 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.match.marks || 0,
       questionNumber: input.match.questionNumber || '1',
-      questionLevelAnswer: questionLevelAnswer
+      questionLevelAnswer: questionLevelAnswer,
+      parentQuestionMarks: input.match.parentQuestionMarks || input.match.marks // Fallback to marks if parentMarks missing
     };
 
     return normalized;

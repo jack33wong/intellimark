@@ -1466,8 +1466,8 @@ export class MarkingPipelineService {
                 results: allQuestionResults,
                 metadata: {
                     totalQuestions: allQuestionResults.length,
-                    totalScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.awardedMarks || 0), 0),
-                    maxScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.totalMarks || 0), 0),
+                    totalScore: overallScore, // Use calculated overall score
+                    maxScore: totalPossibleScore, // Use grouped total marks calculation to avoid double-counting
                     processingTime: (Date.now() - startTime) / 1000
                 },
                 // Add sessionId for credit deduction (prefer questionOnly result for pure Question Mode)
