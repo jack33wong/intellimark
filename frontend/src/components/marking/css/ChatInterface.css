@@ -1092,19 +1092,58 @@
   font-weight: 500;
 }
 
-/* Question Navigator Ribbon - Float Overlay */
-.question-navigator-ribbon-wrapper {
-  position: absolute;
-  top: 50px;
-  left: 0;
-  right: 0;
-  z-index: 90;
-  /* Just below header z-index 100 */
+/* Unified Header for Marking Mode */
+.marking-header-unified {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-color);
   background: var(--background-gray-main);
-  /* Ensure opaque background */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Gemini-Style Split Mode Layout */
+.mark-homework-page.split-mode {
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+.split-view-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  padding: 0 16px 0 0;
+  gap: 16px;
+  height: 100%;
+}
+
+.split-chat-panel {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 380px;
+  background: transparent;
+}
+
+.split-canvas-panel {
+  margin-top: 10px;
+  margin-bottom: 8px;
+  position: relative;
+  min-width: 400px;
+  background: var(--background-gray-main);
+  border-radius: 24px;
+  border: 1px solid var(--border-main);
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Question Navigator Ribbon - Now part of Unified Header */
+.question-navigator-ribbon-wrapper {
+  position: relative;
+  z-index: 90;
+  background: var(--background-gray-main);
   border-bottom: 1px solid var(--border-color);
   width: 100%;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .question-navigator-ribbon-container {

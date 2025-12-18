@@ -414,18 +414,14 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: nowrap;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   margin: 0;
   padding: 0 20px;
   background: var(--background-gray-main);
   flex-shrink: 0;
   width: 100%;
-  transform: translateY(0);
-  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-  opacity: 1;
-  height: 50px;
+  height: 55px;
 }
 
 .session-title-section {
@@ -443,7 +439,6 @@
   /* Bolder */
   color: var(--text-primary, #ffffff);
   margin: 0;
-  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

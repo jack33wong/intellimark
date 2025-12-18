@@ -111,13 +111,18 @@ const MainLayout: React.FC = () => {
     return (
       <div className="chat-panel-layout" style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-        {/* Sticky Ribbon Navigator for Chat Mode */}
-        {renderQuestionRibbon(true)}
-
-        <div className="chat-container" ref={setChatContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="marking-header-unified" style={{ flexShrink: 0, backgroundColor: 'var(--background-gray-main)', zIndex: 100 }}>
           {currentSession && (
             <SessionManagement key={currentSession.id} />
           )}
+
+          {/* Sticky Ribbon Navigator for Chat Mode */}
+          {renderQuestionRibbon(true)}
+        </div>
+
+
+        <div className="chat-container" ref={setChatContainerRef} style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+
 
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
@@ -277,8 +282,7 @@ const MainLayout: React.FC = () => {
   const renderQuestionRibbon = (isChatMode: boolean) => {
     if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
 
-    // Prevent duplicate ribbon in Split Mode
-    if (isChatMode && splitModeImages) return null;
+    // Unified Header Redesign: Ribbon is now always part of the header stack
 
     // Always show ribbon navigator (removed scroll and table visibility conditions)
 
@@ -334,24 +338,20 @@ const MainLayout: React.FC = () => {
     );
   };
 
-  // Use simple relative positioning for standard layout
-  return (
-    <div className={`mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`}>
-      {splitModeImages ? ReactDOM.createPortal(
-        /* SPLIT VIEW LAYOUT (PORTAL) */
-        <div className="split-view-portal-root" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          zIndex: 2147483647,
-          background: 'var(--background-gray-main, #111827)',
-          display: 'flex',
-          overflow: 'hidden'
-        }}>
-          {/* Left Panel: Image Viewer (50%) */}
-          <div className="split-left-panel" style={{ width: '50%', flex: '0 0 50%', borderRight: '1px solid var(--border-main)', position: 'relative', minWidth: '320px' }}>
+  // Determine layout class
+  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`;
+
+  if (splitModeImages) {
+    return (
+      <div className={layoutClass}>
+        <div className="split-view-container">
+          {/* Left Panel: Chat Interface (45%) */}
+          <div className="split-chat-panel">
+            {renderChatContent()}
+          </div>
+
+          {/* Right Panel: Image Viewer / Canvas (55%) */}
+          <div className="split-canvas-panel">
             <ImageViewer
               images={splitModeImages}
               initialImageIndex={activeImageIndex || 0}
@@ -360,26 +360,16 @@ const MainLayout: React.FC = () => {
               onImageChange={setActiveImageIndex}
             />
           </div>
-
-          {/* Right Panel: Chat Interface (50%) */}
-          <div className="split-right-panel" style={{ width: '50%', flex: '0 0 50%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: '320px', background: 'var(--background-gray-main)' }}>
-
-            {/* Ribbon Navigator (Only if detectedQuestion exists) */}
-            {renderQuestionRibbon(false)}
-
-            <div className="mark-homework-main-content" style={{ height: '100%', padding: 0, overflowY: 'auto' }}>
-              {renderChatContent()}
-            </div>
-          </div>
-        </div>,
-        document.body
-      ) : (
-        /* STANDARD SINGLE COLUMN LAYOUT */
-        <div className="mark-homework-main-content">
-          {renderChatContent()}
         </div>
-      )
-      }
+      </div>
+    );
+  }
+
+  return (
+    <div className={layoutClass}>
+      <div className="mark-homework-main-content">
+        {renderChatContent()}
+      </div>
     </div>
   );
 };

@@ -3,18 +3,14 @@
 /* Image Mode Modal Styles */
 
 .image-mode-modal {
-  position: absolute;
-  /* Changed from fixed to absolute to support split view */
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  height: 100%;
+  width: 100%;
   background: var(--background-gray-main);
-  border-left: 1px solid var(--border-main, #e2e8f0);
-  z-index: 2000;
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  padding-bottom: 20px;
+  overflow: hidden;
 }
 
 /* Header with controls */
@@ -167,13 +163,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 68px 100px 32px 24px;
-  /* Increased right padding to 100px to reserve space for thumbnails */
+  padding: 60px 80px 20px 20px;
   flex: 1;
   min-height: 0;
-  max-width: 100%;
-  /* Allow full width usage minus padding */
-  margin: 0 auto;
   width: 100%;
 }
 
