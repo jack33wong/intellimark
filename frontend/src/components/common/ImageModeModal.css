@@ -163,10 +163,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 60px 80px 20px 20px;
+  padding: 60px 20px 20px 20px;
+  /* Reduced right padding since thumbnails are no longer absolute */
   flex: 1;
   min-height: 0;
   width: 100%;
+  gap: 10px;
 }
 
 /* Image container */
@@ -251,15 +253,14 @@
 
 /* Thumbnail sidebar */
 .thumbnail-sidebar {
-  position: absolute;
-  /* Changed from fixed to absolute for split view support */
-  top: 0;
-  right: 0;
-  bottom: 0;
-  padding: 68px 0 110px;
+  position: relative;
+  height: 100%;
+  padding: 68px 0 20px;
+  /* Adjusted bottom padding */
   display: flex;
   align-items: center;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .thumbnail-list {
