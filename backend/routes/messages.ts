@@ -90,7 +90,17 @@ export function formatYourWork(
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'auto', sessionId, mode, aiMessageId, sourceMessageId } = req.body;
+    const {
+      message,
+      imageData,
+      model = 'auto',
+      sessionId,
+      mode,
+      aiMessageId,
+      sourceMessageId,
+      contextQuestionId,
+      messageId // Extract user message ID if provided
+    } = req.body;
 
     // Instantiate UsageTracker for this request
     const usageTracker = new UsageTracker();
@@ -139,11 +149,13 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let userMessage = null;
     if (isAuthenticated) {
       userMessage = createUserMessage({
+        messageId: messageId, // Use the ID from the frontend to ensure consistency (matches field in UserMessageOptions)
         content: message || (imageData ? 'Image uploaded' : ''),
         imageLink: imageLink, // Only for authenticated users
         imageData: imageData, // For both authenticated and unauthenticated users
         sessionId: sessionId,
-        model: model
+        model: model,
+        contextQuestionId: contextQuestionId
       });
 
     }
@@ -251,10 +263,26 @@ router.post('/chat', optionalAuth, async (req, res) => {
           try {
             const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
             if (existingSession?.messages) {
-              chatHistory = existingSession.messages.map(msg => ({
-                role: msg.role,
-                content: msg.content
-              }));
+              chatHistory = existingSession.messages
+                .filter(msg => {
+                  // If no context provided in request, show all.
+                  // If context provided, show only specific question context or messages WITHOUT context (system).
+                  // We truncate the "all-questions" summary message below to keep AI focused.
+                  if (!contextQuestionId) return true;
+                  return String((msg as any).contextQuestionId) === String(contextQuestionId) || msg.role === 'system' || (msg as any).markingContext;
+                })
+                .map(msg => {
+                  let content = msg.content;
+                  // If we have a specific context, and this message is the "all questions" marking context,
+                  // truncate it to just a placeholder to prevent AI from seeing details of OTHER questions.
+                  if (contextQuestionId && (msg as any).markingContext && !msg.role.startsWith('user')) {
+                    content = `[Marking report for all questions - Follow specific context prompt for Question ${contextQuestionId} details]`;
+                  }
+                  return {
+                    role: msg.role,
+                    content: content
+                  };
+                });
 
               // INJECT: Find rich marking context from the assistant's marking result
               // Look for the last message that has markingContext (usually the initial marking response)
@@ -271,19 +299,22 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
                 for (let i = 0; i < msgs.length - 1; i++) {
                   if (msgs[i].role === 'user' && msgs[i + 1]?.role === 'assistant') {
-                    followUpHistory.push({
-                      userMessage: msgs[i].content,
-                      aiResponse: msgs[i + 1].content,
-                      timestamp: Date.parse(msgs[i].timestamp || new Date().toISOString())
-                    });
+                    // Filter history for context injection too
+                    if (!contextQuestionId || (msgs[i] as any).contextQuestionId === contextQuestionId) {
+                      followUpHistory.push({
+                        userMessage: msgs[i].content,
+                        aiResponse: msgs[i + 1].content,
+                        timestamp: Date.parse(msgs[i].timestamp || new Date().toISOString())
+                      });
+                    }
                   }
                 }
 
                 // Update the context object (in memory only) with recent history
                 markingContext.followUpHistory = followUpHistory;
 
-                // Generate the full prompt including marking details + history
-                contextSummary = ChatContextBuilder.formatContextAsPrompt(markingContext);
+                // Generate the full prompt including marking details + history (filtered by question if active)
+                contextSummary = ChatContextBuilder.formatContextAsPrompt(markingContext, contextQuestionId);
 
                 // Update progress tracker to indicate context mode
                 progressTracker.updateStepDescription('generating_response', 'Thinking with marking context...');
@@ -360,6 +391,15 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
     // Create AI message using factory
     const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, aiResponse, 'chat');
+
+    // Dynamically determine the best context ID for the AI message
+    // If AI explicitly mentions a different question in its response, use that
+    let aiContextQuestionId = contextQuestionId;
+    const qMatch = aiResponse.match(/(?:question|q)\s*(\d+)/i);
+    if (qMatch && qMatch[1]) {
+      aiContextQuestionId = qMatch[1];
+    }
+
     const aiMessage = createAIMessage({
       content: finalResponse, // Use finalResponse here
       messageId: resolvedAIMessageId,
@@ -374,7 +414,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
         confidence: contextualResult?.confidence || 0,
         annotations: 0,
         processingTimeMs: Date.now() - startTime
-      }
+      },
+      contextQuestionId: aiContextQuestionId // Use the detected or passed context
     });
 
 

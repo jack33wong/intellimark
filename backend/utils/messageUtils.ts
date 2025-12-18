@@ -187,6 +187,7 @@ export interface UserMessageOptions {
   originalFileType?: 'pdf';
   pdfContexts?: StructuredImageData[]; // For PDFs, using same structure
   detectedQuestion?: DetectedQuestion;
+  contextQuestionId?: string;
 }
 
 export interface AIMessageOptions {
@@ -201,6 +202,7 @@ export interface AIMessageOptions {
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
   detectedQuestion?: DetectedQuestion;
   markingContext?: import('../types/index.js').MarkingContext;
+  contextQuestionId?: string;
 }
 
 /**
@@ -218,7 +220,8 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     model = 'auto',
     messageId,
     originalFileType,
-    pdfContexts
+    pdfContexts,
+    contextQuestionId
   } = options;
 
 
@@ -248,7 +251,8 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     imageLink: imageLink,
     imageData: imageData,
     imageDataArray: imageDataArray,
-    pdfContexts: pdfContexts
+    pdfContexts: pdfContexts,
+    contextQuestionId: contextQuestionId
   };
 
 
@@ -286,7 +290,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     processingStats,
     messageId,
     category,
-    suggestedFollowUps
+    suggestedFollowUps,
+    contextQuestionId
   } = options;
 
   // Determine message type based on content and context
@@ -329,7 +334,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     imageDataArray: imageDataArray, // Use structured format for all cases
     suggestedFollowUps,
     markingContext: options.markingContext,
-    progressData: progressData
+    progressData: progressData,
+    contextQuestionId: contextQuestionId
   };
 
 

@@ -304,7 +304,7 @@
   font-size: 11px;
   color: var(--text-tertiary);
   margin-top: 4px;
-  padding: 0 8px;
+  padding: 0 24px;
 }
 
 /* Adjust timestamp margin when user has an image */
@@ -411,10 +411,30 @@
   margin-left: 12px;
 }
 
+/* Message context tag styling */
+.message-context-tag {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 24px;
+  opacity: 0.8;
+}
+
+.chat-message.user .message-context-tag {
+  justify-content: flex-end;
+}
+
+.chat-message.assistant .message-context-tag {
+  justify-content: flex-start;
+}
+
 /* AI Performance Summary Styling */
 .ai-performance-summary {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
-  border-left: 4px solid #6366f1;
+  border-left: 4px solid var(--text-brand);
   padding: 16px 20px;
   border-radius: 12px;
   margin-bottom: 20px;
@@ -439,7 +459,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #6366f1;
+  color: var(--text-brand);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;

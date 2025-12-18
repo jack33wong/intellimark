@@ -9,6 +9,7 @@ import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
+import type { UnifiedMessage } from '../../types';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';
 import { getSessionImages } from '../../utils/imageCollectionUtils';
@@ -45,6 +46,8 @@ const MainLayout: React.FC = () => {
     setActiveImageIndex,
     activeQuestionId,
     setActiveQuestionId,
+    isContextFilterActive,
+    setContextFilterActive,
     isQuestionTableVisible,
     visibleTableIds,
   } = useMarkingPage();
@@ -54,10 +57,8 @@ const MainLayout: React.FC = () => {
   // Auto-refresh Header credits when session completes
   useEffect(() => {
     if (currentSession && !currentSession.id?.startsWith('temp-')) {
-
       // Wait 1 second for Firestore to save credit deduction
       setTimeout(() => {
-
         if (typeof window.refreshHeaderSubscription === 'function') {
           window.refreshHeaderSubscription();
         }
@@ -84,10 +85,7 @@ const MainLayout: React.FC = () => {
     if (!container) return;
 
     const handleScroll = () => {
-      // Toggle ribbon eligibility based on scroll past header (e.g. 150px)
-      // This prevents the ribbon from covering the session title at the very top (increased threshold)
       const isPastHeader = container.scrollTop > 150;
-      // Use functional update to avoid `showRibbonOnScroll` in dependency array
       setShowRibbonOnScroll(prev => {
         if (isPastHeader !== prev) {
           return isPastHeader;
@@ -97,33 +95,178 @@ const MainLayout: React.FC = () => {
     };
 
     container.addEventListener('scroll', handleScroll);
-    // Initial check
     handleScroll();
 
     return () => container.removeEventListener('scroll', handleScroll);
   }, [containerElement]);
 
+  // Import ImageViewer directly here to avoid circular dependencies if placed at top
+  const ImageViewer = require('../common/ImageViewer').default;
+
+  // Determine Marking Context for Ribbon
+  const lastMarkingMessage = React.useMemo(() => {
+    if (!currentSession || !currentSession.messages) return null;
+    return [...currentSession.messages].reverse().find(m => (m as any).markingContext);
+  }, [currentSession]);
+
+  // Determine Detected Question for Ribbon logic
+  const activeDetectedQuestion = React.useMemo(() => {
+    if (!currentSession) return null;
+    if (currentSession.detectedQuestion?.found) return currentSession.detectedQuestion;
+
+    if (currentSession.messages) {
+      const msgWithQuestion = currentSession.messages.find((m: any) => m.detectedQuestion?.found);
+      if (msgWithQuestion) return (msgWithQuestion as any).detectedQuestion;
+    }
+    return null;
+  }, [currentSession]);
+
+  // Use question grouping hook to get badges data
+  const { groupedQuestions, getGroupColor } = useQuestionGrouping(activeDetectedQuestion, (lastMarkingMessage as any)?.markingContext);
+
+  // Sync Active Question ID with Image Index in Split Mode
+  useEffect(() => {
+    if (splitModeImages && activeImageIndex !== undefined) {
+      const questionsOnPage = groupedQuestions.filter(g => g.sourceImageIndex === activeImageIndex);
+
+      if (questionsOnPage.length > 0) {
+        const isActiveValid = questionsOnPage.some(g => g.questionNumber === activeQuestionId);
+
+        if (!isActiveValid) {
+          setActiveQuestionId(questionsOnPage[0].questionNumber);
+        }
+      }
+    }
+  }, [activeImageIndex, splitModeImages, groupedQuestions, activeQuestionId, setActiveQuestionId]);
+
+  // Enhanced Split Mode Entry
+  const enterSplitModeEnriched = (images: any[], index: number) => {
+    const enrichedImages = images.map((img: any, idx: number) => {
+      const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
+      if (match) {
+        const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
+        return {
+          ...img,
+          badgeText: `Q${match.questionNumber} ${scoreText}`,
+          badgeColor: getGroupColor(match)
+        };
+      }
+      return img;
+    });
+
+    enterSplitMode(enrichedImages, index);
+  };
+
+  // Reusable Ribbon Render Function
+  const renderQuestionRibbon = (isChatMode: boolean) => {
+    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
+
+    const ribbonContent = (
+      <QuestionNavigator
+        mode="ribbon"
+        idPrefix="ribbon"
+        detectedQuestion={activeDetectedQuestion}
+        markingContext={(lastMarkingMessage as any)?.markingContext}
+        onNavigate={(qNum, imgIdx) => {
+          setActiveQuestionId(qNum);
+          const sessionImages = currentSession ? getSessionImages(currentSession) : [];
+          if (sessionImages.length > 0) {
+            enterSplitModeEnriched(sessionImages, imgIdx);
+          } else {
+            setActiveImageIndex(imgIdx);
+          }
+
+          setTimeout(() => {
+            const targetId = `question-${String(qNum).toLowerCase()}`;
+            const el = document.getElementById(targetId);
+
+            if (el) {
+              const chatContainer = document.querySelector('.chat-container') as HTMLElement;
+              if (chatContainer) {
+                const elRect = el.getBoundingClientRect();
+                const containerRect = chatContainer.getBoundingClientRect();
+                const offset = 120; // Match the scrollMarginTop in ChatMessage
+                const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
+
+                chatContainer.scrollTo({
+                  top: targetScrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }
+          }, 250); // Increased timeout to ensure re-render and ID injection complete
+        }}
+        activeQuestionId={activeQuestionId}
+      />
+    );
+
+    return (
+      <div className="question-navigator-ribbon-wrapper">
+        <div className="question-navigator-ribbon-container">
+          {ribbonContent}
+        </div>
+      </div>
+    );
+  };
+
   // Common Chat Content Render Function to reuse in both modes
   const renderChatContent = () => {
-    const displayedMessages = chatMessages || [];
+    let displayedMessages: UnifiedMessage[] = (chatMessages || []) as UnifiedMessage[];
+
+    // Apply context filter if active
+    if (isContextFilterActive && activeQuestionId) {
+      displayedMessages = displayedMessages.filter((msg: UnifiedMessage) =>
+        String(msg.contextQuestionId) === String(activeQuestionId) ||
+        msg.role === 'system' ||
+        (msg as any).markingContext
+      );
+    }
+
     const hasMessages = displayedMessages.length > 0;
 
     return (
       <div className="chat-panel-layout" style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
         <div className="marking-header-unified" style={{ flexShrink: 0, backgroundColor: 'var(--background-gray-main)', zIndex: 100 }}>
           {currentSession && (
             <SessionManagement key={currentSession.id} />
           )}
 
-          {/* Sticky Ribbon Navigator for Chat Mode */}
-          {renderQuestionRibbon(true)}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
+            <div style={{ flex: 1 }}>
+              {/* Sticky Ribbon Navigator for Chat Mode */}
+              {renderQuestionRibbon(true)}
+            </div>
+
+            {activeQuestionId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '12px', borderLeft: '1px solid var(--border-main)' }}>
+                <button
+                  className={`filter-toggle-btn ${isContextFilterActive ? 'active' : ''}`}
+                  onClick={() => setContextFilterActive(!isContextFilterActive)}
+                  title={isContextFilterActive ? "Show all messages" : "Show only current question messages"}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    border: '1px solid var(--border-main)',
+                    backgroundColor: isContextFilterActive ? 'var(--button-primary-black)' : 'transparent',
+                    color: isContextFilterActive ? 'white' : 'var(--text-primary)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Brain size={14} />
+                  {isContextFilterActive ? "Grouped by Q" : "Group Chat"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-
         <div className="chat-container" ref={setChatContainerRef} style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-
-
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
             null
@@ -174,165 +317,9 @@ const MainLayout: React.FC = () => {
             onSendMessage={onSendMessage}
             mode={isFollowUp ? 'follow-up' : 'first-time'}
             currentSession={currentSession}
+            contextQuestionId={activeQuestionId}
+            setContextQuestionId={setActiveQuestionId}
           />
-        </div>
-      </div>
-    )
-  };
-
-  // Import ImageViewer directly here to avoid circular dependencies if placed at top
-  const ImageViewer = require('../common/ImageViewer').default;
-
-  // Determine Marking Context for Ribbon
-  // We want the most recent marking context available in the session
-  const lastMarkingMessage = React.useMemo(() => {
-    if (!currentSession || !currentSession.messages) return null;
-    return [...currentSession.messages].reverse().find(m => (m as any).markingContext);
-  }, [currentSession]);
-
-  // Determine Detected Question for Ribbon logic
-  // Look for it in the session root first, then fallback to finding it in messages
-  const activeDetectedQuestion = React.useMemo(() => {
-    if (!currentSession) return null;
-    if (currentSession.detectedQuestion?.found) return currentSession.detectedQuestion;
-
-    // Search in messages (usually the first user message or first assistant message)
-    if (currentSession.messages) {
-      const msgWithQuestion = currentSession.messages.find((m: any) => m.detectedQuestion?.found);
-      if (msgWithQuestion) return (msgWithQuestion as any).detectedQuestion;
-    }
-    return null;
-  }, [currentSession]);
-
-  // Use question grouping hook to get badges data
-  const { groupedQuestions, getGroupColor } = useQuestionGrouping(activeDetectedQuestion, (lastMarkingMessage as any)?.markingContext);
-
-  // Sync Active Question ID with Image Index in Split Mode
-  // Sync Active Question ID with Image Index in Split Mode
-  useEffect(() => {
-    if (splitModeImages && activeImageIndex !== undefined) {
-      // Find ALL questions on this page
-      const questionsOnPage = groupedQuestions.filter(g => g.sourceImageIndex === activeImageIndex);
-
-      if (questionsOnPage.length > 0) {
-        // Check if currently active question is one of them
-        // If it is, we don't need to change anything (user clicked specifically on this question)
-        const isActiveValid = questionsOnPage.some(g => g.questionNumber === activeQuestionId);
-
-        if (!isActiveValid) {
-          // Only update if current active question is NOT on this page/valid
-          // Default to the first question on the page
-          setActiveQuestionId(questionsOnPage[0].questionNumber);
-        }
-      }
-    }
-  }, [activeImageIndex, splitModeImages, groupedQuestions, activeQuestionId, setActiveQuestionId]);
-
-  // Enhanced Split Mode Entry
-  const enterSplitModeEnriched = (images: any[], index: number) => {
-    // Enrich images with badges
-    const enrichedImages = images.map((img: any, idx: number) => {
-      // Note: input images might not have correct 'idx' if they are just an array passed in
-      // BUT for 'sessionImages', the index in array corresponds to page index 0,1,2...
-      // IF 'images' is a subset (e.g. multi-image message), logic differs?
-      // Wait: MainLayout always passes FULL session images for onNavigate (Ribbon).
-      // ChatMessage grid passes ONLY its own images?
-      // If ChatMessage passes subset, 'idx' 0 is NOT Page 0.
-      // We need GLOBAL page index source.
-
-      // Assumption: 'images' passed to this function are ALWAYS meant to be the full session context?
-      // OR we need to know the global offset.
-
-      // FIX: If we enter split mode from a message grid, we typically want FULL CONTEXT (all pages).
-      // ChatMessage handleSmartNavigation does: getSessionImages(session).
-      // ChatMessage handleMultiImageClick does: map(imageDataArray).
-      // If we execute handleMultiImageClick (Grid), we get only 1-2 images.
-      // If I enrich them, we assume index 0 is Page 0? No.
-
-      // If we want badges, we probably want FULL session mode even from Grid click?
-      // User said "click on 9 image thumbnail grid... enter split mode".
-      // If I view just those 9 images, they might be Pages 1-9.
-      // But groupedQuestions maps 'sourceImageIndex' (Page 0..N).
-
-      // If the input 'images' are indeed the Full Session Images (which is preferred for split mode),
-      // then index matches.
-      // If they are specific to message, we might mismatch.
-
-      // However, current implementation of `handleMultiImageClick` in ChatMessage uses local `imageDataArray`.
-      // If I replace `handleMultiImageClick` logic to use `enterSplitModeEnriched`, and I pass `sessionImages` (full) instead of local?
-      // Then we are safe.
-
-      // So, I will define this expecting FULL session images.
-      const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
-      if (match) {
-        const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
-        return {
-          ...img,
-          badgeText: `Q${match.questionNumber} ${scoreText}`,
-          badgeColor: getGroupColor(match)
-        };
-      }
-      return img;
-    });
-
-    enterSplitMode(enrichedImages, index);
-  };
-
-  // Reusable Ribbon Render Function
-  const renderQuestionRibbon = (isChatMode: boolean) => {
-    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
-
-    // Unified Header Redesign: Ribbon is now always part of the header stack
-
-    // Always show ribbon navigator (removed scroll and table visibility conditions)
-
-    const ribbonContent = (
-      <QuestionNavigator
-        mode="ribbon"
-        idPrefix="ribbon"
-        detectedQuestion={activeDetectedQuestion}
-        markingContext={(lastMarkingMessage as any)?.markingContext}
-        onNavigate={(qNum, imgIdx) => {
-          // Set active question
-          setActiveQuestionId(qNum);
-
-          // If valid images are found, ALWAYS enforce split mode update.
-          const sessionImages = currentSession ? getSessionImages(currentSession) : [];
-
-          if (sessionImages.length > 0) {
-            enterSplitModeEnriched(sessionImages, imgIdx);
-          } else {
-            if (isChatMode) console.warn('[MainLayout] No session images found for split mode');
-            setActiveImageIndex(imgIdx);
-          }
-
-          // 2. Scroll Chat using smooth scroll
-          setTimeout(() => {
-            const el = document.getElementById(`question-${qNum}`);
-            if (el) {
-              const chatContainer = document.querySelector('.chat-container') as HTMLElement;
-              if (chatContainer) {
-                const elRect = el.getBoundingClientRect();
-                const containerRect = chatContainer.getBoundingClientRect();
-                const offset = 100;
-                const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
-                chatContainer.scrollTo({
-                  top: targetScrollTop,
-                  behavior: 'smooth'
-                });
-              }
-            }
-          }, 100);
-        }}
-        activeQuestionId={activeQuestionId}
-      />
-    );
-
-    // Unified Styling Wrapper
-    return (
-      <div className="question-navigator-ribbon-wrapper">
-        <div className="question-navigator-ribbon-container">
-          {ribbonContent}
         </div>
       </div>
     );
@@ -345,12 +332,9 @@ const MainLayout: React.FC = () => {
     return (
       <div className={layoutClass}>
         <div className="split-view-container">
-          {/* Left Panel: Chat Interface (45%) */}
           <div className="split-chat-panel">
             {renderChatContent()}
           </div>
-
-          {/* Right Panel: Image Viewer / Canvas (55%) */}
           <div className="split-canvas-panel">
             <ImageViewer
               images={splitModeImages}

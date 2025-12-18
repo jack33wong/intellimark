@@ -60,8 +60,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
-  const { activeQuestionId, setActiveQuestionId, setQuestionTableVisibility } = useMarkingPage();
+  const { activeQuestionId, setActiveQuestionId, setQuestionTableVisibility, isContextFilterActive } = useMarkingPage();
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const scrollSpyObserverRef = useRef<IntersectionObserver | null>(null);
+  const syncScrollRef = useRef<Function | null>(null);
 
   const setTableObserverRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
@@ -295,7 +297,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           if (chatContainer) {
             const elRect = el.getBoundingClientRect();
             const containerRect = chatContainer.getBoundingClientRect();
-            const offset = 100;
+            const offset = 120; // Match the scrollMarginTop
             const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
             // Use smooth scroll like scrollToBottom
             chatContainer.scrollTo({
@@ -303,17 +305,65 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               behavior: 'smooth'
             });
           }
-        } else {
+        } else if (attempts < maxAttempts) {
           attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(attemptScroll, 100);
-          }
+          setTimeout(attemptScroll, 100);
         }
       };
 
       attemptScroll();
-    }, 600);
-  }, [message, onEnterSplitMode, session]);
+    }, 100);
+  }, [session, onEnterSplitMode, setActiveQuestionId]);
+
+  // Sync on Scroll Function - updates ribbon and image without scrolling chat
+  const syncOnScroll = useCallback((questionNumber: string) => {
+    const normalizedNewQ = String(questionNumber).toLowerCase();
+    const normalizedActiveQ = String(activeQuestionId).toLowerCase();
+
+    // Only trigger if question is different to avoid jitter
+    if (normalizedActiveQ !== normalizedNewQ) {
+      // 1. Update Ribbon Highlighting
+      setActiveQuestionId(questionNumber);
+
+      // 2. Update Document View (Image) if in Split Mode or has Image context
+      if (session && onEnterSplitMode) {
+        const targetImages = getSessionImages(session);
+        // Find marking context for sourceImageIndex mapping
+        const markingContext = (message as any)?.markingContext ||
+          session.messages?.find((m: any) => (m as any).markingContext)?.markingContext;
+
+        if (markingContext?.questionResults && targetImages.length > 0) {
+          // Find the question result that matches OR starts with our number (e.g. 1 matching 1a)
+          const qData = markingContext.questionResults.find(
+            (q: any) => {
+              const qNum = String(q.number).toLowerCase();
+              return qNum === normalizedNewQ || qNum.startsWith(normalizedNewQ);
+            }
+          );
+
+          if (qData) {
+            const pageIndex = (qData as any).pageIndex !== undefined ? (qData as any).pageIndex : qData.sourceImageIndex;
+            const safeIndex = Math.min(Math.max(0, pageIndex || 0), targetImages.length - 1);
+            onEnterSplitMode(targetImages, safeIndex);
+          }
+        }
+      }
+    }
+  }, [activeQuestionId, setActiveQuestionId, session, onEnterSplitMode, message]);
+
+  // Keep sync function ref current for observer
+  useEffect(() => {
+    syncScrollRef.current = syncOnScroll;
+  }, [syncOnScroll]);
+
+  // Cleanup observer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollSpyObserverRef.current) {
+        scrollSpyObserverRef.current.disconnect();
+      }
+    };
+  }, []);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {
@@ -326,7 +376,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           role: 'user',
           content: suggestion,
           timestamp: new Date().toISOString(),
-          type: 'chat'
+          type: 'chat',
+          contextQuestionId: message.contextQuestionId
         });
       }
 
@@ -353,7 +404,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         sessionId: session?.id,
         model: selectedModel || 'gemini-2.0-flash', // Use selected model from props, fallback to gemini-2.0-flash
         mode: mode,
-        sourceMessageId: message.id  // Pass the specific message ID that triggered this follow-up
+        sourceMessageId: message.id,  // Pass the specific message ID that triggered this follow-up
+        contextQuestionId: message.contextQuestionId // Pass the context of the triggered message
       };
 
       // Only send detectedQuestion for unauthenticated users (authenticated users have it in Firestore)
@@ -461,6 +513,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       aria-roledescription={isUser ? 'user-message' : 'assistant-message'}
     >
       <div className="chat-message-content">
+        {/* Context Tag - Always show if present to ensure clear grouping */}
+        {message.contextQuestionId && (
+          <div className="message-context-tag">
+            <Brain size={10} />
+            Question {message.contextQuestionId}
+          </div>
+        )}
         <div className={`chat-message-bubble`}>
           {!isUser && (
             <div className="assistant-header">
@@ -599,29 +658,66 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
             processedContent = questionSections.join('');
 
-            // Callback ref to inject IDs into question headers after render
+            // Callback ref to inject IDs and setup Scroll-Spy observer
             const handleContentRef = (element: HTMLDivElement | null) => {
               if (!element) return;
 
-              // Find all question headers in the rendered DOM
-              const headers = element.querySelectorAll('p strong, h3');
+              // Find all question headers in the rendered DOM - be inclusive with selectors
+              const headers = element.querySelectorAll('p strong, h3, h2, h4, strong');
+
+              // Cleanup previous observer for this content
+              if (scrollSpyObserverRef.current) {
+                scrollSpyObserverRef.current.disconnect();
+              }
+
+              // Create Scroll-Spy observer - find the scrollable container dynamically
+              const scrollRoot = (element.closest('.chat-container') || document.querySelector('.chat-container')) as HTMLElement | null;
+
+              const observer = new IntersectionObserver((entries) => {
+                // Find headers that are active in the target zone (top of chat)
+                for (const entry of entries) {
+                  if (entry.isIntersecting) {
+                    const qId = entry.target.id;
+                    const qNum = qId.replace('question-', '');
+
+                    if (qNum && syncScrollRef.current) {
+                      syncScrollRef.current(qNum);
+                    }
+                    // Only process the first header that enters the top zone
+                    break;
+                  }
+                }
+              }, {
+                root: scrollRoot,
+                // Highly responsive detection band: starts 10px from top of container
+                rootMargin: '-10px 0px -85% 0px',
+                threshold: 0
+              });
 
               headers.forEach((header) => {
                 const text = header.textContent || '';
-                const match = text.match(/Question\s+(\d+)/i);
+                // Support sub-questions (e.g. "Question 1a")
+                const match = text.match(/Question\s+(\d+[a-z]*)/i);
 
                 if (match) {
-                  const questionNum = match[1];
+                  const questionNum = match[1].toLowerCase();
                   const questionId = `question-${questionNum}`;
 
-                  // Add ID to the parent element (p or h3)
-                  const parent = header.parentElement;
-                  if (parent && !parent.id) {
-                    parent.id = questionId;
-                    parent.style.scrollMarginTop = '100px';
+                  // Find a suitable parent to attach the ID to for better scrolling
+                  // If it's a strong inside a p, use the p. Otherwise use the element itself.
+                  const targetElement = (header.tagName === 'STRONG' && header.parentElement?.tagName === 'P')
+                    ? header.parentElement
+                    : (header as HTMLElement);
+
+                  if (targetElement) {
+                    targetElement.id = questionId;
+                    targetElement.style.scrollMarginTop = '120px'; // Extra margin for the sticky ribbon
+                    observer.observe(targetElement);
                   }
                 }
               });
+
+              scrollSpyObserverRef.current = observer;
             };
 
             // Extract :::your-work section only

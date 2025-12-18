@@ -65,19 +65,16 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
     // Auto-scroll to active question
     React.useEffect(() => {
         if (activeQuestionId) {
-            const el = document.getElementById(`${idPrefix}-item-${activeQuestionId}`);
-            if (el) {
-                // Determine container based on mode
-                // For Ribbon: scrollContainerRef
-                // For Table: .question-navigator-table-container (need ref or query selector)
-
-                // Use standard scrollIntoView for simplicity and effectiveness
-                // block: 'start' puts the element at the top of the container (respecting scroll-margin-top)
-                // inline: 'center' or 'start'. User asked for 'beginning'.
-                el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'start' });
+            // Find the item that satisfies isActive (handles sub-questions)
+            const match = groupedQuestions.find(q => isActive(q.questionNumber, activeQuestionId));
+            if (match) {
+                const el = document.getElementById(`${idPrefix}-item-${match.questionNumber}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
             }
         }
-    }, [activeQuestionId, idPrefix]);
+    }, [activeQuestionId, idPrefix, groupedQuestions]);
 
     const handleScroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {

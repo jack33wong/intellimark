@@ -42,6 +42,7 @@ const initialState = {
   activeQuestionId: null,
   visibleTableIds: new Set(),
   isQuestionTableVisible: true,
+  isContextFilterActive: false,
 };
 
 function markingPageReducer(state, action) {
@@ -80,6 +81,8 @@ function markingPageReducer(state, action) {
         visibleTableIds: newSet,
         isQuestionTableVisible: newSet.size > 0
       };
+    case 'SET_CONTEXT_FILTER_ACTIVE':
+      return { ...state, isContextFilterActive: action.payload };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);
   }
@@ -99,7 +102,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
-  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible } = state;
+  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive } = state;
 
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);
@@ -135,39 +138,31 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       return;
     }
 
+    const extractQuestionNumber = (text) => {
+      const match = text.match(/(?:question|q)\s*(\d+)/i);
+      return match ? match[1] : null;
+    };
+
     try {
       textRequestInProgress.current = true;
       startProcessing();
-      // ============================================================================
-      // CRITICAL: UNIQUE MESSAGE ID GENERATION FOR TEXT MODE
-      // ============================================================================
-      // 
-      // IMPORTANT: This timestamp-based ID generation is ESSENTIAL and must NOT be changed!
-      // 
-      // Why this design is critical:
-      // 1. PREVENTS DUPLICATE MESSAGE IDS: Users can send identical text multiple times
-      //    (e.g., "2 + 2" and "2+2") and each must get a unique ID
-      // 2. REACT KEY UNIQUENESS: React requires unique keys for list items to prevent
-      //    rendering issues and performance problems
-      // 3. CONSISTENT WITH IMAGE MODE: Image mode uses the same pattern for reliability
-      // 4. BACKEND COMPATIBILITY: Backend expects unique IDs for each message
-      // 
-      // DO NOT CHANGE TO CONTENT-BASED HASHING:
-      // - Content-based hashing causes duplicate IDs for identical content
-      // - Same content + same timestamp = same ID = React key conflicts
-      // - This was the root cause of the "duplicate children" React warnings
-      // 
-      // This simple approach guarantees uniqueness:
-      // - Each message gets a unique timestamp
-      // - No content dependency = no collision risk
-      // - Works for identical content sent multiple times
-      // ============================================================================
+
+      const explicitQuestionId = extractQuestionNumber(trimmedText);
+      const effectiveQuestionId = explicitQuestionId || activeQuestionId;
+
+      // If user explicitly mentioned a question, update the focus automatically
+      if (explicitQuestionId && explicitQuestionId !== activeQuestionId) {
+        setActiveQuestionId(explicitQuestionId);
+      }
+
+      const userMessageId = `user-${Date.now()}`;
       await addMessage({
-        id: `user-${Date.now()}`,
+        id: userMessageId,
         role: 'user',
         content: trimmedText,
         timestamp: new Date().toISOString(),
-        type: 'text'
+        type: 'text',
+        contextQuestionId: effectiveQuestionId
       });
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
 
@@ -190,9 +185,11 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         headers,
         body: JSON.stringify({
           message: trimmedText,
+          messageId: userMessageId, // Pass the local user message ID to backend
           model: selectedModel || 'gemini-2.0-flash',
           sessionId: currentSession?.id || null,
-          aiMessageId: aiMessageId // Pass the AI message ID to backend
+          aiMessageId: aiMessageId, // Pass the AI message ID to backend
+          contextQuestionId: effectiveQuestionId // Pass the active or overridden context
         })
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -254,6 +251,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         timestamp: new Date().toISOString(),
         imageData: imageData,
         fileName: targetFile.name,
+        contextQuestionId: activeQuestionId
       };
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
@@ -444,6 +442,10 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     dispatch({ type: 'SET_TABLE_VISIBILITY', payload: { id, visible: isVisible } });
   }, []);
 
+  const setContextFilterActive = useCallback((isActive) => {
+    dispatch({ type: 'SET_CONTEXT_FILTER_ACTIVE', payload: isActive });
+  }, []);
+
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
@@ -463,6 +465,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId,
     isQuestionTableVisible, setQuestionTableVisibility,
+    isContextFilterActive, setContextFilterActive,
     visibleTableIds: state.visibleTableIds,
     ...progressProps
   }), [
@@ -472,6 +475,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
+    isContextFilterActive, setContextFilterActive,
     state.visibleTableIds
   ]);
 

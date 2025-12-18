@@ -10,11 +10,15 @@ import type { components } from './api';
 export type { components };
 
 export type DetectedQuestion = components['schemas']['DetectedQuestion'];
-export type UnifiedMessage = components['schemas']['UnifiedMessage'];
+export type UnifiedMessage = components['schemas']['UnifiedMessage'] & {
+    contextQuestionId?: string;
+};
 export type UnifiedSession = components['schemas']['UnifiedSession'];
 export type MarkHomeworkRequest = components['schemas']['MarkHomeworkRequest'];
 export type MarkHomeworkResponse = components['schemas']['MarkHomeworkResponse'];
-export type ChatRequest = components['schemas']['ChatRequest'];
+export type ChatRequest = components['schemas']['ChatRequest'] & {
+    contextQuestionId?: string;
+};
 export type ChatResponse = components['schemas']['ChatResponse'];
 
 // Re-export payment types (these are frontend-specific)

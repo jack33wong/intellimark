@@ -178,7 +178,7 @@ export class ChatContextBuilder {
      * This is called for every text-based follow-up message.
      * Now uses clean nested parts[] structure - no parsing needed!
      */
-    static formatContextAsPrompt(markingContext: MarkingContext): string {
+    static formatContextAsPrompt(markingContext: MarkingContext, contextQuestionId?: string | null): string {
         let prompt = `Here is the student's work and the marking results for context:\n\n`;
 
         // 1. Overall Summary
@@ -197,7 +197,26 @@ export class ChatContextBuilder {
         prompt += `\n## Question Results\n\n`;
 
         // 2. Question Details - iterate parts[] directly
-        for (const q of markingContext.questionResults) {
+        let questionsToInclude = markingContext.questionResults;
+
+        // Filter to specific question if context is active
+        if (contextQuestionId) {
+            questionsToInclude = markingContext.questionResults.filter(q => String(q.number) === String(contextQuestionId));
+            if (questionsToInclude.length > 0) {
+                prompt = `Here is the student's work and marking results for **Question ${contextQuestionId}** specifically:\n\n`;
+                // Re-add overall basics but focused
+                if (markingContext.examInfo) {
+                    const e = markingContext.examInfo;
+                    prompt += `** Exam **: ${e.examBoard} ${e.subject} ${e.examCode} (${e.examSeries}) \n`;
+                }
+                prompt += `\n`;
+            } else {
+                // Fallback to all if not found (shouldn't happen)
+                questionsToInclude = markingContext.questionResults;
+            }
+        }
+
+        for (const q of questionsToInclude) {
             prompt += `### Question ${q.number}: ${q.text} \n`;
 
             // Show student work and marks for each part

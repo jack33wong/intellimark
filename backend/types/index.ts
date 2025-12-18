@@ -290,6 +290,9 @@ export interface UnifiedMessage {
   // Context for follow-up chat (Stored Once principle)
   markingContext?: MarkingContext;
 
+  // Question context for message grouping and focused AI responses
+  contextQuestionId?: string;
+
   // AI-generated performance summary (for marking messages)
   performanceSummary?: string;
 
@@ -565,6 +568,7 @@ export interface ChatRequest {
   model: ModelType;
   imageData?: string;
   sessionId?: string;
+  contextQuestionId?: string;
 }
 
 export interface ChatResponse {

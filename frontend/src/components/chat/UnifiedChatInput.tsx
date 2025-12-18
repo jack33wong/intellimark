@@ -3,7 +3,7 @@
  * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Brain } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,6 +23,8 @@ interface UnifiedChatInputProps {
   onAnalyzeMultiImage?: (files: File[], text: string) => void;
   onFollowUpMultiImage?: (files: File[], text: string) => void;
   currentSession?: any; // Session data to check if model selection should be disabled
+  contextQuestionId?: string | null;
+  setContextQuestionId?: (id: string | null) => void;
 }
 
 const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
@@ -36,6 +38,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   onAnalyzeMultiImage,
   onFollowUpMultiImage,
   currentSession,
+  contextQuestionId,
+  setContextQuestionId,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -316,6 +320,55 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       )}
       <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''} ${mode}`}>
         <div className="followup-input-wrapper">
+          {contextQuestionId && (
+            <div className="context-chip-container" style={{ padding: '0 12px 8px 12px' }}>
+              <div
+                className="context-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  backgroundColor: 'var(--background-secondary)',
+                  borderRadius: '16px',
+                  fontSize: '11px',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-main)',
+                  fontWeight: 500
+                }}
+              >
+                <Brain size={12} style={{ color: 'var(--accent-primary)' }} />
+                <span style={{ color: 'var(--text-main)', opacity: 0.9 }}>Question {contextQuestionId} Focused</span>
+                <span style={{
+                  fontSize: '9px',
+                  backgroundColor: 'rgba(0, 128, 0, 0.1)',
+                  color: 'green',
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  marginLeft: '2px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.3px'
+                }}>Auto</span>
+                <button
+                  onClick={() => setContextQuestionId?.(null)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    padding: '0 2px',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    marginLeft: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Clear context"
+                >
+                  <Plus size={12} style={{ transform: 'rotate(45deg)' }} />
+                </button>
+              </div>
+            </div>
+          )}
           <div className={`followup-single-line-container ${isExpanded ? 'expanded' : ''}`}>
             {isExpanded && ((previewImage || previewImages.length > 0) || (imageFile && isPDF(imageFile)) || (imageFiles.length > 0 && imageFiles.some(file => isPDF(file)))) && (
               <div className="followup-preview-section">

@@ -1534,6 +1534,7 @@ export interface components {
                 text?: string;
                 mode?: string;
             })[];
+            contextQuestionId?: string;
             createdAt?: string;
             updatedAt?: string;
         };
@@ -1614,6 +1615,7 @@ export interface components {
             sessionId?: string;
             /** @enum {string} */
             mode?: "marking" | "question" | "chat";
+            contextQuestionId?: string;
         };
         ChatResponse: {
             success: boolean;

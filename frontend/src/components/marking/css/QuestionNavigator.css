@@ -111,7 +111,6 @@
     align-items: flex-start;
     background-color: var(--surface-primary);
     border-bottom: 1px solid var(--border-color);
-    padding: 6px 0 4px 0;
     gap: 0;
     position: relative;
     z-index: 100;
