@@ -226,7 +226,7 @@ const MainLayout: React.FC = () => {
 
     return (
       <div className="chat-panel-layout" style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <div className="marking-header-unified" style={{ flexShrink: 0, backgroundColor: 'var(--background-gray-main)', zIndex: 100 }}>
+        <div className="marking-header-unified">
           {currentSession && (
             <SessionManagement key={currentSession.id} />
           )}

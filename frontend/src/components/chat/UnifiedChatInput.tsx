@@ -329,24 +329,25 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   alignItems: 'center',
                   gap: '6px',
                   padding: '4px 10px',
-                  backgroundColor: 'var(--background-secondary)',
+                  backgroundColor: 'rgba(56, 55, 57, 0.95)', /* More opaque background */
                   borderRadius: '16px',
                   fontSize: '11px',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-main)',
-                  fontWeight: 500
+                  color: '#efefef', /* Brighter text */
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  fontWeight: 600, /* Bolder */
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)' /* Added shadow for contrast */
                 }}
               >
-                <Brain size={12} style={{ color: 'var(--accent-primary)' }} />
-                <span style={{ color: 'var(--text-main)', opacity: 0.9 }}>Question {contextQuestionId} Focused</span>
+                <Brain size={12} style={{ color: '#8b5cf6' }} /> {/* Vibe check: vibrant purple icon */}
+                <span style={{ color: 'white', opacity: 1 }}>Question {contextQuestionId} Focused</span>
                 <span style={{
                   fontSize: '9px',
-                  backgroundColor: 'rgba(0, 128, 0, 0.1)',
-                  color: 'green',
-                  padding: '1px 5px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.25)', /* More vibrant green */
+                  color: '#10b981',
+                  padding: '2px 6px',
                   borderRadius: '4px',
                   marginLeft: '2px',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px'
                 }}>Auto</span>

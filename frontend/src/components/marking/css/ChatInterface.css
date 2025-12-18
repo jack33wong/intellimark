@@ -47,20 +47,41 @@
 /* Follow-up Chat Input Container - Bottom position (Systematic Fix) */
 .follow-up-chat-input-container.follow-up-bottom {
   position: relative;
-  /* Natural flow in flex container */
-  bottom: auto;
-  left: auto;
-  right: auto;
-  transform: none;
+  margin-top: -160px;
+  /* Move the transition area much higher */
+  /* Overlap the chat container for the blur effect */
   width: 100%;
   max-width: none;
   z-index: 100;
   flex: 0 0 auto;
-  /* Don't shrink */
   display: flex;
   justify-content: center;
-  background: var(--background-gray-main);
+  background: transparent !important;
   padding: 0;
+  pointer-events: none;
+  /* Allow scrolling content behind non-input areas */
+}
+
+/* Blur transition effect for Gemini-style look */
+.follow-up-chat-input-container.follow-up-bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: linear-gradient(to bottom,
+      transparent 0%,
+      var(--background-gray-main) 15%,
+      /* More rapid transition to solid background */
+      var(--background-gray-main) 100%);
+  /* Full width mask, no rounded corners to avoid "border" look */
+  mask-image: linear-gradient(to top, black 96%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, black 96%, transparent 100%);
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Ensure Chat Container takes remaining space */
@@ -99,13 +120,21 @@
   right: auto !important;
   bottom: auto !important;
   width: 80% !important;
-  /* Reduced width by 20% */
-  margin: 0 auto !important;
-  /* Center the bar */
+  background: transparent !important;
+  /* Allow blur to show through */
+  pointer-events: auto !important;
+  /* Re-enable pointer events for the input */
+  margin: 0 auto 20px auto !important;
+  /* Center and float the bar */
   max-width: 800px;
   /* Optional: prevent it from getting too wide */
-  border-radius: 12px;
-  /* Add radius since it's floating now */
+  border-radius: 28px;
+  /* Pill-shaped */
+  box-shadow: none !important;
+  /* Remove individual shadow that looks like a "blur border" */
+  backdrop-filter: none !important;
+  /* Disable inner blur to avoid double-blur effect */
+  -webkit-backdrop-filter: none !important;
 }
 
 .follow-up-chat-input-container.follow-up-bottom .followup-single-line-container {
@@ -119,11 +148,9 @@
 
 .follow-up-chat-input-container.follow-up-bottom .followup-text-input {
   min-height: 24px;
-  /* Match button height */
-  padding: 12px 10px 0px;
-  /* More reduced padding */
+  padding: 10px 12px 6px;
+  background: transparent;
   font-size: 1rem;
-  /* Smaller font */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .followup-upload-button {
@@ -433,8 +460,8 @@
   flex: 1;
   padding-left: 60px;
   padding-right: 60px;
-  padding-bottom: 40px;
-  /* Extra bottom padding for last message visibility */
+  padding-bottom: 120px;
+  /* Increased bottom padding to accommodate for the blur overlap */
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1096,9 +1123,34 @@
 .marking-header-unified {
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--background-gray-main);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 110;
+  background: var(--background-gray-main) !important;
+  /* Solid background for header content */
+  border-bottom: 1px solid var(--border-main);
+  flex-shrink: 0;
+}
+
+/* Specific blur transition at the bottom edge of the header */
+.marking-header-unified::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  /* Start exactly at the bottom border */
+  left: 0;
+  right: 0;
+  height: 20px;
+  /* Height of the blur transition area */
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  background: linear-gradient(to bottom,
+      var(--background-gray-main) 0%,
+      rgba(39, 39, 40, 0.4) 40%,
+      transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  z-index: 100;
+  pointer-events: none;
 }
 
 /* Gemini-Style Split Mode Layout */

@@ -379,10 +379,13 @@
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: #363537;
-  border: none;
-  border-radius: 12px;
-  padding: 8px 12px;
+  background: rgba(54, 53, 55, 0.95);
+  /* Slightly translucent */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Subtle glass border */
+  border-radius: 28px;
+  /* More pill-shaped */
+  padding: 8px 16px;
   transition: all 0.2s ease;
 }
 
@@ -514,10 +517,10 @@
   width: 100%;
   min-height: 40px;
   max-height: 100px;
-  padding: 20px 16px 12px;
+  padding: 12px 16px 8px;
   border: none;
   border-radius: 8px;
-  background: var(--background-card);
+  background: transparent;
   color: var(--text-primary);
   font-size: 1rem;
   font-family: inherit;
