@@ -185,8 +185,7 @@ const MainLayout: React.FC = () => {
     }, 1000);
   }, [currentSession, setActiveQuestionId, setActiveImageIndex, enterSplitMode, groupedQuestions, splitModeImages, activeImageIndex]);
 
-  // Setup Centralized Scroll-Spy Observer - TEMPORARILY DISABLED to prevent deadlocks
-  /*
+  // Setup Centralized Scroll-Spy Observer
   useEffect(() => {
     if (!containerElement) return;
 
@@ -213,19 +212,26 @@ const MainLayout: React.FC = () => {
         const qNum = qId.replace('question-', '');
 
         if (qNum) {
+          // 1. Check ID change (Idempotency)
+          if (String(qNum).toLowerCase() === String(activeQuestionId).toLowerCase()) {
+            return;
+          }
+
+          // 2. Check Lock (Sync Safety)
+          if (isSyncingRef.current) {
+            return;
+          }
+
           // Find associated image index
           const match = groupedQuestions.find(g => String(g.questionNumber).toLowerCase() === qNum.toLowerCase());
           const imgIdx = match ? match.sourceImageIndex : activeImageIndex;
 
-          // CRITICAL: Respect the lock!
-          if (!isSyncingRef.current) {
-            navigateToQuestion(qNum, imgIdx, 'scroll');
-          }
+          navigateToQuestion(qNum, imgIdx, 'scroll');
         }
       }
     }, {
       root: containerElement,
-      rootMargin: '-10px 0px -60% 0px', // Detection band at the top
+      rootMargin: '-110px 0px -60% 0px', // Adjusted margin to account for header height
       threshold: 0
     });
 
@@ -247,8 +253,7 @@ const MainLayout: React.FC = () => {
       observer.disconnect();
       mutationObserver.disconnect();
     };
-  }, [containerElement, chatMessages, groupedQuestions, activeImageIndex, navigateToQuestion]);
-  */
+  }, [containerElement, chatMessages, groupedQuestions, activeImageIndex, navigateToQuestion, activeQuestionId]);
 
   // NOTE: All reactive effects for syncing between activeQuestionId and activeImageIndex have been REMOVED.
 
