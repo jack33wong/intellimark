@@ -21,6 +21,7 @@ const SessionHeader: React.FC = () => {
     showInfoDropdown,
     onToggleInfoDropdown,
     currentSession,
+    isProcessing,
   } = useMarkingPage();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -233,8 +234,12 @@ const SessionHeader: React.FC = () => {
 
   // Helper to render the formatted title with colored parts
   const renderFormattedTitle = () => {
-    if (displaySession?.id?.startsWith('temp-')) {
-      return 'Processing...';
+    if (displaySession?.id?.startsWith('temp-') || isProcessing) {
+      return (
+        <span className="processing-dots">
+          {displaySession?.id?.startsWith('temp-') ? 'Analyzing' : 'Thinking'}
+        </span>
+      );
     }
 
     const detectedQuestion = getDetectedQuestion();

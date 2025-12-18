@@ -66,8 +66,10 @@ function markingPageReducer(state, action) {
 
       return { ...state, splitModeImages: null, activeImageIndex: 0 };
     case 'SET_ACTIVE_IMAGE_INDEX':
+      if (state.activeImageIndex === action.payload) return state;
       return { ...state, activeImageIndex: action.payload };
     case 'SET_ACTIVE_QUESTION_ID':
+      if (state.activeQuestionId === action.payload) return state;
       return { ...state, activeQuestionId: action.payload };
     case 'SET_TABLE_VISIBILITY':
       const newSet = new Set(state.visibleTableIds);
@@ -82,6 +84,7 @@ function markingPageReducer(state, action) {
         isQuestionTableVisible: newSet.size > 0
       };
     case 'SET_CONTEXT_FILTER_ACTIVE':
+      if (state.isContextFilterActive === action.payload) return state;
       return { ...state, isContextFilterActive: action.payload };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);

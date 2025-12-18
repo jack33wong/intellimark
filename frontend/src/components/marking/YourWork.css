@@ -1,6 +1,6 @@
 /* Your Work Section Styling */
 .your-work-section {
-    background: #f8f9fa;
+    background: var(--text-primary);
     border-left: 4px solid var(--function-success);
     padding: 16px;
     margin: 20px 30px;

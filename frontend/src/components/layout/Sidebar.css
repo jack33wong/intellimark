@@ -508,12 +508,12 @@
 }
 
 .mark-history-item.active .mark-history-item-title {
-  color: var(--text-white);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .mark-history-item.active .mark-history-last-message {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-tertiary);
   /* Lighter purple/white for status */
 }
 
@@ -584,7 +584,7 @@
 /* Last Message */
 .mark-history-last-message {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

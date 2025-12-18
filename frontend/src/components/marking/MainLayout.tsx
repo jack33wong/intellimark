@@ -2,7 +2,7 @@
  * MainLayout Component (TypeScript)
  * This is the definitive version with the fix for the re-mounting bug.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, Brain } from 'lucide-react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
@@ -17,6 +17,7 @@ import { useQuestionGrouping } from '../../hooks/useQuestionGrouping';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
 import QuestionNavigator from './QuestionNavigator';
+import ImageViewer from '../common/ImageViewer';
 
 const MainLayout: React.FC = () => {
   const {
@@ -70,6 +71,9 @@ const MainLayout: React.FC = () => {
   const [showRibbonOnScroll, setShowRibbonOnScroll] = React.useState(false);
   const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null);
 
+  // Synchronization Lock: Prevents circular updates during programmatic navigation
+  const isSyncingRef = React.useRef(false);
+
   // Reliable Ref Callback to capture the container node
   const setChatContainerRef = React.useCallback((node: HTMLDivElement | null) => {
     // Preserve the original ref from useScrollManager context
@@ -100,8 +104,8 @@ const MainLayout: React.FC = () => {
     return () => container.removeEventListener('scroll', handleScroll);
   }, [containerElement]);
 
-  // Import ImageViewer directly here to avoid circular dependencies if placed at top
-  const ImageViewer = require('../common/ImageViewer').default;
+  // Centralized Scroll-Spy Observer Ref
+  const scrollSpyObserverRef = React.useRef<IntersectionObserver | null>(null);
 
   // Determine Marking Context for Ribbon
   const lastMarkingMessage = React.useMemo(() => {
@@ -124,24 +128,135 @@ const MainLayout: React.FC = () => {
   // Use question grouping hook to get badges data
   const { groupedQuestions, getGroupColor } = useQuestionGrouping(activeDetectedQuestion, (lastMarkingMessage as any)?.markingContext);
 
-  // Sync Active Question ID with Image Index in Split Mode
-  useEffect(() => {
-    if (splitModeImages && activeImageIndex !== undefined) {
-      const questionsOnPage = groupedQuestions.filter(g => g.sourceImageIndex === activeImageIndex);
+  // Centralized Navigation & Sync Handler
+  const navigateToQuestion = React.useCallback((qNum: string | number, imgIdx: number, source: 'ribbon' | 'image' | 'scroll') => {
+    // 1. Set the Lock
+    isSyncingRef.current = true;
 
-      if (questionsOnPage.length > 0) {
-        const isActiveValid = questionsOnPage.some(g => g.questionNumber === activeQuestionId);
+    let targetImgIdx = imgIdx;
 
-        if (!isActiveValid) {
-          setActiveQuestionId(questionsOnPage[0].questionNumber);
+    // Auto-resolve index if not provided or invalid
+    if (targetImgIdx === -1 || targetImgIdx === undefined) {
+      const match = groupedQuestions.find(g => String(g.questionNumber).toLowerCase() === String(qNum).toLowerCase());
+      if (match) {
+        targetImgIdx = match.sourceImageIndex;
+      } else {
+        targetImgIdx = activeImageIndex || 0; // Fallback
+      }
+    }
+
+    // 2. Update States
+    setActiveQuestionId(qNum);
+
+    // If not in split mode, entering it will set the activeImageIndex as well
+    if (!splitModeImages) {
+      const sessionImages = currentSession ? getSessionImages(currentSession) : [];
+      if (sessionImages.length > 0) {
+        enterSplitMode(sessionImages, targetImgIdx);
+      }
+    } else {
+      setActiveImageIndex(targetImgIdx);
+    }
+
+    // 3. Scroll Chat (only if triggered by ribbon or image)
+    if (source !== 'scroll') {
+      const targetId = `question-${String(qNum).toLowerCase()}`;
+      const el = document.getElementById(targetId);
+
+      if (el) {
+        const chatContainer = document.querySelector('.chat-container') as HTMLElement;
+        if (chatContainer) {
+          const elRect = el.getBoundingClientRect();
+          const containerRect = chatContainer.getBoundingClientRect();
+          const offset = 120; // Consistent scroll margin
+          const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
+
+          chatContainer.scrollTo({
+            top: targetScrollTop,
+            behavior: 'smooth'
+          });
         }
       }
     }
-  }, [activeImageIndex, splitModeImages, groupedQuestions, activeQuestionId, setActiveQuestionId]);
 
-  // Enhanced Split Mode Entry
-  const enterSplitModeEnriched = (images: any[], index: number) => {
-    const enrichedImages = images.map((img: any, idx: number) => {
+    // 4. Clear lock after navigation settlement (to allow smooth scroll to finish)
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 1000);
+  }, [currentSession, setActiveQuestionId, setActiveImageIndex, enterSplitMode, groupedQuestions, splitModeImages, activeImageIndex]);
+
+  // Setup Centralized Scroll-Spy Observer - TEMPORARILY DISABLED to prevent deadlocks
+  /*
+  useEffect(() => {
+    if (!containerElement) return;
+
+    // Cleanup previous observer
+    if (scrollSpyObserverRef.current) {
+      scrollSpyObserverRef.current.disconnect();
+    }
+
+    // Create a NEW observer for the container
+    const observer = new IntersectionObserver((entries) => {
+      // Determine which header is most prominent at the top
+      const visibleHeaders = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => {
+          // Get the distance from the top of the container
+          const aTop = a.boundingClientRect.top;
+          const bTop = b.boundingClientRect.top;
+          return aTop - bTop;
+        });
+
+      if (visibleHeaders.length > 0) {
+        const topHeader = visibleHeaders[0];
+        const qId = topHeader.target.id;
+        const qNum = qId.replace('question-', '');
+
+        if (qNum) {
+          // Find associated image index
+          const match = groupedQuestions.find(g => String(g.questionNumber).toLowerCase() === qNum.toLowerCase());
+          const imgIdx = match ? match.sourceImageIndex : activeImageIndex;
+
+          // CRITICAL: Respect the lock!
+          if (!isSyncingRef.current) {
+            navigateToQuestion(qNum, imgIdx, 'scroll');
+          }
+        }
+      }
+    }, {
+      root: containerElement,
+      rootMargin: '-10px 0px -60% 0px', // Detection band at the top
+      threshold: 0
+    });
+
+    scrollSpyObserverRef.current = observer;
+
+    // We need to observe all elements with id="question-*"
+    const updateObservations = () => {
+      const questionElements = containerElement.querySelectorAll('[id^="question-"]');
+      questionElements.forEach(el => observer.observe(el));
+    };
+
+    updateObservations();
+
+    // Also re-observe on message changes
+    const mutationObserver = new MutationObserver(updateObservations);
+    mutationObserver.observe(containerElement, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [containerElement, chatMessages, groupedQuestions, activeImageIndex, navigateToQuestion]);
+  */
+
+  // NOTE: All reactive effects for syncing between activeQuestionId and activeImageIndex have been REMOVED.
+
+  // Memoize enriched images to provide a stable reference to the ImageViewer
+  const enrichedSplitModeImages = React.useMemo(() => {
+    if (!splitModeImages) return null;
+
+    return splitModeImages.map((img: any, idx: number) => {
       const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
       if (match) {
         const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
@@ -153,9 +268,27 @@ const MainLayout: React.FC = () => {
       }
       return img;
     });
+  }, [splitModeImages, groupedQuestions, getGroupColor]);
 
-    enterSplitMode(enrichedImages, index);
-  };
+  // Enhanced Split Mode Entry
+  const enterSplitModeEnriched = useCallback((images: any[], index: number) => {
+    // Determine the question associated with this image index to keep the Ribbon in sync
+    const match = groupedQuestions.find(g => g.sourceImageIndex === index);
+    if (match && activeQuestionId !== match.questionNumber) {
+      setActiveQuestionId(match.questionNumber);
+    }
+
+    // If we're not in split mode, enter it
+    if (!splitModeImages) {
+      enterSplitMode(images, index);
+      return;
+    }
+
+    // If we are already in split mode, just update the index
+    if (activeImageIndex !== index) {
+      setActiveImageIndex(index);
+    }
+  }, [splitModeImages, enterSplitMode, activeImageIndex, setActiveImageIndex, groupedQuestions, activeQuestionId, setActiveQuestionId]);
 
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
@@ -168,33 +301,7 @@ const MainLayout: React.FC = () => {
         detectedQuestion={activeDetectedQuestion}
         markingContext={(lastMarkingMessage as any)?.markingContext}
         onNavigate={(qNum, imgIdx) => {
-          setActiveQuestionId(qNum);
-          const sessionImages = currentSession ? getSessionImages(currentSession) : [];
-          if (sessionImages.length > 0) {
-            enterSplitModeEnriched(sessionImages, imgIdx);
-          } else {
-            setActiveImageIndex(imgIdx);
-          }
-
-          setTimeout(() => {
-            const targetId = `question-${String(qNum).toLowerCase()}`;
-            const el = document.getElementById(targetId);
-
-            if (el) {
-              const chatContainer = document.querySelector('.chat-container') as HTMLElement;
-              if (chatContainer) {
-                const elRect = el.getBoundingClientRect();
-                const containerRect = chatContainer.getBoundingClientRect();
-                const offset = 120; // Match the scrollMarginTop in ChatMessage
-                const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
-
-                chatContainer.scrollTo({
-                  top: targetScrollTop,
-                  behavior: 'smooth'
-                });
-              }
-            }
-          }, 250); // Increased timeout to ensure re-render and ID injection complete
+          navigateToQuestion(qNum, imgIdx, 'ribbon');
         }}
         activeQuestionId={activeQuestionId}
       />
@@ -207,6 +314,19 @@ const MainLayout: React.FC = () => {
         </div>
       </div>
     );
+  };
+
+  // Handler for image change (e.g. from thumbnail click) to sync ribbon and chat
+  const handleImageChange = (index: number) => {
+    if (activeImageIndex === index) return;
+
+    // Find the question that maps to this page index
+    const question = groupedQuestions.find(q => q.sourceImageIndex === index);
+    if (question) {
+      navigateToQuestion(question.questionNumber, index, 'image');
+    } else {
+      setActiveImageIndex(index);
+    }
   };
 
   // Common Chat Content Render Function to reuse in both modes
@@ -286,6 +406,8 @@ const MainLayout: React.FC = () => {
                   startAIThinking={startAIThinking}
                   selectedModel={selectedModel}
                   onEnterSplitMode={enterSplitModeEnriched}
+                  onNavigate={navigateToQuestion}
+                  isSyncingRef={isSyncingRef}
                 />
               ))}
             </div>
@@ -337,11 +459,11 @@ const MainLayout: React.FC = () => {
           </div>
           <div className="split-canvas-panel">
             <ImageViewer
-              images={splitModeImages}
+              images={enrichedSplitModeImages || []}
               initialImageIndex={activeImageIndex || 0}
               onClose={exitSplitMode}
               isOpen={true}
-              onImageChange={setActiveImageIndex}
+              onImageChange={handleImageChange}
             />
           </div>
         </div>

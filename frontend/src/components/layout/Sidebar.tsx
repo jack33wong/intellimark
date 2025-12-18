@@ -148,6 +148,25 @@ const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [user?.uid]);
 
+  // Auto-sync selectedSessionId with the current session from the service
+  useEffect(() => {
+    const unsubscribe = simpleSessionService.subscribe((state: any) => {
+      if (state.currentSession?.id) {
+        setSelectedSessionId(state.currentSession.id);
+      } else {
+        setSelectedSessionId(null);
+      }
+    });
+
+    // Initial sync
+    const current = simpleSessionService.getCurrentSession() as UnifiedSession | null;
+    if (current?.id) {
+      setSelectedSessionId(current.id);
+    }
+
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     if (editingSessionId && editInputRef.current) {
       const input = editInputRef.current;
@@ -466,4 +485,3 @@ const Sidebar: React.FC<SidebarProps> = ({
 };
 
 export default Sidebar;
-

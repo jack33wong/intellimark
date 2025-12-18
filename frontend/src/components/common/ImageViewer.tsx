@@ -30,31 +30,19 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     const imageRef = useRef<HTMLImageElement>(null);
 
     // Update internal state if initial prop changes (e.g. parent switching images)
+    // We use a ref to track the last prop value to prevent redundant sets
+    const lastPropIndexRef = useRef(initialImageIndex);
     useEffect(() => {
-        setCurrentImageIndex(initialImageIndex);
-    }, [initialImageIndex]);
-
-    // Notify parent of index change
-    useEffect(() => {
-        if (onImageChange) {
-            onImageChange(currentImageIndex);
+        if (initialImageIndex !== lastPropIndexRef.current) {
+            setCurrentImageIndex(initialImageIndex);
+            lastPropIndexRef.current = initialImageIndex;
         }
-    }, [currentImageIndex, onImageChange]);
+    }, [initialImageIndex]);
 
     // Auto-scroll thumbnails to active image
     useEffect(() => {
         if (!isOpen || !images || images.length <= 1) return;
 
-        // We need to access thumbnailRefs. Note: thumbnailRefs must be defined in the component scope.
-        // Assuming thumbnailRefs is defined below or above. 
-        // Logic: Find the element in refs and scroll it.
-        // Since we can't easily see where thumbnailRefs is defined without reading whole file,
-        // we assume it is accessible. If not, this code might need adjustment to generic document.getElementById but refs are better.
-        // Let's try to find if we can use ID since we used IDs in QuestionNavigator.
-        // Button ID: None set in ImageViewer currently? 
-        // Step 4113 shows `key={image.id || index}` but no ID prop on button.
-        // So we MUST use refs or add ID.
-        // Adding ID is safer given I can't guarantee ref name scope here (if defined later).
         const timerId = setTimeout(() => {
             const el = document.getElementById(`thumb-btn-${currentImageIndex}`);
             if (el) {
@@ -65,7 +53,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }, [currentImageIndex, isOpen, images]);
 
     // Use single hook for all functionality
-    // Note: we pass isOpen=true because if this component is rendered, it's "open"
     const {
         zoomLevel,
         isDragging,
@@ -87,7 +74,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     } = useImageMode({ isOpen, currentImageIndex });
 
     // Fix for infinite spinner: Check if image is already loaded (cached) when index changes
-    // This handles the race condition where onLoad fires before isLoading is reset, or doesn't fire for cached images.
     useEffect(() => {
         if (imageRef.current && imageRef.current.complete) {
             handleImageLoad();
@@ -96,25 +82,31 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
     const currentImage = images[currentImageIndex];
 
+    // Navigation Handlers - these trigger the callback to parent
+    const performNavigation = useCallback((newIndex: number) => {
+        setCurrentImageIndex(newIndex);
+        if (onImageChange) {
+            onImageChange(newIndex);
+        }
+    }, [onImageChange]);
+
     const navigateToPrevious = useCallback(() => {
         if (images.length > 1) {
-            setCurrentImageIndex(prev =>
-                prev === 0 ? images.length - 1 : prev - 1
-            );
+            const newIndex = currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1;
+            performNavigation(newIndex);
         }
-    }, [images.length]);
+    }, [images.length, currentImageIndex, performNavigation]);
 
     const navigateToNext = useCallback(() => {
         if (images.length > 1) {
-            setCurrentImageIndex(prev =>
-                prev === images.length - 1 ? 0 : prev + 1
-            );
+            const newIndex = currentImageIndex === images.length - 1 ? 0 : currentImageIndex + 1;
+            performNavigation(newIndex);
         }
-    }, [images.length]);
+    }, [images.length, currentImageIndex, performNavigation]);
 
     const handleImageClick = useCallback((index: number) => {
-        setCurrentImageIndex(index);
-    }, []);
+        performNavigation(index);
+    }, [performNavigation]);
 
     const onDownload = useCallback(async () => {
         if (!currentImage) return;
@@ -126,11 +118,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         if (!isOpen) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Only handle events if we have focus or global listener
-            // In split mode, we might want to restrict this to when hovering?
-            // For now, keep existing behavior but be mindful of conflicts with chat input
-
-            // We'll skip keys if the active element is an input or textarea
             if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
                 return;
             }
@@ -211,75 +198,22 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
     return (
         <div className="image-mode-modal" role="region" aria-label="Image viewer" style={{ position: 'relative', height: '100%', zIndex: 1, inset: 0 }}>
-            {/* Header with controls */}
             <div className="image-mode-header">
                 <div className="image-mode-controls">
-                    {/* Zoom controls */}
                     <div className="zoom-controls">
-                        <button
-                            type="button"
-                            className="zoom-btn"
-                            onClick={zoomOut}
-                            disabled={!canZoomOut}
-                            aria-label="Zoom out"
-                        >
-                            <ZoomOut size={20} />
-                        </button>
+                        <button type="button" className="zoom-btn" onClick={zoomOut} disabled={!canZoomOut} aria-label="Zoom out"><ZoomOut size={20} /></button>
                         <div className="zoom-level">{zoomLevel}%</div>
-                        <button
-                            type="button"
-                            className="zoom-btn"
-                            onClick={zoomIn}
-                            disabled={!canZoomIn}
-                            aria-label="Zoom in"
-                        >
-                            <ZoomIn size={20} />
-                        </button>
+                        <button type="button" className="zoom-btn" onClick={zoomIn} disabled={!canZoomIn} aria-label="Zoom in"><ZoomIn size={20} /></button>
                     </div>
-
-                    {/* Separator */}
                     <div className="control-separator" />
-
-                    {/* Rotate button */}
-                    <button
-                        type="button"
-                        className="rotate-btn"
-                        onClick={rotate}
-                        aria-label="Rotate image"
-                    >
-                        <RotateCw size={20} />
-                    </button>
-
-                    {/* Separator */}
+                    <button type="button" className="rotate-btn" onClick={rotate} aria-label="Rotate image"><RotateCw size={20} /></button>
                     <div className="control-separator" />
-
-                    {/* Download button */}
-                    <button
-                        type="button"
-                        className="download-btn"
-                        onClick={onDownload}
-                        disabled={isDownloading}
-                        aria-label="Download image"
-                    >
-                        <Download size={20} />
-                        <span>{isDownloading ? 'Downloading...' : 'Download'}</span>
-                    </button>
+                    <button type="button" className="download-btn" onClick={onDownload} disabled={isDownloading} aria-label="Download image"><Download size={20} /><span>{isDownloading ? 'Downloading...' : 'Download'}</span></button>
                 </div>
-
-                {/* Close button */}
-                <button
-                    type="button"
-                    className="close-btn"
-                    onClick={onClose}
-                    aria-label="Close image viewer"
-                >
-                    <X size={20} />
-                </button>
+                <button type="button" className="close-btn" onClick={onClose} aria-label="Close image viewer"><X size={20} /></button>
             </div>
 
-            {/* Main content area */}
             <div className="image-mode-content">
-                {/* Image display */}
                 <div className="image-container">
                     {isLoading && (
                         <div className="image-loading">
@@ -287,26 +221,19 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                             <span>Loading image...</span>
                         </div>
                     )}
-
                     {imageError && (
                         <div className="image-error">
                             <span>❌ Image failed to load</span>
-                            <button onClick={() => window.location.reload()}>
-                                Try again
-                            </button>
+                            <button onClick={() => window.location.reload()}>Try again</button>
                         </div>
                     )}
-
                     {!imageError && (
                         <img
                             ref={imageRef}
                             src={currentImage.src}
                             alt={currentImage.alt}
                             className="main-image"
-                            style={{
-                                transform: calculateTransform(),
-                                transformOrigin: 'center center'
-                            }}
+                            style={{ transform: calculateTransform(), transformOrigin: 'center center' }}
                             onLoad={handleImageLoad}
                             onError={handleImageError}
                             onMouseDown={handleMouseDown}
@@ -315,7 +242,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                     )}
                 </div>
 
-                {/* Thumbnail sidebar */}
                 {images.length > 1 && (
                     <div className="thumbnail-sidebar">
                         <div className="thumbnail-list" ref={thumbnailListRef}>
@@ -329,24 +255,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                                     onClick={() => handleImageClick(index)}
                                     aria-label={`View image ${index + 1}`}
                                 >
-                                    <img
-                                        src={image.src}
-                                        alt={image.alt}
-                                        className="modal-thumbnail-image"
-                                        draggable={false}
-                                    />
-                                    {image.badgeText && (
-                                        <span className={`thumbnail-badge ${image.badgeColor || 'neutral'}`}>
-                                            {image.badgeText}
-                                        </span>
-                                    )}
+                                    <img src={image.src} alt={image.alt} className="modal-thumbnail-image" draggable={false} />
+                                    {image.badgeText && <span className={`thumbnail-badge ${image.badgeColor || 'neutral'}`}>{image.badgeText}</span>}
                                 </button>
                             ))}
                         </div>
                     </div>
                 )}
             </div>
-
         </div>
     );
 };
