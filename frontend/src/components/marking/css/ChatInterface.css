@@ -283,6 +283,18 @@
   overflow: hidden;
 }
 
+.chat-panel-layout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  /* Fill available space */
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+  /* Allow shrinking */
+}
+
 .chat-container {
   width: 100%;
   display: flex;
@@ -291,14 +303,39 @@
   padding: 0;
   margin: 0;
   align-items: stretch;
-  overflow-y: auto;
-  /* Only this area scrolls */
+  overflow-y: scroll !important;
+  /* Forced scroll to show bar */
   overflow-x: hidden;
   background: var(--background-gray-main);
   flex: 1;
-  /* Take up remaining space in chat-mode */
+  /* Take up remaining space */
   min-height: 0;
   /* Allow flex item to shrink below content size */
+}
+
+/* Custom Scrollbar for Chat Container - High Contrast & Forced Visibility */
+.chat-container::-webkit-scrollbar {
+  width: 12px !important;
+  /* Wider for better visibility */
+  height: 12px !important;
+  display: block !important;
+}
+
+.chat-container::-webkit-scrollbar-track {
+  background: #1a1a1a !important;
+  /* Darker track */
+  border-left: 1px solid var(--border-main) !important;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+  background: #666 !important;
+  /* Lighter thumb */
+  border-radius: 6px !important;
+  border: 2px solid #1a1a1a !important;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+  background: #888 !important;
 }
 
 
@@ -462,8 +499,8 @@
   flex: 1;
   padding-left: 60px;
   padding-right: 60px;
-  padding-bottom: 120px;
-  /* Increased bottom padding to accommodate for the blur overlap */
+  padding-bottom: 500px;
+  /* Increased significantly to ensure plenty of scrollable space at the bottom */
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1128,9 +1165,52 @@
   position: relative;
   z-index: 110;
   background: var(--background-gray-main) !important;
-  /* Solid background for header content */
-  border-bottom: 1px solid var(--border-main);
   flex-shrink: 0;
+}
+
+.marking-header-ribbon-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  width: 100%;
+  /* Row separator if needed */
+  background: var(--background-gray-main);
+}
+
+.ribbon-wrapper-full-width {
+  flex: 1;
+  min-width: 0;
+  /* Crucial for children with overflow-x: auto */
+}
+
+.context-filter-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-main);
+  margin-left: 8px;
+}
+
+.filter-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border-main);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.filter-toggle-btn.active {
+  background-color: var(--Button-primary-black);
+  color: var(--background-gray-main);
 }
 
 /* Specific blur transition at the bottom edge of the header */
@@ -1191,6 +1271,7 @@
   flex-direction: column;
   overflow: hidden;
   height: 100%;
+  min-height: 0;
 }
 
 .split-view-container {

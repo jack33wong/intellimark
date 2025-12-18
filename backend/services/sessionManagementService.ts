@@ -734,9 +734,9 @@ export class SessionManagementService {
   /**
    * Create AI message for database
    */
-  static createAIMessageForDatabase(
+  static async createAIMessageForDatabase(
     aiData: AIMessageData
-  ): any {
+  ): Promise<any> {
     const {
       allQuestionResults,
       finalAnnotatedOutput,
@@ -804,18 +804,8 @@ export class SessionManagementService {
       };
     }
 
-    // Create AI message content - include question-only responses if available
-    // Extract overall performance summary from question results
-    console.log(`🔍 [OVERALL SUMMARY DEBUG] Extracting from ${aiData.allQuestionResults.length} question results...`);
-    const overallPerformanceSummary = aiData.allQuestionResults
-      .find(qr => qr.overallPerformanceSummary)?.overallPerformanceSummary;
-
-    console.log(`   - Found summary: ${!!overallPerformanceSummary}`);
-    if (overallPerformanceSummary) {
-      console.log(`   - Using AI summary: "${overallPerformanceSummary.substring(0, 100)}..."`);
-    } else {
-      console.log(`   - Using fallback: "Marking completed - see results below"`);
-    }
+    // Aggregated Summaries Redesign: Distilled Data Pass
+    const overallPerformanceSummary = await this.generateMasterPerformanceSummary(allQuestionResults, actualModel);
 
 
     // Use fallback text for content field (not the AI summary)
@@ -1218,5 +1208,65 @@ export class SessionManagementService {
       totalMarks: schemeData.totalMarks || match.marks || 0,
       examPapers
     };
+  }
+  /**
+   * Generates a cohesive master performance summary based on distilled results of all questions.
+   */
+  private static async generateMasterPerformanceSummary(allQuestionResults: any[], model: string, tracker?: any): Promise<string | undefined> {
+    if (!allQuestionResults || allQuestionResults.length === 0) return undefined;
+
+    // Distill the data for the AI pass
+    const distilledData = allQuestionResults.map(qr => {
+      const qNum = qr.questionNumber || 'Unknown';
+
+      // Distill topic/text (prioritize database text, then question text)
+      let topic = qr.databaseQuestionText || qr.questionText || 'Topic unknown';
+      if (topic.length > 120) {
+        topic = topic.substring(0, 117) + '...';
+      }
+
+      const score = qr.studentScore?.scoreText || (qr.score ? `${qr.score.awardedMarks || 0}/${qr.score.totalMarks || 0}` : 'Unknown Score');
+
+      // Distill reasonings into a concise list of missing points or key accomplishments
+      const feedback = qr.annotations
+        ?.filter((a: any) => a.reasoning && a.reasoning.trim() !== '')
+        .map((a: any) => `${a.text}: ${a.reasoning}`)
+        .slice(0, 5) // Map max 5 annotations for brevity
+        .join(', ') || 'No specific feedback available';
+
+      return `Q${qNum} (${topic}): Score ${score}. Key Points: ${feedback}`;
+    }).join('\n');
+
+    try {
+      const { ModelProvider } = await import('../utils/ModelProvider.js');
+      const { getPrompt } = await import('../config/prompts.js');
+
+      const systemPrompt = getPrompt('masterSummary.system');
+      const userPrompt = getPrompt('masterSummary.user', distilledData);
+
+      // Call AI for final synthesis
+      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, true, tracker, 'summary');
+
+      let finalContent = response.content;
+
+      // Safeguard: If AI mistakenly returns JSON, extract the text
+      if (finalContent && (finalContent.startsWith('{') || finalContent.includes('"master_summary"'))) {
+        try {
+          // Find potential JSON block
+          const jsonMatch = finalContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            finalContent = parsed.master_summary || parsed.summary || parsed.content || Object.values(parsed)[0] || finalContent;
+          }
+        } catch (e) {
+          console.warn('[MASTER SUMMARY] Failed to parse accidental JSON:', e);
+        }
+      }
+
+      return finalContent;
+    } catch (error) {
+      console.error('[MASTER SUMMARY] Error generating summary:', error);
+      return undefined;
+    }
   }
 }

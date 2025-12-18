@@ -357,38 +357,24 @@ const MainLayout: React.FC = () => {
     const hasMessages = displayedMessages.length > 0;
 
     return (
-      <div className="chat-panel-layout" style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div className="chat-panel-layout">
         <div className="marking-header-unified">
           {currentSession && (
             <SessionManagement key={currentSession.id} />
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
-            <div style={{ flex: 1 }}>
+          <div className="marking-header-ribbon-row">
+            <div className="ribbon-wrapper-full-width">
               {/* Sticky Ribbon Navigator for Chat Mode */}
               {renderQuestionRibbon(true)}
             </div>
 
             {activeQuestionId && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '12px', borderLeft: '1px solid var(--border-main)' }}>
+              <div className="context-filter-wrapper">
                 <button
                   className={`filter-toggle-btn ${isContextFilterActive ? 'active' : ''}`}
                   onClick={() => setContextFilterActive(!isContextFilterActive)}
                   title={isContextFilterActive ? "Show all messages" : "Show only current question messages"}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '4px 10px',
-                    borderRadius: '16px',
-                    border: '1px solid var(--border-main)',
-                    backgroundColor: isContextFilterActive ? 'var(--button-primary-black)' : 'transparent',
-                    color: isContextFilterActive ? 'white' : 'var(--text-primary)',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    whiteSpace: 'nowrap'
-                  }}
                 >
                   <Brain size={14} />
                   {isContextFilterActive ? "Grouped by Q" : "Group Chat"}
@@ -398,7 +384,7 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
 
-        <div className="chat-container" ref={setChatContainerRef} style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+        <div className="chat-container" ref={setChatContainerRef}>
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
             null
@@ -422,6 +408,8 @@ const MainLayout: React.FC = () => {
                   isSyncingRef={isSyncingRef}
                 />
               ))}
+              {/* Bottom spacer to ensure scrolling past the last message is always possible */}
+              <div className="chat-bottom-spacer" style={{ height: '500px', flexShrink: 0 }} />
             </div>
           )}
         </div>

@@ -190,7 +190,7 @@ export class MarkingPersistenceService {
             // Resolve AI message ID
             const resolvedAIMessageId = handleAIMessageIdForEndpoint({ model: actualModel }, null, 'marking');
 
-            dbAiMessage = SessionManagementService.createAIMessageForDatabase({
+            dbAiMessage = await SessionManagementService.createAIMessageForDatabase({
                 allQuestionResults,
                 finalAnnotatedOutput,
                 files,

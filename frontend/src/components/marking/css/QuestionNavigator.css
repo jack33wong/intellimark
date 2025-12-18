@@ -96,12 +96,14 @@
 
 /* Ribbon Label - "Question Breakdown" heading - first line */
 .ribbon-label {
-    font-size: 8px;
-    font-weight: 500;
+    font-size: 10px;
+    font-weight: 600;
     color: var(--text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     white-space: nowrap;
+    margin-bottom: 4px;
+    opacity: 0.8;
 }
 
 /* Ribbon Mode (Split View) - Column layout */
@@ -109,19 +111,22 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    background-color: var(--surface-primary);
-    border-bottom: 1px solid var(--border-color);
+    background-color: transparent;
+    border-bottom: none;
     gap: 0;
     position: relative;
     z-index: 100;
+    width: 100%;
 }
 
 /* Row containing nav arrows and scroll container */
 .ribbon-nav-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     width: 100%;
+    position: relative;
+    padding: 0px 0;
 }
 
 .ribbon-scroll-container {
@@ -202,16 +207,19 @@
 }
 
 .nav-arrow {
-    background: none;
-    border: none;
-    color: var(--text-tertiary);
-    padding: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+    flex-shrink: 0;
 }
 
 .nav-arrow:hover {

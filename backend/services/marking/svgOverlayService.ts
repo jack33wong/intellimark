@@ -477,24 +477,14 @@ export class SVGOverlayService {
       }
     }
 
-    // 2. Clamp Right Position to prevent overflow
-    // Estimate content width
+    // 2. Clamp Box Position to paper boundaries
+    // We only ensure the BOX itself is on the paper. 
+    // The Labels (Symbol/MarkCode) will handle their own overflow via Horizontal Flip.
     const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
-    const symbolSize = Math.max(20, Math.round((action === 'tick' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
-    const textSize = Math.max(16, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
-    const textContent = text || '';
-    const estimatedTextWidth = textContent.length * (textSize * 0.6); // Rough estimate
-    const padding = 20;
-
-    const contentWidth = symbolSize + estimatedTextWidth + padding;
-    // Check in original coordinates
-    const contentWidthOrig = contentWidth / scaleX;
     const originalWidth = actualWidth / scaleX;
-
-    if (x + width + contentWidthOrig > originalWidth) {
-      // Shift X left to fit content
-      const newX = originalWidth - width - contentWidthOrig;
-      x = Math.max(0, newX);
+    if (x < 0) x = 0;
+    if (x + width > originalWidth) {
+      x = Math.max(0, originalWidth - width);
     }
 
     const scaledX = x * scaleX;
@@ -655,120 +645,127 @@ export class SVGOverlayService {
    * Create symbol annotation with optional text (unified logic for tick/cross)
    */
   private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number, classificationText?: string): string {
-    // Position at the end of the bounding box
-    const symbolX = x + width;
-    // Determine positioning strategy
-    // User Request: "Reasoning should be under the block" AND "Drawing block is too large"
-    // STRATEGY: Instead of moving text to top, we CLAMP the visual height of the block
-    // to ensure there is always room at the bottom for the text.
-
-    // Scale font sizes
+    // 1. Scale font sizes
     const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
     const symbolSize = Math.max(20, Math.round((symbol === '✓' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
     const textSize = Math.max(16, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
     const classificationSize = Math.max(14, Math.round(textSize * 0.8));
 
+    // 2. Estimate Content Widths
+    const markingCodeWidth = (text && text.trim()) ? text.length * (textSize * 0.6) : 0;
+    const displayClassText = (classificationText && classificationText.trim())
+      ? (classificationText.length > 20 ? classificationText.substring(0, 20) + '...' : classificationText)
+      : '';
+    const classTextWidth = displayClassText ? displayClassText.length * (classificationSize * 0.6) : 0;
+
+    // Total width of marks (Symbol + Code + Class) + padding
+    const markContentWidth = symbolSize + (markingCodeWidth ? markingCodeWidth + 10 : 0) + (classTextWidth ? classTextWidth + 15 : 0) + 10;
+
+    // 3. Detect Overflow & Determine Flip
+    const safeMargin = 40 * fontScaleFactor;
+    const isFlipped = (x + width + markContentWidth) > (actualWidth - safeMargin);
+    const textAnchor = isFlipped ? 'end' : 'start';
+
     // Calculate required bottom space (Reasoning + Margins)
-    // Estimate 2 lines of reasoning max usually, or just reserve a fixed %
     const requiredBottomSpace = 150 * fontScaleFactor; // Enough for ~3 lines
     const maxBottomY = actualHeight - requiredBottomSpace;
 
     // Check if the current block bottom (y + height) exceeds the safe limit
     let effectiveHeight = height;
     if (y + effectiveHeight > maxBottomY) {
-      // CLAMP HEIGHT: Visually shrink the block so text fits below
-      // But don't shrink it to nothing - ensure min height
       const availableHeight = maxBottomY - y;
       if (availableHeight > 50 * fontScaleFactor) {
         effectiveHeight = availableHeight;
       }
-      // If really no space, we might still overlap, but this handles the 90% case
     }
 
     // Position text relative to EFFECTIVE height
     const baseYOffsetPixels = (effectiveHeight * this.CONFIG.yPositions.baseYOffset) / 100;
-
-    // Align symbol with baseline of text
     const textY = y + effectiveHeight + baseYOffsetPixels;
-    // For M1M0A0 stacking, we might need to be careful, but they share the same box usually?
-    // If they have different boxes, they get clamped individually.
 
-    // Visually, does this affect the rect border? 
-    // The rect is drawn in createAnnotationSVG. We are in createSymbolAnnotation.
-    // We only control text position here. 
-    // To resize the RECT itself, we'd need to change createAnnotationSVG.
-    // Actually, createAnnotationSVG draws the RECT first.
-    // If I want to shrink the rect, I must do it in createAnnotationSVG.
-
-    let svg = `
-      <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-            font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
-
-    let currentX = symbolX + symbolSize + 5; // Track current X position for next element
-
-    // Add text (Mark Code) after the symbol if provided
-    if (text && text.trim()) {
-      const escapedText = this.escapeXml(text);
-      svg += `
-        <text x="${currentX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-              font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${escapedText}</text>`;
-
-      // Update currentX for next element
-      const estimatedMarkingCodeWidth = text.length * (textSize * 0.6);
-      currentX += estimatedMarkingCodeWidth + 10; // Add spacing
+    // 4. Position Symbols based on Flip
+    // symbolX is the anchor point for the first element
+    let symbolX: number;
+    if (isFlipped) {
+      symbolX = x - 10; // 10px spacing from left edge of box
+    } else {
+      symbolX = x + width; // Right edge of box
     }
 
-    // Add Classification Text (Blue) if provided
-    if (classificationText && classificationText.trim()) {
-      // Truncate if too long (e.g. > 20 chars)
-      const displayClassText = classificationText.length > 20 ? classificationText.substring(0, 20) + '...' : classificationText;
-      const escapedClassText = this.escapeXml(displayClassText);
+    let svg = `
+      <text x="${symbolX}" y="${textY}" text-anchor="${textAnchor}" fill="#ff0000" 
+            font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
 
-      svg += `
-        <text x="${currentX}" y="${textY}" text-anchor="start" fill="#0000ff" 
-              font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${escapedClassText})</text>`;
+    if (isFlipped) {
+      // Flipped Left: [Classification] [Code] [Symbol] [BOX]
+      // currentX moves further LEFT for each element
+      let currentX = symbolX - symbolSize - 5;
 
-      // Update currentX for next element (reasoning)
-      const estimatedClassTextWidth = displayClassText.length * (classificationSize * 0.6);
-      currentX += estimatedClassTextWidth + 15; // Add spacing
+      if (text && text.trim()) {
+        const escapedText = this.escapeXml(text);
+        svg += `
+          <text x="${currentX}" y="${textY}" text-anchor="end" fill="#ff0000" 
+                font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${escapedText}</text>`;
+        currentX -= (markingCodeWidth + 10);
+      }
+
+      if (displayClassText) {
+        const escapedClassText = this.escapeXml(displayClassText);
+        svg += `
+          <text x="${currentX}" y="${textY}" text-anchor="end" fill="#0000ff" 
+                font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${escapedClassText})</text>`;
+      }
+    } else {
+      // Default Right: [BOX] [Symbol] [Code] [Classification]
+      let currentX = symbolX + symbolSize + 5;
+
+      if (text && text.trim()) {
+        const escapedText = this.escapeXml(text);
+        svg += `
+          <text x="${currentX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+                font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${escapedText}</text>`;
+        currentX += markingCodeWidth + 10;
+      }
+
+      if (displayClassText) {
+        const escapedClassText = this.escapeXml(displayClassText);
+        svg += `<text x="${currentX}" y="${textY}" text-anchor="start" fill="#0000ff" font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${escapedClassText})</text>`;
+      }
     }
 
     // Add reasoning text only for cross actions (wrong steps) - break into multiple lines if needed
     if (symbol === '✗' && reasoning && reasoning.trim()) {
       // CLEANUP: Clean pipe separators | which might be returned by AI
-      // Replace pipes with period-space, then squash any double periods ".. " -> ". "
+      // Replace pipes with period-space, then squash any double periods ". " -> "."
       const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
       const reasoningLines = this.breakTextIntoMultiLines(cleanReasoning, 60); // Break at 60 characters
       const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
       const lineHeight = reasoningSize + 2; // Small spacing between lines
 
-      // Estimate reasoning width (rough estimate: ~8px per character)
-      const estimatedReasoningWidth = reasoningLines.reduce((max, line) => Math.max(max, line.length * 8), 0);
+      // CRITICAL: Horizontal Smart Flip for Reasoning
+      // Detect if reasoning would overflow the right edge
+      const maxCharsInLine = Math.max(...reasoningLines.map(line => line.length));
+      // Increase multiplier from 0.6 to 0.8 for safer estimation (red text is semi-bold usually)
+      const estimatedMaxReasoningWidth = maxCharsInLine * (reasoningSize * 0.8);
 
-      const reasoningXInline = currentX; // Start right after previous element
-      const wouldOverflow = (reasoningXInline + estimatedReasoningWidth) > actualWidth;
+      const reasoningSafeRightLimit = actualWidth - safeMargin;
+      const willReasoningOverflow = (x + estimatedMaxReasoningWidth) > (reasoningSafeRightLimit);
 
-      // Determine if block is too wide (reasoning would overflow or block width exceeds threshold)
-      const blockTooWide = width > (actualWidth * 0.7) || wouldOverflow;
+      // Alignment Strategy for Reasoning:
+      // Default: Anchor at x, text-anchor="start" (grows right)
+      // Flipped: Anchor at x + width, text-anchor="end" (grows left)
+      const rTextAnchor = willReasoningOverflow ? 'end' : 'start';
+      const rX = willReasoningOverflow ? (x + width) : x;
 
-      // SMART POSITIONING: Use helper to determine best Y position
-      const reasoningX = x; // Always align with left of the block for cleaner look
-      const reasoningY = SVGOverlayService.calculateReasoningStartY(
-        y,
-        height,
-        reasoningLines.length,
-        lineHeight,
-        actualHeight
-      );
-
+      // Vertical flip logic (already exists - determines if text is above or below)
+      const isAbove = y + effectiveHeight + 100 * fontScaleFactor > actualHeight - (40 * fontScaleFactor);
+      let reasoningY = isAbove
+        ? y - (lineHeight * reasoningLines.length) - 10
+        : y + effectiveHeight + 25 * fontScaleFactor + 25; // Standard padding
 
       reasoningLines.forEach((line, index) => {
-        // For multi-line reasoning, add line height offset for subsequent lines
-        const lineY = reasoningY + (index * lineHeight);
         const escapedLine = this.escapeXml(line);
-        svg += `
-          <text x="${reasoningX}" y="${lineY}" text-anchor="start" fill="#ff0000"
-                font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${escapedLine}</text>`;
+        svg += `<text x="${rX}" y="${reasoningY + (index * lineHeight)}" text-anchor="${rTextAnchor}" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${escapedLine}</text>`;
       });
     }
 

@@ -199,7 +199,7 @@
   cursor: zoom-in;
   border-radius: 12px;
   overflow: hidden;
-  max-width: 450px;
+  max-width: 550px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -477,4 +477,11 @@
   .ai-performance-summary:hover {
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
   }
+}
+
+.summary-separator {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 16px 0 8px 0;
+  opacity: 0.3;
 }

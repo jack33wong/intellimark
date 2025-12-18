@@ -757,11 +757,6 @@ export async function executeMarkingForQuestion(
       tracker: tracker // Pass tracker for auto-recording
     });
 
-    console.log(`🔍 [EXECUTOR DEBUG Q${questionId}] Just received markingResult from MarkingInstructionService:`);
-    console.log(`   - markingResult keys: ${Object.keys(markingResult).join(', ')}`);
-    console.log(`   - Has .overallPerformanceSummary: ${!!markingResult.overallPerformanceSummary}`);
-    console.log(`   - Has (as any).overallPerformanceSummary: ${!!(markingResult as any).overallPerformanceSummary}`);
-
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
 
@@ -789,8 +784,6 @@ export async function executeMarkingForQuestion(
 
 
     // 7. Generate Final Output
-    console.log(`🔍 [EXECUTOR DEBUG Q${questionId}] Checking markingResult for overallPerformanceSummary...`);
-    console.log(`   - Has overallPerformanceSummary in markingResult: ${!!(markingResult as any).overallPerformanceSummary}`);
 
     const questionResult: QuestionResult = {
       questionNumber: questionId,
@@ -819,11 +812,6 @@ export async function executeMarkingForQuestion(
       promptMarkingScheme: (markingResult as any).schemeTextForPrompt, // Exact scheme text from prompt
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary || undefined // AI-generated performance summary
     };
-
-    console.log(`   - Added to questionResult: ${!!questionResult.overallPerformanceSummary}`);
-    if (questionResult.overallPerformanceSummary) {
-      console.log(`   - Summary in questionResult: "${questionResult.overallPerformanceSummary.substring(0, 80)}..."`);
-    }
 
     return questionResult;
 

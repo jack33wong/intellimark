@@ -1358,8 +1358,6 @@ export class MarkingInstructionService {
 
             if (w >= 80 || h >= 80) {
               const subQ = anno.subQuestion || '';
-              console.warn(`⚠️ [FULL-PAGE DRAWING] Q${inputQuestionNumber}${subQ}: ${w}×${h}%`);
-
               // Resize: divide 70% by sub-question count (reduced from 85% for smaller boxes)
               const newSize = 70 / subQuestionCount;
               anno.visual_position.width = newSize;
@@ -1400,11 +1398,6 @@ export class MarkingInstructionService {
       }
 
       // Return the correct MarkingInstructions structure
-      console.log(`🔍 [OVERALL SUMMARY DEBUG] Checking AI response for overallPerformanceSummary...`);
-      console.log(`   - Has overallPerformanceSummary: ${!!parsedResponse.overallPerformanceSummary}`);
-      if (parsedResponse.overallPerformanceSummary) {
-        console.log(`   - Summary content: "${parsedResponse.overallPerformanceSummary.substring(0, 100)}..."`);
-      }
 
       // CRITICAL: Override totalMarks with actual value from marking scheme
       // We should NEVER trust AI to calculate this - we have the accurate data
@@ -1415,7 +1408,6 @@ export class MarkingInstructionService {
         if (studentScore.awardedMarks !== undefined) {
           studentScore.scoreText = `${studentScore.awardedMarks}/${studentScore.totalMarks}`;
         }
-        console.log(`✅ [TOTAL MARKS] Overrode AI's totalMarks with scheme value: ${studentScore.totalMarks}`);
       }
 
       return {

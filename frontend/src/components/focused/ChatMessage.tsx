@@ -414,6 +414,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             const parts = processedContent.split(/(:::your-work[\s\S]*?:::)/);
             return (
               <div ref={handleContentRef}>
+                {/* Render overall performance summary if available */}
+                {(message as any).performanceSummary && (
+                  <div className="ai-performance-summary">
+                    <MarkdownMathRenderer
+                      content={(message as any).performanceSummary}
+                      className="ai-performance-summary-content"
+                    />
+                    <hr className="summary-separator" />
+                  </div>
+                )}
                 {parts.map((part, idx) => {
                   if (part.startsWith(':::your-work')) return <YourWorkSection key={idx} content={part} />;
                   if (part.trim()) return <MarkdownMathRenderer key={idx} content={part} className="chat-message-renderer" />;

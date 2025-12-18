@@ -397,6 +397,13 @@ Keep the analysis concise, educational, and actionable.Focus on helping the stud
 
       return prompt;
     }
+  },
+  // ============================================================================
+  // MASTER PERFORMANCE SUMMARY PROMPTS
+  // ============================================================================
+  masterSummary: {
+    system: loadPrompt('master_summary_system_prompt.txt'),
+    user: (distilledData: string) => `Here are the distilled results for the exam paper:\n\n${distilledData}\n\nPlease generate a cohesive master performance summary based on this data.`
   }
 };
 

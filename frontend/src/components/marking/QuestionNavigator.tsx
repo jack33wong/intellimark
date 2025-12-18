@@ -78,10 +78,12 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
 
     const handleScroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
-            const scrollAmount = 200;
-            const newScrollLeft = scrollContainerRef.current.scrollLeft + (direction === 'right' ? scrollAmount : -scrollAmount);
-            scrollContainerRef.current.scrollTo({
-                left: newScrollLeft,
+            const container = scrollContainerRef.current;
+            const scrollAmount = container.clientWidth * 0.5; // Scroll by half container width
+            const targetScroll = container.scrollLeft + (direction === 'right' ? scrollAmount : -scrollAmount);
+
+            container.scrollTo({
+                left: targetScroll,
                 behavior: 'smooth'
             });
         }
@@ -103,9 +105,14 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                 <div className="ribbon-label">Question Breakdown</div>
                 <div className="ribbon-nav-row">
                     <button
+                        type="button"
                         className="nav-arrow left"
                         aria-label="Previous"
-                        onClick={() => handleScroll('left')}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleScroll('left');
+                        }}
                     >
                         <ChevronLeft size={16} />
                     </button>
@@ -128,9 +135,14 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                         })}
                     </div>
                     <button
+                        type="button"
                         className="nav-arrow right"
                         aria-label="Next"
-                        onClick={() => handleScroll('right')}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleScroll('right');
+                        }}
                     >
                         <ChevronRight size={16} />
                     </button>

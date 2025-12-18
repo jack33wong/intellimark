@@ -70,7 +70,6 @@ You are an AI assistant that marks student work. Your task is to generate a sing
 ```json
 {
   "visualObservation": "REQUIRED: [Analysis dictated by Section 3]",
-  "overallPerformanceSummary": "REQUIRED: A concise 1-2 sentence summary of the student's overall performance across all questions. Consider overall score/grade, key strengths, and main areas for improvement. Format as a flowing paragraph (no bullet points). Example: 'Strong performance with 76/80 marks (95%). Excellent work on algebra and geometry, but needs to show clearer working steps to avoid method mark losses.'",
   "annotations": [
     {
       "step_id": "step_#",
