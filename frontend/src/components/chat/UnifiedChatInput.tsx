@@ -511,7 +511,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   value={chatInput}
                   onChange={handleInputChange}
                   onKeyPress={handleKeyPress}
-                  placeholder={isProcessing ? "AI is processing..." : "Upload file... (Optional: Type exam name to speed up)"}
+                  placeholder={isProcessing ? "AI is processing..." : "Upload file - Type exam name to speed up"}
                   disabled={isProcessing}
                   className="followup-text-input"
                   onFocus={() => {

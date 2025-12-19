@@ -10,8 +10,9 @@
 }
 
 .library-item:hover {
-  border-color: var(--border-dark);
-  box-shadow: var(--shadow-M);
+  border-color: var(--text-brand);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15), var(--shadow-M);
+  transform: translateY(-2px);
 }
 
 .library-item-header {
@@ -55,7 +56,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 0; /* Allow truncation */
+  min-width: 0;
+  /* Allow truncation */
 }
 
 .library-item-title {
@@ -68,8 +70,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2; /* Allow 2 lines for title */
+  -webkit-line-clamp: 2;
+  /* Allow 2 lines for title */
   -webkit-box-orient: vertical;
+  line-clamp: 2;
 }
 
 
@@ -172,4 +176,3 @@
   color: var(--text-primary);
   border-color: var(--border-dark);
 }
-

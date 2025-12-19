@@ -8,6 +8,7 @@ import apiClient from '../services/apiClient';
 import { useScrollManager } from '../hooks/useScrollManager';
 import { createAIMessageId } from '../utils/messageUtils.js';
 import { STORAGE_KEYS, AI_MODELS } from '../utils/constants.js';
+import { getSessionImages } from '../utils/imageCollectionUtils';
 
 const MarkingPageContext = createContext();
 
@@ -92,7 +93,14 @@ function markingPageReducer(state, action) {
   }
 }
 
-export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageModeChange, setSidebarOpen }) => {
+export const MarkingPageProvider = ({
+  children,
+  selectedMarkingResult,
+  onPageModeChange,
+  setSidebarOpen,
+  autoSplit = false,
+  initialImageIndex = 0
+}) => {
   const { user, getAuthToken } = useAuth();
   const { selectedFile, processImage, clearFile, handleFileSelect } = useImageUpload();
 
@@ -107,6 +115,28 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive } = state;
+
+  // Auto-enter split mode if requested via prop
+  useEffect(() => {
+    if (autoSplit && currentSession && selectedMarkingResult && currentSession.id === selectedMarkingResult.id) {
+      const images = getSessionImages(currentSession);
+      if (images && images.length > 0) {
+
+        // Ensure index is valid
+        const validIndex = initialImageIndex >= 0 && initialImageIndex < images.length
+          ? initialImageIndex
+          : 0;
+
+        dispatch({
+          type: 'ENTER_SPLIT_MODE',
+          payload: { images, index: validIndex }
+        });
+
+        // Also ensure page mode is chat so we see the results
+        dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
+      }
+    }
+  }, [autoSplit, selectedMarkingResult, currentSession, initialImageIndex]);
 
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);

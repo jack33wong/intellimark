@@ -1267,7 +1267,7 @@ export class SessionManagementService {
       const userPrompt = getPrompt('masterSummary.user', distilledData);
 
       // Call AI for final synthesis
-      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, true, tracker, 'performanceSummary');
+      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, 'performanceSummary');
 
       let finalContent = response.content;
 

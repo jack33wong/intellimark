@@ -27,25 +27,53 @@ function AppContent() {
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState<number>(0);
   const [isChatMode, setIsChatMode] = useState<boolean>(false);
 
+  const [autoSplit, setAutoSplit] = useState<boolean>(false);
+  const [initialImageIndex, setInitialImageIndex] = useState<number>(0);
+
   // Listen for custom event to load marking session from other pages
   useEffect(() => {
-    const handleLoadMarkingSession = (event: CustomEvent<{ session: MarkingResult }>) => {
-      setSelectedMarkingResult(event.detail.session);
+    const handleLoadMarkingSession = async (event: CustomEvent<{
+      session: MarkingResult & { id: string, messages?: any[] },
+      autoSplit?: boolean,
+      initialImageIndex?: number
+    }>) => {
+      const { session, autoSplit, initialImageIndex } = event.detail;
+
+      // Set initial values
+      setAutoSplit(autoSplit || false);
+      setInitialImageIndex(initialImageIndex || 0);
+
+      // If session is incomplete (missing messages), fetch it
+      if (!session.messages) {
+        try {
+          const { simpleSessionService } = await import('./services/markingApiService');
+          const response = await simpleSessionService.getSession(session.id);
+          if (response.success && response.session) {
+            setSelectedMarkingResult(response.session);
+          } else {
+            setSelectedMarkingResult(session);
+          }
+        } catch (error) {
+          console.error('Error loading session from ID:', error);
+          setSelectedMarkingResult(session);
+        }
+      } else {
+        setSelectedMarkingResult(session);
+      }
     };
 
-    window.addEventListener('loadMarkingSession', handleLoadMarkingSession as EventListener);
+    window.addEventListener('loadMarkingSession', handleLoadMarkingSession as any);
     return () => {
-      window.removeEventListener('loadMarkingSession', handleLoadMarkingSession as EventListener);
+      window.removeEventListener('loadMarkingSession', handleLoadMarkingSession as any);
     };
   }, []);
 
-  const handleMarkingHistoryClick = async (result: MarkingResult) => {
+  const handleMarkingHistoryClick = async (result: MarkingResult & { id: string }) => {
     try {
-      // In a fully typed app, you would have a typed API client here
-      const response = await fetch(`http://localhost:5001/api/messages/session/${result.id}`);
-      if (response.ok) {
-        const sessionData = await response.json();
-        setSelectedMarkingResult(sessionData.success ? sessionData.session : result);
+      const { simpleSessionService } = await import('./services/markingApiService');
+      const response = await simpleSessionService.getSession(result.id);
+      if (response.success && response.session) {
+        setSelectedMarkingResult(response.session);
       } else {
         setSelectedMarkingResult(result);
       }
@@ -138,9 +166,11 @@ function AppContent() {
                       selectedMarkingResult={selectedMarkingResult}
                       onPageModeChange={setIsChatMode}
                       setSidebarOpen={setIsSidebarOpen}
+                      autoSplit={autoSplit}
+                      initialImageIndex={initialImageIndex}
                     >
                       <MarkingPage />
-                    </MarkingPageProvider>
+                    </MarkingPageProvider> as any
                   </div>
                 </div>
               </div>

@@ -20,12 +20,12 @@ export const STRIPE_CONFIG = {
   currency: 'gbp',
   plans: {
     pro: {
-      monthly: { productId: process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '', amount: 2000 }, // £20
-      yearly: { productId: process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '', amount: 19200 }, // £192 (20 * 12 * 0.8)
+      monthly: { productId: process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '', amount: 9.9 }, // £9.9
+      yearly: { productId: process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '', amount: 99 }, // £99 (9.9 * 12 * 0.8)
     },
     enterprise: {
-      monthly: { productId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRODUCT_ID || '', amount: 10000 }, // £100
-      yearly: { productId: process.env.STRIPE_ENTERPRISE_YEARLY_PRODUCT_ID || '', amount: 96000 }, // £960 (100 * 12 * 0.8)
+      monthly: { productId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRODUCT_ID || '', amount: 19.9 }, // £19.9
+      yearly: { productId: process.env.STRIPE_ENTERPRISE_YEARLY_PRODUCT_ID || '', amount: 199 }, // £199 (19.9 * 12 * 0.8)
     },
   },
 };

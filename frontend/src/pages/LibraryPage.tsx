@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Star, Grid } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
 import { getSessionImages, type SessionImage } from '../utils/imageCollectionUtils';
@@ -41,6 +42,7 @@ interface GroupedLibrary {
 }
 
 const LibraryPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, getAuthToken } = useAuth();
   const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
@@ -63,16 +65,16 @@ const LibraryPage: React.FC = () => {
         tier: firstExamPaper.tier || ''
       };
     }
-    
+
     // Fallback: Find assistant message with detectedQuestion
     const assistantMessage = session.messages?.find(
       m => m.role === 'assistant' && m.detectedQuestion?.found
     );
-    
+
     if (!assistantMessage?.detectedQuestion?.examPapers?.length) {
       return null; // Skip sessions without exam metadata
     }
-    
+
     // Use first exam paper for grouping
     const firstExamPaper = assistantMessage.detectedQuestion.examPapers[0];
     return {
@@ -116,7 +118,7 @@ const LibraryPage: React.FC = () => {
         total?: number;
         limit?: number;
       };
-      
+
       if (response.success && response.sessions) {
         // Filter for marking sessions OR mixed sessions (which can contain marking content)
         const markingSessions = response.sessions.filter(
@@ -159,17 +161,17 @@ const LibraryPage: React.FC = () => {
         m => m.role === 'assistant' && m.studentScore
       );
       const studentScore = assistantMessage?.studentScore;
-      
+
       // Only include studentScore if all required fields are present
-      const validStudentScore = studentScore && 
+      const validStudentScore = studentScore &&
         typeof studentScore.totalMarks === 'number' &&
         typeof studentScore.awardedMarks === 'number' &&
         typeof studentScore.scoreText === 'string'
         ? {
-            totalMarks: studentScore.totalMarks,
-            awardedMarks: studentScore.awardedMarks,
-            scoreText: studentScore.scoreText
-          }
+          totalMarks: studentScore.totalMarks,
+          awardedMarks: studentScore.awardedMarks,
+          scoreText: studentScore.scoreText
+        }
         : undefined;
 
       items.push({
@@ -239,13 +241,20 @@ const LibraryPage: React.FC = () => {
     return filtered;
   };
 
-  // Handle thumbnail click
+  // Handle thumbnail click - Navigate to marking page in split mode
   const handleThumbnailClick = (item: LibraryItem, imageIndex: number) => {
-    setSelectedImageSession({
-      images: item.images,
-      initialIndex: imageIndex
+    // Navigate to marking page
+    navigate('/mark-homework');
+
+    // Dispatch event to load session with autoSplit instruction
+    const event = new CustomEvent('loadMarkingSession', {
+      detail: {
+        session: { id: item.sessionId, title: item.sessionTitle },
+        autoSplit: true,
+        initialImageIndex: imageIndex
+      }
     });
-    setIsImageModeOpen(true);
+    window.dispatchEvent(event);
   };
 
   const filteredGroupedLibrary = getFilteredGroupedLibrary();
@@ -266,7 +275,7 @@ const LibraryPage: React.FC = () => {
       {/* Header */}
       <div className="library-header">
         <h1 className="library-title">Library</h1>
-        
+
         <div className="library-controls">
           {/* Filter controls */}
           <div className="library-filters">

@@ -21,6 +21,12 @@ export class AnalysisService {
     userId?: string
   ): Promise<AnalysisResult> {
     try {
+      // 0. Resolve 'auto' model to default if needed
+      if (request.model === 'auto') {
+        const { getDefaultModel } = await import('../../config/aiModels.js');
+        request.model = getDefaultModel();
+      }
+
       // 1. Get marking data from subjectMarkingResults (preferred) or session(s) (fallback)
       let markingData: MarkingDataForAnalysis | null = null;
 
@@ -100,8 +106,9 @@ export class AnalysisService {
         systemPrompt,
         userPrompt,
         request.model as ModelType,
-        false,
-        analysisTracker // Pass tracker to record tokens
+        true, // analysis prompt asks for JSON
+        analysisTracker,
+        'analysis' // phase
       );
 
       // 5. Parse AI response
@@ -118,6 +125,8 @@ export class AnalysisService {
       // 7. Persist usage record if userId is provided
       if (userId) {
         const cost = analysisTracker.calculateCost(request.model as string);
+        const { inputTokens, outputTokens } = analysisTracker.getTotalInputOutput();
+        const apiRequests = analysisTracker.getTotalRequests();
         const analysisSessionId = `analysis-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         await FirestoreService.createUsageRecord(
@@ -130,7 +139,12 @@ export class AnalysisService {
             costBreakdown: {
               llmCost: cost.total,
               mathpixCost: 0
-            }
+            },
+            lastModelUsed: request.model as string,
+            totalLlmTokens: inputTokens + outputTokens,
+            totalLlmInputTokens: inputTokens,
+            totalLlmOutputTokens: outputTokens,
+            apiRequests: apiRequests
           },
           'analysis' // mode
         );
@@ -166,7 +180,7 @@ export class AnalysisService {
           continue;
         }
 
-        // Find ALL marking messages (not just the last one)
+        // Find marking messages
         const markingMessages = session.messages.filter((msg: UnifiedMessage) =>
           msg.role === 'assistant' &&
           msg.studentScore &&
@@ -198,42 +212,61 @@ export class AnalysisService {
             }
           }
 
-          // Extract question results
-          const detectedQuestion = mainMarkingMessage.detectedQuestion;
-          if (detectedQuestion?.examPapers && detectedQuestion.examPapers.length > 0) {
-            detectedQuestion.examPapers.forEach((examPaper: any) => {
-              // Track exam metadata
-              const metadataKey = `${examPaper.examBoard}-${examPaper.examCode}-${examPaper.examSeries}`;
-              examMetadataSet.add(metadataKey);
+          // Use markingContext for accurate question results if available
+          const contextResults = mainMarkingMessage.markingContext?.questionResults;
 
-              if (examPaper.questions && Array.isArray(examPaper.questions)) {
-                examPaper.questions.forEach((q: any) => {
-                  const questionNum = q.questionNumber || '';
-                  if (!questionNum) return;
+          if (contextResults && Array.isArray(contextResults)) {
+            contextResults.forEach((cq) => {
+              const questionNum = cq.number || '';
+              if (!questionNum) return;
 
-                  // Check if question already exists (from another session)
-                  const existingIndex = allQuestionResults.findIndex(qr => qr.questionNumber === questionNum);
-
-                  if (existingIndex >= 0) {
-                    // Update existing question (take max total marks)
-                    const existing = allQuestionResults[existingIndex];
-                    const newTotalMarks = q.marks || 0;
-                    if (newTotalMarks > existing.score.totalMarks) {
-                      existing.score.totalMarks = newTotalMarks;
-                    }
-                  } else {
-                    // Add new question (will calculate average score later)
-                    allQuestionResults.push({
-                      questionNumber: questionNum,
-                      score: {
-                        awardedMarks: 0, // Will calculate average
-                        totalMarks: q.marks || 0
-                      }
-                    });
+              const existingIndex = allQuestionResults.findIndex(qr => qr.questionNumber === questionNum);
+              if (existingIndex >= 0) {
+                // Update existing: accumulating for average
+                allQuestionResults[existingIndex].score.awardedMarks += (cq.earnedMarks || 0);
+                allQuestionResults[existingIndex].score.totalMarks += (cq.totalMarks || 0);
+              } else {
+                allQuestionResults.push({
+                  questionNumber: questionNum,
+                  score: {
+                    awardedMarks: cq.earnedMarks || 0,
+                    totalMarks: cq.totalMarks || 0
                   }
                 });
               }
             });
+          } else {
+            // Fallback: Reconstruct from detectedQuestion structure (without earned marks)
+            const detectedQuestion = mainMarkingMessage.detectedQuestion;
+            if (detectedQuestion?.examPapers && detectedQuestion.examPapers.length > 0) {
+              detectedQuestion.examPapers.forEach((examPaper: any) => {
+                // Track exam metadata
+                const metadataKey = `${examPaper.examBoard}-${examPaper.examCode}-${examPaper.examSeries}`;
+                examMetadataSet.add(metadataKey);
+
+                if (examPaper.questions && Array.isArray(examPaper.questions)) {
+                  examPaper.questions.forEach((q: any) => {
+                    const questionNum = q.questionNumber || '';
+                    if (!questionNum) return;
+
+                    const existingIndex = allQuestionResults.findIndex(qr => qr.questionNumber === questionNum);
+
+                    if (existingIndex >= 0) {
+                      // Update existing (accumulate total marks, awarded will be averaged)
+                      allQuestionResults[existingIndex].score.totalMarks += (q.marks || 0);
+                    } else {
+                      allQuestionResults.push({
+                        questionNumber: questionNum,
+                        score: {
+                          awardedMarks: 0, // Awarded marks unknown without context
+                          totalMarks: q.marks || 0
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
           }
         });
       }
@@ -249,11 +282,19 @@ export class AnalysisService {
       const avgTotal = Math.round(totalPossible / sessionScores.length);
       const avgPercentage = avgTotal > 0 ? Math.round((avgAwarded / avgTotal) * 100) : 0;
 
-      // Calculate average score per question (simplified - distribute average percentage)
-      const avgQuestionPercentage = avgTotal > 0 ? avgAwarded / avgTotal : 0;
+      // Calculate average score per question
       allQuestionResults.forEach((qr) => {
-        const estimatedAwardedMarks = Math.round((qr.score.totalMarks || 0) * avgQuestionPercentage);
-        qr.score.awardedMarks = estimatedAwardedMarks;
+        // If awardedMarks is still 0 but totalMarks is > 0, we might need heuristic
+        // This only happens if we fell back to detectedQuestion instead of markingContext
+        if (qr.score.awardedMarks === 0 && qr.score.totalMarks > 0) {
+          const avgQuestionPercentage = avgTotal > 0 ? avgAwarded / avgTotal : 0;
+          qr.score.awardedMarks = Math.round(qr.score.totalMarks * avgQuestionPercentage);
+        } else {
+          // If we had real marks, they are currently sums. We should leave them as-is (aggregate performance)
+          // or average them. For performance analysis, aggregate sums are actually better as they represent 
+          // total volume of work. But LLM might prefer averages.
+          // Let's keep them as sums but the LLM prompt says "Analyze results".
+        }
       });
 
       // Sort question results
@@ -398,20 +439,29 @@ export class AnalysisService {
       // We'll estimate question scores based on overall performance distribution
       const questionResults: MarkingDataForAnalysis['questionResults'] = [];
 
-      // Build question results from detectedQuestion structure
-      if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
-        // Handle multiple exam papers if needed
+      // Use markingContext for accurate question results
+      const contextResults = mainMarkingMessage.markingContext?.questionResults;
+
+      if (contextResults && Array.isArray(contextResults)) {
+        contextResults.forEach((cq) => {
+          questionResults.push({
+            questionNumber: cq.number || '',
+            score: {
+              awardedMarks: cq.earnedMarks || 0,
+              totalMarks: cq.totalMarks || 0
+            }
+          });
+        });
+      } else if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
+        // Fallback: Reconstruct from detectedQuestion structure with heuristic averaging
+        const overallPercentage = totalPossible > 0 ? totalAwarded / totalPossible : 0;
+
         detectedQuestion.examPapers.forEach((examPaper: any) => {
           if (examPaper.questions && Array.isArray(examPaper.questions)) {
-            const totalPossibleMarks = examPaper.questions.reduce((sum: number, q: any) => sum + (q.marks || 0), 0);
-            const overallPercentage = totalPossible > 0 ? totalAwarded / totalPossible : 0;
-
             examPaper.questions.forEach((q: any) => {
               const questionNum = q.questionNumber || '';
               if (!questionNum) return;
 
-              // Estimate awarded marks based on overall performance percentage
-              // This is a simplified approach - in a real system, question scores would be stored
               const estimatedAwardedMarks = Math.round((q.marks || 0) * overallPercentage);
 
               questionResults.push({

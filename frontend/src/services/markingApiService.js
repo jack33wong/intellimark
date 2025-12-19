@@ -789,6 +789,16 @@ class SimpleSessionService {
       throw error;
     }
   }
+
+  getSession = async (sessionId) => {
+    try {
+      const response = await apiClient.get(`/api/messages/session/${sessionId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get session:', error);
+      throw error;
+    }
+  }
 }
 
 export const simpleSessionService = new SimpleSessionService();
