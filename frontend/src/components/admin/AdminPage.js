@@ -179,7 +179,7 @@ function AdminPage() {
   const loadJsonEntries = useCallback(async () => {
     try {
       const authToken = await getAuthToken();
-      const data = await ApiClient.get('/api/admin/json/collections/fullExamPapers', authToken);
+      const { data } = await ApiClient.get('/api/admin/json/collections/fullExamPapers');
       const entries = Array.isArray(data.entries) ? data.entries : [];
 
       // Sort entries by exam board, exam series, subject
@@ -279,7 +279,7 @@ function AdminPage() {
   const loadMarkingSchemeEntries = useCallback(async () => {
     try {
       const authToken = await getAuthToken();
-      const data = await ApiClient.get('/api/admin/json/collections/markingSchemes', authToken);
+      const { data } = await ApiClient.get('/api/admin/json/collections/markingSchemes');
       const entries = data.entries || [];
 
       // Sort entries by exam board, exam series
@@ -307,7 +307,7 @@ function AdminPage() {
   const loadGradeBoundaryEntries = useCallback(async () => {
     try {
       const authToken = await getAuthToken();
-      const data = await ApiClient.get('/api/admin/json/collections/gradeBoundaries', authToken);
+      const { data } = await ApiClient.get('/api/admin/json/collections/gradeBoundaries');
       setGradeBoundaryEntries(data.entries || []);
     } catch (error) {
       console.error('Error loading grade boundary entries:', error);
@@ -330,9 +330,8 @@ function AdminPage() {
     try {
       setLoadingUsage(true);
       const authToken = await getAuthToken();
-      const data = await ApiClient.get(
-        `/api/admin/usage?filter=${filter}`,
-        authToken
+      const { data } = await ApiClient.get(
+        `/api/admin/usage?filter=${filter}`
       );
 
       if (data.success) {
@@ -363,7 +362,7 @@ function AdminPage() {
     setIsDeletingAll(true);
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete('/api/admin/json/collections/fullExamPapers/clear-all', authToken);
+      const { data: result } = await ApiClient.delete('/api/admin/json/collections/fullExamPapers/clear-all');
       console.log('All entries deleted:', result.message);
       setJsonEntries([]);
       setError(`✅ All exam paper data has been deleted successfully.`);
@@ -385,7 +384,7 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete(`/api/admin/json/collections/fullExamPapers/${entryId}`, authToken);
+      const { data: result } = await ApiClient.delete(`/api/admin/json/collections/fullExamPapers/${entryId}`);
       console.log('Entry deleted:', result.message);
       setJsonEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Exam paper deleted successfully.`);
@@ -405,7 +404,7 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete('/api/admin/json/collections/markingSchemes/clear-all', authToken);
+      const { data: result } = await ApiClient.delete('/api/admin/json/collections/markingSchemes/clear-all');
       console.log('All marking schemes deleted:', result.message);
       setMarkingSchemeEntries([]);
       setError(`✅ All marking schemes deleted successfully.`);
@@ -425,7 +424,7 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete(`/api/admin/json/collections/markingSchemes/${entryId}`, authToken);
+      const { data: result } = await ApiClient.delete(`/api/admin/json/collections/markingSchemes/${entryId}`);
       console.log('Marking scheme deleted:', result.message);
       setMarkingSchemeEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Marking scheme deleted successfully.`);
@@ -446,7 +445,7 @@ function AdminPage() {
     setIsDeletingAllGradeBoundaries(true);
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete('/api/admin/json/collections/gradeBoundaries/clear-all', authToken);
+      const { data: result } = await ApiClient.delete('/api/admin/json/collections/gradeBoundaries/clear-all');
       console.log('All grade boundaries deleted:', result.message);
       setGradeBoundaryEntries([]);
       setError(`✅ All grade boundaries deleted successfully.`);
@@ -468,7 +467,7 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete(`/api/admin/json/collections/gradeBoundaries/${entryId}`, authToken);
+      const { data: result } = await ApiClient.delete(`/api/admin/json/collections/gradeBoundaries/${entryId}`);
       console.log('Grade boundary deleted:', result.message);
       setGradeBoundaryEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Grade boundary deleted successfully.`);
@@ -490,7 +489,7 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.post('/api/admin/json/collections/fullExamPapers', JSON.parse(jsonForm.jsonData), authToken);
+      const { data: result } = await ApiClient.post('/api/admin/json/collections/fullExamPapers', JSON.parse(jsonForm.jsonData));
       console.log('JSON uploaded successfully:', result);
       setJsonEntries(prev => [result.entry, ...prev]);
       resetJsonForm();
@@ -515,7 +514,7 @@ function AdminPage() {
       const authToken = await getAuthToken();
       await ApiClient.post('/api/admin/json/collections/markingSchemes', {
         markingSchemeData: markingSchemeForm.markingSchemeData
-      }, authToken);
+      });
 
       setError(null);
       resetMarkingSchemeForm();
@@ -539,7 +538,7 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const parsedData = JSON.parse(gradeBoundaryForm.gradeBoundaryData);
-      const result = await ApiClient.post('/api/admin/json/collections/gradeBoundaries', parsedData, authToken);
+      const { data: result } = await ApiClient.post('/api/admin/json/collections/gradeBoundaries', parsedData);
       console.log('Grade boundary uploaded successfully:', result);
       setGradeBoundaryEntries(prev => [result.entry, ...prev]);
       resetGradeBoundaryForm();
@@ -561,7 +560,7 @@ function AdminPage() {
     setIsClearingSessions(true);
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete('/api/admin/clear-all-sessions', authToken);
+      const { data: result } = await ApiClient.delete('/api/admin/clear-all-sessions');
       console.log('All sessions cleared:', result.message);
       setError(`✅ All chat sessions have been cleared successfully.`);
       setTimeout(() => setError(null), 5000);
@@ -589,7 +588,7 @@ function AdminPage() {
     setIsClearingUsage(true);
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete('/api/admin/usage/clear-all', authToken);
+      const { data: result } = await ApiClient.delete('/api/admin/usage/clear-all');
       console.log('All usage records cleared:', result.message);
       setError(`✅ All usage records have been cleared successfully.`);
       setTimeout(() => setError(null), 5000);
@@ -671,12 +670,9 @@ function AdminPage() {
       const loadList = async () => {
         setLoadingList(true);
         try {
-          const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
-          if (response.ok) {
-            const data = await response.json();
-            setSubscriptionsList(data.subscriptions);
-            setSubscriptionsPagination(data.pagination);
-          }
+          const { data } = await ApiClient.get(`/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
+          setSubscriptionsList(data.subscriptions);
+          setSubscriptionsPagination(data.pagination);
         } catch (error) {
           console.error('Error loading subscriptions:', error);
         } finally {
