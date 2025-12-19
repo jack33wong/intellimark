@@ -26,6 +26,8 @@ export interface ClassificationResult {
     confidence: number;
   }>;
   usageTokens?: number;
+  llmInputTokens?: number;
+  llmOutputTokens?: number;
 }
 
 export class ClassificationService {
@@ -268,6 +270,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         const result = await response.json() as any;
         content = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
         usageTokens = result.usageMetadata?.totalTokenCount || 0;
+        const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+        const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
         apiUsed = `Google Gemini ${model}`;
 
         // Extract real input/output split and record via tracker
@@ -333,7 +337,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
                 reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
                 questions: processedQuestions,
                 apiUsed,
-                usageTokens: isFirstPageOfQuestion ? usageTokens : 0
+                usageTokens: isFirstPageOfQuestion ? usageTokens : 0,
+                llmInputTokens: isFirstPageOfQuestion ? result.usageMetadata?.promptTokenCount : 0,
+                llmOutputTokens: isFirstPageOfQuestion ? result.usageMetadata?.candidatesTokenCount : 0
               }
             });
           });
@@ -1038,7 +1044,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       reasoning: parsed.reasoning,
       apiUsed,
       questions: questions,
-      usageTokens: result.usageMetadata?.totalTokenCount || 0
+      usageTokens: result.usageMetadata?.totalTokenCount || 0,
+      llmInputTokens: result.usageMetadata?.promptTokenCount || 0,
+      llmOutputTokens: result.usageMetadata?.candidatesTokenCount || 0
     };
   }
 

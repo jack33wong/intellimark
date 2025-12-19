@@ -89,10 +89,8 @@ export class MarkingServiceLocator {
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
 
       // ModelProvider now returns tokens from Gemini's usageMetadata
-      // We need to get them from the response (but callGeminiText doesn't return them yet)
-      // For now, estimate 50/50 split - TODO: update ModelProvider to return input/output
-      const inputTokens = Math.floor((response.usageTokens || 0) * 0.5);
-      const outputTokens = Math.ceil((response.usageTokens || 0) * 0.5);
+      const inputTokens = response.inputTokens || Math.floor((response.usageTokens || 0) * 0.8);
+      const outputTokens = response.outputTokens || Math.ceil((response.usageTokens || 0) * 0.2);
 
       return {
         response: response.content,
@@ -235,7 +233,9 @@ export class MarkingServiceLocator {
           response: result.content,
           apiUsed: `OpenAI ${result.modelName}`,
           confidence: 0.85,
-          usageTokens: result.usageTokens || 0
+          usageTokens: result.usageTokens || 0,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens
         };
       }
 
@@ -298,7 +298,7 @@ export class MarkingServiceLocator {
     model: ModelType = 'gemini-2.0-flash',
     tracker?: any,
     category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage"
-  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
+  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     try {
       // Check if model is OpenAI - route to OpenAI API instead
       const isOpenAI = model.toString().startsWith('openai-');
@@ -313,7 +313,9 @@ export class MarkingServiceLocator {
           response: result.content,
           apiUsed: `OpenAI ${openaiModelName}`,
           confidence: 0.85,
-          usageTokens: result.usageTokens || 0
+          usageTokens: result.usageTokens || 0,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens
         };
       }
 
@@ -334,7 +336,9 @@ export class MarkingServiceLocator {
         response: result.content,
         apiUsed: apiUsed,
         confidence: 0.85, // Default confidence for AI responses (marking mode)
-        usageTokens: result.usageTokens || 0
+        usageTokens: result.usageTokens || 0,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens
       };
     } catch (error) {
       console.error('❌ Gemini text response failed:', error);

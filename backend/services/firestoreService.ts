@@ -1155,31 +1155,51 @@ export class FirestoreService {
       // Get existing sessionStats and accumulate token counts
       const existingStats = sessionData?.sessionStats || {};
       const newMessageTokens = sanitizedMessage?.processingStats?.llmTokens || 0;
+      const newMessageInputTokens = sanitizedMessage?.processingStats?.llmInputTokens ?? (newMessageTokens * 0.8);
+      const newMessageOutputTokens = sanitizedMessage?.processingStats?.llmOutputTokens ?? (newMessageTokens * 0.2);
       const newMessageMathpix = sanitizedMessage?.processingStats?.mathpixCalls || 0;
 
       // Accumulate token counts (fix bug where they were being reset)
       const accumulatedLlmTokens = (existingStats.totalLlmTokens || 0) + newMessageTokens;
+      const accumulatedInputTokens = (existingStats.totalLlmInputTokens || 0) + newMessageInputTokens;
+      const accumulatedOutputTokens = (existingStats.totalLlmOutputTokens || 0) + newMessageOutputTokens;
       const accumulatedMathpixCalls = (existingStats.totalMathpixCalls || 0) + newMessageMathpix;
 
       // Increment API requests only for assistant messages (responses)
       const currentApiRequests = existingStats.apiRequests || 0;
       const accumulatedApiRequests = currentApiRequests + (sanitizedMessage.role === 'assistant' ? 1 : 0);
 
-      // Calculate cost based on accumulated stats
-      const { calculateTotalCost } = await import('../utils/CostCalculator.js');
+      const lastModelUsed = sanitizedMessage?.processingStats?.modelUsed || existingStats.lastModelUsed || 'gemini-2.0-flash';
+      const lastApiUsed = sanitizedMessage?.processingStats?.apiUsed || existingStats.lastApiUsed || 'Unknown';
+
       const updatedStats = {
         ...existingStats,
         totalLlmTokens: accumulatedLlmTokens,
+        totalLlmInputTokens: accumulatedInputTokens,
+        totalLlmOutputTokens: accumulatedOutputTokens,
         totalMathpixCalls: accumulatedMathpixCalls,
         totalTokens: accumulatedLlmTokens + accumulatedMathpixCalls,
         apiRequests: accumulatedApiRequests, // Persist API request count
-        lastModelUsed: sanitizedMessage?.processingStats?.modelUsed || existingStats.lastModelUsed || 'auto',
-        lastApiUsed: sanitizedMessage?.processingStats?.apiUsed || existingStats.lastApiUsed || 'Unknown',
+        lastModelUsed,
+        lastApiUsed,
         totalMessages: updatedMessages.length,
         hasImage: updatedMessages.some((msg: any) => msg.imageLink)
       };
 
-      const cost = calculateTotalCost(updatedStats);
+      // Calculate NEW cost delta for this specific message only
+      const { calculateLLMCost, calculateMathpixCost } = await import('../utils/CostCalculator.js');
+      const deltaLlmCost = calculateLLMCost(lastModelUsed, newMessageInputTokens, newMessageOutputTokens);
+      const deltaMathpixCost = calculateMathpixCost(newMessageMathpix);
+      const deltaTotalCost = deltaLlmCost + deltaMathpixCost;
+
+      // Accumulate costs instead of recalculating from total tokens (preserves accuracy from Marking)
+      const existingTotalCost = existingStats.totalCost || 0;
+      const existingLlmCost = existingStats.costBreakdown?.llmCost || (existingTotalCost - (existingStats.costBreakdown?.mathpixCost || 0));
+      const existingMathpixCost = existingStats.costBreakdown?.mathpixCost || 0;
+
+      const newTotalCost = existingTotalCost + deltaTotalCost;
+      const newLlmCost = existingLlmCost + deltaLlmCost;
+      const newMathpixCost = existingMathpixCost + deltaMathpixCost;
 
       // Update the session with new message and metadata
       const updateData = {
@@ -1191,29 +1211,31 @@ export class FirestoreService {
         'sessionStats.lastApiUsed': updatedStats.lastApiUsed,
         'sessionStats.lastModelUsed': updatedStats.lastModelUsed,
         'sessionStats.totalLlmTokens': accumulatedLlmTokens,
+        'sessionStats.totalLlmInputTokens': accumulatedInputTokens,
+        'sessionStats.totalLlmOutputTokens': accumulatedOutputTokens,
         'sessionStats.totalMathpixCalls': accumulatedMathpixCalls,
         'sessionStats.apiRequests': accumulatedApiRequests, // Update in Firestore
         'sessionStats.totalTokens': updatedStats.totalTokens,
-        'sessionStats.totalCost': cost.total,
+        'sessionStats.totalCost': newTotalCost,
         'sessionStats.costBreakdown': {
-          llmCost: cost.llmCost,
-          mathpixCost: cost.mathpixCost
+          llmCost: newLlmCost,
+          mathpixCost: newMathpixCost
         }
       };
 
       await sessionRef.update(updateData);
 
-      // Update usage record since cost was recalculated
+      // Update usage record since cost was updated
       await this.createUsageRecord(
         sessionId,
         sessionData.userId,
         sessionData.createdAt,
         {
           ...updatedStats,
-          totalCost: cost.total,
+          totalCost: newTotalCost,
           costBreakdown: {
-            llmCost: cost.llmCost,
-            mathpixCost: cost.mathpixCost
+            llmCost: newLlmCost,
+            mathpixCost: newMathpixCost
           }
         },
         usageMode // Use passed usageMode or default 'chat'
@@ -1300,6 +1322,11 @@ export class FirestoreService {
     const totalCost = sessionStats.totalCost;
     const modelUsed = sessionStats.lastModelUsed || 'unknown';
 
+    // Granular token tracking
+    const llmTokens = sessionStats.totalLlmTokens || 0;
+    const llmInputTokens = sessionStats.totalLlmInputTokens || 0;
+    const llmOutputTokens = sessionStats.totalLlmOutputTokens || 0;
+
     // Check for existing usage record to track mode history
     // UPDATED: Include detailed snapshots for granular breakdown
     let modeHistory: Array<{
@@ -1310,6 +1337,9 @@ export class FirestoreService {
       modelCostAtSwitch: number;
       mathpixCostAtSwitch: number;
       modelUsed: string;
+      // New granular fields
+      modelInputTokensAtSwitch?: number;
+      modelOutputTokensAtSwitch?: number;
     }> = [];
 
     const apiRequests = sessionStats.apiRequests || 0;
@@ -1329,7 +1359,9 @@ export class FirestoreService {
             apiRequestsAtSwitch: 0,
             modelCostAtSwitch: 0,
             mathpixCostAtSwitch: 0,
-            modelUsed: existingData.modelUsed || 'unknown' // Use existing modelUsed for backfill
+            modelUsed: existingData.modelUsed || 'unknown', // Use existing modelUsed for backfill
+            modelInputTokensAtSwitch: 0,
+            modelOutputTokensAtSwitch: 0
           });
         }
 
@@ -1342,10 +1374,8 @@ export class FirestoreService {
           const prevApiRequests = existingData.apiRequests || 0;
           const prevModelCost = existingData.modelCost || 0;
           const prevMathpixCost = existingData.mathpixCost || 0;
-          // For the modelUsed in history, we record the *new* model that is starting to be used? 
-          // Or the model used *until now*? 
-          // Usually history records "Started Mode X with Model Y".
-          // So we use the current `modelUsed` passed in (which is the model for this update).
+          const prevInputTokens = existingData.llmInputTokens || 0;
+          const prevOutputTokens = existingData.llmOutputTokens || 0;
 
           modeHistory.push({
             mode: mode,
@@ -1354,7 +1384,9 @@ export class FirestoreService {
             apiRequestsAtSwitch: prevApiRequests,
             modelCostAtSwitch: prevModelCost,
             mathpixCostAtSwitch: prevMathpixCost,
-            modelUsed: modelUsed
+            modelUsed: modelUsed,
+            modelInputTokensAtSwitch: prevInputTokens,
+            modelOutputTokensAtSwitch: prevOutputTokens
           });
         }
       } else {
@@ -1366,7 +1398,9 @@ export class FirestoreService {
           apiRequestsAtSwitch: 0,
           modelCostAtSwitch: 0,
           mathpixCostAtSwitch: 0,
-          modelUsed: modelUsed
+          modelUsed: modelUsed,
+          modelInputTokensAtSwitch: 0,
+          modelOutputTokensAtSwitch: 0
         });
       }
     } catch (err) {
@@ -1391,6 +1425,9 @@ export class FirestoreService {
       totalCost: Math.round(totalCost * 1000000) / 1000000,
       modelCost: Math.round(modelCost * 1000000) / 1000000,
       mathpixCost: Math.round(mathpixCost * 1000000) / 1000000,
+      llmTokens,
+      llmInputTokens,
+      llmOutputTokens,
       modelUsed,
       apiRequests,
       mode,

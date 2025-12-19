@@ -53,6 +53,8 @@ export interface QuestionResult {
   annotations: EnrichedAnnotation[];
   feedback?: string;
   usageTokens?: number; // Add usage tokens from AI responses
+  inputTokens?: number; // Add input tokens
+  outputTokens?: number; // Add output tokens
   confidence?: number; // Add confidence score
   mathpixCalls?: number; // Add mathpix calls count
   markingScheme?: any; // Include marking scheme for reference
@@ -790,7 +792,9 @@ export async function executeMarkingForQuestion(
       score: parseScore(markingResult.studentScore),
       annotations: enrichedAnnotations,
       pageIndex: (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0,
-      usageTokens: (markingResult as any).usage?.llmTokens || (markingResult as any).usageTokens || 0, // Map usageTokens correctly from nested object
+      usageTokens: markingResult.usage?.llmTokens || (markingResult as any).usageTokens || 0, // Map usageTokens correctly from nested object
+      inputTokens: markingResult.usage?.llmInputTokens || 0,
+      outputTokens: markingResult.usage?.llmOutputTokens || 0,
       mathpixCalls: task.sourcePages ? task.sourcePages.reduce((acc, pageIndex) => {
         // Aggregate mathpix calls from all source pages
         // Find the page data by pageIndex (safer than array index)

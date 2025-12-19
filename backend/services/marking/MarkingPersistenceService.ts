@@ -238,6 +238,8 @@ export class MarkingPersistenceService {
                 detectionResults,  // Add detection results for Exam Tab building
                 files,
                 usageTokens: usageTracker.getTotalTokens(),  // Use UsageTracker for accurate total
+                llmInputTokens: usageTracker.getTotalInputOutput().inputTokens,  // NEW
+                llmOutputTokens: usageTracker.getTotalInputOutput().outputTokens, // NEW
                 model: actualModel,
                 mathpixCallCount: mathpixCallCount  // Pass actual Mathpix call count
             };

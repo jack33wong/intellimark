@@ -67,7 +67,7 @@ export class ModelProvider {
     forceJsonResponse: boolean = false,
     tracker?: any, // UsageTracker (optional for backward compatibility during migration)
     phase: ModelPhase = 'other'
-  ): Promise<{ content: string; usageTokens: number }> {
+  ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     const accessToken = this.getGeminiApiKey();
     const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
     const result = await response.json() as any;
@@ -113,7 +113,7 @@ export class ModelProvider {
       }
     }
 
-    return { content, usageTokens: totalTokens };
+    return { content, usageTokens: totalTokens, inputTokens, outputTokens };
   }
 
   static async callGeminiChat(
@@ -123,7 +123,7 @@ export class ModelProvider {
     model: ModelType = 'auto',
     tracker?: any,
     phase: ModelPhase = 'other'
-  ): Promise<{ content: string; usageTokens: number }> {
+  ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     const accessToken = this.getGeminiApiKey();
     const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
     const result = await response.json() as any;
@@ -169,7 +169,7 @@ export class ModelProvider {
       }
     }
 
-    return { content, usageTokens: totalTokens };
+    return { content, usageTokens: totalTokens, inputTokens, outputTokens };
   }
 
   private static async makeGeminiChatRequest(
@@ -336,7 +336,7 @@ export class ModelProvider {
     forceJsonResponse: boolean = false,
     tracker?: any,
     phase: ModelPhase = 'other'
-  ): Promise<{ content: string; usageTokens: number }> {
+  ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     // Resolve 'auto' to default model
     const resolvedModel = model === 'auto' ? 'gemini-2.0-flash' : model;
 
@@ -347,7 +347,12 @@ export class ModelProvider {
       // Use OpenAI - extract model name from full ID (e.g., 'openai-gpt-4o' -> 'gpt-4o')
       const openaiModelName = resolvedModel.replace('openai-', '');
       const result = await this.callOpenAIText(systemPrompt, userPrompt, openaiModelName, forceJsonResponse, tracker, phase);
-      return { content: result.content, usageTokens: result.usageTokens };
+      return {
+        content: result.content,
+        usageTokens: result.usageTokens,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens
+      };
     } else {
       // Use existing Gemini method
       return await this.callGeminiText(systemPrompt, userPrompt, resolvedModel as ModelType, forceJsonResponse, tracker, phase);
@@ -365,7 +370,7 @@ export class ModelProvider {
     forceJsonResponse: boolean = true,
     tracker?: any,
     phase: ModelPhase = 'other'
-  ): Promise<{ content: string; usageTokens: number; modelName: string }> {
+  ): Promise<{ content: string; usageTokens: number; modelName: string; inputTokens?: number; outputTokens?: number }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
@@ -459,14 +464,14 @@ export class ModelProvider {
       }
     }
 
-    return { content, usageTokens: totalTokens, modelName: model };
+    return { content, usageTokens: totalTokens, modelName: model, inputTokens, outputTokens };
   }
 
   static async callOpenAIChatWithMultipleImages(
     systemPrompt: string,
     userContent: Array<{ type: string; text?: string; image_url?: { url: string } }>,
     modelName?: string
-  ): Promise<{ content: string; usageTokens: number; modelName: string }> {
+  ): Promise<{ content: string; usageTokens: number; modelName: string; inputTokens?: number; outputTokens?: number }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
@@ -507,8 +512,10 @@ export class ModelProvider {
 
     const json = await response.json() as any;
     const content = json.choices?.[0]?.message?.content || '';
-    const usageTokens = json.usage?.total_tokens || 0;
-    return { content, usageTokens, modelName: model };
+    const inputTokens = json.usage?.prompt_tokens || 0;
+    const outputTokens = json.usage?.completion_tokens || 0;
+    const totalTokens = json.usage?.total_tokens || 0;
+    return { content, usageTokens: totalTokens, modelName: model, inputTokens, outputTokens };
   }
 
   /**
@@ -522,7 +529,7 @@ export class ModelProvider {
     forceJsonResponse: boolean = false,
     tracker?: any,
     phase: ModelPhase = 'other'
-  ): Promise<{ content: string; usageTokens: number }> {
+  ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
@@ -607,7 +614,7 @@ export class ModelProvider {
       }
     }
 
-    return { content, usageTokens: totalTokens };
+    return { content, usageTokens: totalTokens, inputTokens, outputTokens };
   }
 
 }

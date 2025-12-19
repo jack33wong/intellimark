@@ -428,6 +428,10 @@ export function calculateMessageProcessingStats(
     ? questionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0)
     : (aiResponse?.usageTokens || 0);
 
+  // Use real splits if available, otherwise heuristic
+  const llmInputTokens = aiResponse?.inputTokens ?? (totalLlmTokens * 0.8);
+  const llmOutputTokens = aiResponse?.outputTokens ?? (totalLlmTokens * 0.2);
+
   // Calculate total mathpix calls from question results if available
   const totalMathpixCalls = questionResults.length > 0
     ? questionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0)
@@ -441,6 +445,8 @@ export function calculateMessageProcessingStats(
     imageSize,
     confidence: aiResponse?.confidence || 0,
     llmTokens: totalLlmTokens,
+    llmInputTokens,
+    llmOutputTokens,
     mathpixCalls: totalMathpixCalls,
     ocrMethod: 'Google Vision API' // TODO: Get real OCR method from processing
   };
@@ -454,7 +460,9 @@ export function calculateSessionStats(
   totalProcessingTimeMs: number,
   actualModel: string,
   files: any[] = [],
-  providedTotalLlmTokens?: number // CRITICAL FIX: Accept pre-calculated tokens
+  providedTotalLlmTokens?: number, // Accept total tokens
+  providedInputTokens?: number,    // New
+  providedOutputTokens?: number    // New
 ): any {
   // Get real API name (reusing logic from sessionManagementService.ts)
   const getRealApiName = (modelName: string): string => {
@@ -481,11 +489,19 @@ export function calculateSessionStats(
   // Calculate totals (reusing logic from originalPipeline.ts)
   const totalAnnotations = allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0);
 
-  // CRITICAL FIX: Use provided tokens if available, otherwise recalculate
-  // This fixes the bug where classification tokens were lost
+  // Handle total tokens
   const totalLlmTokens = providedTotalLlmTokens !== undefined
     ? providedTotalLlmTokens
     : allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
+
+  // Handle input/output tokens
+  const totalLlmInputTokens = providedInputTokens !== undefined
+    ? providedInputTokens
+    : allQuestionResults.reduce((sum, q) => sum + (q.inputTokens || 0), 0) || (totalLlmTokens * 0.8);
+
+  const totalLlmOutputTokens = providedOutputTokens !== undefined
+    ? providedOutputTokens
+    : allQuestionResults.reduce((sum, q) => sum + (q.outputTokens || 0), 0) || (totalLlmTokens * 0.2);
 
   const totalMathpixCalls = allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
   const totalTokens = totalLlmTokens + totalMathpixCalls;
@@ -503,6 +519,8 @@ export function calculateSessionStats(
     lastModelUsed: realModel,
     lastApiUsed: realApi,
     totalLlmTokens,
+    totalLlmInputTokens,
+    totalLlmOutputTokens,
     totalMathpixCalls,
     totalTokens,
     averageConfidence,

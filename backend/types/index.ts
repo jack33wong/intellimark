@@ -150,6 +150,11 @@ export interface MarkingInstructions {
     scoreText: string;
   };
   overallPerformanceSummary?: string; // AI-generated performance summary
+  usage?: {
+    llmTokens: number;
+    llmInputTokens: number;
+    llmOutputTokens: number;
+  };
 }
 
 export interface ImageClassification {
@@ -162,6 +167,8 @@ export interface ImageClassification {
     confidence: number;
   }>;
   usageTokens?: number;
+  llmInputTokens?: number;
+  llmOutputTokens?: number;
 }
 
 // Centralized DetectedQuestion interface - single source of truth
@@ -270,6 +277,8 @@ export interface UnifiedMessage {
     modelUsed?: string;				// Real model version (e.g., "gemini-2.5-pro")
     apiUsed?: string;              // API service used (e.g., "Google Gemini API")
     llmTokens?: number;
+    llmInputTokens?: number;
+    llmOutputTokens?: number;
     mathpixCalls?: number;
   };
 
@@ -385,6 +394,8 @@ export interface UnifiedSession {
   sessionStats?: {
     totalProcessingTimeMs?: number;
     totalLlmTokens?: number;
+    totalLlmInputTokens?: number;
+    totalLlmOutputTokens?: number;
     totalMathpixCalls?: number;
     totalMessages: number;
     totalTokens?: number;   // sum of totalLlmTokens + totalMathpixCalls

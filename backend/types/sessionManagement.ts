@@ -23,7 +23,9 @@ export interface MarkingSessionContext extends SessionContext {
   detectionResults?: any[];  // Add detection results for Exam Tab building
   files?: Express.Multer.File[];
   usageTokens?: number;
-  apiRequests?: number;                           // NEW: Total API request count
+  llmInputTokens?: number;
+  llmOutputTokens?: number;
+  apiRequests?: number;
   apiRequestBreakdown?: { [key: string]: number }; // NEW: Breakdown by phase
   model?: string;                                 // NEW: Model used for marking
   mathpixCallCount?: number;                      // CORRECT: Actual Mathpix calls
@@ -38,6 +40,8 @@ export interface MarkingSessionContext extends SessionContext {
 export interface QuestionSessionContext extends SessionContext {
   // Question mode specific data
   usageTokens?: number;
+  llmInputTokens?: number;
+  llmOutputTokens?: number;
   apiRequests?: number;
   model?: string;
   files?: Express.Multer.File[];
@@ -55,6 +59,8 @@ export interface SessionStats {
   lastModelUsed: string;
   lastApiUsed: string;
   totalLlmTokens: number;
+  totalLlmInputTokens?: number;
+  totalLlmOutputTokens?: number;
   totalMathpixCalls: number;
   totalTokens: number;
   averageConfidence: number;

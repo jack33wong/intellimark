@@ -167,10 +167,10 @@ router.get('/me', async (req: Request, res: Response) => {
             return dateB - dateA;
         });
 
-        // Round totals to 2 decimal places
-        totalCost = Math.round(totalCost * 100) / 100;
-        totalModelCost = Math.round(totalModelCost * 100) / 100;
-        totalMathpixCost = Math.round(totalMathpixCost * 100) / 100;
+        // Round totals to 4 decimal places for better precision
+        totalCost = Math.round(totalCost * 10000) / 10000;
+        totalModelCost = Math.round(totalModelCost * 10000) / 10000;
+        totalMathpixCost = Math.round(totalMathpixCost * 10000) / 10000;
 
         res.json({
             success: true,

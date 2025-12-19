@@ -420,7 +420,9 @@ export class SessionManagementService {
         Date.now() - context.startTime,
         additionalData.model || 'auto',
         additionalData.files || [],
-        additionalData.usageTokens // Pass the total from UsageTracker
+        additionalData.usageTokens, // Pass the total from UsageTracker
+        additionalData.llmInputTokens, // NEW
+        additionalData.llmOutputTokens // NEW
       );
 
       // Override mathpix count with actual value
@@ -432,7 +434,9 @@ export class SessionManagementService {
         Date.now() - context.startTime,
         (context as QuestionSessionContext).model || 'auto',
         (context as QuestionSessionContext).files || [],
-        (context as QuestionSessionContext).usageTokens || 0
+        (context as QuestionSessionContext).usageTokens || 0,
+        (context as QuestionSessionContext).llmInputTokens,
+        (context as QuestionSessionContext).llmOutputTokens
       );
     }
 

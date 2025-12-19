@@ -195,7 +195,7 @@ const UsageSection: React.FC = () => {
                 <div className="usage-list-header">
                     <div style={{ paddingLeft: '24px' }}>Details</div>
                     <div>Date</div>
-                    <div style={{ textAlign: 'right' }}>Cost</div>
+                    <div style={{ paddingRight: '30px', textAlign: 'right' }}>Cost</div>
                 </div>
 
                 <div className="usage-list-scroll">

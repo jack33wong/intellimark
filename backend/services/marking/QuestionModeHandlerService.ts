@@ -341,7 +341,9 @@ export class QuestionModeHandlerService {
     const aiResponse = {
       response: combinedResponse,
       apiUsed: aiResponses[0]?.apiUsed || 'Unknown',
-      usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0) + (classificationResult.usageTokens || 0)
+      usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0) + (classificationResult.usageTokens || 0),
+      inputTokens: aiResponses.reduce((sum, ar) => sum + (ar.inputTokens || 0), 0) + (classificationResult.llmInputTokens || 0),
+      outputTokens: aiResponses.reduce((sum, ar) => sum + (ar.outputTokens || 0), 0) + (classificationResult.llmOutputTokens || 0)
     };
 
 
@@ -451,6 +453,8 @@ export class QuestionModeHandlerService {
         globalQuestionText: globalQuestionText || '',
         mode: 'Question',
         usageTokens: aiResponse.usageTokens, // CRITICAL: Pass tokens for database persistence
+        llmInputTokens: aiResponse.inputTokens,
+        llmOutputTokens: aiResponse.outputTokens,
         model: actualModel,
         files: files,
         detectionResults  // Pass detection results for title generation
@@ -492,7 +496,9 @@ export class QuestionModeHandlerService {
         questionText: questionDetection.questions[ar.questionIndex]?.questionText || '',
         response: ar.response, // Formatted response WITH markdown headers
         apiUsed: ar.apiUsed,
-        usageTokens: ar.usageTokens
+        usageTokens: ar.usageTokens,
+        llmInputTokens: ar.inputTokens,
+        llmOutputTokens: ar.outputTokens
       }));
     }
 

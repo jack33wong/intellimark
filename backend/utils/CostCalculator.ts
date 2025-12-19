@@ -13,29 +13,23 @@ export interface CostBreakdown {
 
 /**
  * Calculate LLM cost based on model and token usage
- * @param model - The model name (e.g., 'gemini-2.5-flash', 'openai-gpt-5-mini')
- * @param totalTokens - Total tokens used (input + output)
+ * @param model - The model name (e.g., 'gemini-2.0-flash', 'openai-gpt-5-mini')
+ * @param inputTokens - Input tokens used
+ * @param outputTokens - Output tokens used
  * @returns Cost in USD
  */
-export function calculateLLMCost(model: string, totalTokens: number): number {
-  if (totalTokens <= 0) return 0;
+export function calculateLLMCost(model: string, inputTokens: number, outputTokens: number): number {
+  if (inputTokens + outputTokens <= 0) return 0;
 
   const pricing = getLLMPricing(model);
   if (!pricing) {
     console.warn(`[COST CALCULATOR] Unknown model: ${model}, using default pricing`);
-    // Fallback to gemini-2.5-flash pricing
-    const defaultPricing = getLLMPricing('gemini-2.5-flash');
+    // Fallback to gemini-2.0-flash pricing
+    const defaultPricing = getLLMPricing('gemini-2.0-flash');
     if (!defaultPricing) return 0;
-    // Estimate 80% input, 20% output if split unavailable
-    const inputTokens = totalTokens * 0.8;
-    const outputTokens = totalTokens * 0.2;
+
     return (inputTokens / 1_000_000) * defaultPricing.input + (outputTokens / 1_000_000) * defaultPricing.output;
   }
-
-  // Estimate 80% input, 20% output if split unavailable
-  // This is a reasonable estimate for most use cases
-  const inputTokens = totalTokens * 0.8;
-  const outputTokens = totalTokens * 0.2;
 
   const inputCost = (inputTokens / 1_000_000) * pricing.input;
   const outputCost = (outputTokens / 1_000_000) * pricing.output;
@@ -62,10 +56,14 @@ export function calculateMathpixCost(callCount: number): number {
  */
 export function calculateTotalCost(sessionStats: any): CostBreakdown {
   const totalLlmTokens = sessionStats?.totalLlmTokens || 0;
-  const totalMathpixCalls = sessionStats?.totalMathpixCalls || 0;
-  const modelUsed = sessionStats?.lastModelUsed || 'auto';
+  // Use real split tokens if available, fallback to 80/20 for legacy records
+  const llmInputTokens = sessionStats?.totalLlmInputTokens ?? (totalLlmTokens * 0.8);
+  const llmOutputTokens = sessionStats?.totalLlmOutputTokens ?? (totalLlmTokens * 0.2);
 
-  const llmCost = calculateLLMCost(modelUsed, totalLlmTokens);
+  const totalMathpixCalls = sessionStats?.totalMathpixCalls || 0;
+  const modelUsed = sessionStats?.lastModelUsed || 'gemini-2.0-flash';
+
+  const llmCost = calculateLLMCost(modelUsed, llmInputTokens, llmOutputTokens);
   const mathpixCost = calculateMathpixCost(totalMathpixCalls);
   const total = llmCost + mathpixCost;
 

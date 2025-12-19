@@ -458,7 +458,11 @@ export class MarkingInstructionService {
         // Return empty annotations instead of throwing - allows pipeline to continue
         return {
           annotations: [],
-          usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
+          usage: {
+            llmTokens: annotationData.usage?.llmTokens || 0,
+            llmInputTokens: annotationData.usage?.llmInputTokens || 0,
+            llmOutputTokens: annotationData.usage?.llmOutputTokens || 0
+          },
           cleanedOcrText: cleanedOcrText,
           studentScore: annotationData.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' }
         };
@@ -523,7 +527,7 @@ export class MarkingInstructionService {
       });
 
       const result: MarkingInstructions & {
-        usage?: { llmTokens: number };
+        usage?: { llmTokens: number; llmInputTokens: number; llmOutputTokens: number };
         cleanedOcrText?: string;
         studentScore?: any;
         markingScheme?: any;
@@ -531,7 +535,11 @@ export class MarkingInstructionService {
         overallPerformanceSummary?: string;
       } = {
         annotations: stackedAnnotations, // ✅ Return stacked annotations
-        usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
+        usage: {
+          llmTokens: (annotationData.usage?.llmTokens as number) || 0,
+          llmInputTokens: (annotationData.usage?.llmInputTokens as number) || 0,
+          llmOutputTokens: (annotationData.usage?.llmOutputTokens as number) || 0
+        },
         cleanedOcrText: cleanedOcrText,
         studentScore: annotationData.studentScore,
         markingScheme: annotationData.markingScheme, // Pass through marking scheme
@@ -950,13 +958,23 @@ export class MarkingInstructionService {
         if (isOpenAI) {
           let openaiModel = model.toString().replace('openai-', '');
           const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel, true, tracker, 'marking');
-          res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
+          res = {
+            content: visionResult.content,
+            usageTokens: visionResult.usageTokens,
+            inputTokens: visionResult.inputTokens,
+            outputTokens: visionResult.outputTokens
+          };
         } else {
           // Use Gemini Vision
           // Use images array if available, otherwise fallback to single imageData
           const imageInput = (images && images.length > 0) ? images : imageData;
           const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model, tracker, 'marking');
-          res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
+          res = {
+            content: visionResult.content,
+            usageTokens: visionResult.usageTokens,
+            inputTokens: visionResult.inputTokens,
+            outputTokens: visionResult.outputTokens
+          };
         }
       } else {
         res = await ModelProvider.callText(systemPrompt, userPrompt, model, true, tracker, 'marking');
@@ -964,6 +982,8 @@ export class MarkingInstructionService {
 
       aiResponseString = res.content;
       const usageTokens = res.usageTokens;
+      const inputTokens = res.inputTokens || 0;
+      const outputTokens = res.outputTokens || 0;
 
       // Parse the AI response (Add robust parsing/cleanup)
       let jsonString = aiResponseString;
@@ -1415,7 +1435,9 @@ export class MarkingInstructionService {
         studentScore: studentScore,
         overallPerformanceSummary: parsedResponse.overallPerformanceSummary || null, // Extract AI-generated summary
         usage: {
-          llmTokens: usageTokens
+          llmTokens: usageTokens,
+          llmInputTokens: inputTokens,
+          llmOutputTokens: outputTokens
         },
         cleanedOcrText: formattedOcrText,
         markingScheme: normalizedScheme, // Pass normalized scheme so executor can use it

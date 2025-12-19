@@ -184,28 +184,10 @@ export class UsageTracker {
     }
 
     /**
-     * Get total cost for a model
-     */
-    getTotalCost(model?: string): number {
-        const costs = this.calculateCost(model || 'gemini-2.5-flash');
-        return costs.total;
-    }
-
-    /**
-     * Get combined total cost including Mathpix
-     * This is the SINGLE SOURCE OF TRUTH for total cost
-     * @deprecated Mathpix cost is now included in getTotalCost/calculateCost automatically
-     */
-    getCombinedTotal(model: string, _mathpixCallsIgnored?: number): number {
-        const costs = this.calculateCost(model);
-        return costs.total;
-    }
-
-    /**
      * Calculate cost for a specific phase
      */
     private calculatePhaseCost(inputTokens: number, outputTokens: number, model?: string): number {
-        const pricing = getLLMPricing(model || 'gemini-2.5-flash');
+        const pricing = getLLMPricing(model || 'gemini-2.0-flash');
         if (!pricing) {
             return 0;
         }
