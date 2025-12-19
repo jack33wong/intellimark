@@ -1,6 +1,6 @@
 /* Your Work Section Styling */
 .your-work-section {
-    background: var(--text-primary);
+    background: #ffffff;
     border-left: 4px solid var(--function-success);
     padding: 16px;
     margin: 20px 30px;
@@ -8,7 +8,7 @@
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 14px;
     line-height: 1.5;
-    color: #2c3e50;
+    color: var(--text-onblack);
     overflow-x: auto;
 }
 
@@ -20,53 +20,57 @@
     color: var(--function-success);
 }
 
-/* Grid Layout */
+/* Grid Layout*/
 .your-work-grid-container {
     display: grid;
-    /* Columns: QNum, SubLabel, Student Work, Annotation */
-    /* Use fixed width for label columns to ensure alignment? No, grid auto aligns them. */
-    /* Work column: fits content but wraps if too long. Annotation: takes remainder */
-    grid-template-columns: min-content min-content min-content 1fr;
-    column-gap: 6px;
-    row-gap: 8px;
-    align-items: baseline;
+    /* Columns: QNum, Work (includes bullet), Annotation */
+    grid-template-columns: min-content auto auto;
+    column-gap: 8px;
+    row-gap: 12px;
+    align-items: center;
 }
 
 /* 1. Question Number (e.g. 2) */
 .yw-col-qnum {
     font-weight: 600;
-    color: #2c3e50;
-    text-align: right;
-    /* Usually right aligned if multi-digit? Or Left? User example left. */
+    color: var(--text-onblack);
     text-align: left;
     min-width: 1ch;
 }
 
-/* 2. Sub-Question Label (e.g. a i)) */
+/* Retired: Sublabel is now inline */
 .yw-col-sublabel {
+    display: none;
+}
+
+.yw-sublabel-inline {
     font-weight: 600;
-    color: #555;
+    color: var(--text-onblack);
+    /* Match main question color */
     white-space: nowrap;
-    /* Ensure indentation if empty QNum? Grid cells are distinct. */
-    min-width: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
 }
 
 /* 3. Student Work */
 .yw-col-work {
-    color: #333;
+    color: var(--text-onblack);
     font-style: italic;
     white-space: nowrap;
-    /* Enforce single line */
-    min-width: 120px;
+    padding-right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Tighter gap */
 }
 
 /* 4. Annotation */
 .yw-col-annotation {
     color: var(--text-tertiary);
-    /* Enforce single line flow */
     display: flex;
-    flex-wrap: nowrap;
-    /* No wrap */
+    flex-direction: row;
     gap: 8px;
     white-space: nowrap;
 }
@@ -75,36 +79,58 @@
     color: var(--text-brand);
     font-weight: bold;
     white-space: nowrap;
+    min-width: 4ch;
 }
 
 .yw-reason {
-    color: #555;
+    color: var(--text-onblack);
     white-space: nowrap;
 }
 
-/* Bullet styling for implicit items */
+/* Bullet styling for inline items */
 .yw-bullet {
-    color: var(--text-tertiary);
+    color: var(--text-onblack);
+    /* Match main text color */
     font-weight: bold;
-    text-align: center;
-    width: 100%;
-    display: inline-block;
-    font-size: 8px;
+    font-size: 6px;
+    /* Smaller bullet point */
+    line-height: 1;
 }
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .your-work-grid-container {
-        /* On small screens, maybe stack work and annotation? */
-        /* Or allow scroll */
         display: block;
-        /* Fallback to block stacking if grid breaks? */
-        /* Actually horizontal scroll (overflow-x on parent) handles grid well */
     }
 
-    /* But for better readability: */
-    /* Maybe just reduce gaps */
     .your-work-grid-container {
         column-gap: 8px;
     }
+}
+
+/* Math Renderer Override for Your Work */
+.yw-math-renderer {
+    color: var(--text-onblack) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: auto !important;
+    flex: 0 1 auto !important;
+}
+
+.yw-math-renderer .markdown-p {
+    color: var(--text-onblack) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: inline !important;
+}
+
+.yw-math-renderer .katex {
+    color: var(--text-onblack) !important;
+    margin: 0 !important;
+}
+
+.yw-math-renderer .katex-display {
+    margin: 0 !important;
 }

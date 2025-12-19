@@ -9,7 +9,7 @@
 .markdown-p,
 .markdown-ol,
 ul {
-  margin: 0.5em 0;
+  margin: 0.8em 0;
   line-height: 1.6;
   /* This is good for text, but bad for KaTeX */
 }
@@ -17,8 +17,8 @@ ul {
 /* --- Title & Indentation --- */
 .markdown-math-renderer h3 {
   color: var(--text-primary);
-  font-weight: 500;
-  margin: 0.5em 0 0.5em 0;
+  font-weight: 700;
+  margin: 1.5em 0 0.8em 0;
   font-size: 1.1em;
 }
 

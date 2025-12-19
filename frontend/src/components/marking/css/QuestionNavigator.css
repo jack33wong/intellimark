@@ -96,13 +96,12 @@
 
 /* Ribbon Label - "Question Breakdown" heading - first line */
 .ribbon-label {
-    font-size: 10px;
+    font-size: 8px;
     font-weight: 600;
     color: var(--text-tertiary);
     text-transform: uppercase;
     letter-spacing: 1px;
     white-space: nowrap;
-    margin-bottom: 4px;
     opacity: 0.8;
 }
 

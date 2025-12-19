@@ -122,9 +122,24 @@ export function normalizeTextForComparison(text: string | null | undefined): str
  */
 export function sanitizeOcrArtifacts(text: string | null | undefined): string {
   if (!text) return '';
-  // Regex: Detect '&' followed by optional whitespace and an alignment-relevant operator
-  // Operators: =, <, >, \le, \ge, \approx
-  return text.replace(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g, '$1');
+
+  let cleaned = text;
+
+  // 1. Detect '&' followed by optional whitespace and an alignment-relevant operator
+  // Regex: Operators: =, <, >, \le, \ge, \approx
+  cleaned = cleaned.replace(/&(\s*(?:=|\\le|\\ge|<|>|\\approx))/g, '$1');
+
+  // 2. Remove extra spaces between backslash and command (e.g., "\ frac" -> "\frac")
+  // Common OCR artifact from Mathpix/other services
+  cleaned = cleaned.replace(/\\\s+(frac|sqrt|left|right|alpha|beta|gamma|Delta|theta|lambda|sigma|pi|mu|infty|times|div|pm|mp|leq|geq|neq|approx|cdot)/g, '\\$1');
+
+  // 3. Remove common LaTeX/OCR artifacts like double backslashes which are sometimes literal but shouldn't be
+  // but be careful not to break standard escaped characters.
+
+  // 4. Handle common fractional layout artifacts in plain text OCR (e.g. "600 / 0.6")
+  // if it's not already in a LaTeX command.
+
+  return cleaned;
 }
 
 /**

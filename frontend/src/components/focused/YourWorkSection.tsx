@@ -3,6 +3,7 @@ import '../marking/YourWork.css';
 
 interface YourWorkSectionProps {
     content: string;
+    MarkdownMathRenderer?: React.ElementType;
 }
 
 interface YourWorkRow {
@@ -38,31 +39,43 @@ const parseRowContent = (text: string): { work: string, marks: string, reason: s
     let marks = '';
     let reason = annotation;
 
-    // Matches "M0 A0 - Reason" or "[M0] [A0] - Reason"
     // Clean up annotation first
     const cleanAnno = annotation.replace(/^-\s*/, '').trim();
 
     // Check for marks at start
-    // Regex matches uppercase letter+digit pairs: (M1 A1) or ([M1] [A1])
     const marksMatch = cleanAnno.match(/^((?:\[?[A-Z]\d+\]?\s*)+)(?:-|)(.*)$/);
     if (marksMatch) {
         const rawMarks = marksMatch[1];
-        reason = marksMatch[2].trim();
+        let rawReason = marksMatch[2].trim();
+
+        // DEDUPLICATION: Remove accidental trailing markers like "-- P1 - Reason" inside the reason itself
+        // if rawReason contains "-- [MARKS] - ", strip that suffix to avoid messy duplicate echoes
+        rawReason = rawReason.split(' -- ')[0].trim();
 
         // Format marks: Ensure brackets [M0] [A0]
         marks = rawMarks.trim().split(/\s+/).map(m => {
             const inner = m.replace(/[\[\]]/g, ''); // remove existing brackets
             return `[${inner}]`;
         }).join(' ');
-    } else {
-        // No marks found, check if entire specific format is reasoning or marks
-        // If empty, return empty
+
+        reason = rawReason;
     }
 
-    return { work: studentWork.trim(), marks, reason };
+    // SANITIZATION: Strip trailing $ or \$ which often leak from OCR or math injection
+    studentWork = studentWork.replace(/\\?\$$/, '').trim();
+    reason = reason.replace(/\\?\$$/, '').trim();
+
+    return { work: studentWork, marks, reason };
 };
 
-export default function YourWorkSection({ content }: YourWorkSectionProps) {
+const sanitizeStudentWork = (text: string) => {
+    if (!text) return '';
+    // Remove common OCR artifacts
+    let cleaned = text.replace(/\\ /g, ' ').replace(/&/g, '').trim();
+    return cleaned;
+};
+
+export default function YourWorkSection({ content, MarkdownMathRenderer }: YourWorkSectionProps) {
     const rows = useMemo(() => {
         if (!content) return [];
         const match = content.match(/:::your-work\n([\s\S]*?)\n:::/);
@@ -108,7 +121,7 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                 parsedRows.push({
                     qNum: currentQNum,
                     subLabel: formattedLabel,
-                    studentWork: work,
+                    studentWork: sanitizeStudentWork(work),
                     annotationMarks: marks,
                     annotationReason: reason
                 });
@@ -128,7 +141,7 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                 parsedRows.push({
                     qNum: currentQNum,
                     subLabel: rawLabel + ')',
-                    studentWork: work,
+                    studentWork: sanitizeStudentWork(work),
                     annotationMarks: marks,
                     annotationReason: reason
                 });
@@ -150,7 +163,7 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                     parsedRows.push({
                         qNum: currentQNum, // usually empty if consumed similar to above
                         subLabel: '', // Implicit -> Bullet
-                        studentWork: work,
+                        studentWork: sanitizeStudentWork(work),
                         annotationMarks: marks,
                         annotationReason: reason
                     });
@@ -178,13 +191,13 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                         } else {
                             // It has 'work' part too? e.g. "more work -- M0"
                             // Append work, set marks
-                            if (work) prev.studentWork += ` ${work}`;
+                            if (work) prev.studentWork += ` ${sanitizeStudentWork(work)}`;
                             prev.annotationMarks = marks;
                             prev.annotationReason = reason;
                         }
                     } else {
                         // Just more work content?
-                        prev.studentWork += ` ${text}`;
+                        prev.studentWork += ` ${sanitizeStudentWork(text)}`;
                     }
                 }
             } else {
@@ -194,7 +207,7 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                 parsedRows.push({
                     qNum: currentQNum,
                     subLabel: '',
-                    studentWork: work,
+                    studentWork: sanitizeStudentWork(work),
                     annotationMarks: marks,
                     annotationReason: reason
                 });
@@ -216,10 +229,20 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                 {rows.map((row, i) => (
                     <React.Fragment key={i}>
                         <div className="yw-col-qnum">{row.qNum}</div>
-                        <div className="yw-col-sublabel">
-                            {row.subLabel ? row.subLabel : <span className="yw-bullet">•</span>}
+                        <div className="yw-col-work">
+                            <span className="yw-sublabel-inline">
+                                {row.subLabel ? row.subLabel : <span className="yw-bullet">●</span>}
+                            </span>
+                            {MarkdownMathRenderer ? (
+                                <MarkdownMathRenderer
+                                    content={row.studentWork}
+                                    className="yw-math-renderer"
+                                    isYourWork={true}
+                                />
+                            ) : (
+                                <span dangerouslySetInnerHTML={{ __html: row.studentWork || '&nbsp;' }} />
+                            )}
                         </div>
-                        <div className="yw-col-work" dangerouslySetInnerHTML={{ __html: row.studentWork || '&nbsp;' }} />
                         <div className="yw-col-annotation">
                             {row.annotationMarks && <span className="yw-marks">{row.annotationMarks}</span>}
                             {row.annotationReason && <span className="yw-reason">{row.annotationReason}</span>}

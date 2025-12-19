@@ -460,27 +460,36 @@
   font-size: 14px;
 }
 
-/* Badge labels in title - plain text, no border */
+/* Badge labels in title - retired, labels are now inside the badges */
 .session-title .title-badge-label {
-  color: var(--text-tertiary, #6b7280);
-  font-size: 10px;
-  font-weight: 400;
-  margin-left: 4px;
+  display: none;
 }
 
-/* Circular badges in title - border only */
+/* Pill-shaped badges in title */
 .session-title .title-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  font-size: 10px;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  /* Rounded rectangle */
+  font-size: 11px;
   font-weight: 600;
-  margin-left: 8px;
+  margin-left: 12px;
   background: transparent;
-  border: 2px solid;
+  border: 1.5px solid;
+  height: 24px;
+}
+
+.session-title .badge-label {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.session-title .badge-value {
+  font-size: 11px;
 }
 
 /* Score badge - green border */
@@ -491,8 +500,8 @@
 
 /* Grade badge - blue border */
 .session-title .grade-badge {
-  border-color: var(--text-primary);
-  color: var(--text-primary);
+  border-color: var(--function-warning);
+  color: var(--function-warning);
 }
 
 

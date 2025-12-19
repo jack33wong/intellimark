@@ -9,8 +9,10 @@
 .marking-results-layout {
   display: flex;
   gap: 24px;
-  align-items: flex-start; /* Start alignment */
-  height: 500px; /* Fixed height for both columns */
+  align-items: flex-start;
+  /* Start alignment */
+  height: 500px;
+  /* Fixed height for both columns */
 }
 
 /* Left Column: Table */
@@ -22,8 +24,10 @@
   border: 1px solid var(--border-main);
   border-radius: 8px;
   padding: 20px;
-  height: 500px; /* Match layout height */
-  overflow-y: auto; /* Show vertical scrollbar when content overflows */
+  height: 500px;
+  /* Match layout height */
+  overflow-y: auto;
+  /* Show vertical scrollbar when content overflows */
   overflow-x: hidden;
 }
 
@@ -33,7 +37,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 500px; /* Match layout height */
+  height: 500px;
+  /* Match layout height */
 }
 
 /* Group Container */
@@ -43,7 +48,8 @@
   border-radius: 8px;
   border: 1px solid var(--border-main);
   overflow: hidden;
-  flex-shrink: 0; /* Prevent groups from shrinking */
+  flex-shrink: 0;
+  /* Prevent groups from shrinking */
 }
 
 /* Group Header (Paper Code Set + Exam Series) */
@@ -199,8 +205,7 @@
 .grade-badge {
   display: inline-block;
   padding: 4px 10px;
-  background: var(--text-brand);
-  color: white;
+  color: var(--text-brand);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
@@ -334,6 +339,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -388,4 +394,3 @@
     padding: 6px 8px;
   }
 }
-

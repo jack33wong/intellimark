@@ -409,7 +409,7 @@ const MainLayout: React.FC = () => {
                 />
               ))}
               {/* Bottom spacer to ensure scrolling past the last message is always possible */}
-              <div className="chat-bottom-spacer" style={{ height: '500px', flexShrink: 0 }} />
+              <div className="chat-bottom-spacer" style={{ height: '250px', flexShrink: 0 }} />
             </div>
           )}
         </div>

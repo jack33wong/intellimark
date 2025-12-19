@@ -287,15 +287,19 @@ const SessionHeader: React.FC = () => {
             {studentScore && studentScore.scoreText && (
               <>
                 <span className="title-separator"> • </span>
-                <span className="title-badge-label">Score:</span>
-                <span className="title-badge score-badge">{studentScore.scoreText}</span>
+                <span className="title-badge score-badge">
+                  <span className="badge-label">Score:</span>
+                  <span className="badge-value">{studentScore.scoreText}</span>
+                </span>
               </>
             )}
             {gradeValue && (
               <>
                 <span className="title-separator"> • </span>
-                <span className="title-badge-label">Grade:</span>
-                <span className="title-badge grade-badge">{gradeValue}</span>
+                <span className="title-badge grade-badge">
+                  <span className="badge-label">Grade:</span>
+                  <span className="badge-value">{gradeValue}</span>
+                </span>
               </>
             )}
           </>

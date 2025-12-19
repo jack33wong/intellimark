@@ -742,30 +742,37 @@ export class SVGOverlayService {
       const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
       const lineHeight = reasoningSize + 2; // Small spacing between lines
 
-      // CRITICAL: Horizontal Smart Flip for Reasoning
-      // Detect if reasoning would overflow the right edge
+      // CRITICAL: Horizontal Positioning for Reasoning
+      // 1. Calculate width and overflow
       const maxCharsInLine = Math.max(...reasoningLines.map(line => line.length));
       // Increase multiplier from 0.6 to 0.8 for safer estimation (red text is semi-bold usually)
       const estimatedMaxReasoningWidth = maxCharsInLine * (reasoningSize * 0.8);
 
       const reasoningSafeRightLimit = actualWidth - safeMargin;
-      const willReasoningOverflow = (x + estimatedMaxReasoningWidth) > (reasoningSafeRightLimit);
 
-      // Alignment Strategy for Reasoning:
-      // Default: Anchor at x, text-anchor="start" (grows right)
-      // Flipped: Anchor at x + width, text-anchor="end" (grows left)
-      const rTextAnchor = willReasoningOverflow ? 'end' : 'start';
-      const rX = willReasoningOverflow ? (x + width) : x;
+      // 2. Vertical Strategy: Default to Top unless it overflows the page top
+      const reasoningY = this.calculateReasoningStartY(
+        y,           // student block top
+        effectiveHeight, // student block height
+        reasoningLines.length,
+        lineHeight,
+        actualHeight
+      );
 
-      // Vertical flip logic (already exists - determines if text is above or below)
-      const isAbove = y + effectiveHeight + 100 * fontScaleFactor > actualHeight - (40 * fontScaleFactor);
-      let reasoningY = isAbove
-        ? y - (lineHeight * reasoningLines.length) - 10
-        : y + effectiveHeight + 25 * fontScaleFactor + 25; // Standard padding
+      // 3. Horizontal Strategy: Always Left-Aligned (text-anchor="start")
+      // If it overflows right, shift the entire block LEFT ("inner")
+      let rX = x;
+      if (x + estimatedMaxReasoningWidth > reasoningSafeRightLimit) {
+        // Shift left so it ends at the safe limit
+        rX = reasoningSafeRightLimit - estimatedMaxReasoningWidth;
+        // Ensure it doesn't shift past the left safe margin
+        rX = Math.max(safeMargin, rX);
+      }
 
       reasoningLines.forEach((line, index) => {
         const escapedLine = this.escapeXml(line);
-        svg += `<text x="${rX}" y="${reasoningY + (index * lineHeight)}" text-anchor="${rTextAnchor}" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${escapedLine}</text>`;
+        // FORCE 'start' anchor for consistent left-alignment
+        svg += `<text x="${rX}" y="${reasoningY + (index * lineHeight)}" text-anchor="start" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${escapedLine}</text>`;
       });
     }
 
