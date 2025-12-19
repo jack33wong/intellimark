@@ -62,7 +62,7 @@ export async function getDefaultPriceFromProduct(productId: string): Promise<str
  */
 export async function getPlanPrices() {
   if (cachedPrices) {
-    console.log('✅ Returning cached Stripe prices');
+
     return cachedPrices;
   }
 

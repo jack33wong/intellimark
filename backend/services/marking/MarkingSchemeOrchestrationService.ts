@@ -39,6 +39,7 @@ export interface DetectionStatistics {
     thresholdRelaxed: boolean;
     deepSearchActive?: boolean;
     poolSize?: number;
+    rescuedQuestions?: string[];
   };
 }
 
@@ -143,9 +144,35 @@ export class MarkingSchemeOrchestrationService {
         });
       }
 
-      // Capture hint metadata from the first result if available
-      if (!detectionStats.hintInfo && detectionResult.hintMetadata) {
-        detectionStats.hintInfo = detectionResult.hintMetadata;
+      // Update hint metadata to be more representative of the entire batch
+      if (detectionResult.hintMetadata) {
+        if (!detectionStats.hintInfo) {
+          detectionStats.hintInfo = {
+            ...detectionResult.hintMetadata,
+            rescuedQuestions: []
+          };
+        } else if (!detectionStats.hintInfo.rescuedQuestions) {
+          detectionStats.hintInfo.rescuedQuestions = [];
+        }
+
+        // If this specific question triggered deep search, mark it and log it
+        if (detectionResult.hintMetadata.deepSearchActive) {
+          detectionStats.hintInfo.deepSearchActive = true;
+          detectionStats.hintInfo.poolSize = detectionResult.hintMetadata.poolSize;
+
+          const qLabel = question.questionNumber || '?';
+          detectionStats.hintInfo.rescuedQuestions.push(qLabel);
+
+          // Minimal log for rescue event
+          const yellow = '\x1b[33m';
+          const reset = '\x1b[0m';
+          console.log(`   ${yellow}[HINT] Q${qLabel} failed hint pool (pool size: ${detectionResult.hintMetadata.poolSize === 249 ? 'Restricted' : 'Unknown'}), searching entire database...${reset}`);
+        }
+
+        // If any question had a matched paper title, preserve it
+        if (detectionResult.hintMetadata.matchedPaperTitle && !detectionStats.hintInfo.matchedPaperTitle) {
+          detectionStats.hintInfo.matchedPaperTitle = detectionResult.hintMetadata.matchedPaperTitle;
+        }
       }
     }
 
@@ -461,25 +488,29 @@ export class MarkingSchemeOrchestrationService {
     console.log(`   Not detected: ${detectionStats.notDetected}`);
 
     if (detectionStats.hintInfo) {
-      const { hintUsed, matchedPapersCount, matchedPaperTitle, thresholdRelaxed, deepSearchActive, poolSize } = detectionStats.hintInfo;
+      const { hintUsed, matchedPapersCount, matchedPaperTitle, thresholdRelaxed, deepSearchActive, poolSize, rescuedQuestions } = detectionStats.hintInfo;
       const blue = '\x1b[34m';
       const green = '\x1b[32m';
       const yellow = '\x1b[33m';
       const reset = '\x1b[0m';
 
-      console.log(`   ${blue}[HINT] Result: ${matchedPapersCount} matches for "${hintUsed}"${reset}`);
-      if (poolSize !== undefined) {
-        console.log(`   ${blue}[HINT] Search Pool Size: ${poolSize} questions${reset}`);
+      console.log(`   ${blue}[HINT] Initial Match: ${matchedPapersCount} paper(s) found for hint "${hintUsed}"${reset}`);
+
+      if (deepSearchActive) {
+        const rescuedList = rescuedQuestions && rescuedQuestions.length > 0 ? `: ${rescuedQuestions.join(', ')}` : '';
+        console.log(`   ${yellow}[HINT] Rescue Mode: Required for ${rescuedQuestions?.length || 0} question(s)${rescuedList}${reset}`);
+        console.log(`   ${green}[HINT] Impact: Automated Rescue! Found via Deep Search across all ${poolSize} questions [+]${reset}`);
+      } else {
+        if (poolSize !== undefined) {
+          console.log(`   ${blue}[HINT] Search Pool: ${poolSize} questions within matched paper(s)${reset}`);
+        }
+        if (thresholdRelaxed) {
+          console.log(`   ${green}[HINT] Impact: Threshold relaxed (0.50 → 0.35) due to specific selection [+]${reset}`);
+        }
       }
+
       if (matchedPaperTitle) {
-        console.log(`   ${blue}[HINT] Matched Paper: ${matchedPaperTitle}${reset}`);
-      }
-      if (thresholdRelaxed && !deepSearchActive) {
-        console.log(`   ${green}[HINT] Impact: Threshold relaxed (0.50 → 0.35) due to specific selection [+]${reset}`);
-      } else if (deepSearchActive) {
-        console.log(`   ${green}[HINT] Impact: Automated Rescue! Found via Deep Search across all papers [+]${reset}`);
-      } else if (matchedPapersCount === 0) {
-        console.log(`   ${yellow}[HINT] Impact: No matches found, falling back to full search [!]${reset}`);
+        console.log(`   ${blue}[HINT] Reference Paper: ${matchedPaperTitle}${reset}`);
       }
     }
 
