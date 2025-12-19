@@ -1,204 +1,80 @@
-/**
- * Centralized API Client
- * 
- * Provides a clean interface for all API calls with consistent error handling,
- * authentication, and response formatting.
- */
-
+import axios from 'axios';
 import API_CONFIG from '../config/api';
+import { auth } from '../config/firebase';
 
-class ApiClient {
-  /**
-   * Make a GET request
-   * @param {string} endpoint - API endpoint
-   * @param {string} authToken - Authentication token
-   * @param {Object} options - Additional options
-   * @returns {Promise<Object>} Response data
-   */
-  static async get(endpoint, authToken = null, options = {}) {
-    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers
-    };
+/**
+ * Global API Client (Axios)
+ * 
+ * Features:
+ * 1. Automatic Just-in-Time Token Injection (Request Interceptor)
+ * 2. Automatic Token Refresh & Retry (Response Interceptor)
+ * 3. Base URL configuration from centralized api config
+ */
+const apiClient = axios.create({
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT || 30000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
+/**
+ * Request Interceptor:
+ * Ensures every request has a fresh Firebase ID Token (JIT).
+ */
+apiClient.interceptors.request.use(async (config) => {
+  const user = auth.currentUser;
 
+  if (user) {
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-        ...options
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      // getIdToken(false) returns cached token if valid, or refreshes automatically.
+      const token = await user.getIdToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
-
-      return data;
     } catch (error) {
-      console.error(`API GET Error (${endpoint}):`, error);
-      throw error;
+      console.error('❌ [API_CLIENT] Failed to get fresh token:', error);
     }
   }
 
-  /**
-   * Make a POST request
-   * @param {string} endpoint - API endpoint
-   * @param {Object} data - Request data
-   * @param {string} authToken - Authentication token
-   * @param {Object} options - Additional options
-   * @returns {Promise<Object>} Response data
-   */
-  static async post(endpoint, data = null, authToken = null, options = {}) {
-    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers
-    };
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
 
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
+/**
+ * Response Interceptor:
+ * Handles 401 Unauthorized by attempting a token refresh and retrying the request once.
+ */
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: data ? JSON.stringify(data) : null,
-        ...options
-      });
+    // If 401 error and not already retrying
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const user = auth.currentUser;
 
-      const responseData = await response.json();
+      if (user) {
+        console.warn('⚠️ [API_CLIENT] Token expired. Attempting refresh and retry...');
+        try {
+          // Force a token refresh from Firebase
+          const newToken = await user.getIdToken(true);
 
-      if (!response.ok) {
-        throw new Error(responseData.error || `HTTP ${response.status}: ${response.statusText}`);
+          // Update the original request with the new token and retry
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient(originalRequest);
+        } catch (refreshError) {
+          console.error('❌ [API_CLIENT] Token refresh failed:', refreshError);
+          // Optional: redirect to login if refresh fails completely
+          // window.location.href = '/login';
+        }
       }
-
-      return responseData;
-    } catch (error) {
-      console.error(`API POST Error (${endpoint}):`, error);
-      throw error;
     }
+
+    return Promise.reject(error);
   }
+);
 
-  /**
-   * Make a PUT request
-   * @param {string} endpoint - API endpoint
-   * @param {Object} data - Request data
-   * @param {string} authToken - Authentication token
-   * @param {Object} options - Additional options
-   * @returns {Promise<Object>} Response data
-   */
-  static async put(endpoint, data = null, authToken = null, options = {}) {
-    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers
-    };
-
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers,
-        body: data ? JSON.stringify(data) : null,
-        ...options
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(responseData.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return responseData;
-    } catch (error) {
-      console.error(`API PUT Error (${endpoint}):`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Make a DELETE request
-   * @param {string} endpoint - API endpoint
-   * @param {string} authToken - Authentication token
-   * @param {Object} options - Additional options
-   * @returns {Promise<Object>} Response data
-   */
-  static async delete(endpoint, authToken = null, options = {}) {
-    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers
-    };
-
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers,
-        ...options
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return data;
-    } catch (error) {
-      console.error(`API DELETE Error (${endpoint}):`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Upload file with progress tracking
-   * @param {string} endpoint - API endpoint
-   * @param {FormData} formData - Form data with file
-   * @param {string} authToken - Authentication token
-   * @param {Function} onProgress - Progress callback
-   * @returns {Promise<Object>} Response data
-   */
-  static async uploadFile(endpoint, formData, authToken = null, onProgress = null) {
-    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-    const headers = {};
-
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return data;
-    } catch (error) {
-      console.error(`API Upload Error (${endpoint}):`, error);
-      throw error;
-    }
-  }
-}
-
-export default ApiClient;
+export default apiClient;

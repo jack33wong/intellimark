@@ -905,6 +905,7 @@ export class SessionManagementService {
 
     return {
       id: submissionId,
+      sessionId: submissionId, // Ensure sessionId is present for consistency
       title: generateSessionTitle(null, '', 'Question'),
       messages: [userMessage, aiMessage],
       userId: null,

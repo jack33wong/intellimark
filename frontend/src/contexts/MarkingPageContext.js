@@ -4,6 +4,7 @@ import { useSessionManager } from '../hooks/useSessionManager';
 import { useApiProcessor } from '../hooks/useApiProcessor';
 import { useAuth } from './AuthContext';
 import { simpleSessionService } from '../services/markingApiService';
+import apiClient from '../services/apiClient';
 import { useScrollManager } from '../hooks/useScrollManager';
 import { createAIMessageId } from '../utils/messageUtils.js';
 import { STORAGE_KEYS, AI_MODELS } from '../utils/constants.js';
@@ -180,23 +181,16 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       const aiMessageId = createAIMessageId(trimmedText);
       startAIThinking(textProgressData, aiMessageId);
 
-      const authToken = await getAuthToken();
-      const headers = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      const response = await fetch('/api/messages/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          message: trimmedText,
-          messageId: userMessageId, // Pass the local user message ID to backend
-          model: selectedModel || 'gemini-2.0-flash',
-          sessionId: currentSession?.id || null,
-          aiMessageId: aiMessageId, // Pass the AI message ID to backend
-          contextQuestionId: effectiveQuestionId // Pass the active or overridden context
-        })
+      const response = await apiClient.post('/api/messages/chat', {
+        message: trimmedText,
+        messageId: userMessageId, // Pass the local user message ID to backend
+        model: selectedModel || 'gemini-2.0-flash',
+        sessionId: currentSession?.id || null,
+        aiMessageId: aiMessageId, // Pass the AI message ID to backend
+        contextQuestionId: effectiveQuestionId // Pass the active or overridden context
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
+
+      const data = response.data;
 
       if (data.success) {
         // Use the new standardized completion handler

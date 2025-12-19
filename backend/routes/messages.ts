@@ -466,12 +466,42 @@ router.post('/chat', optionalAuth, async (req, res) => {
         // Adding to existing session - add both user and AI messages
         // User message needs to be persisted for follow-up messages
         try {
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage, mode || 'chat');
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage, mode || 'chat');
+          // Check if session exists before adding messages
+          const sessionExists = await FirestoreService.getUnifiedSession(currentSessionId);
+
+          if (sessionExists) {
+            await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage, mode || 'chat');
+            await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage, mode || 'chat');
+          } else {
+            console.log(`🔍 [CHAT] Session ${currentSessionId} not found in Firestore. Creating new session.`);
+            // Create new session if it doesn't exist
+            await FirestoreService.createUnifiedSessionWithMessages({
+              sessionId: currentSessionId,
+              title: sessionTitle || 'Context Chat',
+              userId: userId,
+              messageType: mode || 'chat',
+              messages: [userMessage, aiMessage],
+              isPastPaper: false,
+              sessionStats: {
+                totalTokens: usageTracker.getTotalTokens(),
+                totalCost: usageTracker.calculateCost(resolvedModel).total,
+                modelUsed: resolvedModel,
+                lastModelUsed: resolvedModel,
+                totalProcessingTimeMs: Date.now() - startTime,
+                apiRequests: 1,
+                costBreakdown: await (async () => {
+                  try {
+                    const cost = usageTracker.calculateCost(resolvedModel);
+                    return { llmCost: cost.total - cost.mathpix, mathpixCost: cost.mathpix, total: cost.total };
+                  } catch (e) { return { llmCost: 0, mathpixCost: 0, total: 0 }; }
+                })()
+              },
+              usageMode: mode || 'chat'
+            });
+          }
         } catch (error) {
-          console.error(`❌ Failed to add messages to session ${currentSessionId}:`, error);
-          // This is a critical error - the session should exist but doesn't
-          throw error; // Re-throw to prevent silent failures
+          console.error(`❌ Failed to handle session ${currentSessionId}:`, error);
+          throw error;
         }
       }
     }

@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
 import { Sparkles, Zap, Activity, ChevronRight, ChevronDown } from 'lucide-react';
 import CreditIcon from '../common/CreditIcon';
 import API_CONFIG from '../../config/api';
+import apiClient from '../../services/apiClient';
 
 interface UsageRecord {
     // ... same as before
@@ -59,13 +60,8 @@ const UsageSection: React.FC = () => {
             if (!user?.uid) return;
             try {
                 const timestamp = Date.now();
-                const response = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}?t=${timestamp}`, {
-                    cache: 'no-store'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setUserCredits(data);
-                }
+                const response = await apiClient.get(`/api/credits/${user.uid}?t=${timestamp}`);
+                setUserCredits(response.data);
             } catch (error) {
                 console.error('Error fetching credits:', error);
             }
@@ -76,18 +72,9 @@ const UsageSection: React.FC = () => {
     const loadUsageData = useCallback(async (filter: string) => {
         try {
             setLoading(true);
-            const authToken = await getAuthToken();
-            if (!authToken) return;
+            const response = await apiClient.get(`/api/usage/me?filter=${filter}`);
+            const data = response.data;
 
-            const response = await fetch(`${API_CONFIG.BASE_URL}/api/usage/me?filter=${filter}`, {
-                headers: {
-                    'Authorization': `Bearer ${authToken}`
-                }
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch usage data');
-
-            const data = await response.json();
             setUsageData(data.usage || []);
             setUsageSummary(data.summary || {
                 totalCost: 0,
@@ -224,7 +211,7 @@ const UsageSection: React.FC = () => {
                             const isExpanded = expandedSessions.has(session.sessionId);
 
                             return (
-                                <>
+                                <React.Fragment key={session.sessionId}>
                                     <div
                                         className="usage-list-item"
                                         onClick={hasHistory ? () => toggleExpand(session.sessionId) : undefined}
@@ -268,7 +255,7 @@ const UsageSection: React.FC = () => {
                                             );
                                         })
                                     )}
-                                </>
+                                </React.Fragment>
                             );
                         })
                     )}

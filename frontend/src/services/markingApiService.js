@@ -3,6 +3,7 @@
  * This is the definitive version with the correct asynchronous state handling.
  */
 import API_CONFIG from '../config/api';
+import apiClient from './apiClient';
 
 let getAuthTokenFromContext = null;
 // A placeholder for the API controls from the useApiProcessor hook.
@@ -35,10 +36,12 @@ class SimpleSessionService {
   getAuthToken = async () => {
     try {
       if (getAuthTokenFromContext) {
+        // ALWAYS get fresh token from Firebase Auth Context
         const token = await getAuthTokenFromContext();
         if (token) return token;
       }
-      return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      // Fallback only if context is not available (not recommended)
+      return null;
     } catch (error) {
       console.warn('Could not get auth token:', error);
       return null;
@@ -484,7 +487,7 @@ class SimpleSessionService {
 
   async processMultiImageWithProgress(files, model = 'gemini-2.0-flash', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
     try {
-      const authToken = localStorage.getItem('authToken');
+      const authToken = await this.getAuthToken();
       const headers = {};
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
@@ -779,21 +782,8 @@ class SimpleSessionService {
 
   updateSession = async (sessionId, updates) => {
     try {
-      const token = await this.getAuthToken();
-      if (!token) throw new Error('Authentication required');
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/messages/session/${sessionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(updates)
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-      return await response.json();
+      const response = await apiClient.put(`/api/messages/session/${sessionId}`, updates);
+      return response.data;
     } catch (error) {
       console.error('Failed to update session:', error);
       throw error;
