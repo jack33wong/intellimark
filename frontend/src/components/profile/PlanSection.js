@@ -112,27 +112,31 @@ const PlanSection = () => {
                     </div>
                 </div>
 
-                {/* Current Period */}
-                <div className="plan-detail-row">
-                    <div className="plan-detail-label">
-                        <Calendar size={16} />
-                        <span>CURRENT PERIOD</span>
+                {/* Current Period - Hide for Free Plan */}
+                {subscription.planId !== 'free' && (
+                    <div className="plan-detail-row">
+                        <div className="plan-detail-label">
+                            <Calendar size={16} />
+                            <span>CURRENT PERIOD</span>
+                        </div>
+                        <div className="plan-detail-value">
+                            {formatDateShort(subscription.currentPeriodStart)} - {formatDateShort(subscription.currentPeriodEnd)}
+                        </div>
                     </div>
-                    <div className="plan-detail-value">
-                        {formatDateShort(subscription.currentPeriodStart)} - {formatDateShort(subscription.currentPeriodEnd)}
-                    </div>
-                </div>
+                )}
 
-                {/* Next Billing */}
-                <div className="plan-detail-row">
-                    <div className="plan-detail-label">
-                        <Calendar size={16} />
-                        <span>NEXT BILLING</span>
+                {/* Next Billing - Hide for Free Plan */}
+                {subscription.planId !== 'free' && (
+                    <div className="plan-detail-row">
+                        <div className="plan-detail-label">
+                            <Calendar size={16} />
+                            <span>NEXT BILLING</span>
+                        </div>
+                        <div className="plan-detail-value">
+                            {formatDateShort(subscription.currentPeriodEnd)}
+                        </div>
                     </div>
-                    <div className="plan-detail-value">
-                        {formatDateShort(subscription.currentPeriodEnd)}
-                    </div>
-                </div>
+                )}
 
                 {/* Credits */}
                 {credits && (

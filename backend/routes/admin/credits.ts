@@ -69,13 +69,13 @@ router.post('/:userId/reset', async (req, res) => {
             currentPeriodEnd: Math.floor(now / 1000) + (30 * 24 * 60 * 60) // +30 days
         });
 
-        // 4. Reset Credits to 0 (Hard Reset)
+        // 4. Reset Credits to 10 (Hard Reset)
         await db.collection('userCredits').doc(userId).set({
             userId,
             planId: 'free',
-            totalCredits: 0, // Explicitly 0 as requested
+            totalCredits: 10, // Explicitly 10 as requested
             usedCredits: 0,
-            remainingCredits: 0,
+            remainingCredits: 10,
             resetDate: Date.now(),
             updatedAt: Date.now(),
             createdAt: Date.now() // Reset creation date too essentially
@@ -85,7 +85,7 @@ router.post('/:userId/reset', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'User hard reset successful: Subscription canceled, Plan set to Free, Credits set to 0.'
+            message: 'User hard reset successful: Subscription canceled, Plan set to Free, Credits set to 10.'
         });
     } catch (error) {
         console.error('Error resetting credits/subscription:', error);

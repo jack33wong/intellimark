@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, Coins } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
@@ -9,17 +9,34 @@ import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import './SubscriptionPage.css';
 import '../credits.css';
 
+const CreditsIcon = ({ size = 16, className = "", style = {} }: { size?: number, className?: string, style?: React.CSSProperties }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 18 18"
+    fill="none"
+    width={size}
+    height={size}
+    color="currentColor"
+    className={`credits-icon ${className}`}
+    style={style}
+  >
+    <path d="M14.0914 0.721827C14.1534 0.535432 14.4171 0.535433 14.4791 0.721828L14.8291 1.77428C15.0324 2.38523 15.5117 2.8646 16.1227 3.06782L17.1751 3.41791C17.3615 3.47991 17.3615 3.74357 17.1751 3.80557L16.1227 4.15565C15.5117 4.35888 15.0324 4.83825 14.8291 5.4492L14.4791 6.50165C14.4171 6.68804 14.1534 6.68804 14.0914 6.50165L13.7413 5.4492C13.5381 4.83825 13.0587 4.35888 12.4478 4.15565L11.3953 3.80557C11.2089 3.74357 11.2089 3.47991 11.3953 3.41791L12.4478 3.06782C13.0587 2.8646 13.5381 2.38523 13.7413 1.77428L14.0914 0.721827Z" fill="currentColor"></path>
+    <path d="M7.775 2.61733C7.93004 2.15141 8.58899 2.15137 8.74399 2.61733L9.68369 5.44228C10.1511 6.84743 11.2537 7.94995 12.6588 8.41738L15.4837 9.35781C15.9497 9.51282 15.9497 10.1718 15.4837 10.3268L15.1212 10.4469L12.6588 11.2665L12.3988 11.3617C11.1182 11.8732 10.1219 12.9243 9.68369 14.2416L8.86411 16.704L8.74399 17.0666L8.70883 17.1486C8.5215 17.5054 7.99668 17.5055 7.80942 17.1486L7.775 17.0666L6.83457 14.2416C6.39635 12.9243 5.40012 11.8731 4.11948 11.3617L3.85947 11.2665L1.03452 10.3268C0.568551 10.1718 0.568594 9.51286 1.03452 9.35781L1.39633 9.23696L3.85947 8.41738C5.17688 7.97916 6.22869 6.98304 6.74008 5.70229L6.83457 5.44228L7.775 2.61733ZM8.25839 5.91616C7.68028 7.65406 6.36564 9.04128 4.67612 9.71596L4.33335 9.84121L4.32968 9.84194L4.33335 9.84341L4.67612 9.96865C6.36559 10.6434 7.68031 12.0306 8.25839 13.7685L8.25913 13.7714L8.26059 13.7685L8.38584 13.4257C9.06049 11.736 10.4476 10.4215 12.1856 9.84341L12.1886 9.84194L12.1856 9.84121C10.4478 9.26312 9.06055 7.9484 8.38584 6.25893L8.26059 5.91616L8.25913 5.9125L8.25839 5.91616Z" fill="currentColor"></path>
+  </svg>
+);
+
 const SubscriptionPage: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; enterprise: number } | null>(null);
+  const [dynamicPlans, setDynamicPlans] = useState<any>(null); // Store fetched pricing
   const [creditError, setCreditError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Fetch credit configuration from API
+  // Fetch configuration and pricing
   useEffect(() => {
     const fetchCreditConfig = async () => {
       try {
@@ -36,7 +53,23 @@ const SubscriptionPage: React.FC = () => {
         alert(`⚠️ Credit Configuration Error\n\nCannot fetch credit values from backend server.\n\nError: ${errorMsg}\n\nPlease ensure:\n1. Backend server is running\n2. /api/config/credits endpoint is registered\n3. Backend .env.local has credit variables set`);
       }
     };
+
+    const fetchPricing = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/plans`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.plans) {
+            setDynamicPlans(data.plans);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching dynamic pricing:', error);
+      }
+    };
+
     fetchCreditConfig();
+    fetchPricing();
   }, []);
 
   // Fetch current subscription
@@ -127,7 +160,7 @@ const SubscriptionPage: React.FC = () => {
       description: 'Perfect for getting started',
       icon: <Zap size={24} />,
       features: [
-        <><Coins size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.free} credits per month`}</>,
+        <><CreditsIcon size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.free} credits per month`}</>,
         'Limited marking submissions',
         'Limited marking result storage'
       ],
@@ -136,11 +169,11 @@ const SubscriptionPage: React.FC = () => {
     {
       id: 'pro' as Plan,
       name: 'Pro',
-      price: billingCycle === 'monthly' ? 20 : 192, // 20 * 12 * 0.8 = 192 (20% off yearly)
+      price: dynamicPlans?.pro?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 20 : 192),
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
-        <><Coins size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.pro} credits per month`}</>,
+        <><CreditsIcon size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.pro} credits per month`}</>,
         'Extended marking submissions',
         'Extended marking result storage',
         'Full access to progress analysis'
@@ -149,14 +182,13 @@ const SubscriptionPage: React.FC = () => {
     },
     {
       id: 'enterprise' as Plan,
-      name: 'Enterprise',
-      price: billingCycle === 'monthly' ? 100 : 960, // 100 * 12 * 0.8 = 960 (20% off yearly)
+      name: 'Ultra',
+      price: dynamicPlans?.enterprise?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 100 : 960),
       description: 'For schools and institutions',
       icon: <Building2 size={24} />,
       features: [
-        <><Coins size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.enterprise} credits per month`}</>,
-        '10x of everything in Pro',
-        'AI Model selection (Gemini, OpenAI)'
+        <>{`${planCredits.enterprise} credits per month`}</>,
+        '3x of everything in Pro'
       ],
       popular: false
     }
@@ -454,13 +486,17 @@ const SubscriptionPage: React.FC = () => {
               <span className="compact-plan">{SubscriptionService.getPlanDisplayName(currentSubscription.planId)}</span>
               <span className="compact-divider">•</span>
               <span className="compact-billing">£{(currentSubscription.amount / 100).toFixed(2)}/{currentSubscription.billingCycle}</span>
-              <span className="compact-divider">•</span>
-              <span className="compact-next">Next: {new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+              {currentSubscription.planId !== 'free' && (
+                <>
+                  <span className="compact-divider">•</span>
+                  <span className="compact-next">Next: {new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+                </>
+              )}
               {currentSubscription.credits && (
                 <>
                   <span className="compact-divider">•</span>
                   <span className={`compact-credits ${currentSubscription.credits.remainingCredits < 5 ? 'low-credits' : ''}`}>
-                    <Coins size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                    <CreditsIcon size={14} style={{ display: 'inline', marginRight: '4px' }} />
                     {currentSubscription.credits.remainingCredits}/{currentSubscription.credits.totalCredits} credits
                   </span>
                 </>

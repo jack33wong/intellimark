@@ -34,6 +34,13 @@ export interface SubscriptionData {
   customerId?: string;
 }
 
+export interface CreateSubscriptionRequest {
+  planId: string;
+  billingCycle: string;
+  customerEmail: string;
+  customerId?: string;
+}
+
 export class PaymentService {
   async createCheckoutSession(data: CreateCheckoutSessionRequest) {
     const { planId, billingCycle, successUrl, cancelUrl, userId } = data;
@@ -94,23 +101,30 @@ export class PaymentService {
     };
 
     // If user has an existing active subscription, cancel it before creating new one
+    // BUT only if it's a real Stripe subscription (not our internal 'free' placeholder)
     if (existingSubscription && existingSubscription.status === 'active') {
-      console.log(`⚠️ User ${userId} has existing active subscription: ${existingSubscription.stripeSubscriptionId}`);
-      console.log(`   Canceling old subscription before creating new checkout session...`);
+      const isFreePlaceholder = existingSubscription.stripeSubscriptionId.startsWith('free_');
 
-      try {
-        // Cancel the old subscription immediately
-        await stripe.subscriptions.cancel(existingSubscription.stripeSubscriptionId);
-        console.log(`✅ Canceled old subscription: ${existingSubscription.stripeSubscriptionId}`);
+      if (!isFreePlaceholder) {
+        console.log(`⚠️ User ${userId} has existing active subscription: ${existingSubscription.stripeSubscriptionId}`);
+        console.log(`   Canceling old subscription before creating new checkout session...`);
 
-        // Update our database to reflect cancellation
-        await SubscriptionService.updateSubscriptionStatus(
-          existingSubscription.stripeSubscriptionId,
-          'canceled'
-        );
-      } catch (error) {
-        console.error(`❌ Failed to cancel existing subscription:`, error);
-        // Continue anyway - user might still be able to subscribe
+        try {
+          // Cancel the old subscription immediately
+          await stripe.subscriptions.cancel(existingSubscription.stripeSubscriptionId);
+          console.log(`✅ Canceled old subscription: ${existingSubscription.stripeSubscriptionId}`);
+
+          // Update our database to reflect cancellation
+          await SubscriptionService.updateSubscriptionStatus(
+            existingSubscription.stripeSubscriptionId,
+            'canceled'
+          );
+        } catch (error) {
+          console.error(`❌ Failed to cancel existing subscription:`, error);
+          // Continue anyway - user might still be able to subscribe
+        }
+      } else {
+        console.log(`ℹ️ Skipping cancellation for free/internal subscription: ${existingSubscription.stripeSubscriptionId}`);
       }
     }
 
@@ -133,6 +147,7 @@ export class PaymentService {
     }
 
     // Create or retrieve customer
+    // Create or retrieve customer
     let customer;
     if (customerId) {
       try {
@@ -150,8 +165,18 @@ export class PaymentService {
       });
     }
 
+    // Fetch the default price from the product
+    const { getDefaultPriceFromProduct } = await import('../config/stripe.js');
+    const priceId = await getDefaultPriceFromProduct(priceConfig.productId);
+
+    // Fetch price details to get accurate amount
+    const price = await stripe.prices.retrieve(priceId);
+    if (!price.unit_amount) {
+      throw new Error(`Price ${priceId} has no amount defined`);
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: priceConfig.amount,
+      amount: price.unit_amount,
       currency: STRIPE_CONFIG.currency,
       customer: customer.id,
       metadata: {
@@ -189,6 +214,10 @@ export class PaymentService {
     const { getDefaultPriceFromProduct } = await import('../config/stripe.js');
     const priceId = await getDefaultPriceFromProduct(priceConfig.productId);
 
+    // Fetch price details to get accurate amount
+    const price = await stripe.prices.retrieve(priceId);
+    const amount = price.unit_amount || 0;
+
     let customer;
     if (customerId) {
       try {
@@ -210,7 +239,7 @@ export class PaymentService {
       customer: customer.id,
       items: [
         {
-          price: priceConfig.priceId,
+          price: priceId,
         },
       ],
       metadata: {
@@ -226,7 +255,7 @@ export class PaymentService {
       status: subscription.status,
       planId,
       billingCycle,
-      amount: priceConfig.amount,
+      amount: amount,
       currency: STRIPE_CONFIG.currency,
       currentPeriodStart: (subscription as any).current_period_start,
       currentPeriodEnd: (subscription as any).current_period_end,

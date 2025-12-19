@@ -341,7 +341,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                             : 'Free'}
                         </span>
                       </div>
-                      {(!userSubscription || userSubscription.status !== 'active') && (
+                      {(!userSubscription || userSubscription.status !== 'active' || userSubscription.planId === 'free') && (
                         <button
                           className="upgrade-btn-small"
                           onClick={() => {
@@ -373,6 +373,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     </div>
 
                     <div className="credits-footer">
+
                       <button
                         className="view-usage-link"
                         onClick={() => {

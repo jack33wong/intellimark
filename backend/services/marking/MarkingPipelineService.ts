@@ -85,6 +85,10 @@ export class MarkingPipelineService {
         // Reset debug log flag for new marking session
         MarkingInstructionService.resetDebugLog();
 
+        // Reset UsageTracker to prevent double counting across requests
+        // (UsageTracker is a singleton, so we must reset it manually)
+        usageTracker.reset();
+
         // Performance tracking variables
         let stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
         let totalLLMTokens = 0;
@@ -116,9 +120,6 @@ export class MarkingPipelineService {
 
         // Send initial message
         progressCallback(createProgressData(0, 'Processing started', MULTI_IMAGE_STEPS));
-
-        // Import global UsageTracker singleton (DO NOT create new instance)
-        const { usageTracker } = await import('../../utils/UsageTracker.js');
 
         try {
             // Determine authentication status early

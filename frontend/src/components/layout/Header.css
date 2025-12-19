@@ -1277,6 +1277,7 @@
     justify-content: center;
   }
 }
+
 /* Credits Nav Item */
 .nav-item.credits-nav {
   background: transparent;
@@ -1294,7 +1295,8 @@
 }
 
 .credits-icon {
-  color: var(--text-tertiary); /* Or specific color from screenshot */
+  color: var(--text-tertiary);
+  /* Or specific color from screenshot */
 }
 
 .credits-count {
@@ -1317,10 +1319,11 @@
 }
 
 .plan-name-large {
-  font-size: 20px; 
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
-  font-family: serif; /* Screenshot has serif font for 'Free' */
+  font-family: serif;
+  /* Screenshot has serif font for 'Free' */
 }
 
 .upgrade-btn-small {
@@ -1409,4 +1412,39 @@
 
 .view-usage-link:hover {
   color: var(--text-primary);
+}
+
+/* Upgrade CTA Button in Dropdown */
+.upgrade-cta-button {
+  background: linear-gradient(135deg, var(--text-brand), #9f7aea);
+  color: white;
+  border: none;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(127, 0, 255, 0.2);
+}
+
+.upgrade-cta-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(127, 0, 255, 0.3);
+  filter: brightness(1.05);
+}
+
+.upgrade-cta-button:active {
+  transform: translateY(0);
+}
+
+.upgrade-cta-button svg {
+  color: white;
+  /* Ensure icon is white */
 }

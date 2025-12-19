@@ -4,6 +4,9 @@ import * as dotenv from 'dotenv';
 // Load environment variables BEFORE accessing process.env (same as credit.config.ts)
 dotenv.config({ path: '.env.local' });
 
+// Use singleton for in-memory caching (persists until server restart)
+let cachedPrices: any = null;
+
 // Validate Stripe secret key
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('❌ STRIPE_SECRET_KEY is not set in .env.local');
@@ -20,12 +23,12 @@ export const STRIPE_CONFIG = {
   currency: 'gbp',
   plans: {
     pro: {
-      monthly: { productId: process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '', amount: 9.9 }, // £9.9
-      yearly: { productId: process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '', amount: 99 }, // £99 (9.9 * 12 * 0.8)
+      monthly: { productId: process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '' },
+      yearly: { productId: process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '' },
     },
     enterprise: {
-      monthly: { productId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRODUCT_ID || '', amount: 19.9 }, // £19.9
-      yearly: { productId: process.env.STRIPE_ENTERPRISE_YEARLY_PRODUCT_ID || '', amount: 199 }, // £199 (19.9 * 12 * 0.8)
+      monthly: { productId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRODUCT_ID || '' },
+      yearly: { productId: process.env.STRIPE_ENTERPRISE_YEARLY_PRODUCT_ID || '' },
     },
   },
 };
@@ -52,6 +55,55 @@ export async function getDefaultPriceFromProduct(productId: string): Promise<str
   return typeof product.default_price === 'string'
     ? product.default_price
     : product.default_price.id;
+}
+
+/**
+ * Fetch plan prices from Stripe (Cached until server restart)
+ */
+export async function getPlanPrices() {
+  if (cachedPrices) {
+    console.log('✅ Returning cached Stripe prices');
+    return cachedPrices;
+  }
+
+  console.log('🔄 Fetching fresh prices from Stripe...');
+
+  try {
+    const plans: any = { pro: {}, enterprise: {} };
+    const tiers = ['pro', 'enterprise'];
+    const cycles = ['monthly', 'yearly'];
+
+    for (const tier of tiers) {
+      for (const cycle of cycles) {
+        const productId = (STRIPE_CONFIG.plans as any)[tier][cycle].productId;
+
+        if (!productId) continue;
+
+        const product = await stripe.products.retrieve(productId);
+
+        if (product.default_price) {
+          const priceId = typeof product.default_price === 'string'
+            ? product.default_price
+            : product.default_price.id;
+
+          const price = await stripe.prices.retrieve(priceId);
+
+          plans[tier][cycle] = {
+            amount: (price.unit_amount || 0) / 100, // Convert cents to currency unit
+            currency: price.currency,
+            priceId: price.id
+          };
+        }
+      }
+    }
+
+    cachedPrices = plans;
+    console.log('✅ Stripe prices fetched and cached');
+    return plans;
+  } catch (error) {
+    console.error('❌ Failed to fetch Stripe prices:', error);
+    throw error;
+  }
 }
 
 export default stripe;

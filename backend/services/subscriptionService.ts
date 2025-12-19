@@ -109,6 +109,14 @@ export class SubscriptionService {
         .filter(sub => sub.status === 'active')
         .sort((a, b) => b.createdAt - a.createdAt)[0];
 
+      if (activeSubscription) {
+        // Fix for legacy subscriptions created with wrong amount format (e.g. 19.9 instead of 1990)
+        // If amount is small (< 100) and not 0 (free), it's likely in major units, so convert to minor units
+        if (activeSubscription.amount > 0 && activeSubscription.amount < 100) {
+          activeSubscription.amount = Math.round(activeSubscription.amount * 100);
+        }
+      }
+
       return activeSubscription as UserSubscription | null;
     } catch (error) {
       console.error('Error getting user subscription:', error);

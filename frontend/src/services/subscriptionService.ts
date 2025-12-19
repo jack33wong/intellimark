@@ -14,11 +14,11 @@ class SubscriptionService {
   static async getUserSubscription(userId: string): Promise<SubscriptionResponse> {
     try {
       const response = await fetch(`${this.API_BASE}/user-subscription/${userId}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       return data;
     } catch (error) {
@@ -40,7 +40,7 @@ class SubscriptionService {
       case 'pro':
         return 'Pro';
       case 'enterprise':
-        return 'Enterprise';
+        return 'Ultra';
       default:
         return planId.charAt(0).toUpperCase() + planId.slice(1);
     }
@@ -92,7 +92,7 @@ class SubscriptionService {
   static formatSubscriptionExpiryDate(subscription: UserSubscription | null): string {
     const expiryDate = this.getSubscriptionExpiryDate(subscription);
     if (!expiryDate) return 'N/A';
-    
+
     return expiryDate.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',

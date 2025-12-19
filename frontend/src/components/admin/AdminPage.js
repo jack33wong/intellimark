@@ -2318,7 +2318,7 @@ function AdminPage() {
                   <button
                     className="admin-btn admin-btn--danger"
                     onClick={async () => {
-                      if (!window.confirm('⚠️ WARNING: This is a HARD RESET.\n\nThis will:\n1. Cancel any active Stripe subscription/schedule\n2. Set plan to Free\n3. WIPE all credits to 0\n\nAre you sure completely reset this user?')) return;
+                      if (!window.confirm('⚠️ WARNING: This is a HARD RESET.\n\nThis will:\n1. Cancel any active Stripe subscription/schedule\n2. Set plan to Free\n3. WIPE all credits to 10\n\nAre you sure completely reset this user?')) return;
                       try {
                         const token = await getAuthToken();
                         const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/reset`, {
@@ -2349,7 +2349,7 @@ function AdminPage() {
                       }
                     }}
                   >
-                    Hard Reset User (Free + 0 Credits)
+                    Hard Reset User (Free + 10 Credits)
                   </button>
 
                   <div className="admin-adjust-credits">

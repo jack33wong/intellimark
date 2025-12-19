@@ -16,6 +16,18 @@ router.get('/config', (req, res) => {
   });
 });
 
+// Get dynamic plan pricing (Cached)
+router.get('/plans', async (req, res) => {
+  try {
+    const { getPlanPrices } = await import('../config/stripe.js');
+    const plans = await getPlanPrices();
+    res.json({ success: true, plans });
+  } catch (error) {
+    console.error('Error fetching plan prices:', error);
+    res.status(500).json({ error: 'Failed to fetch plan prices' });
+  }
+});
+
 // Create Stripe Checkout Session
 router.post('/create-checkout-session', async (req, res) => {
   try {
