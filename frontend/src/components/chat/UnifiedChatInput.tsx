@@ -81,16 +81,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     fetchMetadata();
   }, []);
 
-  // Handle outside clicks to close dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowAutocomplete(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // Autocomplete will now stay open as long as there is input (no outside-click close)
+
 
   // Filter suggestions based on input
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
