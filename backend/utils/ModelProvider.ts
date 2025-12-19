@@ -1,6 +1,8 @@
 import type { ModelType } from '../types/index.js';
 import * as path from 'path';
 
+export type ModelPhase = 'classification' | 'marking' | 'questionMode' | 'contextChat' | 'modelAnswer' | 'markingScheme' | 'sampleQuestion' | 'analysis' | 'performanceSummary' | 'other';
+
 export class ModelProvider {
   /**
    * Check if an OpenAI model supports temperature 0
@@ -103,6 +105,9 @@ export class ModelProvider {
         case 'analysis':
           tracker.recordAnalysis(inputTokens, outputTokens);
           break;
+        case 'performanceSummary':
+          tracker.recordPerformanceSummary(inputTokens, outputTokens);
+          break;
         default:
           tracker.recordOther(inputTokens, outputTokens);
       }
@@ -155,6 +160,9 @@ export class ModelProvider {
           break;
         case 'analysis':
           tracker.recordAnalysis(inputTokens, outputTokens);
+          break;
+        case 'performanceSummary':
+          tracker.recordPerformanceSummary(inputTokens, outputTokens);
           break;
         default:
           tracker.recordOther(inputTokens, outputTokens);
@@ -443,6 +451,9 @@ export class ModelProvider {
         case 'analysis':
           tracker.recordAnalysis(inputTokens, outputTokens);
           break;
+        case 'performanceSummary':
+          tracker.recordPerformanceSummary(inputTokens, outputTokens);
+          break;
         default:
           tracker.recordOther(inputTokens, outputTokens);
       }
@@ -587,6 +598,9 @@ export class ModelProvider {
           break;
         case 'analysis':
           tracker.recordAnalysis(inputTokens, outputTokens);
+          break;
+        case 'performanceSummary':
+          tracker.recordPerformanceSummary(inputTokens, outputTokens);
           break;
         default:
           tracker.recordOther(inputTokens, outputTokens);

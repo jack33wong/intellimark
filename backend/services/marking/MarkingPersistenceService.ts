@@ -209,7 +209,9 @@ export class MarkingPersistenceService {
                 grade: calculatedGrade,
                 gradeBoundaryType: gradeBoundaryType,
                 gradeBoundaries: gradeBoundaries,
-                markingContext: richMarkingContext
+                markingContext: richMarkingContext,
+                usageTracker: usageTracker,
+                stepTimings: stepTimings
             });
 
             // Add suggested follow-ups

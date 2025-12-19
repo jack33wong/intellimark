@@ -1455,7 +1455,7 @@ export class MarkingPipelineService {
                     totalMarks: totalPossibleScore, // Use the grouped total marks calculation
                     awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
                     questionCount: allQuestionResults.length,
-                    usageTokens: totalLLMTokens,
+                    usageTokens: usageTracker.getTotalTokens(),
                     mathpixCalls: usageTracker.getMathpixPages()
                 },
                 annotatedOutput: finalAnnotatedOutput,

@@ -60,6 +60,8 @@ export interface AIMessageData {
   gradeBoundaryType?: 'Paper-Specific' | 'Overall-Total' | null;
   gradeBoundaries?: { [grade: string]: number };
   markingContext?: import('../types/index.js').MarkingContext;
+  usageTracker?: any;
+  stepTimings?: any;
 }
 
 export class SessionManagementService {
@@ -805,7 +807,22 @@ export class SessionManagementService {
     }
 
     // Aggregated Summaries Redesign: Distilled Data Pass
-    const overallPerformanceSummary = await this.generateMasterPerformanceSummary(allQuestionResults, actualModel);
+    const summaryStartTime = Date.now();
+    const overallPerformanceSummary = await this.generateMasterPerformanceSummary(allQuestionResults, actualModel, aiData.usageTracker);
+
+    // Record timing if stepTimings is provided
+    if (aiData.stepTimings) {
+      aiData.stepTimings['performance_summary'] = {
+        start: summaryStartTime,
+        duration: Date.now() - summaryStartTime
+      };
+
+      const green = '\x1b[32m';
+      const bold = '\x1b[1m';
+      const reset = '\x1b[0m';
+      const durationSec = ((Date.now() - summaryStartTime) / 1000).toFixed(1);
+      console.log(`${bold}${green}✅ [PERFORMANCE SUMMARY AI]${reset} ${bold}COMPLETED${reset} in ${bold}${durationSec}s${reset} (${green}${bold}${actualModel.toUpperCase()}${reset})`);
+    }
 
 
     // Use fallback text for content field (not the AI summary)
@@ -1245,7 +1262,7 @@ export class SessionManagementService {
       const userPrompt = getPrompt('masterSummary.user', distilledData);
 
       // Call AI for final synthesis
-      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, true, tracker, 'summary');
+      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, true, tracker, 'performanceSummary');
 
       let finalContent = response.content;
 

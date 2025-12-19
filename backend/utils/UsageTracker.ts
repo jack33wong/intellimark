@@ -30,6 +30,7 @@ export interface UsageBreakdown {
     markingScheme: TokenUsage;
     sampleQuestion: TokenUsage;
     analysis: TokenUsage;
+    performanceSummary: TokenUsage;
     other: TokenUsage;
     mathpixPages: number; // NEW: Track Mathpix pages directly
 }
@@ -43,6 +44,7 @@ export interface CostBreakdown {
     markingScheme: number;
     sampleQuestion: number;
     analysis: number;
+    performanceSummary: number;
     other: number;
     mathpix: number; // NEW
     total: number;
@@ -59,6 +61,7 @@ export class UsageTracker {
         markingScheme: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         sampleQuestion: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         analysis: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        performanceSummary: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         other: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         mathpixPages: 0
     };
@@ -144,6 +147,12 @@ export class UsageTracker {
         this.usage.analysis.requestCount++;
     }
 
+    recordPerformanceSummary(inputTokens: number, outputTokens: number): void {
+        this.usage.performanceSummary.inputTokens += inputTokens;
+        this.usage.performanceSummary.outputTokens += outputTokens;
+        this.usage.performanceSummary.requestCount++;
+    }
+
     /**
      * Record other API usage
      */
@@ -225,6 +234,7 @@ export class UsageTracker {
             markingScheme: this.usage.markingScheme.requestCount,
             sampleQuestion: this.usage.sampleQuestion.requestCount,
             analysis: this.usage.analysis.requestCount,
+            performanceSummary: this.usage.performanceSummary.requestCount,
             other: this.usage.other.requestCount
         };
     }
@@ -257,6 +267,7 @@ export class UsageTracker {
                 markingScheme: 0,
                 sampleQuestion: 0,
                 analysis: 0,
+                performanceSummary: 0,
                 other: 0,
                 mathpix: 0,
                 total: 0
@@ -283,6 +294,7 @@ export class UsageTracker {
         const markingScheme = calculatePhaseCost(this.usage.markingScheme);
         const sampleQuestion = calculatePhaseCost(this.usage.sampleQuestion);
         const analysis = calculatePhaseCost(this.usage.analysis);
+        const performanceSummary = calculatePhaseCost(this.usage.performanceSummary);
         const other = calculatePhaseCost(this.usage.other);
 
         // Mathpix: $0.004 per page
@@ -297,9 +309,10 @@ export class UsageTracker {
             markingScheme,
             sampleQuestion,
             analysis,
+            performanceSummary,
             other,
             mathpix,
-            total: classification + marking + questionMode + contextChat + modelAnswer + markingScheme + sampleQuestion + analysis + other + mathpix
+            total: classification + marking + questionMode + contextChat + modelAnswer + markingScheme + sampleQuestion + analysis + performanceSummary + other + mathpix
         };
     }
 
@@ -319,6 +332,7 @@ export class UsageTracker {
             markingScheme: { ...this.usage.markingScheme },
             sampleQuestion: { ...this.usage.sampleQuestion },
             analysis: { ...this.usage.analysis },
+            performanceSummary: { ...this.usage.performanceSummary },
             other: { ...this.usage.other }
         };
     }
@@ -404,6 +418,7 @@ export class UsageTracker {
             { name: 'Marking Scheme', key: 'markingScheme' },
             { name: 'Sample Question', key: 'sampleQuestion' },
             { name: 'Analysis', key: 'analysis' },
+            { name: 'Performance Summary', key: 'performanceSummary' },
             { name: 'Other', key: 'other' }
         ];
 
@@ -440,6 +455,7 @@ export class UsageTracker {
             markingScheme: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             sampleQuestion: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             analysis: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            performanceSummary: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             other: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             mathpixPages: 0
         };

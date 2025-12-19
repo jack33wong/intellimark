@@ -212,7 +212,8 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
     'preprocessing': 'preprocessing',
     'input_validation': 'input_validation',
     'database_persistence': 'database_persistence',
-    'pdf_conversion': 'pdf_conversion'
+    'pdf_conversion': 'pdf_conversion',
+    'performance_summary': 'performance_summary'
   };
 
   console.log('\n=== PERFORMANCE SUMMARY ===');
