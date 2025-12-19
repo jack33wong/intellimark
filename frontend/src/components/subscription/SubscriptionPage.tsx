@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
 import SubscriptionService from '../../services/subscriptionService';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
+import ConfirmationModal from '../common/ConfirmationModal';
 import './SubscriptionPage.css';
 import '../credits.css';
 
@@ -33,6 +34,27 @@ const SubscriptionPage: React.FC = () => {
   const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; enterprise: number } | null>(null);
   const [dynamicPlans, setDynamicPlans] = useState<any>(null); // Store fetched pricing
   const [creditError, setCreditError] = useState<string | null>(null);
+
+  // Confirmation Modal State
+  const [confirmationData, setConfirmationData] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    onClose?: () => void;
+    showCancel?: boolean;
+    variant: 'primary' | 'danger' | 'warning' | 'success';
+    action: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    variant: 'primary',
+    showCancel: true,
+    action: () => { }
+  });
+
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -50,7 +72,15 @@ const SubscriptionPage: React.FC = () => {
         console.error('Error fetching credit config:', error);
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         setCreditError(`Cannot connect to server to fetch credit configuration: ${errorMsg}`);
-        alert(`⚠️ Credit Configuration Error\n\nCannot fetch credit values from backend server.\n\nError: ${errorMsg}\n\nPlease ensure:\n1. Backend server is running\n2. /api/config/credits endpoint is registered\n3. Backend .env.local has credit variables set`);
+        setConfirmationData({
+          isOpen: true,
+          title: 'Credit Configuration Error',
+          message: `Cannot fetch credit values from backend server.\n\nError: ${errorMsg}\n\nPlease ensure:\n1. Backend server is running\n2. /api/config/credits endpoint is registered\n3. Backend .env.local has credit variables set`,
+          confirmText: 'Understood',
+          variant: 'danger',
+          showCancel: false,
+          action: () => { }
+        });
       }
     };
 
@@ -117,20 +147,37 @@ const SubscriptionPage: React.FC = () => {
         body: JSON.stringify({ userId: user.uid })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         // Refresh subscription data
         const subResponse = await fetch(`${API_CONFIG.BASE_URL}/api/payment/user-subscription/${user.uid}`);
         if (subResponse.ok) {
-          const data = await subResponse.json();
-          setCurrentSubscription(data.subscription);
+          const subData = await subResponse.json();
+          setCurrentSubscription(subData.subscription);
         }
-        alert('Scheduled downgrade cancelled successfully!');
       } else {
-        alert('Failed to cancel scheduled downgrade');
+        setConfirmationData({
+          isOpen: true,
+          title: 'Cancellation Failed',
+          message: data.error || 'Failed to cancel scheduled downgrade',
+          confirmText: 'OK',
+          variant: 'danger',
+          showCancel: false,
+          action: () => { }
+        });
       }
     } catch (error) {
       console.error('Error cancelling schedule:', error);
-      alert('Error cancelling scheduled downgrade');
+      setConfirmationData({
+        isOpen: true,
+        title: 'Error',
+        message: 'Error cancelling scheduled downgrade',
+        confirmText: 'OK',
+        variant: 'danger',
+        showCancel: false,
+        action: () => { }
+      });
     }
   };
 
@@ -160,9 +207,18 @@ const SubscriptionPage: React.FC = () => {
       description: 'Perfect for getting started',
       icon: <Zap size={24} />,
       features: [
-        <><CreditsIcon size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.free} credits per month`}</>,
-        'Limited marking submissions',
-        'Limited marking result storage'
+        {
+          icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
+          text: `${planCredits.free} credits per month`
+        },
+        {
+          icon: <FileText size={16} />,
+          text: 'Limited marking submissions'
+        },
+        {
+          icon: <Database size={16} />,
+          text: 'Limited marking result storage'
+        }
       ],
       popular: false
     },
@@ -173,10 +229,26 @@ const SubscriptionPage: React.FC = () => {
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
-        <><CreditsIcon size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.pro} credits per month`}</>,
-        'Extended marking submissions',
-        'Extended marking result storage',
-        'Full access to progress analysis'
+        {
+          icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
+          text: `${planCredits.pro} credits per month`
+        },
+        {
+          icon: <FileText size={16} />,
+          text: 'Extended marking submissions'
+        },
+        {
+          icon: <Database size={16} />,
+          text: 'Extended marking result storage'
+        },
+        {
+          icon: <TrendingUp size={16} />,
+          text: 'Full access to progress analysis'
+        },
+        {
+          icon: <Workflow size={16} />,
+          text: 'AI Model selection (Gemini, OpenAI)'
+        }
       ],
       popular: true
     },
@@ -184,11 +256,17 @@ const SubscriptionPage: React.FC = () => {
       id: 'enterprise' as Plan,
       name: 'Ultra',
       price: dynamicPlans?.enterprise?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 100 : 960),
-      description: 'For schools and institutions',
+      description: 'For Serious Achievers',
       icon: <Building2 size={24} />,
       features: [
-        <>{`${planCredits.enterprise} credits per month`}</>,
-        '3x of everything in Pro'
+        {
+          icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
+          text: `${planCredits.enterprise} credits per month`
+        },
+        {
+          icon: <Layers size={16} />,
+          text: '3x of everything in Pro'
+        }
       ],
       popular: false
     }
@@ -206,7 +284,15 @@ const SubscriptionPage: React.FC = () => {
 
   const handleSubscribe = async (planId: Plan) => {
     if (!user) {
-      alert('Please sign in to subscribe to a plan.');
+      setConfirmationData({
+        isOpen: true,
+        title: 'Sign In Required',
+        message: 'Please sign in to subscribe to a plan.',
+        confirmText: 'Sign In',
+        variant: 'primary',
+        showCancel: true,
+        action: () => { navigate('/login'); }
+      });
       navigate('/login');
       return;
     }
@@ -215,7 +301,15 @@ const SubscriptionPage: React.FC = () => {
     // CASE 1: Already on this plan
     // ============================================
     if (planId === currentSubscription?.planId) {
-      alert('You are already on this plan!');
+      setConfirmationData({
+        isOpen: true,
+        title: 'Already Subscribed',
+        message: 'You are already on this plan!',
+        confirmText: 'OK',
+        variant: 'primary',
+        showCancel: false,
+        action: () => { }
+      });
       return;
     }
 
@@ -223,7 +317,15 @@ const SubscriptionPage: React.FC = () => {
     // CASE 2: Already scheduled this plan
     // ============================================
     if (planId === currentSubscription?.scheduledPlanId) {
-      alert(`Change to ${SubscriptionService.getPlanDisplayName(planId)} is already scheduled.`);
+      setConfirmationData({
+        isOpen: true,
+        title: 'Change Pending',
+        message: `Change to ${SubscriptionService.getPlanDisplayName(planId)} is already scheduled.`,
+        confirmText: 'OK',
+        variant: 'primary',
+        showCancel: false,
+        action: () => { }
+      });
       return;
     }
 
@@ -231,11 +333,15 @@ const SubscriptionPage: React.FC = () => {
     // CASE 2b: Block if ANY other schedule exists
     // ============================================
     if (currentSubscription?.scheduledPlanId && planId !== currentSubscription.scheduledPlanId) {
-      alert(
-        `⚠️ Plan Change Already Scheduled\n\n` +
-        `You have a scheduled change to ${SubscriptionService.getPlanDisplayName(currentSubscription.scheduledPlanId)}.\n` +
-        `Please cancel the existing schedule before making another change.`
-      );
+      setConfirmationData({
+        isOpen: true,
+        title: 'Plan Change Already Scheduled',
+        message: `You already have a change scheduled to ${SubscriptionService.getPlanDisplayName(currentSubscription.scheduledPlanId)}. Please cancel the existing schedule before making another change.`,
+        confirmText: 'OK',
+        variant: 'warning',
+        showCancel: false,
+        action: () => { }
+      });
       return;
     }
 
@@ -246,48 +352,63 @@ const SubscriptionPage: React.FC = () => {
     // CASE 3: Downgrade to Free (Cancel subscription)
     // ============================================
     if (planId === 'free' && currentSubscription && currentSubscription.planId !== 'free') {
-      const confirmDowngrade = window.confirm(
-        '⚠️ Cancel Subscription\n\n' +
-        'Your subscription will be cancelled at the end of your current billing period.\n' +
-        `You will keep your ${SubscriptionService.getPlanDisplayName(currentSubscription.planId)} benefits and credits until ${new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}.\n\n` +
-        'Are you sure you want to cancel?'
-      );
+      setConfirmationData({
+        isOpen: true,
+        title: 'Cancel Subscription',
+        message: `Your subscription will be cancelled at the end of your current billing period. You will keep your ${SubscriptionService.getPlanDisplayName(currentSubscription.planId)} benefits and credits until ${new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}. Are you sure you want to cancel?`,
+        confirmText: 'Cancel Subscription',
+        variant: 'danger',
+        action: async () => {
+          try {
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: user.uid,
+                newPlanId: 'free',
+                billingCycle: currentSubscription.billingCycle
+              })
+            });
 
-      if (!confirmDowngrade) return;
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.details || 'Failed to cancel subscription');
+            }
 
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.uid,
-            newPlanId: 'free',
-            billingCycle: currentSubscription.billingCycle
-          })
-        });
+            const result = await response.json();
 
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.details || 'Failed to cancel subscription');
+            // Show Success Modal (reusing confirmation modal but just for info, or use alert for simple success)
+            // For now, simple alert is fine for success feedback, or we could add a success modal state.
+            // Let's stick to alert for success to keep it simple as requested "confirmation modal" replacement.
+            setConfirmationData({
+              isOpen: true,
+              title: 'Subscription Cancelled',
+              message: `Your plan will end on ${new Date(result.effectiveDate).toLocaleDateString()}.\nYou'll keep your current benefits and credits until then.`,
+              confirmText: 'OK',
+              variant: 'success',
+              showCancel: false,
+              action: () => { }
+            });
+
+            // Refresh subscription data
+            const subResponse = await SubscriptionService.getUserSubscription(user.uid);
+            setCurrentSubscription(subResponse.subscription);
+            EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
+            refreshHeaderData();
+          } catch (error) {
+            console.error('Error cancelling subscription:', error);
+            setConfirmationData({
+              isOpen: true,
+              title: 'Cancellation Failed',
+              message: `Failed to cancel subscription: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              confirmText: 'OK',
+              variant: 'danger',
+              showCancel: false,
+              action: () => { }
+            });
+          }
         }
-
-        const result = await response.json();
-        alert(
-          `✅ Subscription Cancelled!\n\n` +
-          `Your plan will end on ${new Date(result.effectiveDate).toLocaleDateString()}.\n` +
-          `You'll keep your current benefits and credits until then.`
-        );
-
-        // Refresh subscription data
-        const subResponse = await SubscriptionService.getUserSubscription(user.uid);
-        setCurrentSubscription(subResponse.subscription);
-        // Dispatch event so other components refresh
-        EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
-        refreshHeaderData();
-      } catch (error) {
-        console.error('Error cancelling subscription:', error);
-        alert(`Failed to cancel subscription: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      });
       return;
     }
 
@@ -303,90 +424,114 @@ const SubscriptionPage: React.FC = () => {
       const isDowngrade = newLevel < currentLevel;
 
       if (isUpgrade) {
-        // Immediate upgrade (server-side, like Netflix/Spotify)
-        const confirmUpgrade = window.confirm(
-          `⬆️ Upgrade to ${plan.name}\n\n` +
-          `You will be charged a prorated amount for the upgrade.\n` +
-          `Your new credits will be available immediately.\n\n` +
-          'Proceed with upgrade?'
-        );
+        setConfirmationData({
+          isOpen: true,
+          title: `Upgrade to ${plan.name}`,
+          message: `You will be charged a prorated amount for the upgrade immediately. Your new credits and features will be available right away. Do you want to proceed?`,
+          confirmText: `Upgrade to ${plan.name}`,
+          variant: 'primary',
+          action: async () => {
+            try {
+              const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: user.uid,
+                  newPlanId: planId,
+                  billingCycle: currentSubscription.billingCycle
+                })
+              });
 
-        if (!confirmUpgrade) return;
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.details || 'Failed to upgrade plan');
+              }
 
-        try {
-          const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: user.uid,
-              newPlanId: planId,
-              billingCycle: currentSubscription.billingCycle
-            })
-          });
+              const result = await response.json();
+              setConfirmationData({
+                isOpen: true,
+                title: 'Upgrade Successful',
+                message: `✅ Upgraded to ${plan.name}!\n\nYour new credits are now available.`,
+                confirmText: 'Awesome!',
+                variant: 'success',
+                showCancel: false,
+                action: () => { }
+              });
 
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.details || 'Failed to upgrade plan');
+              // Refresh subscription data
+              const subResponse = await SubscriptionService.getUserSubscription(user.uid);
+              setCurrentSubscription(subResponse.subscription);
+              EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
+              refreshHeaderData();
+            } catch (error) {
+              console.error('Error upgrading plan:', error);
+              setConfirmationData({
+                isOpen: true,
+                title: 'Upgrade Failed',
+                message: `Failed to upgrade: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                confirmText: 'OK',
+                variant: 'danger',
+                showCancel: false,
+                action: () => { }
+              });
+            }
           }
-
-          const result = await response.json();
-          alert(`✅ Upgraded to ${plan.name}!\n\nYour new credits are now available.`);
-
-          // Refresh subscription data
-          const subResponse = await SubscriptionService.getUserSubscription(user.uid);
-          setCurrentSubscription(subResponse.subscription);
-          // Dispatch event so other components refresh
-          EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
-          refreshHeaderData();
-        } catch (error) {
-          console.error('Error upgrading plan:', error);
-          alert(`Failed to upgrade: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        });
         return;
       } else if (isDowngrade) {
-        // Scheduled downgrade
-        const confirmDowngrade = window.confirm(
-          `⬇️ Downgrade to ${plan.name}\n\n` +
-          `Your subscription will downgrade at the end of your current billing period.\n` +
-          `You will keep your ${SubscriptionService.getPlanDisplayName(currentSubscription.planId)} benefits and credits until ${new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}.\n\n` +
-          'Are you sure you want to downgrade?'
-        );
+        setConfirmationData({
+          isOpen: true,
+          title: `Downgrade to ${plan.name}`,
+          message: `Your subscription will automatically downgrade at the end of your current billing period. You will retain your ${SubscriptionService.getPlanDisplayName(currentSubscription.planId)} benefits until ${new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}. Confirm downgrade?`,
+          confirmText: `Downgrade`,
+          variant: 'warning',
+          action: async () => {
+            try {
+              const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: user.uid,
+                  newPlanId: planId,
+                  billingCycle: currentSubscription.billingCycle
+                })
+              });
 
-        if (!confirmDowngrade) return;
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.details || 'Failed to schedule downgrade');
+              }
 
-        try {
-          const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: user.uid,
-              newPlanId: planId,
-              billingCycle: currentSubscription.billingCycle
-            })
-          });
+              const result = await response.json();
+              setConfirmationData({
+                isOpen: true,
+                title: 'Downgrade Scheduled',
+                message: `Your plan will downgrade to ${plan.name} on ${new Date(result.effectiveDate).toLocaleDateString()}.\nYou'll keep your current benefits and credits until then.`,
+                confirmText: 'OK',
+                variant: 'success',
+                showCancel: false,
+                action: () => { }
+              });
 
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.details || 'Failed to schedule downgrade');
+              // Refresh subscription data
+              const subResponse = await SubscriptionService.getUserSubscription(user.uid);
+              setCurrentSubscription(subResponse.subscription);
+              EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
+              refreshHeaderData();
+            } catch (error) {
+              console.error('Error scheduling downgrade:', error);
+              setConfirmationData({
+                isOpen: true,
+                title: 'Downgrade Failed',
+                message: `Failed to schedule downgrade: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                confirmText: 'OK',
+                variant: 'danger',
+                showCancel: false,
+                action: () => { }
+              });
+            }
           }
-
-          const result = await response.json();
-          alert(
-            `✅ Downgrade Scheduled!\n\n` +
-            `Your plan will downgrade to ${plan.name} on ${new Date(result.effectiveDate).toLocaleDateString()}.\n` +
-            `You'll keep your current benefits and credits until then.`
-          );
-
-          // Refresh subscription data
-          const subResponse = await SubscriptionService.getUserSubscription(user.uid);
-          setCurrentSubscription(subResponse.subscription);
-          // Dispatch event so other components refresh
-          EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
-          refreshHeaderData();
-        } catch (error) {
-          console.error('Error scheduling downgrade:', error);
-          alert(`Failed to schedule downgrade: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        });
         return;
       }
     }
@@ -418,7 +563,15 @@ const SubscriptionPage: React.FC = () => {
       window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Error creating checkout session:', error);
-      alert('Failed to create checkout session. Please try again.');
+      setConfirmationData({
+        isOpen: true,
+        title: 'Checkout Error',
+        message: 'Failed to create checkout session. Please try again.',
+        confirmText: 'OK',
+        variant: 'danger',
+        showCancel: false,
+        action: () => { }
+      });
     }
   };
 
@@ -449,8 +602,25 @@ const SubscriptionPage: React.FC = () => {
         {/* Header */}
         <div className="upgrade-header">
           <h1>Subscription Plans</h1>
-          <p>Choose the plan that's right for you</p>
+          <p>Choose the plan that is right for you</p>
         </div>
+
+        <ConfirmationModal
+          isOpen={confirmationData.isOpen}
+          onClose={() => {
+            if (confirmationData.onClose) confirmationData.onClose();
+            setConfirmationData(prev => ({ ...prev, isOpen: false }));
+          }}
+          onConfirm={() => {
+            confirmationData.action();
+            setConfirmationData(prev => ({ ...prev, isOpen: false }));
+          }}
+          title={confirmationData.title}
+          message={confirmationData.message}
+          confirmText={confirmationData.confirmText}
+          variant={confirmationData.variant}
+          showCancel={confirmationData.showCancel}
+        />
 
         {/* Scheduled Change Banner */}
         {currentSubscription?.scheduledPlanId && (
@@ -531,7 +701,6 @@ const SubscriptionPage: React.FC = () => {
               {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
 
               <div className="upgrade-plan-header">
-                <div className="upgrade-plan-icon">{plan.icon}</div>
                 <h3>{plan.name}</h3>
                 <p>{plan.description}</p>
               </div>
@@ -580,8 +749,8 @@ const SubscriptionPage: React.FC = () => {
               <ul className="upgrade-plan-features">
                 {plan.features.map((feature, index) => (
                   <li key={index}>
-                    <Check size={16} />
-                    {feature}
+                    {feature.icon || <Check size={16} />}
+                    <span className="feature-text">{feature.text}</span>
                   </li>
                 ))}
               </ul>
@@ -593,13 +762,13 @@ const SubscriptionPage: React.FC = () => {
                     // Show upgrade info for any upgrade (Pro->Enterprise, Free->Pro, etc)
                     <div className="upgrade-info">
                       <ArrowUp size={14} />
-                      <span>Upgrade: Immediate effect. Prorated billing.</span>
+                      <span>Upgrade: Immediate effect.</span>
                     </div>
                   ) : (
                     // Show downgrade info when going down
                     <div className="downgrade-info">
                       <ArrowDown size={14} />
-                      <span>Downgrade: Takes effect at period end. Keep benefits until then.</span>
+                      <span>Downgrade: Takes effect at period end.</span>
                     </div>
                   )}
                 </div>

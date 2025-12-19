@@ -119,6 +119,26 @@ router.get('/user-subscription/:userId', async (req, res) => {
     const { getUserCredits } = await import('../services/creditService.js');
     const userCredits = await getUserCredits(userId);
 
+    // Heal logic: If amount is 990 but plan is enterprise (Ultra), it's likely from the plan-change bug
+    if (subscription && subscription.planId === 'enterprise' && subscription.amount === 990) {
+      console.log(`🔧 [Heal] Correcting amount for enterprise user ${userId}`);
+      try {
+        const stripe = (await import('../config/stripe.js')).default;
+        const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+        const correctAmount = stripeSub.items.data[0]?.price?.unit_amount;
+
+        if (correctAmount && correctAmount !== subscription.amount) {
+          await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+            amount: correctAmount
+          });
+          subscription.amount = correctAmount;
+          console.log(`✅ [Heal] Updated amount to ${correctAmount}`);
+        }
+      } catch (healError) {
+        console.error('❌ [Heal] Failed to auto-correct subscription amount:', healError);
+      }
+    }
+
     // Add credits to subscription object
     const subscriptionWithCredits = {
       ...subscription,
@@ -320,6 +340,10 @@ router.post('/change-plan', async (req, res) => {
         subscription.stripeSubscriptionId
       );
 
+      // Fetch the actual amount from the price ID to ensure accuracy
+      const price = await stripe.prices.retrieve(newPriceId);
+      const newAmount = price.unit_amount || 0;
+
       await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
         items: [{
           id: stripeSubscription.items.data[0].id,
@@ -331,7 +355,7 @@ router.post('/change-plan', async (req, res) => {
       // Update Firestore
       await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
         planId: newPlanId,
-        amount: newPlanConfig[billingCycle].amount,
+        amount: newAmount,
         previousPlanId: currentPlanId,
         planChangedAt: Date.now(),
       });
@@ -431,11 +455,31 @@ router.post('/cancel-schedule', async (req, res) => {
     }
 
     const subscription = await SubscriptionService.getUserSubscription(userId);
-    if (!subscription || !subscription.scheduleId) {
-      return res.status(404).json({ error: 'No scheduled plan change found' });
+    console.log(`🔍 [CancelSchedule] User: ${userId}`, {
+      hasSub: !!subscription,
+      scheduleId: subscription?.scheduleId,
+      scheduledPlanId: subscription?.scheduledPlanId
+    });
+
+    if (!subscription || (!subscription.scheduleId && !subscription.scheduledPlanId)) {
+      console.warn(`⚠️ [CancelSchedule] No valid schedule found for user ${userId}`);
+      return res.json({ success: false, error: 'No scheduled plan change found' });
     }
 
-    await cancelSchedule(subscription.scheduleId);
+    if (subscription.scheduleId) {
+      await cancelSchedule(subscription.scheduleId);
+    } else {
+      // For free plan or any other cancel_at_period_end downgrade
+      const stripe = (await import('../config/stripe.js')).default;
+      const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+
+      if (stripeSub.cancel_at_period_end) {
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          cancel_at_period_end: false,
+        });
+        console.log(`✅ [CancelSchedule] Re-activated subscription ${subscription.stripeSubscriptionId}`);
+      }
+    }
 
     // Clear schedule from Firestore
     await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
