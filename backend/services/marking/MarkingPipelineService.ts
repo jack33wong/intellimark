@@ -961,7 +961,8 @@ export class MarkingPipelineService {
             // Orchestrate marking scheme lookup (detection, grouping, merging)
             const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
-                classificationResult
+                classificationResult,
+                options.customText
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;

@@ -358,7 +358,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
             <ClipboardCheck size={20} />
-            <span>Mark Homework</span>
+            <span>New Marking</span>
           </button>
           <button
             className="mark-homework-main-btn"

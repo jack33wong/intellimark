@@ -32,6 +32,14 @@ export interface DetectionStatistics {
     similarity?: number;
     hasMarkingScheme: boolean;
   }>;
+  hintInfo?: {
+    hintUsed: string;
+    matchedPapersCount: number;
+    matchedPaperTitle?: string;
+    thresholdRelaxed: boolean;
+    deepSearchActive?: boolean;
+    poolSize?: number;
+  };
 }
 
 export interface MarkingSchemeOrchestrationResult {
@@ -54,7 +62,8 @@ export class MarkingSchemeOrchestrationService {
    */
   static async orchestrateMarkingSchemeLookup(
     individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }>,
-    classificationResult: any
+    classificationResult: any,
+    examPaperHint?: string | null
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
 
@@ -88,12 +97,13 @@ export class MarkingSchemeOrchestrationService {
         medium: 0,
         low: 0
       },
-      questionDetails: []
+      questionDetails: [],
+      hintInfo: undefined
     };
 
     // Call question detection for each individual question
     for (const question of individualQuestions) {
-      const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
+      const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber, examPaperHint);
 
       const similarity = detectionResult.match?.confidence || 0;
       const hasMarkingScheme = detectionResult.match?.markingScheme !== null && detectionResult.match?.markingScheme !== undefined;
@@ -131,6 +141,11 @@ export class MarkingSchemeOrchestrationService {
           detected: false,
           hasMarkingScheme: false
         });
+      }
+
+      // Capture hint metadata from the first result if available
+      if (!detectionStats.hintInfo && detectionResult.hintMetadata) {
+        detectionStats.hintInfo = detectionResult.hintMetadata;
       }
     }
 
@@ -326,7 +341,7 @@ export class MarkingSchemeOrchestrationService {
             });
 
             if (matchedExamPaper) {
-              const questions = matchedExamPaper.questions || [];
+              const questions = (matchedExamPaper as any).questions || [];
               const mainQuestion = Array.isArray(questions)
                 ? questions.find((q: any) => {
                   const qNum = q.question_number || q.number;
@@ -444,6 +459,30 @@ export class MarkingSchemeOrchestrationService {
     console.log(`   Total questions: ${detectionStats.totalQuestions}`);
     console.log(`   Detected: ${detectionStats.detected}/${detectionStats.totalQuestions} (${detectionRate}%)`);
     console.log(`   Not detected: ${detectionStats.notDetected}`);
+
+    if (detectionStats.hintInfo) {
+      const { hintUsed, matchedPapersCount, matchedPaperTitle, thresholdRelaxed, deepSearchActive, poolSize } = detectionStats.hintInfo;
+      const blue = '\x1b[34m';
+      const green = '\x1b[32m';
+      const yellow = '\x1b[33m';
+      const reset = '\x1b[0m';
+
+      console.log(`   ${blue}[HINT] Result: ${matchedPapersCount} matches for "${hintUsed}"${reset}`);
+      if (poolSize !== undefined) {
+        console.log(`   ${blue}[HINT] Search Pool Size: ${poolSize} questions${reset}`);
+      }
+      if (matchedPaperTitle) {
+        console.log(`   ${blue}[HINT] Matched Paper: ${matchedPaperTitle}${reset}`);
+      }
+      if (thresholdRelaxed && !deepSearchActive) {
+        console.log(`   ${green}[HINT] Impact: Threshold relaxed (0.50 → 0.35) due to specific selection [+]${reset}`);
+      } else if (deepSearchActive) {
+        console.log(`   ${green}[HINT] Impact: Automated Rescue! Found via Deep Search across all papers [+]${reset}`);
+      } else if (matchedPapersCount === 0) {
+        console.log(`   ${yellow}[HINT] Impact: No matches found, falling back to full search [!]${reset}`);
+      }
+    }
+
     console.log(`   With marking scheme: ${detectionStats.withMarkingScheme}`);
     console.log(`   Without marking scheme: ${detectionStats.withoutMarkingScheme}`);
     console.log(`   Similarity ranges:`);

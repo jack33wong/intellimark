@@ -729,3 +729,144 @@
   background: #c82333;
   transform: scale(1.1);
 }
+
+/* Autocomplete Dropdown Styles */
+/* Autocomplete Dropdown Styles - Inline Redesign */
+.autocomplete-dropdown.inline-style {
+  margin-top: 12px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  z-index: 10;
+  padding: 0 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: dropdown-fade-in-inline 0.3s ease;
+}
+
+@keyframes dropdown-fade-in-inline {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Chips Section Integrated */
+.autocomplete-chips-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.autocomplete-chips-label {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.autocomplete-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.filter-chip.active {
+  background: var(--text-brand);
+  color: white;
+  border-color: var(--text-brand);
+}
+
+/* Results List Integrated Like Suggested Follow-ups */
+.autocomplete-results-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.autocomplete-results-label {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  background: transparent;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  border-radius: 8px;
+}
+
+.autocomplete-item.highlighted {
+  background: rgba(255, 255, 255, 0.05);
+  padding-left: 8px;
+  border-radius: 8px;
+}
+
+.suggestion-icon {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.suggestion-text {
+  font-size: 15px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  transition: color 0.2s ease;
+}
+
+.autocomplete-item:hover .suggestion-text {
+  color: var(--text-primary);
+}
+
+.check-icon {
+  color: #10b981;
+  opacity: 0.8;
+}

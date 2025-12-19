@@ -2,12 +2,13 @@
  * UnifiedChatInput Component (TypeScript)
  * This component now correctly manages its own state and is fully typed.
  */
-import React, { useState, useCallback } from 'react';
-import { Plus, Brain } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Plus, Brain, X, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
+import ApiClient from '../../services/apiClient';
 import './UnifiedChatInput.css';
 
 // Define the type for the props this component receives
@@ -52,6 +53,84 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [isMultiImage, setIsMultiImage] = useState<boolean>(false);
+
+  // Metadata & Autocomplete State
+  const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
+    boards: [],
+    tiers: [],
+    papers: [],
+  });
+  const [filteredResults, setFilteredResults] = useState<string[]>([]);
+  const [showAutocomplete, setShowAutocomplete] = useState<boolean>(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch metadata on mount
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const response = await ApiClient.get('/api/config/exam-metadata');
+        if (response.data) {
+          setMetadata(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch exam metadata:', error);
+      }
+    };
+    fetchMetadata();
+  }, []);
+
+  // Handle outside clicks to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowAutocomplete(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter suggestions based on input
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setChatInput(value);
+
+    if (value.trim().length > 0 && mode === 'first-time') {
+      const filtered = metadata.papers.filter(paper =>
+        paper.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 10);
+
+      setFilteredResults(filtered);
+      setShowAutocomplete(filtered.length > 0);
+      setHighlightedIndex(-1);
+    } else {
+      setShowAutocomplete(false);
+    }
+  };
+
+  const addTagToInput = (tag: string) => {
+    // If tag already exists, don't add
+    if (chatInput.toLowerCase().includes(tag.toLowerCase())) {
+      setShowAutocomplete(false);
+      return;
+    }
+
+    setChatInput(prev => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed} ${tag}` : tag;
+    });
+    setShowAutocomplete(false);
+    inputRef.current?.focus();
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    // For full paper suggestions, replace the entire input to keep it clean
+    setChatInput(suggestion);
+    setShowAutocomplete(false);
+    inputRef.current?.focus();
+  };
 
   // Helper function to detect PDF files
   const isPDF = (file: File) => {
@@ -428,12 +507,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <div className="followup-controls-row">
               <div className="followup-text-wrapper">
                 <textarea
+                  ref={inputRef}
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyPress={handleKeyPress}
-                  placeholder={isProcessing ? "AI is processing..." : "Ask anything"}
+                  placeholder={isProcessing ? "AI is processing..." : "Upload file... (Optional: Type exam name to speed up)"}
                   disabled={isProcessing}
                   className="followup-text-input"
+                  onFocus={() => {
+                    if (chatInput.trim().length > 0 && mode === 'first-time' && filteredResults.length > 0) {
+                      setShowAutocomplete(true);
+                    }
+                  }}
                 />
               </div>
               <div className="followup-buttons-row">
@@ -455,6 +540,50 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
             </div>
           </div>
+          {showAutocomplete && mode === 'first-time' && (
+            <div className="autocomplete-dropdown inline-style" ref={dropdownRef}>
+              <div className="autocomplete-chips-section">
+                <div className="autocomplete-chips-label">Quick Filters:</div>
+                <div className="autocomplete-chips-container">
+                  {metadata.boards.map(board => (
+                    <button
+                      key={board}
+                      className={`filter-chip board ${chatInput.includes(board) ? 'active' : ''}`}
+                      onClick={() => addTagToInput(board)}
+                    >
+                      {board}
+                    </button>
+                  ))}
+                  {metadata.tiers.map(tier => (
+                    <button
+                      key={tier}
+                      className={`filter-chip tier ${chatInput.includes(tier) ? 'active' : ''}`}
+                      onClick={() => addTagToInput(tier)}
+                    >
+                      {tier}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredResults.length > 0 && (
+                <div className="autocomplete-results-list">
+                  <div className="autocomplete-results-label">Suggestions:</div>
+                  {filteredResults.map((result, index) => (
+                    <div
+                      key={result}
+                      className={`autocomplete-item ${index === highlightedIndex ? 'highlighted' : ''}`}
+                      onClick={() => handleSuggestionClick(result)}
+                    >
+                      <Brain size={12} className="suggestion-icon" />
+                      <span className="suggestion-text">{result}</span>
+                      {chatInput.toLowerCase().includes(result.toLowerCase()) && <Check size={12} className="check-icon" />}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />

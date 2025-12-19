@@ -80,6 +80,14 @@ export interface QuestionDetectionResult {
   message?: string;
   markingScheme?: string;
   questionText?: string;
+  hintMetadata?: {
+    hintUsed: string;
+    matchedPapersCount: number;
+    matchedPaperTitle?: string;
+    thresholdRelaxed: boolean;
+    deepSearchActive?: boolean;
+    poolSize?: number;
+  };
 }
 
 /**
@@ -133,10 +141,12 @@ export class QuestionDetectionService {
    * Detect exam paper and question number from extracted question text
    * @param extractedQuestionText - The question text extracted by classification
    * @param questionNumberHint - Optional question number hint from classification (e.g., "1", "2", "21")
+   * @param examPaperHint - Optional exam paper hint from user input (e.g., "Edexcel 1MA1/1H")
    */
   public async detectQuestion(
     extractedQuestionText: string,
-    questionNumberHint?: string | null
+    questionNumberHint?: string | null,
+    examPaperHint?: string | null
   ): Promise<QuestionDetectionResult> {
     try {
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
@@ -150,7 +160,48 @@ export class QuestionDetectionService {
       const effectiveHint = questionNumberHint === '1' ? null : questionNumberHint;
 
       // Get all exam papers from database
-      const examPapers = await this.getAllExamPapers();
+      const allExamPapers = await this.getAllExamPapers();
+      let examPapers = allExamPapers;
+
+      // Calculate total questions in the entire database (Search Pool Size)
+      const totalDatabaseQuestions = allExamPapers.reduce((sum, paper) => {
+        const questions = paper.questions || {};
+        return sum + (Array.isArray(questions) ? questions.length : Object.keys(questions).length);
+      }, 0);
+
+      // SILENT FALLBACK: If examPaperHint is provided, try to filter papers
+      let hintMetadata: QuestionDetectionResult['hintMetadata'] = undefined;
+      const primaryPapers = (examPaperHint && examPaperHint.trim().length > 0)
+        ? this.filterPapersByHint(allExamPapers, examPaperHint)
+        : [];
+
+      if (examPaperHint && examPaperHint.trim().length > 0) {
+        hintMetadata = {
+          hintUsed: examPaperHint,
+          matchedPapersCount: primaryPapers.length,
+          thresholdRelaxed: false,
+          poolSize: 0 // Will populate below
+        };
+
+        if (primaryPapers.length > 0) {
+          examPapers = primaryPapers;
+          // Capture the title if it's a unique match
+          if (primaryPapers.length === 1) {
+            const m = primaryPapers[0].metadata;
+            hintMetadata.matchedPaperTitle = `${m.exam_board} - ${m.exam_code} - ${m.exam_series}, ${m.tier}`;
+          }
+        }
+      }
+
+      // Populate pool size for current search pass
+      const currentPoolSize = examPapers.reduce((sum, paper) => {
+        const questions = paper.questions || {};
+        return sum + (Array.isArray(questions) ? questions.length : Object.keys(questions).length);
+      }, 0);
+
+      if (hintMetadata) {
+        hintMetadata.poolSize = currentPoolSize;
+      }
 
       if (examPapers.length === 0) {
         return {
@@ -165,7 +216,14 @@ export class QuestionDetectionService {
       let bestTextMatch: { match: ExamPaperMatch; textSimilarity: number } | null = null;
       let bestFailedMatch: ExamPaperMatch | null = null; // Track best match even if below threshold
 
+      // If we have a unique hint match, be more lenient with the threshold
+      const uniqueHintFound = examPaperHint && examPaperHint.trim().length > 0 && examPapers.length === 1;
+      if (uniqueHintFound && hintMetadata) {
+        hintMetadata.thresholdRelaxed = true;
+      }
+
       for (const examPaper of examPapers) {
+
         const metadata = examPaper.metadata;
         const paperCode = metadata?.exam_code || 'unknown';
         const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
@@ -177,8 +235,12 @@ export class QuestionDetectionService {
           if (match.confidence > bestScore) {
             bestFailedMatch = match;
             bestScore = match.confidence;
-            // Only accept as bestMatch if above threshold (0.50 for main, 0.40 for sub)
-            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+
+            // Only accept as bestMatch if above threshold
+            // SILENT RELAXATION: If user explicitly picked 1 paper via hint, lower threshold (0.50 -> 0.35, 0.40 -> 0.30)
+            const baseThreshold = match.subQuestionNumber ? 0.4 : 0.50;
+            const threshold = uniqueHintFound ? (baseThreshold - 0.15) : baseThreshold;
+
             if (match.confidence >= threshold) {
               bestMatch = match;
               // Calculate text similarity for tie-breaking
@@ -214,7 +276,9 @@ export class QuestionDetectionService {
             }
 
             // Prefer match that starts with same words, or if both do, prefer higher text similarity
-            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+            const baseThreshold = match.subQuestionNumber ? 0.4 : 0.50;
+            const threshold = uniqueHintFound ? (baseThreshold - 0.15) : baseThreshold;
+
             if (match.confidence >= threshold && (!bestMatch ||
               !bestTextMatch ||
               (startsMatch && !bestStartsMatch) ||
@@ -227,71 +291,78 @@ export class QuestionDetectionService {
         }
       }
 
+      // Populate common result part
+      const resultPart = { hintMetadata };
+
+
+      if (!bestMatch) {
+        // Try fallback logic (sub-question -> base number) WITHIN current pool
+        if (effectiveHint && /[a-z]+$/i.test(effectiveHint)) {
+          const baseQuestionNumber = effectiveHint.replace(/[a-z]+$/i, '');
+          if (baseQuestionNumber && baseQuestionNumber !== effectiveHint) {
+            let fallbackBestMatch: ExamPaperMatch | null = null;
+            let fallbackBestScore = 0;
+
+            for (const examPaper of examPapers) {
+              const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, baseQuestionNumber);
+              if (match && match.confidence) {
+                const baseThreshold = match.subQuestionNumber ? 0.4 : 0.50;
+                const threshold = uniqueHintFound ? (baseThreshold - 0.15) : baseThreshold;
+
+                if (match.confidence > fallbackBestScore && match.confidence >= threshold) {
+                  fallbackBestScore = match.confidence;
+                  fallbackBestMatch = match;
+                }
+              }
+            }
+            if (fallbackBestMatch) {
+              bestMatch = fallbackBestMatch;
+            }
+          }
+        }
+      }
+
+      // DEEP SEARCH FALLBACK: If still no match and we were using a filtered pool, try the entire database
+      if (!bestMatch && examPaperHint && examPaperHint.trim().length > 0 && examPapers.length < allExamPapers.length) {
+        if (hintMetadata) {
+          hintMetadata.deepSearchActive = true;
+          hintMetadata.poolSize = totalDatabaseQuestions; // Update to show we searched the whole pool
+        }
+
+        for (const examPaper of allExamPapers) {
+          const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
+          if (match && match.confidence) {
+            const threshold = match.subQuestionNumber ? 0.4 : 0.50; // Use standard threshold for deep search
+            if (match.confidence > bestScore && match.confidence >= threshold) {
+              bestScore = match.confidence;
+              bestMatch = match;
+              if (match.databaseQuestionText) {
+                const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+                bestTextMatch = { match, textSimilarity };
+              }
+            }
+          }
+        }
+      }
+
+      // Final processing of the best match
       if (bestMatch) {
-        // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
         }
 
         return {
+          ...resultPart,
           found: true,
           match: bestMatch,
           message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.examSeries})`
         };
       }
 
-      // FALLBACK: If no match found and hint has sub-question marker (e.g., "1a"),
-      // try again with base question number (e.g., "1")
-      // This handles mapper errors where it adds sub-question markers incorrectly
-      if (!bestMatch && effectiveHint && /[a-z]+$/i.test(effectiveHint)) {
-        const baseQuestionNumber = effectiveHint.replace(/[a-z]+$/i, ''); // Strip trailing letters
-
-        if (baseQuestionNumber && baseQuestionNumber !== effectiveHint) {
-          // Retrying with base question number (fallback)
-
-          // Reset and try again with base number
-          bestMatch = null;
-          bestScore = 0;
-          bestTextMatch = null;
-
-          for (const examPaper of examPapers) {
-            const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, baseQuestionNumber);
-            if (match && match.confidence) {
-              if (match.confidence > bestScore) {
-                bestFailedMatch = match;
-                bestScore = match.confidence;
-                const threshold = match.subQuestionNumber ? 0.4 : 0.50;
-                if (match.confidence >= threshold) {
-                  bestMatch = match;
-                  if (match.databaseQuestionText) {
-                    const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
-                    bestTextMatch = { match, textSimilarity };
-                  }
-                }
-              }
-            }
-          }
-
-          // If fallback succeeded, return the match
-          if (bestMatch) {
-            const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
-            if (markingScheme) {
-              bestMatch.markingScheme = markingScheme;
-            }
-
-            return {
-              found: true,
-              match: bestMatch,
-              message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.examSeries})`
-            };
-          }
-        }
-      }
-
       // No match found
-
       return {
+        ...resultPart,
         found: false,
         message: 'No matching exam paper found'
       };
@@ -303,6 +374,43 @@ export class QuestionDetectionService {
         message: `Detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
+  }
+
+  /**
+   * Filter papers by a text hint (e.g., "Edexcel", "1MA1/1H", "June 2023")
+   */
+  private filterPapersByHint(papers: any[], hint: string): any[] {
+    const normalizedHint = hint.toLowerCase().trim();
+    if (!normalizedHint) return papers;
+
+    // Split hint into keywords, removing punctuation that might be decorative (hyphens, commas)
+    // We keep "/" as it's common in exam codes (e.g., 1MA1/1H)
+    const keywords = normalizedHint
+      .replace(/[-,]/g, ' ') // Replace hyphens and commas with spaces
+      .split(/\s+/)
+      .filter(k => k.length > 0 && /[a-z0-9]/i.test(k)); // Only keep keywords with alphanumeric content
+
+    if (keywords.length === 0) return papers;
+
+    return papers.filter(paper => {
+      const metadata = paper.metadata;
+      if (!metadata) return false;
+
+      const board = (metadata.exam_board || '').toLowerCase();
+      const code = (metadata.exam_code || '').toLowerCase();
+      const series = (metadata.exam_series || '').toLowerCase();
+      const tier = (metadata.tier || '').toLowerCase();
+      const subject = (metadata.subject || '').toLowerCase();
+
+      // A paper matches if ALL keywords from the hint are found in its collective metadata
+      return keywords.every(keyword =>
+        board.includes(keyword) ||
+        code.includes(keyword) ||
+        series.includes(keyword) ||
+        tier.includes(keyword) ||
+        subject.includes(keyword)
+      );
+    });
   }
 
   /**
