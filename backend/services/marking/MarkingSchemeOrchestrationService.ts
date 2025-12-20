@@ -31,6 +31,7 @@ export interface DetectionStatistics {
     detected: boolean;
     similarity?: number;
     hasMarkingScheme: boolean;
+    matchedPaperTitle?: string;
   }>;
   hintInfo?: {
     hintUsed: string;
@@ -102,6 +103,8 @@ export class MarkingSchemeOrchestrationService {
       hintInfo: undefined
     };
 
+    let hintFailures = 0;
+
     // Call question detection for each individual question
     for (const question of individualQuestions) {
       const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber, examPaperHint);
@@ -131,7 +134,8 @@ export class MarkingSchemeOrchestrationService {
           questionNumber: question.questionNumber,
           detected: true,
           similarity,
-          hasMarkingScheme
+          hasMarkingScheme,
+          matchedPaperTitle: detectionResult.match?.markingScheme?.examDetails?.paper || detectionResult.hintMetadata?.matchedPaperTitle
         });
 
         detectionResults.push({ question, detectionResult });
@@ -142,6 +146,11 @@ export class MarkingSchemeOrchestrationService {
           detected: false,
           hasMarkingScheme: false
         });
+      }
+
+      // Track failures for the 50% rule
+      if (detectionResult.hintMetadata?.isWeakMatch || detectionResult.hintMetadata?.deepSearchActive) {
+        hintFailures++;
       }
 
       // Update hint metadata to be more representative of the entire batch
@@ -155,7 +164,7 @@ export class MarkingSchemeOrchestrationService {
           detectionStats.hintInfo.rescuedQuestions = [];
         }
 
-        // If this specific question triggered deep search, mark it and log it
+        // If this specific question triggered deep search, mark it
         if (detectionResult.hintMetadata.deepSearchActive) {
           detectionStats.hintInfo.deepSearchActive = true;
           detectionStats.hintInfo.poolSize = detectionResult.hintMetadata.poolSize;
@@ -163,15 +172,95 @@ export class MarkingSchemeOrchestrationService {
           const qLabel = question.questionNumber || '?';
           detectionStats.hintInfo.rescuedQuestions.push(qLabel);
 
-          // Minimal log for rescue event
-          const yellow = '\x1b[33m';
-          const reset = '\x1b[0m';
-          console.log(`   ${yellow}[HINT] Q${qLabel} failed hint pool (pool size: ${detectionResult.hintMetadata.poolSize === 249 ? 'Restricted' : 'Unknown'}), searching entire database...${reset}`);
+          // Real-time rescue log removed to reduce noise as requested
         }
 
         // If any question had a matched paper title, preserve it
         if (detectionResult.hintMetadata.matchedPaperTitle && !detectionStats.hintInfo.matchedPaperTitle) {
           detectionStats.hintInfo.matchedPaperTitle = detectionResult.hintMetadata.matchedPaperTitle;
+        }
+      }
+    }
+
+    // ALL-OR-NOTHING CHECK (Scenario 1)
+    // If a unique hint was given (1 paper pool) and we didn't find 100% of questions, the hint is likely wrong.
+    const hintInfo = detectionStats.hintInfo;
+    const isScenario1 = hintInfo && hintInfo.matchedPapersCount === 1;
+
+    if (isScenario1 && detectionStats.detected < detectionStats.totalQuestions) {
+      console.log(`\x1b[31m[HINT] ⚠️ Unique Hint Adherence Failed! Only ${detectionStats.detected}/${detectionStats.totalQuestions} questions found in "${hintInfo.hintUsed}".\x1b[0m`);
+      console.log(`\x1b[33m[HINT] Discarding hint and restarting detection GLOBALLY for document consistency...\x1b[0m`);
+
+      // Restart detection without the hint (Scenario 3)
+      return this.orchestrateMarkingSchemeLookup(individualQuestions, null);
+    }
+
+    // BATCH CONSISTENCY: Paper Locking
+    // Identify the "Winner Paper" (the one that matched the most questions with high confidence)
+    const paperCounts = new Map<string, { count: number; examPaper: any; paperTitle: string }>();
+    for (const { detectionResult } of detectionResults) {
+      if (detectionResult.found && detectionResult.match) {
+        const title = detectionResult.match.paperTitle || 'Unknown';
+        if (!paperCounts.has(title)) {
+          paperCounts.set(title, {
+            count: 0,
+            examPaper: detectionResult.match.examPaper,
+            paperTitle: title
+          });
+        }
+        // Only count strong matches for voting
+        if ((detectionResult.match.confidence || 0) >= 0.70) {
+          paperCounts.get(title)!.count++;
+        }
+      }
+    }
+
+    let winner: { paperTitle: string; examPaper: any } | null = null;
+    let maxCount = 0;
+    paperCounts.forEach((v, k) => {
+      if (v.count > maxCount) {
+        maxCount = v.count;
+        winner = { paperTitle: v.paperTitle, examPaper: v.examPaper };
+      }
+    });
+
+    // If we have a clear winner (>60% of strong matches OR at least 4 strong matches in a small batch), lock it!
+    const WINNER_THRESHOLD = individualQuestions.length > 5 ? individualQuestions.length * 0.6 : 4;
+    if (winner && (maxCount >= WINNER_THRESHOLD)) {
+      console.log(`\x1b[32m[HINT] 🔒 Paper Lock: "${winner.paperTitle}" detected as winner (${maxCount}/${individualQuestions.length} votes). Locking consistency...\x1b[0m`);
+
+      for (const item of detectionResults) {
+        const currentTitle = item.detectionResult.match?.paperTitle;
+        const confidence = item.detectionResult.match?.confidence || 0;
+
+        // If question matched a DIFFERENT paper, or was weak, try to re-match it with the winner paper ONLY
+        if (currentTitle !== winner.paperTitle || confidence < 0.75) {
+          const reMatch = await questionDetectionService.matchQuestionWithExamPaper(
+            item.question.text,
+            winner.examPaper,
+            item.question.questionNumber
+          );
+
+          // If we found a reasonable match in the winner paper, swap it!
+          // We are more lenient here (0.4) because we WANT it to be consistent with the winner
+          if (reMatch && (reMatch.confidence || 0) >= 0.40) {
+            item.detectionResult.match = reMatch;
+            item.detectionResult.found = true;
+            if (item.detectionResult.hintMetadata) {
+              item.detectionResult.hintMetadata.isWeakMatch = (reMatch.confidence || 0) < 0.7;
+            }
+
+            const ms = await questionDetectionService.findCorrespondingMarkingScheme(reMatch);
+            if (ms) reMatch.markingScheme = ms;
+
+            // Update statistics to reflect the consistent match
+            const statEntry = detectionStats.questionDetails.find(q => q.questionNumber === item.question.questionNumber);
+            if (statEntry) {
+              statEntry.similarity = reMatch.confidence;
+              statEntry.hasMarkingScheme = !!ms;
+              statEntry.matchedPaperTitle = winner.paperTitle;
+            }
+          }
         }
       }
     }
@@ -511,6 +600,29 @@ export class MarkingSchemeOrchestrationService {
 
       if (matchedPaperTitle) {
         console.log(`   ${blue}[HINT] Reference Paper: ${matchedPaperTitle}${reset}`);
+      }
+    }
+
+    // Paper Distribution Summary
+    const paperGroups = new Map<string, string[]>();
+    detectionStats.questionDetails.forEach(q => {
+      if (q.detected && q.matchedPaperTitle) {
+        if (!paperGroups.has(q.matchedPaperTitle)) {
+          paperGroups.set(q.matchedPaperTitle, []);
+        }
+        paperGroups.get(q.matchedPaperTitle)!.push(`Q${q.questionNumber || '?'}`);
+      }
+    });
+
+    if (paperGroups.size > 0) {
+      console.log(`   Paper Distribution:`);
+      paperGroups.forEach((qs, title) => {
+        const color = paperGroups.size > 1 ? '\x1b[31m' : '\x1b[32m'; // Red if split across papers, Green if consistent
+        const reset = '\x1b[0m';
+        console.log(`     - ${color}${title}${reset}: ${qs.join(', ')}`);
+      });
+      if (paperGroups.size > 1) {
+        console.log(`   \x1b[31m⚠️  WARNING: Questions matched across ${paperGroups.size} different papers! "Frankenstein" result detected.\x1b[0m`);
       }
     }
 

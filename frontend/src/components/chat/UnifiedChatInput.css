@@ -758,7 +758,7 @@
   }
 }
 
-/* Chips Section Integrated */
+/* Autocomplete Chips Section Integrated */
 .autocomplete-chips-section {
   display: flex;
   flex-direction: column;
@@ -778,6 +778,7 @@
   gap: 8px;
 }
 
+/* Base Filter Chips in Dropdown */
 .filter-chip {
   padding: 5px 14px;
   border-radius: 6px;
@@ -798,7 +799,85 @@
 .filter-chip.active {
   background: var(--text-brand);
   color: white;
-  border-color: var(--text-brand);
+  border-color: transparent;
+}
+
+/* Premium Visual Chips Inside Input Box */
+.input-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 8px 4px 4px;
+  width: 100%;
+}
+
+.vibrant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(139, 92, 246, 0.15);
+  /* Subtle purple glass */
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c4b5fd;
+  /* Light purple text */
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: chip-pop-in 0.25s ease-out;
+}
+
+@keyframes chip-pop-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.vibrant-chip:hover {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.chip-icon-left {
+  color: #8b5cf6;
+}
+
+.chip-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 2px;
+}
+
+.chip-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.followup-text-wrapper.has-chips {
+  display: flex;
+  flex-direction: column;
+}
+
+.followup-text-wrapper.has-chips .followup-text-input {
+  padding-top: 4px;
+  /* Less top padding since chips are above */
 }
 
 /* Results List Integrated Like Suggested Follow-ups */

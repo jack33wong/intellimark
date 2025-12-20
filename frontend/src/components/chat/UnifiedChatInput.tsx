@@ -2,7 +2,7 @@
  * UnifiedChatInput Component (TypeScript)
  * This component now correctly manages its own state and is fully typed.
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Plus, Brain, X, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModelSelector, SendButton } from '../focused';
@@ -45,8 +45,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
-  const canSelectModel = checkPermission('model_selection');
+  const [canSelectModel, setCanSelectModel] = useState<boolean>(true); // Initialize with true, we'll check permission later
   const [chatInput, setChatInput] = useState<string>('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -60,12 +61,43 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     tiers: [],
     papers: [],
   });
-  const [filteredResults, setFilteredResults] = useState<string[]>([]);
   const [showAutocomplete, setShowAutocomplete] = useState<boolean>(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+
+  // Dynamic filtering logic using useMemo (Modern React)
+  const filteredResults = useMemo(() => {
+    if (mode !== 'first-time') return [];
+
+    // If no text typed and no chip selected, show empty suggestions list
+    if (chatInput.trim().length === 0 && selectedTags.length === 0) {
+      return [];
+    }
+
+    let filtered = metadata.papers;
+
+    // 1. Filter by ALL selected tags (Facet logic)
+    if (selectedTags.length > 0) {
+      filtered = filtered.filter(paper =>
+        selectedTags.every(tag => paper.toLowerCase().includes(tag.toLowerCase()))
+      );
+    }
+
+    // 2. Further filter by typing buffer
+    if (chatInput.trim().length > 0) {
+      filtered = filtered.filter(paper =>
+        paper.toLowerCase().includes(chatInput.toLowerCase())
+      );
+    }
+
+    return filtered.slice(0, 10);
+  }, [metadata.papers, selectedTags, chatInput, mode]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Check model selection permission once subscribe hook is available
+  useEffect(() => {
+    setCanSelectModel(checkPermission('model_selection'));
+  }, [checkPermission]);
   // Fetch metadata on mount
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -88,37 +120,46 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setChatInput(value);
-
-    if (value.trim().length > 0 && mode === 'first-time') {
-      const filtered = metadata.papers.filter(paper =>
-        paper.toLowerCase().includes(value.toLowerCase())
-      ).slice(0, 10);
-
-      setFilteredResults(filtered);
-      setShowAutocomplete(filtered.length > 0);
+    if (mode === 'first-time') {
+      setShowAutocomplete(true);
       setHighlightedIndex(-1);
-    } else {
-      setShowAutocomplete(false);
     }
   };
 
-  const addTagToInput = (tag: string) => {
-    // If tag already exists, don't add
-    if (chatInput.toLowerCase().includes(tag.toLowerCase())) {
-      setShowAutocomplete(false);
-      return;
-    }
+  const toggleFilterTag = (tag: string, categoryTags: string[] = []) => {
+    const isSelected = selectedTags.some(t => t.toLowerCase() === tag.toLowerCase());
 
-    setChatInput(prev => {
-      const trimmed = prev.trim();
-      return trimmed ? `${trimmed} ${tag}` : tag;
+    setSelectedTags(prev => {
+      if (isSelected) {
+        // Toggle OFF
+        return prev.filter(t => t.toLowerCase() !== tag.toLowerCase());
+      } else {
+        // Toggle ON: remove others in same category
+        const filtered = prev.filter(t =>
+          !categoryTags.some(ct => ct.toLowerCase() === t.toLowerCase())
+        );
+        return [...filtered, tag];
+      }
     });
-    setShowAutocomplete(false);
+
+    setShowAutocomplete(true);
+    setHighlightedIndex(-1);
     inputRef.current?.focus();
   };
 
+  const removeTag = (tagToRemove: string) => {
+    setSelectedTags(prev => prev.filter(tag => tag !== tagToRemove));
+    inputRef.current?.focus();
+  };
+
+  const combinedInput = React.useMemo(() => {
+    const tagsPart = selectedTags.length > 0 ? selectedTags.join(' ') : '';
+    const inputPart = chatInput.trim();
+    return tagsPart ? (inputPart ? `${tagsPart} ${inputPart}` : tagsPart) : inputPart;
+  }, [selectedTags, chatInput]);
+
   const handleSuggestionClick = (suggestion: string) => {
-    // For full paper suggestions, replace the entire input to keep it clean
+    // Click selected paper suggestion: populate input for confirmation
     setChatInput(suggestion);
     setShowAutocomplete(false);
     inputRef.current?.focus();
@@ -314,7 +355,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
   const handleSendClick = useCallback(() => {
     if (isProcessing) return;
-    const textToSend = chatInput.trim();
+    const textToSend = combinedInput;
     const fileToSend = imageFile;
     const filesToSend = imageFiles;
 
@@ -344,6 +385,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     }
 
     setChatInput('');
+    setSelectedTags([]);
     setPreviewImage(null);
     setImageFile(null);
     setPreviewImages([]);
@@ -356,14 +398,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     if (fileInput) {
       fileInput.value = '';
     }
-  }, [isProcessing, chatInput, imageFile, imageFiles, isMultiImage, mode, onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage]);
+  }, [isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode, onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage]);
 
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendClick();
+    } else if (e.key === 'Backspace' && chatInput === '' && selectedTags.length > 0) {
+      // If user presses Backspace with empty input, remove the last tag
+      removeTag(selectedTags[selectedTags.length - 1]);
     }
-  }, [handleSendClick]);
+  };
 
   const handleModelSelection = useCallback((newModel: string) => {
     // If user is trying to change away from 'auto' (or the current allowed default), check permissions
@@ -507,7 +552,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   disabled={isProcessing}
                   className="followup-text-input"
                   onFocus={() => {
-                    if (chatInput.trim().length > 0 && mode === 'first-time' && filteredResults.length > 0) {
+                    if (mode === 'first-time') {
                       setShowAutocomplete(true);
                     }
                   }}
@@ -528,7 +573,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   />
                 </div>
                 {/* 👇 FIX 2: Added the required `onError` prop. */}
-                <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !imageFiles.length && !chatInput?.trim())} loading={isProcessing} variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
+                {/* 👇 SendButton disabled logic updated to check combinedInput */}
+                <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !imageFiles.length && !combinedInput.trim())} loading={isProcessing} variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
               </div>
             </div>
           </div>
@@ -540,8 +586,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   {metadata.boards.map(board => (
                     <button
                       key={board}
-                      className={`filter-chip board ${chatInput.includes(board) ? 'active' : ''}`}
-                      onClick={() => addTagToInput(board)}
+                      className={`filter-chip board ${selectedTags.includes(board) ? 'active' : ''}`}
+                      onClick={() => toggleFilterTag(board, metadata.boards)}
                     >
                       {board}
                     </button>
@@ -549,8 +595,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   {metadata.tiers.map(tier => (
                     <button
                       key={tier}
-                      className={`filter-chip tier ${chatInput.includes(tier) ? 'active' : ''}`}
-                      onClick={() => addTagToInput(tier)}
+                      className={`filter-chip tier ${selectedTags.includes(tier) ? 'active' : ''}`}
+                      onClick={() => toggleFilterTag(tier, metadata.tiers)}
                     >
                       {tier}
                     </button>
