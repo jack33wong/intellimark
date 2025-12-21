@@ -116,6 +116,23 @@ export const MarkingPageProvider = ({
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive } = state;
 
+  // Auto-sync split mode images when session changes (persistent split mode)
+  useEffect(() => {
+    if (splitModeImages && currentSession) {
+      const newImages = getSessionImages(currentSession);
+      if (newImages && newImages.length > 0) {
+        // If the images are actually different, update them
+        // We compare first image URL/id for a simple check
+        if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length) {
+          dispatch({
+            type: 'ENTER_SPLIT_MODE',
+            payload: { images: newImages, index: 0 }
+          });
+        }
+      }
+    }
+  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length]);
+
   // Auto-enter split mode if requested via prop
   useEffect(() => {
     if (autoSplit && currentSession && selectedMarkingResult && currentSession.id === selectedMarkingResult.id) {
@@ -245,7 +262,6 @@ export const MarkingPageProvider = ({
     if (selectedMarkingResult) {
       loadSession(selectedMarkingResult);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
-      dispatch({ type: 'EXIT_SPLIT_MODE' });
     } else {
       clearSession();
       dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });

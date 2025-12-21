@@ -305,10 +305,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const getLastMessage = (session: any) => {
     const cleanContent = (content: string) => {
       if (!content) return '';
-      // Strip metadata markers like :::type:::marking or :::summary:::...
-      let clean = content.replace(/:::[^:]+:::[^:]+(?:::[^:]+:::)?/g, '').trim();
-      // Specifically handle the type marker if it leaks
-      clean = clean.replace(/:::type:::[a-z]+/gi, '').trim();
+      // Strip metadata markers like :::type:::marking, :::your-work:::, etc.
+      // Global regex to remove anything wrapped in triple colons
+      let clean = content.replace(/:::[^:]+:::/g, '').trim();
       // Strip markdown bolding
       clean = clean.replace(/\*\*/g, '');
       return clean;
