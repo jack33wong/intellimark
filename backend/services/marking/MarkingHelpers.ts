@@ -988,7 +988,7 @@ export function formatGroupedStudentWork(
   // Add main question student work if exists
   if (mainStudentWork && mainStudentWork !== 'null' && mainStudentWork.trim() !== '') {
     const lines = mainStudentWork.trim().split('\n');
-    const numberedLines = lines.map((line) => `[${globalLineIndex++}] ${line}`).join('\n');
+    const numberedLines = lines.map((line) => `[Line ${globalLineIndex++}] ${line}`).join('\n');
     parts.push(`[MAIN QUESTION STUDENT WORK]\n${numberedLines}`);
   }
 
@@ -997,7 +997,7 @@ export function formatGroupedStudentWork(
     if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
       const subQLabel = `[SUB-QUESTION ${subQ.part.toUpperCase()} STUDENT WORK]`;
       const lines = subQ.studentWork.trim().split('\n');
-      const numberedLines = lines.map((line) => `[${globalLineIndex++}] ${line}`).join('\n');
+      const numberedLines = lines.map((line) => `[Line ${globalLineIndex++}] ${line}`).join('\n');
       parts.push(`${subQLabel}\n${numberedLines}`);
     }
   });

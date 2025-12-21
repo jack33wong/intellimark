@@ -915,6 +915,29 @@ const enrichAnnotationsWithPositions = (
       );
     }
 
+    // FIX (Smart Validation): Prevent snapping to Header/Footer boilerplate
+    // Even if AI explicitly matched this block, we reject it if it contains known header text.
+    // This forces fallback to student work line (which is what we want).
+    if (originalStep && originalStep.text) {
+      const lowerText = originalStep.text.toLowerCase();
+      const forbiddenPhrases = [
+        'answer all questions',
+        'total for question',
+        'write your answers in the spaces provided',
+        'lines in your working',
+        'do not write in this area',
+        'indicate which question you are answering'
+      ];
+
+      const isForbidden = forbiddenPhrases.some(phrase => lowerText.includes(phrase));
+
+      if (isForbidden) {
+        console.log(`[Validation] Blocking match to header/footer block: "${originalStep.text.substring(0, 30)}..."`);
+        originalStep = undefined;
+        (anno as any).ocr_match_status = 'UNMATCHED';
+      }
+    }
+
     // [DEBUG LOCK Q6] - Track matching for Q6
     if (String(questionId).startsWith('6')) {
       const matchType = originalStep ? 'OCR BLOCK' : 'NO OCR MATCH';

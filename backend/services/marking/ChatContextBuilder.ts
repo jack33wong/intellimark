@@ -60,7 +60,7 @@ export class ChatContextBuilder {
                 // Use annotation.subQuestion directly as the part
                 const part = a.subQuestion || '';
 
-                // Use clean student text from AI response
+                // Clean student text
                 const studentWork = a.studentText || a.classificationText || '';
 
                 if (!partMap[part]) {
@@ -70,15 +70,36 @@ export class ChatContextBuilder {
                     };
                 }
 
-                // Add mark with its own student work
-                partMap[part].marks.push({
-                    code: a.text || '',
-                    icon: a.action || 'tick',
-                    reasoning: a.reasoning || '',
-                    stepId: a.step_id || '',
-                    work: studentWork, // Associate work directly with this mark
-                    unifiedStepId: a.unified_step_id
-                });
+                // FIX: Group marks if they refer to same work block (e.g. M1, A1 on same line)
+                // Check if we already have a mark entry for this EXACT student work in this part
+                const existingGroup = partMap[part].marks.find(m => m.work === studentWork && studentWork !== '');
+
+                if (existingGroup) {
+                    // Append this mark to existing entry
+                    existingGroup.code = `${existingGroup.code} ${a.text || ''}`.trim();
+                    // Merge icons if likely tick/cross
+                    if (a.action && a.action !== 'tick' && existingGroup.icon === 'tick') existingGroup.icon = a.action;
+
+                    // Merge reasoning with pipe separator
+                    if (a.reasoning) {
+                        existingGroup.reasoning = existingGroup.reasoning
+                            ? `${existingGroup.reasoning} | ${a.reasoning}`
+                            : a.reasoning;
+                    }
+
+                    // Keep stepId of first (primary) mark, or update if this one is more specific?
+                    // Let's keep first one as anchor.
+                } else {
+                    // Create new entry
+                    partMap[part].marks.push({
+                        code: a.text || '',
+                        icon: a.action || 'tick',
+                        reasoning: a.reasoning || '',
+                        stepId: a.step_id || '',
+                        work: studentWork, // Associate work directly with this mark
+                        unifiedStepId: a.unified_step_id
+                    });
+                }
             });
 
             // Convert map to array
