@@ -303,10 +303,22 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getLastMessage = (session: any) => {
+    const cleanContent = (content: string) => {
+      if (!content) return '';
+      // Strip metadata markers like :::type:::marking or :::summary:::...
+      let clean = content.replace(/:::[^:]+:::[^:]+(?:::[^:]+:::)?/g, '').trim();
+      // Specifically handle the type marker if it leaks
+      clean = clean.replace(/:::type:::[a-z]+/gi, '').trim();
+      // Strip markdown bolding
+      clean = clean.replace(/\*\*/g, '');
+      return clean;
+    };
+
     if (session?.lastMessage?.content) {
       const contentStr = ensureStringContent(session.lastMessage.content);
-      if (contentStr.trim().length > 0) {
-        return contentStr.length > 20 ? `${contentStr.substring(0, 20)}...` : contentStr;
+      const cleaned = cleanContent(contentStr);
+      if (cleaned.length > 0) {
+        return cleaned.length > 30 ? `${cleaned.substring(0, 30)}...` : cleaned;
       }
     }
 
@@ -314,8 +326,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       const lastMsgWithContent = [...session.messages].reverse().find(m => m.content && !m.isProcessing);
       if (lastMsgWithContent) {
         const contentStr = ensureStringContent(lastMsgWithContent.content);
-        if (contentStr.trim().length > 0) {
-          return contentStr.length > 20 ? `${contentStr.substring(0, 20)}...` : contentStr;
+        const cleaned = cleanContent(contentStr);
+        if (cleaned.length > 0) {
+          return cleaned.length > 30 ? `${cleaned.substring(0, 30)}...` : cleaned;
         }
       }
     }

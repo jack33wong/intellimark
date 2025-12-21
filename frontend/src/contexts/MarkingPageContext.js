@@ -245,9 +245,11 @@ export const MarkingPageProvider = ({
     if (selectedMarkingResult) {
       loadSession(selectedMarkingResult);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
+      dispatch({ type: 'EXIT_SPLIT_MODE' });
     } else {
       clearSession();
       dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+      dispatch({ type: 'EXIT_SPLIT_MODE' });
     }
   }, [selectedMarkingResult, loadSession, clearSession]);
 
