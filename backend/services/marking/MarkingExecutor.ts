@@ -5,9 +5,8 @@
 
 import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
-import type { MarkingInstructions, Annotation } from '../../types/index.js';
+import type { MarkingInstructions, Annotation, ModelType } from '../../types/index.js';
 import type { MathBlock } from '../ocr/MathDetectionService.js';
-import type { ModelType } from '../../config/aiModels.js';
 import type { PageOcrResult } from '../../types/markingRouter.js';
 import { formatGroupedStudentWork } from './MarkingHelpers.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
@@ -65,6 +64,7 @@ export interface QuestionResult {
   databaseQuestionText?: string; // Text from database match
   pageIndex?: number; // Primary page index for this question
   overallPerformanceSummary?: string; // AI-generated overall performance summary
+  cleanedOcrText?: string; // OCR text without LaTeX/markers
 }
 
 export interface EnrichedAnnotation extends Annotation {
@@ -878,6 +878,21 @@ const enrichAnnotationsWithPositions = (
       step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
     );
 
+    // FIX: If match found, trust it more than initially perceived UNMATCHED status
+    // BUT only if we don't have a specific student work line estimate or visual position.
+    // For Q6 (drawing questions), we prefer the student work position over a loose OCR match to the question text.
+    const hasStudentWorkPosition = (anno as any).lineIndex !== undefined || (anno as any).line_index !== undefined || visualPos;
+    if (originalStep && (anno as any).ocr_match_status === 'UNMATCHED' && !hasStudentWorkPosition) {
+      (anno as any).ocr_match_status = 'MATCHED';
+    }
+
+    // FIX: If match found but has empty bbox [0,0,0,0], treat as UNMATCHED to trigger robust fallbacks (Fixes Q16)
+    if (originalStep && originalStep.bbox && originalStep.bbox.length === 4 &&
+      originalStep.bbox[0] === 0 && originalStep.bbox[1] === 0 && originalStep.bbox[2] === 0 && originalStep.bbox[3] === 0) {
+      originalStep = undefined;
+      (anno as any).ocr_match_status = 'UNMATCHED';
+    }
+
 
 
     // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
@@ -1050,14 +1065,23 @@ const enrichAnnotationsWithPositions = (
 
       // If we found a classification position, use it
       if (classificationPosition) {
+        // COORDINATE CONVERSION: AI provides percentages (0-100), convert to pixels if dimensions available
+        const pageDims = pageDimensions?.get(classificationPosition.pageIndex);
+        let finalX = classificationPosition.x;
+        let finalY = classificationPosition.y;
+        let finalW = classificationPosition.width || 100;
+        let finalH = classificationPosition.height || 20;
+
+        if (pageDims) {
+          finalX = (finalX / 100) * pageDims.width;
+          finalY = (finalY / 100) * pageDims.height;
+          finalW = (finalW / 100) * pageDims.width;
+          finalH = (finalH / 100) * pageDims.height;
+        }
+
         return {
           ...anno,
-          bbox: [
-            classificationPosition.x,
-            classificationPosition.y,
-            classificationPosition.width || 100,
-            classificationPosition.height || 20
-          ] as [number, number, number, number],
+          bbox: [finalX, finalY, finalW, finalH] as [number, number, number, number],
           pageIndex: classificationPosition.pageIndex,
           unified_step_id: (anno as any).step_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED', // Preserve status for red border

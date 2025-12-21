@@ -288,7 +288,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getSessionTitle = (session: UnifiedSession) => {
-    const title = session.title || 'Chat Session';
+    let title = session.title || 'Chat Session';
+
+    // CLEANUP: Remove AI-generated markers and markdown (e.g. :::your-work, **Question 6**)
+    title = title.replace(/:::[^\s\n]+/g, '');
+    title = title.replace(/\*\*/g, '').replace(/###/g, '').trim();
+
     const maxLength = 50;
     return title.length > maxLength ? title.substring(0, maxLength) + '...' : title;
   };
@@ -305,11 +310,22 @@ const Sidebar: React.FC<SidebarProps> = ({
   const getLastMessage = (session: any) => {
     const cleanContent = (content: string) => {
       if (!content) return '';
-      // Strip metadata markers like :::type:::marking, :::your-work:::, etc.
-      // Global regex to remove anything wrapped in triple colons
-      let clean = content.replace(/:::[^:]+:::/g, '').trim();
-      // Strip markdown bolding
-      clean = clean.replace(/\*\*/g, '');
+
+      let clean = content;
+
+      // 1. Strip triple-colon blocks and markers (even if no closing colons)
+      clean = clean.replace(/:::[^\s\n]+/g, '');
+
+      // 2. Strip common labels often found inside blocks
+      const labels = ['YOUR WORK:', 'REASONING:', 'SUMMARY:', 'CONTEXT:', 'STUDENT WORK:'];
+      labels.forEach(label => {
+        const regex = new RegExp(label, 'gi');
+        clean = clean.replace(regex, '');
+      });
+
+      // 3. Strip markdown bolding and trim
+      clean = clean.replace(/\*\*/g, '').replace(/###/g, '').trim();
+
       return clean;
     };
 

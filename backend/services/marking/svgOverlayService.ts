@@ -444,17 +444,8 @@ export class SVGOverlayService {
       y = aiY_orig - (aiH_orig / 2);
       width = aiW_px;
       height = aiH_orig;
-    } else if (ocrStatus === 'UNMATCHED') {
-      // NEW/RESTORED: Handle UNMATCHED status where bbox itself is in percentages (0-100)
-      const originalWidth = actualWidth / scaleX;
-      const originalHeight = actualHeight / scaleY;
-
-      x = (x / 100) * originalWidth;
-      y = (y / 100) * originalHeight;
-      width = (width / 100) * originalWidth;
-      height = (height / 100) * originalHeight;
     } else {
-      // TRUST_OCR case
+      // TRUST_OCR case: Upstream (MarkingExecutor) now consistently provides bbox in pixels for all statuses
       if (aiW_px > 0) {
         width = aiW_px;
       }

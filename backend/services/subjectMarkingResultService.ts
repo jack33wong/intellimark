@@ -116,7 +116,7 @@ export function convertMarkingResultToSubjectFormat(
         examBoard: firstExamPaper.examBoard || '',
         examCode: firstExamPaper.examCode || '',
         examSeries: firstExamPaper.examSeries || '',
-        qualification: firstExamPaper.qualification || 'GCSE', // Default to GCSE if not specified
+        qualification: 'GCSE', // Unified to GCSE
         tier: firstExamPaper.tier || ''
       },
       questionResults,

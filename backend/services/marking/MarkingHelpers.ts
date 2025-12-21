@@ -68,16 +68,21 @@ export function getShortSubjectName(qualification: string): string {
 // Common function to generate session titles for non-past-paper images
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   if (extractedQuestionText && extractedQuestionText.trim()) {
-    const questionText = extractedQuestionText.trim();
+    let questionText = extractedQuestionText.trim();
 
-    // Handle cases where extraction failed
-    if (questionText.toLowerCase().includes('unable to extract') ||
+    // CLEANUP: Remove AI-generated markers and markdown (e.g. :::your-work, **Question 6**)
+    questionText = questionText.replace(/:::[^\s\n]+/g, '');
+    questionText = questionText.replace(/\*\*/g, '').replace(/###/g, '').trim();
+
+    // Handle cases where extraction failed after cleaning
+    if (!questionText ||
+      questionText.toLowerCase().includes('unable to extract') ||
       questionText.toLowerCase().includes('no text detected') ||
       questionText.toLowerCase().includes('extraction failed')) {
       return `${mode} - ${new Date().toLocaleDateString()}`;
     }
 
-    // Use the truncated question text directly - much simpler and more reliable
+    // Use the truncated question text directly
     const truncatedText = questionText.length > 30
       ? questionText.substring(0, 30) + '...'
       : questionText;

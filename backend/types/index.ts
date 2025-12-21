@@ -305,6 +305,9 @@ export interface UnifiedMessage {
   // AI-generated performance summary (for marking messages)
   performanceSummary?: string;
 
+  // Individual question responses with annotations
+  questionResponses?: any[];
+
   // Firestore metadata
   createdAt?: string;
   updatedAt?: string;
@@ -414,6 +417,9 @@ export interface UnifiedSession {
       mathpixCost: number;       // Mathpix API cost
     };
   };
+
+  // Exam-level question detection (matches UnifiedMessage.detectedQuestion)
+  detectedQuestion?: DetectedQuestion;
 }
 
 

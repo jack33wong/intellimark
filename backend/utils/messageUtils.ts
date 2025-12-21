@@ -203,6 +203,7 @@ export interface AIMessageOptions {
   detectedQuestion?: DetectedQuestion;
   markingContext?: import('../types/index.js').MarkingContext;
   contextQuestionId?: string;
+  questionResponses?: any[]; // Container for individual question marking data and annotations
 }
 
 /**
@@ -291,7 +292,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     messageId,
     category,
     suggestedFollowUps,
-    contextQuestionId
+    contextQuestionId,
+    questionResponses
   } = options;
 
   // Determine message type based on content and context
@@ -335,7 +337,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     suggestedFollowUps,
     markingContext: options.markingContext,
     progressData: progressData,
-    contextQuestionId: contextQuestionId
+    contextQuestionId: contextQuestionId,
+    questionResponses: questionResponses // RESTORED: Vital for annotations display
   };
 
 

@@ -1,4 +1,4 @@
-import { StandardizedPage } from '../types/types';
+import { StandardizedPage } from '../../types/markingRouter.js';
 
 interface SplitResult {
     // Structures for each mode (re-indexed with consecutive indices)

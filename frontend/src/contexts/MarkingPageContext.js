@@ -116,6 +116,13 @@ export const MarkingPageProvider = ({
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive } = state;
 
+  // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
+  useEffect(() => {
+    if (selectedMarkingResult) {
+      loadSession(selectedMarkingResult);
+    }
+  }, [selectedMarkingResult, loadSession]);
+
   // Auto-sync split mode images when session changes (persistent split mode)
   useEffect(() => {
     if (splitModeImages && currentSession) {
