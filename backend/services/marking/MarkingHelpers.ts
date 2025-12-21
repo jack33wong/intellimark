@@ -1308,6 +1308,69 @@ export function calculateOverallScore(
   };
 }
 
+export interface BaseQuestionScore {
+  questionNumber: string;
+  awarded: number;
+  total: number;
+  scoreText: string;
+}
+
+/**
+ * Calculate scores for each base question and identify their first occurrence page.
+ * Avoids the "Per-Page" aggregation that confuses users when questions span pages.
+ */
+export function calculateQuestionFirstPageScores(
+  allQuestionResults: QuestionResult[],
+  classificationResult: any
+): Map<number, BaseQuestionScore[]> {
+  const pageToScores = new Map<number, BaseQuestionScore[]>();
+  const baseQData = new Map<string, { awarded: number; total: number; minPage: number }>();
+
+  allQuestionResults.forEach(qr => {
+    const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
+
+    // Determine earliest page index for THIS specific result
+    let minPageForThisPart = Infinity;
+    if (qr.annotations && qr.annotations.length > 0) {
+      qr.annotations.forEach(anno => {
+        if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+          minPageForThisPart = Math.min(minPageForThisPart, anno.pageIndex);
+        }
+      });
+    }
+
+    // Fallback if no annotations or valid pageIndex in them
+    if (minPageForThisPart === Infinity) {
+      minPageForThisPart = getPageIndexFromQuestionResult(qr, classificationResult);
+    }
+
+    if (!baseQData.has(baseQNum)) {
+      const qTotalMarks = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0;
+      baseQData.set(baseQNum, { awarded: 0, total: qTotalMarks, minPage: minPageForThisPart });
+    }
+
+    const data = baseQData.get(baseQNum)!;
+    data.awarded += qr.score?.awardedMarks || 0;
+    data.minPage = Math.min(data.minPage, minPageForThisPart);
+  });
+
+  // Convert to map of pageIndex -> List of scores
+  baseQData.forEach((data, baseQNum) => {
+    const pageIndex = data.minPage === Infinity ? 0 : data.minPage;
+    if (!pageToScores.has(pageIndex)) {
+      pageToScores.set(pageIndex, []);
+    }
+    pageToScores.get(pageIndex)!.push({
+      questionNumber: baseQNum,
+      awarded: data.awarded,
+      total: data.total,
+      scoreText: `${data.awarded}/${data.total}`
+    });
+  });
+
+  return pageToScores;
+}
+
 /**
  * Calculate per-page scores from question results
  * Groups by page index and avoids double-counting sub-questions

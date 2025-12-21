@@ -483,7 +483,8 @@ export class MarkingInstructionService {
           action: anno.action,
           reasoning: anno.reasoning,
           line_index: anno.line_index,
-          ocr_match_status: anno.ocr_match_status // NEW: Preserve AI's match status
+          ocr_match_status: anno.ocr_match_status, // NEW: Preserve AI's match status
+          bbox: anno.bbox // NEW: Preserve pre-calculated bbox
         };
       });
 

@@ -205,6 +205,21 @@ export class QuestionDetectionService {
 
       if (hintMetadata) {
         hintMetadata.poolSize = currentPoolSize;
+
+        // Mark as "Deep Search" if we are searching ALL papers (no hint or hint matched nothing)
+        if (!examPaperHint || primaryPapers.length === 0) {
+          hintMetadata.deepSearchActive = true;
+          hintMetadata.hintUsed = 'Global (Full Database)';
+        }
+      } else if (!examPaperHint) {
+        // Create basic hint metadata for global search stats
+        hintMetadata = {
+          hintUsed: 'Global (Full Database)',
+          matchedPapersCount: allExamPapers.length,
+          thresholdRelaxed: false,
+          poolSize: currentPoolSize,
+          deepSearchActive: true
+        };
       }
 
       if (examPapers.length === 0) {
@@ -213,10 +228,6 @@ export class QuestionDetectionService {
           message: 'No exam papers found in database'
         };
       }
-
-      // Scenario identification
-      const isUniqueHint = examPaperHint && examPaperHint.trim().length > 0 && examPapers.length === 1;
-      const isPartialHint = examPaperHint && examPaperHint.trim().length > 0 && examPapers.length > 1;
 
       // Try to match with each exam paper in the current pool
       let bestMatch: ExamPaperMatch | null = null;
@@ -233,11 +244,22 @@ export class QuestionDetectionService {
             bestFailedMatch = match;
             bestScore = match.confidence;
 
-            // Only accept as bestMatch if above strict threshold
-            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+            // RELAXED THRESHOLD: If searching a specific hinted pool, be more lenient
+            // (0.50 -> 0.40 for main questions, 0.40 -> 0.35 for sub-questions)
+            const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
+            const threshold = isSpecificSearch
+              ? (match.subQuestionNumber ? 0.35 : 0.40)
+              : (match.subQuestionNumber ? 0.40 : 0.50);
 
             if (match.confidence >= threshold) {
               bestMatch = match;
+
+              // Mark as threshold relaxed if it wouldn't have passed the strict check
+              const strictThreshold = match.subQuestionNumber ? 0.40 : 0.50;
+              if (isSpecificSearch && match.confidence < strictThreshold && hintMetadata) {
+                hintMetadata.thresholdRelaxed = true;
+              }
+
               // Calculate text similarity for tie-breaking
               if (match.databaseQuestionText) {
                 const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
@@ -249,7 +271,7 @@ export class QuestionDetectionService {
           else if (match.confidence === bestScore && match.databaseQuestionText) {
             const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
 
-            // PREFIX TIE-BREAKER (Old Design): prefer match that starts with same words
+            // PREFIX TIE-BREAKER: prefer match that starts with same words
             const classificationStart = normalizeTextForComparison(extractedQuestionText.substring(0, 60));
             const databaseStart = normalizeTextForComparison(match.databaseQuestionText.substring(0, 60));
             const classificationPrefix = classificationStart.substring(0, Math.min(30, classificationStart.length));
@@ -268,53 +290,61 @@ export class QuestionDetectionService {
                   classificationPrefix.startsWith(bestDbPrefix.substring(0, 20)));
             }
 
-            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+            const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
+            const threshold = isSpecificSearch
+              ? (match.subQuestionNumber ? 0.35 : 0.40)
+              : (match.subQuestionNumber ? 0.40 : 0.50);
 
             if (match.confidence >= threshold && (!bestMatch || !bestTextMatch ||
               (startsMatch && !bestStartsMatch) ||
               (textSimilarity > bestTextMatch.textSimilarity))) {
               bestMatch = match;
               bestTextMatch = { match, textSimilarity };
-            }
-          }
-        }
-      }
 
-      // SUB-QUESTION FALLBACK: Try base number search WITHIN current pool if needed
-      if (!bestMatch && effectiveHint && /[a-z]+$/i.test(effectiveHint)) {
-        const baseQuestionNumber = effectiveHint.replace(/[a-z]+$/i, '');
-        if (baseQuestionNumber && baseQuestionNumber !== effectiveHint) {
-          for (const examPaper of examPapers) {
-            const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, baseQuestionNumber);
-            if (match && match.confidence) {
-              const threshold = match.subQuestionNumber ? 0.4 : 0.50;
-              if (match.confidence > bestScore && match.confidence >= threshold) {
-                bestScore = match.confidence;
-                bestMatch = match;
+              // Mark as threshold relaxed
+              const strictThreshold = match.subQuestionNumber ? 0.40 : 0.50;
+              if (isSpecificSearch && match.confidence < strictThreshold && hintMetadata) {
+                hintMetadata.thresholdRelaxed = true;
               }
             }
           }
         }
       }
 
-      // DEEP SEARCH FALLBACK: Scenario 2 & 3 only
-      // Scenario 1 (Unique Hint) explicitly DOES NOT fallback to global search internally
-      if (!bestMatch && !isUniqueHint && (isPartialHint || !examPaperHint)) {
-        if (hintMetadata) {
-          hintMetadata.deepSearchActive = true;
-          hintMetadata.poolSize = totalDatabaseQuestions;
-        }
+      // SUB-QUESTION FALLBACK: Try base number search WITHIN current pool if matching failed
+      if (!bestMatch && effectiveHint && /[a-z]+$/i.test(effectiveHint)) {
+        const baseQuestionNumber = effectiveHint.replace(/[a-z]+$/i, '');
+        if (baseQuestionNumber && baseQuestionNumber !== effectiveHint) {
+          // Reset and try again with base number
+          bestMatch = null;
+          bestScore = 0;
+          bestTextMatch = null;
 
-        for (const examPaper of allExamPapers) {
-          // Skip if we already searched this paper in the pool
-          if (isPartialHint && examPapers.some(p => p.id === examPaper.id)) continue;
+          for (const examPaper of examPapers) {
+            const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, baseQuestionNumber);
+            if (match && match.confidence) {
+              if (match.confidence > bestScore) {
+                bestScore = match.confidence;
+                const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
+                const threshold = isSpecificSearch
+                  ? (match.subQuestionNumber ? 0.35 : 0.40)
+                  : (match.subQuestionNumber ? 0.40 : 0.50);
 
-          const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
-          if (match && match.confidence) {
-            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
-            if (match.confidence > bestScore && match.confidence >= threshold) {
-              bestScore = match.confidence;
-              bestMatch = match;
+                if (match.confidence >= threshold) {
+                  bestMatch = match;
+
+                  // Mark as threshold relaxed
+                  const strictThreshold = match.subQuestionNumber ? 0.40 : 0.50;
+                  if (isSpecificSearch && match.confidence < strictThreshold && hintMetadata) {
+                    hintMetadata.thresholdRelaxed = true;
+                  }
+
+                  if (match.databaseQuestionText) {
+                    const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+                    bestTextMatch = { match, textSimilarity };
+                  }
+                }
+              }
             }
           }
         }
@@ -386,14 +416,11 @@ export class QuestionDetectionService {
       const tier = (metadata.tier || '').toLowerCase();
       const subject = (metadata.subject || '').toLowerCase();
 
-      // A paper matches if ALL keywords from the hint are found in its collective metadata
-      return keywords.every(keyword =>
-        board.includes(keyword) ||
-        code.includes(keyword) ||
-        series.includes(keyword) ||
-        tier.includes(keyword) ||
-        subject.includes(keyword)
-      );
+      // FUZZY MATCHING: A paper matches if ALL keywords from the hint are found in its collective metadata.
+      // We previously had a bug where finding the 'board' or 'code' in the hint would bypass the per-keyword requirement.
+      const combinedStrings = `${board} ${code} ${series} ${tier} ${subject}`.toLowerCase();
+
+      return keywords.every(keyword => combinedStrings.includes(keyword));
     });
   }
 
@@ -476,11 +503,20 @@ export class QuestionDetectionService {
           }
 
           // Match hierarchically: sub-question to sub-question, main to main
-          const isNumberMatch = isSubQuestionHint ? (baseQuestionNumber === baseHint) : (questionNumber === questionNumberHint);
-
-          // If we have a hint but the number doesn't match, we are very skeptical.
-          // We only allow this if similarity is extremely high (> 0.8) later.
-          const strictNumberSkip = questionNumberHint && !isNumberMatch;
+          // If hint is a sub-question (e.g., "2a"), only match against main questions with matching base number
+          // Then check sub-questions of that main question
+          // If hint is a main question (e.g., "2"), only match against main questions
+          if (isSubQuestionHint) {
+            // For sub-question hints, only consider if base question numbers match
+            if (baseQuestionNumber !== baseHint) {
+              continue; // Skip this question - different base number
+            }
+          } else if (questionNumberHint) {
+            // For main question hints, only match exact question numbers
+            if (questionNumber !== questionNumberHint) {
+              continue; // Skip this question - different question number
+            }
+          }
 
           // If hint is a sub-question (e.g., "2a", "12i"), match against sub-questions only
           if (isSubQuestionHint) {
@@ -547,15 +583,14 @@ export class QuestionDetectionService {
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
 
                 if (subSimilarity > bestScore) {
-                  // If numbers don't match, require very high similarity (>0.8)
-                  if (strictNumberSkip && subSimilarity < 0.8) continue;
-
                   bestScore = subSimilarity;
                   bestQuestionMatch = questionNumber;
                   bestMatchedQuestion = question;
                   bestSubQuestionNumber = subQuestionPart; // Use DB version
-                } else if (isNumberMatch && subSimilarity >= 0) {
-                  // Forced Match for exact number matches (handles empty text)
+                } else if ((normalizedSubPart === normalizedHint || isMatch) && subSimilarity >= 0.2) {
+                  // Fallback: Sub-question part matches but text similarity is low
+                  // Use lower confidence (0.5) but still accept the match
+                  // This handles cases where classification text format differs but sub-question part is correct
                   if (bestScore < 0.5) {
                     bestScore = 0.5;
                     bestQuestionMatch = questionNumber;
@@ -573,21 +608,10 @@ export class QuestionDetectionService {
 
 
               if (similarity > bestScore) {
-                // If numbers don't match, require very high similarity (>0.8)
-                if (strictNumberSkip && similarity < 0.8) continue;
-
                 bestScore = similarity;
                 bestQuestionMatch = questionNumber;
                 bestMatchedQuestion = question;
                 bestSubQuestionNumber = ''; // Reset sub-question
-              } else if (isNumberMatch && similarity >= 0) {
-                // Forced Match for exact number matches (handles empty text)
-                if (bestScore < 0.5) {
-                  bestScore = 0.5;
-                  bestQuestionMatch = questionNumber;
-                  bestMatchedQuestion = question;
-                  bestSubQuestionNumber = '';
-                }
               }
             }
           }
@@ -624,8 +648,18 @@ export class QuestionDetectionService {
             }
 
 
-            const isNumberMatch = isSubQuestionHint ? (baseQuestionNumber === baseHint) : (questionNumber === questionNumberHint);
-            const strictNumberSkip = questionNumberHint && !isNumberMatch;
+            // Match hierarchically: sub-question to sub-question, main to main
+            if (isSubQuestionHint) {
+              // For sub-question hints, only consider if base question numbers match
+              if (baseQuestionNumber !== baseHint) {
+                continue; // Skip this question - different base number
+              }
+            } else if (questionNumberHint) {
+              // For main question hints, only match exact question numbers
+              if (actualQuestionNumber !== questionNumberHint) {
+                continue; // Skip this question - different question number
+              }
+            }
 
             // If hint is a sub-question, match against sub-questions only
             if (isSubQuestionHint) {
@@ -644,17 +678,15 @@ export class QuestionDetectionService {
 
                   const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
                   if (subSimilarity > bestScore) {
-                    if (strictNumberSkip && subSimilarity < 0.8) continue;
-
                     bestScore = subSimilarity;
-                    bestQuestionMatch = questionNumber;
+                    bestQuestionMatch = actualQuestionNumber;
                     bestMatchedQuestion = questionData;
                     bestSubQuestionNumber = subQuestionPart;
-                  } else if (isNumberMatch && normalizedSubPart === normalizedHint && subSimilarity >= 0) {
+                  } else if (normalizedSubPart === normalizedHint && subSimilarity >= 0.2) {
                     // Forced match for sub-questions
                     if (bestScore < 0.5) {
                       bestScore = 0.5;
-                      bestQuestionMatch = questionNumber;
+                      bestQuestionMatch = actualQuestionNumber;
                       bestMatchedQuestion = questionData;
                       bestSubQuestionNumber = subQuestionPart;
                     }
@@ -666,20 +698,10 @@ export class QuestionDetectionService {
               const similarity = this.calculateSimilarity(questionText, questionContent);
 
               if (similarity > bestScore) {
-                if (strictNumberSkip && similarity < 0.8) continue;
-
                 bestScore = similarity;
-                bestQuestionMatch = questionNumber;
+                bestQuestionMatch = actualQuestionNumber;
                 bestMatchedQuestion = questionData;
                 bestSubQuestionNumber = ''; // Reset sub-question
-              } else if (isNumberMatch && similarity >= 0) {
-                // Forced match for main questions
-                if (bestScore < 0.5) {
-                  bestScore = 0.5;
-                  bestQuestionMatch = questionNumber;
-                  bestMatchedQuestion = questionData;
-                  bestSubQuestionNumber = '';
-                }
               }
             }
           }

@@ -41,6 +41,7 @@ export interface RawAIAnnotation {
     reasoning?: string;
     line_index?: number;
     ocr_match_status?: string; // NEW: Preserve AI's match status
+    bbox?: [number, number, number, number]; // NEW: Preserve pre-calculated bbox
 }
 
 export interface AIContext {
@@ -223,7 +224,6 @@ export function createAnnotationFromAI(
         text: aiAnnotation.text,
         subQuestion: aiAnnotation.subQuestion,
         page,
-        bbox: undefined, // No bbox until OCR enrichment
         aiPosition,
         stepId: aiAnnotation.step_id,
         ocrSource: undefined,
@@ -233,7 +233,8 @@ export function createAnnotationFromAI(
         aiMatchStatus: aiAnnotation.ocr_match_status, // Preserve AI's match status
         studentText: aiAnnotation.student_text, // NEW: Preserve for UNMATCHED classification matching
         classificationText: aiAnnotation.classification_text, // NEW: Preserve alternative text source
-        lineIndex: aiAnnotation.line_index // NEW: Preserve for classification line mapping
+        lineIndex: aiAnnotation.line_index, // NEW: Preserve for classification line mapping
+        bbox: aiAnnotation.bbox as BoundingBox | undefined // NEW: Preserve pre-calculated bbox
     };
 }
 
@@ -374,7 +375,11 @@ export function processAnnotations(
     return aiAnnotations
         .map(ai => createAnnotationFromAI(ai, aiContext))
         .map(anno => mapToGlobalPage(anno, context.sourcePages))
-        .map(anno => context.ocrBlocks ? enrichWithOCRBbox(anno, context.ocrBlocks) : anno);
+        .map(anno => {
+            // Priority: Existing bbox (if set by caller) > OCR match
+            if (anno.bbox) return anno;
+            return context.ocrBlocks ? enrichWithOCRBbox(anno, context.ocrBlocks) : anno;
+        });
 }
 
 // ============================================================================
@@ -414,7 +419,7 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         text: annotation.text,
         pageIndex: annotation.page.global as number,
         subQuestion: annotation.subQuestion,
-        bbox: annotation.bbox,
+        bbox: bbox, // FIX: Use the resolved 'bbox' variable instead of annotation.bbox
         aiPosition: annotation.aiPosition,
         step_id: annotation.stepId,
         ocrSource: annotation.ocrSource,

@@ -154,7 +154,7 @@ STUDENT WORK(STRUCTURED):
 ${classificationStudentWork}
 
 ${rawOcrBlocks ? `
-RAW OCR BLOCKS (For Reference):
+RAW OCR BLOCKS [REFERENCE ONLY - NOT STUDENT WORK]:
 ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
 ` : ''
         }

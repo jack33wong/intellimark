@@ -219,20 +219,44 @@ export default function YourWorkSection({ content, MarkdownMathRenderer }: YourW
         return parsedRows;
     }, [content]);
 
-    if (rows.length === 0) return null;
+    // SECOND PASS: Identify groups of marks belonging to the same (sub-)question and decide whether to show bullets
+    const processedRows = useMemo(() => {
+        const counts: Record<string, number> = {};
+        let currentParentQ = '';
+        let currentParentSub = '';
+
+        // 1. First pass to calculate counts
+        const rowsWithMeta = rows.map(row => {
+            if (row.qNum) currentParentQ = row.qNum;
+            if (row.subLabel) currentParentSub = row.subLabel;
+
+            const key = `${currentParentQ}_${currentParentSub}`;
+            counts[key] = (counts[key] || 0) + 1;
+            return { ...row, key };
+        });
+
+        // 2. Second pass to add showBullet flag
+        return rowsWithMeta.map(row => ({
+            ...row,
+            showBullet: counts[row.key] > 1
+        }));
+    }, [rows]);
+
+    if (processedRows.length === 0) return null;
 
     return (
         <div className="your-work-section">
             <div className="your-work-header">YOUR WORK:</div>
 
             <div className="your-work-grid-container">
-                {rows.map((row, i) => (
+                {processedRows.map((row, i) => (
                     <React.Fragment key={i}>
                         <div className="yw-col-qnum">{row.qNum}</div>
-                        <div className="yw-col-work">
-                            <span className="yw-sublabel-inline">
-                                {row.subLabel ? row.subLabel : <span className="yw-bullet">●</span>}
-                            </span>
+                        <div className="yw-col-sublabel">{row.subLabel}</div>
+                        {row.showBullet && (
+                            <div className="yw-col-bullet">•</div>
+                        )}
+                        <div className={`yw-col-work ${!row.showBullet ? 'yw-no-bullet' : ''}`}>
                             {MarkdownMathRenderer ? (
                                 <MarkdownMathRenderer
                                     content={row.studentWork}

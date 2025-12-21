@@ -854,14 +854,19 @@ const enrichAnnotationsWithPositions = (
 
     // FIX START: Extract sub-question target early so it's available for ALL paths (Visual, Unmatched, etc.)
     // FIX START: Infer sub-question from Page Content (Classification Blocks)
-    let targetSubQ: string | undefined;
-
-    // Simple page-based inference - only for debugging, NOT for production use
-    // This was causing pageIndex mismatches and breaking Q3b/Q11
-    // Removed complex spatial matching logic
-    // FIX END
-
-    // FIX END
+    // AI response includes 'subQuestion' (e.g., 'a', '6a', etc.)
+    let targetSubQ: string | undefined = (anno as any).subQuestion;
+    if (targetSubQ === 'null' || !targetSubQ) {
+      targetSubQ = undefined;
+    } else {
+      // Normalize targetSubQ: strip question number if present (e.g. "6a" -> "a")
+      const qNumStr = String(questionId);
+      if (targetSubQ.startsWith(qNumStr)) {
+        targetSubQ = targetSubQ.substring(qNumStr.length).toLowerCase();
+      } else {
+        targetSubQ = targetSubQ.toLowerCase();
+      }
+    }
 
     // Trim both IDs to protect against hidden whitespace
     const aiStepId = (anno as any).step_id?.trim();
@@ -894,8 +899,15 @@ const enrichAnnotationsWithPositions = (
       originalStep = stepsDataForMapping.find(step =>
         step.globalBlockId?.trim() === aiStepId
       );
+    }
 
-
+    // [DEBUG LOCK Q6] - Track matching for Q6
+    if (String(questionId).startsWith('6')) {
+      const matchType = originalStep ? 'OCR BLOCK' : 'NO OCR MATCH';
+      console.log(`[DEBUG LOCK Q${questionId}] Annotation: "${anno.text}" | StepID: ${aiStepId} | SubQ: ${targetSubQ || 'none'} | Status: ${matchType}`);
+      if (originalStep) {
+        console.log(`[DEBUG LOCK Q${questionId}]   ↳ Matched to OCR Text: "${(originalStep.text || '').substring(0, 50)}..."`);
+      }
     }
 
     // Special handling for [DRAWING] annotations
@@ -1026,7 +1038,14 @@ const enrichAnnotationsWithPositions = (
               ...line.position,
               pageIndex: line.pageIndex
             };
+
+            if (String(questionId).startsWith('6')) {
+              console.log(`[DEBUG LOCK Q${questionId}]   ↳ UNMATCHED fallback: Using student work position estimate (Line ${lineIndex + 1}: "${(line.text || '').substring(0, 30)}...")`);
+              console.log(`[DEBUG LOCK Q${questionId}]   ↳ Position: [${classificationPosition.x.toFixed(0)}, ${classificationPosition.y.toFixed(0)}, ${classificationPosition.width?.toFixed(0) || 100}, ${classificationPosition.height?.toFixed(0) || 20}] | Page: ${classificationPosition.pageIndex}`);
+            }
           }
+        } else if (String(questionId).startsWith('6')) {
+          console.log(`[DEBUG LOCK Q${questionId}]   ↳ UNMATCHED fallback: Line index ${lineIndex + 1} out of range (Total lines: ${allLines.length})`);
         }
       }
 
@@ -1277,6 +1296,16 @@ const enrichAnnotationsWithPositions = (
           ocr_match_status: 'UNMATCHED',
           subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
+      }
+
+      // [DEBUG LOCK Q6] - Log final result
+      if (String(questionId).startsWith('6')) {
+        const result = originalStep || (anno as any).ocr_match_status === 'UNMATCHED';
+        if (result) {
+          // Log what we're actually returning
+          const pIdx = (originalStep?.pageIndex ?? (anno as any).pageIndex ?? defaultPageIndex);
+          console.log(`[DEBUG LOCK Q${questionId}] Result: ${anno.text} | Page: ${pIdx} | Status: ${(anno as any).ocr_match_status}`);
+        }
       }
 
       // Final fallback if absolutely no blocks found (rare)

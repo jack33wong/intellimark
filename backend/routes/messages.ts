@@ -37,23 +37,20 @@ function formatYourWorkSection(parts: QuestionPart[], questionNumber: string): s
 
   let output = `:::your-work\n`;
   output += `YOUR WORK:\n`;
-  output += `\t${questionNumber}\n`;
 
-  // Group parts by parent letter for nesting
-  const grouped: { [key: string]: { label: string; children: { label: string; marks: any[] }[] } } = {};
+  output += `${questionNumber}\n`;
 
-  parts.forEach(part => {
-    // Display each mark with its work on same line
-    part.marks.forEach(mark => {
+  parts.forEach((part) => {
+    part.marks.forEach((mark, markIdx) => {
       const cleanWork = mark.work ? convertLatexToHtml(mark.work) : '';
 
-      // Format: part) work -- marks - reasoning
-      if (part.part) {
-        output += `\t\t${part.part}) ${cleanWork} -- ${mark.code} - ${mark.reasoning}\n`;
-      } else {
-        // Main question (no part label)
-        output += `\t\t${cleanWork} -- ${mark.code} - ${mark.reasoning}\n`;
-      }
+      // First mark of a part (a, b...) gets the label
+      const partLabel = (markIdx === 0 && part.part) ? `${part.part}) ` : '';
+
+      // Alignment padding: if we don't have a part label (subsequent marks), we must pad its space
+      const partPadding = (markIdx > 0 && part.part) ? ' '.repeat(part.part.length + 2) : '';
+
+      output += `${partLabel}${partPadding}${cleanWork} -- ${mark.code} - ${mark.reasoning}\n`;
     });
   });
 

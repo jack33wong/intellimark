@@ -135,7 +135,7 @@ export class MarkingSchemeOrchestrationService {
           detected: true,
           similarity,
           hasMarkingScheme,
-          matchedPaperTitle: detectionResult.match?.markingScheme?.examDetails?.paper || detectionResult.hintMetadata?.matchedPaperTitle
+          matchedPaperTitle: detectionResult.match?.paperTitle // ✅ Use unified title
         });
 
         detectionResults.push({ question, detectionResult });
@@ -182,88 +182,67 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // ALL-OR-NOTHING CHECK (Scenario 1)
-    // If a unique hint was given (1 paper pool) and we didn't find 100% of questions, the hint is likely wrong.
+    // --- RECOVERY LOGIC (Rescue Restart) ---
+    // If a hint was given but results are poor, messy, or inconsistent, 
+    // we discard the hint and restart detection GLOBALLY.
+
     const hintInfo = detectionStats.hintInfo;
-    const isScenario1 = hintInfo && hintInfo.matchedPapersCount === 1;
+    if (hintInfo) {
+      const hintUsed = hintInfo.hintUsed || '';
+      const matchedPapersCount = hintInfo.matchedPapersCount || 0;
+      const detectedCount = detectionStats.detected;
+      const totalCount = detectionStats.totalQuestions;
+      const detectionRate = totalCount > 0 ? detectedCount / totalCount : 0;
 
-    if (isScenario1 && detectionStats.detected < detectionStats.totalQuestions) {
-      console.log(`\x1b[31m[HINT] ⚠️ Unique Hint Adherence Failed! Only ${detectionStats.detected}/${detectionStats.totalQuestions} questions found in "${hintInfo.hintUsed}".\x1b[0m`);
-      console.log(`\x1b[33m[HINT] Discarding hint and restarting detection GLOBALLY for document consistency...\x1b[0m`);
+      // Calculate how many distinct papers we've matched against
+      const distinctPapers = new Set(detectionStats.questionDetails
+        .filter(q => q.detected && q.matchedPaperTitle)
+        .map(q => q.matchedPaperTitle)
+      );
 
-      // Restart detection without the hint (Scenario 3)
-      return this.orchestrateMarkingSchemeLookup(individualQuestions, null);
-    }
+      let shouldRestart = false;
+      let restartReason = '';
 
-    // BATCH CONSISTENCY: Paper Locking
-    // Identify the "Winner Paper" (the one that matched the most questions with high confidence)
-    const paperCounts = new Map<string, { count: number; examPaper: any; paperTitle: string }>();
-    for (const { detectionResult } of detectionResults) {
-      if (detectionResult.found && detectionResult.match) {
-        const title = detectionResult.match.paperTitle || 'Unknown';
-        if (!paperCounts.has(title)) {
-          paperCounts.set(title, {
-            count: 0,
-            examPaper: detectionResult.match.examPaper,
-            paperTitle: title
-          });
-        }
-        // Only count strong matches for voting
-        if ((detectionResult.match.confidence || 0) >= 0.70) {
-          paperCounts.get(title)!.count++;
-        }
+      // Scenario 1: Frankenstein Result (Inconsistent Papers)
+      // Even if detection is high, if questions came from multiple papers in the hint-pool,
+      // it's a "messy" match and a global search might find the ONE true paper.
+      if (detectedCount > 0 && distinctPapers.size > 1) {
+        shouldRestart = true;
+        restartReason = `Frankenstein result detected (${distinctPapers.size} papers found: ${Array.from(distinctPapers).join(', ')})`;
+      }
+
+      // Scenario 2: Unique Hint Failure (Low Density)
+      // If a specific code was given (1 paper pool) and we found < 80% of questions.
+      else if (matchedPapersCount === 1 && detectionRate < 0.8) {
+        shouldRestart = true;
+        restartReason = `Low adherence to unique hint (${detectedCount}/${totalCount} found)`;
+      }
+
+      // Scenario 3: Multi-Paper Hint Failure (Very Low Density)
+      // If a keyword like "Mathematics" was given (large pool) and we found < 50% of questions.
+      else if (matchedPapersCount > 1 && detectionRate < 0.5) {
+        shouldRestart = true;
+        restartReason = `Poor match density in hinted pool (${detectedCount}/${totalCount} found)`;
+      }
+
+      // Scenario 4: All-or-Nothing check for unique hints (already covered by Scenario 2, but for clarity)
+      else if (matchedPapersCount === 1 && detectedCount < totalCount) {
+        // We keep this as a subset of scenario 2 but with stricter 100% requirement if preferred
+        // For now, scenario 2 covers it with a 80% threshold.
+      }
+
+      if (shouldRestart) {
+        console.log(`\x1b[31m[HINT] ⚠️ Hint Adherence Failed! ${restartReason}.\x1b[0m`);
+        console.log(`\x1b[33m[HINT] Discarding hint "${hintUsed}" and restarting detection GLOBALLY for document consistency...\x1b[0m`);
+
+        // Recursive call with null hint to trigger global search
+        return this.orchestrateMarkingSchemeLookup(individualQuestions, classificationResult, null);
       }
     }
 
-    let winner: { paperTitle: string; examPaper: any } | null = null;
-    let maxCount = 0;
-    paperCounts.forEach((v, k) => {
-      if (v.count > maxCount) {
-        maxCount = v.count;
-        winner = { paperTitle: v.paperTitle, examPaper: v.examPaper };
-      }
-    });
-
-    // If we have a clear winner (>60% of strong matches OR at least 4 strong matches in a small batch), lock it!
-    const WINNER_THRESHOLD = individualQuestions.length > 5 ? individualQuestions.length * 0.6 : 4;
-    if (winner && (maxCount >= WINNER_THRESHOLD)) {
-      console.log(`\x1b[32m[HINT] 🔒 Paper Lock: "${winner.paperTitle}" detected as winner (${maxCount}/${individualQuestions.length} votes). Locking consistency...\x1b[0m`);
-
-      for (const item of detectionResults) {
-        const currentTitle = item.detectionResult.match?.paperTitle;
-        const confidence = item.detectionResult.match?.confidence || 0;
-
-        // If question matched a DIFFERENT paper, or was weak, try to re-match it with the winner paper ONLY
-        if (currentTitle !== winner.paperTitle || confidence < 0.75) {
-          const reMatch = await questionDetectionService.matchQuestionWithExamPaper(
-            item.question.text,
-            winner.examPaper,
-            item.question.questionNumber
-          );
-
-          // If we found a reasonable match in the winner paper, swap it!
-          // We are more lenient here (0.4) because we WANT it to be consistent with the winner
-          if (reMatch && (reMatch.confidence || 0) >= 0.40) {
-            item.detectionResult.match = reMatch;
-            item.detectionResult.found = true;
-            if (item.detectionResult.hintMetadata) {
-              item.detectionResult.hintMetadata.isWeakMatch = (reMatch.confidence || 0) < 0.7;
-            }
-
-            const ms = await questionDetectionService.findCorrespondingMarkingScheme(reMatch);
-            if (ms) reMatch.markingScheme = ms;
-
-            // Update statistics to reflect the consistent match
-            const statEntry = detectionStats.questionDetails.find(q => q.questionNumber === item.question.questionNumber);
-            if (statEntry) {
-              statEntry.similarity = reMatch.confidence;
-              statEntry.hasMarkingScheme = !!ms;
-              statEntry.matchedPaperTitle = winner.paperTitle;
-            }
-          }
-        }
-      }
-    }
+    // PASS COMPLETE: Results collected in detectionResults array.
+    // In our "Simple Design", we don't do complex voting or locking.
+    // The highest similarity match for each question found in the pool is what counts.
 
     // Second pass: Group sub-questions by base question number and merge
     const groupedResults = new Map<string, Array<{
@@ -310,15 +289,42 @@ export class MarkingSchemeOrchestrationService {
       const examBoard = group[0].examBoard;
       const paperCode = group[0].paperCode;
 
-      const hasSubQuestions = group.some(item => isSubQuestion(item.originalQuestionNumber));
+      // Enhanced sub-question detection:
+      // 1. Check if ANY input question was labeled as a sub-question (e.g. "6a")
+      // 2. Check if the matched database records for this group have sub-questions defined in the exam paper structure
+      const hasSubQuestions = group.some(item => {
+        if (isSubQuestion(item.originalQuestionNumber)) return true;
 
-      if (hasSubQuestions && group.length > 1) {
+        // Check matched database record for this question
+        const match = item.detectionResult.match;
+        if (match && match.examPaper && match.questionNumber) {
+          const questions = match.examPaper.questions;
+          // Find the question data in the paper structure
+          const questionData = Array.isArray(questions)
+            ? questions.find((q: any) => String(q.question_number || q.number) === String(match.questionNumber))
+            : (questions ? (questions as any)[match.questionNumber] : null);
+
+          // If database record has sub-questions, we should treat this as a sub-question group
+          if (questionData && (
+            (questionData.sub_questions && Array.isArray(questionData.sub_questions) && questionData.sub_questions.length > 0) ||
+            (questionData.subQuestions && Array.isArray(questionData.subQuestions) && questionData.subQuestions.length > 0)
+          )) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      // Group sub-questions: merge marking schemes
+      // We process as a group if multiple instances were detected OR if it's a main question that has sub-questions in DB
+      if (hasSubQuestions) {
         // Group sub-questions: merge marking schemes
         const firstItem = group[0];
-        const parentQuestionMarks = firstItem.detectionResult.match?.parentQuestionMarks;
+        const parentQuestionMarks = firstItem.detectionResult.match?.parentQuestionMarks || 0;
 
-        if (!parentQuestionMarks) {
-          throw new Error(`Parent question marks not found for grouped sub-questions Q${baseQuestionNumber}. Expected structure: match.parentQuestionMarks`);
+        if (parentQuestionMarks === 0 && firstItem.detectionResult.match?.questionNumber) {
+          console.warn(`[MARKING SCHEME ORCHESTRATION] Parent question marks not found for grouped sub-questions Q${baseQuestionNumber}. Defaulting to 0.`);
+          // This can happen if the database metadata is incomplete or if a 'wrong hint' matched a non-past paper.
         }
 
         // Merge marking schemes
@@ -334,77 +340,124 @@ export class MarkingSchemeOrchestrationService {
         const processedSubLabels = new Set<string>(); // Track processed sub-questions to prevent duplicates
 
         for (const item of group) {
-          const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+          const actualQNum = item.actualQuestionNumber;
+          const originalQNum = item.originalQuestionNumber;
+          const match = item.detectionResult.match;
 
-          // Extract just the sub-question label (e.g., "11a" -> "a") for deduplication
-          const match = displayQNum.match(/([a-z]+|[ivx]+)$/i);
-          const subLabel = match ? match[1].toLowerCase() : displayQNum.toLowerCase();
+          // Check if this is a "main" question detection (no sub-part label)
+          // that actually has sub-questions defined in the database
+          const questions = match?.examPaper?.questions;
+          const questionData = Array.isArray(questions)
+            ? questions.find((q: any) => String(q.question_number || q.number) === String(match?.questionNumber))
+            : (questions ? (questions as any)[match?.questionNumber] : null);
 
-          // Skip if we've already processed this sub-question (prevents duplicate marks)
-          if (processedSubLabels.has(subLabel)) {
-            continue;
-          }
-          processedSubLabels.add(subLabel);
+          const dbSubQuestions = questionData?.sub_questions || questionData?.subQuestions || [];
+          const isMainQ = !isSubQuestion(originalQNum) && !isSubQuestion(actualQNum);
 
-          // Extract answer for this sub-question
-          const subQAnswer = item.detectionResult.match?.answer ||
-            item.detectionResult.match?.markingScheme?.answer ||
-            item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
-            undefined;
+          if (isMainQ && dbSubQuestions.length > 0) {
+            // EXPAND main question into its sub-parts
+            for (const subQ of dbSubQuestions) {
+              const subPart = String(subQ.question_part || '').toLowerCase();
+              if (!subPart) continue;
 
-          if (subQAnswer && typeof subQAnswer === 'string') {
-            // Always capture answer, even if 'cao' (we'll handle 'cao' replacement in MarkingInstructionService)
-            subQuestionAnswers.push(subQAnswer);
-            subQuestionAnswersMap.set(subLabel, subQAnswer);
+              const normalizedSubPart = normalizeSubQuestionPart(subPart);
+              if (processedSubLabels.has(normalizedSubPart)) continue;
+              processedSubLabels.add(normalizedSubPart);
+
+              const subQNumLabel = `${match.questionNumber}${subPart}`;
+
+              // Extract answer
+              const subQAnswer = subQ.answer || '';
+              subQuestionAnswers.push(subQAnswer);
+              subQuestionAnswersMap.set(normalizedSubPart, subQAnswer);
+
+              // Extract marks
+              let subMarksArray: any[] = [];
+              const ms = match.markingScheme;
+              const qMarks = ms?.questionMarks || ms;
+
+              if (qMarks?.subQuestionMarks && qMarks.subQuestionMarks[subQNumLabel]) {
+                subMarksArray = qMarks.subQuestionMarks[subQNumLabel];
+              } else if (qMarks?.marks && Array.isArray(qMarks.marks) && dbSubQuestions.length > 1) {
+                // FALLBACK: If marking scheme is flat but we have multiple sub-questions,
+                // try to slice it based on expected marks if possible, or just use the whole thing
+                // (AI will handle segmentation if we provide headers)
+                // For now, if we can't slice precisely, we'll keep it as the full array
+                // but labeled with the sub-question number.
+                subMarksArray = qMarks.marks;
+              } else if (Array.isArray(qMarks)) {
+                subMarksArray = qMarks;
+              }
+
+              subQuestionMarksMap.set(subQNumLabel, subMarksArray);
+              mergedMarks.push(...subMarksArray);
+
+              const subQMaxScore = typeof subQ.marks === 'number' ? subQ.marks : 0;
+              subQuestionMaxScoresMap.set(normalizedSubPart, subQMaxScore);
+
+              combinedQuestionTexts.push(item.question.text);
+              combinedDatabaseQuestionTexts.push(subQ.text || subQ.question || subQ.question_text || '');
+              questionNumbers.push(subQNumLabel);
+            }
           } else {
-            subQuestionAnswers.push('');
-          }
+            // NORMAL processing for already-segmented or truly-individual questions
+            const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
 
-          // Extract marks array
-          let marksArray: any[] = [];
-          const markingScheme = item.detectionResult.match?.markingScheme;
-          let questionMarks: any = null;
+            // Extract just the sub-question label (e.g., "11a" -> "a") for deduplication
+            const subLabelMatch = displayQNum.match(/([a-z]+|[ivx]+)$/i);
+            const subLabel = subLabelMatch ? subLabelMatch[1].toLowerCase() : displayQNum.toLowerCase();
+            const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
 
-          if (markingScheme) {
-            questionMarks = markingScheme.questionMarks;
+            // Skip if we've already processed this sub-question
+            if (processedSubLabels.has(normalizedSubLabel)) {
+              continue;
+            }
+            processedSubLabels.add(normalizedSubLabel);
 
-            if (questionMarks) {
-              if (Array.isArray(questionMarks.marks)) {
-                marksArray = questionMarks.marks;
-              } else if (Array.isArray(questionMarks)) {
-                marksArray = questionMarks;
-              } else if (questionMarks.marks && Array.isArray(questionMarks.marks)) {
-                marksArray = questionMarks.marks;
-              } else if (typeof questionMarks === 'object' && 'marks' in questionMarks) {
-                const marksValue = questionMarks.marks;
-                if (Array.isArray(marksValue)) {
-                  marksArray = marksValue;
-                } else if (marksValue && typeof marksValue === 'object' && Array.isArray(marksValue.marks)) {
-                  marksArray = marksValue.marks;
+            // Extract answer for this sub-question
+            const subQAnswer = item.detectionResult.match?.answer ||
+              item.detectionResult.match?.markingScheme?.answer ||
+              item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
+              '';
+
+            subQuestionAnswers.push(subQAnswer);
+            subQuestionAnswersMap.set(normalizedSubLabel, subQAnswer);
+
+            // Extract marks array
+            let marksArray: any[] = [];
+            const markingScheme = item.detectionResult.match?.markingScheme;
+            let questionMarks: any = null;
+
+            if (markingScheme) {
+              questionMarks = markingScheme.questionMarks;
+
+              if (questionMarks) {
+                if (Array.isArray(questionMarks.marks)) {
+                  marksArray = questionMarks.marks;
+                } else if (Array.isArray(questionMarks)) {
+                  marksArray = questionMarks;
+                } else if (typeof questionMarks === 'object' && 'marks' in questionMarks && Array.isArray(questionMarks.marks)) {
+                  marksArray = questionMarks.marks;
                 }
               }
             }
-          }
 
-          if (marksArray.length === 0) {
-            console.warn(`[MERGE WARNING] No marks extracted for sub-question ${displayQNum} in group Q${baseQuestionNumber}`);
-          }
+            subQuestionMarksMap.set(displayQNum, marksArray);
+            mergedMarks.push(...marksArray);
 
-          subQuestionMarksMap.set(displayQNum, marksArray);
-          mergedMarks.push(...marksArray);
+            // Extract max score
+            const maxScore = item.detectionResult.match?.marks;
+            if (typeof maxScore === 'number') {
+              subQuestionMaxScoresMap.set(normalizedSubLabel, maxScore);
+            }
 
-          // NEW: Extract max score directly from database (simple number from sub_questions[].marks)
-          const maxScore = item.detectionResult.match?.marks; // This is the max score (e.g., 1, 2)
-          if (typeof maxScore === 'number') {
-            subQuestionMaxScoresMap.set(subLabel, maxScore);
+            combinedQuestionTexts.push(item.question.text);
+            const dbQuestionText = item.detectionResult.match?.databaseQuestionText || '';
+            if (dbQuestionText) {
+              combinedDatabaseQuestionTexts.push(dbQuestionText);
+            }
+            questionNumbers.push(displayQNum);
           }
-
-          combinedQuestionTexts.push(item.question.text);
-          const dbQuestionText = item.detectionResult.match?.databaseQuestionText || '';
-          if (dbQuestionText) {
-            combinedDatabaseQuestionTexts.push(dbQuestionText);
-          }
-          questionNumbers.push(displayQNum);
         }
 
         // Create merged marking scheme

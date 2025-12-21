@@ -2,7 +2,7 @@ import type { StandardizedPage, PageOcrResult } from '../../types/markingRouter.
 import type { QuestionResult, EnrichedAnnotation } from './MarkingExecutor.js';
 import { SVGOverlayService } from './svgOverlayService.js';
 import { ImageStorageService } from '../imageStorageService.js';
-import { calculateOverallScore, calculatePerPageScores, buildClassificationPageToSubQuestionMap, buildPageToQuestionNumbersMap, getQuestionSortValue } from './MarkingHelpers.js';
+import { calculateOverallScore, calculateQuestionFirstPageScores, buildClassificationPageToSubQuestionMap, buildPageToQuestionNumbersMap, getQuestionSortValue } from './MarkingHelpers.js';
 import { createProgressData } from '../../utils/sseUtils.js';
 
 export class MarkingOutputService {
@@ -36,7 +36,7 @@ export class MarkingOutputService {
     }> {
         // --- Calculate Overall Score and Per-Page Scores ---
         const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(allQuestionResults);
-        const pageScores = calculatePerPageScores(allQuestionResults, classificationResult);
+        const questionFirstPageScores = calculateQuestionFirstPageScores(allQuestionResults, classificationResult);
 
 
         // --- Annotation Grouping ---
@@ -120,23 +120,19 @@ export class MarkingOutputService {
             const annotationsForThisPage = annotationsByPage[pageIndex] || [];
             const imageDimensions = { width: page.width, height: page.height };
 
-            // Draw per-page score on each page
-            const pageScore = pageScores[pageIndex];
-            const scoreToDraw = pageScore ? {
-                scoreText: pageScore.scoreText
-            } : undefined;
-
+            // Draw question-specific scores on their first pages
+            const scoresToDraw = questionFirstPageScores.get(pageIndex);
             // Add total score with double underline on first page AFTER reordering
             const totalScoreToDraw = (pageIndex === firstPageIndexAfterSorting) ? overallScoreText : undefined;
 
             // Only call service if there's something to draw
-            if (annotationsForThisPage.length > 0 || scoreToDraw || totalScoreToDraw) {
+            if (annotationsForThisPage.length > 0 || scoresToDraw || totalScoreToDraw) {
                 try {
                     return await SVGOverlayService.burnSVGOverlayServerSide(
                         page.imageData,
                         annotationsForThisPage,
                         imageDimensions,
-                        scoreToDraw,
+                        scoresToDraw,
                         totalScoreToDraw
                     );
                 } catch (drawError) {

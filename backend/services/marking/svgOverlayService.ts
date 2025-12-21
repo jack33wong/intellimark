@@ -174,12 +174,13 @@ export class SVGOverlayService {
     originalImageData: string,
     annotations: Annotation[],
     imageDimensions: ImageDimensions,
-    studentScore?: any,
+    scoreToDraw?: { scoreText: string } | { scoreText: string }[], // UPDATED: Accept array for multiple circles
     totalScoreText?: string
   ): Promise<string> {
     try {
       // Allow drawing even if no annotations, as long as we have scores to draw
-      if ((!annotations || annotations.length === 0) && !studentScore && !totalScoreText) {
+      const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
+      if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
         return originalImageData;
       }
 
@@ -199,7 +200,7 @@ export class SVGOverlayService {
 
 
       // Create SVG overlay with extended dimensions (no scaling needed since we're using actual burn dimensions)
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, studentScore, totalScoreText);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText);
 
       // Create SVG buffer
       const svgBuffer = Buffer.from(svgOverlay);
@@ -235,9 +236,10 @@ export class SVGOverlayService {
   /**
    * Create SVG overlay for burning into image
    */
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, studentScore?: any, totalScoreText?: string): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string): string {
     // Allow creating SVG even if no annotations, as long as we have scores to draw
-    if ((!annotations || annotations.length === 0) && !studentScore && !totalScoreText) {
+    const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
+    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
       return '';
     }
 
@@ -377,9 +379,10 @@ export class SVGOverlayService {
       svg += this.createTotalScoreWithDoubleUnderline(totalScoreText, actualWidth, actualHeight);
     }
 
-    // Add student score circle at lower right if available
-    if (studentScore && studentScore.scoreText) {
-      svg += this.createStudentScoreCircle(studentScore, actualWidth, actualHeight);
+    // Add student score circles at top right if available (stacking handled in helper)
+    if (scoreToDraw) {
+      const scores = Array.isArray(scoreToDraw) ? scoreToDraw : [scoreToDraw];
+      svg += this.createStudentScoreCircles(scores, actualWidth, actualHeight);
     }
 
     const finalSvg = svg + '</svg>';
@@ -399,19 +402,8 @@ export class SVGOverlayService {
     }
     const text = annotation.text || '';
 
-    // FIX: UNMATCHED annotations have bbox in percentages (0-100)
-    // We must convert them to pixels relative to the original image dimensions
+    // Upstream (MarkingExecutor) now consistently provides bbox in pixels for all statuses
     const ocrStatus = (annotation as any).ocr_match_status;
-    if (ocrStatus === 'UNMATCHED') {
-      const originalWidth = actualWidth / scaleX;
-      const originalHeight = actualHeight / scaleY;
-
-      // Convert 0-100 percentage to pixels
-      x = (x / 100) * originalWidth;
-      y = (y / 100) * originalHeight;
-      width = (width / 100) * originalWidth;
-      height = (height / 100) * originalHeight;
-    }
 
     // FAIL FAST: Log annotation data for debugging
 
@@ -438,40 +430,31 @@ export class SVGOverlayService {
       let aiH_orig = (aiPos.height / 100) * originalHeight;
       const aiY_orig = (aiPos.y / 100) * originalHeight; // AI Y is treated as Center/Baseline
 
-
-
       // SMART HEIGHT CAP: Restrict max height based on density (sub-question count)
-      // If there are 2 sub-questions, max height is ~35% (70/2)
-      // If there is 1 sub-question, max height is 70%
-      // This prevents overlapping when drawings are resized
       if (subQuestionCount > 1) {
         const maxHtPct = 70 / subQuestionCount;
         const maxHtPx = (maxHtPct / 100) * originalHeight;
-        if (aiH_orig > maxHtPx) {
-
-          aiH_orig = maxHtPx;
-        }
+        if (aiH_orig > maxHtPx) aiH_orig = maxHtPx;
       } else {
-        // Even for single questions, if height is >90%, it's suspicious, clamp to 85%
         const maxHtPx = 0.85 * originalHeight;
-        if (aiH_orig > maxHtPx) {
-
-          aiH_orig = maxHtPx;
-        }
+        if (aiH_orig > maxHtPx) aiH_orig = maxHtPx;
       }
 
       x = (aiPos.x / 100) * originalWidth;
-      // Target: Center the new height around the original center
-      // Assuming aiY_orig was intended as the center (observation from Q11 being y=50, h=90)
       y = aiY_orig - (aiH_orig / 2);
       width = aiW_px;
       height = aiH_orig;
+    } else if (ocrStatus === 'UNMATCHED') {
+      // NEW/RESTORED: Handle UNMATCHED status where bbox itself is in percentages (0-100)
+      const originalWidth = actualWidth / scaleX;
+      const originalHeight = actualHeight / scaleY;
 
-
+      x = (x / 100) * originalWidth;
+      y = (y / 100) * originalHeight;
+      width = (width / 100) * originalWidth;
+      height = (height / 100) * originalHeight;
     } else {
       // TRUST_OCR case
-      // Use OCR x, y, height
-      // BUT use AI width if available (User Request) to provide cleaner look
       if (aiW_px > 0) {
         width = aiW_px;
       }
@@ -804,30 +787,41 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create student score circle with hollow red border (positioned at TOP right corner)
+   * Create student score circles with hollow red border (positioned at TOP right corner)
+   * If multiple scores provided, they are stacked vertically.
    */
-  private static createStudentScoreCircle(studentScore: any, imageWidth: number, imageHeight: number): string {
-    const scoreText = studentScore.scoreText || '0/0';
+  private static createStudentScoreCircles(scores: any[], imageWidth: number, imageHeight: number): string {
+    if (!scores || scores.length === 0) return '';
+
     const scaleFactor = imageHeight / this.CONFIG.baseReferenceHeight;
     const config = this.CONFIG.circleMark;
-
     const circleRadius = Math.max(config.minRadius, Math.round(config.baseRadius * scaleFactor));
     const scoreFontSize = Math.round(config.baseFontSize * scaleFactor);
     const strokeWidth = Math.max(config.minStrokeWidth, Math.round(config.baseStrokeWidth * scaleFactor));
 
-    // Position at TOP right corner (changed from lower right)
-    const circleX = imageWidth - (circleRadius + config.marginRight * scaleFactor);
-    const circleY = circleRadius + (config.marginTop * scaleFactor);
+    let svg = '';
+    scores.forEach((scoreItem, index) => {
+      const scoreText = scoreItem.scoreText || '0/0';
+      // Position at TOP right corner, stack downwards
+      // Base position matches original configuration
+      const circleX = imageWidth - (circleRadius + config.marginRight * scaleFactor);
 
-    const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" 
-                   fill="none" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
+      // Vertical stacking: move subsequent circles down
+      const verticalGap = circleRadius * 2.5;
+      const circleY = circleRadius + (config.marginTop * scaleFactor) + (index * verticalGap);
 
-    const textYAdjust = scoreFontSize * 0.35;
-    const text = `<text x="${circleX}" y="${circleY + textYAdjust}" 
-                text-anchor="middle" dominant-baseline="middle" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
-                font-size="${scoreFontSize}" font-weight="bold">${scoreText}</text>`;
+      const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" 
+                     fill="none" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
 
-    return circle + text;
+      const textYAdjust = scoreFontSize * 0.35;
+      const text = `<text x="${circleX}" y="${circleY + textYAdjust}" 
+                  text-anchor="middle" dominant-baseline="middle" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
+                  font-size="${scoreFontSize}" font-weight="bold">${scoreText}</text>`;
+
+      svg += circle + text;
+    });
+
+    return svg;
   }
 
   /**

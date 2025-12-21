@@ -23,10 +23,10 @@
 /* Grid Layout*/
 .your-work-grid-container {
     display: grid;
-    /* Columns: QNum, Work (includes bullet), Annotation */
-    grid-template-columns: min-content auto auto;
+    /* Columns: QNum (2ch), Sublabel (4ch), Bullet (min), Work (auto), Annotation (auto) */
+    grid-template-columns: 2ch 4ch min-content auto auto;
     column-gap: 8px;
-    row-gap: 12px;
+    row-gap: 8px;
     align-items: center;
 }
 
@@ -38,32 +38,39 @@
     min-width: 1ch;
 }
 
-/* Retired: Sublabel is now inline */
-.yw-col-sublabel {
-    display: none;
+/* 2. Bullet Point */
+.yw-col-bullet {
+    color: var(--text-onblack);
+    opacity: 0.8;
+    font-size: 10px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.yw-sublabel-inline {
+/* 3. Sublabel (a), b)...) */
+.yw-col-sublabel {
     font-weight: 600;
     color: var(--text-onblack);
-    /* Match main question color */
     white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    min-width: 0;
+    text-align: left;
+    font-style: italic;
+    min-width: 4ch;
 }
 
-/* 3. Student Work */
+/* Match main text color */
 .yw-col-work {
     color: var(--text-onblack);
     font-style: italic;
     white-space: nowrap;
-    padding-right: 20px;
+    padding-right: 12px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    /* Tighter gap */
+}
+
+.yw-col-work.yw-no-bullet {
+    grid-column: 3 / 5;
 }
 
 /* 4. Annotation */
@@ -85,16 +92,6 @@
 .yw-reason {
     color: var(--text-onblack);
     white-space: nowrap;
-}
-
-/* Bullet styling for inline items */
-.yw-bullet {
-    color: var(--text-onblack);
-    /* Match main text color */
-    font-weight: bold;
-    font-size: 6px;
-    /* Smaller bullet point */
-    line-height: 1;
 }
 
 /* Mobile Responsive */
