@@ -1377,10 +1377,11 @@ export class MarkingInstructionService {
             const w = parseFloat(anno.visual_position.width) || 0;
             const h = parseFloat(anno.visual_position.height) || 0;
 
-            if (w >= 80 || h >= 80) {
+            if (w >= 65 || h >= 65) {
               const subQ = anno.subQuestion || '';
-              // Resize: divide 70% by sub-question count (reduced from 85% for smaller boxes)
-              const newSize = 70 / subQuestionCount;
+              // Resize: use 45% for single questions (prevents label flip), 
+              // or 70% / subQuestionCount for multi-question pages
+              const newSize = subQuestionCount === 1 ? 45 : 70 / subQuestionCount;
               anno.visual_position.width = newSize;
               anno.visual_position.height = newSize;
 

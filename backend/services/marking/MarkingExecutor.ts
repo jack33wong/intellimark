@@ -395,10 +395,9 @@ export async function executeMarkingForQuestion(
           // Position represents the center of the mark
           drawingWidth = 80;
           drawingHeight = 80;
-        } else if (drawingText.includes('Coordinate grid') || (drawingText.includes('triangle') && drawingText.includes('vertices'))) {
-          // For triangles on coordinate grids: use medium dimensions
-          // The position represents the center of the triangle, not the entire grid
-          // Triangles are typically 100-200px in size on the grid
+        } else if (drawingText.includes('Coordinate grid') || drawingText.includes('vector') || (drawingText.includes('triangle') && drawingText.includes('vertices'))) {
+          // For triangles/vectors on coordinate grids: use medium dimensions
+          // Q8 fix: vectors also need medium boxes
           const coordsMatch = drawingText.match(/\[COORDINATES:\s*([^\]]+)\]/);
           if (coordsMatch) {
             // Coordinate grids with explicit coordinates - use medium size for triangle
