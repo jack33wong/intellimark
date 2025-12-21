@@ -947,6 +947,8 @@ const enrichAnnotationsWithPositions = (
       }
     }
 
+
+
     // Special handling for [DRAWING] annotations
     // Since we now create separate synthetic blocks for each drawing, match by text content
     // AI might return step_id like "DRAWING_Triangle B..." instead of unified_step_id
@@ -1126,10 +1128,21 @@ const enrichAnnotationsWithPositions = (
         // Convert percentages to pixels
         const pWidth = pageDims.width;
         const pHeight = pageDims.height;
-        const x = (parseFloat(visualPosForUnmatched.x) / 100) * pWidth;
-        const y = (parseFloat(visualPosForUnmatched.y) / 100) * pHeight;
-        const w = (parseFloat(visualPosForUnmatched.width) / 100) * pWidth;
-        const h = (parseFloat(visualPosForUnmatched.height) / 100) * pHeight;
+        let x = (parseFloat(visualPosForUnmatched.x) / 100) * pWidth;
+        let y = (parseFloat(visualPosForUnmatched.y) / 100) * pHeight;
+        let w = (parseFloat(visualPosForUnmatched.width) / 100) * pWidth;
+        let h = (parseFloat(visualPosForUnmatched.height) / 100) * pHeight;
+
+        // FIX: Ensure minimum visibility for fallback boxes (Q6 fix)
+        // If box is microscopic (e.g. < 10px), scale it up to at least 50x30
+        if (w < 10 || h < 10) {
+          if (w < 50) w = 50;
+          if (h < 30) h = 30;
+        }
+
+        if (String(questionId).startsWith('6')) {
+          console.log(`[DEBUG LOCK Q6] Visual Fallback for "${anno.text}": [${Math.round(x)}, ${Math.round(y)}, ${Math.round(w)}, ${Math.round(h)}] (MinSize Enforced)`);
+        }
 
         return {
           ...anno,
@@ -1394,8 +1407,18 @@ const enrichAnnotationsWithPositions = (
       reasoning: anno.reasoning,
       ocr_match_status: anno.ocr_match_status,
       classification_text: (anno as any).classification_text,
-      studentText: (anno as any).studentText, // CRITICAL: Preserve AI-selected student work text
-      classificationText: (anno as any).classificationText, // CRITICAL: Preserve alternative text source
+
+      // FIX: Prioritize AI classification text for cleaner student work display
+      // BUT retain OCR text if it contains rich math formatting (LaTeX) that AI simplified away (Q17 fix)
+      studentText: (() => {
+        let finalText = (anno as any).studentText || (anno as any).classificationText || originalStep?.text || anno.text;
+        if (originalStep?.text && /[\\^{}]/.test(originalStep.text)) {
+          // OCR has LaTeX (e.g. 0.99^{3}), prefer it over AI's "0.993"
+          finalText = originalStep.text;
+        }
+        return finalText;
+      })(),
+      classificationText: (anno as any).classificationText, // Keep simplified for reference if needed
       subQuestion: targetSubQ || anno.subQuestion, // FIX: Use targetSubQ if available (scheme override)
       step_id: (anno as any).step_id, // Keep original step_id for debug/re-mapping
 
