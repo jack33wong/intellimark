@@ -15,11 +15,28 @@ export class AnalysisService {
    * Generate analysis report for a session or multiple sessions grouped by subject
    * Cost-saving: Pass lastAnalysisReport if exists to avoid regenerating from scratch
    */
+  private static pendingAnalyses = new Set<string>();
+
+  /**
+   * Generate analysis report for a session or multiple sessions grouped by subject
+   * Cost-saving: Pass lastAnalysisReport if exists to avoid regenerating from scratch
+   */
   static async generateAnalysis(
     request: AnalysisRequest,
     lastAnalysisReport?: AnalysisResult,
     userId?: string
   ): Promise<AnalysisResult> {
+
+    // Idempotency Lock: Prevent double-execution for same user/subject
+    const analysisKey = userId && request.subject ? `${userId}-${request.subject}` : null;
+    if (analysisKey) {
+      if (AnalysisService.pendingAnalyses.has(analysisKey)) {
+        console.warn(`⚠️ [ANALYSIS SERVICE] Blocked duplicate analysis request for ${analysisKey}`);
+        throw new Error('Analysis is already in progress for this subject. Please wait.');
+      }
+      AnalysisService.pendingAnalyses.add(analysisKey);
+    }
+
     try {
       // 0. Resolve 'auto' model to default if needed
       if (request.model === 'auto') {
@@ -155,6 +172,11 @@ export class AnalysisService {
     } catch (error) {
       console.error('❌ [ANALYSIS SERVICE] Error generating analysis:', error);
       throw error;
+    } finally {
+      // Release lock
+      if (analysisKey) {
+        AnalysisService.pendingAnalyses.delete(analysisKey);
+      }
     }
   }
 
