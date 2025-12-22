@@ -1032,42 +1032,69 @@ export class MarkingInstructionService {
                 }
               });
 
-              // 2. Filter Annotations
+              // 2. Filter Annotations (Token-based logic to handle "3B1" correctly)
               if (parsedResponse.annotations && Array.isArray(parsedResponse.annotations)) {
                 const validAnnotations: any[] = [];
                 const usageMap = new Map<string, number>();
 
                 parsedResponse.annotations.forEach((anno: any) => {
                   const rawText = (anno.text || '').trim();
-                  // Extract code (e.g. "P1" from "P1") or "M1" from "M1: Correct method"
-                  const code = rawText.split(/[^a-zA-Z0-9]/)[0];
+                  // Tokenize text into individual mark codes (split by space, comma, plus, or pipe)
+                  const allTokens = rawText.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
+                  const validTokens: string[] = [];
 
-                  if (limitMap.has(code)) {
-                    const currentUsage = usageMap.get(code) || 0;
-                    const limit = limitMap.get(code)!;
+                  allTokens.forEach((token: string) => {
+                    // Extract code (alphanumeric prefix, e.g. "M1" or "P1")
+                    const code = token.split(/[^a-zA-Z0-9]/)[0];
+                    if (limitMap.has(code)) {
+                      const currentUsage = usageMap.get(code) || 0;
+                      const limit = limitMap.get(code)!;
 
-                    if (currentUsage < limit) {
-                      validAnnotations.push(anno);
-                      usageMap.set(code, currentUsage + 1);
+                      if (currentUsage < limit) {
+                        validTokens.push(token);
+                        usageMap.set(code, currentUsage + 1);
+                      } else {
+                        console.warn(`⚠️ [MARK LIMIT] Dropped excess token '${token}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
+                      }
                     } else {
-                      console.warn(`⚠️ [MARK LIMIT] Dropped excess annotation '${rawText}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
+                      // Pass through unknown codes but log
+                      validTokens.push(token);
                     }
-                  } else {
-                    // Allow unknown codes if they don't clash, but warn
-                    if (limitMap.size > 0) {
-                      // Opt to KEEP unknown marks for now to avoid false negatives on valid but hallucinated codes?
-                      // No, if user wants STRICT adherence, we should arguably Warn/Drop. 
-                      // But Q6 "B1" is usually valid.
-                      // Let's keep it but log warning.
-                      validAnnotations.push(anno);
-                    } else {
-                      validAnnotations.push(anno);
-                    }
+                  });
+
+                  if (validTokens.length > 0) {
+                    // Update annotation text with filtered tokens
+                    anno.text = validTokens.join(' ');
+                    validAnnotations.push(anno);
                   }
                 });
 
-                // Update annotations
+                const originalAwarded = parsedResponse.studentScore?.awardedMarks;
                 parsedResponse.annotations = validAnnotations;
+
+                // 3. Recalculate total score based on filtered marks (Fix Q6 6/4 inflation)
+                if (parsedResponse.studentScore) {
+                  let totalAwarded = 0;
+                  validAnnotations.forEach((anno: any) => {
+                    const text = (anno.text || '').trim();
+                    if (text) {
+                      const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
+                      tokens.forEach((token: string) => {
+                        const code = token.split(/[^a-zA-Z0-9]/)[0];
+                        if (code && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
+                          totalAwarded += 1;
+                        }
+                      });
+                    }
+                  });
+
+                  console.log(`[SCORE DEBUG] Q${inputQuestionNumber || '?'} | Original AI Score: ${originalAwarded} | Recalculated Score: ${totalAwarded}`);
+
+                  parsedResponse.studentScore.awardedMarks = totalAwarded;
+                  if (parsedResponse.studentScore.totalMarks) {
+                    parsedResponse.studentScore.scoreText = `${totalAwarded}/${parsedResponse.studentScore.totalMarks}`;
+                  }
+                }
               }
             }
           } catch (e) {
