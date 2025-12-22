@@ -276,19 +276,30 @@ export const MarkingPageProvider = ({
     }
   }, [selectedMarkingResult, loadSession, clearSession]);
 
+  // Ref to track the last handled session ID to prevent redundant scrolls on every message update
+  const lastHandledSessionIdRef = useRef(null);
+
   useEffect(() => {
     if (selectedMarkingResult && currentSession?.id === selectedMarkingResult.id) {
+      // Only trigger this "restore position" logic when the session ID actually changes (initial load)
+      // OR if it's the very first time we see this session.
+      if (lastHandledSessionIdRef.current === currentSession.id) {
+        return;
+      }
+      lastHandledSessionIdRef.current = currentSession.id;
+
       const timeoutId = setTimeout(() => {
         const lastUserMessage = [...(currentSession.messages || [])].reverse().find(m => m.role === 'user');
         if (lastUserMessage) {
-          scrollToMessage(lastUserMessage.id);
+          // Align with new UX: Scroll to TOP to show dynamic spacer if present
+          scrollToMessage(lastUserMessage.id, { behavior: 'smooth', block: 'start' });
         } else {
           scrollToBottom();
         }
       }, 150);
       return () => clearTimeout(timeoutId);
     }
-  }, [currentSession, selectedMarkingResult, scrollToMessage, scrollToBottom]);
+  }, [currentSession?.id, selectedMarkingResult, scrollToMessage, scrollToBottom]);
 
   const handleImageAnalysis = useCallback(async (file = null, customText = null) => {
     const targetFile = file || selectedFile;

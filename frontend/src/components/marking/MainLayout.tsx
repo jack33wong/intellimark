@@ -39,6 +39,7 @@ const MainLayout: React.FC = () => {
     onSendMessage,
     addMessage,
     startAIThinking,
+    isAIThinking,
     // Split Mode Context
     splitModeImages,
     activeImageIndex,
@@ -77,8 +78,13 @@ const MainLayout: React.FC = () => {
   // Reliable Ref Callback to capture the container node
   const setChatContainerRef = React.useCallback((node: HTMLDivElement | null) => {
     // Preserve the original ref from useScrollManager context
+    // Preserve the original ref from useScrollManager context
     if (chatContainerRef) {
-      chatContainerRef.current = node;
+      if (typeof chatContainerRef === 'function') {
+        chatContainerRef(node);
+      } else {
+        (chatContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }
     }
     setContainerElement(node);
   }, [chatContainerRef]);
@@ -408,8 +414,16 @@ const MainLayout: React.FC = () => {
                   isSyncingRef={isSyncingRef}
                 />
               ))}
-              {/* Bottom spacer to ensure scrolling past the last message is always possible */}
-              <div className="chat-bottom-spacer" style={{ height: '250px', flexShrink: 0 }} />
+              {/* Bottom spacer with dynamic height */}
+              {/* When thinking, expand to push user question to top (85vh). Otherwise standard spacer (250px). */}
+              <div
+                className="chat-bottom-spacer"
+                style={{
+                  height: (isProcessing || isAIThinking) ? '85vh' : '250px',
+                  flexShrink: 0,
+                  transition: 'height 0.3s ease-in-out'
+                }}
+              />
             </div>
           )}
         </div>

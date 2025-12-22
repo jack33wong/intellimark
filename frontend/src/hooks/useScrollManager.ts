@@ -29,15 +29,34 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
     }
   }, [chatContainerElement]);
 
-  const scrollToMessage = useCallback((messageId: string | number) => {
+  const scrollToMessage = useCallback((messageId: string | number, options?: ScrollIntoViewOptions) => {
     if (chatContainerElement && messageId) {
       const targetMessage = chatContainerElement.querySelector(`[data-message-id="${messageId}"]`);
+
       if (targetMessage) {
-        targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Custom handling for 'start' alignment to account for fixed Headers (Offset ~140px)
+        if (options?.block === 'start') {
+          const containerRect = chatContainerElement.getBoundingClientRect();
+          const targetRect = targetMessage.getBoundingClientRect();
+          const offset = 140; // Approx height of Header + Ribbon
+          // Calculate scrolling position: currentScroll + relativeTop - offset
+          const top = chatContainerElement.scrollTop + (targetRect.top - containerRect.top) - offset;
+
+          chatContainerElement.scrollTo({
+            top: top,
+            behavior: options.behavior || 'smooth'
+          });
+        } else {
+          // Default native behavior for 'center' or 'end'
+          targetMessage.scrollIntoView(options || { behavior: 'smooth', block: 'center' });
+        }
         return true;
       }
     }
-    scrollToBottom();
+    // If we can't find message, only scroll to bottom if no specific options were passed (default behavior)
+    if (!options) {
+      scrollToBottom();
+    }
     return false;
   }, [chatContainerElement, scrollToBottom]);
 
@@ -74,12 +93,26 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
   useEffect(() => {
     if (chatMessages.length > prevMessagesCountRef.current) {
       const lastMessage = chatMessages[chatMessages.length - 1];
-      if (lastMessage && lastMessage.role === 'user') {
-        scrollToBottom();
-      }
+
+      // Delay to ensure DOM rendering
+      setTimeout(() => {
+        if (lastMessage && lastMessage.role === 'user') {
+          // FIX: Scroll new user message to the TOP ('start') to show the dynamic spacer below
+          const success = scrollToMessage(lastMessage.id, { behavior: 'smooth', block: 'start' });
+
+          // Retry once if failed (sometimes DOM is slow)
+          if (!success) {
+            setTimeout(() => {
+              scrollToMessage(lastMessage.id, { behavior: 'smooth', block: 'start' });
+            }, 300);
+          }
+        } else {
+          scrollToBottom();
+        }
+      }, 100);
     }
     prevMessagesCountRef.current = chatMessages.length;
-  }, [chatMessages, scrollToBottom]);
+  }, [chatMessages, scrollToBottom, scrollToMessage]);
 
   useLayoutEffect(() => {
     if (prevIsAIThinkingRef.current === true && isAIThinking === false) {
