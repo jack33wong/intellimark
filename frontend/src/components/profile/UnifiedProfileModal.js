@@ -90,7 +90,7 @@ const UnifiedProfileModal = () => {
                         <button
                             className={`unified-sidebar-item ${activeTab === 'plan' ? 'active' : ''}`}
                             onClick={() => setActiveTab('plan')}
-                            style={{ color: activeTab === 'plan' ? 'var(--text-primary)' : 'var(--accent-color)' }}
+
                         >
                             <Crown size={16} />
                             Manage Plan

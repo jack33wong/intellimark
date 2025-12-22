@@ -532,78 +532,73 @@ router.get('/usage', async (req: Request, res: Response) => {
         startDate = new Date(0); // Beginning of time
     }
 
-    // Query usageRecords collection with date filter at database level
-    let query = db.collection('usageRecords');
-
-    // Apply date filter if not 'all' - use Firestore query for efficiency
-    if (filter !== 'all') {
-      const startTimestamp = admin.firestore.Timestamp.fromDate(startDate);
-      query = query.where('createdAt', '>=', startTimestamp);
-
-      if (endDate) {
-        const endTimestamp = admin.firestore.Timestamp.fromDate(endDate);
-        query = query.where('createdAt', '<', endTimestamp);
-      }
-    }
-
+    // Query usageTransactions collection
+    // Note: Filtering by date in-memory to avoid index requirement
+    const query = db.collection('usageTransactions');
     const snapshot = await query.get();
 
-    // Process usage records
-    const usageData: Array<{
-      sessionId: string;
-      userId: string;
-      createdAt: string;
-      totalCost: number;
-      modelCost: number;
-      mathpixCost: number;
-      modelUsed: string;
-      apiRequests: number; // NEW: API request count
-      mode: string;
-      modeHistory?: Array<{
-        mode: string;
-        timestamp: string;
-        costAtSwitch: number;
-        modelCostAtSwitch: number;
-        modelUsed: string;
-      }>;
-    }> = [];
+    // Calculate start/end bounds for in-memory filtering
+    const startTime = startDate.getTime();
+    const endTime = endDate ? endDate.getTime() : Infinity;
 
+    // Group transactions by sessionId (Global view)
+    const sessionsMap = new Map<string, any>();
     let totalCost = 0;
     let totalModelCost = 0;
     let totalMathpixCost = 0;
-    let totalApiRequests = 0; // NEW: Total API requests
+    let totalApiRequests = 0;
 
     snapshot.forEach(doc => {
-      const record = doc.data();
+      const tx = doc.data();
+      const txTimestamp = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
+      const txTime = txTimestamp.getTime();
 
-      const createdAt = record.createdAt.toDate().toISOString();
+      // Apply in-memory date filter
+      if (filter !== 'all') {
+        if (txTime < startTime || txTime >= endTime) return;
+      }
 
-      // Handle new schema directly
-      const modelCost = record.modelCost || 0;
-      const apiRequests = record.apiRequests || 0; // NEW: Get API requests
-      // Handle mode mapping. DB might store it as 'mode' or 'usageMode' or miss it
-      const mode = record.mode || record.usageMode || 'chat';
-      const modeHistory = record.modeHistory || [];
+      const sessionId = tx.sessionId;
+      const interactionCost = tx.totalCost || 0;
+      const interactionModelCost = tx.costBreakdown?.llmCost || 0;
+      const interactionMathpixCost = tx.costBreakdown?.mathpixCost || 0;
+      const createdAt = txTimestamp.toISOString();
 
-      usageData.push({
-        sessionId: doc.id,
-        userId: record.userId,
-        createdAt,
-        totalCost: record.totalCost,
-        modelCost,
-        mathpixCost: record.mathpixCost,
-        modelUsed: record.modelUsed,
-        apiRequests, // NEW: Add to usage data
-        mode,
-        modeHistory
-      });
+      if (!sessionsMap.has(sessionId)) {
+        sessionsMap.set(sessionId, {
+          sessionId,
+          userId: tx.userId,
+          createdAt,
+          totalCost: 0,
+          modelCost: 0,
+          mathpixCost: 0,
+          modelUsed: tx.modelUsed,
+          apiRequests: 0,
+          mode: tx.mode,
+          modeHistory: []
+        });
+      }
 
-      // Update totals
-      totalCost += record.totalCost;
-      totalModelCost += modelCost;
-      totalMathpixCost += record.mathpixCost;
-      totalApiRequests += apiRequests; // NEW: Update total
+      const session = sessionsMap.get(sessionId);
+      session.totalCost += interactionCost;
+      session.modelCost += interactionModelCost;
+      session.mathpixCost += interactionMathpixCost;
+      session.apiRequests += 1;
+
+      // Update session totals based on latest interaction
+      if (new Date(createdAt) > new Date(session.createdAt)) {
+        session.mode = tx.mode;
+        session.modelUsed = tx.modelUsed;
+      }
+
+      // Update global totals
+      totalCost += interactionCost;
+      totalModelCost += interactionModelCost;
+      totalMathpixCost += interactionMathpixCost;
+      totalApiRequests += 1;
     });
+
+    const usageData = Array.from(sessionsMap.values());
 
     // Sort by date descending (newest first)
     usageData.sort((a, b) => {
@@ -629,7 +624,7 @@ router.get('/usage', async (req: Request, res: Response) => {
         totalMathpixCost,
         totalUsers: uniqueUsers.size,
         totalSessions: usageData.length,
-        totalApiRequests // NEW: Add to summary
+        totalApiRequests
       },
       usage: usageData
     });
@@ -657,12 +652,15 @@ router.delete('/usage/clear-all', async (req: Request, res: Response) => {
       });
     }
 
-    const snapshot = await db.collection('usageRecords').get();
+    const [recordsSnapshot, transactionsSnapshot] = await Promise.all([
+      db.collection('usageRecords').get(),
+      db.collection('usageTransactions').get()
+    ]);
 
-    if (snapshot.empty) {
+    if (recordsSnapshot.empty && transactionsSnapshot.empty) {
       return res.json({
         success: true,
-        message: 'No usage records to delete',
+        message: 'No usage records or transactions to delete',
         deletedCount: 0
       });
     }
@@ -673,7 +671,19 @@ router.delete('/usage/clear-all', async (req: Request, res: Response) => {
     let batch = db.batch();
     let count = 0;
 
-    snapshot.docs.forEach((doc) => {
+    // Delete legacy records
+    recordsSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+      if (count === batchSize) {
+        batches.push(batch.commit());
+        batch = db.batch();
+        count = 0;
+      }
+    });
+
+    // Delete new transactions
+    transactionsSnapshot.docs.forEach((doc) => {
       batch.delete(doc.ref);
       count++;
       if (count === batchSize) {
@@ -688,11 +698,11 @@ router.delete('/usage/clear-all', async (req: Request, res: Response) => {
     }
 
     await Promise.all(batches);
-    deletedCount = snapshot.size;
+    deletedCount = recordsSnapshot.size + transactionsSnapshot.size;
 
     res.json({
       success: true,
-      message: `Successfully deleted ${deletedCount} usage records`,
+      message: `Successfully deleted ${deletedCount} items (${recordsSnapshot.size} records + ${transactionsSnapshot.size} transactions)`,
       deletedCount
     });
 

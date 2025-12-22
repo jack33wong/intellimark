@@ -66,7 +66,7 @@ export const CREDIT_CONFIG = {
  * @returns Number of credits (rounded up)
  */
 export function costToCredits(dollarAmount: number): number {
-    return Math.ceil(dollarAmount / CREDIT_CONFIG.conversionRate);
+    return Math.round((dollarAmount / CREDIT_CONFIG.conversionRate) * 100) / 100;
 }
 
 /**

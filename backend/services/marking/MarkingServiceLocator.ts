@@ -4,6 +4,7 @@
  */
 
 import * as path from 'path';
+import UsageTracker from '../../utils/usageTracker.js';
 import { getModelConfig } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
@@ -59,7 +60,7 @@ export class MarkingServiceLocator {
     chatHistory: any[],
     model: ModelType,
     contextSummary?: string,
-    tracker?: any // UsageTracker
+    tracker?: UsageTracker // UsageTracker
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens: number; outputTokens: number }> {
 
     const systemPrompt = getPrompt('marking.contextual.system');
@@ -124,7 +125,7 @@ export class MarkingServiceLocator {
     debug: boolean = false,
     onProgress?: (data: any) => void,
     useOcrText: boolean = false,
-    tracker?: any,  // UsageTracker (optional)
+    tracker?: UsageTracker,  // UsageTracker (optional)
     markingScheme?: string  // NEW: Marking scheme for model answer generation
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
 

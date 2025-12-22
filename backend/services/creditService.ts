@@ -129,8 +129,8 @@ export async function deductCredits(
     const now = Date.now();
 
     // Deduct credits (can go negative)
-    const newUsed = credits.usedCredits + creditsToDeduct;
-    const newRemaining = credits.totalCredits - newUsed;
+    const newUsed = Math.round((credits.usedCredits + creditsToDeduct) * 100) / 100;
+    const newRemaining = Math.round((credits.totalCredits - newUsed) * 100) / 100;
 
     await userCreditsRef.update({
         usedCredits: newUsed,
@@ -138,7 +138,7 @@ export async function deductCredits(
         updatedAt: now
     });
 
-    console.log(`💳 Deducted ${creditsToDeduct} credits from user ${userId} (session: ${sessionId}), remaining: ${newRemaining}`);
+    console.log(`💳 Deducted ${creditsToDeduct.toFixed(2)} credits from user ${userId} (session: ${sessionId}), remaining: ${newRemaining.toFixed(2)}`);
 }
 
 /**

@@ -2,17 +2,17 @@ import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
-import { Sparkles, Zap, Activity, ChevronRight, ChevronDown } from 'lucide-react';
+import { Sparkles, Zap, Activity, ChevronRight, ChevronDown, CreditCard } from 'lucide-react';
 import CreditIcon from '../common/CreditIcon';
 import API_CONFIG from '../../config/api';
 import apiClient from '../../services/apiClient';
 
 interface UsageRecord {
-    // ... same as before
     sessionId: string;
     userId: string;
     createdAt: string;
     totalCost: number;
+    creditsSpent: number;
     modelCost: number;
     mathpixCost: number;
     mode?: string;
@@ -21,9 +21,12 @@ interface UsageRecord {
         mode: string;
         timestamp: string;
         costAtSwitch: number;
+        creditsSpentAtSwitch: number;
         modelCostAtSwitch: number;
         modelUsed: string;
+        creditsSpent?: number; // Added for transactional view
     }>;
+    updatedAt: string;
 }
 
 interface UsageSummary {
@@ -35,9 +38,8 @@ interface UsageSummary {
 }
 
 const UsageSection: React.FC = () => {
-    const { getAuthToken, user } = useAuth(); // Added user
+    const { user } = useAuth();
     const { planId } = useSubscription();
-    const navigate = useNavigate();
 
     const [usageData, setUsageData] = useState<UsageRecord[]>([]);
     const [usageSummary, setUsageSummary] = useState<UsageSummary>({
@@ -88,7 +90,7 @@ const UsageSection: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [getAuthToken]);
+    }, []);
 
     useEffect(() => {
         loadUsageData(usageFilter);
@@ -147,27 +149,13 @@ const UsageSection: React.FC = () => {
                 {userCredits && (
                     <div className="usage-stat-row">
                         <div className="usage-stat-label">
-                            <CreditIcon size={14} />
-                            <span>Credit Balance</span>
+                            <CreditCard size={14} /> Current Credit Balance
                         </div>
-                        <div className="usage-stat-value">
-                            <span className={userCredits.remainingCredits < 5 ? 'low-credits' : ''}>
-                                {userCredits.remainingCredits}
-                            </span>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}> / {userCredits.totalCredits}</span>
+                        <div className={`usage-stat-value ${userCredits.remainingCredits < 0 ? 'credits-negative' : ''}`}>
+                            {userCredits.remainingCredits.toFixed(2)}
                         </div>
                     </div>
                 )}
-
-                <div className="usage-stat-row">
-                    <div className="usage-stat-label">
-                        <Sparkles size={14} />
-                        <span>Total Monthly Spend</span>
-                    </div>
-                    <div className="usage-stat-value">
-                        {usageSummary.totalCost.toFixed(4)}
-                    </div>
-                </div>
 
                 <div className="usage-stat-row">
                     <div className="usage-stat-label">
@@ -181,12 +169,9 @@ const UsageSection: React.FC = () => {
 
                 <div className="usage-stat-row">
                     <div className="usage-stat-label">
-                        <Zap size={14} />
-                        <span>API Requests</span>
+                        <Zap size={14} /> Individual API Calls
                     </div>
-                    <div className="usage-stat-value">
-                        {usageSummary.totalApiRequests || 0}
-                    </div>
+                    <div className="usage-stat-value">{usageSummary.totalApiRequests}</div>
                 </div>
             </div>
 
@@ -195,7 +180,7 @@ const UsageSection: React.FC = () => {
                 <div className="usage-list-header">
                     <div style={{ paddingLeft: '24px' }}>Details</div>
                     <div>Date</div>
-                    <div style={{ paddingRight: '30px', textAlign: 'right' }}>Cost</div>
+                    <div style={{ paddingRight: '30px', textAlign: 'right' }}>Credits Spent</div>
                 </div>
 
                 <div className="usage-list-scroll">
@@ -205,9 +190,7 @@ const UsageSection: React.FC = () => {
                         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>No usage records found for this month</div>
                     ) : (
                         usageData.map((session) => {
-                            const hasHistory = session.modeHistory &&
-                                session.modeHistory.length > 0 &&
-                                !(session.modeHistory.length === 1 && session.modeHistory[0].costAtSwitch === 0);
+                            const hasHistory = session.modeHistory && session.modeHistory.length > 0;
                             const isExpanded = expandedSessions.has(session.sessionId);
 
                             return (
@@ -223,37 +206,38 @@ const UsageSection: React.FC = () => {
                                                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                 </div>
                                             ) : (
-                                                <div style={{ width: '14px', height: '14px' }}></div> // Spacer
+                                                <div style={{ width: '14px', height: '14px' }}></div>
                                             )}
                                             <div>
                                                 <div style={{ fontWeight: 500 }}>{formatMode(session.mode)}</div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{session.modelUsed}</div>
                                             </div>
                                         </div>
-                                        <div className="usage-list-date">{formatDate(session.createdAt)}</div>
-                                        <div className="usage-list-cost">{session.totalCost.toFixed(4)}</div>
+                                        <div className="usage-list-date">{formatDate(session.updatedAt || session.createdAt)}</div>
+                                        <div className="usage-list-credits">{session.creditsSpent.toFixed(2)}</div>
                                     </div>
 
                                     {isExpanded && session.modeHistory && (
-                                        session.modeHistory.map((historyItem, idx, arr) => {
-                                            const nextItem = arr[idx + 1];
-                                            const segmentCost = nextItem
-                                                ? nextItem.costAtSwitch - historyItem.costAtSwitch
-                                                : session.totalCost - historyItem.costAtSwitch;
+                                        <div className="usage-history-container">
+                                            {session.modeHistory.map((historyItem, idx) => {
+                                                const interactionCredits = historyItem.creditsSpent || 0;
 
-                                            return (
-                                                <div key={`${session.sessionId}-history-${idx}`} className="usage-list-subitem">
-                                                    <div>
-                                                        <div>{formatMode(historyItem.mode)} (Switch)</div>
-                                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{historyItem.modelUsed}</div>
+                                                return (
+                                                    <div key={`${session.sessionId}-history-${idx}`} className="usage-list-subitem">
+                                                        <div className="usage-subitem-content">
+                                                            <div className="usage-subitem-mode">{formatMode(historyItem.mode)}</div>
+                                                            <div className="usage-subitem-model">{historyItem.modelUsed}</div>
+                                                        </div>
+                                                        <div className="usage-list-date" style={{ opacity: 0.7 }}>
+                                                            {formatDate(historyItem.timestamp)}
+                                                        </div>
+                                                        <div className="usage-list-credits" style={{ opacity: 0.9 }}>
+                                                            {interactionCredits.toFixed(2)}
+                                                        </div>
                                                     </div>
-                                                    <div>{formatDate(historyItem.timestamp)}</div>
-                                                    <div style={{ textAlign: 'right', fontFamily: 'monospace' }}>
-                                                        {Math.max(0, segmentCost).toFixed(4)}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
+                                                );
+                                            })}
+                                        </div>
                                     )}
                                 </React.Fragment>
                             );

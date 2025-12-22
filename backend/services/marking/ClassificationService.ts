@@ -5,6 +5,7 @@ import * as path from 'path';
 import { getModelConfig, validateModel } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
+import UsageTracker from '../../utils/usageTracker.js';
 
 export interface ClassificationResult {
   category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
@@ -28,6 +29,9 @@ export interface ClassificationResult {
   usageTokens?: number;
   llmInputTokens?: number;
   llmOutputTokens?: number;
+  rotation?: number; // Detected rotation in degrees
+  text?: string; // Fallback text
+  extractedQuestionText?: string; // Enhanced question text extracted by classification
 }
 
 export class ClassificationService {
@@ -60,7 +64,7 @@ export class ClassificationService {
     images: Array<{ imageData: string; fileName?: string; pageIndex?: number }>,
     model: ModelType = 'auto',
     debug: boolean = false,
-    tracker?: any,  // UsageTracker (optional)
+    tracker?: UsageTracker,  // UsageTracker (optional)
     pageMaps?: Array<{ pageIndex: number; questions: string[]; category?: "frontPage" | "questionAnswer" | "questionOnly" }>  // Pre-computed mapper results (optional)
   ): Promise<Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }>> {
     if (images.length === 0) return [];

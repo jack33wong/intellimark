@@ -10,7 +10,7 @@ import { MarkingPersistenceService } from './MarkingPersistenceService.js';
 import { createProgressData } from '../../utils/sseUtils.js';
 import { logPerformanceSummary, extractQuestionsFromClassification, logAnnotationSummary } from './MarkingHelpers.js';
 import { withPerformanceLogging } from '../../utils/markingRouterHelpers.js';
-import { usageTracker } from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/usageTracker.js';
 
 import type { MarkingSessionContext, QuestionSessionContext } from '../../types/sessionManagement.js';
 import { getBaseQuestionNumber, extractQuestionNumberFromFilename } from '../../utils/TextNormalizationUtils.js';
@@ -76,7 +76,8 @@ export class MarkingPipelineService {
         files: Express.Multer.File[],
         submissionId: string,
         options: MarkingOptions,
-        progressCallback: (data: any) => void
+        progressCallback: (data: any) => void,
+        usageTracker: UsageTracker
     ): Promise<any> {
         // --- Basic Setup ---
         // submissionId is passed in
@@ -84,10 +85,6 @@ export class MarkingPipelineService {
 
         // Reset debug log flag for new marking session
         MarkingInstructionService.resetDebugLog();
-
-        // Reset UsageTracker to prevent double counting across requests
-        // (UsageTracker is a singleton, so we must reset it manually)
-        usageTracker.reset();
 
         // Performance tracking variables
         let stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
@@ -1198,7 +1195,7 @@ export class MarkingPipelineService {
                                         }
                                     } as any;
 
-                                    executeMarkingForQuestion(task, mockRes, submissionId, actualModel, allPagesOcrData, usageTracker)
+                                    executeMarkingForQuestion(task, mockRes, submissionId, actualModel as ModelType, allPagesOcrData, usageTracker)
                                         .then(result => {
                                             // Attach scheme to result for persistence
                                             if (result.cleanedOcrText) {

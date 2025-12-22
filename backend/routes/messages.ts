@@ -12,7 +12,7 @@ import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage, QuestionPart } from '../types/index.js';
 import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/suggestedFollowUpConfig.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
-import { UsageTracker } from '../utils/usageTracker.js';
+import UsageTracker from '../utils/usageTracker.js';
 
 const router = express.Router();
 
@@ -230,7 +230,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           sessionId: currentSessionId,
           sourceMessageId,
           model: resolvedModel,
-          detectedQuestion: req.body.detectedQuestion  // Pass detectedQuestion from request (for unauthenticated users)
+          detectedQuestion: req.body.detectedQuestion, // Pass detectedQuestion from request (for unauthenticated users)
+          tracker: usageTracker // NEW: pass tracker for usage stats
         });
 
         aiResponse = followUpResult.response;
@@ -240,7 +241,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
         contextualResult = {
           response: followUpResult.response,
           apiUsed: followUpResult.apiUsed,
-          usageTokens: followUpResult.usageTokens || 0
+          usageTokens: followUpResult.usageTokens || 0,
+          inputTokens: usageTracker.getTotalInputOutput().inputTokens,
+          outputTokens: usageTracker.getTotalInputOutput().outputTokens
         };
       } else {
         // For text-only messages, use contextual response with progress tracking
@@ -407,9 +410,16 @@ router.post('/chat', optionalAuth, async (req, res) => {
         imageSize: imageData ? imageData.length : 0,
         apiUsed: apiUsed,
         llmTokens: contextualResult?.usageTokens || 0,
+        llmInputTokens: contextualResult?.inputTokens || usageTracker.getTotalInputOutput().inputTokens,
+        llmOutputTokens: contextualResult?.outputTokens || usageTracker.getTotalInputOutput().outputTokens,
         mathpixCalls: usageTracker.getMathpixPages() || 0,
         confidence: contextualResult?.confidence || 0,
         annotations: 0,
+        totalCost: usageTracker.calculateCost(resolvedModel).total,
+        costBreakdown: {
+          llmCost: usageTracker.calculateCost(resolvedModel).total - usageTracker.calculateCost(resolvedModel).mathpix,
+          mathpixCost: usageTracker.calculateCost(resolvedModel).mathpix
+        },
         processingTimeMs: Date.now() - startTime
       },
       contextQuestionId: aiContextQuestionId // Use the detected or passed context
@@ -430,32 +440,22 @@ router.post('/chat', optionalAuth, async (req, res) => {
             totalProcessingTimeMs: contextualResult?.processingTimeMs || (Date.now() - startTime),
             lastModelUsed: resolvedModel,
             lastApiUsed: apiUsed,
-            totalLlmTokens: contextualResult?.usageTokens || 0,
+            totalLlmTokens: contextualResult?.usageTokens || usageTracker.getTotalTokens(),
+            totalLlmInputTokens: contextualResult?.inputTokens || usageTracker.getTotalInputOutput().inputTokens,
+            totalLlmOutputTokens: contextualResult?.outputTokens || usageTracker.getTotalInputOutput().outputTokens,
             totalMathpixCalls: usageTracker.getMathpixPages() || 0,
-            totalTokens: contextualResult?.usageTokens || 0,
+            totalTokens: usageTracker.getTotalTokens(),
+            totalCost: usageTracker.calculateCost(resolvedModel).total,
+            costBreakdown: {
+              llmCost: usageTracker.calculateCost(resolvedModel).total - usageTracker.calculateCost(resolvedModel).mathpix,
+              mathpixCost: usageTracker.calculateCost(resolvedModel).mathpix,
+              total: usageTracker.calculateCost(resolvedModel).total
+            },
+            totalMessages: 2,
             averageConfidence: contextualResult?.confidence || 0,
             imageSize: imageData ? imageData.length : 0,
             totalAnnotations: 0,
-            apiRequests: 1, // Initialize API requests count
-            // Add cost breakdown to enable usageRecord creation
-            costBreakdown: await (async () => {
-              try {
-                // Use UsageTracker for accurate cost calculation
-                const cost = usageTracker.calculateCost(resolvedModel);
-                return {
-                  llmCost: cost.total - cost.mathpix, // Total includes Mathpix, so subtract it
-                  mathpixCost: cost.mathpix,
-                  total: cost.total
-                };
-              } catch (error) {
-                console.error('Cost calculation error:', error);
-                return { llmCost: 0, mathpixCost: 0, total: 0 };
-              }
-            })(),
-            totalCost: await (async () => {
-              // Use UsageTracker total
-              return usageTracker.calculateCost(resolvedModel).total;
-            })()
+            apiRequests: 1 // Initialize API requests count
           },
           usageMode: mode || 'chat'
         });
@@ -513,15 +513,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
         const { getFirestore } = await import('../config/firebase.js');
         const db = getFirestore();
         if (db) {
-          const usageDoc = await db.collection('usageRecords').doc(currentSessionId).get();
-          if (usageDoc.exists) {
-            const usageData = usageDoc.data();
-            const actualCost = usageData?.totalCost || 0;
+          // Use UsageTracker for accurate INCREMENTAL cost calculation for this interaction
+          const incrementalCost = usageTracker.calculateCost(resolvedModel).total;
 
-            if (actualCost > 0) {
-              await deductCredits(userId, actualCost, currentSessionId);
-              console.log(`💳 Deducted ${actualCost} cost (session: ${currentSessionId}) from user ${userId}`);
-            }
+          if (incrementalCost > 0) {
+            await deductCredits(userId, incrementalCost, currentSessionId);
+            console.log(`💳 Deducted ${incrementalCost.toFixed(2)} cost (session: ${currentSessionId}, incremental) from user ${userId}`);
           }
         }
       } catch (error) {

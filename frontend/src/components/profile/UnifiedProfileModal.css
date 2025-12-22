@@ -432,14 +432,62 @@
     /* number alignment */
 }
 
+.usage-history-container {
+    padding-bottom: 8px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
 .usage-list-subitem {
     display: grid;
     grid-template-columns: 2fr 1.5fr 1fr;
-    padding: 8px 0 8px 24px;
-    font-size: 12px;
+    padding: 8px 0 8px 48px;
+    font-size: 13px;
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    position: relative;
+    align-items: center;
+}
+
+.usage-list-subitem::before {
+    content: '';
+    position: absolute;
+    left: 28px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.usage-list-subitem:last-child::before {
+    bottom: 50%;
+}
+
+.usage-list-subitem::after {
+    content: '';
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    width: 12px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.usage-subitem-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.usage-subitem-mode {
+    font-weight: 500;
+    color: var(--text-primary);
+    opacity: 0.9;
+}
+
+.usage-subitem-model {
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.8;
 }
 
 .usage-row-toggle {
@@ -648,7 +696,7 @@
     font-size: 12px;
 }
 
-.usage-list-cost {
+.usage-list-credits {
     text-align: right;
     font-family: monospace;
     padding-right: 25px;
@@ -805,10 +853,10 @@
     margin-top: auto;
     width: 100%;
     padding: 12px;
-    background: transparent;
+    background: var(--background-card-gray);
     border: 1px solid var(--modal-border);
     border-radius: var(--radius-md);
-    color: var(--text-primary);
+    color: var(--icon-primary);
     font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;

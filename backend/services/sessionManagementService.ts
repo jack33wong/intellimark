@@ -355,8 +355,8 @@ export class SessionManagementService {
         const sessionExists = await FirestoreService.getUnifiedSession(currentSessionId);
         if (sessionExists) {
           // Adding to existing session
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, context.userMessage);
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, dbAiMessage);
+          await FirestoreService.addMessageToUnifiedSession(currentSessionId, context.userMessage, context.mode);
+          await FirestoreService.addMessageToUnifiedSession(currentSessionId, dbAiMessage, context.mode);
         } else {
           // Session doesn't exist, create new one
           console.log(`🔍 [PERSISTENCE] Session ${currentSessionId} not found, creating new session`);
@@ -757,13 +757,18 @@ export class SessionManagementService {
       grade,
       gradeBoundaryType,
       gradeBoundaries,
-      markingContext
+      markingContext,
+      usageTracker
     } = aiData;
 
-    // Calculate real processing stats for the AI message
+    // Calculate real processing stats for the AI message using the tracker for accuracy
+    const { total: totalCost, mathpix: mathpixCost } = usageTracker
+      ? usageTracker.calculateCost(actualModel)
+      : { total: 0, mathpix: 0 };
+    const costBreakdown = { llmCost: totalCost - mathpixCost, mathpixCost };
+
     const totalAnnotations = allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0);
     const totalLlmTokens = allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
-    const totalMathpixCalls = allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
     const mockAiResponse = { usageTokens: totalLlmTokens, confidence: 0.85 };
 
     const realProcessingStats = calculateMessageProcessingStats(
@@ -772,7 +777,9 @@ export class SessionManagementService {
       Date.now() - startTime,
       allQuestionResults.flatMap(q => q.annotations || []),
       files.reduce((sum, f) => sum + f.size, 0),
-      allQuestionResults
+      allQuestionResults,
+      totalCost,
+      costBreakdown
     );
 
     // Create structured imageDataArray for AI message

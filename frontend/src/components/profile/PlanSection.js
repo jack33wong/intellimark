@@ -147,9 +147,9 @@ const PlanSection = () => {
                         </div>
                         <div className="plan-detail-value">
                             <span className={credits.remainingCredits < 0 ? 'credits-negative' : ''}>
-                                {credits.remainingCredits}
+                                {typeof credits.remainingCredits === 'number' ? credits.remainingCredits.toFixed(2) : credits.remainingCredits}
                             </span>
-                            <span className="credits-total"> / {credits.totalCredits}</span>
+                            <span className="credits-total"> / {typeof credits.totalCredits === 'number' ? credits.totalCredits.toFixed(2) : credits.totalCredits}</span>
                         </div>
                     </div>
                 )}

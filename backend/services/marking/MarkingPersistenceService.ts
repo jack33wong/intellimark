@@ -7,7 +7,7 @@ import { MarkingServiceLocator } from './MarkingServiceLocator.js';
 import { handleAIMessageIdForEndpoint } from '../../utils/messageUtils.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import type { MarkingSessionContext } from '../../types/sessionManagement.js';
-import { usageTracker } from '../../utils/UsageTracker.js';
+import UsageTracker from '../../utils/usageTracker.js';
 import { ChatContextBuilder } from './ChatContextBuilder.js';
 
 export class MarkingPersistenceService {
@@ -47,7 +47,7 @@ export class MarkingPersistenceService {
         stepTimings: any,
         totalLLMTokens: number,
         questionOnlyClassificationResult: any | undefined,  // Clean Bucket B classification for text responses
-        usageTracker: any,  // UsageTracker instance with all token/cost data
+        usageTracker: UsageTracker,  // UsageTracker instance with all token/cost data
         mathpixCallCount: number  // Actual Mathpix OCR call count
     ): Promise<{ unifiedSession: any }> {
         let dbUserMessage: any = null;

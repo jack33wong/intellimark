@@ -444,4 +444,4 @@ export class UsageTracker {
     }
 }
 
-export const usageTracker = new UsageTracker();
+export default UsageTracker;

@@ -327,7 +327,9 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                   onClick={() => setIsSubscriptionDetailsOpen(!isSubscriptionDetailsOpen)}
                 >
                   <CreditIcon size={16} className="credits-icon" />
-                  <span className="credits-count">{userCredits?.remainingCredits ?? 0}</span>
+                  <span className="credits-count">
+                    {typeof userCredits?.remainingCredits === 'number' ? userCredits.remainingCredits.toFixed(2) : (userCredits?.remainingCredits ?? 0)}
+                  </span>
                 </button>
 
                 {/* Subscription Details Dropdown */}
@@ -367,8 +369,12 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                         </div>
                       </div>
                       <div className="credits-value-group">
-                        <div className="credits-value-main">{userCredits?.remainingCredits ?? 0}</div>
-                        <div className="credits-value-sub">{userCredits?.totalCredits ?? 0}</div>
+                        <div className="credits-value-main">
+                          {typeof userCredits?.remainingCredits === 'number' ? userCredits.remainingCredits.toFixed(2) : (userCredits?.remainingCredits ?? 0)}
+                        </div>
+                        <div className="credits-value-sub">
+                          {typeof userCredits?.totalCredits === 'number' ? userCredits.totalCredits.toFixed(2) : (userCredits?.totalCredits ?? 0)}
+                        </div>
                       </div>
                     </div>
 

@@ -10,6 +10,7 @@ import type { MathBlock } from '../ocr/MathDetectionService.js';
 import type { PageOcrResult } from '../../types/markingRouter.js';
 import { formatGroupedStudentWork } from './MarkingHelpers.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
+import UsageTracker from '../../utils/usageTracker.js';
 
 // Types for the marking executor
 export interface MarkingTask {
@@ -85,7 +86,7 @@ export async function executeMarkingForQuestion(
   submissionId: string, // Pass submissionId for context in SSE
   model: ModelType = 'auto', // Pass the AI model to use for marking
   allPagesOcrData?: any[], // Pass all pages OCR data for multi-page context
-  tracker?: any // UsageTracker (optional)
+  tracker?: UsageTracker // UsageTracker (optional)
 ): Promise<QuestionResult> {
 
   const questionId = task.questionNumber;

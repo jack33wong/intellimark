@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { MarkingPipelineService } from '../services/marking/MarkingPipelineService.js';
 import { sendSseUpdate } from '../utils/sseUtils.js';
 import { PERMISSIONS, hasPermission } from '../config/permissions.js';
-import { usageTracker } from '../utils/usageTracker.js';
+import UsageTracker from '../utils/usageTracker.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 
 export class MarkingController {
@@ -12,6 +12,7 @@ export class MarkingController {
      */
     public static async processMarkingRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
         const startTime = Date.now();
+        const usageTracker = new UsageTracker();
 
         // 1. Validate Request
         if (!req.files || (Array.isArray(req.files) && req.files.length === 0)) {
@@ -85,7 +86,8 @@ export class MarkingController {
                 files,
                 submissionId,
                 options,
-                (data: any) => sendSseUpdate(res, data)
+                (data: any) => sendSseUpdate(res, data),
+                usageTracker
             );
 
             console.log(`✅ [CONTROLLER] Pipeline completed, result exists: ${!!result}, sessionId: ${result?.sessionId}`);
@@ -101,39 +103,22 @@ export class MarkingController {
 
             // Deduct credits after processing (skip for anonymous users)
             if (userId && userId !== 'anonymous') {
-                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId from result: ${result?.sessionId}`);
+                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId: ${result?.sessionId}`);
                 const actualSessionId = result?.sessionId || options.sessionId;
 
                 try {
-                    // Wait briefly to ensure usageRecord is created
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Calculate cost of the CURRENT operation from our local tracker
+                    const incrementalCost = usageTracker.calculateCost(options.model || 'gemini-2.0-flash').total;
+                    console.log(`💳 [CREDIT DEDUCT] Incremental cost from tracker: ${incrementalCost}`);
 
-                    // Get usage cost from usageRecords collection
-                    const { getFirestore } = await import('../config/firebase.js');
-                    const db = getFirestore();
-                    if (db && actualSessionId) {
-                        console.log(`💳 [CREDIT DEDUCT] Looking for usageRecord: ${actualSessionId}`);
-                        const usageDoc = await db.collection('usageRecords').doc(actualSessionId).get();
-                        if (usageDoc.exists) {
-                            const usageData = usageDoc.data();
-                            const actualCost = usageData?.totalCost || 0;
-                            console.log(`💳 [CREDIT DEDUCT] Found usageRecord, totalCost: ${actualCost}`);
-
-                            if (actualCost > 0) {
-                                await deductCredits(userId, actualCost, actualSessionId);
-                                console.log(`💳 Deducted ${actualCost} credits (session: ${actualSessionId}) from user ${userId}`);
-                            } else {
-                                console.log(`⚠️  [CREDIT DEDUCT] totalCost is 0, skipping deduction`);
-                            }
-                        } else {
-                            console.log(`⚠️  [CREDIT DEDUCT] usageRecord not found for session: ${actualSessionId}`);
-                        }
+                    if (incrementalCost > 0) {
+                        await deductCredits(userId, incrementalCost, actualSessionId);
+                        console.log(`💳 Deducted ${incrementalCost.toFixed(4)} credits (session: ${actualSessionId}) from user ${userId}`);
                     } else {
-                        console.log(`⚠️  [CREDIT DEDUCT] Missing db or sessionId - db: ${!!db}, sessionId: ${actualSessionId}`);
+                        console.log(`⚠️  [CREDIT DEDUCT] incrementalCost is 0, skipping deduction`);
                     }
                 } catch (error) {
                     console.error('❌ Credit deduction failed:', error);
-                    // Don't fail the request if credit deduction fails
                 }
             } else {
                 console.log(`⏭️  [CREDIT DEDUCT] Skipped for userId: ${userId} (anonymous or missing)`);

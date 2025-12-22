@@ -17,6 +17,7 @@ import { sendSseUpdate, createProgressData } from '../../utils/sseUtils.js';
 import { SessionManagementService } from '../sessionManagementService.js';
 import type { QuestionSessionContext } from '../../types/sessionManagement.js';
 import type { Express } from 'express-serve-static-core';
+import UsageTracker from '../../utils/usageTracker.js';
 
 const MULTI_IMAGE_STEPS = [
   'Input Validation',
@@ -65,7 +66,7 @@ export class QuestionModeHandlerService {
     res: Response;
     startTime: number;
     logStep: (stepName: string, modelInfo: string) => () => void;
-    usageTracker?: any;  // Add tracker type
+    usageTracker: UsageTracker;  // Add tracker type
     suppressSseCompletion?: boolean;  // Optional flag for mixed mode
   }): Promise<QuestionModeResult> {
     console.log(`📚 [QUESTION MODE] Processing ${standardizedPages.length} question-only image(s)`);
@@ -367,13 +368,21 @@ export class QuestionModeHandlerService {
       ? classificationResult.questions[0].text
       : classificationResult?.extractedQuestionText;
 
+    // Calculate real processing stats with accurate cost from UsageTracker
+    const { total: totalCost, mathpix: mathpixCost } = usageTracker
+      ? usageTracker.calculateCost(actualModel)
+      : { total: 0, mathpix: 0 };
+    const costBreakdown = { llmCost: totalCost - mathpixCost, mathpixCost };
+
     const realProcessingStats = calculateMessageProcessingStats(
       aiResponse,
       actualModel,
       Date.now() - startTime,
-      [], // No annotations in question mode - no annotation means question mode
-      standardizedPages[0].imageData.length,
-      [] // No question results in question mode
+      [], // No annotations in question mode
+      standardizedPages[0]?.imageData?.length || 0,
+      [], // No question results in question mode
+      totalCost,
+      costBreakdown
     );
 
 

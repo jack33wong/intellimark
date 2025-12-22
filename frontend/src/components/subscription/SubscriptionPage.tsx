@@ -667,7 +667,7 @@ const SubscriptionPage: React.FC = () => {
                   <span className="compact-divider">•</span>
                   <span className={`compact-credits ${currentSubscription.credits.remainingCredits < 5 ? 'low-credits' : ''}`}>
                     <CreditsIcon size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                    {currentSubscription.credits.remainingCredits}/{currentSubscription.credits.totalCredits} credits
+                    {currentSubscription.credits.remainingCredits.toFixed(2)}/{currentSubscription.credits.totalCredits.toFixed(2)} credits
                   </span>
                 </>
               )}

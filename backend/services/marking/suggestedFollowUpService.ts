@@ -7,6 +7,7 @@ import { FirestoreService } from '../firestoreService.js';
 import { MarkingServiceLocator } from './MarkingServiceLocator.js';
 import { ProgressTracker, getStepsForMode } from '../../utils/progressTracker.js';
 import { getSuggestedFollowUpConfig, isValidSuggestedFollowUpMode } from '../../config/suggestedFollowUpConfig.js';
+import { UsageTracker } from '../../utils/usageTracker.js';
 
 export interface SuggestedFollowUpRequest {
   mode: string;
@@ -14,6 +15,7 @@ export interface SuggestedFollowUpRequest {
   sourceMessageId?: string;
   model: string;
   detectedQuestion?: any; // Optional: for unauthenticated users who don't have sessions in Firestore
+  tracker?: UsageTracker; // NEW: optional tracker for usage stats
 }
 
 export interface SuggestedFollowUpResult {
@@ -28,7 +30,7 @@ export class SuggestedFollowUpService {
    * Handle any follow-up request with common logic
    */
   static async handleSuggestedFollowUp(request: SuggestedFollowUpRequest): Promise<SuggestedFollowUpResult> {
-    const { mode, sessionId, sourceMessageId, model, detectedQuestion } = request;
+    const { mode, sessionId, sourceMessageId, model, detectedQuestion, tracker } = request;
 
     // Validate inputs
     if (!isValidSuggestedFollowUpMode(mode)) {
@@ -72,7 +74,7 @@ export class SuggestedFollowUpService {
     });
 
     // Execute the follow-up action
-    const result = await this.executeFollowUpAction(mode, targetMessage, model, progressTracker);
+    const result = await this.executeFollowUpAction(mode, targetMessage, model, progressTracker, tracker);
 
     // Ensure progress data is included in result
     return {
@@ -121,7 +123,8 @@ export class SuggestedFollowUpService {
     mode: string,
     targetMessage: any,
     model: string,
-    progressTracker: ProgressTracker
+    progressTracker: ProgressTracker,
+    tracker?: UsageTracker
   ): Promise<SuggestedFollowUpResult> {
     // Start AI thinking step
     progressTracker.startStep('ai_thinking');
@@ -241,7 +244,11 @@ export class SuggestedFollowUpService {
 
             const userPrompt = getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr);
 
-            const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
+            // Determine appropriate phase for tracking
+            const phase = mode === 'modelanswer' ? 'modelAnswer' :
+              mode === 'markingscheme' ? 'markingScheme' : 'other';
+
+            const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
 
             return {
               response: aiResult.content,
@@ -345,7 +352,12 @@ export class SuggestedFollowUpService {
 
       // Use ModelProvider directly with custom prompts
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
+
+      // Determine appropriate phase for tracking
+      const phase = mode === 'modelanswer' ? 'modelAnswer' :
+        mode === 'markingscheme' ? 'markingScheme' : 'other';
+
+      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
 
       // Get real API name based on model
       const getRealApiName = (modelName: string): string => {
@@ -381,7 +393,12 @@ export class SuggestedFollowUpService {
       const userPrompt = getPrompt(`${config.promptKey}.user`, '', '', undefined);
 
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
+
+      // Determine appropriate phase for tracking
+      const phase = mode === 'modelanswer' ? 'modelAnswer' :
+        mode === 'markingscheme' ? 'markingScheme' : 'other';
+
+      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
 
       // Get real API name based on model
       const getRealApiName = (modelName: string): string => {

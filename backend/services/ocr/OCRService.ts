@@ -16,6 +16,7 @@ import { OCRCleanupService } from './OCRCleanupService.js';
 // ========================= START OF NEW DEPENDENCY =========================
 import * as stringSimilarity from 'string-similarity';
 import { sanitizeOcrArtifacts } from '../../utils/TextNormalizationUtils.js';
+import UsageTracker from '../../utils/usageTracker.js';
 // ========================== END OF NEW DEPENDENCY ==========================
 
 
@@ -205,7 +206,7 @@ export class OCRService {
     dimensions: { width: number, height: number },
     opts: Required<Omit<OCROptions, 'enablePreprocessing'>>,
     debug: boolean,
-    tracker?: any // Add tracker here
+    tracker?: UsageTracker // Add tracker here
   ): Promise<{ mathBlocks: MathBlock[], mathpixCalls: number, detectedBlocks: DetectedBlock[], preClusterBlocks: DetectedBlock[] }> {
     console.warn('⚠️ [OCR FALLBACK] Falling back to Google Vision robust recognition (Hybrid Strategy).');
     let detectedBlocks: DetectedBlock[] = [];
@@ -357,7 +358,7 @@ export class OCRService {
     debug: boolean = false,
     model: any = 'auto',
     questionDetection?: any, // Contains extractedQuestionText
-    tracker?: any // Add tracker here
+    tracker?: UsageTracker // Add tracker here
   ): Promise<OCRResult> {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };

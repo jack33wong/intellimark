@@ -74,9 +74,17 @@ export class ModelProvider {
     const content = this.extractGeminiTextContent(result);
 
     // Extract REAL input/output split from API response
-    const inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
-    const outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
-    const totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+    let inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
+    let outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
+    let totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+
+    // Defensive fallback: If API returns 0 or missing usageMetadata, estimate based on content length
+    // (approx 4 chars per token) to ensure non-zero tracking for successful responses
+    if (totalTokens === 0 && content) {
+      inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+      outputTokens = Math.ceil(content.length / 4);
+      totalTokens = inputTokens + outputTokens;
+    }
 
     // Auto-record via tracker if provided
     if (tracker) {
@@ -130,9 +138,18 @@ export class ModelProvider {
     const content = this.extractGeminiTextContent(result);
 
     // Extract REAL input/output split
-    const inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
-    const outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
-    const totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+    let inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
+    let outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
+    let totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+
+    // Defensive fallback: If API returns 0 or missing usageMetadata, estimate based on content length
+    if (totalTokens === 0 && content) {
+      // For images, we add a base cost of ~258 tokens (standard for many models) 
+      // plus character count of prompts
+      inputTokens = 258 + Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+      outputTokens = Math.ceil(content.length / 4);
+      totalTokens = inputTokens + outputTokens;
+    }
 
     // Auto-record via tracker
     if (tracker) {

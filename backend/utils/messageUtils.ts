@@ -402,7 +402,9 @@ export function calculateMessageProcessingStats(
   processingTimeMs: number,
   annotations: any[] = [],
   imageSize: number = 0,
-  questionResults: any[] = []
+  questionResults: any[] = [],
+  totalCost?: number, // NEW
+  costBreakdown?: { llmCost: number; mathpixCost: number } // NEW
 ): any {
   // Get real API name (reusing logic from sessionManagementService.ts)
   const getRealApiName = (modelName: string): string => {
@@ -451,6 +453,8 @@ export function calculateMessageProcessingStats(
     llmInputTokens,
     llmOutputTokens,
     mathpixCalls: totalMathpixCalls,
+    totalCost, // NEW
+    costBreakdown, // NEW
     ocrMethod: 'Google Vision API' // TODO: Get real OCR method from processing
   };
 }

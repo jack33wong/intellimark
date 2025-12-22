@@ -10,6 +10,7 @@ import admin from 'firebase-admin';
 
 // Import Firebase instances from centralized config
 import { getFirestore } from '../config/firebase.js';
+import { costToCredits } from '../config/credit.config.js';
 
 const router = express.Router();
 
@@ -86,84 +87,105 @@ router.get('/me', async (req: Request, res: Response) => {
                 startDate = new Date(0);
         }
 
-        // Query usageRecords collection filtered by userId
-        let query = db.collection('usageRecords').where('userId', '==', userId);
-
-        // Apply date filter if not 'all'
-        if (filter !== 'all') {
-            const startTimestamp = admin.firestore.Timestamp.fromDate(startDate);
-            query = query.where('createdAt', '>=', startTimestamp);
-
-            if (endDate) {
-                const endTimestamp = admin.firestore.Timestamp.fromDate(endDate);
-                query = query.where('createdAt', '<', endTimestamp);
-            }
-        }
-
+        // Query usageTransactions collection filtered by userId
+        // Note: Filtering by date in-memory to avoid composite index requirement
+        const query = db.collection('usageTransactions').where('userId', '==', userId);
         const snapshot = await query.get();
 
-        // Process usage records
-        const usageData: Array<{
-            sessionId: string;
-            userId: string;
-            createdAt: string;
-            totalCost: number;
-            modelCost: number;
-            mathpixCost: number;
-            modelUsed: string;
-            apiRequests: number;
-            mode: string;
-            modeHistory?: Array<{
-                mode: string;
-                timestamp: string;
-                costAtSwitch: number;
-                modelCostAtSwitch: number;
-                modelUsed: string;
-            }>;
-        }> = [];
+        // Calculate start/end bounds for in-memory filtering
+        const startTime = startDate.getTime();
+        const endTime = endDate ? endDate.getTime() : Infinity;
 
+        // Group transactions by sessionId
+        const sessionsMap = new Map<string, any>();
         let totalCost = 0;
         let totalModelCost = 0;
         let totalMathpixCost = 0;
         let totalApiRequests = 0;
 
         snapshot.forEach(doc => {
-            const record = doc.data();
+            const tx = doc.data();
+            const txTimestamp = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date();
+            const txTime = txTimestamp.getTime();
 
-            const createdAt = record.createdAt.toDate().toISOString();
+            // Apply in-memory date filter
+            if (filter !== 'all') {
+                if (txTime < startTime || txTime >= endTime) return;
+            }
 
-            // Handle new schema directly
-            const modelCost = record.modelCost || 0;
-            const apiRequests = record.apiRequests || 0;
-            // Handle mode mapping. DB might store it as 'mode' or 'usageMode' or miss it
-            const mode = record.mode || record.usageMode || 'chat';
-            // Handle mode history
-            const modeHistory = record.modeHistory || [];
+            const sessionId = tx.sessionId;
+            const interactionCost = tx.totalCost || 0;
+            const interactionModelCost = tx.costBreakdown?.llmCost || 0;
+            const interactionMathpixCost = tx.costBreakdown?.mathpixCost || 0;
+            const timestamp = txTimestamp.toISOString();
 
-            usageData.push({
-                sessionId: doc.id,
-                userId: record.userId,
-                createdAt,
-                totalCost: record.totalCost,
-                modelCost,
-                mathpixCost: record.mathpixCost,
-                modelUsed: record.modelUsed,
-                apiRequests,
-                mode,
-                modeHistory
+            if (!sessionsMap.has(sessionId)) {
+                sessionsMap.set(sessionId, {
+                    sessionId,
+                    userId: tx.userId,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                    totalCost: 0,
+                    modelCost: 0,
+                    mathpixCost: 0,
+                    modelUsed: tx.modelUsed,
+                    apiRequests: 0,
+                    mode: tx.mode,
+                    creditsSpent: 0,
+                    modeHistory: []
+                });
+            }
+
+            const session = sessionsMap.get(sessionId);
+            session.totalCost += interactionCost;
+            session.modelCost += interactionModelCost;
+            session.mathpixCost += interactionMathpixCost;
+            session.creditsSpent = costToCredits(session.totalCost);
+            session.apiRequests += 1;
+
+            // Keep track of latest mode and update time
+            if (new Date(timestamp) > new Date(session.updatedAt)) {
+                session.updatedAt = timestamp;
+                session.mode = tx.mode;
+                session.modelUsed = tx.modelUsed;
+            }
+            if (new Date(timestamp) < new Date(session.createdAt)) {
+                session.createdAt = timestamp;
+            }
+
+            // Map transaction to "history" format for frontend compatibility
+            session.modeHistory.push({
+                mode: tx.mode,
+                timestamp: timestamp,
+                costAtSwitch: session.totalCost - interactionCost, // Previous total
+                creditsSpentAtSwitch: costToCredits(session.totalCost - interactionCost),
+                modelCostAtSwitch: session.modelCost - interactionModelCost,
+                modelUsed: tx.modelUsed,
+                creditsSpent: costToCredits(interactionCost), // Current interaction credits
+                // Granular tokens for details if needed
+                tokens: tx.tokens,
+                mathpixCalls: tx.mathpixCalls
             });
 
-            // Update totals
-            totalCost += record.totalCost;
-            totalModelCost += modelCost;
-            totalMathpixCost += record.mathpixCost;
-            totalApiRequests += apiRequests;
+            // Update totals for summary
+            totalCost += interactionCost;
+            totalModelCost += interactionModelCost;
+            totalMathpixCost += interactionMathpixCost;
+            totalApiRequests += 1;
         });
 
-        // Sort by date descending (newest first)
+        // Convert map to array and sort history within each session
+        const usageData = Array.from(sessionsMap.values()).map(session => {
+            session.modeHistory.sort((a: any, b: any) =>
+                new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+            );
+            return session;
+        });
+
+        // Sort by updatedAt descending (most recent activity first)
         usageData.sort((a, b) => {
-            const dateA = new Date(a.createdAt).getTime();
-            const dateB = new Date(b.createdAt).getTime();
+            const dateA = new Date(a.updatedAt).getTime();
+            const dateB = new Date(b.updatedAt).getTime();
             return dateB - dateA;
         });
 
