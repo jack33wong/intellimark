@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import SubscriptionService from '../services/subscriptionService';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
@@ -83,10 +83,10 @@ export const useSubscription = (): UseSubscriptionResult => {
     const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'enterprise';
 
     // Get allowed plans from env vars or default (ROBUST: trim spaces)
-    const ALLOWED_ANALYSIS_PLANS = (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,enterprise').split(',').map(p => p.trim());
-    const ALLOWED_MODEL_SELECTION_PLANS = (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'enterprise').split(',').map(p => p.trim());
+    const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,enterprise').split(',').map(p => p.trim()), []);
+    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'enterprise').split(',').map(p => p.trim()), []);
 
-    const checkPermission = (feature: 'analysis' | 'model_selection') => {
+    const checkPermission = useCallback((feature: 'analysis' | 'model_selection') => {
         if (feature === 'analysis') {
             return ALLOWED_ANALYSIS_PLANS.includes(planId);
         }
@@ -94,7 +94,7 @@ export const useSubscription = (): UseSubscriptionResult => {
             return ALLOWED_MODEL_SELECTION_PLANS.includes(planId);
         }
         return false;
-    };
+    }, [planId, ALLOWED_ANALYSIS_PLANS, ALLOWED_MODEL_SELECTION_PLANS]);
 
     return {
         subscription,

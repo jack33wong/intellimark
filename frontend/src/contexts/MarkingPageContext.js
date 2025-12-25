@@ -97,6 +97,7 @@ export const MarkingPageProvider = ({
   children,
   selectedMarkingResult,
   onPageModeChange,
+  onProcessingChange,
   setSidebarOpen,
   autoSplit = false,
   initialImageIndex = 0
@@ -186,6 +187,12 @@ export const MarkingPageProvider = ({
       onPageModeChange(pageMode === 'chat');
     }
   }, [pageMode, onPageModeChange]);
+
+  useEffect(() => {
+    if (onProcessingChange) {
+      onProcessingChange(isProcessing);
+    }
+  }, [isProcessing, onProcessingChange]);
 
   const onSendMessage = useCallback(async (text) => {
     const trimmedText = text.trim();
@@ -520,6 +527,7 @@ export const MarkingPageProvider = ({
     showScrollButton,
     hasNewResponse,
     scrollToNewResponse,
+    scrollToMessage,
     onFollowUpImage: handleImageAnalysis,
     onAnalyzeMultiImage: handleMultiImageAnalysis,
     onFollowUpMultiImage: handleMultiImageAnalysis,
@@ -535,7 +543,7 @@ export const MarkingPageProvider = ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, handleMultiImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
+    onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,

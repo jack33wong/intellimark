@@ -7,26 +7,32 @@
 
 /* App Layout Styles */
 .app-container {
-  min-height: 100vh; /* Allow growth beyond viewport */
+  height: 100vh !important;
+  /* Lock viewport */
   width: 100vw;
   background-color: var(--background-white-main);
   color: var(--text-primary);
   display: flex;
-  overflow: visible; /* Allow content to overflow */
+  overflow: hidden !important;
+  /* Stabilize geometry */
 }
 
 .app-body {
   flex: 1;
   display: flex;
-  overflow: hidden;
+  overflow: hidden !important;
+  /* Stabilize geometry */
+  height: 100%;
 }
 
 .right-side {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Let chat-content handle scrolling */
-  height: 100vh; /* Fixed height to contain scroll */
+  overflow: hidden;
+  /* Let chat-content handle scrolling */
+  height: 100vh;
+  /* Fixed height to contain scroll */
 }
 
 /* Library page specific - full height without header */
@@ -51,13 +57,15 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Let child components handle their own scrolling */
-  height: 0; /* This forces the flex item to respect the flex: 1 constraint */
+  overflow: hidden;
+  /* Let child components handle their own scrolling */
+  height: 100%;
+  /* This forces the flex item to respect the flex: 1 constraint */
 }
 
 /* When header is hidden in chat mode, main content takes full height */
 .right-side.chat-mode .mark-homework-main-content {
-  height: 100vh;
+  height: 100%;
 }
 
 /* Hide main header only when in follow-up mode (when chat input bar is at bottom) */
@@ -72,15 +80,20 @@
   background-color: var(--background-gray-main);
   /* Remove height constraint - let content grow naturally */
   width: 100%;
-  margin-left: 0; /* No margin needed with flexbox layout */
-  padding-top: 0; /* No padding needed, header will be inside content area */
-  min-width: 0; /* Allow flex item to shrink below content size */
-  overflow: visible; /* Allow content to overflow */
+  margin-left: 0;
+  /* No margin needed with flexbox layout */
+  padding-top: 0;
+  /* No padding needed, header will be inside content area */
+  min-width: 0;
+  /* Allow flex item to shrink below content size */
+  overflow: hidden;
+  /* Ensure strict containment */
 }
 
 /* When chat header is present, add extra padding */
 .main-content.has-chat-header {
-  padding-top: 0; /* No padding needed with new layout */
+  padding-top: 0;
+  /* No padding needed with new layout */
 }
 
 .app {
@@ -321,6 +334,7 @@
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -470,7 +484,7 @@
     margin: 20px;
     width: calc(100% - 40px);
   }
-  
+
   .btn-group {
     flex-direction: column;
   }
@@ -482,7 +496,7 @@
     width: calc(100% - 20px);
     padding: 16px;
   }
-  
+
   .modal-header {
     flex-direction: column;
     align-items: flex-start;

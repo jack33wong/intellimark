@@ -32,6 +32,7 @@ const MainLayout: React.FC = () => {
     getImageSrc,
     hasNewResponse,
     scrollToNewResponse,
+    scrollToMessage,
     currentSession,
     handleImageAnalysis,
     onAnalyzeMultiImage,
@@ -177,17 +178,13 @@ const MainLayout: React.FC = () => {
       const el = document.getElementById(targetId);
 
       if (el) {
-        const chatContainer = document.querySelector('.chat-container') as HTMLElement;
-        if (chatContainer) {
-          const elRect = el.getBoundingClientRect();
-          const containerRect = chatContainer.getBoundingClientRect();
-          const offset = 120; // Consistent scroll margin
-          const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
-
-          chatContainer.scrollTo({
-            top: targetScrollTop,
-            behavior: 'smooth'
-          });
+        // Native scroll with the CSS/inline scroll-margin-top handles the offset
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        // Fallback: search for the message containing this question if the specific header hasn't rendered yet
+        const msg = chatMessages.find((m: any) => String(m.contextQuestionId) === String(qNum));
+        if (msg) {
+          scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
         }
       }
     }
@@ -400,7 +397,14 @@ const MainLayout: React.FC = () => {
                 <ChatMessage
                   key={msg.id}
                   message={msg}
-                  onImageLoad={scrollToBottom}
+                  onImageLoad={() => {
+                    const lastUserMsg = [...(chatMessages || [])].reverse().find(m => m.role === 'user');
+                    if (msg.id === lastUserMsg?.id) {
+                      scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
+                    } else {
+                      scrollToBottom();
+                    }
+                  }}
                   getImageSrc={getImageSrc}
                   MarkdownMathRenderer={MarkdownMathRenderer}
                   ensureStringContent={ensureStringContent}
@@ -420,8 +424,7 @@ const MainLayout: React.FC = () => {
                 className="chat-bottom-spacer"
                 style={{
                   height: (isProcessing || isAIThinking) ? '85vh' : '250px',
-                  flexShrink: 0,
-                  transition: 'height 0.3s ease-in-out'
+                  flexShrink: 0
                 }}
               />
             </div>
@@ -462,7 +465,7 @@ const MainLayout: React.FC = () => {
   };
 
   // Determine layout class
-  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`;
+  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`;
 
   if (splitModeImages) {
     return (

@@ -7,13 +7,15 @@ interface SimpleImageGalleryProps {
   onImageClick?: (index: number) => void;
   className?: string;
   showViewToggle?: boolean; // New prop to show/hide view toggle
+  onImageLoad?: () => void;
 }
 
 const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
   images,
   onImageClick,
   className = '',
-  showViewToggle = false
+  showViewToggle = false,
+  onImageLoad
 }) => {
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
 
@@ -114,6 +116,7 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
                       newSet.delete(index);
                       return newSet;
                     });
+                    if (onImageLoad) onImageLoad();
                   }}
                 />
               ) : (

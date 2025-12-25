@@ -198,15 +198,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     setTimeout(() => {
       const el = document.getElementById(`question-${questionNumber}`);
       if (el) {
-        const chatContainer = document.querySelector('.chat-container');
-        if (chatContainer) {
-          const elRect = el.getBoundingClientRect();
-          const containerRect = chatContainer.getBoundingClientRect();
-          chatContainer.scrollTo({
-            top: chatContainer.scrollTop + (elRect.top - containerRect.top) - 120,
-            behavior: 'smooth'
-          });
-        }
+        // Native scroll with the CSS/inline scroll-margin-top handles the offset
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }, 100);
   }, [session, onEnterSplitMode, setActiveQuestionId, message, onNavigate]);
@@ -434,7 +427,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
           {/* Galleries and Images */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (
-            <div className="gallery-side"><SimpleImageGallery images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} /></div>
+            <div className="gallery-side"><SimpleImageGallery images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} /></div>
           )}
 
           {!isUser && (message as any)?.imageDataArray?.length === 1 && !isPdfMessage() && (
@@ -471,7 +464,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 ))}
               </div>
             ) : (
-              <SimpleImageGallery images={getMultiImageData()} onImageClick={handleMultiImageClick} />
+              <SimpleImageGallery images={getMultiImageData()} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} />
             )}
           </div>
         )}

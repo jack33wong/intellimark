@@ -19,7 +19,6 @@
   width: 100%;
   max-width: 850px;
   z-index: 1000;
-  transition: all 0.3s ease-in-out;
   padding: 0 20px;
   /* Add some padding for small screens */
 }
@@ -634,6 +633,8 @@
   border-radius: 0;
   border: none;
   display: flex;
+  scroll-margin-top: 120px;
+  /* Accounts for ribbon/header height */
 }
 
 /* Ensure last message is fully visible */
@@ -1265,7 +1266,7 @@
 }
 
 /* Gemini-Style Split Mode Layout */
-.mark-homework-page.split-mode {
+.mark-homework-page {
   flex: 1;
   display: flex;
   flex-direction: column;

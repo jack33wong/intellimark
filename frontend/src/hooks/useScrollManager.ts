@@ -34,22 +34,8 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
       const targetMessage = chatContainerElement.querySelector(`[data-message-id="${messageId}"]`);
 
       if (targetMessage) {
-        // Custom handling for 'start' alignment to account for fixed Headers (Offset ~140px)
-        if (options?.block === 'start') {
-          const containerRect = chatContainerElement.getBoundingClientRect();
-          const targetRect = targetMessage.getBoundingClientRect();
-          const offset = 140; // Approx height of Header + Ribbon
-          // Calculate scrolling position: currentScroll + relativeTop - offset
-          const top = chatContainerElement.scrollTop + (targetRect.top - containerRect.top) - offset;
-
-          chatContainerElement.scrollTo({
-            top: top,
-            behavior: options.behavior || 'smooth'
-          });
-        } else {
-          // Default native behavior for 'center' or 'end'
-          targetMessage.scrollIntoView(options || { behavior: 'smooth', block: 'center' });
-        }
+        // Native behavior is now boosted by scroll-margin-top in CSS
+        targetMessage.scrollIntoView(options || { behavior: 'smooth', block: 'center' });
         return true;
       }
     }
@@ -93,23 +79,30 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
   useEffect(() => {
     if (chatMessages.length > prevMessagesCountRef.current) {
       const lastMessage = chatMessages[chatMessages.length - 1];
+      const secondLastMessage = chatMessages.length > 1 ? chatMessages[chatMessages.length - 2] : null;
 
-      // Delay to ensure DOM rendering
+      // Delay to ensure DOM rendering and layout stabilization
       setTimeout(() => {
+        // Priority 1: If the new message is from user, scroll its head to top
         if (lastMessage && lastMessage.role === 'user') {
-          // FIX: Scroll new user message to the TOP ('start') to show the dynamic spacer below
-          const success = scrollToMessage(lastMessage.id, { behavior: 'smooth', block: 'start' });
+          // Double-scroll strategy: Immediately start, then refine
+          scrollToMessage(lastMessage.id, { behavior: 'smooth', block: 'start' });
 
-          // Retry once if failed (sometimes DOM is slow)
-          if (!success) {
-            setTimeout(() => {
-              scrollToMessage(lastMessage.id, { behavior: 'smooth', block: 'start' });
-            }, 300);
-          }
-        } else {
+          // Refinement scroll after potential image expansion/spacer jump
+          setTimeout(() => {
+            scrollToMessage(lastMessage.id, { behavior: 'smooth', block: 'start' });
+          }, 450);
+        }
+        // Priority 2: If we just added an AI message but it's just 'thinking' after a user message,
+        // we likely ALREADY scrolled the user message to the top. Don't fight it with a scrollToBottom.
+        else if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isProcessing && secondLastMessage?.role === 'user') {
+          console.log('[SCROLL] Skipping scrollToBottom for newest processing result to preserve user start-scroll.');
+        }
+        // Priority 3: Otherwise (final response, system message), scroll to bottom.
+        else {
           scrollToBottom();
         }
-      }, 100);
+      }, 250); // Increased for better stability
     }
     prevMessagesCountRef.current = chatMessages.length;
   }, [chatMessages, scrollToBottom, scrollToMessage]);

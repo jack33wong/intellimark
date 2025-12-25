@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { MarkingPageProvider } from './contexts/MarkingPageContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -17,8 +17,56 @@ import './App.css';
 // Define the type for the marking result prop
 interface MarkingResult {
   id: string;
-  // Add other properties of your marking result object here
 }
+
+// Layout wrapper moved outside to prevent infinite render loops
+interface MainLayoutWrapperProps {
+  children: React.ReactNode;
+  hideHeader?: boolean;
+  rightSideClass?: string;
+  isSpecialRoute: boolean;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (open: boolean) => void;
+  handleMarkingHistoryClick: (result: any) => void;
+  handleMarkHomeworkClick: () => void;
+  handleMarkingResultSaved: () => void;
+  isChatMode: boolean;
+  isProcessing: boolean;
+}
+
+const MainLayoutWrapper = ({
+  children,
+  hideHeader = false,
+  rightSideClass = "",
+  isSpecialRoute,
+  isSidebarOpen,
+  setIsSidebarOpen,
+  handleMarkingHistoryClick,
+  handleMarkHomeworkClick,
+  handleMarkingResultSaved,
+  isChatMode,
+  isProcessing
+}: MainLayoutWrapperProps) => (
+  <div className="app-body">
+    {!isSpecialRoute && (
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onMarkingHistoryClick={handleMarkingHistoryClick}
+        onMarkHomeworkClick={handleMarkHomeworkClick}
+        onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        onMarkingResultSaved={handleMarkingResultSaved}
+      />
+    )}
+    <div className={`right-side ${rightSideClass}`}>
+      {!hideHeader && !isSpecialRoute && (
+        <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+      )}
+      <div className="main-content">
+        {children}
+      </div>
+    </div>
+  </div>
+);
 
 function AppContent() {
   const navigate = useNavigate();
@@ -26,6 +74,7 @@ function AppContent() {
   const [selectedMarkingResult, setSelectedMarkingResult] = useState<MarkingResult | null>(null);
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState<number>(0);
   const [isChatMode, setIsChatMode] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const [autoSplit, setAutoSplit] = useState<boolean>(false);
   const [initialImageIndex, setInitialImageIndex] = useState<number>(0);
@@ -97,109 +146,86 @@ function AppContent() {
     // architecture in the sidebar handles the actual data refresh.
   };
 
-  const AdminLayout = ({ children, hideHeader = false }: { children: React.ReactNode; hideHeader?: boolean }) => (
-    <div className="app-container">
-      <div className="app-body">
-        <Sidebar
-          isOpen={isSidebarOpen}
-          onMarkingHistoryClick={handleMarkingHistoryClick}
-          onMarkHomeworkClick={handleMarkHomeworkClick}
-          onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-          onMarkingResultSaved={handleMarkingResultSaved}
-        />
-        <div className="right-side">
-          {!hideHeader && <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />}
-          <div className="main-content">
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const location = useLocation();
+
+  // Determine if we should hide the Sidebar/Header for certain routes
+  const isSpecialRoute = ['/login', '/upgrade', '/library', '/analysis', '/admin'].includes(location.pathname);
+
+  // Common props for the layout wrapper
+  const layoutProps = {
+    isSpecialRoute,
+    isSidebarOpen,
+    setIsSidebarOpen,
+    handleMarkingHistoryClick,
+    handleMarkHomeworkClick,
+    handleMarkingResultSaved,
+    isChatMode,
+    isProcessing
+  };
 
   return (
     <div className="app-container">
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/upgrade" element={<SubscriptionPage />} />
+
+        <Route path="/upgrade" element={
+          <MainLayoutWrapper {...layoutProps}>
+            <SubscriptionPage />
+          </MainLayoutWrapper>
+        } />
 
         <Route path="/library" element={
           <OptionalAuthRoute>
-            <AdminLayout hideHeader={true}>
+            <MainLayoutWrapper {...layoutProps} hideHeader={true}>
               <LibraryPage />
-            </AdminLayout>
+            </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
 
         <Route path="/analysis" element={
           <OptionalAuthRoute>
-            <AdminLayout hideHeader={true}>
+            <MainLayoutWrapper {...layoutProps} hideHeader={true}>
               <AnalysisPage />
-            </AdminLayout>
+            </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
 
         <Route path="/admin" element={
           <ProtectedRoute requireAdmin={true}>
-            <AdminLayout>
+            <MainLayoutWrapper {...layoutProps}>
               <AdminPage />
-            </AdminLayout>
+            </MainLayoutWrapper>
           </ProtectedRoute>
         } />
 
         <Route path="/mark-homework" element={
           <OptionalAuthRoute>
-            <div className="app-container">
-              <div className="app-body">
-                <Sidebar
-                  isOpen={isSidebarOpen}
-                  onMarkingHistoryClick={handleMarkingHistoryClick}
-                  onMarkHomeworkClick={handleMarkHomeworkClick}
-                  onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                  onMarkingResultSaved={handleMarkingResultSaved}
-                />
-                <div className={`right-side ${isChatMode ? 'chat-mode' : ''}`}>
-                  <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                  <div className="mark-homework-main-content">
-                    <MarkingPageProvider
-                      key={markHomeworkResetKey}
-                      selectedMarkingResult={selectedMarkingResult}
-                      onPageModeChange={setIsChatMode}
-                      setSidebarOpen={setIsSidebarOpen}
-                      autoSplit={autoSplit}
-                      initialImageIndex={initialImageIndex}
-                    >
-                      <MarkingPage />
-                    </MarkingPageProvider> as any
-                  </div>
-                </div>
+            <MainLayoutWrapper {...layoutProps} rightSideClass={isChatMode ? 'chat-mode' : ''}>
+              <div className="mark-homework-main-content">
+                <MarkingPageProvider
+                  key={markHomeworkResetKey}
+                  selectedMarkingResult={selectedMarkingResult}
+                  onPageModeChange={setIsChatMode}
+                  onProcessingChange={setIsProcessing}
+                  setSidebarOpen={setIsSidebarOpen}
+                  autoSplit={autoSplit}
+                  initialImageIndex={initialImageIndex}
+                >
+                  <MarkingPage />
+                </MarkingPageProvider>
               </div>
-            </div>
+            </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
 
         <Route path="/" element={
           <OptionalAuthRoute>
-            <div className="app-container">
-              <div className="app-body">
-                <Sidebar
-                  isOpen={isSidebarOpen}
-                  onMarkingHistoryClick={handleMarkingHistoryClick}
-                  onMarkHomeworkClick={handleMarkHomeworkClick}
-                  onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                  onMarkingResultSaved={handleMarkingResultSaved}
-                />
-                <div className="right-side">
-                  <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                  <div className="main-content">
-                    <div className="welcome-message">
-                      <h1>Welcome to IntelliMark</h1>
-                      <p>Your AI-powered homework marking assistant</p>
-                    </div>
-                  </div>
-                </div>
+            <MainLayoutWrapper {...layoutProps}>
+              <div className="welcome-message">
+                <h1>Welcome to IntelliMark</h1>
+                <p>Your AI-powered homework marking assistant</p>
               </div>
-            </div>
+            </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
