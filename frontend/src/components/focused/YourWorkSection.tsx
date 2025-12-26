@@ -245,34 +245,35 @@ export default function YourWorkSection({ content, MarkdownMathRenderer }: YourW
     if (processedRows.length === 0) return null;
 
     return (
-        <div className="your-work-section">
+        <div className="your-work-wrapper">
             <div className="your-work-header">YOUR WORK:</div>
-
-            <div className="your-work-grid-container">
-                {processedRows.map((row, i) => (
-                    <React.Fragment key={i}>
-                        <div className="yw-col-qnum">{row.qNum}</div>
-                        <div className="yw-col-sublabel">{row.subLabel}</div>
-                        {row.showBullet && (
-                            <div className="yw-col-bullet">•</div>
-                        )}
-                        <div className={`yw-col-work ${!row.showBullet ? 'yw-no-bullet' : ''}`}>
-                            {MarkdownMathRenderer ? (
-                                <MarkdownMathRenderer
-                                    content={row.studentWork}
-                                    className="yw-math-renderer"
-                                    isYourWork={true}
-                                />
-                            ) : (
-                                <span dangerouslySetInnerHTML={{ __html: row.studentWork || '&nbsp;' }} />
+            <div className="your-work-section">
+                <div className="your-work-grid-container">
+                    {processedRows.map((row, i) => (
+                        <React.Fragment key={i}>
+                            <div className="yw-col-qnum">{row.qNum}</div>
+                            <div className="yw-col-sublabel">{row.subLabel}</div>
+                            {row.showBullet && (
+                                <div className="yw-col-bullet">•</div>
                             )}
-                        </div>
-                        <div className="yw-col-annotation">
-                            {row.annotationMarks && <span className="yw-marks">{row.annotationMarks}</span>}
-                            {row.annotationReason && <span className="yw-reason">{row.annotationReason}</span>}
-                        </div>
-                    </React.Fragment>
-                ))}
+                            <div className={`yw-col-work ${!row.showBullet ? 'yw-no-bullet' : ''}`}>
+                                {MarkdownMathRenderer ? (
+                                    <MarkdownMathRenderer
+                                        content={row.studentWork}
+                                        className="yw-math-renderer"
+                                        isYourWork={true}
+                                    />
+                                ) : (
+                                    <span dangerouslySetInnerHTML={{ __html: row.studentWork || '&nbsp;' }} />
+                                )}
+                            </div>
+                            <div className="yw-col-annotation">
+                                {row.annotationMarks && <span className="yw-marks">{row.annotationMarks}</span>}
+                                {row.annotationReason && <span className="yw-reason">{row.annotationReason}</span>}
+                            </div>
+                        </React.Fragment>
+                    ))}
+                </div>
             </div>
         </div>
     );

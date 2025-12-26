@@ -1011,20 +1011,23 @@
 }
 
 .progress-toggle-button {
-  font-size: 10px;
-  color: #666;
+  color: var(--text-tertiary);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 4px;
   margin: 0;
   outline: none;
-  width: 16px;
-  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: monospace;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.progress-toggle-button:hover {
+  background: rgba(127, 0, 255, 0.1);
+  color: var(--text-brand);
 }
 
 .progress-details-container {

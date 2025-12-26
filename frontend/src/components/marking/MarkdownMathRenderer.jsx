@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -6,35 +6,135 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import './MarkdownMathRenderer.css';
-import './YourWork.css';
-import { detectAndWrapMath } from '../../utils/simpleMathDetector';
 
+/**
+ * Pre-processes markdown content to handle common LaTeX delimiter issues.
+ */
 const preprocessLatexDelimiters = (content) => {
-  if (!content || typeof content !== 'string') {
-    return content;
-  }
+  if (!content || typeof content !== 'string') return '';
   return content
-    // Normalize various delimiters to single $ or double $$
-    .replace(/\\\\\(/g, '$')
-    .replace(/\\\\\)/g, '$')
+    .replace(/\\\[/g, '$$$')
+    .replace(/\\\]/g, '$$$')
     .replace(/\\\(/g, '$')
     .replace(/\\\)/g, '$')
-    .replace(/\\\\\[/g, '$$')
-    .replace(/\\\\\]/g, '$$')
-    .replace(/\\\[/g, '$$')
-    .replace(/\\\]/g, '$$')
-    // Catch-all for triple backslash ones sometimes seen in OCR
-    .replace(/\\\\\\\(/g, '$')
-    .replace(/\\\\\\\)/g, '$')
     .replace(/\\\\\\\[/g, '$$')
     .replace(/\\\\\\\]/g, '$$')
-    // FIX: This new line finds ^(...) and converts it to the correct ^{...} syntax.
     .replace(/\^\(([^)]+)\)/g, '^{$1}')
-    // Strip raw HTML div wrappers that interfere with markdown/math parsing
     .replace(/<div class=["']step-explanation["']>([\s\S]*?)<\/div>/g, '$1')
-    // FIX: Convert literal \n\n and \n to actual newlines for proper markdown rendering
     .replace(/\\n\\n/g, '\n\n')
     .replace(/\\n/g, '\n');
+};
+
+const detectAndWrapMath = (content) => {
+  if (!content) return '';
+  return content;
+};
+
+const reorderAssistantContent = (content) => {
+  if (!content || typeof content !== 'string') return content;
+
+  // 1. Pre-process: Normalize line endings and strip redundant out-of-block labels
+  const normalized = content
+    .replace(/\r\n/g, '\n')
+    .replace(/^#*\s*(?:\d+[\.\)]\s+)?(?:\*\*|__)?YOUR\s+WORK:?(?:\*\*|__)?\s*$/gmi, '')
+    .replace(/###\s+YOUR\s+WORK:?/gi, '');
+
+  // 2. Define Anchor Types and their Regexes
+  const anchorTypes = [
+    { id: 'question', regex: /^#+\s*(?:\*\*|__)?Question\s+\d+.*$/mi },
+    { id: 'explanation', regex: /^#*\s*(?:\d+[\.\)]\s+)?(?:\*\*|__)?Explanation:?.*$/mi },
+    { id: 'markingScheme', regex: /^#*\s*(?:\d+[\.\)]\s+)?(?:\*\*|__)?Marking\s+Scheme:?.*$/mi },
+    { id: 'yourWork', regex: /:::your-work\b/mi }
+  ];
+
+  // 3. Find all matches with their indices
+  const matches = [];
+  anchorTypes.forEach(anchor => {
+    const regex = new RegExp(anchor.regex, 'gmi');
+    let match;
+    while ((match = regex.exec(normalized)) !== null) {
+      matches.push({
+        id: anchor.id,
+        index: match.index,
+        length: match[0].length,
+        text: match[0]
+      });
+    }
+  });
+
+  // Sort by occurrence
+  matches.sort((a, b) => a.index - b.index);
+
+  if (matches.length === 0) return normalized;
+
+  // 4. Split and Categorize blocks
+  const segments = {
+    preamble: '',
+    question: '',
+    explanation: '',
+    markingScheme: '',
+    yourWork: ''
+  };
+
+  let lastIndex = 0;
+  let currentCategory = 'preamble';
+
+  matches.forEach((match, i) => {
+    // Content between previous anchor's end and this anchor's start belongs to previous section
+    const textBetween = normalized.substring(lastIndex, match.index);
+    if (textBetween) {
+      segments[currentCategory] += textBetween;
+    }
+
+    // Switch category
+    currentCategory = match.id;
+
+    // Special block handling for :::your-work:::
+    if (match.id === 'yourWork') {
+      const remainingFromHere = normalized.substring(match.index);
+      const fullBlockMatch = remainingFromHere.match(/:::your-work\n[\s\S]*?:::/);
+      if (fullBlockMatch) {
+        segments.yourWork = fullBlockMatch[0]; // Capture full block
+        lastIndex = match.index + fullBlockMatch[0].length;
+        currentCategory = 'preamble'; // Any text after your-work is preamble until next anchor
+        return;
+      }
+    }
+
+    segments[currentCategory] += match.text;
+    lastIndex = match.index + match.length;
+  });
+
+  // Last chunk
+  const lastText = normalized.substring(lastIndex);
+  if (lastText) {
+    segments[currentCategory] += lastText;
+  }
+
+  // 5. Rebuild in Strict 1-2-3 Order
+  const finalParts = [];
+  if (segments.preamble.trim()) finalParts.push(segments.preamble.trim());
+  if (segments.question.trim()) finalParts.push(segments.question.trim());
+
+  if (segments.explanation.trim()) {
+    // Clean the Explanation header to remove numbering and force a clean format
+    const cleanedExplanation = segments.explanation.trim()
+      .replace(/^(?:#+\s+)?(?:\d+[\.\)]\s+)?(?:\*\*|__)?Explanation:?(?:\*\*|__)?/mi, '### Explanation');
+    finalParts.push(`<div class="ai-explanation-section">\n\n${cleanedExplanation}\n\n</div>`);
+  }
+
+  if (segments.yourWork.trim()) {
+    finalParts.push(segments.yourWork.trim());
+  }
+
+  if (segments.markingScheme.trim()) {
+    // Clean the Marking Scheme header to remove numbering and force a clean format
+    const cleanedMarkingScheme = segments.markingScheme.trim()
+      .replace(/^(?:#+\s+)?(?:\d+[\.\)]\s+)?(?:\*\*|__)?Marking\s+Scheme:?(?:\*\*|__)?/mi, '### Marking Scheme');
+    finalParts.push(`<div class="ai-marking-scheme-section">\n\n${cleanedMarkingScheme}\n\n</div>`);
+  }
+
+  return finalParts.join('\n\n');
 };
 
 export default function MarkdownMathRenderer({
@@ -42,7 +142,7 @@ export default function MarkdownMathRenderer({
   className = '',
   options = {},
   YourWorkSection,
-  isYourWork = false // NEW: Flag to skip aggressive detection inside grid
+  isYourWork = false
 }) {
   const defaultOptions = {
     throwOnError: false,
@@ -60,31 +160,26 @@ export default function MarkdownMathRenderer({
     );
   }
 
-  // 1. Normalize AI-injected HTML into standard markdown so math rendering is reliable
   const normalizedHtml = content
     .replace(/<div class=["']step-title["']>([\s\S]*?)<\/div>/g, '\n### $1\n')
     .replace(/<div class=["']step-explanation["']>([\s\S]*?)<\/div>/g, '\n$1\n');
 
-  // 2. Wrap :::your-work with custom tag FIRST
-  const contentWithBlockMarkers = normalizedHtml.replace(
+  const reorderedContent = isYourWork ? normalizedHtml : reorderAssistantContent(normalizedHtml);
+
+  const contentWithBlockMarkers = reorderedContent.replace(
     /:::your-work\n([\s\S]*?):::/g,
     (match, workContent) => `<div class="your-work-block-marker" data-content="${encodeURIComponent(workContent)}"></div>`
   );
 
-  // 2. Detect and wrap naked math expressions in the REMAINING text
   const contentWithMath = detectAndWrapMath(contentWithBlockMarkers);
-
-  // 3. Normalize LaTeX delimiters
   const preprocessedContent = preprocessLatexDelimiters(contentWithMath);
 
   return (
     <div className={`markdown-math-renderer ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
-        // SWAP ORDER: rehypeKatex should usually run before rehypeRaw or properly co-exist
         rehypePlugins={[[rehypeKatex, defaultOptions], rehypeRaw]}
         components={{
-          // Use div with class instead of custom tag for better compatibility
           div: ({ node, children, ...props }) => {
             if (props.className === 'your-work-block-marker') {
               if (!YourWorkSection) return null;
@@ -96,7 +191,6 @@ export default function MarkdownMathRenderer({
                 />
               );
             }
-            // Filter out react-markdown specific props before spreading to div
             const { index, isFirst, ...domProps } = props;
             return <div {...domProps}>{children}</div>;
           },
@@ -109,7 +203,6 @@ export default function MarkdownMathRenderer({
               return <h3 className="markdown-h3">{children}</h3>;
             }
             const { index, isFirst, ...domProps } = props;
-            // Use step-explanation class for all other paragraphs to match the grey design
             return <p className="markdown-p step-explanation" {...domProps}>{children}</p>;
           },
           em: ({ node, children, ...props }) => {

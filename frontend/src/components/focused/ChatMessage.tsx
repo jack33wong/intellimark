@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './ChatMessage.css';
 import YourWorkSection from './YourWorkSection';
-import { Brain } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import {
@@ -315,6 +315,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                     <div className="thinking-text" onClick={handleProgressToggle}>
                       {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStepDescription || 'Processing...')}
                     </div>
+                    <button className="progress-toggle-button" onClick={handleProgressToggle}>
+                      {showProgressDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
                   </div>
                 </div>
               )}

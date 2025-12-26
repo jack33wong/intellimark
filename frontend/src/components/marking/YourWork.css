@@ -1,23 +1,33 @@
 /* Your Work Section Styling */
+.your-work-wrapper {
+    margin: 25px 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .your-work-section {
     background: #ffffff;
     border-left: 4px solid var(--function-success);
     padding: 16px;
-    margin: 20px 30px;
     border-radius: 4px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 14px;
     line-height: 1.5;
     color: var(--text-onblack);
     overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    /* Subtle shadow for white box */
 }
 
 /* Header */
 .your-work-header {
     font-weight: bold;
     font-size: 15px;
-    margin-bottom: 12px;
+    margin-bottom: 15px;
+    /* More breathing room outside box */
     color: var(--function-success);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* Grid Layout*/

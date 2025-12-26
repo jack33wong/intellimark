@@ -101,6 +101,52 @@ ul {
   line-height: 1.6;
 }
 
+/* --- Reordered Sections --- */
+.ai-explanation-section {
+  margin: 15px 0 25px 0;
+  color: var(--function-warning) !important;
+}
+
+/* Force all children (bullets, paragraphs, spans) to respect the section color */
+.ai-explanation-section p,
+.ai-explanation-section li,
+.ai-explanation-section span,
+.ai-explanation-section strong,
+.ai-explanation-section div {
+  color: inherit !important;
+}
+
+.ai-explanation-section .markdown-h3 {
+  color: var(--function-warning) !important;
+  opacity: 1;
+  font-size: 1.1em;
+  margin-bottom: 12px;
+}
+
+.ai-marking-scheme-section {
+  margin-top: 40px;
+  padding-top: 25px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9ca3af !important;
+}
+
+/* Force all children in marking scheme to be muted */
+.ai-marking-scheme-section p,
+.ai-marking-scheme-section li,
+.ai-marking-scheme-section span,
+.ai-marking-scheme-section strong,
+.ai-marking-scheme-section div {
+  color: inherit !important;
+}
+
+.ai-marking-scheme-section .markdown-h3 {
+  color: #d1d5db !important;
+  font-size: 0.95em;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 15px;
+}
+
 /* --- Annotation Feedback Styling --- */
 .annotation-feedback {
   color: #d97706;
