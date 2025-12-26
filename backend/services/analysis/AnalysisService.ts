@@ -146,12 +146,10 @@ export class AnalysisService {
         const apiRequests = analysisTracker.getTotalRequests();
         const analysisSessionId = `analysis-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        await FirestoreService.createUsageRecord(
+        await FirestoreService.recordUsageTransaction(
           analysisSessionId,
           userId,
-          new Date().toISOString(),
           {
-            totalProcessingTimeMs: 0, // Not tracked precisely
             totalCost: cost.total,
             costBreakdown: {
               llmCost: cost.total,
@@ -161,9 +159,10 @@ export class AnalysisService {
             totalLlmTokens: inputTokens + outputTokens,
             totalLlmInputTokens: inputTokens,
             totalLlmOutputTokens: outputTokens,
-            apiRequests: apiRequests
+            totalMathpixCalls: 0
           },
-          'analysis' // mode
+          'analysis',
+          `analysis-${Date.now()}` // interactionId
         );
       }
 

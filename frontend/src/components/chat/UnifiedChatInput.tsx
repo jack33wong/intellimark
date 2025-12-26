@@ -569,6 +569,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     onModelChange={handleModelSelection}
                     disabled={isProcessing || (currentSession && currentSession.messages && currentSession.messages.length > 0)}
                     size={mode === 'first-time' ? 'main' : 'small'}
+                    dropdownDirection={mode === 'first-time' ? 'down' : 'up'}
                     onError={handleError}
                   />
                 </div>

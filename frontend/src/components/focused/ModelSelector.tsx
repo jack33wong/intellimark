@@ -11,6 +11,7 @@ interface ModelSelectorProps {
   onModelChange: (model: string) => void;
   disabled?: boolean;
   size?: 'main' | 'small';
+  dropdownDirection?: 'up' | 'down';
   onError?: (error: Error) => void; // Add the optional onError prop
 }
 
@@ -19,6 +20,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   onModelChange,
   disabled = false,
   size = 'main',
+  dropdownDirection = 'up',
   // onError is accepted but not used within this component currently
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -67,7 +69,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         </div>
       </button>
       {isOpen && (
-        <div className="model-selector-dropdown">
+        <div className={`model-selector-dropdown direction-${dropdownDirection}`}>
           {models.map((model) => (
             <div
               key={model.id}

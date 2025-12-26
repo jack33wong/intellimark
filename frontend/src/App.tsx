@@ -149,7 +149,7 @@ function AppContent() {
   const location = useLocation();
 
   // Determine if we should hide the Sidebar/Header for certain routes
-  const isSpecialRoute = ['/login', '/upgrade', '/library', '/analysis'].includes(location.pathname);
+  const isSpecialRoute = ['/login', '/upgrade'].includes(location.pathname);
 
   // Common props for the layout wrapper
   const layoutProps = {

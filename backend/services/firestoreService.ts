@@ -1324,7 +1324,7 @@ export class FirestoreService {
     sessionId: string,
     userId: string,
     stats: any,
-    mode: 'marking' | 'question' | 'chat',
+    mode: 'marking' | 'question' | 'chat' | 'analysis',
     interactionId: string
   ): Promise<void> {
     try {
