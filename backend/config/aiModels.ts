@@ -10,28 +10,16 @@ import { ModelType, AIModelConfig } from '../types/index.js';
 /**
  * Configuration for all supported AI models
  */
-export const AI_MODELS: Record<ModelType, AIModelConfig> = {
+export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
   'gemini-2.0-flash': {
     name: 'Google Gemini 2.0 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     maxTokens: 64000,
     temperature: 0.1
   },
-  'gemini-2.5-flash': {
-    name: 'Google Gemini 2.5 Flash',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-    maxTokens: 64000,
-    temperature: 0.1
-  },
-  'gemini-2.5-pro': {
-    name: 'Google Gemini 2.5 Pro',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    maxTokens: 64000,
-    temperature: 0.1
-  },
-  'gemini-3-pro-preview': {
-    name: 'Google Gemini 3 Pro Preview',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent',
+  'gemini-3-flash-preview': {
+    name: 'Google Gemini 3.0 Flash',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
     maxTokens: 64000,
     temperature: 0.1
   },
@@ -159,12 +147,8 @@ export function getModelPromptTemplate(modelType: ModelType): string {
   switch (modelType) {
     case 'gemini-2.0-flash':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
-    case 'gemini-2.5-flash':
-      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
-    case 'gemini-2.5-pro':
-      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with advanced reasoning capabilities.`;
-    case 'gemini-3-pro-preview':
-      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with advanced reasoning capabilities.`;
+    case 'gemini-3-flash-preview':
+      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing and the latest generation model capabilities.`;
     default:
       return basePrompt;
   }
@@ -179,28 +163,7 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   const config = getModelConfig(modelType);
 
   switch (modelType) {
-    case 'gemini-2.5-flash-exp-0827':
-      return {
-        maxOutputTokens: config.maxTokens,
-        temperature: config.temperature,
-        topP: 0.8,
-        topK: 40
-      };
-    case 'gemini-2.5-flash':
-      return {
-        maxOutputTokens: config.maxTokens,
-        temperature: config.temperature,
-        topP: 0.8,
-        topK: 40
-      };
-    case 'gemini-2.5-pro':
-      return {
-        maxOutputTokens: config.maxTokens,
-        temperature: config.temperature,
-        topP: 0.8,
-        topK: 40
-      };
-    case 'gemini-3-pro-preview':
+    case 'gemini-3-flash-preview':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

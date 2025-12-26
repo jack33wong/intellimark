@@ -9,6 +9,7 @@ import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
 import ApiClient from '../../services/apiClient';
+import ConfirmationModal from '../common/ConfirmationModal';
 import './UnifiedChatInput.css';
 
 // Define the type for the props this component receives
@@ -54,6 +55,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [isMultiImage, setIsMultiImage] = useState<boolean>(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
 
   // Metadata & Autocomplete State
   const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
@@ -413,13 +415,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const handleModelSelection = useCallback((newModel: string) => {
     // If user is trying to change away from 'auto' (or the current allowed default), check permissions
     if (newModel !== 'auto' && !canSelectModel) {
-      if (window.confirm('Custom model selection is available on Enterprise plan. Would you like to upgrade?')) {
-        navigate('/upgrade');
-      }
+      setShowUpgradeModal(true);
       return;
     }
     onModelChange(newModel);
-  }, [canSelectModel, navigate, onModelChange]);
+  }, [canSelectModel, onModelChange]);
 
   const handleError = (error: Error) => {
     console.error("Component Error:", error);
@@ -625,6 +625,21 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         </div>
       </div>
       <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
+
+      {/* Enterprise Upgrade Modal */}
+      <ConfirmationModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onConfirm={() => {
+          setShowUpgradeModal(false);
+          navigate('/upgrade');
+        }}
+        title="Upgrade to Enterprise"
+        message="Custom model selection is available on the Enterprise plan. Would you like to upgrade now and unlock all powerful AI models?"
+        confirmText="View Plans"
+        cancelText="Maybe Later"
+        variant="primary"
+      />
     </>
   );
 };
