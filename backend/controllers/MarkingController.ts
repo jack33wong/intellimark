@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { MarkingPipelineService } from '../services/marking/MarkingPipelineService.js';
 import { sendSseUpdate } from '../utils/sseUtils.js';
 import { PERMISSIONS, hasPermission } from '../config/permissions.js';
-import UsageTracker from '../utils/usageTracker.js';
+import UsageTracker from '../utils/UsageTracker.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 
 export class MarkingController {

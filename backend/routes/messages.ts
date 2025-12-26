@@ -12,7 +12,7 @@ import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage, QuestionPart } from '../types/index.js';
 import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/suggestedFollowUpConfig.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
-import UsageTracker from '../utils/usageTracker.js';
+import UsageTracker from '../utils/UsageTracker.js';
 
 const router = express.Router();
 

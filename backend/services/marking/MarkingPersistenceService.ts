@@ -7,7 +7,7 @@ import { MarkingServiceLocator } from './MarkingServiceLocator.js';
 import { handleAIMessageIdForEndpoint } from '../../utils/messageUtils.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import type { MarkingSessionContext } from '../../types/sessionManagement.js';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 import { ChatContextBuilder } from './ChatContextBuilder.js';
 
 export class MarkingPersistenceService {

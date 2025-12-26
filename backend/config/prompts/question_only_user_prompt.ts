@@ -1,4 +1,4 @@
-Question: {{QUESTION_TEXT}}
+export default `Question: {{QUESTION_TEXT}}
 
 Marking Scheme:
 {{MARKING_SCHEME}}
@@ -32,7 +32,7 @@ $\sqrt[3]{1.12} = 1.03849...$ [M1dep]
 
 $1.03849... - 1 = 0.03849...$
 
-$0.03849... \times 100 = 3.849...$
+$0.03849... 	imes 100 = 3.849...$
 
 3.9% [A1]
 
@@ -41,4 +41,4 @@ $0.03849... \times 100 = 3.849...$
 - Do NOT add your own "Question" headers (the system handles that).
 - Use the exact question numbering/labeling from the input question text.
 - Use BLANK LINES between steps to create visual separation
-- Use LaTeX $...$ syntax for math expressions
+- Use LaTeX $...$ syntax for math expressions`;

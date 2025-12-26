@@ -274,7 +274,7 @@ export interface UnifiedMessage {
     imageSize?: number;
     ocrMethod?: string;
     classificationResult?: any;
-    modelUsed?: string;				// Real model version (e.g., "gemini-2.5-pro")
+    modelUsed?: string;				// Real model version (e.g., "gemini-2.0-flash")
     apiUsed?: string;              // API service used (e.g., "Google Gemini API")
     llmTokens?: number;
     llmInputTokens?: number;
@@ -467,7 +467,7 @@ export interface SubjectMarkingResult {
     };
 
     // AI model used
-    modelUsed: string;            // "gemini-2.5-flash", "gpt-5-mini"
+    modelUsed: string;            // "gemini-2.0-flash", "gpt-5-mini"
   }>;
 
   // Aggregated statistics (calculated from all markingResults)

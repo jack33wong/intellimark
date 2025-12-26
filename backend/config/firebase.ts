@@ -10,8 +10,8 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { ADMIN_EMAILS } from './admin.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Firebase service account key filename
+const SERVICE_ACCOUNT_FILE = 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
 
 // Firebase Admin instances
 let firebaseAdmin: admin.app.App | null = null;
@@ -35,21 +35,19 @@ const initializeFirebase = (): boolean => {
     } else {
       // Try multiple possible paths for the service account file
       const possiblePaths = [
-        join(process.cwd(), 'backend', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
-        join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
-        join(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
-        join(__dirname, 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json')
+        join(process.cwd(), SERVICE_ACCOUNT_FILE),
+        join(process.cwd(), 'backend', SERVICE_ACCOUNT_FILE)
       ];
-      
+
       // Find the first path that exists
       const serviceAccountPath = possiblePaths.find(path => existsSync(path));
-      
+
       if (!serviceAccountPath) {
         throw new Error(`Service account file not found in any of these locations:\n${possiblePaths.join('\n')}`);
       }
-      
+
       try {
-        
+
         firebaseAdmin = admin.initializeApp({
           credential: admin.credential.cert(serviceAccountPath),
           storageBucket: 'intellimark-6649e.appspot.com'
@@ -58,7 +56,7 @@ const initializeFirebase = (): boolean => {
       } catch (error) {
         console.warn('⚠️ Firebase Admin initialization failed with service account');
         console.warn('   Error details:', error instanceof Error ? error.message : String(error));
-        
+
         // Don't try to initialize with applicationDefault() as it will also fail
         console.warn('⚠️ Firebase not available - running in mock mode');
         firebaseAdmin = null;
@@ -88,7 +86,7 @@ const initializeFirebase = (): boolean => {
         return false;
       }
     }
-    
+
     return isInitialized;
   } catch (error) {
     console.error('❌ Firebase Admin initialization failed:', error);

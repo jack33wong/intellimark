@@ -10,7 +10,7 @@ import type { MathBlock } from '../ocr/MathDetectionService.js';
 import type { PageOcrResult } from '../../types/markingRouter.js';
 import { formatGroupedStudentWork } from './MarkingHelpers.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 
 // Types for the marking executor
 export interface MarkingTask {

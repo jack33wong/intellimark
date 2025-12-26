@@ -7,7 +7,7 @@ import { FirestoreService } from '../firestoreService.js';
 import { MarkingServiceLocator } from './MarkingServiceLocator.js';
 import { ProgressTracker, getStepsForMode } from '../../utils/progressTracker.js';
 import { getSuggestedFollowUpConfig, isValidSuggestedFollowUpMode } from '../../config/suggestedFollowUpConfig.js';
-import { UsageTracker } from '../../utils/usageTracker.js';
+import { UsageTracker } from '../../utils/UsageTracker.js';
 
 export interface SuggestedFollowUpRequest {
   mode: string;

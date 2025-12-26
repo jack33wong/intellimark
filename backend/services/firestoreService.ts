@@ -10,8 +10,8 @@ import { getFirestore } from '../config/firebase.js';
 import { createUserMessage, createAIMessage, createChatProgressData, createMarkingProgressData } from '../utils/messageUtils.js';
 import { costToCredits } from '../config/credit.config.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Firebase service account key filename
+const SERVICE_ACCOUNT_FILE = 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
 
 // Helper function to sanitize data for Firestore (remove undefined values)
 function sanitizeForFirestore(obj: any): any {
@@ -36,7 +36,8 @@ function sanitizeForFirestore(obj: any): any {
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps || admin.apps.length === 0) {
   try {
-    const serviceAccountPath = join(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+    // Force path to root where service account lives
+    const serviceAccountPath = join(process.cwd(), SERVICE_ACCOUNT_FILE);
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccountPath)
     });

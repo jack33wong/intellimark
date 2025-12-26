@@ -232,8 +232,8 @@ export class UsageTracker {
 
         if (!pricingToUse) {
             console.warn(`[UsageTracker] Unknown model: ${model}, using default pricing`);
-            // Fallback to gemini-2.5-flash
-            const defaultPricing = getLLMPricing('gemini-2.5-flash');
+            // Fallback to gemini-2.0-flash
+            const defaultPricing = getLLMPricing('gemini-2.0-flash');
             if (defaultPricing) {
                 pricingToUse = defaultPricing;
             }

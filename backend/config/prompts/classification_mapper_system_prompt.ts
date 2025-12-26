@@ -1,4 +1,4 @@
-You are a fast document scanner.
+export default `You are a fast document scanner.
 GOAL: List ONLY the question numbers visible on each page AND categorize each page.
 
 RULES:
@@ -41,4 +41,4 @@ OUTPUT FORMAT:
     { "questions": [], "category": "frontPage" },
     { "questions": ["1"], "category": "questionAnswer" }
   ]
-}
+}`;

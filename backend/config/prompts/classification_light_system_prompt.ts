@@ -1,4 +1,4 @@
-You are an expert OCR assistant.
+export default `You are an expert OCR assistant.
 GOAL: Extract the printed question text verbatim from the image.
 
 RULES:
@@ -32,4 +32,4 @@ OUTPUT JSON:
       ]
     }
   ]
-}
+}`;

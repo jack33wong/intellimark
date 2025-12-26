@@ -8,9 +8,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-// ES module equivalent of __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Static import for API spec (bundled by esbuild)
+// @ts-ignore
+import apiSpec from './api-spec.json';
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
@@ -37,7 +37,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://intellimark-6649e.web.app'
+    'https://intellimark-6649e.web.app',
+    'https://www.aimarking.ai',
+    'https://aimarking.ai'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -50,29 +52,21 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Swagger UI setup
 try {
-  const apiSpecPath = path.join(__dirname, 'api-spec.json');
-  if (fs.existsSync(apiSpecPath)) {
-    const apiSpec = JSON.parse(fs.readFileSync(apiSpecPath, 'utf8'));
+  // Serve Swagger UI at /api-docs using the statically imported apiSpec
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'IntelliMark API Documentation',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'list',
+      filter: true,
+      showExtensions: true,
+      showCommonExtensions: true
+    }
+  }));
 
-    // Serve Swagger UI at /api-docs
-    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec, {
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'IntelliMark API Documentation',
-      swaggerOptions: {
-        persistAuthorization: true,
-        displayRequestDuration: true,
-        docExpansion: 'list',
-        filter: true,
-        showExtensions: true,
-        showCommonExtensions: true
-      }
-    }));
-
-    console.log('📚 Swagger UI available at: http://localhost:5001/api-docs');
-  } else {
-    console.warn('⚠️  API spec not found at:', apiSpecPath);
-    console.warn('   Run: npm run generate-api-spec');
-  }
+  console.log('📚 Swagger UI available at /api-docs');
 } catch (error) {
   console.error('❌ Failed to setup Swagger UI:', error);
 }
@@ -193,16 +187,12 @@ function startServer(port: number) {
 }
 
 // Start the server only if not being imported as a module
-// More reliable check for direct execution
-if (import.meta.url.endsWith(process.argv[1]) || process.argv[1]?.endsWith('server.ts')) {
+// More reliable check for direct execution (works for both ESM and CJS bundle)
+const isMainModule = process.argv[1]?.endsWith('server.ts') || process.argv[1]?.endsWith('server.js');
+
+if (isMainModule) {
   startServer(DEFAULT_PORT);
 }
 
 // Export the app directly for Firebase Functions
 export default app;
-
-// For CommonJS compatibility in Firebase Functions
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = app;
-  module.exports.default = app;
-}

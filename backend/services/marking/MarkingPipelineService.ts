@@ -10,7 +10,7 @@ import { MarkingPersistenceService } from './MarkingPersistenceService.js';
 import { createProgressData } from '../../utils/sseUtils.js';
 import { logPerformanceSummary, extractQuestionsFromClassification, logAnnotationSummary } from './MarkingHelpers.js';
 import { withPerformanceLogging } from '../../utils/markingRouterHelpers.js';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 
 import type { MarkingSessionContext, QuestionSessionContext } from '../../types/sessionManagement.js';
 import { getBaseQuestionNumber, extractQuestionNumberFromFilename } from '../../utils/TextNormalizationUtils.js';

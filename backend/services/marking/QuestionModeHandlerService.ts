@@ -17,7 +17,7 @@ import { sendSseUpdate, createProgressData } from '../../utils/sseUtils.js';
 import { SessionManagementService } from '../sessionManagementService.js';
 import type { QuestionSessionContext } from '../../types/sessionManagement.js';
 import type { Express } from 'express-serve-static-core';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 
 const MULTI_IMAGE_STEPS = [
   'Input Validation',

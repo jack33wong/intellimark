@@ -48,7 +48,6 @@ const esbuildCommand = [
   '--external:stripe',
   '--external:canvas',
   '--external:sharp',
-  `--define:import.meta.url='"file://${process.cwd()}/server.ts"'`,
   '--minify',
   '--sourcemap'
 ].join(' ');
@@ -69,7 +68,7 @@ const functionsPackageJson = {
   "main": "index.js",
   "type": "commonjs",
   "engines": {
-    "node": "18"
+    "node": "22"
   },
   "scripts": {
     "start": "node server.js"
@@ -105,7 +104,7 @@ fs.copyFileSync(
 
 // Create Firebase Functions index.js
 const indexJs = `const functions = require('firebase-functions');
-const app = require('./server.js');
+const app = require('./server.js').default;
 
 // Export the Express app as a Firebase Function
 exports.api = functions.https.onRequest(app);

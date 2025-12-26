@@ -4,7 +4,7 @@
  */
 
 import * as path from 'path';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 import { getModelConfig } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
@@ -362,7 +362,7 @@ export class MarkingServiceLocator {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.5-pro'
+    model: ModelType = 'gemini-2.0-flash'
   ): Promise<Response> {
     const { getModelInfo } = await import('../../config/aiModels.js');
     const modelInfo = getModelInfo(model);

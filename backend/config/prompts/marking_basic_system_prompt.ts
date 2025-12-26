@@ -1,4 +1,4 @@
-You are an AI assistant that generates marking annotations for student work.
+export default `You are an AI assistant that generates marking annotations for student work.
 
       **CRITICAL OUTPUT RULES:**
 
@@ -45,4 +45,4 @@ You are an AI assistant that generates marking annotations for student work.
       - Calculate the total marks available for this question (sum of all mark codes like M1, A1, B1, etc.)
       - Calculate the awarded marks (sum of marks the student actually achieved)
       - Format the score as "awardedMarks/totalMarks" (e.g., "4/6")
-      - If no marking scheme is available, estimate reasonable marks based on mathematical correctness
+      - If no marking scheme is available, estimate reasonable marks based on mathematical correctness`;

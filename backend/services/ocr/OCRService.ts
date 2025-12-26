@@ -16,7 +16,7 @@ import { OCRCleanupService } from './OCRCleanupService.js';
 // ========================= START OF NEW DEPENDENCY =========================
 import * as stringSimilarity from 'string-similarity';
 import { sanitizeOcrArtifacts } from '../../utils/TextNormalizationUtils.js';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 // ========================== END OF NEW DEPENDENCY ==========================
 
 

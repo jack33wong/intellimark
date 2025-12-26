@@ -31,6 +31,7 @@ import { ensureStringContent } from '../../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 
 import type { UnifiedSession } from '../../types';
+import ConfirmationModal from '../common/ConfirmationModal';
 import './Sidebar.css';
 
 // Define the types for the props this component receives from App.tsx
@@ -70,6 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const editInputRef = useRef<HTMLInputElement>(null);
   const { checkPermission, loading: subLoading } = useSubscription();
   const canAccessAnalysis = checkPermission('analysis');
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
@@ -402,9 +404,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               if (canAccessAnalysis) {
                 navigate('/analysis');
               } else {
-                if (window.confirm('Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade?')) {
-                  navigate('/upgrade');
-                }
+                setIsUpgradeModalOpen(true);
               }
             }}
             style={{ marginTop: '8px', opacity: canAccessAnalysis ? 1 : 0.6 }}
@@ -414,6 +414,21 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span>Analysis</span>
           </button>
         </div>
+
+        <ConfirmationModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          onConfirm={() => {
+            setIsUpgradeModalOpen(false);
+            navigate('/upgrade');
+          }}
+          title="Upgrade Required"
+          message="Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade now and unlock diagnostic insights?"
+          confirmText="Upgrade to Pro"
+          cancelText="Maybe later"
+          variant="primary"
+          icon={<BarChart3 size={24} />}
+        />
         <div className="sidebar-section">
           <div className="sidebar-section-header-row">
             <div className="sidebar-section-header">RECENT PAPERS</div>

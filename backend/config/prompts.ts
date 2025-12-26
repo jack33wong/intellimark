@@ -6,16 +6,22 @@
  */
 
 import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
-// Helper to load prompts from external files
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const loadPrompt = (filename: string): string => {
-  return readFileSync(join(__dirname, 'prompts', filename), 'utf-8');
-};
+// Static Import for all AI prompts (Bundled by esbuild or directly loaded by tsx)
+import classification_light_system_prompt from './prompts/classification_light_system_prompt.js';
+import classification_mapper_system_prompt from './prompts/classification_mapper_system_prompt.js';
+import classification_system_prompt from './prompts/classification_system_prompt.js';
+import contextual_system_prompt from './prompts/contextual_system_prompt.js';
+import marking_basic_system_prompt from './prompts/marking_basic_system_prompt.js';
+import marking_scheme_explanation_system_prompt from './prompts/marking_scheme_explanation_system_prompt.js';
+import marking_scheme_system_prompt from './prompts/marking_scheme_system_prompt.js';
+import master_summary_system_prompt from './prompts/master_summary_system_prompt.js';
+import model_answer_system_prompt from './prompts/model_answer_system_prompt.js';
+import question_only_system_prompt from './prompts/question_only_system_prompt.js';
+import question_only_user_prompt from './prompts/question_only_user_prompt.js';
+import similar_questions_system_prompt from './prompts/similar_questions_system_prompt.js';
+
+
 
 // Force valid structure for all system prompts
 // Note: System prompts are loaded synchronously at startup
@@ -28,19 +34,19 @@ export const AI_PROMPTS = {
 
   classification: {
     mapper: {
-      system: (imageCount: number) => loadPrompt('classification_mapper_system_prompt.txt').replace('{{IMAGE_COUNT}}', imageCount.toString()),
+      system: (imageCount: number) => classification_mapper_system_prompt.replace('{{IMAGE_COUNT}}', imageCount.toString()),
       user: (imageCount: number) => `Scan these ${imageCount} pages and list question numbers.`
     },
 
     // Light classification (OCR-only for questionOnly pages - NO POSITIONS)
     light: {
-      system: loadPrompt('classification_light_system_prompt.txt'),
+      system: classification_light_system_prompt,
       user: `Extract all printed question text from the image. Ignore handwriting.`
     },
 
     // Heavy classification (full extraction with POSITIONS for questionAnswer pages)
     heavy: {
-      system: loadPrompt('classification_system_prompt.txt'),
+      system: classification_system_prompt,
       user: `Please classify this uploaded image and extract ALL question text and student work.
     
     CRITICAL INSTRUCTION:
@@ -98,7 +104,7 @@ x = 4 [A1]
 
     // Contextual response (for follow-up chat)
     contextual: {
-      system: loadPrompt('contextual_system_prompt.txt'),
+      system: contextual_system_prompt,
 
       user: (message: string, contextPrompt: string) => `Math problem: "${message}"${contextPrompt}`
     }
@@ -113,7 +119,7 @@ x = 4 [A1]
   markingInstructions: {
     // Basic marking (without marking scheme)
     basic: {
-      system: loadPrompt('marking_basic_system_prompt.txt'),
+      system: marking_basic_system_prompt,
 
       user: (ocrText: string, classificationStudentWork?: string | null) => `Here is the OCR TEXT:
 
@@ -126,7 +132,7 @@ x = 4 [A1]
 
     // With marking scheme (when exam paper is detected)
     withMarkingScheme: {
-      system: loadPrompt('marking_scheme_system_prompt.txt'),
+      system: marking_scheme_system_prompt,
 
       user: (
         questionNumber: string,
@@ -166,7 +172,7 @@ ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g
     // ============================================================================
 
     modelAnswer: {
-      system: loadPrompt('model_answer_system_prompt.txt'),
+      system: model_answer_system_prompt,
 
       user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
         // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
@@ -228,7 +234,7 @@ Please generate a model answer that would receive full marks according to the ma
     // ============================================================================
 
     markingScheme: {
-      system: loadPrompt('marking_scheme_explanation_system_prompt.txt'),
+      system: marking_scheme_explanation_system_prompt,
 
       user: (questionText: string, schemeText: string) => {
         // schemeText must be plain text (same format as stored in detectedQuestion)
@@ -247,7 +253,7 @@ Provide a brief explanation of this marking scheme.Keep it simple and concise.`;
       }
     },
     similarquestions: {
-      system: loadPrompt('similar_questions_system_prompt.txt'),
+      system: similar_questions_system_prompt,
 
       user: (questionText: string, schemeJson: string, questionCount?: number) => {
         // Convert JSON marking scheme to clean bulleted list format
@@ -402,7 +408,7 @@ Keep the analysis concise, educational, and actionable.Focus on helping the stud
   // MASTER PERFORMANCE SUMMARY PROMPTS
   // ============================================================================
   masterSummary: {
-    system: loadPrompt('master_summary_system_prompt.txt'),
+    system: master_summary_system_prompt,
     user: (distilledData: string) => `Here are the distilled results for the exam paper:\n\n${distilledData}\n\nPlease generate a cohesive master performance summary based on this data.`
   }
 };

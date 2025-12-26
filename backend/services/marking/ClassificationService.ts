@@ -5,7 +5,7 @@ import * as path from 'path';
 import { getModelConfig, validateModel } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
-import UsageTracker from '../../utils/usageTracker.js';
+import UsageTracker from '../../utils/UsageTracker.js';
 
 export interface ClassificationResult {
   category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
@@ -620,7 +620,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.5-pro'
+    model: ModelType = 'gemini-2.0-flash'
   ): Promise<ClassificationResult> {
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
@@ -655,7 +655,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   private static async makeGeminiMultiImageRequest(
     accessToken: string,
     parts: any[],
-    model: ModelType = 'gemini-2.5-pro'
+    model: ModelType = 'gemini-2.0-flash'
   ): Promise<Response> {
     // Use centralized model configuration
     const { getModelConfig } = await import('../../config/aiModels.js');
@@ -668,7 +668,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       }],
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens
+        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.0-flash').maxTokens
       },
       safetySettings: this.SAFETY_SETTINGS
     };
@@ -723,7 +723,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.5-pro'
+    model: ModelType = 'gemini-2.0-flash'
   ): Promise<Response> {
     // Use centralized model configuration
     const { getModelConfig } = await import('../../config/aiModels.js');
@@ -740,7 +740,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       }],
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens
+        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.0-flash').maxTokens
       }, // Use centralized config
       safetySettings: this.SAFETY_SETTINGS
     };
