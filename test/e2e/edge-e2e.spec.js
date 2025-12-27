@@ -7,7 +7,7 @@ const DatabaseHelper = require('./utils/DatabaseHelper');
 
 // Test configuration - Edge Case & Bug Detection E2E Tests
 const TEST_CONFIG = {
-  email: 'edgee2e@intellimark.com',
+  email: 'edgee2e@ai-marking.com',
   password: '123456',
   userId: 'DClCZt95Y8RLOQHvEgo2PyPpZiF2',
   testImages: {
@@ -187,7 +187,7 @@ test.describe('Edge Case E2E Tests', () => {
         } catch (error) {
           // Capture screenshot when enterText fails
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const screenshotPath = `/Users/ytwong/github/intellimark/test/e2e/debug-screenshots/EdgeCaseE2E-enterText-failed-${timestamp}.png`;
+          const screenshotPath = `/Users/ytwong/github/ai-marking/test/e2e/debug-screenshots/EdgeCaseE2E-enterText-failed-${timestamp}.png`;
           await page.screenshot({ path: screenshotPath, fullPage: true });
           
           // Log detailed error information

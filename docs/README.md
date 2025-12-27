@@ -1,4 +1,4 @@
-# IntelliMark - AI-Powered Homework Marking System
+# AI Marking - AI-Powered Homework Marking System
 
 A comprehensive AI-powered homework marking system built with React frontend and Node.js/TypeScript backend. Features real-time image processing, AI analysis, interactive chat, and session management for both authenticated and anonymous users.
 
@@ -42,7 +42,7 @@ A comprehensive AI-powered homework marking system built with React frontend and
 ## Project Structure
 
 ```
-intellimark/
+ai-marking/
 ├── backend/                 # Node.js/TypeScript backend
 │   ├── routes/             # API route handlers
 │   │   ├── mark-homework.ts # Homework marking endpoints
@@ -152,7 +152,7 @@ intellimark/
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd intellimark
+   cd ai-marking
    ```
 
 2. **Backend Setup**
@@ -260,7 +260,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 1. **Clone the repository**
    ```bash
    git clone <your-repo-url>
-   cd intellimark-chat
+   cd ai-marking-chat
    ```
 
 2. **Install all dependencies**
@@ -303,7 +303,7 @@ npm start
 The project includes a comprehensive test suite using Puppeteer for automated testing.
 
 ### Test Account
-- **Email**: `admin@intellimark.com`
+- **Email**: `admin@ai-marking.com`
 - **Password**: `123456`
 
 ### Running Tests

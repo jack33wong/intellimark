@@ -174,5 +174,5 @@ const MathRenderer: React.FC<MathRendererProps> = ({ expression, ...props }) => 
 
 ## License
 
-This component is part of the Intellimark Chat application and follows the same license terms.
+This component is part of the AI Marking Chat application and follows the same license terms.
 

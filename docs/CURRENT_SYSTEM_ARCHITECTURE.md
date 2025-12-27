@@ -1,8 +1,8 @@
-# IntelliMark Current System Architecture
+# AI Marking Current System Architecture
 
 ## Overview
 
-IntelliMark is a comprehensive AI-powered homework marking system built with React frontend and Node.js/TypeScript backend. The system provides real-time image processing, AI analysis, and interactive chat functionality for both authenticated and anonymous users.
+AI Marking is a comprehensive AI-powered homework marking system built with React frontend and Node.js/TypeScript backend. The system provides real-time image processing, AI analysis, and interactive chat functionality for both authenticated and anonymous users.
 
 ## System Architecture
 

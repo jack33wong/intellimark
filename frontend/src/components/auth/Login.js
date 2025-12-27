@@ -21,7 +21,7 @@ const Login = () => {
     password: ''
   });
   const navigate = useNavigate();
-  
+
   // 👇 FIX 1: Removed the obsolete `socialLogin` function from the destructuring.
   const { user, emailPasswordSignup, emailPasswordSignin, error: authError } = useAuth();
 
@@ -83,7 +83,7 @@ const Login = () => {
       const result = currentPage === 'email-signup'
         ? await emailPasswordSignup(formData.email, formData.password, '')
         : await emailPasswordSignin(formData.email, formData.password);
-      
+
       if (!result.success) {
         setFirebaseError(result.message);
       }
@@ -135,14 +135,14 @@ const Login = () => {
     setFormData(prev => ({ ...prev, password: '' }));
     setFirebaseError(null);
   };
-  
+
   if (user) {
     return null;
   }
 
   const renderMainPage = () => (
     <div className="auth-card">
-      <div className="auth-header"><h1>Intellimark</h1><p>Sign in or sign up</p></div>
+      <div className="auth-header"><h1>AI Marking</h1><p>Sign in or sign up</p></div>
       <div className="auth-form">
         {firebaseError && <div className="auth-error"><AlertCircle size={16} /><span>{firebaseError}</span></div>}
         {authError && <div className="auth-error"><AlertCircle size={16} /><span>{authError}</span></div>}
@@ -172,44 +172,44 @@ const Login = () => {
       </div>
     </div>
   );
-  
+
   const renderEmailFormPage = (isSignUp) => (
-      <div className="auth-card">
-        <div className="auth-header"><h1>Intellimark</h1><p>{isSignUp ? 'Create your account' : 'Sign in with your password'}</p></div>
-        <div className="auth-form">
-          {firebaseError && <div className="auth-error"><AlertCircle size={16} /><span>{firebaseError}</span></div>}
-          {authError && <div className="auth-error"><AlertCircle size={16} /><span>{authError}</span></div>}
-          <form onSubmit={handleEmailPasswordSubmit} className="email-password-form">
-            <div className="form-group">
-              <label htmlFor="email" className="form-label"><Mail size={16} />Email</label>
-              <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="form-input" readOnly />
+    <div className="auth-card">
+      <div className="auth-header"><h1>AI Marking</h1><p>{isSignUp ? 'Create your account' : 'Sign in with your password'}</p></div>
+      <div className="auth-form">
+        {firebaseError && <div className="auth-error"><AlertCircle size={16} /><span>{firebaseError}</span></div>}
+        {authError && <div className="auth-error"><AlertCircle size={16} /><span>{authError}</span></div>}
+        <form onSubmit={handleEmailPasswordSubmit} className="email-password-form">
+          <div className="form-group">
+            <label htmlFor="email" className="form-label"><Mail size={16} />Email</label>
+            <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="form-input" readOnly />
+          </div>
+          <div className="form-group">
+            <label htmlFor="password" className="form-label"><Lock size={16} />Password</label>
+            <div className="password-input-container">
+              <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleInputChange} required className="form-input password-input" placeholder="Enter your password" />
+              <button type="button" className="password-toggle" onClick={() => setShowPassword(p => !p)}>
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
-            <div className="form-group">
-              <label htmlFor="password" className="form-label"><Lock size={16} />Password</label>
-              <div className="password-input-container">
-                <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleInputChange} required className="form-input password-input" placeholder="Enter your password" />
-                <button type="button" className="password-toggle" onClick={() => setShowPassword(p => !p)}>
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-            <button type="submit" className="auth-submit-button" disabled={isLoading}>
-              {isLoading ? <div className="loading-spinner loading-spinner-small"><div className="spinner spinner-white" /></div> : 'Continue'}
-            </button>
-          </form>
-          <button type="button" className="auth-back-button" onClick={handleBack}>← Back</button>
-        </div>
+          </div>
+          <button type="submit" className="auth-submit-button" disabled={isLoading}>
+            {isLoading ? <div className="loading-spinner loading-spinner-small"><div className="spinner spinner-white" /></div> : 'Continue'}
+          </button>
+        </form>
+        <button type="button" className="auth-back-button" onClick={handleBack}>← Back</button>
       </div>
+    </div>
   );
 
   return (
-      <div className="auth-container">
-          {
-              currentPage === 'main' ? renderMainPage() :
-              currentPage === 'email-signin' ? renderEmailFormPage(false) :
-              renderEmailFormPage(true)
-          }
-      </div>
+    <div className="auth-container">
+      {
+        currentPage === 'main' ? renderMainPage() :
+          currentPage === 'email-signin' ? renderEmailFormPage(false) :
+            renderEmailFormPage(true)
+      }
+    </div>
   );
 };
 

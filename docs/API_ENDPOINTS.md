@@ -1,8 +1,8 @@
-# IntelliMark API Endpoints Documentation
+# AI Marking API Endpoints Documentation
 
 ## Overview
 
-This document provides comprehensive documentation for all API endpoints in the IntelliMark system. The API is built with Express.js and TypeScript, providing RESTful endpoints for homework marking, chat functionality, authentication, and administration.
+This document provides comprehensive documentation for all API endpoints in the AI Marking system. The API is built with Express.js and TypeScript, providing RESTful endpoints for homework marking, chat functionality, authentication, and administration.
 
 **Base URL**: `http://localhost:5001/api` (development)  
 **Authentication**: JWT tokens via Firebase Auth  

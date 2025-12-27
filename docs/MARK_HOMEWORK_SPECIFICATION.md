@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Mark Homework feature is the core functionality of IntelliMark, providing AI-powered homework analysis and marking through a streamlined, consolidated interface. This document describes the current consolidated implementation after significant refactoring to eliminate over-engineering and state management complexity.
+The Mark Homework feature is the core functionality of AI Marking, providing AI-powered homework analysis and marking through a streamlined, consolidated interface. This document describes the current consolidated implementation after significant refactoring to eliminate over-engineering and state management complexity.
 
 ## Architecture
 

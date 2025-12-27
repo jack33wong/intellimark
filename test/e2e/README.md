@@ -1,6 +1,6 @@
 # End-to-End Test Suite
 
-This directory contains comprehensive end-to-end tests for the IntelliMark application using Playwright.
+This directory contains comprehensive end-to-end tests for the AI Marking application using Playwright.
 
 ## Overview
 
@@ -25,7 +25,7 @@ test/e2e/
 
 ## Test Account
 
-- **Email**: `admin@intellimark.com`
+- **Email**: `admin@ai-marking.com`
 - **Password**: `123456`
 - **UID**: `GdH3EGZ4mLQrBO5w20seIzbqVKv1`
 

@@ -1,5 +1,5 @@
 {
-  "name": "intellimark-chat",
+  "name": "ai-marking",
   "version": "1.0.0",
   "description": "A Gemini-like chat application with React frontend and Node.js backend",
   "main": "index.js",

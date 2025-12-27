@@ -1,4 +1,4 @@
-# IntelliMark API Quick Reference
+# AI Marking API Quick Reference
 
 ## Most Common Endpoints
 

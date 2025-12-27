@@ -1,6 +1,6 @@
 # 🎓 Admin Features - Past Papers Management
 
-The Intellimark Chat application now includes a comprehensive admin dashboard for managing past paper PDFs, organized by exam board and year.
+The AI Marking Chat application now includes a comprehensive admin dashboard for managing past paper PDFs, organized by exam board and year.
 
 ## ✨ **Features Overview**
 

@@ -31,7 +31,7 @@ const SubscriptionPage: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; enterprise: number } | null>(null);
+  const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; ultra: number } | null>(null);
   const [dynamicPlans, setDynamicPlans] = useState<any>(null); // Store fetched pricing
   const [creditError, setCreditError] = useState<string | null>(null);
 
@@ -225,7 +225,7 @@ const SubscriptionPage: React.FC = () => {
     {
       id: 'pro' as Plan,
       name: 'Pro',
-      price: dynamicPlans?.pro?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 20 : 192),
+      price: dynamicPlans?.pro?.[billingCycle]?.amount,
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
@@ -253,15 +253,15 @@ const SubscriptionPage: React.FC = () => {
       popular: true
     },
     {
-      id: 'enterprise' as Plan,
+      id: 'ultra' as Plan,
       name: 'Ultra',
-      price: dynamicPlans?.enterprise?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 100 : 960),
+      price: dynamicPlans?.ultra?.[billingCycle]?.amount,
       description: 'For Serious Achievers',
       icon: <Building2 size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
-          text: `${planCredits.enterprise} credits per month`
+          text: `${planCredits.ultra} credits per month`
         },
         {
           icon: <Layers size={16} />,
@@ -274,7 +274,7 @@ const SubscriptionPage: React.FC = () => {
 
   // Helper function to get plan level for comparison
   const getPlanLevel = (planId: string) => {
-    const levels: { [key: string]: number } = { free: 0, pro: 1, enterprise: 2 };
+    const levels: { [key: string]: number } = { free: 0, pro: 1, ultra: 2 };
     return levels[planId] || 0;
   };
 
@@ -695,7 +695,7 @@ const SubscriptionPage: React.FC = () => {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'enterprise' ? 'enterprise' : ''} ${plan.id === currentSubscription?.planId ? 'current-plan' : ''}`}
+              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'ultra' ? 'ultra' : ''} ${plan.id === currentSubscription?.planId ? 'current-plan' : ''}`}
               onClick={() => handlePlanSelect(plan.id)}
             >
               {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
@@ -707,7 +707,13 @@ const SubscriptionPage: React.FC = () => {
 
               <div className="upgrade-plan-pricing">
                 <div className="upgrade-plan-price">
-                  £{plan.price}
+                  {plan.price !== undefined ? (
+                    <>
+                      £{plan.price}
+                    </>
+                  ) : (
+                    <span className="price-loading">£...</span>
+                  )}
                   <span className="upgrade-plan-period"> / {billingCycle === 'monthly' ? 'month' : 'year'}</span>
                 </div>
               </div>

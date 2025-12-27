@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Intellimark Chat Environment Setup Script
+# AI Marking Chat Environment Setup Script
 # This script helps you create a .env.local file from the template
 
-echo "🚀 Setting up environment configuration for Intellimark Chat..."
+echo "🚀 Setting up environment configuration for AI Marking Chat..."
 
 # Check if .env.local already exists
 if [ -f ".env.local" ]; then
@@ -26,11 +26,11 @@ else
     echo "❌ config.env.example not found. Creating basic .env.local..."
     
     cat > .env.local << 'EOF'
-# Intellimark Chat Application Environment Configuration
+# AI Marking Chat Application Environment Configuration
 
 # Application Configuration
 NODE_ENV=development
-APP_NAME=Intellimark Chat
+APP_NAME=AI Marking Chat
 APP_VERSION=1.0.0
 
 # Backend Configuration

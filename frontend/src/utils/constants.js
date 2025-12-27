@@ -15,14 +15,14 @@ export const API_ENDPOINTS = {
 export const SUBSCRIPTION_PLANS = {
   FREE: 'free',
   PRO: 'pro',
-  ENTERPRISE: 'enterprise',
+  ULTRA: 'ultra',
 };
 
 // Subscription Delays (in milliseconds)
 export const SUBSCRIPTION_DELAYS = {
   FREE: 3000,
   PRO: 1000,
-  ENTERPRISE: 0,
+  ULTRA: 0,
 };
 
 // Page Modes
@@ -66,10 +66,10 @@ export const UI_CONSTANTS = {
 
 // Local Storage Keys
 export const STORAGE_KEYS = {
-  THEME: 'intellimark-theme',
-  LAST_SESSION: 'intellimark-last-session',
-  USER_PREFERENCES: 'intellimark-user-preferences',
-  SELECTED_MODEL: 'intellimark-selected-model',
+  THEME: 'aimarking-theme',
+  LAST_SESSION: 'aimarking-last-session',
+  USER_PREFERENCES: 'aimarking-user-preferences',
+  SELECTED_MODEL: 'aimarking-selected-model',
 };
 
 // Error Messages

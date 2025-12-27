@@ -33,7 +33,7 @@ const BATCH_SIZE = 100;
 function initializeFirebase(): void {
   if (admin.apps.length === 0) {
     try {
-      const serviceAccountPath = join(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+      const serviceAccountPath = join(__dirname, '..', 'ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccountPath)
       });

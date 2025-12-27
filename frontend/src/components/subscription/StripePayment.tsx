@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  PaymentFormProps, 
-  PaymentState, 
+import {
+  PaymentFormProps,
+  PaymentState,
   SubscriptionResponse,
   StripeCardElementOptions,
   StripePaymentProps
@@ -68,20 +68,20 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
       }
 
       const data = await response.json();
-      setState(prev => ({ 
-        ...prev, 
-        paymentIntent: data.paymentIntent, 
-        loading: false 
+      setState(prev => ({
+        ...prev,
+        paymentIntent: data.paymentIntent,
+        loading: false
       }));
     } catch (error) {
       console.error('Error creating payment intent:', error);
-      setState(prev => ({ 
-        ...prev, 
-        error: { 
-          type: 'api_error', 
-          message: 'Failed to create payment intent' 
-        }, 
-        loading: false 
+      setState(prev => ({
+        ...prev,
+        error: {
+          type: 'api_error',
+          message: 'Failed to create payment intent'
+        },
+        loading: false
       }));
     }
   }, [planId, billingCycle, user?.email, user?.uid]);
@@ -101,10 +101,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
 
     const cardElement = elements.getElement(CardElement);
     if (!cardElement) {
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         error: { type: 'validation_error', message: 'Card element not found' },
-        processing: false 
+        processing: false
       }));
       return;
     }
@@ -124,14 +124,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
       );
 
       if (stripeError) {
-        setState(prev => ({ 
-          ...prev, 
-          error: { 
-            type: 'stripe_error', 
+        setState(prev => ({
+          ...prev,
+          error: {
+            type: 'stripe_error',
             code: stripeError.code,
-            message: stripeError.message || 'Payment failed' 
+            message: stripeError.message || 'Payment failed'
           },
-          processing: false 
+          processing: false
         }));
         return;
       }
@@ -142,13 +142,13 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
       }
     } catch (error) {
       console.error('Payment error:', error);
-      setState(prev => ({ 
-        ...prev, 
-        error: { 
-          type: 'payment_error', 
-          message: 'Payment processing failed' 
+      setState(prev => ({
+        ...prev,
+        error: {
+          type: 'payment_error',
+          message: 'Payment processing failed'
         },
-        processing: false 
+        processing: false
       }));
     }
   };
@@ -178,13 +178,13 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
       onSuccess(subscriptionData);
     } catch (error) {
       console.error('Error creating subscription:', error);
-      setState(prev => ({ 
-        ...prev, 
-        error: { 
-          type: 'subscription_error', 
-          message: 'Failed to create subscription' 
+      setState(prev => ({
+        ...prev,
+        error: {
+          type: 'subscription_error',
+          message: 'Failed to create subscription'
         },
-        processing: false 
+        processing: false
       }));
     }
   };
@@ -192,7 +192,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
   const getPlanDisplayName = (planId: string) => {
     switch (planId) {
       case 'pro': return 'Pro';
-      case 'enterprise': return 'Enterprise';
+      case 'ultra': return 'Ultra';
       default: return planId;
     }
   };
@@ -226,7 +226,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
           <div className="plan-summary">
             <h2>{getPlanDisplayName(planId)} Plan - {getBillingDisplayName(billingCycle)}</h2>
             <div className="price-display">
-              ${state.paymentIntent ? (state.paymentIntent.amount / 100).toFixed(2) : '0.00'}
+              £{state.paymentIntent ? (state.paymentIntent.amount / 100).toFixed(2) : '0.00'}
               <span className="period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
             </div>
           </div>

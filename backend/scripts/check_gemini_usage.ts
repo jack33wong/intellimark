@@ -18,10 +18,10 @@ async function checkGeminiUsage(targetDate?: string) {
         // Try multiple possible paths for the service account file
         const possiblePaths = [
             process.env.GOOGLE_APPLICATION_CREDENTIALS,
-            join(process.cwd(), 'backend', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
-            join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
-            join(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
-            join(__dirname, 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json')
+            join(process.cwd(), 'backend', 'ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
+            join(process.cwd(), 'ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
+            join(__dirname, '..', 'ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'),
+            join(__dirname, 'ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json')
         ].filter(Boolean) as string[];
 
         // Find the first path that exists

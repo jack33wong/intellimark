@@ -5,7 +5,7 @@ import { SubscriptionService } from '../services/subscriptionService.js';
 declare global {
     namespace Express {
         interface Request {
-            userPlan?: 'free' | 'pro' | 'enterprise';
+            userPlan?: 'free' | 'pro' | 'ultra';
         }
     }
 }
@@ -25,7 +25,7 @@ export const attachUserPlan = async (req: Request, res: Response, next: NextFunc
         const subscription = await SubscriptionService.getUserSubscription(req.user.uid);
 
         if (subscription && subscription.status === 'active') {
-            req.userPlan = subscription.planId as 'free' | 'pro' | 'enterprise';
+            req.userPlan = subscription.planId as 'free' | 'pro' | 'ultra';
         } else {
             req.userPlan = 'free';
         }

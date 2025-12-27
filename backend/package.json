@@ -1,8 +1,8 @@
 {
-  "name": "intellimark-chat-backend",
+  "name": "ai-marking-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Backend for Intellimark Chat application",
+  "description": "Backend for AI Marking application",
   "main": "server.js",
   "scripts": {
     "start": "node dist/server.js",

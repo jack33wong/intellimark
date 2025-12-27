@@ -1,7 +1,7 @@
 # Mark Homework API Flow Diagram
 
 ## Overview
-This diagram shows the relationship between different API endpoints and their usage patterns in the IntelliMark system.
+This diagram shows the relationship between different API endpoints and their usage patterns in the AI Marking system.
 
 ## API Endpoint Relationships
 

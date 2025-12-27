@@ -14,11 +14,11 @@ class DatabaseHelper {
 
     try {
       // Initialize Firebase Admin SDK
-      const serviceAccountPath = path.join(__dirname, '../../../backend/intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+      const serviceAccountPath = path.join(__dirname, '../../../backend/ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
       
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccountPath),
-        projectId: 'intellimark-6649e'
+        projectId: 'ai-marking-6649e'
       });
 
       this.db = admin.firestore();

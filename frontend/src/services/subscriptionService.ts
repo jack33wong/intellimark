@@ -39,7 +39,7 @@ class SubscriptionService {
         return 'Free';
       case 'pro':
         return 'Pro';
-      case 'enterprise':
+      case 'ultra':
         return 'Ultra';
       default:
         return planId.charAt(0).toUpperCase() + planId.slice(1);

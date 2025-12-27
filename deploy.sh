@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# IntelliMark Production Deployment Script (Improved)
+# AI Marking Production Deployment Script (Improved)
 # This script provides a reliable way to build and deploy to Firebase
 
 set -e  # Exit on any error
 
-echo "🚀 IntelliMark Production Deployment (Improved)"
+echo "🚀 AI Marking Production Deployment (Improved)"
 echo "=============================================="
 
 # Check if we're in the right directory
@@ -100,8 +100,8 @@ firebase deploy
 
 if [ $? -eq 0 ]; then
     echo "✅ Deployment completed successfully!"
-    echo "🌐 Your app is live at: https://intellimark-6649e.web.app"
-    echo "📊 Backend API: https://us-central1-intellimark-6649e.cloudfunctions.net/api"
+    echo "🌐 Your app is live at: https://ai-marking-6649e.web.app"
+    echo "📊 Backend API: https://us-central1-ai-marking-6649e.cloudfunctions.net/api"
 else
     echo "❌ Deployment failed"
     exit 1

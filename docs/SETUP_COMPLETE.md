@@ -1,4 +1,4 @@
-# 🎉 Intellimark Chat Application Setup Complete!
+# 🎉 AI Marking Chat Application Setup Complete!
 
 Your Gemini-like chat application has been successfully created and is now running! 
 
@@ -77,7 +77,7 @@ curl -X POST http://localhost:5001/api/chat/{chatId}/message \
 ## 📁 Project Structure
 
 ```
-intellimark-chat/
+ai-marking-chat/
 ├── backend/                 # Node.js backend
 │   ├── routes/             # API endpoints
 │   ├── server.js           # Main server

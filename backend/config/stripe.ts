@@ -16,21 +16,40 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2025-08-27.basil',
 });
 
+const isLive = process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
+console.log(`💳 Stripe initialized in ${isLive ? 'LIVE' : 'TEST'} mode`);
+
+// Keep both sets of product IDs in the code
+const STRIPE_PLANS = {
+  test: {
+    pro: {
+      monthly: { productId: process.env.STRIPE_TEST_PRO_MONTHLY_PRODUCT_ID || process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '' },
+      yearly: { productId: process.env.STRIPE_TEST_PRO_YEARLY_PRODUCT_ID || process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '' },
+    },
+    ultra: {
+      monthly: { productId: process.env.STRIPE_TEST_ULTRA_MONTHLY_PRODUCT_ID || process.env.STRIPE_ULTRA_MONTHLY_PRODUCT_ID || '' },
+      yearly: { productId: process.env.STRIPE_TEST_ULTRA_YEARLY_PRODUCT_ID || process.env.STRIPE_ULTRA_YEARLY_PRODUCT_ID || '' },
+    },
+  },
+  live: {
+    pro: {
+      monthly: { productId: process.env.STRIPE_LIVE_PRO_MONTHLY_PRODUCT_ID || '' },
+      yearly: { productId: process.env.STRIPE_LIVE_PRO_YEARLY_PRODUCT_ID || '' },
+    },
+    ultra: {
+      monthly: { productId: process.env.STRIPE_LIVE_ULTRA_MONTHLY_PRODUCT_ID || '' },
+      yearly: { productId: process.env.STRIPE_LIVE_ULTRA_YEARLY_PRODUCT_ID || '' },
+    },
+  }
+};
+
 export const STRIPE_CONFIG = {
   publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
   secretKey: process.env.STRIPE_SECRET_KEY || '',
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
   currency: 'gbp',
-  plans: {
-    pro: {
-      monthly: { productId: process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '' },
-      yearly: { productId: process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '' },
-    },
-    enterprise: {
-      monthly: { productId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRODUCT_ID || '' },
-      yearly: { productId: process.env.STRIPE_ENTERPRISE_YEARLY_PRODUCT_ID || '' },
-    },
-  },
+  mode: isLive ? 'live' : 'test',
+  plans: isLive ? STRIPE_PLANS.live : STRIPE_PLANS.test,
 };
 
 
@@ -43,8 +62,8 @@ export async function getDefaultPriceFromProduct(productId: string): Promise<str
       '❌ Product ID is empty! Please check your .env.local file:\n' +
       '   STRIPE_PRO_MONTHLY_PRODUCT_ID=prod_xxx\n' +
       '   STRIPE_PRO_YEARLY_PRODUCT_ID=prod_xxx\n' +
-      '   STRIPE_ENTERPRISE_MONTHLY_PRODUCT_ID=prod_xxx\n' +
-      '   STRIPE_ENTERPRISE_YEARLY_PRODUCT_ID=prod_xxx'
+      '   STRIPE_ULTRA_MONTHLY_PRODUCT_ID=prod_xxx\n' +
+      '   STRIPE_ULTRA_YEARLY_PRODUCT_ID=prod_xxx'
     );
   }
 
@@ -62,40 +81,60 @@ export async function getDefaultPriceFromProduct(productId: string): Promise<str
  */
 export async function getPlanPrices() {
   if (cachedPrices) {
-
     return cachedPrices;
   }
 
   console.log('🔄 Fetching fresh prices from Stripe...');
 
   try {
-    const plans: any = { pro: {}, enterprise: {} };
-    const tiers = ['pro', 'enterprise'];
-    const cycles = ['monthly', 'yearly'];
+    const plans: any = { pro: {}, ultra: {} };
+    const tiers = ['pro', 'ultra'] as const;
+    const cycles = ['monthly', 'yearly'] as const;
+
+    // Create a list of all fetch operations to run in parallel
+    const retrievalPromises: Promise<any>[] = [];
+    const mapping: { tier: string, cycle: string }[] = [];
 
     for (const tier of tiers) {
       for (const cycle of cycles) {
         const productId = (STRIPE_CONFIG.plans as any)[tier][cycle].productId;
-
-        if (!productId) continue;
-
-        const product = await stripe.products.retrieve(productId);
-
-        if (product.default_price) {
-          const priceId = typeof product.default_price === 'string'
-            ? product.default_price
-            : product.default_price.id;
-
-          const price = await stripe.prices.retrieve(priceId);
-
-          plans[tier][cycle] = {
-            amount: (price.unit_amount || 0) / 100, // Convert cents to currency unit
-            currency: price.currency,
-            priceId: price.id
-          };
+        if (productId) {
+          retrievalPromises.push(stripe.products.retrieve(productId));
+          mapping.push({ tier, cycle });
         }
       }
     }
+
+    // Step 1: Fetch all products in parallel
+    const products = await Promise.all(retrievalPromises);
+
+    // Step 2: Extract price IDs and fetch all prices in parallel
+    const priceRetrievalPromises: Promise<any>[] = [];
+    const priceMapping: { tier: string, cycle: string }[] = [];
+
+    products.forEach((product, index) => {
+      const { tier, cycle } = mapping[index];
+      if (product.default_price) {
+        const priceId = typeof product.default_price === 'string'
+          ? product.default_price
+          : product.default_price.id;
+
+        priceRetrievalPromises.push(stripe.prices.retrieve(priceId));
+        priceMapping.push({ tier, cycle });
+      }
+    });
+
+    const prices = await Promise.all(priceRetrievalPromises);
+
+    // Map results back to the plans object
+    prices.forEach((price, index) => {
+      const { tier, cycle } = priceMapping[index];
+      plans[tier][cycle] = {
+        amount: (price.unit_amount || 0) / 100,
+        currency: price.currency,
+        priceId: price.id
+      };
+    });
 
     cachedPrices = plans;
     console.log('✅ Stripe prices fetched and cached');

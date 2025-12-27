@@ -1,6 +1,6 @@
-# IntelliMark System Flow Diagram
+# AI Marking System Flow Diagram
 
-## 🔄 **IntelliMark Application Flow Diagram**
+## 🔄 **AI Marking Application Flow Diagram**
 
 ### **1. Application Entry Points**
 
@@ -361,7 +361,7 @@
 - **Mathpix**: Mathematical OCR
 - **Stripe**: Payment processing
 
-This flow diagram represents the current consolidated state of the IntelliMark application after significant refactoring to eliminate over-engineering and state management complexity. The system now follows a clean, single-source-of-truth architecture with unified handlers and simplified state flow.
+This flow diagram represents the current consolidated state of the AI Marking application after significant refactoring to eliminate over-engineering and state management complexity. The system now follows a clean, single-source-of-truth architecture with unified handlers and simplified state flow.
 
 ## 🎯 **Key Architectural Improvements:**
 

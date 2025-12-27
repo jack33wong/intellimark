@@ -372,7 +372,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-content">
         <div className="sidebar-header">
           <div className="sidebar-logo" onClick={handleGoToMarkHomework}>
-            <img src="/images/logo.png" alt="IntelliMark Logo" className="sidebar-logo-img" />
+            <img src="/images/logo.png" alt="AI Marking Logo" className="sidebar-logo-img" />
             <div>
               <h1 className="sidebar-logo-text">AI Marking</h1>
               {/* <p className="sidebar-logo-subtitle">powered by AI</p> */}

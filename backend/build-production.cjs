@@ -62,9 +62,9 @@ try {
 
 // Create Firebase Functions package.json
 const functionsPackageJson = {
-  "name": "intellimark-functions",
+  "name": "ai-marking-functions",
   "version": "1.0.0",
-  "description": "IntelliMark Firebase Functions",
+  "description": "AI Marking Firebase Functions",
   "main": "index.js",
   "type": "commonjs",
   "engines": {

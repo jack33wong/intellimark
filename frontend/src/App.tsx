@@ -222,7 +222,7 @@ function AppContent() {
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps}>
               <div className="welcome-message">
-                <h1>Welcome to IntelliMark</h1>
+                <h1>Welcome to AI Marking</h1>
                 <p>Your AI-powered homework marking assistant</p>
               </div>
             </MainLayoutWrapper>

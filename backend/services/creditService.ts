@@ -10,7 +10,7 @@ const db = getFirestore();
 
 interface UserCredits {
     userId: string;
-    planId: 'free' | 'pro' | 'enterprise';
+    planId: 'free' | 'pro' | 'ultra';
     totalCredits: number;
     usedCredits: number;
     remainingCredits: number;
@@ -24,7 +24,7 @@ interface UserCredits {
  */
 export async function initializeUserCredits(
     userId: string,
-    planId: 'free' | 'pro' | 'enterprise',
+    planId: 'free' | 'pro' | 'ultra',
     subscriptionEndDate: number
 ): Promise<UserCredits> {
     const now = Date.now();
@@ -146,7 +146,7 @@ export async function deductCredits(
  */
 export async function resetCreditsOnRenewal(
     userId: string,
-    planId: 'free' | 'pro' | 'enterprise',
+    planId: 'free' | 'pro' | 'ultra',
     nextRenewalDate: number
 ): Promise<void> {
     const totalCredits = CREDIT_CONFIG.planCredits[planId];
@@ -172,7 +172,7 @@ export async function resetCreditsOnRenewal(
 export async function updateCreditsOnPlanChange(
     userId: string,
     oldPlanId: string,
-    newPlanId: 'free' | 'pro' | 'enterprise',
+    newPlanId: 'free' | 'pro' | 'ultra',
     subscriptionEndDate: number
 ): Promise<void> {
     const userCreditsRef = db.collection('userCredits').doc(userId);
@@ -188,7 +188,7 @@ export async function updateCreditsOnPlanChange(
     }
 
     const currentCredits = doc.data() as UserCredits;
-    const levels = { free: 0, pro: 1, enterprise: 2 };
+    const levels = { free: 0, pro: 1, ultra: 2 };
     const isUpgrade = levels[newPlanId] > levels[oldPlanId];
 
     if (isUpgrade) {

@@ -83,8 +83,8 @@ Each document represents an exam paper with the following fields:
 ## Configuration
 
 ### Firebase Setup
-- Service account key: `intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json`
-- Project ID: `intellimark-6649e`
+- Service account key: `ai-marking-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json`
+- Project ID: `ai-marking-6649e`
 - Collection: `pastPapers`
 
 ### Environment Variables

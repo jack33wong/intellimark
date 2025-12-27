@@ -39,14 +39,14 @@ function getRequiredEnv(key: string, type: 'string' | 'number' = 'string'): stri
 const CREDIT_CONVERSION_RATE = parseFloat(getRequiredEnv('CREDIT_CONVERSION_RATE', 'number'));
 const FREE_PLAN_CREDITS = parseInt(getRequiredEnv('FREE_PLAN_CREDITS', 'number'), 10);
 const PRO_PLAN_CREDITS = parseInt(getRequiredEnv('PRO_PLAN_CREDITS', 'number'), 10);
-const ENTERPRISE_PLAN_CREDITS = parseInt(getRequiredEnv('ENTERPRISE_PLAN_CREDITS', 'number'), 10);
+const ULTRA_PLAN_CREDITS = parseInt(getRequiredEnv('ULTRA_PLAN_CREDITS', 'number'), 10);
 
 // Log loaded configuration for verification
 console.log('✅ Credit configuration loaded from .env.local (FAIL-FAST mode):');
 console.log(`   - Conversion Rate: $${CREDIT_CONVERSION_RATE} per credit`);
 console.log(`   - Free Plan: ${FREE_PLAN_CREDITS} credits/month`);
 console.log(`   - Pro Plan: ${PRO_PLAN_CREDITS} credits/month`);
-console.log(`   - Enterprise Plan: ${ENTERPRISE_PLAN_CREDITS} credits/month`);
+console.log(`   - Ultra Plan: ${ULTRA_PLAN_CREDITS} credits/month`);
 
 export const CREDIT_CONFIG = {
     // Conversion rate: Dollar amount per credit
@@ -56,7 +56,7 @@ export const CREDIT_CONFIG = {
     planCredits: {
         free: FREE_PLAN_CREDITS,
         pro: PRO_PLAN_CREDITS,
-        enterprise: ENTERPRISE_PLAN_CREDITS
+        ultra: ULTRA_PLAN_CREDITS
     }
 };
 
@@ -84,12 +84,12 @@ export function creditsToCost(credits: number): number {
  * @returns Monthly credit allocation
  * @throws Error if planId is invalid
  */
-export function getPlanCredits(planId: 'free' | 'pro' | 'enterprise'): number {
+export function getPlanCredits(planId: 'free' | 'pro' | 'ultra'): number {
     const credits = CREDIT_CONFIG.planCredits[planId];
     if (credits === undefined) {
         throw new Error(
             `❌ FAIL-FAST: Invalid plan ID "${planId}". ` +
-            `Valid plan IDs are: free, pro, enterprise`
+            `Valid plan IDs are: free, pro, ultra`
         );
     }
     return credits;

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting Intellimark Chat Application..."
+echo "🚀 Starting AI Marking Chat Application..."
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then

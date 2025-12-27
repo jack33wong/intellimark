@@ -7,7 +7,7 @@ const DatabaseHelper = require('./utils/DatabaseHelper');
 
 // Test configuration - Happy Path E2E Tests
 const TEST_CONFIG = {
-  email: 'happye2e@intellimark.com',
+  email: 'happye2e@ai-marking.com',
   password: '123456',
   userId: 'AaNZbPkBPzRqZN2tnHEmZhj1YI13',
   testImages: {

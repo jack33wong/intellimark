@@ -1,6 +1,6 @@
 // Payment and subscription related type definitions
 
-export type Plan = 'free' | 'pro' | 'enterprise';
+export type Plan = 'free' | 'pro' | 'ultra';
 export type BillingCycle = 'monthly' | 'yearly';
 
 export interface PaymentPlan {

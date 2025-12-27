@@ -5,13 +5,13 @@ dotenv.config({ path: '.env.local' });
 
 export const PERMISSIONS = {
     // Parsing comma-separated strings into arrays
-    ANALYSIS_PLANS: process.env.PLAN_ANALYSIS ? process.env.PLAN_ANALYSIS.split(',') : ['pro', 'enterprise'],
-    MODEL_SELECTION_PLANS: process.env.PLAN_MODEL_SELECTION ? process.env.PLAN_MODEL_SELECTION.split(',') : ['enterprise'],
+    ANALYSIS_PLANS: process.env.PLAN_ANALYSIS ? process.env.PLAN_ANALYSIS.split(',') : ['pro', 'ultra'],
+    MODEL_SELECTION_PLANS: process.env.PLAN_MODEL_SELECTION ? process.env.PLAN_MODEL_SELECTION.split(',') : ['ultra'],
 
     // Default fallback values used if env vars are missing
     DEFAULTS: {
-        ANALYSIS: ['pro', 'enterprise'],
-        MODEL_SELECTION: ['enterprise']
+        ANALYSIS: ['pro', 'ultra'],
+        MODEL_SELECTION: ['ultra']
     }
 };
 

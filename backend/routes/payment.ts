@@ -119,9 +119,9 @@ router.get('/user-subscription/:userId', async (req, res) => {
     const { getUserCredits } = await import('../services/creditService.js');
     const userCredits = await getUserCredits(userId);
 
-    // Heal logic: If amount is 990 but plan is enterprise (Ultra), it's likely from the plan-change bug
-    if (subscription && subscription.planId === 'enterprise' && subscription.amount === 990) {
-      console.log(`🔧 [Heal] Correcting amount for enterprise user ${userId}`);
+    // Heal logic: If amount is 990 but plan is ultra (Ultra), it's likely from the plan-change bug
+    if (subscription && subscription.planId === 'ultra' && subscription.amount === 990) {
+      console.log(`🔧 [Heal] Correcting amount for ultra user ${userId}`);
       try {
         const stripe = (await import('../config/stripe.js')).default;
         const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
@@ -318,7 +318,7 @@ router.post('/change-plan', async (req, res) => {
 
     // Helper to get plan level (free=0, pro=1, enterprise=2)
     const getPlanLevel = (plan: string): number => {
-      const levels = { free: 0, pro: 1, enterprise: 2 };
+      const levels = { free: 0, pro: 1, ultra: 2 };
       return levels[plan] || 0;
     };
 
@@ -364,7 +364,7 @@ router.post('/change-plan', async (req, res) => {
       await updateCreditsOnPlanChange(
         userId,
         currentPlanId,
-        newPlanId as 'free' | 'pro' | 'enterprise',
+        newPlanId as 'free' | 'pro' | 'ultra',
         ((stripeSubscription as any).current_period_end || Math.floor(Date.now() / 1000)) * 1000
       );
 
@@ -407,8 +407,8 @@ router.post('/change-plan', async (req, res) => {
         // Regular downgrade between paid plans (pro <-> enterprise)
         const schedule = await createDowngradeSchedule(
           subscription.stripeSubscriptionId,
-          currentPlanId as 'pro' | 'enterprise',
-          newPlanId as 'free' | 'pro' | 'enterprise',
+          currentPlanId as 'pro' | 'ultra',
+          newPlanId as 'free' | 'pro' | 'ultra',
           billingCycle as 'monthly' | 'yearly',
           subscription.currentPeriodEnd
         );
@@ -573,7 +573,7 @@ router.post('/create-subscription-after-payment', async (req, res) => {
     try {
       await initializeUserCredits(
         userId,
-        planId as 'free' | 'pro' | 'enterprise',
+        planId as 'free' | 'pro' | 'ultra',
         subscriptionData.currentPeriodEnd * 1000 // Use subscriptionData which has fallback
       );
       console.log('✅ User credits initialized for', planId);
@@ -948,7 +948,7 @@ async function handleSubscriptionUpdated(subscription: any) {
         await updateCreditsOnPlanChange(
           existingSubscription.userId,
           existingSubscription.planId,
-          newPlanId as 'free' | 'pro' | 'enterprise',
+          newPlanId as 'free' | 'pro' | 'ultra',
           subscription.current_period_end * 1000
         );
 

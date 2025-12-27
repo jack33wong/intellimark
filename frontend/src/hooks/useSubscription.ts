@@ -6,7 +6,7 @@ import { UserSubscription } from '../types/payment';
 
 export interface UseSubscriptionResult {
     subscription: UserSubscription | null;
-    planId: 'free' | 'pro' | 'enterprise';
+    planId: 'free' | 'pro' | 'ultra';
     loading: boolean;
     error: string | null;
     refreshSubscription: () => Promise<void>;
@@ -80,11 +80,11 @@ export const useSubscription = (): UseSubscriptionResult => {
         }
     }, [user?.uid]);
 
-    const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'enterprise';
+    const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'ultra';
 
     // Get allowed plans from env vars or default (ROBUST: trim spaces)
-    const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,enterprise').split(',').map(p => p.trim()), []);
-    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'enterprise').split(',').map(p => p.trim()), []);
+    const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,ultra').split(',').map(p => p.trim()), []);
+    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'ultra').split(',').map(p => p.trim()), []);
 
     const checkPermission = useCallback((feature: 'analysis' | 'model_selection') => {
         if (feature === 'analysis') {

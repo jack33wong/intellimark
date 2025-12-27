@@ -55,7 +55,7 @@ try {
   // Serve Swagger UI at /api-docs using the statically imported apiSpec
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec, {
     customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'IntelliMark API Documentation',
+    customSiteTitle: 'AI Marking API Documentation',
     swaggerOptions: {
       persistAuthorization: true,
       displayRequestDuration: true,

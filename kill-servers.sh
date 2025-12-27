@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Kill servers script for Intellimark development
+# Kill servers script for AI Marking development
 # Kills backend processes running on port 5001 and related processes
 
 echo "🔄 Killing backend servers on port 5001..."

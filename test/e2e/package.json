@@ -1,7 +1,7 @@
 {
-  "name": "intellimark-e2e-tests",
+  "name": "ai-marking-e2e-tests",
   "version": "1.0.0",
-  "description": "End-to-end tests for IntelliMark application using Playwright",
+  "description": "End-to-end tests for AI Marking application using Playwright",
   "main": "marking-homework-e2e.spec.js",
   "scripts": {
     "test": "npx playwright test",
@@ -20,8 +20,8 @@
     "e2e",
     "testing",
     "playwright",
-    "intellimark"
+    "ai-marking"
   ],
-  "author": "IntelliMark Team",
+  "author": "AI Marking Team",
   "license": "MIT"
 }

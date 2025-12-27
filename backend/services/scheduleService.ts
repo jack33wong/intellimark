@@ -13,8 +13,8 @@ import { STRIPE_CONFIG } from '../config/stripe.js';
  */
 export async function createDowngradeSchedule(
     subscriptionId: string,
-    currentPlanId: 'pro' | 'enterprise',
-    newPlanId: 'free' | 'pro' | 'enterprise',
+    currentPlanId: 'pro' | 'ultra',
+    newPlanId: 'free' | 'pro' | 'ultra',
     billingCycle: 'monthly' | 'yearly',
     currentPeriodEnd: number
 ): Promise<Stripe.SubscriptionSchedule> {
@@ -108,7 +108,7 @@ export async function getActiveSchedule(
         const schedules = await stripe.subscriptionSchedules.list({
             subscription: subscriptionId,
             limit: 1,
-        });
+        } as any);
 
         return schedules.data.length > 0 ? schedules.data[0] : null;
     } catch (error) {
@@ -120,11 +120,11 @@ export async function getActiveSchedule(
 /**
  * Extract plan ID from Stripe product ID
  */
-export function extractPlanIdFromProduct(productId: string): 'free' | 'pro' | 'enterprise' | null {
+export function extractPlanIdFromProduct(productId: string): 'free' | 'pro' | 'ultra' | null {
     // Match against known product IDs in config
     for (const [planId, planConfig] of Object.entries(STRIPE_CONFIG.plans)) {
         if (planConfig.monthly?.productId === productId || planConfig.yearly?.productId === productId) {
-            return planId as 'free' | 'pro' | 'enterprise';
+            return planId as 'free' | 'pro' | 'ultra';
         }
     }
     return null;
