@@ -4,6 +4,7 @@ import { sendSseUpdate } from '../utils/sseUtils.js';
 import { PERMISSIONS, hasPermission } from '../config/permissions.js';
 import UsageTracker from '../utils/UsageTracker.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
+import { GuestUsageService } from '../services/guestUsageService.js';
 
 export class MarkingController {
     /**
@@ -49,8 +50,24 @@ export class MarkingController {
             }
 
             const userId = options.userId;
+            const isAuthenticated = !!userId && userId !== 'anonymous';
+            const userIP = req.ip || '0.0.0.0';
 
-            console.log(`🔍 [CREDIT DEBUG] userId: ${userId}, isAuthenticated: ${!!userId}, isAnonymous: ${userId === 'anonymous'}`);
+            // --- NEW: Guest Usage Limit Check ---
+            if (!isAuthenticated) {
+                const limitInfo = await GuestUsageService.checkLimit(userIP);
+                if (!limitInfo.allowed) {
+                    sendSseUpdate(res, {
+                        type: 'error',
+                        message: 'Guest limit reached. Please sign up to continue.',
+                        limit_reached: true
+                    });
+                    res.end();
+                    return;
+                }
+            }
+
+            console.log(`🔍 [CREDIT DEBUG] userId: ${userId}, isAuthenticated: ${isAuthenticated}`);
 
             // Check credits before processing (skip for anonymous users)
             if (userId && userId !== 'anonymous') {
@@ -122,6 +139,11 @@ export class MarkingController {
                 }
             } else {
                 console.log(`⏭️  [CREDIT DEDUCT] Skipped for userId: ${userId} (anonymous or missing)`);
+            }
+
+            // --- NEW: Increment Guest Usage ---
+            if (!isAuthenticated) {
+                await GuestUsageService.incrementUsage(userIP);
             }
 
             res.end();

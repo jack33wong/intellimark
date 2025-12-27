@@ -242,11 +242,23 @@ export const MarkingPageProvider = ({
       const aiMessageId = createAIMessageId(trimmedText);
       startAIThinking(textProgressData, aiMessageId);
 
+      // --- NEW: Context Chat Support for Guests ---
+      // If the user is unauthenticated, the backend won't have the session context in DB.
+      // We send the marking context from the latest AI message in the frontend state.
+      let guestMarkingContext = null;
+      if (!user && currentSession?.messages) {
+        const lastMarkingMessage = [...currentSession.messages].reverse().find(msg => msg.markingContext);
+        if (lastMarkingMessage) {
+          guestMarkingContext = lastMarkingMessage.markingContext;
+        }
+      }
+
       const response = await apiClient.post('/api/messages/chat', {
         message: trimmedText,
         messageId: userMessageId, // Pass the local user message ID to backend
         model: selectedModel || 'gemini-2.0-flash',
         sessionId: currentSession?.id || null,
+        markingContext: guestMarkingContext, // Send context for guest users
         aiMessageId: aiMessageId, // Pass the AI message ID to backend
         contextQuestionId: effectiveQuestionId // Pass the active or overridden context
       });

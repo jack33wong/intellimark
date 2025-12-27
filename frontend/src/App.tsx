@@ -12,6 +12,8 @@ import AnalysisPage from './pages/AnalysisPage';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
 import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
+import GuestLimitModal from './components/common/GuestLimitModal';
+import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -235,6 +237,16 @@ function AppContent() {
 }
 
 const App: React.FC = () => {
+  const [isGuestLimitModalOpen, setIsGuestLimitModalOpen] = useState(false);
+
+  // Listen for guest limit modal events
+  useEffect(() => {
+    const cleanup = EventManager.listen(EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL, () => {
+      setIsGuestLimitModalOpen(true);
+    });
+    return () => cleanup();
+  }, []);
+
   return (
     <AuthProvider>
       <Router future={{
@@ -243,6 +255,10 @@ const App: React.FC = () => {
       }}>
         <AppContent />
         <UnifiedProfileModal />
+        <GuestLimitModal
+          isOpen={isGuestLimitModalOpen}
+          onClose={() => setIsGuestLimitModalOpen(false)}
+        />
       </Router>
     </AuthProvider>
   );

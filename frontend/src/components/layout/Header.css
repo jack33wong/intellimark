@@ -1448,3 +1448,65 @@
   color: white;
   /* Ensure icon is white */
 }
+
+/* Guest Header Actions */
+.guest-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-nav-link {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  padding: 8px 12px;
+}
+
+.header-nav-link:hover {
+  color: var(--text-primary);
+}
+
+.header-signin-btn {
+  background: transparent;
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.header-signin-btn:hover {
+  background: var(--background-menu-gray);
+  border-color: var(--text-primary);
+}
+
+.header-signup-btn {
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+.header-signup-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.header-signup-btn:active {
+  transform: translateY(0);
+}

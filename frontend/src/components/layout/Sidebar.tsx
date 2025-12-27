@@ -399,20 +399,33 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span>Library</span>
           </button>
           <button
-            className={`mark-homework-main-btn ${!canAccessAnalysis ? 'disabled-feature' : ''}`}
+            className={`mark-homework-main-btn ${(!user || !canAccessAnalysis) ? 'disabled-feature' : ''}`}
             onClick={() => {
-              if (canAccessAnalysis) {
+              if (user && canAccessAnalysis) {
                 navigate('/analysis');
+              } else if (!user) {
+                EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' });
               } else {
                 setIsUpgradeModalOpen(true);
               }
             }}
-            style={{ marginTop: '8px', opacity: canAccessAnalysis ? 1 : 0.6 }}
-            title={!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis"}
+            style={{ marginTop: '8px', opacity: (user && canAccessAnalysis) ? 1 : 0.6 }}
+            title={!user ? "Sign up to access Analysis" : (!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis")}
           >
-            {canAccessAnalysis ? <BarChart3 size={20} /> : <Lock size={20} />}
+            {(user && canAccessAnalysis) ? <BarChart3 size={20} /> : <Lock size={20} />}
             <span>Analysis</span>
           </button>
+
+          {!user && (
+            <button
+              className="mark-homework-main-btn guest-signup-btn"
+              onClick={() => EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' })}
+              style={{ marginTop: '24px', backgroundColor: 'var(--primary-color)', color: 'white' }}
+            >
+              <User size={20} />
+              <span>Sign up for free</span>
+            </button>
+          )}
         </div>
 
         <ConfirmationModal
@@ -430,89 +443,119 @@ const Sidebar: React.FC<SidebarProps> = ({
           icon={<BarChart3 size={24} />}
         />
         <div className="sidebar-section">
-          <div className="sidebar-section-header-row">
-            <div className="sidebar-section-header">RECENT PAPERS</div>
-            <div className="mark-history-filter-container">
-              <button
-                className="mark-history-filter-trigger"
-                onClick={(e) => { e.stopPropagation(); setIsFilterDropdownOpen(!isFilterDropdownOpen); }}
-              >
-                <span>{activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
-                <ChevronDown size={14} className={`filter-chevron ${isFilterDropdownOpen ? 'open' : ''}`} />
-              </button>
-              {isFilterDropdownOpen && (
-                <div className="mark-history-filter-dropdown">
-                  <div className={`filter-option ${activeTab === 'all' ? 'selected' : ''}`} onClick={() => { setActiveTab('all'); setIsFilterDropdownOpen(false); }}>All</div>
-                  <div className={`filter-option ${activeTab === 'mark' ? 'selected' : ''}`} onClick={() => { setActiveTab('mark'); setIsFilterDropdownOpen(false); }}>Mark</div>
-                  <div className={`filter-option ${activeTab === 'question' ? 'selected' : ''}`} onClick={() => { setActiveTab('question'); setIsFilterDropdownOpen(false); }}>Question</div>
-                  <div className={`filter-option ${activeTab === 'favorite' ? 'selected' : ''}`} onClick={() => { setActiveTab('favorite'); setIsFilterDropdownOpen(false); }}>Favorite</div>
-                </div>
-              )}
-            </div>
-          </div>
-          {/* Tabs removed in favor of dropdown above */}
-          <div className="mark-history-scrollable">
-            {getFilteredSessions().map((session) => (
-              <div
-                key={session.id}
-                className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''} ${dropdownSessionId === session.id ? 'has-open-dropdown' : ''}`}
-                onClick={() => handleSessionClick(session)}
-              >
-                <div className="mark-history-content">
-                  <div className="mark-history-item-top-row">
-                    <div className="mark-history-item-title">
-                      {session.favorite && <Star size={14} className="favorite-star-inline" />}
-                      {editingSessionId === session.id ? (
-                        <input
-                          ref={editInputRef}
-                          type="text"
-                          className="title-edit-input"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleSaveTitle(session.id);
-                            }
-                            if (e.key === 'Escape') {
-                              e.preventDefault();
-                              handleCancelEdit();
-                            }
-                          }}
-                          onBlur={() => handleSaveTitle(session.id)}
-                          style={{ width: '100%' }}
-                        />
-                      ) : getSessionTitle(session)}
+          {user ? (
+            <>
+              <div className="sidebar-section-header-row">
+                <div className="sidebar-section-header">RECENT PAPERS</div>
+                <div className="mark-history-filter-container">
+                  <button
+                    className="mark-history-filter-trigger"
+                    onClick={(e) => { e.stopPropagation(); setIsFilterDropdownOpen(!isFilterDropdownOpen); }}
+                  >
+                    <span>{activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+                    <ChevronDown size={14} className={`filter-chevron ${isFilterDropdownOpen ? 'open' : ''}`} />
+                  </button>
+                  {isFilterDropdownOpen && (
+                    <div className="mark-history-filter-dropdown">
+                      <div className={`filter-option ${activeTab === 'all' ? 'selected' : ''}`} onClick={() => { setActiveTab('all'); setIsFilterDropdownOpen(false); }}>All</div>
+                      <div className={`filter-option ${activeTab === 'mark' ? 'selected' : ''}`} onClick={() => { setActiveTab('mark'); setIsFilterDropdownOpen(false); }}>Mark</div>
+                      <div className={`filter-option ${activeTab === 'question' ? 'selected' : ''}`} onClick={() => { setActiveTab('question'); setIsFilterDropdownOpen(false); }}>Question</div>
+                      <div className={`filter-option ${activeTab === 'favorite' ? 'selected' : ''}`} onClick={() => { setActiveTab('favorite'); setIsFilterDropdownOpen(false); }}>Favorite</div>
                     </div>
-                  </div>
-                  <div className="mark-history-item-bottom-row">
-                    <div className="mark-history-last-message">{getLastMessage(session)}</div>
-                    <div className="mark-history-meta">
-                      <span className="mark-history-time">{formatSessionDate(session)}</span>
-                      <div className={`mark-history-actions-container ${dropdownSessionId === session.id ? 'dropdown-open' : ''}`}>
-                        <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
-                          <MoreHorizontal size={16} />
-                        </button>
-                        {dropdownSessionId === session.id && (
-                          <div className="mark-history-dropdown">
-                            <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
-                            <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
-                            <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="mark-history-scrollable">
+                {getFilteredSessions().length > 0 ? (
+                  getFilteredSessions().map((session) => (
+                    <div
+                      key={session.id}
+                      className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''} ${dropdownSessionId === session.id ? 'has-open-dropdown' : ''}`}
+                      onClick={() => handleSessionClick(session)}
+                    >
+                      <div className="mark-history-content">
+                        <div className="mark-history-item-top-row">
+                          <div className="mark-history-item-title">
+                            {session.favorite && <Star size={14} className="favorite-star-inline" />}
+                            {editingSessionId === session.id ? (
+                              <input
+                                ref={editInputRef}
+                                type="text"
+                                className="title-edit-input"
+                                value={editingTitle}
+                                onChange={(e) => setEditingTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSaveTitle(session.id);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    handleCancelEdit();
+                                  }
+                                }}
+                                onBlur={() => handleSaveTitle(session.id)}
+                                style={{ width: '100%' }}
+                              />
+                            ) : getSessionTitle(session)}
+                          </div>
+                        </div>
+                        <div className="mark-history-item-bottom-row">
+                          <div className="mark-history-last-message">{getLastMessage(session)}</div>
+                          <div className="mark-history-meta">
+                            <span className="mark-history-time">{formatSessionDate(session)}</span>
+                            <div className={`mark-history-actions-container ${dropdownSessionId === session.id ? 'dropdown-open' : ''}`}>
+                              <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
+                                <MoreHorizontal size={16} />
+                              </button>
+                              {dropdownSessionId === session.id && (
+                                <div className="mark-history-dropdown">
+                                  <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
+                                  <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
+                                  <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="mark-history-empty">
+                    <Clock size={24} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                    <p>No history yet</p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="guest-history-cta">
+              <div className="guest-cta-icon-bg">
+                <Clock size={24} className="guest-cta-icon" />
+              </div>
+              <h3>Save your history</h3>
+              <p>Sign up to save your marking results and sync them across all your devices.</p>
+              <button
+                className="guest-cta-btn"
+                onClick={() => EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' })}
+              >
+                Sign up for free
+              </button>
+            </div>
+          )}
         </div>
       </div >
       <div className="admin-section">
-        <div className="admin-link" onClick={() => EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'account' })}>
+        <div className="admin-link" onClick={() => {
+          if (user) {
+            EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'account' });
+          } else {
+            EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'login' });
+          }
+        }}>
           <User className="text-[var(--icon-secondary)]" size={18} />
-          <span>Account</span>
+          <span>{user ? 'Account' : 'Sign In'}</span>
         </div>
 
         {isAdmin() && (

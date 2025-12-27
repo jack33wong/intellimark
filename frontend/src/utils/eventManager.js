@@ -54,7 +54,8 @@ export const EVENT_TYPES = {
   IMAGE_UPLOADED: 'imageUploaded',
   IMAGE_UPLOADED: 'imageUploaded',
   MARKING_COMPLETED: 'markingCompleted',
-  SUBSCRIPTION_UPDATED: 'subscriptionUpdated'
+  SUBSCRIPTION_UPDATED: 'subscriptionUpdated',
+  OPEN_GUEST_LIMIT_MODAL: 'openGuestLimitModal'
 };
 
 export default EventManager;

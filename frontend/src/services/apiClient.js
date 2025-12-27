@@ -73,6 +73,13 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // If 403 Forbidden, check if it's a guest limit reached error
+    if (error.response?.status === 403 && error.response?.data?.limit_reached) {
+      import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+        EventManager.dispatch(EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL);
+      });
+    }
+
     return Promise.reject(error);
   }
 );

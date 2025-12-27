@@ -13,6 +13,7 @@ import type { UnifiedMessage, QuestionPart } from '../types/index.js';
 import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/suggestedFollowUpConfig.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 import UsageTracker from '../utils/UsageTracker.js';
+import { GuestUsageService } from '../services/guestUsageService.js';
 
 const router = express.Router();
 
@@ -112,7 +113,21 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
     const isAuthenticated = !!req.user?.uid;
+    const userIP = req.ip || '0.0.0.0';
 
+    // --- NEW: Guest Usage Limit Check ---
+    if (!isAuthenticated) {
+      const { GuestUsageService } = await import('../services/guestUsageService.js');
+      const limitInfo = await GuestUsageService.checkLimit(userIP);
+      if (!limitInfo.allowed) {
+        return res.status(403).json({
+          success: false,
+          error: 'Guest limit reached',
+          limit_reached: true,
+          remaining: 0
+        });
+      }
+    }
 
     // Validate required fields - allow empty message if imageData is provided
     if ((!message || typeof message !== 'string') && !imageData) {
@@ -259,7 +274,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         let chatHistory: any[] = [];
         contextSummary = undefined; // Reset for this block
 
-        if (currentSessionId) {
+        if (currentSessionId && isAuthenticated) {
           try {
             const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
             if (existingSession?.messages) {
@@ -321,7 +336,22 @@ router.post('/chat', optionalAuth, async (req, res) => {
               }
             }
           } catch (error) {
-            console.error('Failed to load chat/marking context:', error);
+            console.error('Failed to load chat/marking context from DB:', error);
+          }
+        }
+
+        // --- NEW: Context Chat Support for Guests ---
+        // If the frontend provided markingContext (since it's not in DB for guests), use it
+        if (!contextSummary && !isAuthenticated && req.body.markingContext) {
+          try {
+            const { ChatContextBuilder } = await import('../services/marking/ChatContextBuilder.js');
+            contextSummary = ChatContextBuilder.formatContextAsPrompt(req.body.markingContext, contextQuestionId);
+
+            if (progressTracker) {
+              progressTracker.updateStepDescription('generating_response', 'Thinking with provided context...');
+            }
+          } catch (error) {
+            console.error('Failed to build context from provided data:', error);
           }
         }
 
@@ -358,13 +388,19 @@ router.post('/chat', optionalAuth, async (req, res) => {
       const qMatch = aiResponse.match(/(?:question|q)\s*(\d+)/i);
       if (qMatch && qMatch[1]) {
         const questionNumber = qMatch[1];
-        // Get marking context from last marking message
-        const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
-        const lastMarkingMsg = [...(existingSession?.messages || [])].reverse().find(m => (m as any).markingContext);
+        // Get marking context from last marking message or request
+        const currentMarkingContext = !isAuthenticated && req.body.markingContext ? req.body.markingContext : null;
 
+        let lastMarkingMsg = null;
+        if (isAuthenticated) {
+          const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+          lastMarkingMsg = [...(existingSession?.messages || [])].reverse().find(m => (m as any).markingContext);
+        }
 
-        if (lastMarkingMsg) {
-          const yourWorkSection = formatYourWork((lastMarkingMsg as any).markingContext, questionNumber);
+        const markingContextToUse = currentMarkingContext || (lastMarkingMsg ? (lastMarkingMsg as any).markingContext : null);
+
+        if (markingContextToUse) {
+          const yourWorkSection = formatYourWork(markingContextToUse, questionNumber);
 
           // Check if AI response already contains :::your-work (prevent duplicates)
           if (yourWorkSection && !aiResponse.includes(':::your-work')) {
@@ -395,9 +431,15 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Dynamically determine the best context ID for the AI message
     // If AI explicitly mentions a different question in its response, use that
     let aiContextQuestionId = contextQuestionId;
-    const qMatch = aiResponse.match(/(?:question|q)\s*(\d+)/i);
-    if (qMatch && qMatch[1]) {
-      aiContextQuestionId = qMatch[1];
+    const qMatchFinal = aiResponse.match(/(?:question|q)\s*(\d+)/i);
+    if (qMatchFinal && qMatchFinal[1]) {
+      aiContextQuestionId = qMatchFinal[1];
+    }
+
+    // --- NEW: Increment Guest Usage ---
+    if (!isAuthenticated) {
+      const { GuestUsageService } = await import('../services/guestUsageService.js');
+      await GuestUsageService.incrementUsage(userIP);
     }
 
     const aiMessage = createAIMessage({

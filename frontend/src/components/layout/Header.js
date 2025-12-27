@@ -503,20 +503,26 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               </div>
             </>
           ) : (
-            <>
+            <div className="guest-header-actions">
               <button
-                className="nav-item upgrade-nav"
+                className="header-nav-link"
                 onClick={() => navigate('/upgrade')}
               >
-                Upgrade
+                Pricing
               </button>
               <button
-                className="login-button"
+                className="header-signin-btn"
                 onClick={() => navigate('/login')}
               >
                 Sign In
               </button>
-            </>
+              <button
+                className="header-signup-btn"
+                onClick={() => EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' })}
+              >
+                Sign up for free
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -936,3 +936,101 @@
     gap: 8px;
   }
 }
+
+/* Guest Sidebar Styles */
+.sidebar .disabled-feature {
+  cursor: pointer;
+}
+
+.guest-signup-btn {
+  background: var(--primary-color) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  box-shadow: 0 4px 12px var(--shadow-color) !important;
+}
+
+.guest-signup-btn:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 6px 16px var(--shadow-color) !important;
+  filter: brightness(1.1);
+}
+
+.guest-signup-btn svg {
+  color: white !important;
+}
+
+.guest-history-cta {
+  margin: 16px;
+  padding: 24px 16px;
+  background: var(--background-gray-main);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  border: 1px solid var(--border-subtle);
+}
+
+.guest-cta-icon-bg {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--background-nav);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.guest-cta-icon {
+  color: var(--text-brand);
+  opacity: 0.8;
+}
+
+.guest-history-cta h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.guest-history-cta p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.guest-cta-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px;
+  background: var(--background-active);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.guest-cta-btn:hover {
+  background: var(--background-menu-gray);
+  transform: translateY(-1px);
+}
+
+.mark-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+}
