@@ -538,7 +538,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <p>Sign up to save your marking results and sync them across all your devices.</p>
               <button
                 className="guest-cta-btn"
-                onClick={() => EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' })}
+                onClick={() => EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' })}
               >
                 Sign up for free
               </button>
@@ -551,7 +551,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           if (user) {
             EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'account' });
           } else {
-            EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'login' });
+            EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'login' });
           }
         }}>
           <User className="text-[var(--icon-secondary)]" size={18} />

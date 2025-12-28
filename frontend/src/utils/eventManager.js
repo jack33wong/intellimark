@@ -52,10 +52,10 @@ export const EVENT_TYPES = {
   PAGE_MODE_CHANGED: 'pageModeChanged',
   CHAT_MESSAGE_SENT: 'chatMessageSent',
   IMAGE_UPLOADED: 'imageUploaded',
-  IMAGE_UPLOADED: 'imageUploaded',
   MARKING_COMPLETED: 'markingCompleted',
   SUBSCRIPTION_UPDATED: 'subscriptionUpdated',
-  OPEN_GUEST_LIMIT_MODAL: 'openGuestLimitModal'
+  OPEN_GUEST_LIMIT_MODAL: 'openGuestLimitModal',
+  OPEN_AUTH_MODAL: 'openAuthModal'
 };
 
 export default EventManager;

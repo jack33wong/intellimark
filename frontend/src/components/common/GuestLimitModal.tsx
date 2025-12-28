@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, ArrowRight, X } from 'lucide-react';
-import EventManager from '../../utils/eventManager';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import './GuestLimitModal.css';
 
 interface GuestLimitModalProps {
@@ -16,7 +16,7 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
 
     const handleSignUp = () => {
         onClose();
-        EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' });
+        EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
     };
 
     const handleSignIn = () => {

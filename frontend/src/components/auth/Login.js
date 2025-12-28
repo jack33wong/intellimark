@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { AlertCircle, Chrome, Facebook, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, Chrome, Facebook, Mail, Lock, Eye, EyeOff, X } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../../config/firebase';
 import './Login.css';
@@ -21,6 +21,7 @@ const Login = () => {
     password: ''
   });
   const navigate = useNavigate();
+  const emailInputRef = React.useRef(null);
 
   // 👇 FIX 1: Removed the obsolete `socialLogin` function from the destructuring.
   const { user, emailPasswordSignup, emailPasswordSignin, error: authError } = useAuth();
@@ -41,6 +42,12 @@ const Login = () => {
       navigate('/mark-homework');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (currentPage === 'main' && emailInputRef.current) {
+      emailInputRef.current.focus();
+    }
+  }, [currentPage]);
 
   const handleSocialLogin = async (provider) => {
     if (!auth || !googleProvider || !facebookProvider) {
@@ -140,6 +147,10 @@ const Login = () => {
     return null;
   }
 
+  const handleClose = () => {
+    navigate(-1);
+  };
+
   const renderMainPage = () => (
     <div className="auth-card">
       <div className="auth-header"><h1>AI Marking</h1><p>Sign in or sign up</p></div>
@@ -163,7 +174,16 @@ const Login = () => {
         <div className="auth-divider"><span>or</span></div>
         <form onSubmit={(e) => { e.preventDefault(); handleContinue(); }} className="email-form">
           <div className="form-group">
-            <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="form-input" placeholder="Enter your email" />
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              required
+              className="form-input"
+              placeholder="Enter your email"
+              ref={emailInputRef}
+            />
           </div>
           <button type="submit" className="auth-submit-button compact" disabled={isLoading}>
             {isLoading ? <div className="loading-spinner loading-spinner-small"><div className="spinner spinner-white" /></div> : 'Continue'}
@@ -204,11 +224,16 @@ const Login = () => {
 
   return (
     <div className="auth-container">
-      {
-        currentPage === 'main' ? renderMainPage() :
-          currentPage === 'email-signin' ? renderEmailFormPage(false) :
-            renderEmailFormPage(true)
-      }
+      <div className="auth-card-container">
+        <button className="auth-close-button" onClick={handleClose} aria-label="Close">
+          <X size={20} />
+        </button>
+        {
+          currentPage === 'main' ? renderMainPage() :
+            currentPage === 'email-signin' ? renderEmailFormPage(false) :
+              renderEmailFormPage(true)
+        }
+      </div>
     </div>
   );
 };

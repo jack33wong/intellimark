@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import EventManager from '../../utils/eventManager';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import CreditIcon from '../common/CreditIcon';
 import {
   User,
@@ -518,7 +518,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               </button>
               <button
                 className="header-signup-btn"
-                onClick={() => EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' })}
+                onClick={() => EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' })}
               >
                 Sign up for free
               </button>

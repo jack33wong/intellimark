@@ -28,7 +28,7 @@ body.login-page .auth-container {
   right: 0;
   bottom: 0;
   background: radial-gradient(circle at 20% 80%, var(--text-brand) 0%, transparent 50%),
-              radial-gradient(circle at 80% 20%, var(--text-brand) 0%, transparent 50%);
+    radial-gradient(circle at 80% 20%, var(--text-brand) 0%, transparent 50%);
   opacity: 0.1;
   z-index: 0;
 }
@@ -74,6 +74,7 @@ body.login-page .auth-container {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+
   /* Fallback for browsers that don't support background-clip: text */
   @supports not (-webkit-background-clip: text) {
     color: var(--text-brand);
@@ -127,9 +128,19 @@ body.login-page .auth-container {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  75% {
+    transform: translateX(5px);
+  }
 }
 
 .auth-success {
@@ -150,6 +161,7 @@ body.login-page .auth-container {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -466,20 +478,20 @@ body.login-page .auth-container {
   .auth-container {
     padding: 16px;
   }
-  
+
   .auth-card {
     padding: 32px 24px;
     max-width: 100%;
   }
-  
+
   .auth-logo h1 {
     font-size: 28px;
   }
-  
+
   .logo-icon {
     font-size: 32px;
   }
-  
+
   .social-button {
     padding: 14px 20px;
     font-size: 15px;
@@ -565,6 +577,45 @@ body.login-page .auth-container {
   color: var(--text-primary);
 }
 
+/* Close button for auth card */
+.auth-card-container {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border-main);
+  background: var(--background-menu-white);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.auth-close-button:hover {
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
+  transform: scale(1.1);
+  border-color: var(--text-brand);
+}
+
+.auth-close-button:active {
+  transform: scale(0.95);
+}
+
 /* Page transition animations */
 .auth-container {
   animation: slideIn 0.3s ease-out;
@@ -575,6 +626,7 @@ body.login-page .auth-container {
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -591,6 +643,7 @@ body.login-page .auth-container {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
