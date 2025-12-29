@@ -836,9 +836,7 @@ export class MarkingInstructionService {
         userPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.user(
           inputQuestionNumber || 'Unknown',
           schemeText || '',
-          formattedOcrText,
           classificationStudentWork || 'No student work provided',
-          formattedGeneralGuidance,
           rawOcrBlocks,
           questionText
         );
@@ -880,69 +878,43 @@ export class MarkingInstructionService {
     // but once we log one, we set a flag to prevent others.
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
-    const shouldLogPrompt = false; // Disabled AI prompt logging
-
+    // AI MARKING USER PROMPT DEBUG LOG
+    const shouldLogPrompt = true;
     if (shouldLogPrompt) {
-      if (!isDrawingQuestion && String(questionNumber) !== '1') {
-        MarkingInstructionService.hasLoggedDebugPrompt = true;
-      }
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
       const RESET = '\x1b[0m';
-      console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
-      console.log(`${BOLD}${BLUE}[AI MARKING PROMPT] Q${questionNumber}${RESET}`);
-      console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
+      const CYAN = '\x1b[36m';
 
-      // System prompt logging removed as requested
+      console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
+      console.log(`${BOLD}${BLUE}[AI MARKING] Q${questionNumber}${RESET}`);
+      console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
 
-      console.log(`${BOLD}USER PROMPT:${RESET}`);
-      console.log(userPrompt);
+      // Split userPrompt into sections for cleaner logging
+      const sections = userPrompt.split(/\n(?=# )/);
+      sections.forEach(section => {
+        if (section.trim().startsWith('# MARKING TASK')) {
+          console.log(`${BOLD}${CYAN}${section.trim()}${RESET}`);
+        } else if (section.trim().startsWith('## MARKING SCHEME')) {
+          const lines = section.trim().split('\n');
+          console.log(`${BOLD}${CYAN}${lines[0]}${RESET}`);
+          console.log(lines.slice(1, 5).join('\n') + (lines.length > 5 ? '\n...' : ''));
+        } else if (section.trim().startsWith('## STUDENT WORK')) {
+          console.log(`${BOLD}${CYAN}${section.trim()}${RESET}`);
+        } else if (section.trim().startsWith('## RAW OCR BLOCKS') || section.trim().startsWith('## NO RAW OCR BLOCKS')) {
+          const lines = section.trim().split('\n');
+          console.log(`${BOLD}${CYAN}${lines[0]}${RESET}`);
+          console.log(lines.slice(1, 10).join('\n') + (lines.length > 10 ? '\n...' : ''));
+        } else {
+          console.log(section.trim());
+        }
+      });
 
-      console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
+      console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
     }
 
-    // Log only content sections by extracting them from the actual userPrompt (no duplicate logic)
-    const GREEN = '\x1b[32m';
-    const RED = '\x1b[31m';
-    const MAGENTA = '\x1b[35m';
-    const YELLOW = '\x1b[33m';
-    const CYAN = '\x1b[36m';
-    const RESET = '\x1b[0m';
-
-    // TEMPORARILY DISABLED: Detailed prompt logging
-    // console.log('');
-    // console.log(`${RED}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
-
-    // Extract content sections from the actual userPrompt (reuse the real prompt, just extract content)
-    if (userPrompt) {
-      // 1. Extract Question Text
-      const questionTextMatch = userPrompt.match(/Question:\s*\n([\s\S]*?)(?=\n\n|Total Marks|$)/);
-      if (questionTextMatch && questionTextMatch[1]) {
-        // console.log(`${MAGENTA}Question Text:${RESET}`);
-        // console.log(MAGENTA + questionTextMatch[1].trim() + RESET);
-      }
-
-      // 2. Extract Classification Student Work
-      const classificationMatch = userPrompt.match(/STUDENT WORK \(STRUCTURED\):\s*\n([\s\S]*?)(?=\n\n|RAW OCR BLOCKS|$)/);
-      if (classificationMatch && classificationMatch[1]) {
-        // console.log(`${YELLOW}Classification Student Work:${RESET}`);
-        // console.log(YELLOW + classificationMatch[1].trim() + RESET);
-      }
-
-      // 3. Extract OCR Blocks
-      // const ocrBlocksMatch = userPrompt.match(/RAW OCR BLOCKS \(For Reference\):\s*\n([\s\S]*?)(?=\n\n|INSTRUCTIONS|$)/);
-      // if (ocrBlocksMatch && ocrBlocksMatch[1]) {
-      //   console.log(`${CYAN}OCR Blocks:${RESET}`);
-      //   console.log(CYAN + ocrBlocksMatch[1].trim() + RESET);
-      // }
-
-      // 4. Extract Marking Scheme
-      // const markingSchemeMatch = userPrompt.match(/MARKING SCHEME:\s*\n([\s\S]*?)(?=\n\n|SUB-QUESTION|$)/);
-      // if (markingSchemeMatch && markingSchemeMatch[1]) {
-      //   console.log(`${GREEN}Marking Scheme:${RESET}`);
-      //   console.log(GREEN + markingSchemeMatch[1].trim() + RESET);
-      // }
-    }
+    // Removed redundant section extraction logs as they were "duplicated and not well formatted"
+    // The consolidated session log above provides a cleaner summary.
 
     let aiResponseString = ''; // Declare outside try block for error logging
 
@@ -1190,8 +1162,14 @@ export class MarkingInstructionService {
 
       // Validate and clean response structure
       if (parsedResponse && parsedResponse.annotations && Array.isArray(parsedResponse.annotations)) {
-        // 1. Deduplicate mark codes within each annotation (Refined)
         parsedResponse.annotations = parsedResponse.annotations.map((anno: any) => {
+          // Map AI returned step_id to line_id for consistency
+          const aiId = (anno as any).line_id || (anno as any).step_id;
+          if (aiId) {
+            (anno as any).step_id = aiId; // Still use step_id internally for Annotation interface compatibility if needed
+            (anno as any).line_id = aiId; // But ensure line_id is present
+          }
+
           // Sanitize "null" strings from AI
           if (anno.action === 'null') anno.action = '';
           if (anno.text === 'null') anno.text = '';

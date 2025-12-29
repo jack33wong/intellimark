@@ -18,6 +18,7 @@ export interface MathBlock {
   sourceType?: string;             // NEW: Source type (e.g., 'hybrid')
   ocrSource?: string;              // NEW: OCR source (primary/fallback)
   hasLineData?: boolean;           // NEW: Line-level data flag
+  isHandwritten?: boolean;         // NEW: Authentic Mathpix handwriting flag
 }
 
 // Inline MathDetectionService functionality

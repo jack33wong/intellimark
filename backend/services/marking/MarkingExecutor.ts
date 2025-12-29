@@ -43,7 +43,7 @@ export interface MarkingTask {
     subQuestionNumbers?: string[];  // ["22a", "22b"] for reference
   };
   // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
-  aiSegmentationResults?: Array<{ content: string; source: string; blockId: string }>;
+  aiSegmentationResults?: Array<{ content: string; source?: string; blockId?: string; studentWorkLines?: any[] }>;
   blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
 }
 
@@ -71,7 +71,7 @@ export interface QuestionResult {
 export interface EnrichedAnnotation extends Annotation {
   bbox: [number, number, number, number];
   pageIndex: number;
-  unified_step_id?: string; // Optional, for tracking which step this annotation maps to
+  line_id?: string; // Optional, for tracking which step this annotation maps to
   aiPosition?: { x: number; y: number; width: number; height: number }; // AI-estimated position for verification
   hasLineData?: boolean; // Flag indicating if annotation uses actual line data (OCR) or fallback
 }
@@ -119,36 +119,49 @@ export async function executeMarkingForQuestion(
     // 1. Prepare STEP DATA (still need this array for enriching annotations later)
     // Use AI segmentation results if available, otherwise fall back to OCR blocks
     let stepsDataForMapping: Array<{
-      unified_step_id: string;
+      line_id: string;
       pageIndex: number;
       globalBlockId?: string;
       text: string;
       cleanedText: string;
       bbox: [number, number, number, number];
-      ocrSource?: string; // Add ocrSource to type definition
+      ocrSource?: string;
     }>;
-
-
 
     if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
       // Use AI segmentation results - map back to original blocks for coordinates
       stepsDataForMapping = task.aiSegmentationResults.map((result, stepIndex) => {
-        // Find the corresponding block by blockId
-        const matchingBlock = task.mathBlocks.find(block => {
-          const blockId = (block as any).globalBlockId || `${(block as any).pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
-          return blockId === result.blockId;
-        });
-
-        // Use coordinates from matching block if found
+        // Resolve coordinates: check lineData first, then block
         let bbox: [number, number, number, number] = [0, 0, 0, 0];
-        if (matchingBlock?.coordinates &&
-          matchingBlock.coordinates.x != null && matchingBlock.coordinates.y != null &&
-          matchingBlock.coordinates.width != null && matchingBlock.coordinates.height != null) {
-          bbox = [matchingBlock.coordinates.x, matchingBlock.coordinates.y, matchingBlock.coordinates.width, matchingBlock.coordinates.height];
-        } else if (result.content?.includes('[DRAWING]')) {
-          // For drawings without OCR coordinates, estimate bbox from position information
-          // First try to get position from result.content, then fall back to classificationStudentWork
-          let pageIndex = -1;
+        let pageIdx = -1;
+
+        const lineData = (result as any).lineData;
+        const coords = lineData?.coordinates || lineData?.position;
+
+        if (coords?.x != null && coords?.y != null) {
+          bbox = [coords.x, coords.y, coords.width, coords.height];
+          pageIdx = lineData?.pageIndex != null ? lineData.pageIndex : (task.sourcePages[0] || 0);
+        } else {
+          // Find the corresponding block by blockId
+          const matchingBlock = task.mathBlocks.find(block => {
+            const blockId = (block as any).globalBlockId || `${(block as any).pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+            return blockId === result.blockId;
+          });
+
+          if (matchingBlock?.coordinates &&
+            matchingBlock.coordinates.x != null && matchingBlock.coordinates.y != null) {
+            bbox = [matchingBlock.coordinates.x, matchingBlock.coordinates.y, matchingBlock.coordinates.width, matchingBlock.coordinates.height];
+            pageIdx = (matchingBlock as any).pageIndex != null ? (matchingBlock as any).pageIndex : (task.sourcePages[0] || 0);
+          }
+        }
+
+        // Use resolved pageIdx or fallback
+        if (pageIdx === -1) {
+          pageIdx = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+        }
+
+        // For drawings without OCR coordinates, estimate bbox from position information
+        if ((bbox[0] === 0 && bbox[1] === 0) && result.content?.includes('[DRAWING]')) {
           const annotationText = result.content.toLowerCase();
           let positionMatch = result.content.match(/\[POSITION:\s*([^\]]+)\]/i);
           let position: string | null = null;
@@ -156,16 +169,12 @@ export async function executeMarkingForQuestion(
           if (positionMatch) {
             position = positionMatch[1];
           } else if (task.classificationStudentWork) {
-            // If position not in merged content, try to find it in original classification
-            // The AI might have split the drawing into multiple entries, so search for any [DRAWING] with position
-            // Try to match by content similarity first, then fall back to first position found
             const drawingEntries = task.classificationStudentWork.split(/\n|\\n/).filter(e => e.includes('[DRAWING]'));
             let bestMatch: string | null = null;
 
             for (const entry of drawingEntries) {
               const entryPositionMatch = entry.match(/\[POSITION:\s*([^\]]+)\]/i);
               if (entryPositionMatch) {
-                // Try to match by content keywords (e.g., "Graph", "Y-axis label")
                 const entryKeywords = entry.toLowerCase();
                 const contentKeywords = result.content.toLowerCase();
                 const hasMatchingKeywords =
@@ -175,101 +184,55 @@ export async function executeMarkingForQuestion(
 
                 if (hasMatchingKeywords || !bestMatch) {
                   bestMatch = entryPositionMatch[1];
-                  if (hasMatchingKeywords) break; // Found a good match, use it
+                  if (hasMatchingKeywords) break;
                 }
               }
             }
-
-            if (bestMatch) {
-              position = bestMatch;
-            }
+            if (bestMatch) position = bestMatch;
           }
 
-
-          // Prioritize blocks that look like drawings if the annotation is a drawing
           const isDrawing = annotationText.includes('drawing') || annotationText.includes('graph');
-
           let bestBlockIndex = -1;
-
           for (let i = 0; i < task.classificationBlocks.length; i++) {
             const block = task.classificationBlocks[i];
             const blockText = block.text.toLowerCase();
-
-            // Exact(ish) match
             if (blockText.includes(annotationText) || annotationText.includes(blockText)) {
               bestBlockIndex = i;
               break;
             }
-
-            // If it's a drawing annotation, look for drawing blocks
             if (isDrawing && (blockText.includes('[drawing]') || blockText.includes('graph'))) {
-              // Keep this as a candidate, but prefer text match
               if (bestBlockIndex === -1) bestBlockIndex = i;
             }
           }
 
           if (bestBlockIndex !== -1) {
-            pageIndex = task.classificationBlocks[bestBlockIndex].pageIndex;
-            console.log(`[MARKING EXECUTOR] Found page ${pageIndex} for drawing annotation from classification block`);
-          } else {
-            console.log(`[MARKING EXECUTOR] ⚠️ Could not find matching classification block for drawing annotation: "${annotationText}"`);
-            console.log(`[MARKING EXECUTOR] Available classification blocks:`, task.classificationBlocks.map(b => b.text.substring(0, 20)));
+            pageIdx = task.classificationBlocks[bestBlockIndex].pageIndex;
           }
 
-          // Fallback to first source page if still not found
-          if (pageIndex === -1) {
-            console.log(`[MARKING EXECUTOR] ⚠️ Fallback to first source page for drawing annotation`);
-            pageIndex = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
-          }
-          const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
-          if (percentMatch) {
-            const pageDims = task.pageDimensions?.get(pageIndex);
-            const pageWidth = pageDims?.width || 2000;
-            const pageHeight = pageDims?.height || 3000;
-            const xPercent = parseFloat(percentMatch[1]);
-            const yPercent = parseFloat(percentMatch[2]);
-
-            // Determine drawing dimensions based on type
-            let drawingWidth = 300;
-            let drawingHeight = 300;
-            if (result.content.includes('marked at') || result.content.includes('Center of rotation') ||
-              result.content.includes('Mark') || (result.content.includes('at (') && !result.content.includes('vertices'))) {
-              drawingWidth = 80;
-              drawingHeight = 80;
-            } else if (result.content.includes('Coordinate grid') || (result.content.includes('triangle') && result.content.includes('vertices'))) {
-              drawingWidth = 200;
-              drawingHeight = 200;
-            } else if (result.content.includes('Histogram')) {
-              drawingWidth = 400;
-              drawingHeight = 300;
-            } else if (result.content.includes('Graph')) {
-              drawingWidth = 400;
-              drawingHeight = 300;
+          if (position) {
+            const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+            if (percentMatch) {
+              const pageDims = task.pageDimensions?.get(pageIdx);
+              const pageWidth = pageDims?.width || 2000;
+              const pageHeight = pageDims?.height || 3000;
+              const xPercent = parseFloat(percentMatch[1]);
+              const yPercent = parseFloat(percentMatch[2]);
+              let drawingWidth = 300;
+              let drawingHeight = 300;
+              if (result.content.includes('marked at') || result.content.includes('Center of rotation')) {
+                drawingWidth = 80; drawingHeight = 80;
+              }
+              const centerX = (xPercent / 100) * pageWidth;
+              const centerY = (yPercent / 100) * pageHeight;
+              bbox = [Math.max(0, centerX - drawingWidth / 2), Math.max(0, centerY - drawingHeight / 2), drawingWidth, drawingHeight];
             }
-
-            // Position represents center, so calculate top-left corner
-            const centerX = (xPercent / 100) * pageWidth;
-            const centerY = (yPercent / 100) * pageHeight;
-            const x = centerX - (drawingWidth / 2);
-            const y = centerY - (drawingHeight / 2);
-
-            bbox = [Math.max(0, x), Math.max(0, y), drawingWidth, drawingHeight];
           }
         }
 
-
-        // NEW: Fallback for non-drawing text when OCR mapping failed
-        // Use classification block metadata to estimate position
-        // Use classification block metadata to estimate position
+        // Fallback for missing coordinates
         let matchingBlockIndex = -1;
-        // CRITICAL: Do NOT use this fallback for [DRAWING] entries. If a drawing has no position from the drawing logic above,
-        // it means it's likely a false positive (phantom drawing) and should be filtered out, not assigned a default position.
-        const isDrawingEntry = result.content.includes('[DRAWING]');
-
-        if (!isDrawingEntry && bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 0 && bbox[3] === 0 && task.classificationBlocks && task.classificationBlocks.length > 0) {
-          // Try to find which classification block this annotation text came from
-          const annotationText = result.content.substring(0, 30).toLowerCase(); // First 30 chars for matching
-
+        if (bbox[0] === 0 && bbox[1] === 0 && !result.content?.includes('[DRAWING]') && task.classificationBlocks && task.classificationBlocks.length > 0) {
+          const annotationText = result.content.substring(0, 30).toLowerCase();
           for (let i = 0; i < task.classificationBlocks.length; i++) {
             const blockText = task.classificationBlocks[i].text.substring(0, 30).toLowerCase();
             if (blockText.includes(annotationText) || annotationText.includes(blockText)) {
@@ -280,33 +243,25 @@ export async function executeMarkingForQuestion(
 
           if (matchingBlockIndex >= 0) {
             const block = task.classificationBlocks[matchingBlockIndex];
-            const pageIndex = block.pageIndex;
-            const pageDims = task.pageDimensions?.get(pageIndex);
+            const matchingPageIndex = block.pageIndex;
+            const pageDims = task.pageDimensions?.get(matchingPageIndex);
             const pageWidth = pageDims?.width || 2000;
             const pageHeight = pageDims?.height || 3000;
-
-            // Estimate Y position based on block index in sequence
-            // Spread blocks evenly across the page
             const totalBlocks = task.classificationBlocks.length;
-            const blockFraction = (matchingBlockIndex + 0.5) / totalBlocks; // 0.5 to center within block's area
-            const estimatedY = pageHeight * 0.15 + (pageHeight * 0.7 * blockFraction); // Use middle 70% of page
-
-            // Place annotation on the right side
-            const estimatedX = pageWidth - 180;
-
-            bbox = [Math.max(0, estimatedX), Math.max(0, estimatedY), 150, 60];
-            console.log(`[MARKING EXECUTOR] Used classification block #${matchingBlockIndex} for annotation position: [${bbox[0].toFixed(0)}, ${bbox[1].toFixed(0)}]`);
+            const blockFraction = (matchingBlockIndex + 0.5) / totalBlocks;
+            const estimatedY = pageHeight * 0.15 + (pageHeight * 0.7 * blockFraction);
+            bbox = [Math.max(0, pageWidth - 180), Math.max(0, estimatedY), 150, 60];
           }
         }
 
         return {
-          unified_step_id: `step_${stepIndex + 1}`, // Simplified format (matches AI prompt)
-          pageIndex: matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : -1),
-          globalBlockId: result.blockId,
-          text: result.content, // Use AI segmentation merged content
-          cleanedText: result.content, // Use AI segmentation merged content
-          bbox,
-          ocrSource: matchingBlockIndex >= 0 ? 'estimated' : undefined // Flag as estimated if using classification block fallback
+          line_id: (result as any).sequentialId || `line_${stepIndex + 1}`,
+          pageIndex: pageIdx,
+          globalBlockId: result.blockId, // Preserve globalBlockId if available
+          text: result.content,
+          cleanedText: result.content.trim(),
+          bbox: bbox,
+          ocrSource: result.source || 'classification'
         };
       }).filter(step => {
         // Filter out [DRAWING] entries that have no valid position (bbox is [0,0,0,0])
@@ -317,6 +272,31 @@ export async function executeMarkingForQuestion(
         }
         return true;
       });
+
+      // NEW: Merge mathBlocks into stepsDataForMapping so AI-matched raw OCR IDs (block_X_Y) are still resolvable
+      // even when aiSegmentationResults (classification) is present.
+      const ocrStepsForMapping: typeof stepsDataForMapping = task.mathBlocks.map((block, ocrIdx) => {
+        const blockId = (block as any).globalBlockId || `block_${task.sourcePages[0] || 0}_${ocrIdx}`;
+        const rawText = block.mathpixLatex || block.googleVisionText || '';
+        const normalizedText = normalizeLaTeXSingleLetter(rawText);
+        const blockPageIndex = (block as any).pageIndex != null && (block as any).pageIndex >= 0
+          ? (block as any).pageIndex
+          : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+
+        return {
+          line_id: `ocr_${ocrIdx + 1}`, // Fallback OCR ID format
+          pageIndex: blockPageIndex,
+          globalBlockId: blockId,
+          text: normalizedText,
+          cleanedText: normalizedText,
+          bbox: block.coordinates && block.coordinates.x != null
+            ? [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height]
+            : [0, 0, 0, 0],
+          ocrSource: block.ocrSource
+        };
+      });
+
+      stepsDataForMapping = [...stepsDataForMapping, ...ocrStepsForMapping];
     } else {
       // Enhanced marking mode: Use OCR blocks directly (no matching logic)
       // AI will handle mapping classification to OCR blocks
@@ -341,7 +321,7 @@ export async function executeMarkingForQuestion(
 
         // Build step data - preserve all original coordinates and OCR source
         const stepData: any = {
-          unified_step_id: `step_${stepIndex + 1}`,
+          line_id: `line_${stepIndex + 1}`,
           pageIndex: validPageIndex,
           globalBlockId: (block as any).globalBlockId || blockId,
           text: normalizedText,
@@ -584,7 +564,7 @@ export async function executeMarkingForQuestion(
           // Use simplified step ID format to match AI prompt (step_1, step_2, etc.)
           const drawingStepIndex = stepsDataForMapping.length + 1;
           const drawingBlock = {
-            unified_step_id: `step_${drawingStepIndex}`, // Simplified format (matches AI prompt)
+            line_id: `line_${drawingStepIndex}`, // Simplified format (matches AI prompt)
             pageIndex: drawingPageIndex,
             globalBlockId: `drawing_${questionId}_${drawingStepIndex}`,
             text: entry, // Only this drawing entry, not the full combined text
@@ -657,7 +637,8 @@ export async function executeMarkingForQuestion(
         coordinates: block.coordinates ? {
           x: block.coordinates.x,
           y: block.coordinates.y
-        } : undefined
+        } : undefined,
+        isHandwritten: !!(block as any).isHandwritten
       };
     }).filter(block => {
       // Filter out noise patterns and empty blocks
@@ -773,7 +754,7 @@ export async function executeMarkingForQuestion(
     const defaultPageIndex = (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0;
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations || [],
-      stepsDataForMapping, // Keep stepsDataForMapping as it contains synthetic drawing blocks and unified_step_ids
+      stepsDataForMapping, // Keep stepsDataForMapping as it contains synthetic drawing blocks and line_ids
       String(questionId),
       defaultPageIndex,
       task.pageDimensions, // New argument
@@ -874,10 +855,15 @@ const enrichAnnotationsWithPositions = (
       return null;
     }
 
-    // Try exact match first (check both unified_step_id and globalBlockId)
+    // Try exact match first (check both line_id and globalBlockId)
     let originalStep = stepsDataForMapping.find(step =>
-      step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
+      step.line_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
     );
+
+    if (String(questionId).startsWith('6')) {
+      console.log(`[DEBUG LOCK Q6] Step mapping for "${aiStepId}": ${originalStep ? 'FOUND' : 'NOT FOUND'}`);
+      if (originalStep) console.log(`  ↳ Target Page: ${originalStep.pageIndex} | Bbox: ${JSON.stringify(originalStep.bbox)}`);
+    }
 
     // FIX: If match found, trust it more than initially perceived UNMATCHED status
     // BUT only if we don't have a specific student work line estimate or visual position.
@@ -933,7 +919,10 @@ const enrichAnnotationsWithPositions = (
       const isForbidden = forbiddenPhrases.some(phrase => lowerText.includes(phrase));
 
       if (isForbidden) {
-        console.log(`[Validation] Blocking match to header/footer block: "${originalStep.text.substring(0, 30)}..."`);
+        const RED = '\x1b[31m';
+        const BOLD = '\x1b[1m';
+        const RESET = '\x1b[0m';
+        console.log(`${BOLD}${RED}[ERROR: BLOCKING PRINTED TEXT] Q${questionId}: Match refused for printed instruction: "${originalStep.text.substring(0, 50)}..."${RESET}`);
         originalStep = undefined;
         (anno as any).ocr_match_status = 'UNMATCHED';
       }
@@ -952,7 +941,7 @@ const enrichAnnotationsWithPositions = (
 
     // Special handling for [DRAWING] annotations
     // Since we now create separate synthetic blocks for each drawing, match by text content
-    // AI might return step_id like "DRAWING_Triangle B..." instead of unified_step_id
+    // AI might return step_id like "DRAWING_Triangle B..." instead of line_id
     if (!originalStep) {
       const annotationText = ((anno as any).textMatch || (anno as any).text || '').toLowerCase();
       const isDrawingAnnotation = annotationText.includes('[drawing]') || (aiStepId && aiStepId.toLowerCase().includes('drawing'));
@@ -1105,11 +1094,18 @@ const enrichAnnotationsWithPositions = (
           finalH = (finalH / 100) * pageDims.height;
         }
 
+        // FIX: Ensure minimum visibility for fallback boxes (Q6 fix)
+        // If box is microscopic (e.g. < 10px), scale it up to at least 50x30
+        if (finalW < 10 || finalH < 10) {
+          if (finalW < 50) finalW = 50;
+          if (finalH < 30) finalH = 30;
+        }
+
         return {
           ...anno,
           bbox: [finalX, finalY, finalW, finalH] as [number, number, number, number],
           pageIndex: classificationPosition.pageIndex,
-          unified_step_id: (anno as any).step_id || `unmatched_${idx}`,
+          line_id: (anno as any).step_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED', // Preserve status for red border
           subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
@@ -1145,14 +1141,25 @@ const enrichAnnotationsWithPositions = (
           console.log(`[DEBUG LOCK Q6] Visual Fallback for "${anno.text}": [${Math.round(x)}, ${Math.round(y)}, ${Math.round(w)}, ${Math.round(h)}] (MinSize Enforced)`);
         }
 
+        const lineIndex = (anno as any).lineIndex !== undefined ? (anno as any).lineIndex : (anno as any).line_index;
+        const classificationLine = (task.classificationBlocks || []).flatMap(b => b.subQuestions.flatMap(sq => sq.studentWorkLines || []))[lineIndex];
+
+        if (String(questionId).startsWith('6')) {
+          console.log(`[DEBUG LOCK Q6] Falling back to student work line for "${anno.text}": Line ${lineIndex + 1}`);
+        }
+
+        // Determine page index for UNMATCHED fallback
+        // Priority: 1. Line's own pageIndex, 2. task.sourcePages[0], 3. defaultPageIndex
+        const fallbackPageIndex = classificationLine?.pageIndex !== undefined ? classificationLine.pageIndex : (task.sourcePages?.[0] ?? defaultPageIndex);
+
         return {
           ...anno,
           bbox: [x, y, w, h] as [number, number, number, number],
-          pageIndex: targetPageIndex,
-          unified_step_id: (anno as any).step_id || `unmatched_${idx}`,
-          ocr_match_status: 'UNMATCHED', // Keep as unmatched but with visual pos
+          pageIndex: fallbackPageIndex,
+          line_id: (anno as any).step_id || `unmatched_${idx}`,
+          ocr_match_status: 'UNMATCHED',
           hasLineData: false,
-          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+          subQuestion: targetSubQ || anno.subQuestion
         };
       }
 
@@ -1178,7 +1185,7 @@ const enrichAnnotationsWithPositions = (
                 firstLine.position.height || 20
               ] as [number, number, number, number],
               pageIndex: firstLine.pageIndex ?? defaultPageIndex,
-              unified_step_id: (anno as any).step_id || `unmatched_${idx}`, // Use anno.step_id if available
+              line_id: (anno as any).step_id || `unmatched_${idx}`, // Use anno.step_id if available
               ocr_match_status: 'UNMATCHED',
               hasLineData: false,
               subQuestion: targetSubQ || anno.subQuestion
@@ -1205,7 +1212,7 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: newBbox as [number, number, number, number],
           pageIndex: questionHeaderBlock.pageIndex ?? defaultPageIndex,
-          unified_step_id: questionHeaderBlock.unified_step_id || `unmatched_${idx}`,
+          line_id: questionHeaderBlock.line_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED',
           hasLineData: false,
           subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
@@ -1222,7 +1229,7 @@ const enrichAnnotationsWithPositions = (
         aiPosition: { x: 50, y: yOffset, width: 40, height: 5 },
         bbox: [1, 1, 1, 1] as [number, number, number, number],
         pageIndex: defaultPageIndex,
-        unified_step_id: `unmatched_${idx}`,
+        line_id: `unmatched_${idx}`,
         ocr_match_status: 'UNMATCHED',
         hasLineData: false
       };
@@ -1264,10 +1271,10 @@ const enrichAnnotationsWithPositions = (
             const subQ = subQMatch[1]; // e.g. "5c"
             // Find a real step that matches this sub-question
             const realStep = stepsDataForMapping.find(s =>
-              s.unified_step_id && s.unified_step_id.includes(subQ)
+              s.line_id && s.line_id.includes(subQ)
             );
             if (realStep) {
-              finalStepId = realStep.unified_step_id;
+              finalStepId = realStep.line_id;
 
               // FIX: If the real step is NOT a drawing question (e.g. "Use your graph to find..."),
               // we should place the annotation near the text, NOT on the graph.
@@ -1281,7 +1288,7 @@ const enrichAnnotationsWithPositions = (
                   ...anno,
                   bbox: realStep.bbox as [number, number, number, number],
                   pageIndex: (anno as any)._immutable ? pageIndex : (realStep.pageIndex ?? pageIndex),
-                  unified_step_id: finalStepId,
+                  line_id: finalStepId,
                   aiPosition: undefined // Clear aiPosition to force text-based rendering
                 };
               }
@@ -1293,7 +1300,7 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox, visualPosition handles drawing positioning
           pageIndex: (pageIndex !== undefined && pageIndex !== null) ? pageIndex : defaultPageIndex,
-          unified_step_id: finalStepId,
+          line_id: finalStepId,
           visualPosition: visualPos, // For DRAWING annotations only
           subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
@@ -1308,7 +1315,7 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: lastValidAnnotation.bbox,
           pageIndex: lastValidAnnotation.pageIndex,
-          unified_step_id: lastValidAnnotation.unified_step_id
+          line_id: lastValidAnnotation.line_id
         };
         return enriched;
       }
@@ -1333,7 +1340,7 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: newBbox as [number, number, number, number],
           pageIndex: questionHeaderBlock.pageIndex ?? defaultPageIndex,
-          unified_step_id: questionHeaderBlock.unified_step_id || `unmatched_${idx}`,
+          line_id: questionHeaderBlock.line_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED', // Ensure status is preserved
           subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
@@ -1352,7 +1359,7 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: candidateBlocks[0].bbox as [number, number, number, number],
           pageIndex: candidateBlocks[0].pageIndex ?? defaultPageIndex,
-          unified_step_id: candidateBlocks[0].unified_step_id || `unmatched_${idx}`,
+          line_id: candidateBlocks[0].line_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED',
           subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
@@ -1369,6 +1376,10 @@ const enrichAnnotationsWithPositions = (
       }
 
       // Final fallback if absolutely no blocks found (rare)
+      const RED = '\x1b[31m';
+      const BOLD = '\x1b[1m';
+      const RESET = '\x1b[0m';
+      console.log(`${BOLD}${RED}[ERROR: COORDINATE FAILURE] Q${questionId}: No coordinates found for "${anno.text}". Annotation will not appear.${RESET}`);
       return null;
     }
 
@@ -1451,6 +1462,12 @@ const enrichAnnotationsWithPositions = (
           }
           // Fallback if dimensions missing: try to pass generic normalized if allowed, else dummy
           return [100, 100, 100, 100] as [number, number, number, number]; // Larger dummy
+        }
+        if (!hasValidBbox && !isVisualAnnotation) {
+          const RED = '\x1b[31m';
+          const BOLD = '\x1b[1m';
+          const RESET = '\x1b[0m';
+          console.log(`${BOLD}${RED}[WARNING: TOP-LEFT FALLBACK] Q${questionId}: Annotation "${anno.text}" (ID: ${(anno as any).step_id}) has no valid OCR/Line position. Defaulting to Top-Left.${RESET}`);
         }
         return hasValidBbox ? originalStep.bbox : [1, 1, 1, 1] as [number, number, number, number];
       })(),
@@ -1691,11 +1708,23 @@ export function createMarkingTasksFromClassification(
       };
       group.classificationBlocks.push(block as any);
 
-
-      (group.aiSegmentationResults as any[]).push({
-        content: block.text,
-        studentWorkLines: q.studentWorkLines || []
-      });
+      // LINE-LEVEL SEGMENTATION: Push individual lines instead of block
+      if (q.studentWorkLines && q.studentWorkLines.length > 0) {
+        q.studentWorkLines.forEach((line: any) => {
+          (group.aiSegmentationResults as any[]).push({
+            content: line.text,
+            source: 'classification',
+            blockId: `classification_${groupingKey}_main`,
+            lineData: line // Store original line data for coordinates
+          });
+        });
+      } else if (studentWorkText.trim()) {
+        (group.aiSegmentationResults as any[]).push({
+          content: studentWorkText,
+          source: 'classification',
+          blockId: `classification_${groupingKey}_main`
+        });
+      }
     }
 
     // Collect sub-questions
@@ -1713,10 +1742,23 @@ export function createMarkingTasksFromClassification(
             studentWorkLines: subQ.studentWorkLines || [] // Store lines with positions
           } as any);
 
-          (group.aiSegmentationResults as any[]).push({
-            content: studentWorkText,
-            studentWorkLines: subQ.studentWorkLines || []
-          });
+          // LINE-LEVEL SEGMENTATION: Push individual lines for sub-question
+          if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
+            subQ.studentWorkLines.forEach((line: any) => {
+              (group.aiSegmentationResults as any[]).push({
+                content: line.text,
+                source: 'classification',
+                blockId: `classification_${groupingKey}_${subQ.part}`,
+                lineData: line
+              });
+            });
+          } else if (studentWorkText.trim()) {
+            (group.aiSegmentationResults as any[]).push({
+              content: studentWorkText,
+              source: 'classification',
+              blockId: `classification_${groupingKey}_${subQ.part}`
+            });
+          }
         }
       }
     }
@@ -1736,14 +1778,45 @@ export function createMarkingTasksFromClassification(
       return true;
     });
 
-    // Combine all main student work parts
-    let combinedMainWork = group.mainStudentWorkParts.join('\n\n');
+    // RE-INDEXING: Assign sequential line IDs AFTER filtering to ensure alignment with prompt labels
+    group.aiSegmentationResults.forEach((seg: any, idx: number) => {
+      seg.sequentialId = `line_${idx + 1}`;
+    });
+
+    // Build prompt components from FILTERED segmentation results
+    // This ensures [Line X] in the prompt EXACTLY matches line_X in stepsDataForMapping
+    let promptMainWork = '';
+    const subQContentMap = new Map<string, string[]>();
+
+    group.aiSegmentationResults.forEach((seg: any) => {
+      if (seg.blockId.endsWith('_main')) {
+        promptMainWork += (promptMainWork ? '\n' : '') + seg.content;
+      } else {
+        const part = seg.blockId.split('_').pop();
+        if (part) {
+          if (!subQContentMap.has(part)) subQContentMap.set(part, []);
+          subQContentMap.get(part)!.push(seg.content);
+        }
+      }
+    });
+
+    const promptSubQuestions = group.subQuestions.map(sq => ({
+      ...sq,
+      studentWork: (subQContentMap.get(sq.part) || []).join('\n')
+    })).filter(sq => sq.studentWork.trim().length > 0);
+
+    // Format combined student work with sequential labels that EXACTLY match sequentialId
+    const combinedStudentWork = formatGroupedStudentWork(
+      promptMainWork,
+      promptSubQuestions,
+      group.aiSegmentationResults.map((seg: any) => seg.sequentialId)
+    );
 
     // Skip if no student work at all (neither main nor sub-questions)
     // UNLESS we have a marking scheme - in that case, we should still create a task
     // so the AI can mark it (e.g., as 0 if blank, or maybe classification missed the work but image has it)
-    const hasMainWork = combinedMainWork && combinedMainWork !== 'null' && combinedMainWork.trim() !== '';
-    const hasSubWork = group.subQuestions.length > 0;
+    const hasMainWork = promptMainWork && promptMainWork !== 'null' && promptMainWork.trim() !== '';
+    const hasSubWork = promptSubQuestions.length > 0;
     const hasMarkingScheme = !!group.markingScheme;
 
     if (!hasMainWork && !hasSubWork && !hasMarkingScheme) {
@@ -1753,7 +1826,7 @@ export function createMarkingTasksFromClassification(
     // If we have a scheme but no work, we proceed (AI will see the image)
     if (!hasMainWork && !hasSubWork && hasMarkingScheme) {
       // Add a placeholder so formatGroupedStudentWork doesn't return empty string
-      combinedMainWork = "[No student work text detected by classification - please check image]";
+      promptMainWork = "[No student work text detected by classification - please check image]";
     }
 
     // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
@@ -1775,11 +1848,6 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // Format combined student work with sub-question labels
-    const combinedStudentWork = formatGroupedStudentWork(
-      combinedMainWork,
-      group.subQuestions
-    );
 
     // Extract sub-question numbers for metadata
     const subQuestionNumbers = group.subQuestions.map(sq => `${baseQNum}${sq.part}`);
@@ -1828,7 +1896,8 @@ export function createMarkingTasksFromClassification(
           text: sq.text
         })),
         subQuestionNumbers: subQuestionNumbers.length > 0 ? subQuestionNumbers : undefined
-      }
+      },
+      aiSegmentationResults: group.aiSegmentationResults
     });
 
 

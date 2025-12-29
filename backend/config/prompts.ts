@@ -130,40 +130,46 @@ x = 4 [A1]
        Please analyze this work and generate appropriate marking annotations.Focus on mathematical correctness, method accuracy.Do not generate any feedback text.`
     },
 
-    // With marking scheme (when exam paper is detected)
     withMarkingScheme: {
       system: marking_scheme_system_prompt,
 
       user: (
         questionNumber: string,
         markingScheme: string,
-        ocrText: string,
         classificationStudentWork: string,
-        generalMarkingGuidance: string,
         rawOcrBlocks?: any[],
         questionText?: string | null
       ) => `
-MARKING TASK:
-Question Number: ${questionNumber}
-${questionText ? `Question: ${questionText}` : ''}
+# MARKING TASK: Question ${questionNumber}
 
+${questionText ? `## QUESTION TEXT
+${questionText}
+` : ''}
 
-
-MARKING SCHEME:
+## MARKING SCHEME
 ${markingScheme}
 
-⚠️ CRITICAL: The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
-- If the marking scheme has 4 potential marks(e.g.M1, M1, A1, B1), you MUST return exactly 4 annotations.
-- Do NOT omit marks that were not awarded; return them as 0 (e.g.M0, A0) to ensure the count matches exactly.
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
 
-STUDENT WORK(STRUCTURED):
+## STUDENT WORK (STRUCTURED)
 ${classificationStudentWork}
 
-${rawOcrBlocks ? `
-RAW OCR BLOCKS [REFERENCE ONLY - NOT STUDENT WORK]:
-${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
-` : ''
-        }
+${rawOcrBlocks && rawOcrBlocks.length > 0 ? `
+## RAW OCR BLOCKS [REFERENCE ONLY - NOT STUDENT WORK]
+Use these IDs for the \`line_id\` field whenever possible for maximum positioning accuracy.
+${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}) [${b.isHandwritten ? 'Handwritten' : 'Printed'}]: ${b.text.replace(/\n/g, ' ')}`).join('\n')}
+
+### ANNOTATION POSITIONING INSTRUCTIONS
+- **PRIORITY 1 (Highest Accuracy):** Map each annotation to a **RAW OCR BLOCK ID** (e.g., \`block_1_4\`) if you find a direct text or positional match. Note that these blocks often correspond to the same text listed in STUDENT WORK (e.g., \`block_1_5\` might be the same content as \`[Line 2]\`).
+- **PRIORITY 2 (Fallback):** Use the placeholder ID from STUDENT WORK (e.g., \`line_1\`) ONLY if no RAW OCR BLOCK matches the student's writing.
+- **RULE:** NEVER match an annotation to a [Printed] block.
+` : `
+## NO RAW OCR BLOCKS AVAILABLE
+Please use the placeholder IDs from STUDENT WORK (e.g., \`line_1\`, \`line_2\`) for the \`line_id\` field.
+`}
 `,
     },
 

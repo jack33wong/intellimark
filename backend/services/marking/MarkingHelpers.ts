@@ -980,7 +980,8 @@ export function convertMarkingSchemeToPlainText(
  */
 export function formatGroupedStudentWork(
   mainStudentWork: string | null,
-  subQuestions: Array<{ part: string; studentWork: string; text?: string }>
+  subQuestions: Array<{ part: string; studentWork: string; text?: string }>,
+  customLineIds?: string[] // NEW: Optional pre-defined IDs
 ): string {
   const parts: string[] = [];
   let globalLineIndex = 1;
@@ -988,7 +989,11 @@ export function formatGroupedStudentWork(
   // Add main question student work if exists
   if (mainStudentWork && mainStudentWork !== 'null' && mainStudentWork.trim() !== '') {
     const lines = mainStudentWork.trim().split('\n');
-    const numberedLines = lines.map((line) => `[Line ${globalLineIndex++}] ${line}`).join('\n');
+    const numberedLines = lines.map((line) => {
+      const lineId = customLineIds ? customLineIds[globalLineIndex - 1] : `line_${globalLineIndex}`;
+      globalLineIndex++;
+      return `[${lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId}] ${line}`;
+    }).join('\n');
     parts.push(`[MAIN QUESTION STUDENT WORK]\n${numberedLines}`);
   }
 
@@ -997,7 +1002,11 @@ export function formatGroupedStudentWork(
     if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
       const subQLabel = `[SUB-QUESTION ${subQ.part.toUpperCase()} STUDENT WORK]`;
       const lines = subQ.studentWork.trim().split('\n');
-      const numberedLines = lines.map((line) => `[Line ${globalLineIndex++}] ${line}`).join('\n');
+      const numberedLines = lines.map((line) => {
+        const lineId = customLineIds ? customLineIds[globalLineIndex - 1] : `line_${globalLineIndex}`;
+        globalLineIndex++;
+        return `[${lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId}] ${line}`;
+      }).join('\n');
       parts.push(`${subQLabel}\n${numberedLines}`);
     }
   });

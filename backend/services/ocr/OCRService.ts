@@ -472,7 +472,7 @@ export class OCRService {
             });
           }
         } else {
-          ungroupedLines.push({ ...line, hasOriginalCoords, isSplitBlock: false }); // Keep line even if no coords - will estimate later
+          ungroupedLines.push({ ...line, hasOriginalCoords, isSplitBlock: false, is_printed: line.is_printed }); // Keep line even if no coords - will estimate later
         }
       });
 
@@ -635,13 +635,20 @@ export class OCRService {
 
         // Use cleaned text (without LaTeX delimiters) AND sanitize artifacts for the final block
         const sanitizedText = sanitizeOcrArtifacts(cleanedText || text);
-        processedLines.push({ text: sanitizedText, coords, hasOriginalCoords, isSplitBlock });
+        processedLines.push({
+          text: sanitizedText,
+          coords,
+          hasOriginalCoords,
+          isSplitBlock,
+          isHandwritten: line.is_printed === false // Authentic Mathpix check
+        });
       }
 
       mathBlocks = processedLines.map(line => ({
         googleVisionText: line.text, mathpixLatex: line.text, confidence: line.confidence || 1.0,
         mathpixConfidence: line.confidence || 1.0, mathLikenessScore: 1.0, coordinates: line.coords,
-        hasLineData: line.hasOriginalCoords && !line.isSplitBlock // true if coords from Mathpix AND not multi-line AND not split
+        hasLineData: line.hasOriginalCoords && !line.isSplitBlock, // true if coords from Mathpix AND not multi-line AND not split
+        isHandwritten: line.isHandwritten
       } as MathBlock));
     }
 
