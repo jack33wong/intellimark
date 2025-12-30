@@ -35,6 +35,28 @@ try {
   // Initialize Facebook Auth Provider
   facebookProvider = new FacebookAuthProvider();
 
+  // Initialize Analytics
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+    // Only initialize analytics on client side
+    import('firebase/analytics').then(({ getAnalytics }) => {
+      // Check if measurementId is available before initializing
+      // Note: getAnalytics automaticlly uses the measurementId from config if provided
+      if ((firebaseConfig as any).measurementId || process.env.REACT_APP_FIREBASE_MEASUREMENT_ID) {
+        // Merge explicit measurementId if it wasn't in the initial config object
+        if (!(firebaseConfig as any).measurementId && process.env.REACT_APP_FIREBASE_MEASUREMENT_ID) {
+          (firebaseConfig as any).measurementId = process.env.REACT_APP_FIREBASE_MEASUREMENT_ID;
+        }
+
+        try {
+          const analytics = getAnalytics(app!);
+          console.log('📊 Firebase Analytics initialized');
+        } catch (e) {
+          console.warn('⚠️ Firebase Analytics initialization skipped:', e);
+        }
+      }
+    });
+  }
+
 } catch (error: any) {
   console.error('❌ Firebase initialization failed:', error);
   console.error('Error details:', {
@@ -42,7 +64,7 @@ try {
     code: error.code,
     stack: error.stack
   });
-  
+
   // Ensure all values are null if initialization fails
   app = null;
   auth = null;

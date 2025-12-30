@@ -84,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         console.error('Authentication token not available.');
         return;
       }
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken) as MarkingHistoryResponse;
+      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 1000, authToken) as MarkingHistoryResponse;
       if (response.success && response.sessions) {
         const sortedSessions = [...response.sessions].sort((a, b) =>
           new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()

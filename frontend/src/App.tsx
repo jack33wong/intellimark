@@ -13,6 +13,7 @@ import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
 import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
 import GuestLimitModal from './components/common/GuestLimitModal';
+import AnalyticsTracker from './components/common/AnalyticsTracker';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import './App.css';
 
@@ -253,6 +254,7 @@ const App: React.FC = () => {
         v7_startTransition: true,
         v7_relativeSplatPath: true
       }}>
+        <AnalyticsTracker />
         <AppContent />
         <UnifiedProfileModal />
         <GuestLimitModal

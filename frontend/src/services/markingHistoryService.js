@@ -17,34 +17,34 @@ class MarkingHistoryService {
   static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null) {
     try {
       // Use new messages API instead of old chat API
-      const url = `${API_BASE}/api/messages/sessions/${userId}`;
-      
-      
+      const url = `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
+
+
       const headers = {
         'Content-Type': 'application/json',
       };
-      
+
       // Add authorization header if token is provided
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers,
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      
+
       // Check if the response has sessions array
       const sessions = result.sessions || result;
-      
+
       // Filter sessions that contain any messages (be more inclusive)
-      const markingSessions = sessions.filter(session => 
+      const markingSessions = sessions.filter(session =>
         session.messages?.length > 0
       );
 
@@ -71,16 +71,16 @@ class MarkingHistoryService {
     try {
       // Use new messages API instead of old chat API
       const url = `${API_BASE}/api/messages/session/${sessionId}`;
-      
+
       const headers = {
         'Content-Type': 'application/json',
       };
-      
+
       // Add authorization header if token is provided
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers,
@@ -92,9 +92,9 @@ class MarkingHistoryService {
 
       const result = await response.json();
       const session = result.session;
-      
+
       // Filter only marking messages
-      const markingMessages = session.messages.filter(msg => 
+      const markingMessages = session.messages.filter(msg =>
         msg.type === 'marking_original' || msg.type === 'marking_annotated'
       );
 
@@ -121,24 +121,24 @@ class MarkingHistoryService {
   static async updateSession(sessionId, updates, authToken) {
     try {
       const url = `${API_BASE}/api/messages/session/${sessionId}`;
-      
+
       const headers = {
         'Content-Type': 'application/json',
       };
-      
+
       // Add authorization header (required for updates)
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
       } else {
         throw new Error('Authentication token is required to update sessions');
       }
-      
+
       const response = await fetch(url, {
         method: 'PUT',
         headers,
         body: JSON.stringify(updates)
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
@@ -167,24 +167,24 @@ class MarkingHistoryService {
   static async deleteSession(sessionId, authToken) {
     try {
       const url = `${API_BASE}/api/messages/session/${sessionId}`;
-      
+
       const headers = {
         'Content-Type': 'application/json',
       };
-      
+
       // Add authorization header (required for deletion)
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
       } else {
         throw new Error('Authentication token is required to delete sessions');
       }
-      
+
       const response = await fetch(url, {
         method: 'DELETE',
         headers,
       });
-      
-      
+
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
@@ -213,7 +213,7 @@ class MarkingHistoryService {
     if (!message) {
       throw new Error('Message is null or undefined');
     }
-    
+
     // Try to get OCR text from markingData first
     if (message.markingData && message.markingData.ocrResult && message.markingData.ocrResult.ocrText) {
       const text = message.markingData.ocrResult.ocrText.trim();
@@ -222,7 +222,7 @@ class MarkingHistoryService {
         return text.length > 100 ? text.substring(0, 100) + '...' : text;
       }
     }
-    
+
     // Fallback to classification reasoning
     if (message.markingData && message.markingData.classification && message.markingData.classification.reasoning) {
       const text = message.markingData.classification.reasoning.trim();
@@ -230,7 +230,7 @@ class MarkingHistoryService {
         return text.length > 100 ? text.substring(0, 100) + '...' : text;
       }
     }
-    
+
     // Fallback to message content
     if (message.content) {
       const text = message.content.trim();
@@ -238,7 +238,7 @@ class MarkingHistoryService {
         return text.length > 100 ? text.substring(0, 100) + '...' : text;
       }
     }
-    
+
     return 'Question Image';
   }
 
@@ -251,9 +251,9 @@ class MarkingHistoryService {
     if (!timestamp) {
       throw new Error('Timestamp is null or undefined');
     }
-    
+
     let date;
-    
+
     // Handle different timestamp formats
     if (timestamp.toDate && typeof timestamp.toDate === 'function') {
       // Firestore timestamp object
@@ -272,12 +272,12 @@ class MarkingHistoryService {
       console.error('Unknown timestamp format:', timestamp);
       throw new Error(`Unknown timestamp format: ${JSON.stringify(timestamp)}`);
     }
-    
+
     // Check if date is valid
     if (isNaN(date.getTime())) {
       throw new Error(`Invalid timestamp after conversion: ${JSON.stringify(timestamp)}`);
     }
-    
+
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
