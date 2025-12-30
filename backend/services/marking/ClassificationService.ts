@@ -970,6 +970,11 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           }
 
 
+          // DEBUG: Log if drawing position is missing
+          const isDrawing = (line.text || '').toLowerCase().includes('[drawing]');
+          if (isDrawing && !p) {
+            console.error(`❌ [CLASSIFICATION ERROR] Q${q.questionNumber || '?'}: Detected [DRAWING] on Line ${i + 1} but NO POSITION was provided by AI.`);
+          }
         });
       }
 

@@ -50,6 +50,7 @@ export default `You are an expert AI assistant specialized in analyzing mathemat
    - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
    - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
    - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "text": "...", "position": { "x": number, "y": number, "width": number, "height": number } }] where values are percentages (0-100).
+   - **PRECISION (CRITICAL)**: Coordinates MUST point to the actual **handwriting/markings**. Do NOT point to the printed question labels, margins, or blank space.
    - **TIGHT BOUNDING BOXES (CRITICAL)**: The width must be the **MINIMUM** required to enclose the text. Do NOT use a fixed/uniform width (e.g. don't make everything 40%). If a line is short (e.g. "x=5"), width should be small (e.g. 10%). If long, width should be large.
    - **IMPORTANT**: Each line gets its own position. Split on natural line breaks (new lines of handwriting).
 3. **Drawings**:

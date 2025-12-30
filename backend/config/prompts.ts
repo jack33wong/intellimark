@@ -157,16 +157,29 @@ ${markingScheme}
 ## STUDENT WORK (STRUCTURED)
 ${classificationStudentWork}
 
-${rawOcrBlocks && rawOcrBlocks.length > 0 ? `
-## RAW OCR BLOCKS [REFERENCE ONLY - NOT STUDENT WORK]
-Use these IDs for the \`line_id\` field whenever possible for maximum positioning accuracy.
-${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}) [${b.isHandwritten ? 'Handwritten' : 'Printed'}]: ${b.text.replace(/\n/g, ' ')}`).join('\n')}
+${rawOcrBlocks && rawOcrBlocks.length > 0 ? (() => {
+          const handwritten = rawOcrBlocks.filter(b => b.isHandwritten);
+          const printed = rawOcrBlocks.filter(b => !b.isHandwritten);
 
-### ANNOTATION POSITIONING INSTRUCTIONS
-- **PRIORITY 1 (Highest Accuracy):** Map each annotation to a **RAW OCR BLOCK ID** (e.g., \`block_1_4\`) if you find a direct text or positional match. Note that these blocks often correspond to the same text listed in STUDENT WORK (e.g., \`block_1_5\` might be the same content as \`[Line 2]\`).
+          let blocksSection = `## RAW OCR BLOCKS [REFERENCE ONLY]\nUse these IDs for the \`line_id\` field whenever possible for maximum positioning accuracy.\n\n`;
+
+          if (handwritten.length > 0) {
+            blocksSection += `### ✍️ HANDWRITTEN STUDENT WORK (PRIORITY MATCH)\n`;
+            blocksSection += handwritten.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n') + `\n\n`;
+          }
+
+          if (printed.length > 0) {
+            blocksSection += `### 📍 LANDMARKS (PRINTED QUESTION TEXT)\nUse these to orient yourself, but NEVER match an annotation to these IDs.\n`;
+            blocksSection += printed.map(b => `[${b.id}] (Page ${b.pageIndex}) [Printed]: ${b.text.replace(/\n/g, ' ')}`).join('\n') + `\n`;
+          }
+
+          blocksSection += `\n### ANNOTATION POSITIONING INSTRUCTIONS
+- **PRIORITY 1 (Highest Accuracy):** Map each annotation to a **RAW OCR BLOCK ID** (e.g., \`block_1_4\`) if you find a direct text or positional match.
 - **PRIORITY 2 (Fallback):** Use the placeholder ID from STUDENT WORK (e.g., \`line_1\`) ONLY if no RAW OCR BLOCK matches the student's writing.
-- **RULE:** NEVER match an annotation to a [Printed] block.
-` : `
+- **RULE:** NEVER match an annotation to a [Printed] landmark.`;
+
+          return blocksSection;
+        })() : `
 ## NO RAW OCR BLOCKS AVAILABLE
 Please use the placeholder IDs from STUDENT WORK (e.g., \`line_1\`, \`line_2\`) for the \`line_id\` field.
 `}

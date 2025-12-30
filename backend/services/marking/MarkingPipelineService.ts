@@ -498,7 +498,29 @@ export class MarkingPipelineService {
             const preprocessedImageDatas = await Promise.all(
                 standardizedPages.map(page => ImageUtils.preProcess(page.imageData))
             );
-            standardizedPages.forEach((page, i) => page.imageData = preprocessedImageDatas[i]);
+
+            // Update image data AND re-extract dimensions (critical for orientation/rotation normalization)
+            for (let i = 0; i < standardizedPages.length; i++) {
+                const page = standardizedPages[i];
+                page.imageData = preprocessedImageDatas[i];
+                try {
+                    const base64Data = page.imageData.split(',')[1];
+                    if (base64Data) {
+                        const buffer = Buffer.from(base64Data, 'base64');
+                        const metadata = await sharp(buffer).metadata();
+                        if (metadata.width && metadata.height) {
+                            if (page.width !== metadata.width || page.height !== metadata.height) {
+                                console.log(`[DIMENSIONS] Refreshed Page ${page.pageIndex} dimensions after preprocessing: ${page.width}x${page.height} -> ${metadata.width}x${metadata.height}`);
+                                page.width = metadata.width;
+                                page.height = metadata.height;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[DIMENSIONS] Failed to refresh dimensions for page ${page.pageIndex}:`, err);
+                }
+            }
+
             progressCallback(createProgressData(2, 'Image preprocessing complete.', MULTI_IMAGE_STEPS));
             logPreprocessingComplete();
 
@@ -1021,9 +1043,9 @@ export class MarkingPipelineService {
 
             // Create page dimensions map from standardizedPages for accurate drawing position calculation
             const pageDimensionsMap = new Map<number, { width: number; height: number }>();
-            standardizedPages.forEach((page, index) => {
-                if (page.width && page.height) {
-                    pageDimensionsMap.set(index, { width: page.width, height: page.height });
+            standardizedPages.forEach((page) => {
+                if (page.width && page.height && page.pageIndex != null) {
+                    pageDimensionsMap.set(page.pageIndex, { width: page.width, height: page.height });
                 }
             });
 

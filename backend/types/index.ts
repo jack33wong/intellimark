@@ -139,6 +139,8 @@ export interface Annotation {
   classificationText?: string; // Text from classification
   subQuestion?: string; // Sub-question identifier (e.g., "a", "b", "i")
   visual_position?: { x: number; y: number; width: number; height: number }; // AI-estimated position for visual elements
+  lineId?: string; // Unified identifier
+  line_id?: string; // Unified identifier (AI compat)
   pageIndex?: number; // Page index for multi-page annotations
 }
 
@@ -189,6 +191,8 @@ export interface DetectedQuestion {
     examSeries: string;
     tier: string;
     subject: string;
+    line_id?: string;
+    student_text?: string;
     paperTitle: string; // e.g., "Pearson Edexcel Mathematics 1MA1/2F (June 2022)"
 
     // Aggregated data for this exam paper
@@ -345,7 +349,7 @@ export interface Mark {
   code: string;              // "M0", "M1", "A0", "C1", "P1", etc.
   icon: string;              // "tick", "cross"
   reasoning: string;         // Why this mark was given
-  stepId?: string;           // For reference: step_id
+  lineId?: string;           // For reference: line_id
   unifiedStepId?: string;    // For reference: unified_step_id
   work?: string;             // Student work text for this specific mark
 }

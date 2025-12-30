@@ -8,7 +8,7 @@ import { sendSseUpdate } from '../../utils/sseUtils.js';
 import type { MarkingInstructions, Annotation, ModelType } from '../../types/index.js';
 import type { MathBlock } from '../ocr/MathDetectionService.js';
 import type { PageOcrResult } from '../../types/markingRouter.js';
-import { formatGroupedStudentWork } from './MarkingHelpers.js';
+import { formatGroupedStudentWork, getQuestionSortValue } from './MarkingHelpers.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 import UsageTracker from '../../utils/UsageTracker.js';
 
@@ -31,6 +31,7 @@ export interface MarkingTask {
     studentWorkLines?: any[]; // Allow access to lines
   }>;
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  questionsOnPage?: Map<number, string[]>; // Map of pageIndex -> sorted unique question numbers on that page
   imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
   images?: string[]; // Array of base64 images for multi-page questions
   // Sub-question metadata for grouped sub-questions
@@ -74,6 +75,7 @@ export interface EnrichedAnnotation extends Annotation {
   line_id?: string; // Optional, for tracking which step this annotation maps to
   aiPosition?: { x: number; y: number; width: number; height: number }; // AI-estimated position for verification
   hasLineData?: boolean; // Flag indicating if annotation uses actual line data (OCR) or fallback
+  isDrawing?: boolean; // Flag indicating if the annotation is for a drawing
 }
 
 /**
@@ -116,7 +118,10 @@ export async function executeMarkingForQuestion(
 
 
 
-    // 1. Prepare STEP DATA (still need this array for enriching annotations later)
+    // 1. Prepare Question Context Map for simple positioning fallbacks
+    // We now use the task.questionsOnPage map provided by createMarkingTasksFromClassification
+
+    // Prepare STEP DATA (still need this array for enriching annotations later)
     // Use AI segmentation results if available, otherwise fall back to OCR blocks
     let stepsDataForMapping: Array<{
       line_id: string;
@@ -254,20 +259,43 @@ export async function executeMarkingForQuestion(
           }
         }
 
+        // NEW: Normalize coordinates if they are percentages (from classification/estimated)
+        // Classification-derived steps (line_X) use 0-100 range, but we need pixels here for consistency
+        let finalBbox: [number, number, number, number] = [bbox[0], bbox[1], bbox[2], bbox[3]];
+        const ocrSource = result.source || 'classification';
+
+        if (ocrSource === 'classification' || ocrSource === 'estimated') {
+          const pageDims = task.pageDimensions?.get(pageIdx);
+          if (pageDims && (bbox[0] !== 0 || bbox[1] !== 0)) {
+            const oldX = bbox[0];
+            finalBbox[0] = (bbox[0] / 100) * pageDims.width;
+            finalBbox[1] = (bbox[1] / 100) * pageDims.height;
+            finalBbox[2] = (bbox[2] / 100) * pageDims.width;
+            finalBbox[3] = (bbox[3] / 100) * pageDims.height;
+
+            if (String(task.questionNumber).startsWith('6') || String(task.questionNumber).startsWith('2')) {
+              console.log(`[COORD DEBUG] Q${task.questionNumber} line_${stepIndex + 1} normalized: ${oldX.toFixed(1)}% -> ${Math.round(finalBbox[0])}px (Page ${pageIdx} Width: ${pageDims.width})`);
+            }
+          }
+        }
+
         return {
           line_id: (result as any).sequentialId || `line_${stepIndex + 1}`,
           pageIndex: pageIdx,
           globalBlockId: result.blockId, // Preserve globalBlockId if available
           text: result.content,
           cleanedText: result.content.trim(),
-          bbox: bbox,
-          ocrSource: result.source || 'classification'
+          bbox: finalBbox,
+          ocrSource: ocrSource
         };
-      }).filter(step => {
+      }).filter((step, index) => {
         // Filter out [DRAWING] entries that have no valid position (bbox is [0,0,0,0])
-        // This hides "phantom" drawings where the AI hallucinated a [DRAWING] tag but no position was found
-        if (step.text.includes('[DRAWING]') && step.bbox[0] === 0 && step.bbox[1] === 0 && step.bbox[2] === 0 && step.bbox[3] === 0) {
-          console.log(`[MARKING EXECUTOR] 👻 Filtering out phantom drawing (no position): "${step.text.substring(0, 50)}..."`);
+        // RELAXATION: If it's a DRAWING, do NOT filter it out even if bbox is 0.
+        // This allows AI-mapped visual positions to work later.
+        if (step.text.includes('[DRAWING]')) return true;
+
+        if (step.bbox[0] === 0 && step.bbox[1] === 0 && step.bbox[2] === 0 && step.bbox[3] === 0) {
+          console.log(`[MARKING EXECUTOR] 👻 Filtering out phantom block (no position) for Q${questionId} ID: ${step.line_id || index + 1}: "${step.text.substring(0, 50)}..."`);
           return false;
         }
         return true;
@@ -426,6 +454,9 @@ export async function executeMarkingForQuestion(
           // Use interpolation if we have surrounding blocks
           if (beforeBlock || afterBlock) {
 
+            // NEW: Respect Vertical Zones during estimation
+            // Interpolate position from surrounding blocks
+
             // Interpolate position from surrounding blocks
             if (beforeBlock && afterBlock) {
               // Interpolate Y position between before and after blocks
@@ -484,6 +515,9 @@ export async function executeMarkingForQuestion(
         if (position.includes('right')) x = pageWidth * 0.75 - drawingWidth / 2;
         if (position.includes('top')) y = pageHeight * 0.25 - drawingHeight / 2;
         if (position.includes('bottom')) y = pageHeight * 0.75 - drawingHeight / 2;
+
+        // ZONE CLAMPING: Ensure guessed Y position is within the question's territory
+
 
         return [x, y, drawingWidth, drawingHeight];
       };
@@ -618,27 +652,18 @@ export async function executeMarkingForQuestion(
     const rawOcrBlocks = task.mathBlocks.map((block, idx) => {
       const blockId = (block as any).globalBlockId || `block_${task.sourcePages[0] || 0}_${idx}`;
 
-      // Normalize page index to be 0-based relative to the question's pages
-      // This ensures the AI prompt sees "Page 0", "Page 1" matching the image sequence
-      let normalizedPageIndex = 0;
       const rawPageIndex = (block as any).pageIndex ?? task.sourcePages[0] ?? 0;
-
-      if (task.sourcePages && task.sourcePages.length > 0) {
-        const foundIndex = task.sourcePages.indexOf(rawPageIndex);
-        if (foundIndex !== -1) {
-          normalizedPageIndex = foundIndex;
-        }
-      }
 
       return {
         id: blockId,
         text: block.mathpixLatex || block.googleVisionText || '',
-        pageIndex: normalizedPageIndex,
+        pageIndex: rawPageIndex, // Use absolute page index for clear logging
         coordinates: block.coordinates ? {
           x: block.coordinates.x,
           y: block.coordinates.y
         } : undefined,
-        isHandwritten: !!(block as any).isHandwritten
+        isHandwritten: !!block.isHandwritten,
+        subQuestions: (block as any).subQuestions // Propagate sub-questions for better sub-question detection in MarkingInstructionService
       };
     }).filter(block => {
       // Filter out noise patterns and empty blocks
@@ -680,8 +705,8 @@ export async function executeMarkingForQuestion(
     if (task.sourcePages && task.sourcePages.length > 0) {
       task.sourcePages.forEach(pageIndex => {
         // Find the image for this page index from standardizedPages
-        // We need access to standardizedPages here. It's not directly in MarkingTask, 
-        // but we can pass it or find it. 
+        // We need access to standardizedPages here. It's not directly in MarkingTask,
+        // but we can pass it or find it.
         // Ideally, MarkingTask should have access to all images.
         // For now, let's assume we can get it from the task if we added it, or we need to pass it.
         // Wait, task.imageData is currently just one string.
@@ -703,12 +728,10 @@ export async function executeMarkingForQuestion(
 
 
     // DEBUG: Log sourcePages for this task
-
-
-
+    // 4. Recalculate scores if necessary
     const markingResult = await MarkingInstructionService.executeMarking({
-      imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
-      images: task.images, // Pass all page images for multi-page context
+      imageData: task.imageData || '',
+      images: task.images,
       model: model,
       processedImage: {
         ocrText: ocrTextForPrompt,
@@ -725,20 +748,26 @@ export async function executeMarkingForQuestion(
         cleanDataForMarking: { steps: stepsDataForMapping },
         cleanedOcrText: ocrTextForPrompt,
         unifiedLookupTable: {},
-        // Enhanced marking: pass raw OCR blocks and classification
         rawOcrBlocks: rawOcrBlocks,
         classificationStudentWork: task.classificationStudentWork,
-        classificationBlocks: task.classificationBlocks, // For position lookup via studentWorkLines
-        // Pass sub-question metadata for grouped sub-questions
+        classificationBlocks: task.classificationBlocks,
         subQuestionMetadata: task.subQuestionMetadata
-      } as any, // Type assertion for mock object
-      questionDetection: task.markingScheme, // Pass the marking scheme directly (don't use questionDetection if it exists, as it may be wrong for merged schemes)
-      questionText: questionText, // Pass question text from fullExamPapers to AI prompt
-      questionNumber: String(questionId), // Pass question number (may include sub-question part like "17a", "17b")
-      allPagesOcrData: allPagesOcrData, // Pass all pages OCR data for multi-page context
-      sourceImageIndices: task.sourcePages, // Pass page indices for relative-to-global pageIndex mapping
-      tracker: tracker // Pass tracker for auto-recording
+      } as any,
+      questionDetection: task.markingScheme,
+      questionText: questionText,
+      questionNumber: String(questionId),
+      allPagesOcrData: allPagesOcrData,
+      sourceImageIndices: task.sourcePages,
+      tracker: tracker
     });
+
+    if (String(questionId).startsWith('6')) {
+      console.log(`[DEBUG LOCK Q6] Raw AI Response Anno Count: ${markingResult.annotations?.length || 0}`);
+      if (markingResult.annotations?.length > 0) {
+        console.log(`[DEBUG LOCK Q6] 1st Anno Keys: ${Object.keys(markingResult.annotations[0]).join(', ')}`);
+        console.log(`[DEBUG LOCK Q6] 1st Anno ID: ${(markingResult.annotations[0] as any).line_id || (markingResult.annotations[0] as any).step_id}`);
+      }
+    }
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
@@ -750,8 +779,12 @@ export async function executeMarkingForQuestion(
 
     // 4. Skip feedback generation - removed as requested
 
-    // 6. Enrich annotations with positions
-    const defaultPageIndex = (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0;
+    // Identify the first non-frontPage source page as the default
+    // This prevents annotations from defaulting to Page 0 (Front Page) when they belong on the question sheet
+    const sourcePages = task.sourcePages || [];
+    const defaultPageIndex = sourcePages.find(p => p !== 0) ?? sourcePages[0] ?? 0;
+
+    // 5. Enrich annotations with positions (map to OCR blocks or visual positions)
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations || [],
       stepsDataForMapping, // Keep stepsDataForMapping as it contains synthetic drawing blocks and line_ids
@@ -760,7 +793,7 @@ export async function executeMarkingForQuestion(
       task.pageDimensions, // New argument
       task.classificationBlocks, // Pass classification blocks for sub-question page lookup
       task // New argument
-    );
+    ).filter(anno => (anno.text || '').trim() !== ''); // Clean up empty annotations from mark limits
 
 
 
@@ -811,27 +844,78 @@ const enrichAnnotationsWithPositions = (
   annotations: Annotation[],
   stepsDataForMapping: any[],
   questionId: string,
-  defaultPageIndex: number = 0, // NEW: Accept default page index (from task.sourcePages)
-  pageDimensions: Map<number, { width: number; height: number }> | undefined,
-  classificationBlocks: MarkingTask['classificationBlocks'],
-  task: MarkingTask // Add task parameter to access sourcePages
+  defaultPageIndex: number = 0,
+  pageDimensions?: Map<number, { width: number; height: number }>,
+  classificationBlocks?: any[],
+  task?: MarkingTask
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
-
-
-
-
-  // Code -> SubQuestion Map building removed as per user request (relying on Classification/Page Inference)
-
+  const allMarks = (task.markingScheme as any)?.marks || [];
 
   const results = annotations.map((anno, idx) => {
+    // Unified Identifier Standard: Use only lineId
+    const aiLineId = (anno as any).line_id || (anno as any).lineId || (anno as any).step_id || (anno as any).step || (anno as any).line || '';
 
+    // Helper to normalize IDs
+    function normalizeId(id: string) {
+      return id.trim().toLowerCase().replace(/^line_/, '');
+    }
 
-    // Check if we have AI-provided position (New Design)
-    // Immutable annotations map 'visual_position' to 'aiPosition'
-    // Check if we have AI-provided position (New Design)
-    // Immutable annotations map 'visual_position' to 'aiPosition'
-    const visualPos = (anno as any).aiPosition || (anno as any).visual_position; // Visual position for DRAWING annotations only (from marking AI)
+    // Find the original step
+    let originalStep = stepsDataForMapping.find(s => {
+      const stepId = s.line_id || s.lineId || s.step_id || s.globalBlockId || s.id || '';
+      if (s.line_id === aiLineId || s.lineId === aiLineId) return true;
+
+      const isMatch = normalizeId(stepId) === normalizeId(aiLineId);
+
+      // IDENTITY GUARD: If this is a drawing annotation, it should ONLY match a drawing placeholder
+      if (isMatch && aiLineId.toLowerCase().includes('drawing')) {
+        const isDrawingPlaceholder = (s.text || '').toLowerCase().includes('[drawing]');
+        if (!isDrawingPlaceholder) return false;
+      }
+      return isMatch;
+    });
+
+    // determine pageIndex
+    let pageIndex = originalStep?.pageIndex ?? defaultPageIndex;
+    if ((anno as any)._immutable) {
+      pageIndex = ((anno as any)._page?.global ?? (anno as any).pageIndex) as number;
+    }
+
+    // Check for AI Visual Position
+    const rawVisualPos = (anno as any).aiPosition || (anno as any).visual_position;
+    let effectiveVisualPos = rawVisualPos;
+
+    if (effectiveVisualPos) {
+      const isLazy = parseFloat(effectiveVisualPos.x) === 0 &&
+        parseFloat(effectiveVisualPos.y) === 0 &&
+        parseFloat(effectiveVisualPos.width) === 100 &&
+        parseFloat(effectiveVisualPos.height) === 100;
+
+      if (isLazy) {
+        // Simple Slicing Fallback
+        const questions = task?.questionsOnPage?.get(pageIndex) || [];
+        const myQNum = getBaseQuestionNumber(String(questionId));
+        const myIdx = questions.indexOf(myQNum);
+        const count = questions.length || 1;
+        const safeIdx = myIdx === -1 ? 0 : myIdx;
+
+        const sliceSize = 100 / count;
+        const centerY = (safeIdx * sliceSize) + (sliceSize / 2);
+
+        effectiveVisualPos = {
+          x: "10",
+          y: String(centerY - (sliceSize * 0.4)),
+          width: "80",
+          height: String(sliceSize * 0.8)
+        };
+        console.log(`[MARKING EXECUTOR] 🥧 Sliced Fallback for Q${questionId}: Placing at center ${centerY}% (Slice ${safeIdx + 1}/${count})`);
+      }
+    }
+
+    if (!aiLineId && !effectiveVisualPos) {
+      return null;
+    }
 
     // FIX START: Extract sub-question target early so it's available for ALL paths (Visual, Unmatched, etc.)
     // FIX START: Infer sub-question from Page Content (Classification Blocks)
@@ -849,57 +933,120 @@ const enrichAnnotationsWithPositions = (
       }
     }
 
-    // Trim both IDs to protect against hidden whitespace
-    const aiStepId = (anno as any).step_id?.trim();
-    if (!aiStepId && !visualPos) {
-      return null;
+
+
+    // [COORD SNAP] If we matched a classification line, try to snap to a nearby Mathpix block with similar text
+    // This fixes the "Shifted Left" issue by using Mathpix pixels instead of Gemini percentages
+    if (originalStep && originalStep.ocrSource === 'classification' && originalStep.text) {
+      const pageIdx = originalStep.pageIndex ?? defaultPageIndex;
+      const normalizedTarget = originalStep.text.trim().toLowerCase().replace(/\s+/g, '');
+
+      // Find a Mathpix block on the same page with very similar text
+      // SPATIAL AWARE: Only snap if the Mathpix block is relatively close to the AI's estimate
+      // This prevents "teleporting" to the wrong instance of the same text (e.g. "0.4" on a tree diagram)
+      const potentialTwins = stepsDataForMapping.filter(step =>
+        step.pageIndex === pageIdx &&
+        step.ocrSource !== 'classification' &&
+        step.ocrSource !== 'estimated' &&
+        step.text &&
+        (
+          step.text.trim().toLowerCase().replace(/\s+/g, '') === normalizedTarget ||
+          normalizedTarget.includes(step.text.trim().toLowerCase().replace(/\s+/g, ''))
+        )
+      );
+
+      if (potentialTwins.length > 0 && originalStep.bbox) {
+        let bestTwin = null;
+        let minDistance = Infinity;
+        const [aX, aY] = originalStep.bbox;
+
+        for (const twin of potentialTwins) {
+          if (!twin.bbox) continue;
+          const [tX, tY] = twin.bbox;
+          const distance = Math.sqrt(Math.pow(aX - tX, 2) + Math.pow(aY - tY, 2));
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            bestTwin = twin;
+          }
+        }
+
+        // Distance Threshold: 350px (fairly generous but enough to stop cross-page hopping)
+        const DISTANCE_THRESHOLD = 350;
+
+        if (bestTwin && minDistance < DISTANCE_THRESHOLD) {
+          if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
+            console.log(`[COORD SNAP] 🎯 TWIN FOUND Q${questionId} "${aiLineId}" (${originalStep.text}) ➔ "${bestTwin.line_id}" (${bestTwin.text}) | Distance: ${Math.round(minDistance)}px | SNAPPING DISABLED`);
+          }
+          // originalStep = bestTwin; // DISABLED: Trust original AI classification position per user request
+          // (anno as any).ocr_match_status = 'MATCHED'; // Keep as UNMATCHED/VISUAL
+        } else if (bestTwin) {
+          if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
+            console.log(`[COORD SNAP] Rejected distant twin for Q${questionId} "${aiLineId}": ${Math.round(minDistance)}px > ${DISTANCE_THRESHOLD}px`);
+            console.log(`            AI pos: [${Math.round(aX)}, ${Math.round(aY)}] vs Twin pos: [${Math.round(bestTwin.bbox![0])}, ${Math.round(bestTwin.bbox![1])}]`);
+          }
+        }
+      }
     }
 
-    // Try exact match first (check both line_id and globalBlockId)
-    let originalStep = stepsDataForMapping.find(step =>
-      step.line_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
-    );
-
-    if (String(questionId).startsWith('6')) {
-      console.log(`[DEBUG LOCK Q6] Step mapping for "${aiStepId}": ${originalStep ? 'FOUND' : 'NOT FOUND'}`);
+    if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
+      console.log(`[DEBUG LOCK Q${questionId}] Step mapping for "${aiLineId}": ${originalStep ? 'FOUND' : 'NOT FOUND'} (Source: ${originalStep?.ocrSource || 'N/A'})`);
       if (originalStep) console.log(`  ↳ Target Page: ${originalStep.pageIndex} | Bbox: ${JSON.stringify(originalStep.bbox)}`);
     }
 
-    // FIX: If match found, trust it more than initially perceived UNMATCHED status
-    // BUT only if we don't have a specific student work line estimate or visual position.
-    // For Q6 (drawing questions), we prefer the student work position over a loose OCR match to the question text.
-    const hasStudentWorkPosition = (anno as any).lineIndex !== undefined || (anno as any).line_index !== undefined || visualPos;
+    // FIX: Check if we have visible position data even if Unmatched (e.g. Q11 C1/C1)
+    // DISCARD LAZY POSITIONS: If AI returned 0/0/100/100 for an UNMATCHED annotation, treat it as missing position.
+    // This prevents "completely messed up" boxes covering the whole page when mapping fails.
+    // This block was moved to the top of the loop.
+
+    const hasStudentWorkPosition = (anno as any).lineIndex !== undefined || (anno as any).line_index !== undefined || effectiveVisualPos;
     if (originalStep && (anno as any).ocr_match_status === 'UNMATCHED' && !hasStudentWorkPosition) {
       (anno as any).ocr_match_status = 'MATCHED';
     }
 
     // FIX: If match found but has empty bbox [0,0,0,0], treat as UNMATCHED to trigger robust fallbacks (Fixes Q16)
+    // EXCEPTION: If it is a [DRAWING] synthetic placeholder, DO NOT nullify it. 
+    // We need the originalStep to preserve the pageIndex for drawing annotations.
     if (originalStep && originalStep.bbox && originalStep.bbox.length === 4 &&
       originalStep.bbox[0] === 0 && originalStep.bbox[1] === 0 && originalStep.bbox[2] === 0 && originalStep.bbox[3] === 0) {
-      originalStep = undefined;
-      (anno as any).ocr_match_status = 'UNMATCHED';
-    }
 
-
-
-    // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
-    if (!originalStep && aiStepId) {
-      // Extract step number from AI step_id (e.g., "step_2" -> "2", "q8_step_2" -> "2")
-      const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
-      if (stepNumMatch && stepNumMatch[1]) {
-        const stepNum = parseInt(stepNumMatch[1], 10);
-        // Match by step index (1-based)
-        if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
-          originalStep = stepsDataForMapping[stepNum - 1];
-        }
+      const isDrawingPlaceholder = (originalStep.text || '').toLowerCase().includes('[drawing]');
+      if (!isDrawingPlaceholder) {
+        originalStep = undefined;
+        (anno as any).ocr_match_status = 'UNMATCHED';
       }
     }
 
-    // If still not found, check if AI is using OCR block ID format (block_X_Y)
-    if (!originalStep && aiStepId && aiStepId.startsWith('block_')) {
-      originalStep = stepsDataForMapping.find(step =>
-        step.globalBlockId?.trim() === aiStepId
-      );
+
+
+    // If not found, try flexible matching (handle line_1 vs q8_line_1, etc.)
+    if (!originalStep && aiLineId) {
+      // Extract line number from AI line_id (e.g., "line_2" -> "2", "q8_line_2" -> "2")
+      const lineNumMatch = aiLineId.match(/line[_\s]*(\d+)/i);
+      if (lineNumMatch && lineNumMatch[1]) {
+        const lineNum = parseInt(lineNumMatch[1], 10);
+        // Match by line index (1-based)
+        if (lineNum > 0 && lineNum <= stepsDataForMapping.length) {
+          originalStep = stepsDataForMapping[lineNum - 1];
+        }
+      }
+
+      // If still not found, check if AI is using OCR block ID format (block_X_Y)
+      if (!originalStep) {
+        // 1. Try to find the step in marking scheme marks using lineId (if persisted)
+        const foundMark = (allMarks || []).find((m: any) =>
+          m.mark?.trim() === aiLineId || m.lineId?.trim() === aiLineId
+        );
+
+        if (foundMark) {
+          // If we found a mark with this ID, but no OCR block directly, 
+          // we can't do much for positioning here, but we acknowledge it.
+        } else if (aiLineId.startsWith('block_')) {
+          originalStep = stepsDataForMapping.find(step =>
+            step.globalBlockId?.trim() === aiLineId
+          );
+        }
+      }
     }
 
     // FIX (Smart Validation): Prevent snapping to Header/Footer boilerplate
@@ -931,7 +1078,7 @@ const enrichAnnotationsWithPositions = (
     // [DEBUG LOCK Q6] - Track matching for Q6
     if (String(questionId).startsWith('6')) {
       const matchType = originalStep ? 'OCR BLOCK' : 'NO OCR MATCH';
-      console.log(`[DEBUG LOCK Q${questionId}] Annotation: "${anno.text}" | StepID: ${aiStepId} | SubQ: ${targetSubQ || 'none'} | Status: ${matchType}`);
+      console.log(`[DEBUG LOCK Q${questionId}] Annotation: "${anno.text}" | LineID: ${aiLineId} | SubQ: ${targetSubQ || 'none'} | Status: ${matchType}`);
       if (originalStep) {
         console.log(`[DEBUG LOCK Q${questionId}]   ↳ Matched to OCR Text: "${(originalStep.text || '').substring(0, 50)}..."`);
       }
@@ -941,25 +1088,25 @@ const enrichAnnotationsWithPositions = (
 
     // Special handling for [DRAWING] annotations
     // Since we now create separate synthetic blocks for each drawing, match by text content
-    // AI might return step_id like "DRAWING_Triangle B..." instead of line_id
+    // AI might return line_id like "DRAWING_Triangle B..." instead of line_id
     if (!originalStep) {
       const annotationText = ((anno as any).textMatch || (anno as any).text || '').toLowerCase();
-      const isDrawingAnnotation = annotationText.includes('[drawing]') || (aiStepId && aiStepId.toLowerCase().includes('drawing'));
+      const isDrawingAnnotation = annotationText.includes('[drawing]') || (aiLineId && aiLineId.toLowerCase().includes('drawing'));
 
       if (isDrawingAnnotation) {
-        // First, try to match by step_id if it contains a step number
-        const stepNumMatch = aiStepId ? aiStepId.match(/step[_\s]*(\d+)/i) : null;
-        if (stepNumMatch && stepNumMatch[1]) {
-          const stepNum = parseInt(stepNumMatch[1], 10);
-          if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
-            const candidateStep = stepsDataForMapping[stepNum - 1];
+        // First, try to match by line_id if it contains a line number
+        const lineNumMatch = aiLineId ? aiLineId.match(/line[_\s]*(\d+)/i) : null;
+        if (lineNumMatch && lineNumMatch[1]) {
+          const lineNum = parseInt(lineNumMatch[1], 10);
+          if (lineNum > 0 && lineNum <= stepsDataForMapping.length) {
+            const candidateStep = stepsDataForMapping[lineNum - 1];
             if (candidateStep && (candidateStep.text || candidateStep.cleanedText || '').toLowerCase().includes('[drawing]')) {
               originalStep = candidateStep;
             }
           }
         }
 
-        // If step number matching failed, try text-based matching
+        // If line number matching failed, try text-based matching
         if (!originalStep) {
           // Find synthetic block that matches this specific drawing
           // Each synthetic block now contains only one drawing entry, so matching is simpler
@@ -1105,14 +1252,18 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: [finalX, finalY, finalW, finalH] as [number, number, number, number],
           pageIndex: classificationPosition.pageIndex,
-          line_id: (anno as any).step_id || `unmatched_${idx}`,
+          line_id: (anno as any).line_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED', // Preserve status for red border
-          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+          subQuestion: targetSubQ || anno.subQuestion, // FIX: Ensure subQuestion is propagated
+          // STRIP zeroed visual positions to prevent svgOverlayService from prioritizing them at 0,0
+          aiPosition: undefined,
+          visual_position: undefined,
+          visualPosition: undefined
         };
       }
 
       // FIX: Check if we have visible position data even if Unmatched (e.g. Q11 C1/C1)
-      const visualPosForUnmatched = (anno as any).aiPosition || (anno as any).visual_position;
+      const visualPosForUnmatched = effectiveVisualPos;
 
       // Get dimensions for the relevant page
       const targetPageIndex = (visualPosForUnmatched?.pageIndex !== undefined)
@@ -1121,14 +1272,14 @@ const enrichAnnotationsWithPositions = (
 
       const pageDims = pageDimensions?.get(targetPageIndex);
 
-      if (visualPosForUnmatched && pageDims) {
+      if (effectiveVisualPos && pageDims) {
         // Convert percentages to pixels
         const pWidth = pageDims.width;
         const pHeight = pageDims.height;
-        let x = (parseFloat(visualPosForUnmatched.x) / 100) * pWidth;
-        let y = (parseFloat(visualPosForUnmatched.y) / 100) * pHeight;
-        let w = (parseFloat(visualPosForUnmatched.width) / 100) * pWidth;
-        let h = (parseFloat(visualPosForUnmatched.height) / 100) * pHeight;
+        let x = (parseFloat(effectiveVisualPos.x) / 100) * pWidth;
+        let y = (parseFloat(effectiveVisualPos.y) / 100) * pHeight;
+        let w = (parseFloat(effectiveVisualPos.width) / 100) * pWidth;
+        let h = (parseFloat(effectiveVisualPos.height) / 100) * pHeight;
 
         // FIX: Ensure minimum visibility for fallback boxes (Q6 fix)
         // If box is microscopic (e.g. < 10px), scale it up to at least 50x30
@@ -1156,7 +1307,7 @@ const enrichAnnotationsWithPositions = (
           ...anno,
           bbox: [x, y, w, h] as [number, number, number, number],
           pageIndex: fallbackPageIndex,
-          line_id: (anno as any).step_id || `unmatched_${idx}`,
+          line_id: (anno as any).line_id || `unmatched_${idx}`,
           ocr_match_status: 'UNMATCHED',
           hasLineData: false,
           subQuestion: targetSubQ || anno.subQuestion
@@ -1175,17 +1326,38 @@ const enrichAnnotationsWithPositions = (
         if (matchingBlock && matchingBlock.studentWorkLines && matchingBlock.studentWorkLines.length > 0) {
           // Use the first line of the student work block as the anchor
           const firstLine = matchingBlock.studentWorkLines[0];
-          if (firstLine && firstLine.position) { // Use position instead of bbox for consistency with classificationPosition
+          if (firstLine && firstLine.position) {
+            const pageIdx = firstLine.pageIndex ?? defaultPageIndex;
+            const dim = pageDimensions?.get(pageIdx);
+
+            let finalBbox: [number, number, number, number] = [
+              firstLine.position.x,
+              firstLine.position.y,
+              firstLine.position.width || 100,
+              firstLine.position.height || 20
+            ];
+
+            if (dim) {
+              // Convert percentages to pixels if position is small (percentage-based)
+              if (finalBbox[0] < 100) {
+                finalBbox = [
+                  (finalBbox[0] / 100) * dim.width,
+                  (finalBbox[1] / 100) * dim.height,
+                  (finalBbox[2] / 100) * dim.width,
+                  (finalBbox[3] / 100) * dim.height
+                ];
+              }
+            }
+
+            if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
+              console.log(`[MARKING EXECUTOR] 🎯 CLASSIFICATION FALLBACK for Q${questionId} "${aiLineId}" -> Anchored to Student Work Area (SubQ: ${targetSubQ})`);
+            }
+
             return {
               ...anno,
-              bbox: [
-                firstLine.position.x,
-                firstLine.position.y,
-                firstLine.position.width || 100,
-                firstLine.position.height || 20
-              ] as [number, number, number, number],
-              pageIndex: firstLine.pageIndex ?? defaultPageIndex,
-              line_id: (anno as any).step_id || `unmatched_${idx}`, // Use anno.step_id if available
+              bbox: finalBbox,
+              pageIndex: pageIdx,
+              line_id: (anno as any).line_id || `unmatched_${idx}`,
               ocr_match_status: 'UNMATCHED',
               hasLineData: false,
               subQuestion: targetSubQ || anno.subQuestion
@@ -1235,12 +1407,12 @@ const enrichAnnotationsWithPositions = (
       };
     }
 
-    // Fallback logic for missing step ID (e.g., Q3b "No effect")
+    // Fallback logic for missing line ID (e.g., Q3b "No effect")
     // If we can't find the step, use the previous valid annotation's location
     // This keeps sub-questions together instead of dropping them or defaulting to Page 1
     if (!originalStep) {
       // NEW: Check if we have AI position to construct a synthetic bbox
-      if (visualPos) {
+      if (effectiveVisualPos) {
         // Construct bbox from aiPos (x, y, w, h are percentages)
         // We need to convert to whatever unit bbox uses (likely pixels or normalized 0-1?)
         // stepsDataForMapping.bbox seems to be [x, y, w, h] in pixels?
@@ -1260,13 +1432,13 @@ const enrichAnnotationsWithPositions = (
           pageIndex = (anno as any).pageIndex;
         }
 
-        // Try to map synthetic ID (e.g. step_5c_drawing) to a real step ID (e.g. step_5c)
+        // Try to map synthetic ID (e.g. line_5c_drawing) to a real line ID (e.g. line_5c)
         // This helps frontend group annotations correctly by sub-question
-        let finalStepId = (anno as any).step_id || `synthetic_${idx}`;
+        let finalLineId = (anno as any).line_id || `synthetic_${idx}`;
 
-        if (finalStepId.includes('_drawing')) {
-          // Extract potential sub-question part (e.g. "5c" from "step_5c_drawing")
-          const subQMatch = finalStepId.match(/step_(\d+[a-z])/i);
+        if (finalLineId.includes('_drawing')) {
+          // Extract potential sub-question part (e.g. "5c" from "line_5c_drawing")
+          const subQMatch = finalLineId.match(/line_(\d+[a-z])/i);
           if (subQMatch && subQMatch[1]) {
             const subQ = subQMatch[1]; // e.g. "5c"
             // Find a real step that matches this sub-question
@@ -1274,7 +1446,7 @@ const enrichAnnotationsWithPositions = (
               s.line_id && s.line_id.includes(subQ)
             );
             if (realStep) {
-              finalStepId = realStep.line_id;
+              finalLineId = realStep.line_id;
 
               // FIX: If the real step is NOT a drawing question (e.g. "Use your graph to find..."),
               // we should place the annotation near the text, NOT on the graph.
@@ -1288,7 +1460,7 @@ const enrichAnnotationsWithPositions = (
                   ...anno,
                   bbox: realStep.bbox as [number, number, number, number],
                   pageIndex: (anno as any)._immutable ? pageIndex : (realStep.pageIndex ?? pageIndex),
-                  line_id: finalStepId,
+                  line_id: finalLineId,
                   aiPosition: undefined // Clear aiPosition to force text-based rendering
                 };
               }
@@ -1296,13 +1468,31 @@ const enrichAnnotationsWithPositions = (
           }
         }
 
+        // Calculate real pixel bbox from percentages if page dimensions are available
+        let pixelBbox: [number, number, number, number] = [1, 1, 1, 1];
+        const pageDims = pageDimensions?.get(pageIndex);
+        if (pageDims) {
+          let x = (parseFloat(effectiveVisualPos.x) / 100) * pageDims.width;
+          let y = (parseFloat(effectiveVisualPos.y) / 100) * pageDims.height;
+          const w = (parseFloat(effectiveVisualPos.width || "50") / 100) * pageDims.width;
+          const h = (parseFloat(effectiveVisualPos.height || "30") / 100) * pageDims.height;
+
+          // ZONE CLAMPING REMOVED AS REQUESTED (Fancy snapping disabled)
+
+          pixelBbox = [x, y, w, h];
+        }
+
+        // NEW: Detect if this is a drawing annotation for color-coding in SVGOverlayService
+        const isDrawing = (anno as any).line_id && (anno as any).line_id.toString().toLowerCase().includes('drawing');
+
         const enriched = {
           ...anno,
-          bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox, visualPosition handles drawing positioning
+          bbox: pixelBbox,
           pageIndex: (pageIndex !== undefined && pageIndex !== null) ? pageIndex : defaultPageIndex,
-          line_id: finalStepId,
-          visualPosition: visualPos, // For DRAWING annotations only
-          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+          line_id: finalLineId,
+          visualPosition: effectiveVisualPos, // For DRAWING annotations only
+          subQuestion: targetSubQ || anno.subQuestion, // FIX: Ensure subQuestion is propagated
+          isDrawing: isDrawing // Flag for yellow border
         };
         // Debug log removed
         lastValidAnnotation = enriched; // Update last valid annotation
@@ -1346,33 +1536,10 @@ const enrichAnnotationsWithPositions = (
         };
       }
 
-      // Secondary Fallback: If no header found, use the "largest block" strategy as a last resort
-      // (This likely returns the question text if header wasn't found, but it's better than 0,0)
-      const candidateBlocks = stepsDataForMapping.filter(s =>
-        s.bbox && (s.bbox[2] > 0 && s.bbox[3] > 0)
-      );
-      // Sort by area
-      candidateBlocks.sort((a, b) => (b.bbox[2] * b.bbox[3]) - (a.bbox[2] * a.bbox[3]));
-
-      if (candidateBlocks.length > 0) {
-        return {
-          ...anno,
-          bbox: candidateBlocks[0].bbox as [number, number, number, number],
-          pageIndex: candidateBlocks[0].pageIndex ?? defaultPageIndex,
-          line_id: candidateBlocks[0].line_id || `unmatched_${idx}`,
-          ocr_match_status: 'UNMATCHED',
-          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
-        };
-      }
-
-      // [DEBUG LOCK Q6] - Log final result
-      if (String(questionId).startsWith('6')) {
-        const result = originalStep || (anno as any).ocr_match_status === 'UNMATCHED';
-        if (result) {
-          // Log what we're actually returning
-          const pIdx = (originalStep?.pageIndex ?? (anno as any).pageIndex ?? defaultPageIndex);
-          console.log(`[DEBUG LOCK Q${questionId}] Result: ${anno.text} | Page: ${pIdx} | Status: ${(anno as any).ocr_match_status}`);
-        }
+      // [DEBUG LOCK Q2/3/6] - Log final result
+      if (['2', '3', '6'].some(q => String(questionId).startsWith(q))) {
+        const pIdx = (originalStep?.pageIndex ?? (anno as any).pageIndex ?? defaultPageIndex);
+        console.log(`[DEBUG LOCK Q${questionId}] Result: ${anno.text} | Page: ${pIdx} | Status: ${(anno as any).ocr_match_status} | ID: ${aiLineId} | Final Bbox: ${JSON.stringify(anno.bbox)}`);
       }
 
       // Final fallback if absolutely no blocks found (rare)
@@ -1384,14 +1551,14 @@ const enrichAnnotationsWithPositions = (
     }
 
     // Check if bbox is valid (not all zeros)
-    const hasValidBbox = originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
+    const hasBbox = originalStep && originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
 
     // Determine initial page index
     // PRIORITY: 1. AI-provided pageIndex (from visual analysis), 2. Original Step's pageIndex, 3. Default
-    let pageIndex = originalStep.pageIndex ?? defaultPageIndex;
+    pageIndex = originalStep?.pageIndex ?? defaultPageIndex;
     let pageSource = 'DEFAULT';
 
-    if (originalStep.pageIndex !== undefined) pageSource = 'ORIGINAL_STEP';
+    if (originalStep && originalStep.pageIndex !== undefined) pageSource = 'ORIGINAL_STEP';
 
     // If AI provided a pageIndex (relative to the images array), map it to absolute page index
     // BUT only use it if we don't have a trusted pageIndex from the original step (OCR).
@@ -1413,174 +1580,55 @@ const enrichAnnotationsWithPositions = (
     // OCR bbox would point to question text, but visual_position points to drawing location
     const isVisualAnnotation = (anno as any).ocr_match_status === 'VISUAL';
 
-    const enriched = {
-      action: anno.action, // Explicit mapping to prevent data leakage (e.g. questionText from AI hallucination)
+    // Default processing for Matched or Visual items
+    const isDrawing = (anno as any).line_id && (anno as any).line_id.toString().toLowerCase().includes('drawing');
+    let pixelBbox: [number, number, number, number] = originalStep?.bbox ? [...originalStep.bbox] as [number, number, number, number] : [0, 0, 0, 0];
+
+    // Prefer visual pos for drawings or if OCR missing
+    if (effectiveVisualPos && (isDrawing || !hasBbox)) {
+      const pIdx = (effectiveVisualPos.pageIndex !== undefined) ? effectiveVisualPos.pageIndex : pageIndex;
+      const pageDims = pageDimensions?.get(pIdx);
+      if (pageDims) {
+        pixelBbox = [
+          (parseFloat(effectiveVisualPos.x) / 100) * pageDims.width,
+          (parseFloat(effectiveVisualPos.y) / 100) * pageDims.height,
+          (parseFloat(effectiveVisualPos.width) / 100) * pageDims.width,
+          (parseFloat(effectiveVisualPos.height) / 100) * pageDims.height
+        ];
+      }
+    } else if (originalStep?.bbox) {
+      pixelBbox = originalStep.bbox;
+    }
+
+    const enriched: EnrichedAnnotation = {
+      action: anno.action,
       text: anno.text,
       reasoning: anno.reasoning,
-      ocr_match_status: anno.ocr_match_status,
-      classification_text: (anno as any).classification_text,
-
-      // FIX: Prioritize AI classification text for cleaner student work display
-      // BUT retain OCR text if it contains rich math formatting (LaTeX) that AI simplified away (Q17 fix)
-      studentText: (() => {
-        let finalText = (anno as any).studentText || (anno as any).classificationText || originalStep?.text || anno.text;
-        if (originalStep?.text && /[\\^{}]/.test(originalStep.text)) {
-          // OCR has LaTeX (e.g. 0.99^{3}), prefer it over AI's "0.993"
-          finalText = originalStep.text;
-        }
-        return finalText;
-      })(),
-      classificationText: (anno as any).classificationText, // Keep simplified for reference if needed
-      subQuestion: targetSubQ || anno.subQuestion, // FIX: Use targetSubQ if available (scheme override)
-      step_id: (anno as any).step_id, // Keep original step_id for debug/re-mapping
-
-
-      // VISUAL: Use dummy bbox, let aiPosition handle positioning (design: visual_position is source of truth)
-      // Non-VISUAL: Use OCR bbox if available, otherwise dummy if we have aiPos
-      visualPosition: isVisualAnnotation ? visualPos : undefined,
-      pageIndex: (pageIndex !== undefined && pageIndex !== null) ? pageIndex : defaultPageIndex,
-      bbox: (() => {
-        if (isVisualAnnotation && visualPos) {
-          // Convert percentage visualPos to pixel bbox if page dimensions are available
-          // visualPos is { x: %, y: %, width: %, height: % } (CENTER coordinates from AI)
-          // But standard bbox is [x, y, w, h] (TOP-LEFT in pixels)
-
-          // Get dimensions for the page where the drawing is
-          const dim = pageDimensions?.get(pageIndex);
-          if (dim) {
-            // Percentage to Pixel conversion
-            const cx = (parseFloat(visualPos.x) / 100) * dim.width;
-            const cy = (parseFloat(visualPos.y) / 100) * dim.height;
-            const w = (parseFloat(visualPos.width) / 100) * dim.width;
-            const h = (parseFloat(visualPos.height) / 100) * dim.height;
-
-            // Center -> Top-Left
-            const x = Math.max(0, cx - (w / 2));
-            const y = Math.max(0, cy - (h / 2));
-
-            return [Math.round(x), Math.round(y), Math.round(w), Math.round(h)] as [number, number, number, number];
-          }
-          // Fallback if dimensions missing: try to pass generic normalized if allowed, else dummy
-          return [100, 100, 100, 100] as [number, number, number, number]; // Larger dummy
-        }
-        if (!hasValidBbox && !isVisualAnnotation) {
-          const RED = '\x1b[31m';
-          const BOLD = '\x1b[1m';
-          const RESET = '\x1b[0m';
-          console.log(`${BOLD}${RED}[WARNING: TOP-LEFT FALLBACK] Q${questionId}: Annotation "${anno.text}" (ID: ${(anno as any).step_id}) has no valid OCR/Line position. Defaulting to Top-Left.${RESET}`);
-        }
-        return hasValidBbox ? originalStep.bbox : [1, 1, 1, 1] as [number, number, number, number];
-      })(),
-      // Flag if we are using actual line data (OCR) or falling back to AI position
-      // VISUAL annotations always use AI position (hasLineData = false)
-      hasLineData: isVisualAnnotation ? false : hasValidBbox
+      ocr_match_status: ((anno as any).ocr_match_status === 'UNMATCHED') ? 'UNMATCHED' as any : (anno.ocr_match_status || 'MATCHED'),
+      studentText: (anno as any).studentText || originalStep?.text || anno.text,
+      subQuestion: targetSubQ || anno.subQuestion,
+      line_id: (anno as any).line_id,
+      bbox: pixelBbox,
+      pageIndex: pageIndex,
+      isDrawing: isDrawing
     };
-    lastValidAnnotation = enriched as any;
+
+    lastValidAnnotation = enriched;
     return enriched;
-  }).filter(a => a !== null) as EnrichedAnnotation[];
-
-  // SORTING DESIGN:
-  // 1. Meta Info Page First (Page Index ASC)
-  // 2. Sub-Question Grouping
-  // 3. Step ID (Reading Order) - Critical for maintaining sequence even if one item is unmatched (dummy Y)
-  // 4. Fallback: Y-Position (Top to Bottom)
-  const sortedResults = results.sort((a, b) => {
-    // 1. Meta Info Page First (Page Index)
-    if (a.pageIndex !== b.pageIndex) {
-      return a.pageIndex - b.pageIndex;
-    }
-
-    // 2. Sub-Question Number
-    const subQA = (a as any).subQuestion || '';
-    const subQB = (b as any).subQuestion || '';
-    if (subQA !== subQB) {
-      return subQA.localeCompare(subQB);
-    }
-
-    // 3. Step ID (Robust Numeric Sort)
-    const idA = (a as any).step_id || '';
-    const idB = (b as any).step_id || '';
-
-    const matchA = idA.match(/block_(\d+)_(\d+)/);
-    const matchB = idB.match(/block_(\d+)_(\d+)/);
-
-    if (matchA && matchB) {
-      const pageA = parseInt(matchA[1], 10);
-      const pageB = parseInt(matchB[1], 10);
-      if (pageA !== pageB) return pageA - pageB;
-      const blockA = parseInt(matchA[2], 10);
-      const blockB = parseInt(matchB[2], 10);
-      if (blockA !== blockB) return blockA - blockB;
-    }
-
-    // 4. Fallback: Y-Position (Top to Bottom)
-    const yA = a.bbox ? a.bbox[1] : (a.aiPosition?.y || 0);
-    const yB = b.bbox ? b.bbox[1] : (b.aiPosition?.y || 0);
-    return yA - yB;
-  });
-
-  // Debug Log: Final Sorted Order for this Question
-
-
-
-
-  // FIX FOR Q10: Unify "Split Block" status for grouped annotations
-  // If a group of annotations (likely same line) has mixed hasLineData status,
-  // force them all to hasLineData: false (TRUST_AI) to prevent visual jumping.
-
-  // 1. Group by page and proximity (simple y-distance clustering)
-  const UNIFY_THRESHOLD_Y = 50; // pixels (approx)
-
-  // We can't easily know exact Y without image height, but we can group by sub-question or just sequence
-  // For Q10, they are usually sequential.
-
-  for (let i = 0; i < results.length; i++) {
-    const current = results[i];
-    if (!current) continue;
-
-    // Look ahead for a "group" (sequential annotations for same sub-question or close proximity)
-    let group = [current];
-    let j = i + 1;
-
-    while (j < results.length) {
-      const next = results[j];
-      // Break if different page or different sub-question (if present)
-      if (next.pageIndex !== current.pageIndex) break;
-      if (current.subQuestion && next.subQuestion && current.subQuestion !== next.subQuestion) break;
-
-      // If no sub-question, check proximity (if we have bboxes)
-      // But for split blocks, bboxes might be dummy [1,1,1,1].
-      // Let's rely on the fact that Q10 split blocks are sequential.
-
-      group.push(next);
-      j++;
-    }
-
-    // Process the group
-    if (group.length > 1) {
-      // Check if ANY in group is "Split" (hasLineData === false)
-      const hasSplit = group.some(a => a.hasLineData === false);
-
-      if (hasSplit) {
-        // Force ALL to be split (TRUST_AI)
-        group.forEach(a => {
-          if (a.hasLineData !== false) {
-            // console.log(`[MARKING DEBUG] Unifying annotation to Split/AI-Position: ${a.text}`);
-            a.hasLineData = false;
-            // We keep the OCR bbox as fallback, but svgOverlayService will prefer aiPosition if available
-            // If aiPosition is missing on this specific part (unlikely for split), it might fallback to OCR bbox
-            // But setting hasLineData=false tells svgOverlay to TRY aiPosition or relative layout
-          }
-        });
-      }
-    }
-
-    // Advance i
-    i = j - 1;
-  }
+  }).filter((x): x is EnrichedAnnotation => x !== null);
 
   return results;
 };
+
+// Helper for bbox check
+function hasValidBbox(step: any) {
+  return step && step.bbox && (step.bbox[0] > 0 || step.bbox[1] > 0);
+}
+
+
+
+
+
 
 export function createMarkingTasksFromClassification(
   classificationResult: any,
@@ -1590,6 +1638,31 @@ export function createMarkingTasksFromClassification(
   standardizedPages: any[] // Assuming standardizedPages is passed here
 ): MarkingTask[] {
   const tasks: MarkingTask[] = [];
+
+  // START: Build Global Page Question Metadata (Simple Slicing)
+  // This helps place "lazy" annotations in the middle of their respective page area.
+  const questionsOnPageMap = new Map<number, string[]>();
+
+  if (classificationResult && classificationResult.questions) {
+    classificationResult.questions.forEach((q: any) => {
+      const qNum = getBaseQuestionNumber(String(q.questionNumber));
+      const sourceIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
+        ? q.sourceImageIndices
+        : [q.sourceImageIndex ?? 0];
+
+      sourceIndices.forEach((pageIdx: number) => {
+        if (!questionsOnPageMap.has(pageIdx)) questionsOnPageMap.set(pageIdx, []);
+        const list = questionsOnPageMap.get(pageIdx)!;
+        if (!list.includes(qNum)) list.push(qNum);
+      });
+    });
+  }
+
+  // Sort question numbers on each page to ensure consistent slicing order (e.g. Q1 before Q2)
+  for (const [pageIdx, qList] of questionsOnPageMap.entries()) {
+    qList.sort((a, b) => getQuestionSortValue(a) - getQuestionSortValue(b));
+  }
+  // END: Global Page Question Metadata
 
   if (!classificationResult?.questions || !Array.isArray(classificationResult.questions)) {
     return tasks;
@@ -1611,7 +1684,7 @@ export function createMarkingTasksFromClassification(
   // This ensures Q3a and Q3b are separate tasks with their own page indices
   for (const q of classificationResult.questions) {
     const mainQuestionNumber = q.questionNumber || null;
-    const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
+    const baseQNum = getBaseQuestionNumber(String(mainQuestionNumber));
 
     // Use BASE question number as grouping key to merge sub-questions (e.g., 3a, 3b -> Q3)
     // This prevents duplicate tasks for the same question on the same page (Q6) or split across pages (Q3)
@@ -1699,9 +1772,12 @@ export function createMarkingTasksFromClassification(
       }
 
       // Store studentWorkLines for position lookup
+      // Use the first non-frontPage source page as primary for this block if possible
+      const primaryPageIndex = sourceImageIndices.find(p => p !== 0) ?? sourceImageIndices[0] ?? 0;
+
       const block = {
         text: studentWorkText.trim(),
-        pageIndex: sourceImageIndices[0] || 0,
+        pageIndex: primaryPageIndex,
         studentWorkLines: q.studentWorkLines || [], // Store lines with positions
         subQuestions: q.subQuestions, // Pass sub-questions to block for MarkingInstructionService
         hasStudentDrawing: q.hasStudentDrawing // Pass drawing flag
@@ -1832,13 +1908,12 @@ export function createMarkingTasksFromClassification(
     // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
     const allMathBlocks: MathBlock[] = [];
     group.sourceImageIndices.forEach((pageIndex) => {
-      const pageOcrData = allPagesOcrData[pageIndex];
+      // FIX: Use find instead of array index to handle split/re-indexed pages correctly
+      const pageOcrData = allPagesOcrData.find(d => d.pageIndex === pageIndex);
       if (pageOcrData?.ocrData?.mathBlocks) {
         pageOcrData.ocrData.mathBlocks.forEach((block: MathBlock, idx: number) => {
-          // Ensure pageIndex is set on the block
-          if (!(block as any).pageIndex) {
-            (block as any).pageIndex = pageIndex;
-          }
+          // FORCE pageIndex to be the absolute global index
+          (block as any).pageIndex = pageIndex;
           // Assign global block ID if not present
           if (!(block as any).globalBlockId) {
             (block as any).globalBlockId = `block_${pageIndex}_${idx}`;
@@ -1848,20 +1923,20 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-
     // Extract sub-question numbers for metadata
     const subQuestionNumbers = group.subQuestions.map(sq => `${baseQNum}${sq.part}`);
 
     // Check if this question requires image for marking (edge case: Drawing Classification returned 0)
     const requiresImage = (group.mainQuestion as any)?.requiresImageForMarking === true;
 
-    // Attach image data for marking (CRITICAL for vision-based marking)
-    // For multi-page questions, we need to collect ALL images
+    // FIX: Attach image data for marking (CRITICAL for vision-based marking)
     const questionImages: string[] = [];
     if (group.sourceImageIndices.length > 0) {
       group.sourceImageIndices.forEach(pageIdx => {
-        if (standardizedPages[pageIdx] && standardizedPages[pageIdx].imageData) {
-          questionImages.push(standardizedPages[pageIdx].imageData);
+        // Use find to resolve the correct page from standardizedPages
+        const page = standardizedPages.find(p => p.pageIndex === pageIdx);
+        if (page && page.imageData) {
+          questionImages.push(page.imageData);
         }
       });
     }
@@ -1897,6 +1972,7 @@ export function createMarkingTasksFromClassification(
         })),
         subQuestionNumbers: subQuestionNumbers.length > 0 ? subQuestionNumbers : undefined
       },
+      questionsOnPage: questionsOnPageMap, // Pass metadata for slicing
       aiSegmentationResults: group.aiSegmentationResults
     });
 

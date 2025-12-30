@@ -154,7 +154,7 @@ export interface ImmutableAnnotation {
     /**
      * Reference to OCR block or step ID
      */
-    readonly stepId?: string;
+    readonly lineId?: string;
 
     /**
      * OCR source metadata

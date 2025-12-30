@@ -231,12 +231,55 @@ export class MarkingSchemeOrchestrationService {
         // For now, scenario 2 covers it with a 80% threshold.
       }
 
-      if (shouldRestart) {
+      if (shouldRestart && examPaperHint !== null) {
         console.log(`\x1b[31m[HINT] ⚠️ Hint Adherence Failed! ${restartReason}.\x1b[0m`);
         console.log(`\x1b[33m[HINT] Discarding hint "${hintUsed}" and restarting detection GLOBALLY for document consistency...\x1b[0m`);
 
         // Recursive call with null hint to trigger global search
         return this.orchestrateMarkingSchemeLookup(individualQuestions, classificationResult, null);
+      }
+    }
+
+    // --- CONSENSUS RULE: Force dominant paper if >80% share the same paper ---
+    const paperCounts = new Map<string, number>();
+    const paperToMatch = new Map<string, any>();
+
+    detectionResults.forEach(dr => {
+      if (dr.detectionResult.match?.paperTitle) {
+        const title = dr.detectionResult.match.paperTitle;
+        paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
+        if (!paperToMatch.has(title)) {
+          paperToMatch.set(title, dr.detectionResult.match);
+        }
+      }
+    });
+
+    let dominantPaper: string | null = null;
+    const totalDetectedCount = Array.from(paperCounts.values()).reduce((a, b) => a + b, 0);
+
+    for (const [title, count] of paperCounts.entries()) {
+      if (count / totalDetectedCount >= 0.8) {
+        dominantPaper = title;
+        break;
+      }
+    }
+
+    if (dominantPaper && paperCounts.size > 1) {
+      console.log(`\x1b[32m[HINT] 🏛️ Consensus Reached! Forcing all questions to "${dominantPaper}" for consistency.\x1b[0m`);
+      const dominantMatchBase = paperToMatch.get(dominantPaper);
+
+      for (const dr of detectionResults) {
+        if (dr.detectionResult.match?.paperTitle !== dominantPaper) {
+          const oldTitle = dr.detectionResult.match?.paperTitle || 'Unknown';
+          // Retry detection for this specific question FORCED to the dominant paper hint
+          const forcedHint = `${dominantMatchBase.board} ${dominantMatchBase.paperCode} ${dominantMatchBase.examSeries} ${dominantMatchBase.tier}`;
+          const rescuedResult = await questionDetectionService.detectQuestion(dr.question.text, dr.question.questionNumber, forcedHint);
+
+          if (rescuedResult.found && rescuedResult.match?.paperTitle === dominantPaper) {
+            console.log(`   └─ Rescued ${dr.question.questionNumber || '?'}: ${oldTitle} -> ${dominantPaper}`);
+            dr.detectionResult = rescuedResult;
+          }
+        }
       }
     }
 

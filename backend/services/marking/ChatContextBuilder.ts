@@ -95,7 +95,7 @@ export class ChatContextBuilder {
                         code: a.text || '',
                         icon: a.action || 'tick',
                         reasoning: a.reasoning || '',
-                        stepId: a.step_id || '',
+                        lineId: a.line_id || '',
                         work: studentWork, // Associate work directly with this mark
                         unifiedStepId: a.unified_step_id
                     });

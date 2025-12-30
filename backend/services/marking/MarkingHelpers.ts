@@ -367,7 +367,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
           if (result.annotations) {
             const aiFoundDrawing = result.annotations.some((ann: any) => {
               const txt = (ann.text || '').toLowerCase();
-              const stepId = (ann.step_id || '').toLowerCase();
+              const stepId = (ann.line_id || '').toLowerCase();
               return stepId.includes('drawing') || txt.includes('[drawing]');
             });
             // If AI found a drawing but Classification didn't flag it (drawingCount is 0 for this block), increment it.
@@ -992,7 +992,8 @@ export function formatGroupedStudentWork(
     const numberedLines = lines.map((line) => {
       const lineId = customLineIds ? customLineIds[globalLineIndex - 1] : `line_${globalLineIndex}`;
       globalLineIndex++;
-      return `[${lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId}] ${line}`;
+      const label = lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId;
+      return `[${label}] ${line} (ID: ${lineId})`;
     }).join('\n');
     parts.push(`[MAIN QUESTION STUDENT WORK]\n${numberedLines}`);
   }
@@ -1005,7 +1006,8 @@ export function formatGroupedStudentWork(
       const numberedLines = lines.map((line) => {
         const lineId = customLineIds ? customLineIds[globalLineIndex - 1] : `line_${globalLineIndex}`;
         globalLineIndex++;
-        return `[${lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId}] ${line}`;
+        const label = lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId;
+        return `[${label}] ${line} (ID: ${lineId})`;
       }).join('\n');
       parts.push(`${subQLabel}\n${numberedLines}`);
     }

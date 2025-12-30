@@ -34,7 +34,7 @@ export interface RawAIAnnotation {
         width: number;
         height: number;
     };
-    step_id?: string;
+    line_id?: string;
     student_text?: string;
     classification_text?: string;
     action?: string;
@@ -225,7 +225,7 @@ export function createAnnotationFromAI(
         subQuestion: aiAnnotation.subQuestion,
         page,
         aiPosition,
-        stepId: aiAnnotation.step_id,
+        lineId: aiAnnotation.line_id, // Unified Standard
         ocrSource: undefined,
         hasLineData: undefined,
         action: aiAnnotation.action,
@@ -323,8 +323,8 @@ export function enrichWithOCRBbox(
     annotation: ImmutableAnnotation,
     ocrBlocks: readonly OCRBlock[]
 ): ImmutableAnnotation {
-    if (!annotation.stepId) {
-        return annotation; // No stepId, can't match to OCR
+    if (!annotation.lineId) {
+        return annotation; // No lineId, can't match to OCR
     }
 
     // CRITICAL FIX: Skip OCR bbox enrichment for VISUAL annotations (drawings)
@@ -335,8 +335,8 @@ export function enrichWithOCRBbox(
 
     // Find matching OCR block
     const matchingBlock = ocrBlocks.find(
-        block => block.id === annotation.stepId ||
-            block.id?.trim() === annotation.stepId?.trim()
+        block => block.id === annotation.lineId ||
+            block.id?.trim() === annotation.lineId?.trim()
     );
 
     if (!matchingBlock) {
@@ -421,7 +421,9 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         subQuestion: annotation.subQuestion,
         bbox: bbox, // FIX: Use the resolved 'bbox' variable instead of annotation.bbox
         aiPosition: annotation.aiPosition,
-        step_id: annotation.stepId,
+        lineId: annotation.lineId, // Unified (Preferred)
+        line_id: annotation.lineId, // Unified (Compatibility)
+        step_id: annotation.lineId, // Legacy mapping
         ocrSource: annotation.ocrSource,
         hasLineData: annotation.hasLineData,
         action: annotation.action,
@@ -459,7 +461,7 @@ export function fromLegacyFormat(legacyAnno: any): ImmutableAnnotation {
         page,
         bbox: legacyAnno.bbox as BoundingBox | undefined,
         aiPosition: legacyAnno.aiPosition,
-        stepId: legacyAnno.step_id,
+        lineId: legacyAnno.lineId || legacyAnno.line_id || legacyAnno.step_id,
         ocrSource: legacyAnno.ocrSource,
         hasLineData: legacyAnno.hasLineData
     };

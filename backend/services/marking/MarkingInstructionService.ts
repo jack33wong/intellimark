@@ -477,7 +477,7 @@ export class MarkingInstructionService {
           pageIndex: anno.pageIndex,
           subQuestion: anno.subQuestion,
           visual_position: anno.visual_position,
-          step_id: anno.step_id,
+          line_id: anno.line_id, // Unified Standard
           student_text: anno.student_text,
           classification_text: anno.classification_text,
           action: anno.action,
@@ -780,7 +780,7 @@ export class MarkingInstructionService {
         // Legacy format support
         formattedOcrText = `Question: ${parsed.question}\n\nStudent's Work:\n${parsed.steps.map((step: any, index: number) => {
           const normalizedText = normalizeLatexDelimiters(step.cleanedText || step.text || '');
-          const simplifiedStepId = `step_${index + 1}`;
+          const simplifiedStepId = `line_${index + 1}`;
           return `${index + 1}. [${simplifiedStepId}] ${normalizedText}`;
         }).join('\n')}`;
       }
@@ -879,7 +879,7 @@ export class MarkingInstructionService {
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
     // AI MARKING USER PROMPT DEBUG LOG
-    const shouldLogPrompt = true;
+    const shouldLogPrompt = false; // DISABLED
     if (shouldLogPrompt) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
@@ -889,6 +889,11 @@ export class MarkingInstructionService {
       console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
       console.log(`${BOLD}${BLUE}[AI MARKING] Q${questionNumber}${RESET}`);
       console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
+
+      // Log SYSTEM PROMPT
+      console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
+      console.log(systemPrompt.substring(0, 2000) + (systemPrompt.length > 2000 ? '\n[... System Prompt Truncated ...]' : ''));
+      console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
 
       // Split userPrompt into sections for cleaner logging
       const sections = userPrompt.split(/\n(?=# )/);
@@ -958,44 +963,83 @@ export class MarkingInstructionService {
       const inputTokens = res.inputTokens || 0;
       const outputTokens = res.outputTokens || 0;
 
-      // Parse the AI response (Add robust parsing/cleanup)
+      // Robust parsing of the AI response
+      let parsedResponse;
       let jsonString = aiResponseString;
       const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonString = jsonMatch[1];
       }
-      // DEBUG LOG: AI Response for questions with UNMATCHED annotations only
-      try {
-        const parsedResponse = JSON.parse(jsonString);
 
-        // Sanitize student_text at the source
-        // Remove LaTeX artifacts that Mathpix OCR might inject (e.g. alignment '&', backslashes)
+      try {
+        parsedResponse = JSON.parse(jsonString);
+      } catch (error) {
+        // If parsing fails, fix common JSON issues
+        let fixedJson = jsonString;
+
+        // Fix 1: Missing closing brace before comma
+        fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
+          const indentMatch = match.match(/\n(\s*),\s*\n/);
+          const indent = indentMatch ? indentMatch[1] : '    ';
+          return `"${field}": "${value}"\n${indent}},\n${indent}{`;
+        });
+
+        // Fix 2: Unescaped backslashes
+        fixedJson = fixedJson.replace(/\\(?![\\"/nrtbfu])/g, '\\\\');
+
+        try {
+          parsedResponse = JSON.parse(fixedJson);
+        } catch (secondError) {
+          // Fix 3: More aggressive backslash escaping
+          fixedJson = jsonString.replace(/\\/g, '\\\\')
+            .replace(/\\\\n/g, '\\n')
+            .replace(/\\\\"/g, '\\"')
+            .replace(/\\\\r/g, '\\r')
+            .replace(/\\\\t/g, '\\t')
+            .replace(/\\\\b/g, '\\b')
+            .replace(/\\\\f/g, '\\f');
+
+          // Fix 4: Missing closing brace before comma (retry)
+          fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
+            const indentMatch = match.match(/\n(\s*),\s*\n/);
+            const indent = indentMatch ? indentMatch[1] : '    ';
+            return `"${field}": "${value}"\n${indent}},\n${indent}{`;
+          });
+
+          try {
+            parsedResponse = JSON.parse(fixedJson);
+          } catch (thirdError) {
+            console.error("❌ JSON parsing failed after fix attempts. Error:", thirdError);
+            throw thirdError;
+          }
+        }
+      }
+
+      // Extract question number for logging
+      const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
+
+      // POST-PROCESSING ON THE PARSED RESPONSE
+      if (parsedResponse) {
+        // 1. Sanitize student_text
         if (parsedResponse.annotations) {
           parsedResponse.annotations.forEach((anno: any) => {
             if (anno.student_text) {
-              // Replace '&' with space, remove backslashes
               let cleaned = anno.student_text.replace(/&/g, ' ').replace(/\\/g, '');
-              // Clean up spacing around equals
               cleaned = cleaned.replace(/\s+/g, ' ').replace(/\s*=\s*/g, ' = ').trim();
               anno.student_text = cleaned;
             }
           });
         }
 
-        // =========================================================================================
-        // STRICT MARK LIMIT ENFORCEMENT (Ref: Step 1779)
-        // Prevent AI from awarding more marks than available in the scheme (e.g. 7 marks for Q14 when max is 4)
-        // =========================================================================================
-        if (normalizedScheme) { // Use normalizedScheme argument
+        // 2. STRICT MARK LIMIT ENFORCEMENT
+        if (normalizedScheme) {
           try {
-            // normalizedScheme is likely already parsed and normalized
             let marksList: any[] = [];
             if (normalizedScheme.marks && Array.isArray(normalizedScheme.marks)) {
               marksList = normalizedScheme.marks;
             }
 
             if (marksList.length > 0) {
-              // 1. Build Limit Map (e.g. { "P1": 3, "A1": 1 })
               const limitMap = new Map<string, number>();
               marksList.forEach((m: any) => {
                 const code = (m.mark || '').trim();
@@ -1004,19 +1048,16 @@ export class MarkingInstructionService {
                 }
               });
 
-              // 2. Filter Annotations (Token-based logic to handle "3B1" correctly)
               if (parsedResponse.annotations && Array.isArray(parsedResponse.annotations)) {
                 const validAnnotations: any[] = [];
                 const usageMap = new Map<string, number>();
 
                 parsedResponse.annotations.forEach((anno: any) => {
                   const rawText = (anno.text || '').trim();
-                  // Tokenize text into individual mark codes (split by space, comma, plus, or pipe)
                   const allTokens = rawText.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
                   const validTokens: string[] = [];
 
                   allTokens.forEach((token: string) => {
-                    // Extract code (alphanumeric prefix, e.g. "M1" or "P1")
                     const code = token.split(/[^a-zA-Z0-9]/)[0];
                     if (limitMap.has(code)) {
                       const currentUsage = usageMap.get(code) || 0;
@@ -1029,13 +1070,11 @@ export class MarkingInstructionService {
                         console.warn(`⚠️ [MARK LIMIT] Dropped excess token '${token}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
                       }
                     } else {
-                      // Pass through unknown codes but log
                       validTokens.push(token);
                     }
                   });
 
                   if (validTokens.length > 0) {
-                    // Update annotation text with filtered tokens
                     anno.text = validTokens.join(' ');
                     validAnnotations.push(anno);
                   }
@@ -1044,7 +1083,7 @@ export class MarkingInstructionService {
                 const originalAwarded = parsedResponse.studentScore?.awardedMarks;
                 parsedResponse.annotations = validAnnotations;
 
-                // 3. Recalculate total score based on filtered marks (Fix Q6 6/4 inflation)
+                // 3. Recalculate total score
                 if (parsedResponse.studentScore) {
                   let totalAwarded = 0;
                   validAnnotations.forEach((anno: any) => {
@@ -1053,7 +1092,7 @@ export class MarkingInstructionService {
                       const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
-                        if (code && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
+                        if (code && !code.endsWith('0') && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
                           totalAwarded += 1;
                         }
                       });
@@ -1067,90 +1106,17 @@ export class MarkingInstructionService {
                     parsedResponse.studentScore.scoreText = `${totalAwarded}/${parsedResponse.studentScore.totalMarks}`;
                   }
                 }
+
+                // 4. Debugging: Pretty-printed AI Response - DISABLED
+                // console.log(`[DEBUG] AI Response for Q${inputQuestionNumber || '?'}:`);
+                // console.log(JSON.stringify(parsedResponse, null, 2));
               }
             }
           } catch (e) {
             console.error('Error enforcing mark limits:', e);
           }
         }
-        // =========================================================================================
-
-        // Only log if there are UNMATCHED annotations
-        const hasUnmatched = parsedResponse.annotations && parsedResponse.annotations.some((anno: any) =>
-          anno.ocr_match_status === 'UNMATCHED'
-        );
-        const hasVisual = parsedResponse.annotations && parsedResponse.annotations.some((anno: any) =>
-          anno.ocr_match_status === 'VISUAL'
-        );
-
-        // Log mostly for non-standard cases (User request: disable STANDARD logs)
-        // TEMPORARY: Force log Q2 for debugging
-
-
-      } catch (e) {
-        // Ignore parsing errors here, main flow handles it
       }
-
-      // Sanitize JSON string to handle unescaped characters
-      // The AI may return single backslashes in LaTeX that need to be escaped for JSON
-      let parsedResponse;
-      try {
-        parsedResponse = JSON.parse(jsonString);
-      } catch (error) {
-        // If parsing fails, fix common JSON issues
-        let fixedJson = jsonString;
-
-        // Fix 1: Missing closing brace before comma (e.g., "reasoning": "...",\n,\n{)
-        // Pattern: field value followed by newline, comma, newline, opening brace
-        // Should be: field value, closing brace, comma, newline, opening brace
-        // Handle various indentation levels and values that may contain escaped quotes
-        fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
-          // Preserve the indentation of the comma line
-          const indentMatch = match.match(/\n(\s*),\s*\n/);
-          const indent = indentMatch ? indentMatch[1] : '    ';
-          // Value is already properly escaped in JSON, use as-is
-          return `"${field}": "${value}"\n${indent}},\n${indent}{`;
-        });
-
-        // Fix 2: Unescaped backslashes in string values
-        // Replace single backslashes that aren't followed by valid escape characters
-        // Valid escapes: \", \\, \n, \r, \t, \b, \f, \uXXXX
-        fixedJson = fixedJson.replace(/\\(?![\\"/nrtbfu])/g, '\\\\');
-
-        try {
-          parsedResponse = JSON.parse(fixedJson);
-        } catch (secondError) {
-          // Fix 3: More aggressive backslash escaping
-          fixedJson = jsonString.replace(/\\/g, '\\\\');
-          // But then un-escape the ones that should stay as single (like \n, \", etc.)
-          fixedJson = fixedJson.replace(/\\\\n/g, '\\n');
-          fixedJson = fixedJson.replace(/\\\\"/g, '\\"');
-          fixedJson = fixedJson.replace(/\\\\r/g, '\\r');
-          fixedJson = fixedJson.replace(/\\\\t/g, '\\t');
-          fixedJson = fixedJson.replace(/\\\\b/g, '\\b');
-          fixedJson = fixedJson.replace(/\\\\f/g, '\\f');
-
-          // Fix 4: Missing closing brace before comma (retry after backslash fixes)
-          fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
-            // Preserve the indentation of the comma line
-            const indentMatch = match.match(/\n(\s*),\s*\n/);
-            const indent = indentMatch ? indentMatch[1] : '    ';
-            // Value is already properly escaped in JSON, use as-is
-            return `"${field}": "${value}"\n${indent}},\n${indent}{`;
-          });
-
-          try {
-            parsedResponse = JSON.parse(fixedJson);
-          } catch (thirdError) {
-            console.error("❌ JSON parsing failed after fix attempts. Error:", thirdError);
-            console.error("❌ Problematic JSON section (first 500 chars):", fixedJson.substring(0, 500));
-            throw thirdError;
-          }
-        }
-      }
-
-      // Extract question number for logging
-      const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
       // Log clean AI response with better formatting
       const GREEN = '\x1b[32m';
@@ -1207,7 +1173,8 @@ export class MarkingInstructionService {
         const seenSteps = new Map<string, any>();
 
         parsedResponse.annotations.forEach((anno: any) => {
-          const key = `${anno.step_id}_${anno.action}`;
+          const aiId = anno.line_id || anno.step_id || anno.lineId;
+          const key = `${aiId}_${anno.action}`;
           if (seenSteps.has(key)) {
             const existing = seenSteps.get(key);
             // Merge text (mark codes)
@@ -1413,7 +1380,7 @@ export class MarkingInstructionService {
                   // If on different pages, treat each as index 0 (top position)
                   const effectiveIndex = samePage ? subQIndex : 0;
                   const topEdgeY = 15 + (effectiveIndex * spacing);
-                  const newY = topEdgeY + (newSize / 2); // Add half height to get center
+                  const newY = topEdgeY; // Use top-left alignment
                   anno.visual_position.y = newY;
 
                   const positionNote = samePage ? 'stacked' : 'separate pages, positioned as top';

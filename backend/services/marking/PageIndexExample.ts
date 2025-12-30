@@ -40,7 +40,7 @@ const aiResponse: RawAIAnnotation = {
     pageIndex: 1,  // Relative: "second image"
     subQuestion: "b",
     visual_position: { x: 10, y: 10, width: 70, height: 60 },
-    step_id: "drawing_3_27",
+    line_id: "drawing_3_27",
     action: "tick",
     reasoning: "Correct drawing"
 };

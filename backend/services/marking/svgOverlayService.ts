@@ -250,8 +250,7 @@ export class SVGOverlayService {
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
 
-    // DEBUG: Add black border around entire image
-    svg += `<rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" fill="none" stroke="black" stroke-width="5" opacity="1.0"/>`;
+    // Full-page debug border removed
 
 
     // Process annotations if available
@@ -441,7 +440,7 @@ export class SVGOverlayService {
       }
 
       x = (aiPos.x / 100) * originalWidth;
-      y = aiY_orig - (aiH_orig / 2);
+      y = aiY_orig;
       width = aiW_px;
       height = aiH_orig;
     } else {
@@ -483,25 +482,34 @@ export class SVGOverlayService {
     let svg = '';
 
     // Add color-coded border based on annotation status
-    // Red = UNMATCHED (no OCR data - using classification position)
-    // Orange = No line data (Block Data - estimated coords from split blocks)
-    // Black = Has line data (True Line Data - precise Mathpix coords)
+    // Black = Precise OCR match (MATCHED)
+    // Red   = Visual/Unmatched (UNMATCHED) - AI classification position
+    // Yellow = Drawing or Estimated block
     let borderColor = 'black';
     let strokeDash = 'none';
 
-    if (ocrStatus === 'UNMATCHED') {
-      // UNMATCHED - no OCR blocks available, using classification position
+    // NEW: Check for drawing indicators in text or text content
+    const isDrawing = (annotation as any).isDrawing ||
+      (annotation.text && annotation.text.includes('[DRAWING]')) ||
+      (annotation.studentText && annotation.studentText.includes('[DRAWING]'));
+
+    if (isDrawing) {
+      // Drawing - use yellow as requested by user
+      borderColor = 'yellow';
+      strokeDash = '5,5';
+    } else if (ocrStatus === 'UNMATCHED') {
+      // UNMATCHED - no OCR blocks available, using classification position (Visual)
       borderColor = 'red';
       strokeDash = '5,5'; // Dashed border to indicate fallback
     } else if (hasLineData === false) {
       // No line data - coordinates were estimated from split blocks
-      borderColor = 'orange';
+      borderColor = 'yellow'; // Also use yellow for estimated blocks
       strokeDash = '5,5';
     }
 
     const borderWidth = 2;
 
-    // Draw border around the annotation bounding box
+    // Draw border for all annotations
     svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
             fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
             stroke-dasharray="${strokeDash}"/>`;
