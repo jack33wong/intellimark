@@ -116,11 +116,22 @@ const reorderAssistantContent = (content) => {
   if (segments.preamble.trim()) finalParts.push(segments.preamble.trim());
   if (segments.question.trim()) finalParts.push(segments.question.trim());
 
+  // Helper to aggressively flatten indentation to prevent accidental code blocks
+  const flattenIndentation = (text) => {
+    if (!text) return text;
+    // Remove all leading whitespace from every line to ensure standard markdown paragraph parsing
+    return text.split('\n').map(line => line.trimStart()).join('\n');
+  };
+
   if (segments.explanation.trim()) {
-    // Clean the Explanation header to remove numbering and force a clean format
-    const cleanedExplanation = segments.explanation.trim()
-      .replace(/^(?:#+\s+)?(?:\d+[\.\)]\s+)?(?:\*\*|__)?Explanation:?(?:\*\*|__)?/mi, '### Explanation');
-    finalParts.push(`<div class="ai-explanation-section">\n\n${cleanedExplanation}\n\n</div>`);
+    // 1. Remove the header specifically
+    let body = segments.explanation.trim()
+      .replace(/^(?:#+\s+)?(?:\d+[\.\)]\s+)?(?:\*\*|__)?Explanation(?:(?:\*\*|__)?\s*:?|:?\s*(?:\*\*|__)?)\s*/mi, '');
+
+    // 2. Flatten indentation completely to remove code-block triggering indentation
+    body = flattenIndentation(body);
+
+    finalParts.push(`<div class="ai-explanation-section">\n\n### Explanation\n\n${body}\n\n</div>`);
   }
 
   if (segments.yourWork.trim()) {
@@ -128,10 +139,14 @@ const reorderAssistantContent = (content) => {
   }
 
   if (segments.markingScheme.trim()) {
-    // Clean the Marking Scheme header to remove numbering and force a clean format
-    const cleanedMarkingScheme = segments.markingScheme.trim()
-      .replace(/^(?:#+\s+)?(?:\d+[\.\)]\s+)?(?:\*\*|__)?Marking\s+Scheme:?(?:\*\*|__)?/mi, '### Marking Scheme');
-    finalParts.push(`<div class="ai-marking-scheme-section">\n\n${cleanedMarkingScheme}\n\n</div>`);
+    // 1. Remove the header specifically
+    let body = segments.markingScheme.trim()
+      .replace(/^(?:#+\s+)?(?:\d+[\.\)]\s+)?(?:\*\*|__)?Marking\s+Scheme(?:(?:\*\*|__)?\s*:?|:?\s*(?:\*\*|__)?)\s*/mi, '');
+
+    // 2. Flatten indentation
+    body = flattenIndentation(body);
+
+    finalParts.push(`<div class="ai-marking-scheme-section">\n\n### Marking Scheme\n\n${body}\n\n</div>`);
   }
 
   return finalParts.join('\n\n');

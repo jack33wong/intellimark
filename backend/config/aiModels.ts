@@ -17,6 +17,12 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     maxTokens: 64000,
     temperature: 0.1
   },
+  'gemini-2.5-flash': {
+    name: 'Google Gemini 2.5 Flash',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    maxTokens: 64000,
+    temperature: 0.1
+  },
   'gemini-3-flash-preview': {
     name: 'Google Gemini 3.0 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',

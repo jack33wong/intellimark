@@ -21,7 +21,7 @@ const getSavedModel = () => {
       AI_MODELS.GEMINI_2_0_FLASH,
       AI_MODELS.GEMINI_2_5_FLASH,
       AI_MODELS.GEMINI_2_5_PRO,
-      AI_MODELS.GEMINI_3_PRO_PREVIEW,
+      AI_MODELS.GEMINI_3_FLASH_PREVIEW,
       AI_MODELS.OPENAI_GPT_4O
     ];
     if (savedModel && validModels.includes(savedModel)) {

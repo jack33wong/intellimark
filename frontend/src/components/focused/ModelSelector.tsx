@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import './ModelSelector.css'; // Assuming styles are in this file
+import { AI_MODELS } from '../../utils/constants';
 
 // Define the type for the props this component receives
 interface ModelSelectorProps {
@@ -27,9 +28,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const models = [
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-    { id: 'gemini-3-flash-preview', name: 'Gemini 3.0 Flash' },
-    { id: 'openai-gpt-4o', name: 'GPT-4o' },
+    { id: AI_MODELS.GEMINI_2_0_FLASH, name: 'Gemini 2.0 Flash' },
+    { id: AI_MODELS.GEMINI_2_5_FLASH, name: 'Gemini 2.5 Flash' },
+    { id: AI_MODELS.GEMINI_3_FLASH_PREVIEW, name: 'Gemini 3.0 Flash' },
+    { id: AI_MODELS.OPENAI_GPT_4O, name: 'GPT-4o' },
   ];
 
   const handleToggle = () => {
