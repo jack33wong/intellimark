@@ -134,7 +134,7 @@ export interface Annotation {
   bbox: [number, number, number, number]; // [x, y, width, height]
   text?: string; // Text content for all annotation types
   reasoning?: string; // Optional explanation/rationale
-  ocr_match_status?: 'MATCHED' | 'FALLBACK'; // Status of OCR matching
+  ocr_match_status?: 'MATCHED' | 'FALLBACK' | 'UNMATCHED' | 'VISUAL'; // Status of OCR matching
   studentText?: string; // Student work text selected by AI
   classificationText?: string; // Text from classification
   subQuestion?: string; // Sub-question identifier (e.g., "a", "b", "i")

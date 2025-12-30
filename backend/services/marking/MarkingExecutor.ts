@@ -76,6 +76,7 @@ export interface EnrichedAnnotation extends Annotation {
   aiPosition?: { x: number; y: number; width: number; height: number }; // AI-estimated position for verification
   hasLineData?: boolean; // Flag indicating if annotation uses actual line data (OCR) or fallback
   isDrawing?: boolean; // Flag indicating if the annotation is for a drawing
+  ocr_match_status?: 'MATCHED' | 'UNMATCHED' | 'VISUAL' | 'FALLBACK';
 }
 
 /**
@@ -1617,7 +1618,38 @@ const enrichAnnotationsWithPositions = (
     return enriched;
   }).filter((x): x is EnrichedAnnotation => x !== null);
 
-  return results;
+  // DEDUPLICATION: Remove "Ghost" Unmatched annotations if a Matched version exists
+  // This typically happens if the pipeline generates both a fallback and a match for the same step
+  const uniqueResults = results.filter((current, index) => {
+    // If current is MATCHED, always keep it
+    if (current.ocr_match_status !== 'UNMATCHED') return true;
+
+    // If current is UNMATCHED, check if a Better (MATCHED) version exists
+    const betterVersionExists = results.some((other, otherIndex) => {
+      if (index === otherIndex) return false; // Don't compare to self
+      if (other.ocr_match_status === 'UNMATCHED') return false; // Only compare to MATCHED
+
+      // Check for Identity Match
+      const samePage = other.pageIndex === current.pageIndex;
+      const sameText = other.text === current.text; // e.g. "P1"
+      const sameAction = other.action === current.action; // e.g. "tick"
+
+      // Check for SubQuestion Match (loosely)
+      const sameSubQ = (!other.subQuestion && !current.subQuestion) || (other.subQuestion === current.subQuestion);
+
+      return samePage && sameText && sameAction && sameSubQ;
+    });
+
+    // If a better version exists, discard this unmatched ghost
+    if (betterVersionExists) {
+      // console.log(`[MARKING DEBUG] Removing Duplicate Ghost Annotation: ${current.text} (Found MATCHED version)`);
+      return false;
+    }
+    return true;
+  });
+
+  return uniqueResults;
+
 };
 
 // Helper for bbox check
