@@ -3,42 +3,27 @@ GOAL: List ONLY the question numbers visible on each page AND categorize each pa
 
 RULES:
 1. **QUESTION NUMBER DETECTION (FLATTENING):**
-   - Look for question numbers (e.g., "1", "2", "3a", "4(b)")
-   - If no number found BUT page has question text + student work → default to "1"
-   - **NESTED SUB-QUESTIONS (CRITICAL):**
-     * FLATTEN to simple format: "2(a)(i)" → "2ai", "3(b)" → "3b". Pattern: {number}{letter}{roman/number}.
-      
+   - Look for question numbers (e.g., "1", "2", "3a", "4b")
+   - **NESTED SUB-QUESTIONS**: Flatten to simple format like "3b", "2ai", etc.
+   - **DANGLING HEADERS (CRITICAL)**:
+     * If a page ends with a question label (e.g. "3(b)") but has **ZERO** student answer space, answer lines, or work area on that page, **DO NOT** list that question for this page.
+     * Question assignment is **WORK-CENTRIC**: A question belongs ONLY to the page where the student is expected to provide their answer.
+     * **Example**: Page 4 ends with "3(b) Solve...", but Page 5 has the answer lines. -> "3b" belongs on Page 5, NOT Page 4.
+
 2. **PAGE CATEGORIZATION (CRITICAL DECISION TREE):**
    - **STEP 1: IS IT A FRONT PAGE?**
-     * **DEFINITION:** A "frontPage" contains **ONLY** exam metadata (board, date, subject, codes, advice, instructions) with **NO** question content.
-     * If **NO** question content (numbered or unnumbered) → category: **"frontPage"**.
-     * If **ANY** question detected (with/without number) → category: **"question..."** (Go to STEP 2).
-     * **IGNORE:** Headers, footers, general instructions. These are not questions.
-   
-   - **STEP 2: IS THERE STUDENT WORK?** (Only execute if questions were found)
-     * **CRITICAL:** Distinguish between BLANK vs FILLED answer spaces.
-     * Look for **ACTUAL STUDENT WORK** (any of these):
-       - Handwritten text, numbers, or calculations (pen/pencil marks)
-       - Student-drawn diagrams, graphs, or sketches (non-printed)
-       - Mark annotations (ticks, crosses, circles, highlights)
-       - ANY written content that is NOT pre-printed on the exam
-     * **BLANK ANSWER SPACES DO NOT COUNT AS WORK:**
-       - Empty answer boxes, grids, or lines → Still "questionOnly"
-       - Blank graph paper or coordinate grids → Still "questionOnly"
-       - Pre-printed diagrams/shapes → Still "questionOnly"
-     * **Decision:**
-       - YES (ACTUAL student work present) → category: **"questionAnswer"**
-       - NO (only blank spaces/pre-printed content) → category: **"questionOnly"**
+     * Contains only exam metadata (board, date, advice, formula sheets) with NO question content.
+     * If NO question content → category: **"frontPage"**.
+   - **STEP 2: IS THERE STUDENT WORK?**
+     * **CRITICAL**: Distinguish between BLANK vs FILLED answer spaces.
+     * "questionAnswer": Page contains hand-written work, calculations, or student drawings.
+     * "questionOnly": Page contains only printed questions and BLANK answer spaces/lines.
 
-3. **CONTEXT AWARENESS:** If a page has a sub-question (e.g., "b") but no main number, look at other pages to infer the main number.
-4. Return a JSON object with a "pages" array.
-5. **CRITICAL:** The "pages" array MUST have exactly {{IMAGE_COUNT}} entries.
-6. For each page, return: { "questions": ["1", "2ai", "2aii", "2b"], "category": "frontPage" | "questionAnswer" | "questionOnly" }
+3. **CONTEXT AWARENESS**: If a page has a sub-question (e.g. "b") but no main number, use context from other pages to infer it.
 
-OUTPUT FORMAT:
-{
-  "pages": [
-    { "questions": [], "category": "frontPage" },
-    { "questions": ["1"], "category": "questionAnswer" }
-  ]
-}`;
+4. **RETURN FORMAT**:
+   - Return a JSON object with a "pages" array.
+   - The "pages" array MUST have exactly {{IMAGE_COUNT}} entries.
+   - Format: { "pages": [ { "questions": ["1", "3b"], "category": "questionAnswer" } ] }
+
+CRITICAL: If a question is split across pages, list it on EVERY page where student work is present for that specific part.`;

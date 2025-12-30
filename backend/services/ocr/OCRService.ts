@@ -700,7 +700,7 @@ export class OCRService {
         if (!coords || isNaN(coords.x) || isNaN(coords.y) || isNaN(coords.width) || isNaN(coords.height)) return null;
         const text = block.mathpixLatex || block.googleVisionText || '';
         return {
-          unified_step_id: `step_${index + 1}`, text: text, cleanedText: text,
+          unified_line_id: `line_${index + 1}`, text: text, cleanedText: text,
           bbox: [coords.x, coords.y, coords.width, coords.height]
         };
       }).filter(step => step !== null && step.text.trim().length > 0);
@@ -709,8 +709,8 @@ export class OCRService {
       cleanDataForMarking = OCRDataUtils.extractDataForMarking(cleanedOcrText);
       if (cleanDataForMarking.steps && Array.isArray(cleanDataForMarking.steps)) {
         for (const step of cleanDataForMarking.steps) {
-          if (step.unified_step_id && step.bbox && Array.isArray(step.bbox) && step.bbox.length === 4) {
-            unifiedLookupTable[step.unified_step_id] = { bbox: step.bbox, cleanedText: step.cleanedText || '' };
+          if (step.unified_line_id && step.bbox && Array.isArray(step.bbox) && step.bbox.length === 4) {
+            unifiedLookupTable[step.unified_line_id] = { bbox: step.bbox, cleanedText: step.cleanedText || '' };
           }
         }
       }

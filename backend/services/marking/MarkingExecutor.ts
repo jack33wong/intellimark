@@ -43,6 +43,7 @@ export interface MarkingTask {
     }>;
     subQuestionNumbers?: string[];  // ["22a", "22b"] for reference
   };
+  subQuestionPageMap?: Record<string, number>; // NEW: Explicit mapping of sub-question part -> pageIndex
   // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
   aiSegmentationResults?: Array<{ content: string; source?: string; blockId?: string; studentWorkLines?: any[] }>;
   blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
@@ -536,7 +537,12 @@ export async function executeMarkingForQuestion(
           // NOTE: We intentionally use the first page as default since the AI will determine
           // the actual page index by visually analyzing all provided images.
           // This drawingPageIndex is only used for bbox estimation within stepsDataForMapping.
-          let drawingPageIndex = task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0;
+          // INTELLIGENT DEFAULT: Prefer non-zero page (Page 0 is usually front cover)
+          let drawingPageIndex = 0;
+          if (task.sourcePages && task.sourcePages.length > 0) {
+            const nonFrontPages = task.sourcePages.filter(p => p > 0);
+            drawingPageIndex = nonFrontPages.length > 0 ? nonFrontPages[0] : task.sourcePages[0];
+          }
 
           if (task.classificationBlocks && task.classificationBlocks.length > 0) {
             const matchingBlock = task.classificationBlocks.find(b => b.text && b.text.includes(entry));
@@ -596,7 +602,7 @@ export async function executeMarkingForQuestion(
           }
 
           // Create synthetic block for this individual drawing
-          // Use simplified step ID format to match AI prompt (step_1, step_2, etc.)
+          // Use standardized line ID format (line_1, line_2, etc.)
           const drawingStepIndex = stepsDataForMapping.length + 1;
           const drawingBlock = {
             line_id: `line_${drawingStepIndex}`, // Simplified format (matches AI prompt)
@@ -622,7 +628,7 @@ export async function executeMarkingForQuestion(
     if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
       // Use AI segmentation merged content (prioritizes classification, uses OCR only when needed)
       task.aiSegmentationResults.forEach((result, index) => {
-        const simplifiedStepId = `step_${index + 1}`;
+        const simplifiedStepId = `line_${index + 1}`;
         const sourceLabel = result.source === 'ocr' ? ' [OCR]' : result.source === 'merged' ? ' [MERGED]' : ' [CLASSIFICATION]';
         // Clean content: replace escaped newlines and actual newlines with spaces to ensure single-line format per step
         // This prevents formatting issues where content might have internal newlines
@@ -636,8 +642,8 @@ export async function executeMarkingForQuestion(
     } else {
       // Fallback to OCR blocks (for backward compatibility with old segmentation)
       stepsDataForMapping.forEach((step, index) => {
-        // Use simplified step ID format for AI prompt (e.g., [step_1], [step_2])
-        const simplifiedStepId = `step_${index + 1}`;
+        // Use simplified step ID format for AI prompt (e.g., [line_1], [line_2])
+        const simplifiedStepId = `line_${index + 1}`;
         ocrTextForPrompt += `${index + 1}. [${simplifiedStepId}] ${step.cleanedText}\n`;
       });
     }
@@ -766,7 +772,7 @@ export async function executeMarkingForQuestion(
       console.log(`[DEBUG LOCK Q6] Raw AI Response Anno Count: ${markingResult.annotations?.length || 0}`);
       if (markingResult.annotations?.length > 0) {
         console.log(`[DEBUG LOCK Q6] 1st Anno Keys: ${Object.keys(markingResult.annotations[0]).join(', ')}`);
-        console.log(`[DEBUG LOCK Q6] 1st Anno ID: ${(markingResult.annotations[0] as any).line_id || (markingResult.annotations[0] as any).step_id}`);
+        console.log(`[DEBUG LOCK Q6] 1st Anno ID: ${(markingResult.annotations[0] as any).line_id}`);
       }
     }
 
@@ -855,7 +861,7 @@ const enrichAnnotationsWithPositions = (
 
   const results = annotations.map((anno, idx) => {
     // Unified Identifier Standard: Use only lineId
-    const aiLineId = (anno as any).line_id || (anno as any).lineId || (anno as any).step_id || (anno as any).step || (anno as any).line || '';
+    const aiLineId = (anno as any).line_id || (anno as any).lineId || (anno as any).line || '';
 
     // Helper to normalize IDs
     function normalizeId(id: string) {
@@ -864,8 +870,9 @@ const enrichAnnotationsWithPositions = (
 
     // Find the original step
     let originalStep = stepsDataForMapping.find(s => {
-      const stepId = s.line_id || s.lineId || s.step_id || s.globalBlockId || s.id || '';
-      if (s.line_id === aiLineId || s.lineId === aiLineId) return true;
+      const stepId = s.line_id || s.lineId || s.unified_line_id || s.globalBlockId || s.id || '';
+      // Direct match
+      if (s.line_id === aiLineId || s.lineId === aiLineId || s.unified_line_id === aiLineId) return true;
 
       const isMatch = normalizeId(stepId) === normalizeId(aiLineId);
 
@@ -1555,25 +1562,50 @@ const enrichAnnotationsWithPositions = (
     const hasBbox = originalStep && originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
 
     // Determine initial page index
-    // PRIORITY: 1. AI-provided pageIndex (from visual analysis), 2. Original Step's pageIndex, 3. Default
-    pageIndex = originalStep?.pageIndex ?? defaultPageIndex;
-    let pageSource = 'DEFAULT';
+    // PRIORITY: 1. Mapper Truth (Mandatory Constraint), 2. AI-provided pageIndex, 3. Original Step's pageIndex, 4. Default
+    let pageSource = originalStep ? 'ORIGINAL_STEP' : 'DEFAULT';
 
-    if (originalStep && originalStep.pageIndex !== undefined) pageSource = 'ORIGINAL_STEP';
+    // START: Mapper Truth Enforcement (Highest Priority)
+    if (task?.subQuestionPageMap) {
+      // Use targetSubQ which is already normalized (e.g. "b")
+      const subKey = targetSubQ;
+      if (subKey && task.subQuestionPageMap[subKey] !== undefined) {
+        const constraintPage = task.subQuestionPageMap[subKey];
+        if (pageIndex !== constraintPage) {
+          if (String(questionId).startsWith('3') || String(questionId).startsWith('6')) {
+            console.log(`🔍 [EXECUTOR OVERRIDE] Enforcing Mapper Truth for Q${questionId}${subKey}: Page ${pageIndex} -> Page ${constraintPage}`);
+          }
+          pageIndex = constraintPage;
+        }
+        // ALWAYS lock the source to prevent downstream reversion (e.g. by OCR step)
+        pageSource = 'MAPPER_TRUTH';
+      }
+    }
+    // END: Mapper Truth Enforcement
 
     // If AI provided a pageIndex (relative to the images array), map it to absolute page index
     // BUT only use it if we don't have a trusted pageIndex from the original step (OCR).
     // OCR/Classification is the ground truth for where the text physically is.
-    // FIX: If annotation comes from immutable pipeline, use its GLOBAL pageIndex
-    // This overrides any OCR-based page index because the pipeline handles multi-page logic
-    // CRITICAL: Use page.global (which has already been mapped) not raw pageIndex (which is relative)
-    if ((anno as any)._immutable) {
-      pageIndex = ((anno as any)._page?.global ?? (anno as any).pageIndex) as number;
+
+    // FIX for Q6: The immutable pipeline might default to Page 0 if not mapped correctly.
+    // If we have a valid originalStep (OCR match), strictly Prefer OCR Page Index!
+    // BUT ONLY if Mapper Truth didn't already override it.
+    if (pageSource !== 'MAPPER_TRUTH') {
+      if (originalStep && originalStep.pageIndex !== undefined) {
+        pageIndex = originalStep.pageIndex;
+        pageSource = 'ORIGINAL_STEP (Priority)';
+      } else if ((anno as any)._immutable) {
+        // Only fallback to immutable page if OCR step is missing
+        const immutableGlobalPage = ((anno as any)._page?.global);
+        // Ensure we don't default to 0 if it looks like a default value and we have other hints
+        if (immutableGlobalPage !== undefined) {
+          pageIndex = immutableGlobalPage as number;
+          pageSource = 'IMMUTABLE_PIPELINE';
+        }
+      }
     }
 
-    if (String(questionId) === '11') {
 
-    }
 
     // Fallback logic removed - relying purely on AI page index as per new design.
 
@@ -1585,7 +1617,8 @@ const enrichAnnotationsWithPositions = (
     const isDrawing = (anno as any).line_id && (anno as any).line_id.toString().toLowerCase().includes('drawing');
     let pixelBbox: [number, number, number, number] = originalStep?.bbox ? [...originalStep.bbox] as [number, number, number, number] : [0, 0, 0, 0];
 
-    // Prefer visual pos for drawings or if OCR missing
+    // Prefer visual pos for drawings or if OCR missing (Matched but no Bbox)
+    // CRITICAL FIX: If we have an AI Position but no OCR Bbox (e.g. Q6 "0.4" text), USE IT!
     if (effectiveVisualPos && (isDrawing || !hasBbox)) {
       const pIdx = (effectiveVisualPos.pageIndex !== undefined) ? effectiveVisualPos.pageIndex : pageIndex;
       const pageDims = pageDimensions?.get(pIdx);
@@ -1634,8 +1667,15 @@ const enrichAnnotationsWithPositions = (
       const sameText = other.text === current.text; // e.g. "P1"
       const sameAction = other.action === current.action; // e.g. "tick"
 
-      // Check for SubQuestion Match (loosely)
-      const sameSubQ = (!other.subQuestion && !current.subQuestion) || (other.subQuestion === current.subQuestion);
+      // Check for SubQuestion Match (loosely) - treat null/undefined as wildcard if the other has value?
+      // No, better to be strict but handle empty strings.
+      const subQ1 = other.subQuestion ? String(other.subQuestion).trim() : '';
+      const subQ2 = current.subQuestion ? String(current.subQuestion).trim() : '';
+
+      // Fix for Q4: "a" vs "" should be considered a match if text/page/action match.
+      // Also handle loose matching for explicit 'a' vs implicit main question.
+      const sameSubQ = (subQ1 === subQ2)
+        || ((subQ1 === '' || subQ1 === 'a') && (subQ2 === '' || subQ2 === 'a'));
 
       return samePage && sameText && sameAction && sameSubQ;
     });
@@ -1667,11 +1707,45 @@ export function createMarkingTasksFromClassification(
   allPagesOcrData: PageOcrResult[],
   markingSchemesMap: Map<string, any>,
   pageDimensionsMap: Map<number, { width: number; height: number }>,
-  standardizedPages: any[] // Assuming standardizedPages is passed here
+  standardizedPages: any[], // Assuming standardizedPages is passed here
+  mapperResults?: any[] // NEW: Pass the authoritative Mapper results (allClassificationResults)
 ): MarkingTask[] {
   const tasks: MarkingTask[] = [];
 
-  // START: Build Global Page Question Metadata (Simple Slicing)
+  // START: Build Robust Sub-Question Page Map from MAPPER RESULTS
+  // This is the "Single Source of Truth" that bypasses any classification drift
+  const globalMapperPageMap: Record<string, number> = {};
+
+  if (mapperResults) {
+    mapperResults.forEach(({ pageIndex, result }) => {
+      if (result.questions) {
+        result.questions.forEach((q: any) => {
+          const baseQStr = String(q.questionNumber || '');
+          const baseQ = getBaseQuestionNumber(baseQStr);
+
+          if (q.subQuestions) {
+            q.subQuestions.forEach((sq: any) => {
+              if (sq.part) {
+                // Map "3b" -> Page 5
+                // normalize the key: if qNum is "3", part is "b", key should be "b" relative to Q3 task?
+                // Wait, the subQuestionPageMap in MarkingTask is specific to THAT task (Q3).
+                // So we need to store it keyed by "BaseQNum + Part" globally, then filter later?
+                // Actually, let's just build a lookup: "3b" -> 5
+                const key = `${baseQ}${sq.part}`.toLowerCase(); // e.g. "3b"
+                globalMapperPageMap[key] = pageIndex;
+              }
+            });
+          }
+          // Also map the main question?
+          // globalMapperPageMap[baseQ] = pageIndex; 
+        });
+      }
+    });
+    // console.log('[EXECUTOR DEBUG] Global Mapper Page Map:', JSON.stringify(globalMapperPageMap)); 
+    console.log('[EXECUTOR DEBUG] Global Mapper Page Map:', JSON.stringify(globalMapperPageMap)); // ENABLED FOR DEBUG
+  }
+  // END: Mapper Page Map
+
   // This helps place "lazy" annotations in the middle of their respective page area.
   const questionsOnPageMap = new Map<number, string[]>();
 
@@ -1710,6 +1784,7 @@ export function createMarkingTasksFromClassification(
     baseQNum: string;
     sourceImageIndices: number[]; // Array of page indices (for multi-page questions)
     aiSegmentationResults: Array<{ content: string; studentWorkPosition?: any }>; // Store accumulated results
+    subQuestionPageMap: Record<string, number>; // NEW: Track page index for each sub-question
   }>();
 
   // First pass: Collect all questions, use FULL question number as grouping key (e.g., "3a", "3b" separately)
@@ -1768,7 +1843,8 @@ export function createMarkingTasksFromClassification(
         markingScheme: markingScheme,
         baseQNum: baseQNum,  // Keep baseQNum for scheme lookup
         sourceImageIndices: sourceImageIndices,
-        aiSegmentationResults: [] // Initialize array
+        aiSegmentationResults: [], // Initialize array
+        subQuestionPageMap: {} // Initialize map
       });
     } else {
       // Group already exists - this should rarely happen now since we use full question number
@@ -1843,12 +1919,18 @@ export function createMarkingTasksFromClassification(
             ? subQ.studentWorkLines.map(line => line.text).join('\n')
             : (subQ.studentWork || '');
 
+          const subPart = subQ.part || '';
           group.subQuestions.push({
-            part: subQ.part || '',
+            part: subPart,
             studentWork: studentWorkText,
             text: subQ.text,
             studentWorkLines: subQ.studentWorkLines || [] // Store lines with positions
           } as any);
+
+          // NEW: Update subQuestionPageMap with current pageIndex
+          if (subPart && subQ.pageIndex !== undefined) {
+            group.subQuestionPageMap[subPart] = subQ.pageIndex;
+          }
 
           // LINE-LEVEL SEGMENTATION: Push individual lines for sub-question
           if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
@@ -1996,6 +2078,26 @@ export function createMarkingTasksFromClassification(
       pageDimensions: pageDimensionsMap,
       imageData: imageDataForMarking, // Pass image data for edge cases where Drawing Classification failed
       images: questionImages, // Pass the array of images
+      // NEW: Pass the page map to the task
+      subQuestionPageMap: (() => {
+        const map: Record<string, number> = {};
+
+        // existing map from classification
+        Object.assign(map, group.subQuestionPageMap);
+
+        // OVERRIDE with Global Mapper Map
+        if (Object.keys(globalMapperPageMap).length > 0) {
+          group.subQuestions.forEach(sq => {
+            const key = `${baseQNum}${sq.part}`.toLowerCase(); // e.g. "3b"
+            if (globalMapperPageMap[key] !== undefined) {
+              // Use normalized key "b" for the task map
+              map[sq.part.toLowerCase()] = globalMapperPageMap[key];
+            }
+          });
+        }
+        console.log(`[EXECUTOR DEBUG] Q${baseQNum} SubQuestionPageMap:`, JSON.stringify(map));
+        return map;
+      })(),
       subQuestionMetadata: {
         hasSubQuestions: group.subQuestions.length > 0,
         subQuestions: group.subQuestions.map(sq => ({

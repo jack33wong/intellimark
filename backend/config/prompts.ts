@@ -138,7 +138,8 @@ x = 4 [A1]
         markingScheme: string,
         classificationStudentWork: string,
         rawOcrBlocks?: any[],
-        questionText?: string | null
+        questionText?: string | null,
+        subQuestionPageMap?: Record<string, number>
       ) => `
 # MARKING TASK: Question ${questionNumber}
 
@@ -156,7 +157,14 @@ ${markingScheme}
 
 ## STUDENT WORK (STRUCTURED)
 ${classificationStudentWork}
+${subQuestionPageMap && Object.keys(subQuestionPageMap).length > 0 ? `
+## PAGE ASSIGNMENT CONSTRAINTS (HIGHEST PRIORITY)
+You MUST respect the page assignments provided below. The images passed to you correspond to these Page Index values (marked with "--- Page Index X ---" labels above the images):
+${Object.entries(subQuestionPageMap).map(([part, pageIdx]) => `- Sub-question ${part}: Page ${pageIdx}`).join('\n')}
 
+Do NOT search for work on other pages for these sub-questions, even if you see a question header there. Focus ONLY on the assigned page.
+` : ''}
+ 
 ${rawOcrBlocks && rawOcrBlocks.length > 0 ? (() => {
           const handwritten = rawOcrBlocks.filter(b => b.isHandwritten);
           const printed = rawOcrBlocks.filter(b => !b.isHandwritten);

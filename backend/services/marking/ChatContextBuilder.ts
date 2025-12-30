@@ -45,7 +45,7 @@ export class ChatContextBuilder {
 
             // Build parts directly from annotations - NO PARSING!
             // Each annotation has:
-            // - unified_step_id: "8ai", "step_8ai_M1", etc. (contains correct full identifier!)
+            // - unified_line_id: "8ai", "line_8ai_M1", etc. (contains correct full identifier!)
             // - studentText or classificationText: clean student work the AI chose
             // - text: mark code, action: icon, reasoning: feedback
 
@@ -97,7 +97,7 @@ export class ChatContextBuilder {
                         reasoning: a.reasoning || '',
                         lineId: a.line_id || '',
                         work: studentWork, // Associate work directly with this mark
-                        unifiedStepId: a.unified_step_id
+                        unifiedLineId: a.unified_line_id
                     });
                 }
             });

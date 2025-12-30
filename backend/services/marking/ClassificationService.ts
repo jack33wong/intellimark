@@ -138,12 +138,12 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         );
       }
 
-      // Group pages by Question Number (base number for efficiency)
       // Map<QuestionNumber, Set<PageIndex>>
       const questionToPages = new Map<string, Set<number>>();
 
-      // NEW: Track which sub-question is on which page for display purposes
-      const subQuestionPageMap = new Map<string, Map<string, number>>();
+      // NEW: Track which sub-question is on which page for display & prompt hinting
+      // Map<BaseQuestionNumber, Map<PageIndex, Set<QuestionPart>>>
+      const subQuestionPageMap = new Map<string, Map<number, Set<string>>>();
 
       resolvedPageMaps.forEach(map => {
         if (map.questions && Array.isArray(map.questions)) {
@@ -160,8 +160,16 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             }
             questionToPages.get(baseQ)!.add(map.pageIndex);
 
-            // Track sub-question to page mapping (for display)
-            subQuestionPageMap.get(baseQ)!.set(q, map.pageIndex);
+            // Track sub-question to page mapping (for display & prompt hinting)
+            // Store as Map<PageIndex, Set<QuestionPart>>
+            if (!subQuestionPageMap.has(baseQ)) {
+              subQuestionPageMap.set(baseQ, new Map());
+            }
+            const pageToParts = subQuestionPageMap.get(baseQ)!;
+            if (!pageToParts.has(map.pageIndex)) {
+              pageToParts.set(map.pageIndex, new Set());
+            }
+            pageToParts.get(map.pageIndex)!.add(q);
           });
         }
       });
@@ -235,8 +243,19 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           taskUserPrompt = `Extract all text and student work from Page ${pageIndices[0] + 1}.`;
         } else {
           // Specific question extraction mode
-          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question ${questionNumber}. Focus ONLY on extracting Question ${questionNumber} and its parts.`;
-          taskUserPrompt = `Extract Question ${questionNumber} and all its sub-questions/student work from these pages.`;
+          // IMPROVED: Provide detailed sub-question mapping to prevent incorrect page grouping
+          const pageHints = pageIndices.map(idx => {
+            const partsOnThisPage = Array.from(subQuestionPageMap.get(questionNumber)?.get(idx) || []);
+            return `Page ${idx + 1}: [${partsOnThisPage.join(', ')}]`;
+          }).join('\n');
+
+          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question ${questionNumber}. 
+Focus ONLY on extracting Question ${questionNumber} and its specific parts assigned to each page:
+${pageHints}
+
+**PAGE ASSIGNMENT RULE**: You MUST assign each sub-question part (e.g., "3b") to the EXACT page listed above. Do NOT pull a sub-question onto a preceding page just because its header is visible there.`;
+
+          taskUserPrompt = `Extract Question ${questionNumber} and its parts from these pages following the provided mapping.`;
         }
 
         // Call AI (User Selected Model)
@@ -831,8 +850,14 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         }
       }
 
-      // Sanitize invalid escape sequences
+      // Sanitize invalid escape sequences and bad control characters
       let sanitized = jsonString;
+
+      // FIX: Escape raw newlines and tabs within string literals
+      // This handles the "Bad control character in string literal" error
+      sanitized = sanitized.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/gs, (match) => {
+        return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+      });
 
       // CRITICAL: First, normalize excessive backslashes in LaTeX commands
       // The AI sometimes returns sequences like \\\\pi (4 backslashes) or \\\pi (3 backslashes)

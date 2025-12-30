@@ -208,6 +208,7 @@ export interface MarkingInputs {
   sourceImageIndices?: number[]; // Array of global page indices for multi-page questions (e.g., [3, 4] for Pages 4-5)
   markingScheme?: any;  // NEW: Pass marking scheme (assuming MarkingSchemeContent is 'any' for now)
   extractedOcrText?: string; // NEW: Pass extracted OCR text for mapping
+  subQuestionPageMap?: Record<string, number>; // NEW: Explicit mapping of sub-question part -> pageIndex
   tracker?: any; // UsageTracker (optional)
 }
 
@@ -444,6 +445,7 @@ export class MarkingInstructionService {
         images, // Pass array of images for multi-page questions
         positionMap, // Pass position map for line-to-position lookup
         sourceImageIndices, // Pass source image indices for multi-page context
+        inputs.subQuestionPageMap, // NEW: Pass sub-question page map hint
         tracker  // Pass tracker for auto-recording
       );
 
@@ -510,10 +512,10 @@ export class MarkingInstructionService {
       // Ensures reading order (e.g., block_1_4, block_1_5, block_1_6)
 
       stackedAnnotations.sort((a: any, b: any) => {
-        const idA = a.step_id || '';
-        const idB = b.step_id || '';
+        const idA = a.line_id || '';
+        const idB = b.line_id || '';
 
-        // Extract numbers block_{page}_{index}
+        // Extract numbers block_{page}_{index} or line_{index}
         const matchA = idA.match(/block_(\d+)_(\d+)/);
         const matchB = idB.match(/block_(\d+)_(\d+)/);
 
@@ -757,6 +759,7 @@ export class MarkingInstructionService {
     images?: string[], // Array of images for multi-page questions
     positionMap?: Map<string, { x: number; y: number; width: number; height: number }>, // NEW: Position map for drawing fallback
     sourceImageIndices?: number[], // NEW: Source image indices for drawing fallback
+    subQuestionPageMap?: Record<string, number>, // NEW: Explicit mapping of sub-question part -> pageIndex
     tracker?: any // NEW: UsageTracker for tracking LLM tokens
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
     // Parse and format OCR text if it's JSON
@@ -838,8 +841,16 @@ export class MarkingInstructionService {
           schemeText || '',
           classificationStudentWork || 'No student work provided',
           rawOcrBlocks,
-          questionText
+          questionText,
+          subQuestionPageMap // NEW: Pass the hint map
         );
+
+        // DEBUG: Log prompt for Q3 to investigate persistent mapping issues
+        if (inputQuestionNumber === '3') {
+          console.log(`\n\x1b[36m[DEBUG Q3 PROMPT] Input for AI Marking:\x1b[0m`);
+          console.log(userPrompt);
+          console.log(`\x1b[36m[DEBUG Q3 PROMPT END]\x1b[0m\n`);
+        }
       } else {
         // Scheme doesn't match current question - don't pass it to AI
         console.warn(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Marking scheme question number (${schemeQuestionNumber}) doesn't match current question. Skipping scheme.`);
@@ -964,7 +975,14 @@ export class MarkingInstructionService {
       const outputTokens = res.outputTokens || 0;
 
       // Robust parsing of the AI response
-      let parsedResponse;
+      // Log response for Q3
+      if (inputQuestionNumber === '3') {
+        console.log(`\n\x1b[36m[DEBUG Q3 RESPONSE] Output from AI Marking:\x1b[0m`);
+        console.log(aiResponseString);
+        console.log(`\x1b[36m[DEBUG Q3 RESPONSE END]\x1b[0m\n`);
+      }
+
+      let parsedResponse: any = null;
       let jsonString = aiResponseString;
       const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
@@ -1020,6 +1038,32 @@ export class MarkingInstructionService {
 
       // POST-PROCESSING ON THE PARSED RESPONSE
       if (parsedResponse) {
+        // 0. NEW: Enforce Page Assignment Constraints (MAPPER TRUTH)
+        if (subQuestionPageMap && Object.keys(subQuestionPageMap).length > 0 && parsedResponse.annotations) {
+          parsedResponse.annotations.forEach((anno: any) => {
+            let subQ = anno.subQuestion;
+
+            // Fallback: extract from line_id if subQuestion is missing (common for drawings)
+            if (!subQ && anno.line_id) {
+              const match = anno.line_id.match(/line_\d+([a-z]+)/i);
+              if (match) subQ = match[1];
+            }
+
+            // NORMALIZATION: Convert "3b" or "3(b)" to "b" to match subQuestionPageMap keys
+            if (subQ) {
+              const normalizedSubQ = subQ.replace(/^\d+[\s()]*|[\s()]+/g, '').toLowerCase();
+
+              if (subQuestionPageMap[normalizedSubQ] !== undefined) {
+                const constraintPage = subQuestionPageMap[normalizedSubQ];
+                if (anno.pageIndex !== constraintPage) {
+                  console.log(`🔍 [PAGE OVERRIDE] Correcting Q${inputQuestionNumber} sub-question ${subQ} (normalized: ${normalizedSubQ}) from Page ${anno.pageIndex} to Page ${constraintPage} based on Mapper constraints.`);
+                  anno.pageIndex = constraintPage;
+                }
+              }
+            }
+          });
+        }
+
         // 1. Sanitize student_text
         if (parsedResponse.annotations) {
           parsedResponse.annotations.forEach((anno: any) => {
@@ -1088,7 +1132,10 @@ export class MarkingInstructionService {
                   let totalAwarded = 0;
                   validAnnotations.forEach((anno: any) => {
                     const text = (anno.text || '').trim();
-                    if (text) {
+                    const action = (anno.action || '').toLowerCase();
+
+                    // ONLY award points if action is 'tick' (check)
+                    if (text && action === 'tick') {
                       const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
@@ -1228,7 +1275,7 @@ export class MarkingInstructionService {
         // We now trust the AI's output for drawings.
         /*
         parsedResponse.annotations = parsedResponse.annotations.filter((anno: any) => {
-          const isDrawing = anno.step_id && anno.step_id.includes('drawing');
+          const isDrawing = anno.line_id && anno.line_id.includes('drawing');
           const hasNoCode = !anno.text || anno.text.trim() === '';
           const isTick = anno.action === 'tick';
      
@@ -1260,7 +1307,7 @@ export class MarkingInstructionService {
         parsedResponse.annotations.forEach((ann: any, idx: number) => {
           const action = ann.action || 'unknown';
           const text = ann.text || '';
-          const stepId = ann.step_id || 'MISSING';
+          const stepId = ann.line_id || 'MISSING';
           const reasoning = ann.reasoning || '';
           const actionColor = action === 'tick' ? '\x1b[32m' : action === 'cross' ? '\x1b[31m' : '\x1b[0m';
           const blueColor = '\x1b[34m';
@@ -1322,11 +1369,11 @@ export class MarkingInstructionService {
 
           // console.log(logMessage);
         });
-        // Log step_id summary
-        const stepIds = parsedResponse.annotations.map((a: any) => a.step_id || 'MISSING');
+        // Log line_id summary
+        const stepIds = parsedResponse.annotations.map((a: any) => a.line_id || 'MISSING');
         const missingCount = stepIds.filter((id: string) => id === 'MISSING').length;
         if (missingCount > 0) {
-          console.log(`  ⚠️ ${missingCount}/${parsedResponse.annotations.length} annotations missing step_id`);
+          console.log(`  ⚠️ ${missingCount}/${parsedResponse.annotations.length} annotations missing line_id`);
         }
       } else {
         console.log('  ⚠️ No annotations in parsed response');

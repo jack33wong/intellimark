@@ -350,7 +350,7 @@ export interface Mark {
   icon: string;              // "tick", "cross"
   reasoning: string;         // Why this mark was given
   lineId?: string;           // For reference: line_id
-  unifiedStepId?: string;    // For reference: unified_step_id
+  unifiedLineId?: string;    // For reference: unified_line_id
   work?: string;             // Student work text for this specific mark
 }
 

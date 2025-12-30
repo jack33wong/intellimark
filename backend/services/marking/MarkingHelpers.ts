@@ -454,8 +454,8 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         // Re-fetch annotations for this sub-q
         const subPart = sq.label.replace(String(result.questionNumber), '');
         const subAnns = result.annotations ? result.annotations.filter((a: any) => {
-          const sId = (a.step_id || '').toLowerCase();
-          const uId = (a.unified_step_id || '').toLowerCase();
+          const sId = (a.line_id || '').toLowerCase();
+          const uId = (a.unified_line_id || '').toLowerCase();
           return (sId.includes(`_${subPart}`) || uId.includes(subPart));
         }) : [];
 
@@ -493,8 +493,8 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       // FIX: Also add "unassigned" annotations (those belonging to main question but not specific sub-question)
 
       const unassignedAnns = result.annotations ? result.annotations.filter((a: any) => {
-        const sId = (a.step_id || '').toLowerCase();
-        const uId = (a.unified_step_id || '').toLowerCase();
+        const sId = (a.line_id || '').toLowerCase();
+        const uId = (a.unified_line_id || '').toLowerCase();
 
         // Check if this annotation belongs to ANY sub-question
         const isAssigned = subQuestionStats.some((sq: any) => {
@@ -511,7 +511,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       //   console.log(`   - Unassigned: ${unassignedAnns.map((a: any) => `${a.text} [${a.ocr_match_status}]`).join(', ')}`);
       //   console.log(`   - Sub-Q Stats: ${JSON.stringify(subQuestionStats.map((s: any) => ({ label: s.label, anns: s.annotations })))}`);
       //   result.annotations?.forEach((a: any) => {
-      //     console.log(`     > [${a.text}] ID: ${a.step_id || a.unified_step_id || 'N/A'} | Status: ${a.ocr_match_status} | Line: ${a.hasLineData}`);
+      //     console.log(`     > [${a.text}] ID: ${a.line_id || a.unified_line_id || 'N/A'} | Status: ${a.ocr_match_status} | Line: ${a.hasLineData}`);
       //   });
       //   console.log(`---------------------------------------------------\n`);
       // }

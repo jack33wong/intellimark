@@ -133,7 +133,7 @@ export class ModelProvider {
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     const accessToken = this.getGeminiApiKey();
-    const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
+    const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model, phase);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
 
@@ -194,7 +194,8 @@ export class ModelProvider {
     imageData: string | string[],
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'auto'
+    model: ModelType = 'auto',
+    phase: ModelPhase = 'other'
   ): Promise<Response> {
     return this.withRetry(async () => {
       const { getModelConfig } = await import('../config/aiModels.js');
@@ -208,9 +209,15 @@ export class ModelProvider {
 
       // Handle single or multiple images
       const images = Array.isArray(imageData) ? imageData : [imageData];
+      const isMultiImageMarking = images.length > 1 && phase === 'marking';
 
-      images.forEach(img => {
+      images.forEach((img, index) => {
         if (img && img.trim() !== '') {
+          // If multi-image marking, add a text part before each image to help AI orient itself
+          if (isMultiImageMarking) {
+            parts.push({ text: `\n--- Page Index ${index} ---` });
+          }
+
           const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
           parts.push({
             inline_data: {

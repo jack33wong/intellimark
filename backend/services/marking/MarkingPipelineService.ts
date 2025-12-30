@@ -552,6 +552,13 @@ export class MarkingPipelineService {
                 }).filter(Boolean).join(', ') || 'No Questions';
                 console.log(`Page ${pageIndex}: [${qNums}] (Category: ${result.category})`);
             });
+
+            // MINIMAL EVIDENCE LOG
+            const q3aPages = allClassificationResults.filter(r => r.result.questions?.some(q => q.questionNumber === '3' && (q.subQuestions?.some((sq: any) => sq.part === 'a') || q.text?.includes('3a')))).map(r => r.pageIndex + 1);
+            const q3bPages = allClassificationResults.filter(r => r.result.questions?.some(q => q.questionNumber === '3' && (q.subQuestions?.some((sq: any) => sq.part === 'b') || q.text?.includes('3b')))).map(r => r.pageIndex + 1);
+            console.log(`\n🔍 [EVIDENCE] Q3a mapped to Page(s): ${q3aPages.join(', ') || 'None'}`);
+            console.log(`🔍 [EVIDENCE] Q3b mapped to Page(s): ${q3bPages.join(', ') || 'None'}\n`);
+
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
             logClassificationComplete();
@@ -1110,7 +1117,8 @@ export class MarkingPipelineService {
                     allPagesOcrData,
                     markingSchemesMap,
                     pageDimensionsMap,
-                    standardizedPages
+                    standardizedPages,
+                    allClassificationResults // NEW: Pass authoritative mapper results
                 );
                 console.log(`[PIPELINE DEBUG] ✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
             } catch (error) {

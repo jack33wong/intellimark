@@ -139,6 +139,16 @@ export class MarkingSchemeOrchestrationService {
         });
 
         detectionResults.push({ question, detectionResult });
+
+        // DEBUG: Trace Q6 extraction to debug Frankenstein/AQA issues
+        if (question.questionNumber && (question.questionNumber === '6' || question.questionNumber.startsWith('6') || question.questionNumber === '06')) {
+          console.log(`\n🔍 [DEBUG Q6] Extraction & Detection Debug:`);
+          console.log(`   - Extracted Text (First 100 chars): "${question.text.substring(0, 100).replace(/\n/g, ' ')}..."`);
+          console.log(`   - Detected Paper: ${detectionResult.match?.paperTitle || 'None'}`);
+          console.log(`   - Similarity: ${detectionResult.match?.confidence?.toFixed(3) || '0.000'}`);
+          console.log(`   - Matched Q#: ${detectionResult.match?.questionNumber || 'N/A'}`);
+          console.log(`   - Is Frankenstein Source?: ${detectionResult.match?.board === 'AQA' ? 'YES (Suspected)' : 'No'}\n`);
+        }
       } else {
         detectionStats.notDetected++;
         detectionStats.questionDetails.push({
