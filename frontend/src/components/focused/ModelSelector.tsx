@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ModelSelector.css'; // Assuming styles are in this file
 import { AI_MODELS } from '../../utils/constants';
+import { Check } from 'lucide-react';
 
 // Define the type for the props this component receives
 interface ModelSelectorProps {
@@ -28,10 +29,32 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const models = [
-    { id: AI_MODELS.GEMINI_2_0_FLASH, name: 'Gemini 2.0 Flash' },
-    { id: AI_MODELS.GEMINI_2_5_FLASH, name: 'Gemini 2.5 Flash' },
-    { id: AI_MODELS.GEMINI_3_FLASH_PREVIEW, name: 'Gemini 3.0 Flash' },
-    { id: AI_MODELS.OPENAI_GPT_4O, name: 'GPT-4o' },
+    {
+      id: AI_MODELS.GEMINI_2_0_FLASH,
+      name: 'Gemini 2.0 Flash',
+      label: 'Fast',
+      description: 'Answers quickly',
+      badge: 'New'
+    },
+    {
+      id: AI_MODELS.GEMINI_2_5_FLASH,
+      name: 'Gemini 2.5 Flash',
+      label: 'Thinking',
+      description: 'Solves complex problems',
+      badge: 'New'
+    },
+    {
+      id: AI_MODELS.GEMINI_3_FLASH_PREVIEW,
+      name: 'Gemini 3.0 Flash',
+      label: 'Pro',
+      description: 'Thinks longer for advanced math & code'
+    },
+    {
+      id: AI_MODELS.OPENAI_GPT_4O,
+      name: 'GPT-4o',
+      label: 'GPT-4o',
+      description: 'Latest advanced model from OpenAI'
+    },
   ];
 
   const handleToggle = () => {
@@ -55,7 +78,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedModelName = models.find(m => m.id === selectedModel)?.name || 'Select Model';
+  const selectedModelData = models.find(m => m.id === selectedModel);
+  const selectedModelName = selectedModelData?.label || selectedModelData?.name || 'Select Model';
 
   return (
     <div className={`model-selector ${size}`} ref={dropdownRef}>
@@ -72,15 +96,29 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       </button>
       {isOpen && (
         <div className={`model-selector-dropdown direction-${dropdownDirection}`}>
-          {models.map((model) => (
-            <div
-              key={model.id}
-              className={`model-selector-option ${selectedModel === model.id ? 'selected' : ''}`}
-              onClick={() => handleSelect(model.id)}
-            >
-              {model.name}
-            </div>
-          ))}
+          <div className="model-selector-header">Gemini</div>
+          <div className="model-selector-options">
+            {models.map((model) => (
+              <div
+                key={model.id}
+                className={`model-selector-option ${selectedModel === model.id ? 'selected' : ''}`}
+                onClick={() => handleSelect(model.id)}
+              >
+                <div className="model-option-info">
+                  <div className="model-option-header">
+                    <span className="model-option-label">{model.label}</span>
+                    {model.badge && <span className="model-option-badge">{model.badge}</span>}
+                  </div>
+                  <div className="model-option-description">{model.description}</div>
+                </div>
+                {selectedModel === model.id && (
+                  <div className="model-option-check">
+                    <Check size={16} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

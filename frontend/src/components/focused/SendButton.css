@@ -7,128 +7,66 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: 12px;
-  font-weight: 600;
+  border-radius: 50%;
+  /* Circular hover area */
+  background: transparent;
+  color: #e3e3e3;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   position: relative;
-  overflow: hidden;
-  font-size: 14px;
+  flex-shrink: 0;
 }
 
-.send-button:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--focus-ring);
+.send-button:hover:not(:disabled) {
+  background: #3c4043;
+  /* Subtle circular background on hover */
+}
+
+.send-button:active:not(:disabled) {
+  background: #4f5255;
 }
 
 .send-button:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.3;
 }
 
 .send-button.loading {
   cursor: not-allowed;
 }
 
-/* Size variants */
-.send-button.small {
-  padding: 8px 16px;
-  font-size: 12px;
-  min-height: 36px;
-}
-
-.send-button.medium {
-  padding: 12px 24px;
-  font-size: 14px;
-  min-height: 44px;
-}
-
-.send-button.large {
-  padding: 16px 32px;
-  font-size: 16px;
-  min-height: 52px;
-}
-
-.send-button.main {
-  padding: 16px 32px;
-  font-size: 16px;
-  min-height: 56px;
-  min-width: 120px;
-}
-
-/* Variant styles */
+/* Variant styles - override if needed, but we want consistent icon style */
 .send-button.primary {
-  background: var(--text-brand);
-  color: white;
+  color: #e3e3e3;
 }
 
-.send-button.primary:hover:not(:disabled) {
-  background: #7a00e6;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.send-button.secondary {
-  background: var(--text-brand);
-  color: white;
-}
-
-.send-button.secondary:hover:not(:disabled) {
-  background: var(--accent-light);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.send-button.success {
-  background: var(--text-brand);
-  color: white;
-}
-
-.send-button.success:hover:not(:disabled) {
-  background: #7a00e6;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-/* Content styles */
-.send-button-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.send-button-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.send-button-icon {
-  font-size: 1.2em;
-  line-height: 1;
-}
-
-.send-button-text {
-  line-height: 1;
-}
-
-/* Spinner animation - now using MAIN SPINNER SYSTEM (.btn-spinner) */
-
-/* Hover effects */
-.send-button:not(:disabled):not(.loading):hover {
-  transform: translateY(-1px);
-}
-
-.send-button:not(:disabled):not(.loading):active {
-  transform: translateY(0);
-}
-
-/* Focus ring */
 .send-button:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #8ab4f8;
   outline-offset: 2px;
+}
+
+/* Sizes */
+.send-button.main {
+  width: 44px;
+  height: 44px;
+}
+
+.send-button.small {
+  width: 32px;
+  height: 32px;
+}
+
+/* Success color - Gemini blue */
+.send-button.success {
+  color: #8ab4f8;
+}
+
+/* Spinner adjustment */
+.send-button .spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
 }

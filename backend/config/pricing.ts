@@ -27,6 +27,7 @@
 export const LLM_PRICING: Record<string, { input: number; output: number }> = {
   // GOOGLE AI STUDIO PRICING (Current - Dec 2025)
   'gemini-2.0-flash': { input: 0.10, output: 0.40 },      // Latest flash model (cheapest)
+  'gemini-2.5-flash': { input: 0.10, output: 0.40 },      // Assumed same as 2.0 Flash
   'gemini-3-flash-preview': { input: 0.50, output: 3.00 },
 
   // OPENAI PRICING

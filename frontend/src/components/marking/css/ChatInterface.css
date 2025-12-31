@@ -17,7 +17,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: 100%;
-  max-width: 850px;
+  max-width: 800px;
   z-index: 1000;
   padding: 0 20px;
   /* Add some padding for small screens */
@@ -129,8 +129,8 @@
   /* Center and float the bar */
   max-width: 800px;
   /* Optional: prevent it from getting too wide */
-  border-radius: 28px;
-  /* Pill-shaped */
+  border-radius: 12px;
+  /* Rectangular */
   box-shadow: none !important;
   /* Remove individual shadow that looks like a "blur border" */
   backdrop-filter: none !important;

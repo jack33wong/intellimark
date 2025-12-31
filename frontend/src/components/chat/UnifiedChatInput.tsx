@@ -3,7 +3,7 @@
  * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Plus, Brain, X, Check } from 'lucide-react';
+import { Plus, Brain, X, Check, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
@@ -429,9 +429,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     <>
       {mode === 'first-time' && (
         <div className="chat-title-section">
-          <h2 className="chat-title-greeting">
-            {user ? `Hi ${user.displayName || user.email?.split('@')[0] || 'User'}` : 'Hi there'}
-          </h2>
+          <div className="user-greeting">
+            <Sparkles size={18} className="greeting-sparkle" />
+            <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
+          </div>
+          <p className="chat-title-greeting">
+            Grade Your Maths Work Instantly
+          </p>
+          <p className="chat-title-description">
+            Your powerful AI assistant for precise marking and feedback.
+          </p>
         </div>
       )}
       <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''} ${mode}`}>
@@ -548,7 +555,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   value={chatInput}
                   onChange={handleInputChange}
                   onKeyPress={handleKeyPress}
-                  placeholder={isProcessing ? "AI is processing..." : "Upload file - Type exam name to speed up"}
+                  placeholder={isProcessing ? "AI is processing..." : "Type exam code (e.g., Edexcel June 2024 1H) for precise marking..."}
                   disabled={isProcessing}
                   className="followup-text-input"
                   onFocus={() => {
@@ -563,6 +570,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
                     <Plus size={14} />
                   </button>
+                </div>
+                <div className="followup-right-buttons">
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
                   <ModelSelector
                     selectedModel={selectedModel}
@@ -572,10 +581,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     dropdownDirection={mode === 'first-time' ? 'down' : 'up'}
                     onError={handleError}
                   />
+                  {/* 👇 FIX 2: Added the required `onError` prop. */}
+                  {/* 👇 SendButton disabled logic updated to check combinedInput */}
+                  <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !imageFiles.length && !combinedInput.trim())} loading={isProcessing} variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
                 </div>
-                {/* 👇 FIX 2: Added the required `onError` prop. */}
-                {/* 👇 SendButton disabled logic updated to check combinedInput */}
-                <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !imageFiles.length && !combinedInput.trim())} loading={isProcessing} variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
               </div>
             </div>
           </div>

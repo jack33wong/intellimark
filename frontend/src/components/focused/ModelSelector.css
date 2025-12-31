@@ -1,12 +1,7 @@
-/**
- * Focused ModelSelector Component Styles
- * Matches existing design system colors and styles
- */
-
 .model-selector {
   position: relative;
   display: inline-block;
-  min-width: 180px;
+  min-width: 100px;
 }
 
 .model-selector.disabled {
@@ -15,132 +10,141 @@
 }
 
 .model-selector-button {
-  width: 100%;
-  padding: 12px 16px;
+  width: auto;
+  padding: 8px 16px;
   border: none;
-  border-radius: 12px;
-  background: var(--background-nav);
+  border-radius: 20px;
+  /* Pill shape */
+  background: #2f2f2f;
+  /* Darker background like Gemini */
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   font-size: 14px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .model-selector-button:hover:not(:disabled) {
-  background: var(--background-menu-gray);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  background: #3f3f3f;
 }
 
 .model-selector-button:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .model-selector-button:disabled {
   cursor: not-allowed;
-  background: var(--background-gray-main);
+  opacity: 0.6;
 }
 
 .model-selector-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 6px;
 }
 
 .model-selector-label {
   font-weight: 500;
-  color: var(--text-primary);
+  color: #e3e3e3;
 }
 
 .model-selector-arrow {
-  color: var(--text-secondary);
-  font-size: 12px;
-  transition: transform 0.3s ease;
+  color: #c4c7c5;
+  font-size: 10px;
+  margin-top: 2px;
 }
 
 .model-selector-dropdown {
   position: absolute;
-  bottom: 100%;
-  left: 0;
+  bottom: calc(100% + 12px);
+  /* Float above the pill */
   right: 0;
-  z-index: 50;
-  margin-bottom: 8px;
-  background: var(--background-menu-white);
-  border: 1px solid var(--border-main);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg);
-  max-height: none;
-  overflow: visible;
-  font-size: 13px;
+  z-index: 1001;
+  background: #282a2c;
+  /* Gemini menu background */
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  width: 280px;
+  overflow: hidden;
+  padding: 8px 0;
 }
 
 .model-selector-dropdown.direction-down {
   bottom: auto;
-  top: 100%;
-  margin-bottom: 0;
-  margin-top: 8px;
+  top: calc(100% + 12px);
+}
+
+.model-selector-header {
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #e3e3e3;
+  border-bottom: 1px solid #3c4043;
+  margin-bottom: 8px;
 }
 
 .model-selector-option {
   width: 100%;
-  padding: 12px 16px;
-  border: none;
-  background: none;
-  text-align: left;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   cursor: pointer;
-  transition: all 0.3s ease;
-  border-bottom: none;
-  color: var(--text-primary);
-}
-
-.model-selector-option:last-child {
-  border-bottom: none;
+  transition: background 0.2s ease;
+  color: #e3e3e3;
 }
 
 .model-selector-option:hover {
-  background: var(--background-menu-gray);
+  background: #3c4043;
 }
 
 .model-selector-option.selected {
-  background: var(--text-brand);
-  color: white;
-  border-radius: 12px;
+  background: transparent;
+  /* Don't use brand color for whole option */
 }
 
-.model-option-content {
+.model-option-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 2px;
+}
+
+.model-option-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .model-option-label {
   font-weight: 500;
-  color: inherit;
+  font-size: 15px;
+}
+
+.model-option-badge {
+  background: #c2e7ff;
+  color: #001d35;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
 }
 
 .model-option-description {
   font-size: 12px;
-  color: var(--text-secondary);
-  opacity: 0.8;
+  color: #9aa0a6;
 }
 
-/* Size variants */
+.model-option-check {
+  color: #c2e7ff;
+  /* Gemini blue checkmark */
+}
+
+/* Size variants - simplified as we are moving to a consistent pill design */
 .model-selector.small .model-selector-button {
-  font-size: 0.75rem;
-}
-
-.model-selector.large .model-selector-button {
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-}
-
-.model-selector.small .model-selector-option {
-  padding: 0.5rem;
-}
-
-.model-selector.large .model-selector-option {
-  padding: 1rem;
+  padding: 6px 12px;
+  font-size: 13px;
 }
