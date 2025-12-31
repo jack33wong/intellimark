@@ -62,7 +62,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
-  const { activeQuestionId, setActiveQuestionId, isContextFilterActive } = useMarkingPage();
+  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal } = useMarkingPage();
 
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
@@ -205,6 +205,12 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   }, [session, onEnterSplitMode, setActiveQuestionId, message, onNavigate]);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
+    // Credit check
+    if (user && isNegative) {
+      setShowCreditsModal(true);
+      return;
+    }
+
     try {
       if (addMessage) {
         addMessage({

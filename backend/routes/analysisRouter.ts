@@ -8,6 +8,7 @@ import { attachUserPlan, requirePlan } from '../middleware/planMiddleware.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { AnalysisService } from '../services/analysis/AnalysisService.js';
 import { FirestoreService } from '../services/firestoreService.js';
+import { checkCredits, deductCredits } from '../services/creditService.js';
 import type { AnalysisResult } from '../services/analysis/analysisTypes.js';
 import type { UnifiedSession, UnifiedMessage } from '../types/index.js';
 
@@ -146,6 +147,23 @@ router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.A
     // 5. Get last analysis report (for cost-saving context) - use cached even if regenerating
     const lastAnalysisReport = cachedAnalysis || null;
 
+    // --- NEW: Credit Check ---
+    try {
+      const estimatedCost = 0.05; // Fixed cost for analysis generation
+      const creditCheck = await checkCredits(userId, estimatedCost);
+      if (!creditCheck.canProceed) {
+        return res.status(403).json({
+          success: false,
+          error: creditCheck.warning,
+          credits_exhausted: true,
+          remaining: creditCheck.remaining
+        });
+      }
+    } catch (error) {
+      console.error('❌ Credit check failed for analysis:', error);
+      // Continue anyway but log error
+    }
+
     // 6. Generate new analysis (with last report context and filters)
     const analysis = await AnalysisService.generateAnalysis(
       {
@@ -169,6 +187,13 @@ router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.A
       examBoard,
       paperCodeSet
     );
+
+    // --- NEW: Credit Deduction ---
+    try {
+      await deductCredits(userId, 0.05, `analysis-${subject}`);
+    } catch (error) {
+      console.error('❌ Credit deduction failed for analysis:', error);
+    }
 
     // 8. Return to frontend
     return res.json({

@@ -9,6 +9,8 @@ import { useScrollManager } from '../hooks/useScrollManager';
 import { createAIMessageId } from '../utils/messageUtils.js';
 import { STORAGE_KEYS, AI_MODELS } from '../utils/constants.js';
 import { getSessionImages } from '../utils/imageCollectionUtils';
+import { useCredits } from '../hooks/useCredits';
+import InsufficientCreditsModal from '../components/common/InsufficientCreditsModal';
 
 const MarkingPageContext = createContext();
 
@@ -110,6 +112,9 @@ export const MarkingPageProvider = ({
     addMessage, clearSession, loadSession, onFavoriteToggle, onRatingChange, onTitleUpdate
   } = useSessionManager();
 
+  const { credits, isNegative, refreshCredits } = useCredits();
+  const [showCreditsModal, setShowCreditsModal] = React.useState(false);
+
   const apiProcessor = useApiProcessor();
   const { isProcessing, isAIThinking, error, ...progressProps } = apiProcessor;
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
@@ -203,6 +208,12 @@ export const MarkingPageProvider = ({
       return;
     }
 
+    // --- CREDIT ENFORCEMENT ---
+    if (user && isNegative) {
+      setShowCreditsModal(true);
+      return false;
+    }
+
     const extractQuestionNumber = (text) => {
       const match = text.match(/(?:question|q)\s*(\d+)/i);
       return match ? match[1] : null;
@@ -274,15 +285,20 @@ export const MarkingPageProvider = ({
 
       // Reset the request flag on success
       textRequestInProgress.current = false;
+      return true;
     } catch (err) {
+      if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+        setShowCreditsModal(true);
+      }
       handleError(err);
       // Stop state only if the initial fetch fails. The service handles success.
       stopAIThinking();
       stopProcessing();
       // Reset the request flag on error
       textRequestInProgress.current = false;
+      return false;
     }
-  }, [getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
+  }, [user, isNegative, getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
 
   useEffect(() => {
     if (selectedMarkingResult) {
@@ -323,6 +339,13 @@ export const MarkingPageProvider = ({
   const handleImageAnalysis = useCallback(async (file = null, customText = null) => {
     const targetFile = file || selectedFile;
     if (!targetFile) return;
+
+    // --- CREDIT ENFORCEMENT ---
+    if (user && isNegative) {
+      setShowCreditsModal(true);
+      return false;
+    }
+
     try {
       startProcessing();
       const imageData = await processImage(targetFile);
@@ -350,17 +373,29 @@ export const MarkingPageProvider = ({
       startAIThinking(imageProgressData, imageAiMessageId);
       await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name);
       clearFile();
+      return true;
     } catch (err) {
       console.error('Error in image analysis flow:', err);
+      if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+        setShowCreditsModal(true);
+      }
       handleError(err);
       // Also stop states on initial error. The service handles success.
       stopAIThinking();
       stopProcessing();
+      return false;
     }
-  }, [selectedFile, selectedModel, processImage, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
+  }, [user, isNegative, selectedFile, selectedModel, processImage, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
 
   const handleMultiImageAnalysis = useCallback(async (files = [], customText = null) => {
     if (!files || files.length === 0) return;
+
+    // --- CREDIT ENFORCEMENT ---
+    if (user && isNegative) {
+      setShowCreditsModal(true);
+      return false;
+    }
+
     try {
       startProcessing();
 
@@ -472,13 +507,18 @@ export const MarkingPageProvider = ({
 
       startAIThinking(multiImageProgressData, multiImageAiMessageId);
       await processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId);
+      return true;
     } catch (err) {
       console.error('Error in multi-image analysis flow:', err);
+      if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+        setShowCreditsModal(true);
+      }
       handleError(err);
       stopAIThinking();
       stopProcessing();
+      return false;
     }
-  }, [selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
+  }, [user, isNegative, selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
 
   const getImageSrc = useCallback((message) => {
     if (message?.imageData) return message.imageData;
@@ -550,6 +590,8 @@ export const MarkingPageProvider = ({
     isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,
     visibleTableIds: state.visibleTableIds,
+    isNegative,
+    setShowCreditsModal,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
@@ -559,12 +601,19 @@ export const MarkingPageProvider = ({
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,
-    state.visibleTableIds
+    state.visibleTableIds,
+    isNegative,
+    setShowCreditsModal
   ]);
 
   return (
     <MarkingPageContext.Provider value={value}>
       {children}
+      <InsufficientCreditsModal
+        isOpen={showCreditsModal}
+        onClose={() => setShowCreditsModal(false)}
+        remainingCredits={credits?.remainingCredits ?? 0}
+      />
     </MarkingPageContext.Provider>
   );
 };

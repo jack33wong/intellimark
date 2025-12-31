@@ -571,15 +571,27 @@ router.post('/create-subscription-after-payment', async (req, res) => {
 
     // Initialize user credits
     try {
+      const normalizedPlanId = planId.toLowerCase() as 'free' | 'pro' | 'ultra';
+
+      // Double check that the plan exists in our config
+      const validPlans = ['free', 'pro', 'ultra'];
+      if (!validPlans.includes(normalizedPlanId)) {
+        console.warn(`⚠️ Warning: Unknown planId "${planId}", defaulting credits to free.`);
+      }
+
+      // Use initializeUserCredits to enforce the new plan's limit
+      // (This correctly resets usage for the new subscription period)
       await initializeUserCredits(
         userId,
-        planId as 'free' | 'pro' | 'ultra',
-        subscriptionData.currentPeriodEnd * 1000 // Use subscriptionData which has fallback
+        normalizedPlanId,
+        subscriptionData.currentPeriodEnd * 1000
       );
-      console.log('✅ User credits initialized for', planId);
+
+      console.log(`✅ User credits initialized for ${normalizedPlanId} (User: ${userId})`);
+
     } catch (creditError) {
       console.error('⚠️ Failed to initialize credits:', creditError);
-      // Don't fail the request if credits initialization fails
+      // Don't fail the request if credits initialization fails, but log it clearly
     }
 
     res.json({

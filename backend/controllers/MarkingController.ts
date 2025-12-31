@@ -80,6 +80,17 @@ export class MarkingController {
                     const creditCheck = await checkCredits(userId, estimatedCost);
                     console.log(`💳 [CREDIT CHECK] Result: ${JSON.stringify(creditCheck)}`);
 
+                    if (!creditCheck.canProceed) {
+                        sendSseUpdate(res, {
+                            type: 'error',
+                            message: creditCheck.warning,
+                            credits_exhausted: true,
+                            remaining: creditCheck.remaining
+                        });
+                        res.end();
+                        return;
+                    }
+
                     if (creditCheck.warning) {
                         console.log(`💳 Credit warning for user ${userId}: ${creditCheck.warning}`);
                         // Send warning via SSE

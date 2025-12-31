@@ -455,7 +455,10 @@ const SubscriptionPage: React.FC = () => {
                 confirmText: 'Awesome!',
                 variant: 'success',
                 showCancel: false,
-                action: () => { }
+                action: () => {
+                  EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
+                  navigate('/mark-homework');
+                }
               });
 
               // Refresh subscription data

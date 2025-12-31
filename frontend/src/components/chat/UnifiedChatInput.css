@@ -995,3 +995,43 @@
   color: #10b981;
   opacity: 0.8;
 }
+
+/* Negative Credits Warning Styles */
+.followup-single-line-container.negative-credits {
+  background: rgba(239, 68, 68, 0.05);
+  flex-direction: column;
+}
+
+.negative-credits-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.warning-icon {
+  font-size: 16px;
+}
+
+.warning-action-btn {
+  margin-left: auto;
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.warning-action-btn:hover {
+  background: #dc2626;
+}

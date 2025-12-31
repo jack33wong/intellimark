@@ -202,12 +202,20 @@ router.post('/chat', optionalAuth, async (req, res) => {
         const creditCheck = await checkCredits(userId, estimatedCost);
         creditWarning = creditCheck.warning;
 
+        if (!creditCheck.canProceed) {
+          return res.status(403).json({
+            success: false,
+            error: creditCheck.warning,
+            credits_exhausted: true,
+            remaining: creditCheck.remaining
+          });
+        }
+
         if (creditWarning) {
           console.log(`💳 Credit warning for user ${userId}: ${creditWarning}`);
         }
       } catch (error) {
         console.error('❌ Credit check failed:', error);
-        // Continue anyway - don't block user on credit check failure
       }
     }
 

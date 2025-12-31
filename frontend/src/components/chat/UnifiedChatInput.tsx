@@ -18,15 +18,16 @@ interface UnifiedChatInputProps {
   selectedModel: string;
   isProcessing: boolean;
   onModelChange: (model: string) => void;
-  onAnalyzeImage: (file: File, text: string) => void;
-  onFollowUpImage: (file: File, text: string) => void;
-  onSendMessage: (text: string) => void;
+  onAnalyzeImage: (file: File, text: string) => Promise<boolean> | any;
+  onFollowUpImage: (file: File, text: string) => Promise<boolean> | any;
+  onSendMessage: (text: string) => Promise<boolean> | any;
   // New props for multi-image support
-  onAnalyzeMultiImage?: (files: File[], text: string) => void;
-  onFollowUpMultiImage?: (files: File[], text: string) => void;
+  onAnalyzeMultiImage?: (files: File[], text: string) => Promise<boolean> | any;
+  onFollowUpMultiImage?: (files: File[], text: string) => Promise<boolean> | any;
   currentSession?: any; // Session data to check if model selection should be disabled
   contextQuestionId?: string | null;
   setContextQuestionId?: (id: string | null) => void;
+  isNegative?: boolean;
 }
 
 const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
@@ -42,6 +43,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   currentSession,
   contextQuestionId,
   setContextQuestionId,
+  isNegative = false,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -355,50 +357,61 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     }
   }, [isMultiImage, imageFiles, previewImages, removePreview]);
 
-  const handleSendClick = useCallback(() => {
+  const handleSendClick = useCallback(async () => {
     if (isProcessing) return;
     const textToSend = combinedInput;
     const fileToSend = imageFile;
     const filesToSend = imageFiles;
 
-
     if (!textToSend && !fileToSend && filesToSend.length === 0) return;
+
+    let success = true;
 
     if (isMultiImage && filesToSend.length > 0) {
       // Multi-image mode
       const handler = mode === 'first-time' ? onAnalyzeMultiImage : onFollowUpMultiImage;
       if (handler) {
-        handler(filesToSend, textToSend);
+        const result = await (handler as any)(filesToSend, textToSend);
+        if (result === false) success = false;
       } else {
         // Fallback: Process each file individually using single image handlers
-        filesToSend.forEach((file, index) => {
+        for (let i = 0; i < filesToSend.length; i++) {
+          const file = filesToSend[i];
           const singleHandler = mode === 'first-time' ? onAnalyzeImage : onFollowUpImage;
-          const fileText = filesToSend.length > 1 ? `${textToSend} (File ${index + 1}/${filesToSend.length})` : textToSend;
-          singleHandler(file, fileText);
-        });
+          const fileText = filesToSend.length > 1 ? `${textToSend} (File ${i + 1}/${filesToSend.length})` : textToSend;
+          const result = await (singleHandler as any)(file, fileText);
+          if (result === false) {
+            success = false;
+            break;
+          }
+        }
       }
     } else if (fileToSend) {
       // Single image mode
       const handler = mode === 'first-time' ? onAnalyzeImage : onFollowUpImage;
-      handler(fileToSend, textToSend);
+      const result = await (handler as any)(fileToSend, textToSend);
+      if (result === false) success = false;
     } else if (textToSend) {
       // Text only
-      onSendMessage(textToSend);
+      const result = await (onSendMessage as any)(textToSend);
+      if (result === false) success = false;
     }
 
-    setChatInput('');
-    setSelectedTags([]);
-    setPreviewImage(null);
-    setImageFile(null);
-    setPreviewImages([]);
-    setImageFiles([]);
-    setIsMultiImage(false);
-    setIsExpanded(false);
+    if (success) {
+      setChatInput('');
+      setSelectedTags([]);
+      setPreviewImage(null);
+      setImageFile(null);
+      setPreviewImages([]);
+      setImageFiles([]);
+      setIsMultiImage(false);
+      setIsExpanded(false);
 
-    // Clear the file input element to prevent duplicate uploads
-    const fileInput = document.getElementById('unified-file-input') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
+      // Clear the file input element to prevent duplicate uploads
+      const fileInput = document.getElementById('unified-file-input') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
     }
   }, [isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode, onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage]);
 
@@ -493,7 +506,23 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
             </div>
           )}
-          <div className={`followup-single-line-container ${isExpanded ? 'expanded' : ''}`}>
+          <div className={`followup-single-line-container ${isExpanded ? 'expanded' : ''} ${isNegative ? 'negative-credits' : ''}`}>
+            {isNegative && (
+              <div className="negative-credits-warning">
+                <span className="warning-icon">⚠️</span>
+                <span>You have insufficient credits. Please top up or upgrade to continue.</span>
+                <button
+                  className="warning-action-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate('/upgrade');
+                  }}
+                >
+                  Top Up
+                </button>
+              </div>
+            )}
             {isExpanded && ((previewImage || previewImages.length > 0) || (imageFile && isPDF(imageFile)) || (imageFiles.length > 0 && imageFiles.some(file => isPDF(file)))) && (
               <div className="followup-preview-section">
                 {isMultiImage ? (

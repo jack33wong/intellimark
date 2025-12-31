@@ -106,14 +106,12 @@ export class MarkingOutputService {
             return a.originalIndex - b.originalIndex;
         });
 
+        const hasMetaPage = pagesForSorting.some(p => p.isMetadataPage);
         const firstPageIndexAfterSorting = pagesForSorting[0]?.pageIndex ?? 0;
 
         // --- Parallel Annotation Drawing using SVGOverlayService ---
         // Note: Pages passed here are already filtered (metadata + questionAnswer only)
         progressCallback(createProgressData(7, `Drawing annotations on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
-
-
-
 
         const annotationPromises = standardizedPages.map(async (page) => {
             const pageIndex = page.pageIndex;
@@ -133,7 +131,8 @@ export class MarkingOutputService {
                         annotationsForThisPage,
                         imageDimensions,
                         scoresToDraw,
-                        totalScoreToDraw
+                        totalScoreToDraw,
+                        hasMetaPage
                     );
                 } catch (drawError) {
                     console.error(`❌ [ANNOTATION] Failed to draw annotations on page ${pageIndex}:`, drawError);

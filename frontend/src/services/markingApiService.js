@@ -71,6 +71,12 @@ class SimpleSessionService {
     });
   }
 
+  triggerCreditRefresh = () => {
+    import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+      EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
+    });
+  }
+
   addMessage = async (message) => {
     const session = this.state.currentSession;
 
@@ -221,6 +227,8 @@ class SimpleSessionService {
 
   handleProcessComplete = (data, modelUsed, aiMessageId = null) => {
     try {
+      // Trigger credit refresh after completion
+      this.triggerCreditRefresh();
 
       // Check for success flag (if present) or assume success if not present
       if (data.success === false) {
@@ -401,6 +409,8 @@ class SimpleSessionService {
 
   handleTextChatComplete = (data, modelUsed) => {
     try {
+      // Trigger credit refresh after completion
+      this.triggerCreditRefresh();
       if (!data.success) {
         throw new Error(data.error || 'Failed to process text chat');
       }
@@ -527,26 +537,35 @@ class SimpleSessionService {
         const lines = chunk.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            let data;
             try {
               const rawData = line.slice(6);
-              const data = JSON.parse(rawData);
+              data = JSON.parse(rawData);
+            } catch (e) {
+              continue;
+            }
 
-              // Handle ProgressData format (unified format for all pipelines)
-              if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
-                if (onProgress) onProgress(data);
-                return false; // Continue processing
-              }
-
-              // Handle completion events
-              if (data.type === 'complete') {
-                this.handleProcessComplete(data.result, model, aiMessageId);
-                return true;
-              }
-              if (data.type === 'error') throw new Error(data.error);
-
-              // Fallback: pass any other data to onProgress
+            // Handle ProgressData format (unified format for all pipelines)
+            if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
               if (onProgress) onProgress(data);
-            } catch (e) { }
+              continue; // Next line
+            }
+
+            // Handle completion events
+            if (data.type === 'complete') {
+              this.handleProcessComplete(data.result, model, aiMessageId);
+              return true;
+            }
+            if (data.type === 'error') {
+              const error = new Error(data.error);
+              if (data.credits_exhausted) {
+                error.credits_exhausted = true;
+              }
+              throw error;
+            }
+
+            // Fallback: pass any other data to onProgress
+            if (onProgress) onProgress(data);
           }
         }
         return false;
@@ -578,6 +597,9 @@ class SimpleSessionService {
         }
       }
     } catch (error) {
+      if (error.response?.data?.credits_exhausted) {
+        error.credits_exhausted = true;
+      }
       console.error('❌ Multi-image processing error:', error);
       throw error;
     }
@@ -651,20 +673,30 @@ class SimpleSessionService {
         const lines = chunk.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            let data;
             try {
-              const data = JSON.parse(line.slice(6));
-              // Handle ProgressData format (unified format for all pipelines)
-              if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
-                if (onProgress) onProgress(data);
-                return false; // Continue processing
-              }
-              if (data.type === 'complete') {
-                this.handleProcessComplete(data.result, model, aiMessageId);
-                return true;
-              }
-              if (data.type === 'error') throw new Error(data.error);
+              data = JSON.parse(line.slice(6));
+            } catch (e) {
+              continue;
+            }
+
+            // Handle ProgressData format (unified format for all pipelines)
+            if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
               if (onProgress) onProgress(data);
-            } catch (e) { }
+              continue; // Next line
+            }
+            if (data.type === 'complete') {
+              this.handleProcessComplete(data.result, model, aiMessageId);
+              return true;
+            }
+            if (data.type === 'error') {
+              const error = new Error(data.error);
+              if (data.credits_exhausted) {
+                error.credits_exhausted = true;
+              }
+              throw error;
+            }
+            if (onProgress) onProgress(data);
           }
         }
         return false;
@@ -695,6 +727,9 @@ class SimpleSessionService {
         }
       }
     } catch (error) {
+      if (error.response?.data?.credits_exhausted) {
+        error.credits_exhausted = true;
+      }
       this.setState({ error: error.message });
       apiControls.handleError(error);
       apiControls.stopAIThinking();

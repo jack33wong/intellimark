@@ -21,6 +21,7 @@ import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
 import './Header.css';
 import '../credits.css';
+import { useCredits } from '../../hooks/useCredits';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -28,7 +29,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
-  const [userCredits, setUserCredits] = useState(null);
+  const { credits: userCredits } = useCredits();
 
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
@@ -41,29 +42,14 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
 
 
-  // Fetch user subscription and credits data
+  // Fetch user subscription data
   useEffect(() => {
     const fetchUserSubscription = async () => {
       if (!user?.uid) return;
       setSubscriptionLoading(true);
       try {
-        // Add timestamp to prevent caching
-        const timestamp = Date.now();
         const response = await SubscriptionService.getUserSubscription(user.uid);
         setUserSubscription(response.subscription);
-
-        // Fetch credits with cache-busting
-        try {
-          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}?t=${timestamp}`, {
-            cache: 'no-store'
-          });
-          if (creditsResponse.ok) {
-            const creditsData = await creditsResponse.json();
-            setUserCredits(creditsData);
-          }
-        } catch (creditsError) {
-          console.error('Error fetching credits:', creditsError);
-        }
       } catch (error) {
         console.error('Error fetching user subscription:', error);
       } finally {
@@ -91,9 +77,12 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     const sessionId = urlParams.get('session_id');
 
     if (subscriptionSuccess === 'success' && user?.uid && sessionId) {
+      console.log('🔍 [Header] Detected subscription success param. user:', user.uid, 'session:', sessionId);
+
       // Create subscription record after successful payment
       const createSubscriptionRecord = async () => {
         try {
+          console.log('🚀 [Header] calling create-subscription-after-payment...');
           const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-subscription-after-payment`, {
             method: 'POST',
             headers: {
@@ -107,11 +96,16 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error('❌ Response error:', errorText);
+            console.error('❌ [Header] Response error:', errorText);
             throw new Error(`HTTP error! status: ${response.status}`);
           }
 
-          await response.json();
+          const result = await response.json();
+          console.log('✅ [Header] Subscription created successfully:', result);
+
+          // Refresh credits globally after successful creation
+          console.log('📢 [Header] Dispatching REFRESH_CREDITS event...');
+          EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
 
           // Refresh subscription data to get the latest
           const subscriptionResponse = await SubscriptionService.getUserSubscription(user.uid);
@@ -130,23 +124,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       };
 
       createSubscriptionRecord();
-
-      // Refresh credits after successful subscription
-      setTimeout(async () => {
-        try {
-          const timestamp = Date.now();
-          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}?t=${timestamp}`, {
-            cache: 'no-store'
-          });
-          if (creditsResponse.ok) {
-            const creditsData = await creditsResponse.json();
-            setUserCredits(creditsData);
-            console.log('✅ Credits synced after subscription:', creditsData);
-          }
-        } catch (creditsError) {
-          console.error('Error syncing credits:', creditsError);
-        }
-      }, 1000); // Wait 1 second for backend to initialize credits
 
       // Clean up URL parameters
       const newUrl = window.location.pathname;

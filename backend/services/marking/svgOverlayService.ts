@@ -175,7 +175,8 @@ export class SVGOverlayService {
     annotations: Annotation[],
     imageDimensions: ImageDimensions,
     scoreToDraw?: { scoreText: string } | { scoreText: string }[], // UPDATED: Accept array for multiple circles
-    totalScoreText?: string
+    totalScoreText?: string,
+    hasMetaPage?: boolean
   ): Promise<string> {
     try {
       // Allow drawing even if no annotations, as long as we have scores to draw
@@ -200,7 +201,7 @@ export class SVGOverlayService {
 
 
       // Create SVG overlay with extended dimensions (no scaling needed since we're using actual burn dimensions)
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage);
 
       // Create SVG buffer
       const svgBuffer = Buffer.from(svgOverlay);
@@ -236,7 +237,7 @@ export class SVGOverlayService {
   /**
    * Create SVG overlay for burning into image
    */
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean): string {
     // Allow creating SVG even if no annotations, as long as we have scores to draw
     const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
     if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
@@ -375,7 +376,7 @@ export class SVGOverlayService {
 
     // Add total score with double underline at top right (first page only)
     if (totalScoreText) {
-      svg += this.createTotalScoreWithDoubleUnderline(totalScoreText, actualWidth, actualHeight);
+      svg += this.createTotalScoreWithDoubleUnderline(totalScoreText, actualWidth, actualHeight, hasMetaPage);
     }
 
     // Add student score circles at top right if available (stacking handled in helper)
@@ -826,7 +827,7 @@ export class SVGOverlayService {
   /**
    * Create total score with double underline at top right corner
    */
-  private static createTotalScoreWithDoubleUnderline(totalScoreText: string, imageWidth: number, imageHeight: number): string {
+  private static createTotalScoreWithDoubleUnderline(totalScoreText: string, imageWidth: number, imageHeight: number, hasMetaPage?: boolean): string {
     const scaleFactor = imageHeight / this.CONFIG.baseReferenceHeight;
     const config = this.CONFIG.totalScore;
 
@@ -835,24 +836,50 @@ export class SVGOverlayService {
     const marginRight = Math.max(config.minMarginRight, config.marginRight * scaleFactor);
     const marginTop = Math.max(config.minMarginTop, config.marginTop * scaleFactor);
 
-    // Position at top right corner
-    const textX = imageWidth - marginRight;  // Horizontal position: margin from right edge
+    // Dynamic Positioning: Top Right if Meta Page present, Top Left otherwise
+    const isTopLeft = hasMetaPage === false;
+
+    let textX: number;
+    let textAnchor: string;
+
+    if (isTopLeft) {
+      // Position at top left corner (using marginRight as marginLeft)
+      textX = marginRight;
+      textAnchor = "start";
+    } else {
+      // Default: Position at top right corner
+      textX = imageWidth - marginRight;
+      textAnchor = "end";
+    }
+
     const textY = marginTop + fontSize;      // Vertical position: margin from top edge
 
     // Estimate text width (approximate: 10px per character)
     const estimatedTextWidth = totalScoreText.length * (fontSize * 0.6);
-    const underlineStartX = textX - estimatedTextWidth;
+
+    // Calculate underline start/end based on anchor
+    let underlineStartX: number;
+    let underlineEndX: number;
+
+    if (isTopLeft) {
+      underlineStartX = textX;
+      underlineEndX = textX + estimatedTextWidth;
+    } else {
+      underlineStartX = textX - estimatedTextWidth;
+      underlineEndX = textX;
+    }
+
     const underlineY1 = textY + config.underlineOffset;
     const underlineY2 = textY + config.underlineOffset + config.underlineSpacing;
 
     const text = `<text x="${textX}" y="${textY}" 
-                text-anchor="end" dominant-baseline="baseline" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
+                text-anchor="${textAnchor}" dominant-baseline="baseline" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
                 font-size="${fontSize}" font-weight="bold">${totalScoreText}</text>`;
 
     // Double underline
-    const underline1 = `<line x1="${underlineStartX}" y1="${underlineY1}" x2="${textX}" y2="${underlineY1}" 
+    const underline1 = `<line x1="${underlineStartX}" y1="${underlineY1}" x2="${underlineEndX}" y2="${underlineY1}" 
                           stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
-    const underline2 = `<line x1="${underlineStartX}" y1="${underlineY2}" x2="${textX}" y2="${underlineY2}" 
+    const underline2 = `<line x1="${underlineStartX}" y1="${underlineY2}" x2="${underlineEndX}" y2="${underlineY2}" 
                           stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
 
     return text + underline1 + underline2;

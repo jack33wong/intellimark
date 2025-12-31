@@ -55,7 +55,8 @@ export const EVENT_TYPES = {
   MARKING_COMPLETED: 'markingCompleted',
   SUBSCRIPTION_UPDATED: 'subscriptionUpdated',
   OPEN_GUEST_LIMIT_MODAL: 'openGuestLimitModal',
-  OPEN_AUTH_MODAL: 'openAuthModal'
+  OPEN_AUTH_MODAL: 'openAuthModal',
+  REFRESH_CREDITS: 'refreshCredits'
 };
 
 export default EventManager;

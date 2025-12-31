@@ -53,6 +53,7 @@ const MainLayout: React.FC = () => {
     setContextFilterActive,
     isQuestionTableVisible,
     visibleTableIds,
+    isNegative,
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -458,6 +459,7 @@ const MainLayout: React.FC = () => {
             currentSession={currentSession}
             contextQuestionId={activeQuestionId}
             setContextQuestionId={setActiveQuestionId}
+            isNegative={isNegative}
           />
         </div>
       </div>

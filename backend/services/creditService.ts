@@ -76,11 +76,20 @@ export async function checkCredits(
     const creditsNeeded = costToCredits(estimatedCost);
     const remaining = credits.remainingCredits;
 
-    // ALWAYS allow, but warn if low/exhausted
-    if (remaining <= 0) {
+    // BLOCK if negative, warn if zero
+    if (remaining < 0) {
         return {
-            canProceed: true,
-            warning: `⚠️ You have exhausted your ${credits.planId} plan credits (0 remaining). Consider upgrading for more credits. This operation will proceed but may affect your quota.`,
+            canProceed: false,
+            warning: `❌ You have negative credits (${remaining.toFixed(2)}). Please top up to continue using AI features.`,
+            remaining
+        };
+    }
+
+    if (remaining === 0) {
+        return {
+            canProceed: true, // Allow exactly zero to make it less frustrating for the very last bit? 
+            // Actually, "negative" was specified.
+            warning: `⚠️ You have exhausted your ${credits.planId} plan credits (0 remaining). This operation will proceed but may affect your quota.`,
             remaining: 0
         };
     }
