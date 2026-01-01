@@ -386,16 +386,27 @@ export const MarkingPageProvider = ({
       };
 
       startAIThinking(imageProgressData, imageAiMessageId);
-      await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name);
+
+      // Execute API call in background so UI resets immediately
+      processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name)
+        .catch(err => {
+          console.error('Error in image analysis flow:', err);
+          if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+            setShowCreditsModal(true);
+          }
+          handleError(err);
+          stopAIThinking();
+          stopProcessing();
+        });
+
       clearFile();
       return true;
     } catch (err) {
-      console.error('Error in image analysis flow:', err);
+      console.error('Error starting image analysis:', err);
       if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
       handleError(err);
-      // Also stop states on initial error. The service handles success.
       stopAIThinking();
       stopProcessing();
       return false;
@@ -521,7 +532,19 @@ export const MarkingPageProvider = ({
       };
 
       startAIThinking(multiImageProgressData, multiImageAiMessageId);
-      await processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId);
+
+      // Execute API call in background so UI resets immediately
+      processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId)
+        .catch(err => {
+          console.error('Error in multi-image analysis flow:', err);
+          if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+            setShowCreditsModal(true);
+          }
+          handleError(err);
+          stopAIThinking();
+          stopProcessing();
+        });
+
       return true;
     } catch (err) {
       console.error('Error in multi-image analysis flow:', err);
