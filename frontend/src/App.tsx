@@ -15,6 +15,7 @@ import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
 import GuestLimitModal from './components/common/GuestLimitModal';
 import AnalyticsTracker from './components/common/AnalyticsTracker';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
+import useTheme from './hooks/useTheme';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -238,6 +239,9 @@ function AppContent() {
 }
 
 const App: React.FC = () => {
+  // Initialize theme
+  useTheme();
+
   const [isGuestLimitModalOpen, setIsGuestLimitModalOpen] = useState(false);
 
   // Listen for guest limit modal events

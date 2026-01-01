@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Moon, Sun, Monitor, Grid, List } from 'lucide-react';
+import useTheme from '../../hooks/useTheme';
 
 const SettingsSection = () => {
-    // Basic state for appearance, persistence would need Context or localStorage
-    const [theme, setTheme] = useState('dark'); // 'dark', 'light', 'system'
+    // Theme management via hook
+    const { theme, setTheme } = useTheme();
 
     // Gallery view preference - read from localStorage on mount
     const [galleryView, setGalleryView] = useState(() => {
@@ -20,8 +21,6 @@ const SettingsSection = () => {
 
     const handleThemeChange = (newTheme) => {
         setTheme(newTheme);
-        // Actual implementation would go here (e.g., document.body.classList...)
-        // For now, this is a UI mockup as requested.
     };
 
     const handleGalleryViewChange = (newView) => {

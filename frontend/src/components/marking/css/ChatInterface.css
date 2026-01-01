@@ -62,6 +62,7 @@
 }
 
 /* Blur transition effect for Gemini-style look */
+/* Blur transition effect - Default (Light Mode) */
 .follow-up-chat-input-container.follow-up-bottom::before {
   content: "";
   position: absolute;
@@ -69,20 +70,37 @@
   left: 0;
   right: 0;
   height: 170px;
-  /* Restored height to be functional */
-  backdrop-filter: blur(10px) saturate(110%);
-  -webkit-backdrop-filter: blur(10px) saturate(110%);
+
+  /* Lighter blur for light mode */
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+
+  /* Light mode gradient using f8f8f7 (approx white/gray) */
   background: linear-gradient(to bottom,
-      rgba(39, 39, 40, 0) 0%,
-      rgba(39, 39, 40, 0.7) 15%,
-      var(--background-gray-main) 10%,
-      /* Solid point is now higher */
+      rgba(248, 248, 247, 0) 0%,
+      rgba(248, 248, 247, 0.8) 20%,
+      var(--background-gray-main) 40%,
       var(--background-gray-main) 100%);
-  /* Unified mask for smooth top edge */
+
+  /* Unified mask */
   mask-image: linear-gradient(to top, black 80%, transparent 100%);
   -webkit-mask-image: linear-gradient(to top, black 80%, transparent 100%);
   z-index: -1;
   pointer-events: none;
+}
+
+/* Blur transition effect - Dark Mode Override */
+html.dark .follow-up-chat-input-container.follow-up-bottom::before {
+  /* Stronger blur for dark mode */
+  backdrop-filter: blur(10px) saturate(110%);
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
+
+  /* Dark mode gradient */
+  background: linear-gradient(to bottom,
+      rgba(39, 39, 40, 0) 0%,
+      rgba(39, 39, 40, 0.7) 15%,
+      var(--background-gray-main) 10%,
+      var(--background-gray-main) 100%);
 }
 
 /* Ensure Chat Container takes remaining space */
@@ -1222,19 +1240,10 @@
   content: "";
   position: absolute;
   top: 100%;
-  /* Start exactly at the bottom border */
   left: 0;
   right: 0;
   height: 20px;
-  /* Height of the blur transition area */
-  backdrop-filter: blur(20px) saturate(120%);
-  -webkit-backdrop-filter: blur(20px) saturate(120%);
-  background: linear-gradient(to bottom,
-      var(--background-gray-main) 0%,
-      rgba(39, 39, 40, 0.4) 40%,
-      transparent 100%);
-  mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  background: var(--background-gray-main);
   z-index: 100;
   pointer-events: none;
 }

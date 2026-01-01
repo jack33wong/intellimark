@@ -418,7 +418,7 @@
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: rgba(54, 53, 55, 0.95);
+  background: var(--background-white-main);
   /* Slightly translucent */
   border: 1px solid rgba(255, 255, 255, 0.08);
   /* Subtle glass border */

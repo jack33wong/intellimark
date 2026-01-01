@@ -1,13 +1,11 @@
 /* Base Variables - Matching Manus Dark Theme */
 :root {
-    --modal-bg: #222222;
-    /* Dark grey */
-    --modal-border: #333333;
+    --modal-bg: var(--background-menu-white);
+    --modal-border: var(--border-main);
     --sidebar-width: 200px;
     /* Slightly narrower sidebar based on screenshot */
-    --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
-    --accent-color: #ffffff;
+    /* Use global text variables */
+    --accent-color: var(--text-primary);
     /* Using white for active state icon/text like screenshot */
     --radius-lg: 12px;
     --radius-md: 8px;
