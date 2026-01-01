@@ -407,11 +407,11 @@
 }
 
 .admin-row-even {
-  background-color: var(--background-gray-main);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .admin-table__row:hover {
-  background: var(--background-card) !important;
+  background: var(--background-card);
 }
 
 /* Table rows don't support padding, using cell padding instead */

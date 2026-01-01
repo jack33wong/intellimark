@@ -750,13 +750,23 @@ function AdminPage() {
     return new Date(year, month);
   };
 
-  const sortEntriesByDateAndCode = (entries, getDateFn, getCodeFn) => {
+  const sortEntriesByDateAndCode = (entries, getDateFn, getCodeFn, getTierFn) => {
     return [...entries].sort((a, b) => {
       const dateA = parseExamSeriesDate(getDateFn(a));
       const dateB = parseExamSeriesDate(getDateFn(b));
       const timeDiff = dateB - dateA; // Descending (Newest first)
 
       if (timeDiff !== 0) return timeDiff;
+
+      // Tertiary Sort: Tier DESC (H > F usually, or specific order)
+      if (getTierFn) {
+        const tierA = getTierFn(a) || '';
+        const tierB = getTierFn(b) || '';
+
+        // If simple string comparison: 'H' > 'F'. So DESC puts Higher first.
+        const tierDiff = tierB.localeCompare(tierA);
+        if (tierDiff !== 0) return tierDiff;
+      }
 
       // Secondary Sort: Code ASC
       const codeA = getCodeFn ? (getCodeFn(a) || '') : '';
@@ -780,6 +790,16 @@ function AdminPage() {
       const examData = entry.data || entry;
       const examMeta = examData.exam || examData.metadata || {};
       return examMeta.code || examMeta.exam_code || '';
+    },
+    (entry) => {
+      // Extract Tier from code suffix (e.g. 1H -> H, 1F -> F)
+      const examData = entry.data || entry;
+      const examMeta = examData.exam || examData.metadata || {};
+      const code = examMeta.code || examMeta.exam_code || '';
+      if (!code) return '';
+      // Capture last letter if it is F or H (case insensitive)
+      const match = code.match(/([FHfh])($|\s|\/)/);
+      return match ? match[1].toUpperCase() : '';
     }
   );
 
@@ -791,6 +811,13 @@ function AdminPage() {
     (entry) => {
       const details = entry.examDetails || entry.markingSchemeData?.examDetails || {};
       return details.paperCode || details.exam_code || details.code || '';
+    },
+    (entry) => {
+      const details = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+      const code = details.paperCode || details.exam_code || details.code || '';
+      if (!code) return '';
+      const match = code.match(/([FHfh])($|\s|\/)/);
+      return match ? match[1].toUpperCase() : '';
     }
   );
 
