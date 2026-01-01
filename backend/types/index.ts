@@ -142,6 +142,7 @@ export interface Annotation {
   lineId?: string; // Unified identifier
   line_id?: string; // Unified identifier (AI compat)
   pageIndex?: number; // Page index for multi-page annotations
+  visualObservation?: string; // AI's description of the visual content
 }
 
 export interface MarkingInstructions {
@@ -157,6 +158,7 @@ export interface MarkingInstructions {
     llmInputTokens: number;
     llmOutputTokens: number;
   };
+  visualObservation?: string; // AI's description of the visual content
 }
 
 export interface ImageClassification {

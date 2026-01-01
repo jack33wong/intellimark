@@ -547,7 +547,8 @@ export class MarkingInstructionService {
         studentScore: annotationData.studentScore,
         markingScheme: annotationData.markingScheme, // Pass through marking scheme
         schemeTextForPrompt: annotationData.schemeTextForPrompt, // Pass through scheme text
-        overallPerformanceSummary: annotationData.overallPerformanceSummary // Pass through AI summary
+        overallPerformanceSummary: annotationData.overallPerformanceSummary, // Pass through AI summary
+        visualObservation: (annotationData as any).visualObservation // Pass through AI visual observation
       };
 
       return result;
@@ -1300,8 +1301,10 @@ export class MarkingInstructionService {
       // Log visual observation if present (diagnostic for drawing questions)
       // Log visual observation if present (diagnostic for drawing questions)
       if (parsedResponse.visualObservation && parsedResponse.visualObservation.trim()) {
-        // console.log(`  ${CYAN}📋 [VISUAL OBSERVATION]${RESET}`);
+        console.log(`  ${CYAN}📋 [VISUAL OBSERVATION] Found in AI Response:${RESET} "${parsedResponse.visualObservation.substring(0, 50)}..."`);
         // console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
+      } else {
+        console.log(`  ${RED}❌ [VISUAL OBSERVATION] NOT FOUND in AI Response${RESET}`);
       }
 
       // Log individual annotations for debugging (especially for answers like 18.6)
@@ -1466,7 +1469,8 @@ export class MarkingInstructionService {
         },
         cleanedOcrText: formattedOcrText,
         markingScheme: normalizedScheme, // Pass normalized scheme so executor can use it
-        schemeTextForPrompt: schemeText // Pass the exact scheme text used in prompt
+        schemeTextForPrompt: schemeText, // Pass the exact scheme text used in prompt
+        visualObservation: parsedResponse.visualObservation // Pass AI visual observation
       };
 
     } catch (error) {

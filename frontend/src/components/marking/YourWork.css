@@ -138,6 +138,37 @@
     margin: 0 !important;
 }
 
-.yw-math-renderer .katex-display {
-    margin: 0 !important;
+/* Drawing UI Styles */
+.yw-drawing-container {
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 400px;
+    display: block;
+    transition: color 0.15s ease;
+}
+
+.yw-drawing-container:hover {
+    color: var(--function-success);
+}
+
+.yw-drawing-container.expanded {
+    white-space: normal;
+    max-width: none;
+    overflow: visible;
+}
+
+.yw-drawing-badge {
+    color: var(--function-success);
+    font-weight: 600;
+    margin-right: 6px;
+    font-size: 9px;
+    border: 1px solid var(--function-success);
+    padding: 1px 3px;
+    border-radius: 3px;
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1;
+    margin-top: -2px;
 }

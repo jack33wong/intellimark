@@ -61,7 +61,12 @@ export class ChatContextBuilder {
                 const part = a.subQuestion || '';
 
                 // Clean student text
-                const studentWork = a.studentText || a.classificationText || '';
+                let studentWork = a.studentText || a.classificationText || '';
+
+                // [VISUAL] Override text for drawings with AI observation if available
+                if ((a.isDrawing || a.ocr_match_status === 'VISUAL') && (a as any).visualObservation) {
+                    studentWork = `[DRAWING] ${(a as any).visualObservation}`;
+                }
 
                 if (!partMap[part]) {
                     partMap[part] = {

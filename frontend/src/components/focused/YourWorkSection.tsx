@@ -75,6 +75,43 @@ const sanitizeStudentWork = (text: string) => {
     return cleaned;
 };
 
+const WorkContent = ({ content, MarkdownMathRenderer, showBullet }: { content: string, MarkdownMathRenderer?: any, showBullet: boolean }) => {
+    const isDrawing = content.includes('[DRAWING]');
+    const [expanded, setExpanded] = React.useState(false);
+
+    if (isDrawing) {
+        // [DRAWING] Visual styling
+        const cleanContent = content.replace('[DRAWING]', '').trim();
+
+        return (
+            <div
+                className={`yw-col-work ${!showBullet ? 'yw-no-bullet' : ''} yw-drawing-container ${expanded ? 'expanded' : ''}`}
+                onClick={() => setExpanded(!expanded)}
+                title={expanded ? "Click to collapse" : "Click to expand drawing description"}
+            >
+                <span className="yw-drawing-badge">DRAWING</span>
+                <span className="yw-drawing-text">
+                    {cleanContent}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`yw-col-work ${!showBullet ? 'yw-no-bullet' : ''}`}>
+            {MarkdownMathRenderer ? (
+                <MarkdownMathRenderer
+                    content={content}
+                    className="yw-math-renderer"
+                    isYourWork={true}
+                />
+            ) : (
+                <span dangerouslySetInnerHTML={{ __html: content || '&nbsp;' }} />
+            )}
+        </div>
+    );
+};
+
 export default function YourWorkSection({ content, MarkdownMathRenderer }: YourWorkSectionProps) {
     const rows = useMemo(() => {
         if (!content) return [];
@@ -256,17 +293,11 @@ export default function YourWorkSection({ content, MarkdownMathRenderer }: YourW
                             {row.showBullet && (
                                 <div className="yw-col-bullet">•</div>
                             )}
-                            <div className={`yw-col-work ${!row.showBullet ? 'yw-no-bullet' : ''}`}>
-                                {MarkdownMathRenderer ? (
-                                    <MarkdownMathRenderer
-                                        content={row.studentWork}
-                                        className="yw-math-renderer"
-                                        isYourWork={true}
-                                    />
-                                ) : (
-                                    <span dangerouslySetInnerHTML={{ __html: row.studentWork || '&nbsp;' }} />
-                                )}
-                            </div>
+                            <WorkContent
+                                content={row.studentWork}
+                                MarkdownMathRenderer={MarkdownMathRenderer}
+                                showBullet={row.showBullet}
+                            />
                             <div className="yw-col-annotation">
                                 {row.annotationMarks && <span className="yw-marks">{row.annotationMarks}</span>}
                                 {row.annotationReason && <span className="yw-reason">{row.annotationReason}</span>}

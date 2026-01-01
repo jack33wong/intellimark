@@ -78,6 +78,7 @@ export interface EnrichedAnnotation extends Annotation {
   hasLineData?: boolean; // Flag indicating if annotation uses actual line data (OCR) or fallback
   isDrawing?: boolean; // Flag indicating if the annotation is for a drawing
   ocr_match_status?: 'MATCHED' | 'UNMATCHED' | 'VISUAL' | 'FALLBACK';
+  visualObservation?: string; // AI's description of the visual content
 }
 
 /**
@@ -792,6 +793,9 @@ export async function executeMarkingForQuestion(
     const defaultPageIndex = sourcePages.find(p => p !== 0) ?? sourcePages[0] ?? 0;
 
     // 5. Enrich annotations with positions (map to OCR blocks or visual positions)
+    console.log(`[MARKING EXECUTOR] 🔍 markingResult keys: ${Object.keys(markingResult).join(', ')}`);
+    console.log(`[MARKING EXECUTOR] 🔍 visualObservation value: "${(markingResult as any).visualObservation}"`);
+
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations || [],
       stepsDataForMapping, // Keep stepsDataForMapping as it contains synthetic drawing blocks and line_ids
@@ -799,7 +803,8 @@ export async function executeMarkingForQuestion(
       defaultPageIndex,
       task.pageDimensions, // New argument
       task.classificationBlocks, // Pass classification blocks for sub-question page lookup
-      task // New argument
+      task, // New argument
+      (markingResult as any).visualObservation // Pass AI visual observation
     ).filter(anno => (anno.text || '').trim() !== ''); // Clean up empty annotations from mark limits
 
 
@@ -854,10 +859,17 @@ const enrichAnnotationsWithPositions = (
   defaultPageIndex: number = 0,
   pageDimensions?: Map<number, { width: number; height: number }>,
   classificationBlocks?: any[],
-  task?: MarkingTask
+  task?: MarkingTask,
+  visualObservation?: string
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
   const allMarks = (task.markingScheme as any)?.marks || [];
+
+  if (visualObservation) {
+    console.log(`[MARKING EXECUTOR] 📋 Propagating Visual Observation: "${visualObservation.substring(0, 30)}..."`);
+  } else {
+    console.log(`[MARKING EXECUTOR] ⚠️ No Visual Observation provided to enrichAnnotationsWithPositions`);
+  }
 
   const results = annotations.map((anno, idx) => {
     // Unified Identifier Standard: Use only lineId
@@ -1655,7 +1667,8 @@ const enrichAnnotationsWithPositions = (
       line_id: (anno as any).line_id,
       bbox: pixelBbox,
       pageIndex: pageIndex,
-      isDrawing: isDrawing
+      isDrawing: isDrawing,
+      visualObservation: visualObservation
     };
 
     lastValidAnnotation = enriched;

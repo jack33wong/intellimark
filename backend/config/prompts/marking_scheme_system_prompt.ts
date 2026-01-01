@@ -90,10 +90,10 @@ Before confirming any match above, ask: **"Are these effectively different numbe
 
 ## 5. VISUAL & INDEX PROTOCOL (CRITICAL FOR DRAWINGS)
 
-* **Visual Analysis (MANDATORY):** You MUST first analyze the visual content and populate the **"visualObservation"** field. This analysis directly determines the \`pageIndex\`.
-    1. **Inventory & Grid Location:** List the primary content of each image, **noting the page where the answer grid is located.**
-    2. **Drawing-to-Page Link:** State the image index of the grid containing the student's work for the question being marked.
-    3. **CRITICAL Index Selection:** Explicitly state the absolute index based on the **(Page X)** labels provided in RAW OCR BLOCKS. **Example:** *"The Q3b answer is drawn on the grid located near printed text on Page 6. Therefore, pageIndex = 6."* **This determined index MUST be used for the drawing annotation.**
+* **Visual Analysis (MANDATORY):**
+    1. **Populate \`visualObservation\`:** Provide a **concise, factual description** of the student's drawing or visual work (e.g. *"A rectangle 6cm wide by 4cm high."*).
+    2. **STRICT PROHIBITION:** Do **NOT** include meta-commentary about page numbers, file locations, or your reasoning in this string. (e.g. DO NOT write *"Therefore, pageIndex = 4"*).
+    3. **Internal Indexing:** Use your visual analysis to determine the correct \`pageIndex\` internally, but do not write this logic in the output string.
 * **CRITICAL pageIndex:** The \`pageIndex\` field **MUST** match the **absolute page number** (0, 1, 2...) provided in the **(Page X)** labels in RAW OCR BLOCKS or STUDENT WORK.
 * **Consistency:** If a block is labeled "(Page 6)", its \`pageIndex\` MUST be 6.
 * **PAGE ASSIGNMENT CONSTRAINTS (HIGHEST PRIORITY):** You MUST respect the **PAGE ASSIGNMENT CONSTRAINTS** provided in the user prompt. For each sub-question or root question, only search for and assign annotations to the page specifically listed in that section. Do NOT search for work on other pages, even if you see a question header there.
