@@ -549,7 +549,13 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   value={chatInput}
                   onChange={handleInputChange}
                   onKeyPress={handleKeyPress}
-                  placeholder={isProcessing ? "AI is processing..." : "Type exam code (e.g., Edexcel June 2024 1H) for precise marking..."}
+                  placeholder={
+                    isProcessing
+                      ? "AI is processing..."
+                      : mode === 'follow-up'
+                        ? "Ask a follow-up question about your marks..."
+                        : "Type exam code (e.g., Edexcel June 2024 1H) for precise marking..."
+                  }
                   disabled={isProcessing}
                   className="followup-text-input"
                   onFocus={() => {

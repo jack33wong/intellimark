@@ -119,9 +119,9 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
         if (isScrolledUp) {
           setHasNewResponse(true);
           setNewResponseMessageId(lastMessage.id || lastMessage.timestamp);
-        } else {
-          scrollToBottom();
         }
+        // Removed scrollToBottom() here to prevent "Completion Jump"
+        // User stays locked to their current reading position (e.g., top of question)
       });
       return () => cancelAnimationFrame(animationFrameId);
     }

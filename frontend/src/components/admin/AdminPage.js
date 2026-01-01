@@ -737,15 +737,22 @@ function AdminPage() {
     return new Date(year, month);
   };
 
-  const sortEntriesByDate = (entries, getDateFn) => {
+  const sortEntriesByDateAndCode = (entries, getDateFn, getCodeFn) => {
     return [...entries].sort((a, b) => {
       const dateA = parseExamSeriesDate(getDateFn(a));
       const dateB = parseExamSeriesDate(getDateFn(b));
-      return dateB - dateA; // Descending (Newest first)
+      const timeDiff = dateB - dateA; // Descending (Newest first)
+
+      if (timeDiff !== 0) return timeDiff;
+
+      // Secondary Sort: Code ASC
+      const codeA = getCodeFn ? (getCodeFn(a) || '') : '';
+      const codeB = getCodeFn ? (getCodeFn(b) || '') : '';
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
     });
   };
 
-  const filteredJsonEntries = sortEntriesByDate(
+  const filteredJsonEntries = sortEntriesByDateAndCode(
     filterByBoard(jsonEntries, (entry) => {
       const examData = entry.data || entry;
       const examMeta = examData.exam || examData.metadata || {};
@@ -755,21 +762,34 @@ function AdminPage() {
       const examData = entry.data || entry;
       const examMeta = examData.exam || examData.metadata || {};
       return examMeta.exam_series || '';
+    },
+    (entry) => {
+      const examData = entry.data || entry;
+      const examMeta = examData.exam || examData.metadata || {};
+      return examMeta.code || examMeta.exam_code || '';
     }
   );
 
-  const filteredMarkingSchemeEntries = sortEntriesByDate(
+  const filteredMarkingSchemeEntries = sortEntriesByDateAndCode(
     filterByBoard(markingSchemeEntries, (entry) =>
       entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || ''
     ),
-    (entry) => entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || ''
+    (entry) => entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || '',
+    (entry) => {
+      const details = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+      return details.paperCode || details.exam_code || details.code || '';
+    }
   );
 
-  const filteredGradeBoundaries = sortEntriesByDate(
+  const filteredGradeBoundaries = sortEntriesByDateAndCode(
     filterByBoard(gradeBoundaryEntries, (entry) =>
       entry.exam_board || entry.examBoard || ''
     ),
-    (entry) => entry.exam_series || entry.examSeries || ''
+    (entry) => entry.exam_series || entry.examSeries || '',
+    (entry) => {
+      // Sort by qualification/subject as fallback for code
+      return (entry.qualification || '') + (entry.subjects?.[0]?.name || '');
+    }
   );
 
   return (
