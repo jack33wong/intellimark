@@ -302,12 +302,30 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         let codes: string[] = [];
 
         if (text) {
-          codes = text.split(/[\s,]+/).filter((c: string) => c.trim());
+          // NEW: Smart split that handles B2, M2 etc.
+          const rawCodes = text.split(/[\s,]+/).filter((c: string) => c.trim());
+
+          rawCodes.forEach((code: string) => {
+            // Check for multi-mark codes (e.g. B2, M2)
+            const match = code.match(/^([A-Z])(\d+)$/i);
+            if (match && parseInt(match[2]) > 1) {
+              const count = parseInt(match[2]);
+              // Push the code multiple times to reflect the weight
+              for (let i = 0; i < count; i++) {
+                codes.push(code);
+              }
+            } else {
+              codes.push(code);
+            }
+          });
         } else {
           // Handle textless annotations (tick/cross only)
           if (ann.action === 'tick') codes.push('✓');
           else if (ann.action === 'cross') codes.push('✗');
         }
+
+
+
 
         if (codes.length > 0) {
           if (ann.subQuestion && ann.subQuestion !== 'null') {
@@ -1342,6 +1360,7 @@ export function calculateQuestionFirstPageScores(
   const pageToScores = new Map<number, BaseQuestionScore[]>();
   const baseQData = new Map<string, { awarded: number; total: number; minPage: number }>();
 
+  // 1. Group Question Data
   allQuestionResults.forEach(qr => {
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
 
@@ -1370,18 +1389,28 @@ export function calculateQuestionFirstPageScores(
     data.minPage = Math.min(data.minPage, minPageForThisPart);
   });
 
-  // Convert to map of pageIndex -> List of scores
+  // 2. Aggregate per Page
+  const pageAggregates = new Map<number, { awarded: number; total: number }>();
+
   baseQData.forEach((data, baseQNum) => {
     const pageIndex = data.minPage === Infinity ? 0 : data.minPage;
-    if (!pageToScores.has(pageIndex)) {
-      pageToScores.set(pageIndex, []);
+
+    if (!pageAggregates.has(pageIndex)) {
+      pageAggregates.set(pageIndex, { awarded: 0, total: 0 });
     }
-    pageToScores.get(pageIndex)!.push({
-      questionNumber: baseQNum,
-      awarded: data.awarded,
-      total: data.total,
-      scoreText: `${data.awarded}/${data.total}`
-    });
+    const pageStats = pageAggregates.get(pageIndex)!;
+    pageStats.awarded += data.awarded;
+    pageStats.total += data.total;
+  });
+
+  // 3. Convert to Output Format (Single Circle per Page)
+  pageAggregates.forEach((stats, pageIndex) => {
+    pageToScores.set(pageIndex, [{
+      questionNumber: "Page Total", // Generic label since it's aggregated
+      awarded: stats.awarded,
+      total: stats.total,
+      scoreText: `${stats.awarded}/${stats.total}`
+    }]);
   });
 
   return pageToScores;

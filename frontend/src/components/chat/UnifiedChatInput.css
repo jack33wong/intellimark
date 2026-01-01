@@ -538,7 +538,7 @@
 }
 
 .followup-chat-input-bar .followup-upload-button:hover:not(:disabled) {
-  background: #4b5563;
+  background: var(--fill-gray-hover);
   transform: scale(1.05);
 }
 

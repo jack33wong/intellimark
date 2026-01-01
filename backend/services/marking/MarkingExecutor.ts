@@ -1143,7 +1143,19 @@ const enrichAnnotationsWithPositions = (
         }
       }
     }
+    // FIX: Extract lineIndex safely (ensure 0-based)
+    let safeLineIndex = ((anno as any).lineIndex || (anno as any).line_index || 1) - 1;
 
+    // RULE: For Standard Text Annotations (M1, A1, etc.), we IGNORE the AI's "visual_position" guess.
+    // It is often hallucinated. We rely on the GROUND TRUTH Classification Position via line_index.
+    const isTrulyVisualAnnotation = (anno as any).ocr_match_status === 'VISUAL' ||
+      (anno as any).isDrawing === true ||
+      (anno as any).line_id?.toString().toLowerCase().includes('drawing');
+
+    if (!isTrulyVisualAnnotation) {
+      // Force visual pos to undefined to trigger rigid Classification Fallback
+      effectiveVisualPos = undefined;
+    }
     // UNMATCHED: No OCR blocks available - extract position from classification
     if ((anno as any).ocr_match_status === 'UNMATCHED') {
       let lineIndex = ((anno as any).lineIndex || 1) - 1; // Use camelCase from toLegacyFormat
@@ -1306,7 +1318,6 @@ const enrichAnnotationsWithPositions = (
         if (String(questionId).startsWith('6')) {
           console.log(`[DEBUG LOCK Q6] Falling back to student work line for "${anno.text}": Line ${lineIndex + 1}`);
         }
-
         // Determine page index for UNMATCHED fallback
         // Priority: 1. Line's own pageIndex, 2. task.sourcePages[0], 3. defaultPageIndex
         const fallbackPageIndex = classificationLine?.pageIndex !== undefined ? classificationLine.pageIndex : (task.sourcePages?.[0] ?? defaultPageIndex);
@@ -1686,6 +1697,52 @@ const enrichAnnotationsWithPositions = (
       return false;
     }
     return true;
+  });
+
+  // [SNAP PASS] Final pass to snap "Floating" (Unmatched/Visual) annotations to "Anchor" (Matched) annotations
+  // strictly within the SAME sub-question.
+  // This ensures that marks for the same student work (e.g. M1 and A1 for "4") serve logic together.
+
+  // Group by sub-question (normalized)
+  const subQGroups = new Map<string, EnrichedAnnotation[]>();
+  uniqueResults.forEach(anno => {
+    if (anno.subQuestion) {
+      if (!subQGroups.has(anno.subQuestion)) subQGroups.set(anno.subQuestion, []);
+      subQGroups.get(anno.subQuestion)!.push(anno);
+    }
+  });
+
+  subQGroups.forEach((group, subQKey) => {
+    // Find Anchor (Matched with Line Data)
+    // Prioritize annotations that clearly matched an OCR block
+    const anchor = group.find(a =>
+      a.ocr_match_status === 'MATCHED' &&
+      a.hasLineData === true &&
+      a.bbox && a.bbox[2] > 0 // Valid width
+    );
+
+    if (anchor) {
+      group.forEach(floater => {
+        // Snap Floaters (Unmatched or Fallback Visual) to Anchor
+        // Do not snap if it's already matched or is the anchor itself
+        if (floater !== anchor &&
+          (floater.ocr_match_status === 'UNMATCHED' || floater.ocr_match_status === 'FALLBACK' ||
+            (floater.ocr_match_status === 'VISUAL' && !floater.hasLineData))) {
+
+          if (String(questionId).startsWith('6') || String(questionId).startsWith('16')) {
+            console.log(`[SNAP PASS] Snapping "${floater.text}" (${floater.ocr_match_status}) to Anchor "${anchor.text}" in Q${questionId}${subQKey}`);
+          }
+
+          // Copy Anchor properties
+          floater.bbox = [...anchor.bbox] as [number, number, number, number];
+          floater.pageIndex = anchor.pageIndex;
+          floater.ocr_match_status = 'MATCHED'; // Promote to Matched so it draws solidly
+          floater.hasLineData = true; // Treat as having line data now
+
+          // Note: SVGOverlayService handles stacking of identical bboxes automatically
+        }
+      });
+    }
   });
 
   return uniqueResults;

@@ -1139,8 +1139,12 @@ export class MarkingInstructionService {
                       const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
+                        // Check if it's a valid mark code (M, A, B, P, C) and not 0-value
                         if (code && !code.endsWith('0') && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
-                          totalAwarded += 1;
+                          // Extract value from code (e.g. M1 -> 1, B2 -> 2)
+                          const match = code.match(/(\d+)$/);
+                          const value = match ? parseInt(match[1], 10) : 1;
+                          totalAwarded += value;
                         }
                       });
                     }
