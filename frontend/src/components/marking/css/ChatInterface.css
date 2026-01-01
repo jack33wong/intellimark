@@ -1338,3 +1338,50 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   margin: 0;
   padding-right: 20px;
 }
+
+/* Landing Page Intro Image */
+.landing-intro-image-container {
+  margin-top: 40px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  animation: fadeIn 0.8s ease-out forwards;
+  animation-delay: 0.2s;
+}
+
+.landing-intro-image {
+  max-width: 100%;
+  width: 900px;
+  /* Optimal width for readability */
+  height: auto;
+  border-radius: 12px;
+  /* subtle shadow to lift it off the background */
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.05));
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.landing-intro-image:hover {
+  opacity: 1;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .landing-intro-image {
+    width: 95%;
+  }
+}

@@ -461,6 +461,17 @@ const MainLayout: React.FC = () => {
             setContextQuestionId={setActiveQuestionId}
             isNegative={isNegative}
           />
+
+          {/* Intro Image for Landing Page */}
+          {!isFollowUp && (
+            <div className="landing-intro-image-container">
+              <img
+                src="/images/intro-diagram.png"
+                alt="How AI Grading Works"
+                className="landing-intro-image"
+              />
+            </div>
+          )}
         </div>
       </div>
     );
