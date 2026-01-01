@@ -298,12 +298,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   return (
     <div className={`chat-message ${isUser ? 'user' : 'assistant'}`} data-message-id={message.id}>
       <div className="chat-message-content">
-        {message.contextQuestionId && (
-          <div className="message-context-tag">
-            <Brain size={10} />
-            Question {message.contextQuestionId}
-          </div>
-        )}
+
         <div className="chat-message-bubble">
           {!isUser && (
             <div className="assistant-header">

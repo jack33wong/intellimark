@@ -15,8 +15,8 @@
   border: none;
   border-radius: 20px;
   /* Pill shape */
-  background: #2f2f2f;
-  /* Darker background like Gemini */
+  background: var(--background-menu-gray);
+  /* Theme-aware background */
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -25,14 +25,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  border: 1px solid var(--border-main);
 }
 
 .model-selector-button:hover:not(:disabled) {
-  background: #3f3f3f;
+  background: var(--background-hover, var(--background-card-gray));
+  border-color: var(--text-brand);
 }
 
 .model-selector-button:focus {
   outline: none;
+  box-shadow: 0 0 0 2px var(--border-input-active);
 }
 
 .model-selector-button:disabled {
@@ -48,28 +51,41 @@
 
 .model-selector-label {
   font-weight: 500;
-  color: #e3e3e3;
+  color: var(--text-primary);
 }
 
 .model-selector-arrow {
-  color: #c4c7c5;
+  color: var(--text-secondary);
   font-size: 10px;
   margin-top: 2px;
 }
 
 .model-selector-dropdown {
   position: absolute;
-  bottom: calc(100% + 12px);
   /* Float above the pill */
   right: 0;
   z-index: 1001;
-  background: #282a2c;
-  /* Gemini menu background */
+  background: var(--background-nav);
+  /* Theme-aware background */
   border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-L);
   width: 280px;
   overflow: hidden;
-  padding: 8px 0;
+  padding: 4px 0;
+  border: 1px solid var(--border-main);
+  animation: dropdownSlideIn 0.2s ease-out;
+}
+
+@keyframes dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .model-selector-dropdown.direction-down {
@@ -78,32 +94,31 @@
 }
 
 .model-selector-header {
-  padding: 12px 20px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 500;
-  color: #e3e3e3;
-  border-bottom: 1px solid #3c4043;
-  margin-bottom: 8px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-main);
+  margin-bottom: 4px;
 }
 
 .model-selector-option {
   width: 100%;
-  padding: 12px 20px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   transition: background 0.2s ease;
-  color: #e3e3e3;
+  color: var(--text-primary);
 }
 
 .model-selector-option:hover {
-  background: #3c4043;
+  background: var(--background-menu-gray);
 }
 
 .model-selector-option.selected {
   background: transparent;
-  /* Don't use brand color for whole option */
 }
 
 .model-option-info {
@@ -120,12 +135,14 @@
 
 .model-option-label {
   font-weight: 500;
-  font-size: 15px;
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
+/* Badge styles kept for potential future use, but not actively used now */
 .model-option-badge {
-  background: #c2e7ff;
-  color: #001d35;
+  background: var(--background-selection);
+  color: var(--text-blue-dark);
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
@@ -135,12 +152,12 @@
 
 .model-option-description {
   font-size: 12px;
-  color: #9aa0a6;
+  color: var(--text-secondary);
 }
 
 .model-option-check {
-  color: #c2e7ff;
-  /* Gemini blue checkmark */
+  color: var(--text-blue);
+  /* User requested specific color or theme brand color */
 }
 
 /* Size variants - simplified as we are moving to a consistent pill design */

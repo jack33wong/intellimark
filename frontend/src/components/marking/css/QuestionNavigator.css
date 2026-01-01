@@ -114,7 +114,7 @@
     border-bottom: none;
     gap: 0;
     position: relative;
-    z-index: 100;
+    z-index: 90;
     width: 100%;
 }
 

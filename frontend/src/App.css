@@ -466,7 +466,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background-menu-gray);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {

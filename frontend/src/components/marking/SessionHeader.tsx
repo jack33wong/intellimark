@@ -465,21 +465,25 @@ const SessionHeader: React.FC = () => {
 
                     // Show cost section if totalCost exists and is greater than 0
                     if (totalCost !== undefined && totalCost !== null && totalCost > 0) {
+                      const creditsSpent = totalCost * 100;
+                      const llmCredits = (costBreakdown?.llmCost || 0) * 100;
+                      const mathpixCredits = (costBreakdown?.mathpixCost || 0) * 100;
+
                       return (
                         <div className="cost-section">
                           <div className="label-value-item">
-                            <span className="label">Total Cost:</span>
-                            <span className="value">${totalCost.toFixed(2)}</span>
+                            <span className="label">Credits Spent:</span>
+                            <span className="value">{creditsSpent.toFixed(2)}</span>
                           </div>
                           {costBreakdown && (
                             <div className="cost-breakdown">
                               <div className="label-value-item">
-                                <span className="label">LLM Cost:</span>
-                                <span className="value">${costBreakdown.llmCost?.toFixed(2) || '0.00'}</span>
+                                <span className="label">LLM Credits:</span>
+                                <span className="value">{llmCredits.toFixed(2)}</span>
                               </div>
                               <div className="label-value-item">
-                                <span className="label">Mathpix Cost:</span>
-                                <span className="value">${costBreakdown.mathpixCost?.toFixed(2) || '0.00'}</span>
+                                <span className="label">Mathpix Credits:</span>
+                                <span className="value">{mathpixCredits.toFixed(2)}</span>
                               </div>
                             </div>
                           )}

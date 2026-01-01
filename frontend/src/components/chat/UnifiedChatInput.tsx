@@ -457,51 +457,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''} ${mode}`}>
         <div className="followup-input-wrapper">
           {contextQuestionId && (
-            <div className="context-chip-container" style={{ padding: '0 12px 8px 12px' }}>
-              <div
-                className="context-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 10px',
-                  backgroundColor: 'rgba(56, 55, 57, 0.95)', /* More opaque background */
-                  borderRadius: '16px',
-                  fontSize: '11px',
-                  color: '#efefef', /* Brighter text */
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  fontWeight: 600, /* Bolder */
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)' /* Added shadow for contrast */
-                }}
-              >
-                <Brain size={12} style={{ color: '#8b5cf6' }} /> {/* Vibe check: vibrant purple icon */}
-                <span style={{ color: 'white', opacity: 1 }}>Question {contextQuestionId} Focused</span>
-                <span style={{
-                  fontSize: '9px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.25)', /* More vibrant green */
-                  color: '#10b981',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  marginLeft: '2px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.3px'
-                }}>Auto</span>
+            <div className="context-chip-container">
+              <div className="context-chip">
+                <Brain size={12} />
+                <span className="chip-label">Question {contextQuestionId} Focused</span>
+                <span className="chip-sublabel">AUTO</span>
                 <button
                   onClick={() => setContextQuestionId?.(null)}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    padding: '0 2px',
-                    cursor: 'pointer',
-                    color: 'var(--text-secondary)',
-                    marginLeft: '4px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  title="Clear context"
+                  className="context-chip-close"
                 >
-                  <Plus size={12} style={{ transform: 'rotate(45deg)' }} />
+                  <X size={12} />
                 </button>
               </div>
             </div>

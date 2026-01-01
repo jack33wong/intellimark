@@ -1,30 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Moon, Sun, Monitor, Grid, List } from 'lucide-react';
 import useTheme from '../../hooks/useTheme';
+import { STORAGE_KEYS, AI_MODELS } from '../../utils/constants';
 
 const SettingsSection = () => {
     // Theme management via hook
     const { theme, setTheme } = useTheme();
 
-    // Gallery view preference - read from localStorage on mount
-    const [galleryView, setGalleryView] = useState(() => {
-        const saved = localStorage.getItem('galleryViewMode');
-        return saved || 'grid'; // default to 'grid' if not set
+    // Model management - synced with localStorage and other components
+    const [selectedModel, setSelectedModel] = useState(() => {
+        return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || AI_MODELS.GEMINI_2_0_FLASH;
     });
 
-    // Save gallery view to localStorage whenever it changes
+    const models = [
+        {
+            id: AI_MODELS.GEMINI_2_0_FLASH,
+            name: 'Gemini 2.0 Flash',
+            description: 'Answers quickly'
+        },
+        {
+            id: AI_MODELS.GEMINI_2_5_FLASH,
+            name: 'Gemini 2.5 Flash',
+            description: 'Solves complex problems'
+        },
+        {
+            id: AI_MODELS.GEMINI_3_FLASH_PREVIEW,
+            name: 'Gemini 3.0 Flash',
+            description: 'For advanced math & code'
+        },
+        {
+            id: AI_MODELS.OPENAI_GPT_4O,
+            name: 'GPT-4o',
+            description: 'Latest advanced model'
+        },
+    ];
+
+    // Sync with other components via window event
     useEffect(() => {
-        localStorage.setItem('galleryViewMode', galleryView);
-        // Dispatch custom event so SimpleImageGallery can listen and update
-        window.dispatchEvent(new CustomEvent('galleryViewModeChanged', { detail: galleryView }));
-    }, [galleryView]);
+        const handleModelSync = (event) => {
+            const newModel = event.detail;
+            if (newModel && newModel !== selectedModel) {
+                setSelectedModel(newModel);
+            }
+        };
+
+        window.addEventListener('modelChanged', handleModelSync);
+        return () => {
+            window.removeEventListener('modelChanged', handleModelSync);
+        };
+    }, [selectedModel]);
+
+    const handleModelChange = (modelId) => {
+        setSelectedModel(modelId);
+        localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, modelId);
+        // Dispatch event for MarkingPageContext and other listeners
+        window.dispatchEvent(new CustomEvent('modelChanged', { detail: modelId }));
+    };
 
     const handleThemeChange = (newTheme) => {
         setTheme(newTheme);
-    };
-
-    const handleGalleryViewChange = (newView) => {
-        setGalleryView(newView);
     };
 
     return (
@@ -74,29 +108,35 @@ const SettingsSection = () => {
                     </div>
                 </div>
 
-                {/* Gallery View Setting */}
-                <div className="settings-item">
-                    <label className="settings-item-label">Gallery View</label>
-                    <div className="theme-options">
-                        <button
-                            className={`theme-option ${galleryView === 'grid' ? 'active' : ''}`}
-                            onClick={() => handleGalleryViewChange('grid')}
-                        >
-                            <div className="theme-preview">
-                                <Grid size={20} />
-                            </div>
-                            <span className="theme-option-label">Grid View</span>
-                        </button>
+            </div>
 
-                        <button
-                            className={`theme-option ${galleryView === 'horizontal' ? 'active' : ''}`}
-                            onClick={() => handleGalleryViewChange('horizontal')}
-                        >
-                            <div className="theme-preview">
-                                <List size={20} />
-                            </div>
-                            <span className="theme-option-label">Horizontal Scroll</span>
-                        </button>
+            {/* AI Preferences Section */}
+            <div className="settings-section">
+                <h2 className="settings-section-title">AI Preferences</h2>
+                <div className="settings-item">
+                    <label className="settings-item-label">Default Model</label>
+                    <div className="model-options-container">
+                        {models.map(model => (
+                            <button
+                                key={model.id}
+                                className={`model-option-btn ${selectedModel === model.id ? 'active' : ''}`}
+                                onClick={() => handleModelChange(model.id)}
+                            >
+                                <div className="model-info">
+                                    <span className="model-name">
+                                        {model.name}
+                                    </span>
+                                    <span className="model-id">{model.description}</span>
+                                </div>
+                                {selectedModel === model.id && (
+                                    <div className="check-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    </div>
+                                )}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </div>

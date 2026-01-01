@@ -146,6 +146,21 @@ export const MarkingPageProvider = ({
     }
   }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length]);
 
+  // Listen for model changes from Settings (or other tabs)
+  useEffect(() => {
+    const handleModelSync = (event) => {
+      const newModel = event.detail;
+      if (newModel && newModel !== selectedModel) {
+        dispatch({ type: 'SET_SELECTED_MODEL', payload: newModel });
+      }
+    };
+
+    window.addEventListener('modelChanged', handleModelSync);
+    return () => {
+      window.removeEventListener('modelChanged', handleModelSync);
+    };
+  }, [selectedModel]);
+
   // Auto-enter split mode if requested via prop
   useEffect(() => {
     if (autoSplit && currentSession && selectedMarkingResult && currentSession.id === selectedMarkingResult.id) {

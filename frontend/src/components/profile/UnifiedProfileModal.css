@@ -390,8 +390,8 @@
 
 .usage-upgrade-btn {
     background: var(--text-primary);
-    /* White */
-    color: #000;
+    color: var(--modal-bg);
+    /* Adaptive text color */
     border: none;
     padding: 6px 12px;
     border-radius: 20px;
@@ -770,8 +770,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: #2a2a2a;
-    /* Dark badge bg */
+    gap: 6px;
+    background: rgba(125, 125, 125, 0.15);
+    /* Adaptive badge bg */
     border: 1px solid var(--modal-border);
     padding: 6px 12px;
     border-radius: 6px;
@@ -782,10 +783,11 @@
 .plan-details-grid {
     display: grid;
     gap: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    /* Darker specific bg for details */
+    background: rgba(125, 125, 125, 0.08);
+    /* Adaptive bg for both modes */
     padding: 24px;
     border-radius: var(--radius-md);
+    border: 1px solid var(--modal-border);
 }
 
 .plan-detail-row {
@@ -851,10 +853,10 @@
     margin-top: auto;
     width: 100%;
     padding: 12px;
-    background: var(--background-card-gray);
+    background: var(--text-primary);
     border: 1px solid var(--modal-border);
     border-radius: var(--radius-md);
-    color: var(--icon-primary);
+    color: var(--modal-bg);
     font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
@@ -862,6 +864,158 @@
 }
 
 .manage-subscription-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--text-tertiary);
     border-color: var(--text-secondary);
+}
+
+/* Model Option Styles */
+.model-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.model-option-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: transparent;
+    border: 1px solid var(--modal-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    margin: 0;
+}
+
+.model-option-btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.model-option-btn.active {
+    background: rgba(139, 92, 246, 0.1);
+    /* Brand color hint */
+    border-color: var(--text-brand, #8b5cf6);
+}
+
+.model-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.model-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.model-id {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.check-icon {
+    color: var(--text-brand, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Improve Theme Cards for Compact Look */
+.theme-option {
+    border: none !important;
+    background: transparent !important;
+    position: relative;
+    gap: 8px;
+    padding-bottom: 4px;
+}
+
+.theme-preview {
+    border-radius: 8px;
+    border: 2px solid transparent;
+    overflow: hidden;
+    position: relative;
+    background-size: cover;
+    background-position: center;
+}
+
+.theme-option.active .theme-preview {
+    border-color: #2563eb;
+    /* Brand Blue */
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.theme-option-label {
+    padding: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.theme-option.active .theme-option-label {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Compact Theme Cards Update */
+.theme-preview {
+    height: 60px !important;
+    /* Reduced height */
+}
+
+.theme-option-label {
+    padding-top: 6px !important;
+    font-size: 12px !important;
+}
+
+/* Horizontal Model Options Update */
+.model-options-container {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    /* Force 3 columns */
+    gap: 12px !important;
+    flex-direction: row !important;
+}
+
+.model-option-btn {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding: 12px !important;
+    height: 80px !important;
+    /* Fixed height for consistency */
+    position: relative !important;
+}
+
+.model-info {
+    width: 100%;
+}
+
+.model-name {
+    font-size: 13px !important;
+    margin-bottom: 4px !important;
+    display: block !important;
+}
+
+.model-id {
+    font-size: 10px !important;
+    opacity: 0.6 !important;
+    display: block !important;
+}
+
+/* Position check icon in top-right corner */
+.model-option-btn .check-icon {
+    position: absolute !important;
+    top: 6px !important;
+    right: 6px !important;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+/* Make Grid Auto-Fit for better compactness */
+.model-options-container {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
 }

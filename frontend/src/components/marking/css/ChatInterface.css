@@ -339,20 +339,21 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 }
 
 .chat-container::-webkit-scrollbar-track {
-  background: #1a1a1a !important;
-  /* Darker track */
+  background: var(--background-primary) !important;
+  /* Adaptive track */
   border-left: 1px solid var(--border-main) !important;
 }
 
 .chat-container::-webkit-scrollbar-thumb {
-  background: #666 !important;
-  /* Lighter thumb */
+  background: var(--text-secondary) !important;
+  opacity: 0.5;
+  /* Adaptive thumb */
   border-radius: 6px !important;
-  border: 2px solid #1a1a1a !important;
+  border: 2px solid var(--background-primary) !important;
 }
 
 .chat-container::-webkit-scrollbar-thumb:hover {
-  background: #888 !important;
+  background: var(--text-primary) !important;
 }
 
 

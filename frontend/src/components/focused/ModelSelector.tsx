@@ -33,15 +33,13 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       id: AI_MODELS.GEMINI_2_0_FLASH,
       name: 'Gemini 2.0 Flash',
       label: 'Fast',
-      description: 'Answers quickly',
-      badge: 'New'
+      description: 'Answers quickly'
     },
     {
       id: AI_MODELS.GEMINI_2_5_FLASH,
       name: 'Gemini 2.5 Flash',
       label: 'Thinking',
-      description: 'Solves complex problems',
-      badge: 'New'
+      description: 'Solves complex problems'
     },
     {
       id: AI_MODELS.GEMINI_3_FLASH_PREVIEW,
@@ -107,7 +105,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
                 <div className="model-option-info">
                   <div className="model-option-header">
                     <span className="model-option-label">{model.label}</span>
-                    {model.badge && <span className="model-option-badge">{model.badge}</span>}
+
                   </div>
                   <div className="model-option-description">{model.description}</div>
                 </div>

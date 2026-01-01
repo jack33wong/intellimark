@@ -411,25 +411,7 @@
   margin-left: 12px;
 }
 
-/* Message context tag styling */
-.message-context-tag {
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 24px;
-  opacity: 0.8;
-}
 
-.chat-message.user .message-context-tag {
-  justify-content: flex-end;
-}
-
-.chat-message.assistant .message-context-tag {
-  justify-content: flex-start;
-}
 
 /* AI Performance Summary Styling */
 .ai-performance-summary {
