@@ -15,6 +15,7 @@ RULES:
    - Flatten nested parts: "2(a)(i)" → part: "ai", "2(a)(ii)" → part: "aii"
    - Each nested sub-part gets its own entry with its own text.
 4. **NO METADATA**: Do not return bounding boxes or positions.
+5. **DRAWING QUESTIONS (CRITICAL)**: If the question text contains "draw", "plot", "sketch", or "complete" + ("graph", "diagram", "curve", "shape"), make sure to extract the text accurately. This helps the pipeline identify questions that may have neat/invisible student work.
 
 OUTPUT JSON:
 {

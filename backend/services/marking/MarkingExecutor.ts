@@ -268,16 +268,30 @@ export async function executeMarkingForQuestion(
         const ocrSource = result.source || 'classification';
 
         if (ocrSource === 'classification' || ocrSource === 'estimated') {
-          const pageDims = task.pageDimensions?.get(pageIdx);
-          if (pageDims && (bbox[0] !== 0 || bbox[1] !== 0)) {
-            const oldX = bbox[0];
-            finalBbox[0] = (bbox[0] / 100) * pageDims.width;
-            finalBbox[1] = (bbox[1] / 100) * pageDims.height;
-            finalBbox[2] = (bbox[2] / 100) * pageDims.width;
-            finalBbox[3] = (bbox[3] / 100) * pageDims.height;
+          // DEFENSIVE: Only normalize if values look like percentages (0-100)
+          // If they are already large (e.g. > 200), they might be pixels already
+          const looksLikePercentage = bbox[0] < 150 && bbox[1] < 150;
 
-            if (String(task.questionNumber).startsWith('6') || String(task.questionNumber).startsWith('2')) {
-              console.log(`[COORD DEBUG] Q${task.questionNumber} line_${stepIndex + 1} normalized: ${oldX.toFixed(1)}% -> ${Math.round(finalBbox[0])}px (Page ${pageIdx} Width: ${pageDims.width})`);
+          if (looksLikePercentage) {
+            const pageDims = task.pageDimensions?.get(pageIdx);
+            // FALLBACK: If page dimensions are missing, use a safe default instead of skipping
+            const effectiveWidth = pageDims?.width || 2000;
+            const effectiveHeight = pageDims?.height || 3000;
+
+            if (!pageDims) {
+              console.warn(`[COORD WARNING] Missing pageDimensions for Page ${pageIdx} in Q${task.questionNumber}. Using defaults (2000x3000).`);
+            }
+
+            if (bbox[0] !== 0 || bbox[1] !== 0) {
+              const oldX = bbox[0];
+              finalBbox[0] = (bbox[0] / 100) * effectiveWidth;
+              finalBbox[1] = (bbox[1] / 100) * effectiveHeight;
+              finalBbox[2] = (bbox[2] / 100) * effectiveWidth;
+              finalBbox[3] = (bbox[3] / 100) * effectiveHeight;
+
+              if (String(task.questionNumber).startsWith('6') || String(task.questionNumber).startsWith('2')) {
+                console.log(`[COORD DEBUG] Q${task.questionNumber} line_${stepIndex + 1} normalized: ${oldX.toFixed(1)}% -> ${Math.round(finalBbox[0])}px (Page ${pageIdx} Width: ${effectiveWidth})`);
+              }
             }
           }
         }
@@ -1645,12 +1659,27 @@ const enrichAnnotationsWithPositions = (
     if (effectiveVisualPos && (isDrawing || !hasBbox)) {
       const pIdx = (effectiveVisualPos.pageIndex !== undefined) ? effectiveVisualPos.pageIndex : pageIndex;
       const pageDims = pageDimensions?.get(pIdx);
-      if (pageDims) {
+      const effectiveWidth = pageDims?.width || 2000;
+      const effectiveHeight = pageDims?.height || 3000;
+
+      // DEFENSIVE: Treat as percentage if values are small, pixels if large
+      const xVal = parseFloat(effectiveVisualPos.x);
+      const isPercentage = xVal < 150;
+
+      if (isPercentage) {
         pixelBbox = [
-          (parseFloat(effectiveVisualPos.x) / 100) * pageDims.width,
-          (parseFloat(effectiveVisualPos.y) / 100) * pageDims.height,
-          (parseFloat(effectiveVisualPos.width) / 100) * pageDims.width,
-          (parseFloat(effectiveVisualPos.height) / 100) * pageDims.height
+          (xVal / 100) * effectiveWidth,
+          (parseFloat(effectiveVisualPos.y) / 100) * effectiveHeight,
+          (parseFloat(effectiveVisualPos.width || "50") / 100) * effectiveWidth,
+          (parseFloat(effectiveVisualPos.height || "30") / 100) * effectiveHeight
+        ];
+      } else {
+        // Already looks like pixels
+        pixelBbox = [
+          xVal,
+          parseFloat(effectiveVisualPos.y),
+          parseFloat(effectiveVisualPos.width || "100"),
+          parseFloat(effectiveVisualPos.height || "60")
         ];
       }
     } else if (originalStep?.bbox) {

@@ -407,9 +407,13 @@ export class SVGOverlayService {
 
     // FAIL FAST: Log annotation data for debugging
 
+    // NEW: Check for drawing indicators in text or text content
+    const isDrawing = (annotation as any).isDrawing ||
+      (annotation.text && annotation.text.includes('[DRAWING]')) ||
+      (annotation.studentText && annotation.studentText.includes('[DRAWING]'));
+
     // Scale the bounding box coordinates
     // MODIFIED: For split blocks (orange) or fallback (green), use AI position if available
-    // This replaces inaccurate/missing OCR coords with the AI-estimated position
     const hasLineData = (annotation as any).hasLineData;
     const aiPos = (annotation as any).aiPosition;
 
@@ -420,35 +424,31 @@ export class SVGOverlayService {
       aiW_px = (aiPos.width / 100) * originalWidth;
     }
 
-    if ((ocrStatus === 'VISUAL' || positionDecision === 'TRUST_AI' || ocrStatus === 'UNMATCHED') && aiPos) {
-      // Calculate original dimensions from actual dimensions and scale
+    // 2. Determine Coordinate Source
+    // Upstream (MarkingExecutor) now consistently provides bbox in pixels.
+    // We only override x/y if the bbox is missing (0,0) and we have AI position.
+    const isMissingBbox = x === 0 && y === 0;
+
+    if (isMissingBbox && aiPos) {
       const originalWidth = actualWidth / scaleX;
       const originalHeight = actualHeight / scaleY;
 
-      // Convert AI % to Original Pixels
-      const aiW_px = (aiPos.width / 100) * originalWidth;
-      let aiH_orig = (aiPos.height / 100) * originalHeight;
-      const aiY_orig = (aiPos.y / 100) * originalHeight; // AI Y is treated as Center/Baseline
-
-      // SMART HEIGHT CAP: Restrict max height based on density (sub-question count)
-      if (subQuestionCount > 1) {
-        const maxHtPct = 70 / subQuestionCount;
-        const maxHtPx = (maxHtPct / 100) * originalHeight;
-        if (aiH_orig > maxHtPx) aiH_orig = maxHtPx;
-      } else {
-        const maxHtPx = 0.85 * originalHeight;
-        if (aiH_orig > maxHtPx) aiH_orig = maxHtPx;
-      }
-
-      x = (aiPos.x / 100) * originalWidth;
-      y = aiY_orig;
-      width = aiW_px;
-      height = aiH_orig;
+      x = (parseFloat(String(aiPos.x)) / 100) * originalWidth;
+      y = (parseFloat(String(aiPos.y)) / 100) * originalHeight;
+      width = (parseFloat(String(aiPos.width || "50")) / 100) * originalWidth;
+      height = (parseFloat(String(aiPos.height || "30")) / 100) * originalHeight;
     } else {
-      // TRUST_OCR case: Upstream (MarkingExecutor) now consistently provides bbox in pixels for all statuses
-      if (aiW_px > 0) {
+      // TRUST_OCR/EXECUTIVE case: Use bbox from executor, but maybe override dimensions from AI if requested
+      if (aiW_px > 0 && (positionDecision === 'TRUST_AI' || isDrawing)) {
         width = aiW_px;
+        // height = ... // Keep OCR height usually as it fits the text better
       }
+    }
+
+    // DEBUG LOG: Track coordinate final state for specific questions (e.g. Q10, Q20)
+    const qNum = (annotation as any).questionNumber || '';
+    if (qNum === '10' || qNum === '20' || String(qNum).startsWith('6')) {
+      console.log(`[SVG DEBUG] Q${qNum} Annotation: action=${action}, ocr=${ocrStatus}, posDecision=${positionDecision}, finalX=${x.toFixed(1)}, finalW=${width.toFixed(1)} (aiPos.x=${aiPos?.x})`);
     }
 
     // 2. Clamp Box Position to paper boundaries
@@ -489,11 +489,6 @@ export class SVGOverlayService {
     let borderColor = 'black';
     let strokeDash = 'none';
 
-    // NEW: Check for drawing indicators in text or text content
-    const isDrawing = (annotation as any).isDrawing ||
-      (annotation.text && annotation.text.includes('[DRAWING]')) ||
-      (annotation.studentText && annotation.studentText.includes('[DRAWING]'));
-
     if (isDrawing) {
       // Drawing - use yellow as requested by user
       borderColor = 'yellow';
@@ -518,10 +513,8 @@ export class SVGOverlayService {
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;
 
-    // Determine if we should show classification text (only for AI-positioned blocks)
-    // Determine if we should show classification text (only for AI-positioned blocks)
-    // We treat unmatched/fallback blocks as candidates for showing what the AI saw
-    const useAiPos = (hasLineData === false || ocrStatus === 'FALLBACK' || ocrStatus === 'UNMATCHED') && aiPos;
+    // Determine if we should show classification text (only for AI-positioned blocks or missing OCR)
+    const useAiPos = (hasLineData === false || ocrStatus === 'FALLBACK' || ocrStatus === 'UNMATCHED' || isMissingBbox) && aiPos;
     const classificationText = useAiPos ? (annotation as any).classification_text : undefined;
 
     // Determine if we should show classification text (green)

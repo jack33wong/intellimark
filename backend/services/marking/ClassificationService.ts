@@ -984,7 +984,15 @@ ${pageHints}
         q.studentWorkLines.forEach((line: any, i: number) => {
           let p = line.position;
           // Normalize 0-1000 scale to 0-100
-          if (p && (p.x > 100 || p.y > 100 || p.width > 100 || p.height > 100)) {
+          // Use a higher threshold (150) to avoid false positives from slight percentage overflows (>100)
+          // Also check if multiple dimensions are large to be more confident it's 0-1000
+          const isLargeScale = p && (
+            (p.x > 120 || p.y > 120) ||
+            (p.width > 200 || p.height > 200) ||
+            (p.x > 100 && p.y > 100)
+          );
+
+          if (isLargeScale) {
             p = {
               x: p.x / 10,
               y: p.y / 10,
@@ -1009,8 +1017,14 @@ ${pageHints}
           if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines) && sq.studentWorkLines.length > 0) {
             sq.studentWorkLines.forEach((line: any, i: number) => {
               let p = line.position;
-              // Normalize 0-1000 scale to 0-100
-              if (p && (p.x > 100 || p.y > 100 || p.width > 100 || p.height > 100)) {
+              // Normalize 0-1000 scale to 0-100 (same robust heuristic)
+              const isLargeScale = p && (
+                (p.x > 120 || p.y > 120) ||
+                (p.width > 200 || p.height > 200) ||
+                (p.x > 100 && p.y > 100)
+              );
+
+              if (isLargeScale) {
                 p = {
                   x: p.x / 10,
                   y: p.y / 10,

@@ -585,6 +585,21 @@ export class MarkingPipelineService {
                 }
             }
 
+            // Override 3: 90% Student Work Rule
+            // If >= 90% of the document has student work, treat the remaining questionOnly pages as student work too
+            // (Likely a neat drawing or subtle work the AI missed)
+            const nonMetadataPages = allClassificationResults.filter(r => r.result?.category !== 'metadata' && r.result?.category !== 'frontPage');
+            const studentWorkPages = nonMetadataPages.filter(r => r.result?.category === 'questionAnswer');
+
+            if (nonMetadataPages.length > 5 && (studentWorkPages.length / nonMetadataPages.length) >= 0.9) {
+                console.log(`🚀 [OVERRIDE] 90% Rule Triggered: ${studentWorkPages.length}/${nonMetadataPages.length} pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.`);
+                allClassificationResults.forEach(r => {
+                    if (r.result?.category === 'questionOnly') {
+                        r.result.category = 'questionAnswer';
+                    }
+                });
+            }
+
             // Override 2: FrontPage → questionOnly when no actual student work exists
             const hasActualStudentWork = allClassificationResults.some(r => r.result?.category === 'questionAnswer');
             const hasFrontPages = allClassificationResults.some(r => r.result?.category === 'frontPage');
@@ -997,6 +1012,28 @@ export class MarkingPipelineService {
             const detectionStats = orchestrationResult.detectionStats;
             classificationResult = orchestrationResult.updatedClassificationResult;
 
+            // NEW: Extract dominant paper hint for consistent detection in mixed mode
+            let dominantPaperHint: string | null = null;
+            const paperCounts = new Map<string, number>();
+            detectionResults.forEach(res => {
+                if (res.detectionResult?.found && res.detectionResult?.match?.paperTitle) {
+                    const title = res.detectionResult.match.paperTitle;
+                    paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
+                }
+            });
+
+            let maxCount = 0;
+            paperCounts.forEach((count, title) => {
+                if (count > maxCount) {
+                    maxCount = count;
+                    dominantPaperHint = title;
+                }
+            });
+
+            if (dominantPaperHint) {
+                console.log(`📍 [PIPELINE] Detected consensus paper: "${dominantPaperHint}". Will use as hint for question-only pages.`);
+            }
+
             logQuestionDetectionComplete();
 
             // Log detection statistics
@@ -1369,7 +1406,8 @@ export class MarkingPipelineService {
                     startTime,
                     logStep,
                     usageTracker,
-                    suppressSseCompletion: true  // CRITICAL: Suppress completion in mixed mode!
+                    suppressSseCompletion: true,  // CRITICAL: Suppress completion in mixed mode!
+                    examPaperHint: dominantPaperHint // ✅ Pass paper hint from marking pass
                 });
 
                 console.log(`✅ [QUESTION-ONLY] Processed ${questionOnlyPages.length} page(s)`);

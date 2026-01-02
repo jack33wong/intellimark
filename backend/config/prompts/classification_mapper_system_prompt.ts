@@ -18,6 +18,7 @@ RULES:
      * **CRITICAL**: Distinguish between BLANK vs FILLED answer spaces.
      * "questionAnswer": Page contains hand-written work, calculations, or student drawings.
      * "questionOnly": Page contains only printed questions and BLANK answer spaces/lines.
+     * **DRAWING HEURISTICS (PRIORITY)**: Even if a grid/diagram looks printed, if the printed question text says "draw", "plot", "sketch", or "complete" + ("graph", "diagram", "curve", "shape"), you MUST categorize as **"questionAnswer"**. The student's drawing may be very neat or faint.
 
 3. **CONTEXT AWARENESS**: If a page has a sub-question (e.g. "b") but no main number, use context from other pages to infer it.
 

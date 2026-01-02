@@ -1370,8 +1370,8 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     subject = 'Maths';
   }
 
-  if (examBoard && subject && examCode && examSeries) {
-    return `${examBoard} ${subject} ${examCode} (${examSeries}) ${questionNumberDisplay} ${totalMarks} marks`;
+  if (examBoard && examCode && examSeries) {
+    return `${examSeries} ${examCode} ${examBoard} ${questionNumberDisplay} ${totalMarks} marks`;
   }
 
   // Fallback if missing exam details

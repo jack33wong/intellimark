@@ -213,7 +213,8 @@ export class ChatContextBuilder {
 
         if (markingContext.examInfo) {
             const e = markingContext.examInfo;
-            prompt += `** Exam **: ${e.examBoard} ${e.subject} ${e.examCode} (${e.examSeries}) \n`;
+            // Unify with Sidebar format: Series Code Board
+            prompt += `** Exam **: ${e.examSeries} ${e.examCode} ${e.examBoard} \n`;
         }
 
         if (markingContext.grade) {
@@ -233,7 +234,7 @@ export class ChatContextBuilder {
                 // Re-add overall basics but focused
                 if (markingContext.examInfo) {
                     const e = markingContext.examInfo;
-                    prompt += `** Exam **: ${e.examBoard} ${e.subject} ${e.examCode} (${e.examSeries}) \n`;
+                    prompt += `** Exam **: ${e.examSeries} ${e.examCode} ${e.examBoard} \n`;
                 }
                 prompt += `\n`;
             } else {

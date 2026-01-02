@@ -54,7 +54,8 @@ export class QuestionModeHandlerService {
     startTime,
     logStep,
     usageTracker,  // Add tracker parameter
-    suppressSseCompletion = false  // Skip SSE completion in mixed mode
+    suppressSseCompletion = false,  // Skip SSE completion in mixed mode
+    examPaperHint = null // ✅ Accept optional paper hint
   }: {
     classificationResult: any;
     standardizedPages: StandardizedPage[];
@@ -68,6 +69,7 @@ export class QuestionModeHandlerService {
     logStep: (stepName: string, modelInfo: string) => () => void;
     usageTracker: UsageTracker;  // Add tracker type
     suppressSseCompletion?: boolean;  // Optional flag for mixed mode
+    examPaperHint?: string | null; // ✅ Optional hint for mixed mode
   }): Promise<QuestionModeResult> {
     console.log(`📚 [QUESTION MODE] Processing ${standardizedPages.length} question-only image(s)`);
 
@@ -82,7 +84,8 @@ export class QuestionModeHandlerService {
     // Use unified orchestration service (same as Marking Mode)
     const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
       individualQuestions,
-      classificationResult
+      classificationResult,
+      examPaperHint // ✅ Pass paper hint for consistent detection
     );
 
     const { detectionStats, detectionResults } = orchestrationResult;
@@ -219,7 +222,7 @@ export class QuestionModeHandlerService {
           markingScheme: markingSchemePlainText,
           examBoard: metadata.examBoard,
           examCode: metadata.examCode,
-          paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
+          paperTitle: qd.detection.match ? `${qd.detection.match.examSeries} ${qd.detection.match.paperCode} ${qd.detection.match.board === 'Pearson Edexcel' ? 'Edexcel' : qd.detection.match.board}` : '',
           subject: metadata.subject, // ✅ From utility (always match.subject)
           tier: metadata.tier,
           examSeries: metadata.examSeries,

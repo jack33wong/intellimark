@@ -235,7 +235,7 @@ export class SessionManagementService {
           examSeries: match.examSeries || '',
           tier: match.tier || '',
           subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
-          paperTitle: match ? `${match.board} ${actualSubject || match.qualification} ${match.paperCode} (${match.examSeries})` : '',
+          paperTitle: match ? `${match.examSeries} ${match.paperCode} ${match.board === 'Pearson Edexcel' ? 'Edexcel' : match.board}` : '',
           questions: [{
             questionNumber: match.questionNumber || '',
             questionText: questionText,
@@ -329,8 +329,9 @@ export class SessionManagementService {
         // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
-          const { board, qualification, paperCode, examSeries, tier } = firstQuestionDetection.match;
-          return `${board} ${qualification} ${paperCode} (${examSeries}) ${questionNumberDisplay} ${totalMarks} marks`;
+          let { board, qualification, paperCode, examSeries, tier } = firstQuestionDetection.match;
+          if (board === 'Pearson Edexcel') board = 'Edexcel';
+          return `${examSeries} ${paperCode} ${board} ${questionNumberDisplay} ${totalMarks} marks`;
         }
       }
     }

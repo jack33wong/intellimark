@@ -725,9 +725,12 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
 // Helper function to generate session title
 export function generateSessionTitle(questionDetection: any, extractedQuestionText: string, mode: 'Question' | 'Marking'): string {
-  return questionDetection?.found && questionDetection.match
-    ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.examSeries})`
-    : generateNonPastPaperTitle(extractedQuestionText, mode);
+  if (questionDetection?.found && questionDetection.match) {
+    let { board, paperCode, examSeries, questionNumber } = questionDetection.match;
+    if (board === 'Pearson Edexcel') board = 'Edexcel';
+    return `${examSeries} ${paperCode} ${board} Q${questionNumber}`;
+  }
+  return generateNonPastPaperTitle(extractedQuestionText, mode);
 }
 
 // Helper function to get suggested follow-ups
