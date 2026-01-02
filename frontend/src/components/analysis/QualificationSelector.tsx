@@ -47,7 +47,7 @@ const QualificationSelector: React.FC<QualificationSelectorProps> = ({
   }
 
   return (
-    <div className="qualification-selector-container" ref={dropdownRef}>
+    <div className={`qualification-selector-container ${isOpen ? 'is-open' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         className="qualification-selector-button"

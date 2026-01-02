@@ -8,6 +8,11 @@
   display: block;
   width: 100%;
   margin-bottom: 0;
+  z-index: 10;
+}
+
+.exam-board-selector-container.is-open {
+  z-index: 1001;
 }
 
 .exam-board-selector-button {
@@ -62,7 +67,7 @@
 }
 
 .exam-board-selector-container:active .exam-board-selector-arrow,
-.exam-board-selector-dropdown:active ~ .exam-board-selector-button .exam-board-selector-arrow {
+.exam-board-selector-dropdown:active~.exam-board-selector-button .exam-board-selector-arrow {
   transform: rotate(180deg);
 }
 

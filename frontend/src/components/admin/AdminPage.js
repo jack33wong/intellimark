@@ -40,6 +40,39 @@ const formatMode = (mode) => {
   return mode.charAt(0).toUpperCase() + mode.slice(1).replace(/-/g, ' ');
 };
 
+/**
+ * Normalize exam board name for comparison
+ */
+const normalizeExamBoard = (board) => {
+  if (!board) return '';
+  const normalized = board.toLowerCase().trim();
+  // Map common variations
+  if (normalized.includes('edexcel')) return 'Pearson Edexcel';
+  if (normalized.includes('aqa')) return 'AQA';
+  if (normalized.includes('ocr')) return 'OCR';
+  if (normalized.includes('wjec')) return 'WJEC';
+  if (normalized.includes('eduqas')) return 'Eduqas';
+  return board; // Return original if no match
+};
+
+/**
+ * Normalize exam series mapping (e.g., "May 2024" to "June 2024" for Edexcel)
+ */
+const normalizeExamSeries = (series, board) => {
+  if (!series) return '';
+  const normalizedSeries = series.trim();
+  const normalizedBoard = board ? normalizeExamBoard(board) : '';
+
+  // Pearson Edexcel: map "May [Year]" to "June [Year]"
+  if (normalizedBoard === 'Pearson Edexcel' || !normalizedBoard) {
+    if (/^May\s+\d{4}$/i.test(normalizedSeries)) {
+      return normalizedSeries.replace(/^May/i, 'June');
+    }
+  }
+
+  return normalizedSeries;
+};
+
 
 
 // Format marking scheme as Markdown
@@ -221,18 +254,24 @@ function AdminPage() {
 
     if (!board || !examSeries || !code) return false;
 
+    // Normalize target
+    const targetBoard = normalizeExamBoard(board);
+    const targetSeries = normalizeExamSeries(examSeries, targetBoard).toLowerCase();
+    const targetCode = code.trim().toLowerCase();
+
     return markingSchemeEntries.some(entry => {
       const schemeData = entry.data || entry;
       const examDetails = schemeData.examDetails || schemeData.exam || {};
 
-      const schemeBoard = (examDetails.exam_board || examDetails.board || '').trim().toLowerCase();
-      const schemeSeries = (examDetails.exam_series || examDetails.date || '').trim().toLowerCase();
+      const schemeBoardRaw = examDetails.exam_board || examDetails.board || '';
+      const schemeBoard = normalizeExamBoard(schemeBoardRaw);
+
+      const schemeSeriesRaw = examDetails.exam_series || examDetails.date || '';
+      const schemeSeries = normalizeExamSeries(schemeSeriesRaw, schemeBoard).toLowerCase();
+
       const schemeCode = (examDetails.exam_code || examDetails.code || examDetails.paperCode || '').trim().toLowerCase();
 
-      const targetBoard = board.trim().toLowerCase();
-      const targetSeries = examSeries.trim().toLowerCase();
-      const targetCode = code.trim().toLowerCase();
-
+      // Loose series match for existing logic support
       const seriesMatch = schemeSeries === targetSeries ||
         schemeSeries === targetSeries.replace(/^june\s+/i, '');
 
@@ -247,8 +286,12 @@ function AdminPage() {
 
     const normalize = (str) => (str || '').toLowerCase().trim();
 
-    const targetBoard = normalize(examMeta.board || examMeta.exam_board);
-    const targetSeries = normalize(examMeta.exam_series);
+    const rawBoard = examMeta.board || examMeta.exam_board;
+    const targetBoard = normalizeExamBoard(rawBoard);
+
+    const rawSeries = examMeta.exam_series;
+    const targetSeries = normalize(normalizeExamSeries(rawSeries, targetBoard));
+
     const targetSubject = normalize(examMeta.subject || examMeta.qualification);
     const targetCode = normalize(examMeta.code || examMeta.exam_code);
 
@@ -256,10 +299,13 @@ function AdminPage() {
 
     return gradeBoundaryEntries.some(entry => {
       const boundaryData = entry.data || entry;
-      const boundaryBoard = normalize(boundaryData.exam_board);
-      const boundarySeries = normalize(boundaryData.exam_series);
+      const boundaryBoardRaw = boundaryData.exam_board;
+      const boundaryBoard = normalizeExamBoard(boundaryBoardRaw);
 
-      // 1. Board Match (Loose: handles "Pearson Edexcel" vs "Edexcel")
+      const boundarySeriesRaw = boundaryData.exam_series;
+      const boundarySeries = normalize(normalizeExamSeries(boundarySeriesRaw, boundaryBoard));
+
+      // 1. Board Match
       const boardMatch = boundaryBoard === targetBoard ||
         boundaryBoard.includes(targetBoard) ||
         targetBoard.includes(boundaryBoard);
@@ -1235,9 +1281,10 @@ function AdminPage() {
                           const hasBoundary = hasGradeBoundary(entry);
 
                           // Determine render group color
-                          if (examSeries !== lastSeries) {
+                          const currentGroupSeries = entry.normalizedSeries || examSeries;
+                          if (currentGroupSeries !== lastSeries) {
                             isOdd = !isOdd;
-                            lastSeries = examSeries;
+                            lastSeries = currentGroupSeries;
                           }
 
                           return (
@@ -1526,9 +1573,10 @@ function AdminPage() {
                           }, 0);
 
                           // Determine render group color
-                          if (examSeries !== lastSeries) {
+                          const currentGroupSeries = entry.normalizedSeries || examSeries;
+                          if (currentGroupSeries !== lastSeries) {
                             isOdd = !isOdd;
-                            lastSeries = examSeries;
+                            lastSeries = currentGroupSeries;
                           }
 
                           return (
@@ -1863,199 +1911,210 @@ function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredGradeBoundaries.map(entry => {
-                        const examBoard = entry.exam_board || entry.examBoard || 'N/A';
-                        const qualification = entry.qualification || 'N/A';
-                        const examSeries = entry.exam_series || entry.examSeries || 'N/A';
-                        const subjects = entry.subjects || [];
-                        const subjectCount = subjects.length;
-                        const subjectNames = subjects.map(s => s.name || s.subject || 'Unknown').join(', ');
+                      {(() => {
+                        let lastSeries = null;
+                        let isOdd = false;
 
-                        return (
-                          <React.Fragment key={entry.id}>
-                            <tr className="admin-table__row">
-                              <td className="admin-table__cell exam-paper-link">
-                                <div
-                                  className="clickable-exam-paper"
-                                  onClick={() => {
-                                    setExpandedGradeBoundaryId(expandedGradeBoundaryId === entry.id ? null : entry.id);
-                                  }}
-                                  title="Click to view grade boundary details"
-                                >
-                                  <span className="exam-paper-name">
-                                    {examBoard !== 'N/A' ?
-                                      `${examBoard} ${qualification} (${examSeries})` :
-                                      `Grade Boundary ${entry.id}`
-                                    }
-                                  </span>
-                                  <span className="expand-indicator">
-                                    {expandedGradeBoundaryId === entry.id ? '▼' : '▶'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="admin-table__cell">{examBoard}</td>
-                              <td className="admin-table__cell">{qualification}</td>
-                              <td className="admin-table__cell">{examSeries}</td>
-                              <td className="admin-table__cell">
-                                {subjectCount > 0 ? (
-                                  <span className="question-count">
-                                    {subjectCount} {subjectCount === 1 ? 'subject' : 'subjects'}
-                                  </span>
-                                ) : (
-                                  <span className="no-questions">No subjects</span>
-                                )}
-                              </td>
-                              <td className="admin-table__cell">{formatDate(entry.uploadedAt)}</td>
-                              <td className="admin-table__cell actions-cell">
-                                <button
-                                  className="admin-btn admin-btn--icon"
-                                  onClick={() => setExpandedGradeBoundaryId(expandedGradeBoundaryId === entry.id ? null : entry.id)}
-                                  title="View"
-                                >
-                                  <FileText size={16} />
-                                </button>
-                                <button
-                                  className="admin-btn admin-btn--icon btn-danger"
-                                  onClick={() => deleteGradeBoundaryEntry(entry.id)}
-                                  title="Delete"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </td>
-                            </tr>
+                        return filteredGradeBoundaries.map(entry => {
+                          const examBoard = entry.exam_board || entry.examBoard || 'N/A';
+                          const qualification = entry.qualification || 'N/A';
+                          const examSeries = entry.exam_series || entry.examSeries || 'N/A';
+                          const subjects = entry.subjects || [];
+                          const subjectCount = subjects.length;
 
-                            {/* Expanded content row */}
-                            {expandedGradeBoundaryId === entry.id && (
-                              <tr className="admin-expanded-row">
-                                <td colSpan="7" className="admin-expanded-cell">
-                                  <div className="admin-expanded-content">
-                                    <div className="admin-content-header">
-                                      <h4 className="admin-content-header__title">Grade Boundary Details: {
-                                        examBoard !== 'N/A' ?
-                                          `${examBoard} ${qualification} (${examSeries})` :
-                                          `Grade Boundary ${entry.id}`
-                                      }</h4>
-                                      <div className="admin-content-info">
-                                        <button
-                                          className="admin-close-btn"
-                                          onClick={() => setExpandedGradeBoundaryId(null)}
-                                          title="Close"
-                                        >
-                                          ×
-                                        </button>
-                                      </div>
-                                    </div>
+                          // Determine render group color
+                          const currentGroupSeries = entry.normalizedSeries || examSeries;
+                          if (currentGroupSeries !== lastSeries) {
+                            isOdd = !isOdd;
+                            lastSeries = currentGroupSeries;
+                          }
 
-                                    {/* Exam Information */}
-                                    <div className="admin-questions-content">
-                                      <h6 className="admin-questions-summary__title">Exam Information</h6>
-                                      <div className="admin-questions-summary">
-                                        <span className="admin-summary-item">
-                                          <strong>Exam Board:</strong> {examBoard}
-                                        </span>
-                                        <span className="admin-summary-item">
-                                          <strong>Qualification:</strong> {qualification}
-                                        </span>
-                                        <span className="admin-summary-item">
-                                          <strong>Exam Series:</strong> {examSeries}
-                                        </span>
-                                        <span className="admin-summary-item">
-                                          <strong>Total Subjects:</strong> {subjectCount}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    {/* Subjects and Grade Boundaries */}
-                                    {subjects.length > 0 && (
-                                      <div className="admin-questions-content">
-                                        <h6 className="admin-questions-summary__title">Subjects and Grade Boundaries</h6>
-                                        <div className="admin-questions-list">
-                                          {subjects.map((subject, sIndex) => {
-                                            const subjectName = subject.name || 'Unknown';
-                                            const subjectCode = subject.code || 'N/A';
-                                            const maxMark = subject.max_mark || 0;
-                                            const tiers = subject.tiers || [];
-
-                                            return (
-                                              <div key={sIndex} className="admin-question-item">
-                                                <div className="admin-question-header">
-                                                  <div className="admin-question-main">
-                                                    <span className="admin-question-number">{subjectName}</span>
-                                                    <span className="admin-question-text">Code: {subjectCode} | Max Mark: {maxMark}</span>
-                                                  </div>
-                                                </div>
-
-                                                {tiers.length > 0 && (
-                                                  <div className="admin-sub-questions">
-                                                    {tiers.map((tier, tIndex) => {
-                                                      const tierLevel = tier.tier_level || 'Unknown';
-                                                      const paperCodes = tier.paper_codes || [];
-                                                      const boundaries = tier.papers_combined_boundaries?.total_raw_mark_required || {};
-
-                                                      return (
-                                                        <div key={tIndex} className="admin-sub-question-item">
-                                                          <div className="admin-sub-question-content">
-                                                            <span className="admin-sub-question-number">{tierLevel}</span>
-                                                            <span className="admin-sub-question-text">
-                                                              Papers: {paperCodes.join(', ')}
-                                                            </span>
-                                                          </div>
-                                                          {Object.keys(boundaries).length > 0 && (
-                                                            <div className="grade-boundaries-list">
-                                                              <strong>Grade Boundaries:</strong>
-                                                              <div className="grade-boundaries-grid">
-                                                                {Object.entries(boundaries)
-                                                                  .sort(([a], [b]) => {
-                                                                    const numA = parseInt(a);
-                                                                    const numB = parseInt(b);
-                                                                    if (!isNaN(numA) && !isNaN(numB)) {
-                                                                      return numB - numA; // Descending order (9, 8, 7...)
-                                                                    }
-                                                                    return b.localeCompare(a);
-                                                                  })
-                                                                  .map(([grade, mark]) => (
-                                                                    <div key={grade} className="grade-boundary-item">
-                                                                      <span className="grade-label">Grade {grade}:</span>
-                                                                      <span className="grade-mark">{mark} marks</span>
-                                                                    </div>
-                                                                  ))}
-                                                              </div>
-                                                            </div>
-                                                          )}
-                                                        </div>
-                                                      );
-                                                    })}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Metadata */}
-                                    <div className="admin-metadata-section">
-                                      <h6>Metadata</h6>
-                                      <div className="metadata-info">
-                                        <p><strong>ID:</strong> {entry.id}</p>
-                                        <p><strong>Uploaded:</strong> {formatDate(entry.uploadedAt)}</p>
-                                      </div>
-                                    </div>
-
-                                    <details style={{ marginTop: '16px' }}>
-                                      <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Grade Boundary Data</summary>
-                                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
-                                        {JSON.stringify(entry, null, 2)}
-                                      </pre>
-                                    </details>
+                          return (
+                            <React.Fragment key={entry.id}>
+                              <tr className={`admin-table__row ${isOdd ? 'admin-row-odd' : 'admin-row-even'}`}>
+                                <td className="admin-table__cell exam-paper-link">
+                                  <div
+                                    className="clickable-exam-paper"
+                                    onClick={() => {
+                                      setExpandedGradeBoundaryId(expandedGradeBoundaryId === entry.id ? null : entry.id);
+                                    }}
+                                    title="Click to view grade boundary details"
+                                  >
+                                    <span className="exam-paper-name">
+                                      {examBoard !== 'N/A' ?
+                                        `${examBoard} ${qualification} (${examSeries})` :
+                                        `Grade Boundary ${entry.id}`
+                                      }
+                                    </span>
+                                    <span className="expand-indicator">
+                                      {expandedGradeBoundaryId === entry.id ? '▼' : '▶'}
+                                    </span>
                                   </div>
                                 </td>
+                                <td className="admin-table__cell">{examBoard}</td>
+                                <td className="admin-table__cell">{qualification}</td>
+                                <td className="admin-table__cell">{examSeries}</td>
+                                <td className="admin-table__cell">
+                                  {subjectCount > 0 ? (
+                                    <span className="question-count">
+                                      {subjectCount} {subjectCount === 1 ? 'subject' : 'subjects'}
+                                    </span>
+                                  ) : (
+                                    <span className="no-questions">No subjects</span>
+                                  )}
+                                </td>
+                                <td className="admin-table__cell">{formatDate(entry.uploadedAt)}</td>
+                                <td className="admin-table__cell actions-cell">
+                                  <button
+                                    className="admin-btn admin-btn--icon"
+                                    onClick={() => setExpandedGradeBoundaryId(expandedGradeBoundaryId === entry.id ? null : entry.id)}
+                                    title="View"
+                                  >
+                                    <FileText size={16} />
+                                  </button>
+                                  <button
+                                    className="admin-btn admin-btn--icon btn-danger"
+                                    onClick={() => deleteGradeBoundaryEntry(entry.id)}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
                               </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
+
+                              {/* Expanded content row */}
+                              {expandedGradeBoundaryId === entry.id && (
+                                <tr className="admin-expanded-row">
+                                  <td colSpan="7" className="admin-expanded-cell">
+                                    <div className="admin-expanded-content">
+                                      <div className="admin-content-header">
+                                        <h4 className="admin-content-header__title">Grade Boundary Details: {
+                                          examBoard !== 'N/A' ?
+                                            `${examBoard} ${qualification} (${examSeries})` :
+                                            `Grade Boundary ${entry.id}`
+                                        }</h4>
+                                        <div className="admin-content-info">
+                                          <button
+                                            className="admin-close-btn"
+                                            onClick={() => setExpandedGradeBoundaryId(null)}
+                                            title="Close"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Exam Information */}
+                                      <div className="admin-questions-content">
+                                        <h6 className="admin-questions-summary__title">Exam Information</h6>
+                                        <div className="admin-questions-summary">
+                                          <span className="admin-summary-item">
+                                            <strong>Exam Board:</strong> {examBoard}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Qualification:</strong> {qualification}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Exam Series:</strong> {examSeries}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Total Subjects:</strong> {subjectCount}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Subjects and Grade Boundaries */}
+                                      {subjects.length > 0 && (
+                                        <div className="admin-questions-content">
+                                          <h6 className="admin-questions-summary__title">Subjects and Grade Boundaries</h6>
+                                          <div className="admin-questions-list">
+                                            {subjects.map((subject, sIndex) => {
+                                              const subjectName = subject.name || 'Unknown';
+                                              const subjectCode = subject.code || 'N/A';
+                                              const maxMark = subject.max_mark || 0;
+                                              const tiers = subject.tiers || [];
+
+                                              return (
+                                                <div key={sIndex} className="admin-question-item">
+                                                  <div className="admin-question-header">
+                                                    <div className="admin-question-main">
+                                                      <span className="admin-question-number">{subjectName}</span>
+                                                      <span className="admin-question-text">Code: {subjectCode} | Max Mark: {maxMark}</span>
+                                                    </div>
+                                                  </div>
+
+                                                  {tiers.length > 0 && (
+                                                    <div className="admin-sub-questions">
+                                                      {tiers.map((tier, tIndex) => {
+                                                        const tierLevel = tier.tier_level || 'Unknown';
+                                                        const paperCodes = tier.paper_codes || [];
+                                                        const boundaries = tier.papers_combined_boundaries?.total_raw_mark_required || {};
+
+                                                        return (
+                                                          <div key={tIndex} className="admin-sub-question-item">
+                                                            <div className="admin-sub-question-content">
+                                                              <span className="admin-sub-question-number">{tierLevel}</span>
+                                                              <span className="admin-sub-question-text">
+                                                                Papers: {paperCodes.join(', ')}
+                                                              </span>
+                                                            </div>
+                                                            {Object.keys(boundaries).length > 0 && (
+                                                              <div className="grade-boundaries-list">
+                                                                <strong>Grade Boundaries:</strong>
+                                                                <div className="grade-boundaries-grid">
+                                                                  {Object.entries(boundaries)
+                                                                    .sort(([a], [b]) => {
+                                                                      const numA = parseInt(a);
+                                                                      const numB = parseInt(b);
+                                                                      if (!isNaN(numA) && !isNaN(numB)) {
+                                                                        return numB - numA; // Descending order (9, 8, 7...)
+                                                                      }
+                                                                      return b.localeCompare(a);
+                                                                    })
+                                                                    .map(([grade, mark]) => (
+                                                                      <div key={grade} className="grade-boundary-item">
+                                                                        <span className="grade-label">Grade {grade}:</span>
+                                                                        <span className="grade-mark">{mark} marks</span>
+                                                                      </div>
+                                                                    ))}
+                                                                </div>
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Metadata */}
+                                      <div className="admin-metadata-section">
+                                        <h6>Metadata</h6>
+                                        <div className="metadata-info">
+                                          <p><strong>ID:</strong> {entry.id}</p>
+                                          <p><strong>Uploaded:</strong> {formatDate(entry.uploadedAt)}</p>
+                                        </div>
+                                      </div>
+
+                                      <details style={{ marginTop: '16px' }}>
+                                        <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Grade Boundary Data</summary>
+                                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
+                                          {JSON.stringify(entry, null, 2)}
+                                        </pre>
+                                      </details>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -2493,7 +2552,7 @@ function AdminPage() {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }
 

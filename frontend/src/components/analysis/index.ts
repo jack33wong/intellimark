@@ -15,3 +15,12 @@ export { default as PaperCodeSetSelector } from './PaperCodeSetSelector';
 export { default as PaperCodeAggregatedStats } from './PaperCodeAggregatedStats';
 export { default as ExamSeriesTierReminder } from './ExamSeriesTierReminder';
 
+// Utility functions
+export {
+    groupMarkingResults,
+    extractPaperCode,
+    normalizeExamBoard,
+    normalizeExamSeries,
+    parseExamSeriesDate
+} from './markingResultsUtils';
+

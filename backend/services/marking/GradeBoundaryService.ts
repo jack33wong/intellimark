@@ -4,6 +4,7 @@
  */
 
 import { getFirestore } from '../../config/firebase.js';
+import { NormalizationService } from './NormalizationService';
 import type { UnifiedSession } from '../../types/index.js';
 
 export interface GradeBoundaryEntry {
@@ -202,9 +203,12 @@ export class GradeBoundaryService {
       }
 
       // Query grade boundaries collection
+      // Normalize search series (e.g., "May 2024" -> "June 2024" for Edexcel)
+      const normalizedSearchSeries = NormalizationService.normalizeExamSeries(examSeries, examBoard);
+
       const snapshot = await db.collection('gradeBoundaries')
         .where('exam_board', '==', examBoard)
-        .where('exam_series', '==', examSeries)
+        .where('exam_series', '==', normalizedSearchSeries)
         .get();
 
       if (snapshot.empty) {

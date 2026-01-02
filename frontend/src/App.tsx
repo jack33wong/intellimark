@@ -11,8 +11,6 @@ import LibraryPage from './pages/LibraryPage';
 import AnalysisPage from './pages/AnalysisPage';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
-import AboutPage from './pages/AboutPage';
-import AnalysisDashboard from './pages/AnalysisDashboard';
 import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
 import GuestLimitModal from './components/common/GuestLimitModal';
 import AnalyticsTracker from './components/common/AnalyticsTracker';
@@ -204,19 +202,6 @@ function AppContent() {
           </ProtectedRoute>
         } />
 
-        <Route path="/about" element={
-          <MainLayoutWrapper {...layoutProps}>
-            <AboutPage />
-          </MainLayoutWrapper>
-        } />
-
-        <Route path="/dashboard" element={
-          <OptionalAuthRoute>
-            <MainLayoutWrapper {...layoutProps}>
-              <AnalysisDashboard />
-            </MainLayoutWrapper>
-          </OptionalAuthRoute>
-        } />
 
         <Route path="/mark-homework" element={
           <OptionalAuthRoute>

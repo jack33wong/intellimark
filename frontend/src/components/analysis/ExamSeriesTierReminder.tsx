@@ -1,9 +1,9 @@
-/**
- * Exam Series and Tier Reminder Component
- * Shows a yellow reminder about missing exam series and tiers in the last 5 years
- */
-
 import React, { useMemo } from 'react';
+import {
+  normalizeExamBoard,
+  parseExamSeriesDate,
+  extractPaperCode
+} from './markingResultsUtils';
 import './ExamSeriesTierReminder.css';
 
 interface MarkingResult {
@@ -64,13 +64,6 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
       return normalizeExamBoard(gb.exam_board) === normalizeExamBoard(selectedExamBoard);
     });
 
-    // Extract paper code from examCode (e.g., "1MA1/1H" -> "1H")
-    const extractPaperCode = (examCode: string): string | null => {
-      if (!examCode || !examCode.includes('/')) return null;
-      const parts = examCode.split('/');
-      return parts.length > 1 ? parts[parts.length - 1].trim() : null;
-    };
-
     // Get attempted results (last 5 years, filtered by board and qualification)
     const relevantResults = markingResults.filter(mr => {
       const matchesBoard = normalizeExamBoard(mr.examMetadata.examBoard) === normalizeExamBoard(selectedExamBoard);
@@ -82,14 +75,14 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
 
     // Build a map: examSeries -> paperCodeSet -> attempted paper codes
     const attemptedMap = new Map<string, Map<string, Set<string>>>();
-    
+
     relevantResults.forEach(mr => {
       const series = mr.examMetadata.examSeries;
       const paperCode = extractPaperCode(mr.examMetadata.examCode);
       if (!series || !paperCode) return;
 
       // Find which paper code set this paper code belongs to
-      const paperCodeSet = availablePaperCodeSets.find(set => 
+      const paperCodeSet = availablePaperCodeSets.find(set =>
         set.paperCodes.includes(paperCode)
       );
       if (!paperCodeSet) return;
@@ -127,7 +120,7 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
       gb.subjects.forEach(subject => {
         subject.tiers.forEach(tier => {
           const tierKey = tier.tier_level.toLowerCase();
-          const paperCodeSet = availablePaperCodeSets.find(set => 
+          const paperCodeSet = availablePaperCodeSets.find(set =>
             set.tier.toLowerCase() === tierKey
           );
           if (!paperCodeSet) return;
@@ -160,11 +153,11 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
 
   // Build one-line message
   const parts: string[] = [];
-  
+
   if (missingInfo.incompleteSets.length > 0) {
     parts.push(`Missing paper codes: ${missingInfo.incompleteSets.join('; ')}`);
   }
-  
+
   if (missingInfo.missingSeries.length > 0) {
     parts.push(`Missing exam series: ${missingInfo.missingSeries.join(', ')}`);
   }
@@ -179,43 +172,6 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
     </div>
   );
 };
-
-/**
- * Parse exam series string to Date (e.g., "June 2024" -> Date)
- */
-function parseExamSeriesDate(examSeries: string): Date {
-  const months: { [key: string]: number } = {
-    'january': 0, 'february': 1, 'march': 2, 'april': 3,
-    'may': 4, 'june': 5, 'july': 6, 'august': 7,
-    'september': 8, 'october': 9, 'november': 10, 'december': 11
-  };
-
-  const parts = examSeries.toLowerCase().split(' ');
-  if (parts.length >= 2) {
-    const month = months[parts[0]];
-    const year = parseInt(parts[1], 10);
-    if (month !== undefined && !isNaN(year)) {
-      return new Date(year, month, 1);
-    }
-  }
-  
-  // Fallback: return current date if parsing fails
-  return new Date();
-}
-
-/**
- * Normalize exam board name for comparison
- */
-function normalizeExamBoard(board: string): string {
-  if (!board) return '';
-  const normalized = board.toLowerCase().trim();
-  if (normalized.includes('edexcel')) return 'Pearson Edexcel';
-  if (normalized.includes('aqa')) return 'AQA';
-  if (normalized.includes('ocr')) return 'OCR';
-  if (normalized.includes('wjec')) return 'WJEC';
-  if (normalized.includes('eduqas')) return 'Eduqas';
-  return board;
-}
 
 export default ExamSeriesTierReminder;
 

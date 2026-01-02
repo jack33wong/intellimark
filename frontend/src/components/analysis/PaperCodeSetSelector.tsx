@@ -72,7 +72,7 @@ const PaperCodeSetSelector: React.FC<PaperCodeSetSelectorProps> = ({
   };
 
   return (
-    <div className="paper-code-set-selector-container" ref={dropdownRef}>
+    <div className={`paper-code-set-selector-container ${isOpen ? 'is-open' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         className="paper-code-set-selector-button"

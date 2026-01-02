@@ -5,14 +5,17 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { 
+import {
   AnalysisReport,
   QualificationSelector,
   ExamBoardSelector,
   PaperCodeSetSelector,
   PaperCodeAggregatedStats,
   MarkingResultsTableEnhanced,
-  ExamSeriesTierReminder
+  ExamSeriesTierReminder,
+  normalizeExamBoard,
+  normalizeExamSeries,
+  groupMarkingResults
 } from '../components/analysis';
 import './AnalysisPage.css';
 
@@ -60,23 +63,23 @@ interface PaperCodeStat {
 
 const AnalysisPage: React.FC = () => {
   const { user, getAuthToken } = useAuth();
-  
+
   // Level 1: Qualification
   const [selectedQualification, setSelectedQualification] = useState<string>('GCSE');
   const [availableQualifications, setAvailableQualifications] = useState<string[]>([]);
-  
+
   // Level 2: Subject
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
-  
+
   // Level 3: Exam Board
   const [selectedExamBoard, setSelectedExamBoard] = useState<string>('');
   const [availableExamBoards, setAvailableExamBoards] = useState<string[]>([]);
-  
+
   // Level 4: Paper Code Set
   const [selectedPaperCodeSet, setSelectedPaperCodeSet] = useState<string[] | null>(null);
   const [availablePaperCodeSets, setAvailablePaperCodeSets] = useState<PaperCodeSet[]>([]);
-  
+
   // Data
   const [allMarkingResults, setAllMarkingResults] = useState<MarkingResult[]>([]);
   const [filteredMarkingResults, setFilteredMarkingResults] = useState<MarkingResult[]>([]);
@@ -125,7 +128,7 @@ const AnalysisPage: React.FC = () => {
           // Extract paper code sets from all grade boundary entries
           // Collect all unique tier combinations across all grade boundaries
           const tierMap = new Map<string, PaperCodeSet>();
-          
+
           data.gradeBoundaries.forEach((gb: any) => {
             if (gb.subjects && gb.subjects.length > 0) {
               const subjectData = gb.subjects[0];
@@ -148,7 +151,7 @@ const AnalysisPage: React.FC = () => {
           setAvailablePaperCodeSets(paperCodeSets);
           if (paperCodeSets.length > 0 && !selectedPaperCodeSet) {
             // Default to higher tier if available
-            const higherTier = paperCodeSets.find(s => 
+            const higherTier = paperCodeSets.find(s =>
               s.tier.toLowerCase().includes('higher')
             );
             setSelectedPaperCodeSet(higherTier ? higherTier.paperCodes : paperCodeSets[0].paperCodes);
@@ -303,10 +306,10 @@ const AnalysisPage: React.FC = () => {
         const grades = results.filter(r => r.grade).map(r => r.grade!);
         const highestGrade = grades.length > 0
           ? grades.reduce((highest, grade) => {
-              const numHighest = parseInt(highest, 10) || 0;
-              const numGrade = parseInt(grade, 10) || 0;
-              return numGrade > numHighest ? grade : highest;
-            })
+            const numHighest = parseInt(highest, 10) || 0;
+            const numGrade = parseInt(grade, 10) || 0;
+            return numGrade > numHighest ? grade : highest;
+          })
           : '-';
 
         const gradeCounts = new Map<string, number>();
@@ -362,19 +365,6 @@ const AnalysisPage: React.FC = () => {
     setAvailablePaperCodeSets([]);
   }, [selectedQualification, selectedSubject]);
 
-  // Normalize exam board name for comparison (handles variations like "Pearson Edexcel" vs "Edexcel")
-  const normalizeExamBoard = (board: string): string => {
-    if (!board) return '';
-    const normalized = board.toLowerCase().trim();
-    // Map common variations
-    if (normalized.includes('edexcel')) return 'Pearson Edexcel';
-    if (normalized.includes('aqa')) return 'AQA';
-    if (normalized.includes('ocr')) return 'OCR';
-    if (normalized.includes('wjec')) return 'WJEC';
-    if (normalized.includes('eduqas')) return 'Eduqas';
-    return board; // Return original if no match
-  };
-
   // Set default exam board based on most recent marking result
   useEffect(() => {
     // Wait for both marking results and available exam boards to be ready
@@ -386,37 +376,37 @@ const AnalysisPage: React.FC = () => {
           mr.examMetadata.qualification === selectedQualification &&
           mr.examMetadata.examBoard
         )
-        .sort((a, b) => 
+        .sort((a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
-      
+
       if (relevantResults.length > 0) {
         // Get the exam board from the most recent marking result
         const mostRecentResult = relevantResults[0];
         const mostRecentBoard = mostRecentResult.examMetadata.examBoard;
-        
+
         // Check if we need to set or update the exam board
-        const shouldUpdate = !selectedExamBoard || 
-          (selectedExamBoard !== mostRecentBoard && 
-           normalizeExamBoard(selectedExamBoard) !== normalizeExamBoard(mostRecentBoard));
-        
+        const shouldUpdate = !selectedExamBoard ||
+          (selectedExamBoard !== mostRecentBoard &&
+            normalizeExamBoard(selectedExamBoard) !== normalizeExamBoard(mostRecentBoard));
+
         if (shouldUpdate) {
           // Try exact match first
           if (availableExamBoards.includes(mostRecentBoard)) {
             setSelectedExamBoard(mostRecentBoard);
             return;
           }
-          
+
           // Try normalized match
           const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
             normalizeExamBoard(availableBoard) === normalizeExamBoard(mostRecentBoard)
           );
-          
+
           if (matchingAvailableBoard) {
             setSelectedExamBoard(matchingAvailableBoard);
             return;
           }
-          
+
           // If no match, find which available exam board has the most results (with normalization)
           const boardCounts = new Map<string, number>();
           relevantResults.forEach(mr => {
@@ -428,7 +418,7 @@ const AnalysisPage: React.FC = () => {
               boardCounts.set(matchingAvailableBoard, (boardCounts.get(matchingAvailableBoard) || 0) + 1);
             }
           });
-          
+
           if (boardCounts.size > 0) {
             // Get the exam board with most results
             const bestBoard = Array.from(boardCounts.entries())
@@ -457,7 +447,7 @@ const AnalysisPage: React.FC = () => {
       !selectedPaperCodeSet
     ) {
       // Default to higher tier if available
-      const higherTier = availablePaperCodeSets.find(s => 
+      const higherTier = availablePaperCodeSets.find(s =>
         s.tier.toLowerCase().includes('higher')
       );
       setSelectedPaperCodeSet(higherTier ? higherTier.paperCodes : availablePaperCodeSets[0].paperCodes);

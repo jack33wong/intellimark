@@ -43,6 +43,39 @@ export function extractPaperCode(examCode: string): string | null {
 }
 
 /**
+ * Normalize exam board name for comparison (handles variations like "Pearson Edexcel" vs "Edexcel")
+ */
+export function normalizeExamBoard(board: string): string {
+  if (!board) return '';
+  const normalized = board.toLowerCase().trim();
+  // Map common variations
+  if (normalized.includes('edexcel')) return 'Pearson Edexcel';
+  if (normalized.includes('aqa')) return 'AQA';
+  if (normalized.includes('ocr')) return 'OCR';
+  if (normalized.includes('wjec')) return 'WJEC';
+  if (normalized.includes('eduqas')) return 'Eduqas';
+  return board; // Return original if no match
+}
+
+/**
+ * Normalize exam series mapping (e.g., "May 2024" to "June 2024" for Edexcel)
+ */
+export function normalizeExamSeries(series: string, board?: string): string {
+  if (!series) return '';
+  const normalizedSeries = series.trim();
+  const normalizedBoard = board ? normalizeExamBoard(board) : '';
+
+  // Pearson Edexcel: map "May [Year]" to "June [Year]"
+  if (normalizedBoard === 'Pearson Edexcel' || !normalizedBoard) {
+    if (/^May\s+\d{4}$/i.test(normalizedSeries)) {
+      return normalizedSeries.replace(/^May/i, 'June');
+    }
+  }
+
+  return normalizedSeries;
+}
+
+/**
  * Group marking results by paper code set, exam series, and exam code
  */
 export function groupMarkingResults(
@@ -52,7 +85,7 @@ export function groupMarkingResults(
   if (!paperCodeSet || paperCodeSet.length === 0) {
     return [];
   }
-  
+
   // If no results at all, return empty group for the first exam series (we'll use a placeholder)
   if (!results || results.length === 0) {
     // Return an empty group structure so the paper code set still appears
@@ -60,7 +93,7 @@ export function groupMarkingResults(
       examCode: paperCode, // Use paper code as exam code when no results
       records: []
     }));
-    
+
     return [{
       paperCodeSet,
       paperCodeSetKey: paperCodeSet.join('_'),
@@ -71,6 +104,7 @@ export function groupMarkingResults(
   }
 
   // Create a map: examSeries -> examCode -> records
+  // We use normalized exam series for grouping
   const seriesMap = new Map<string, Map<string, MarkingResult[]>>();
 
   // Filter results that match the paper code set
@@ -80,12 +114,16 @@ export function groupMarkingResults(
   });
 
   // Get all unique exam series from all results (not just filtered ones)
-  // This ensures we show paper code sets even if they have no records for this specific set
+  // Normalizing to ensure "May" and "June" results are in the same set
   const allExamSeries = new Set<string>();
   results.forEach(result => {
-    allExamSeries.add(result.examMetadata.examSeries);
+    const normalizedSeries = normalizeExamSeries(
+      result.examMetadata.examSeries,
+      result.examMetadata.examBoard
+    );
+    allExamSeries.add(normalizedSeries);
   });
-  
+
   // If no exam series found at all, use a placeholder
   if (allExamSeries.size === 0) {
     allExamSeries.add('No Results');
@@ -93,7 +131,10 @@ export function groupMarkingResults(
 
   // Group by exam series and exam code
   filteredResults.forEach(result => {
-    const examSeries = result.examMetadata.examSeries;
+    // Normalize exam series for grouping
+    const originalSeries = result.examMetadata.examSeries;
+    const examBoard = result.examMetadata.examBoard;
+    const examSeries = normalizeExamSeries(originalSeries, examBoard);
     const examCode = result.examMetadata.examCode;
 
     if (!seriesMap.has(examSeries)) {
@@ -133,7 +174,7 @@ export function groupMarkingResults(
   // Process all exam series (including those with no records for this paper code set)
   allExamSeries.forEach(examSeries => {
     const examCodeMap = seriesMap.get(examSeries) || new Map();
-    
+
     // Use global sample exam code for constructing empty exam codes
     const sampleExamCode = globalSampleExamCode;
 
@@ -149,7 +190,7 @@ export function groupMarkingResults(
         if (matchingExamCode) {
           const records = examCodeMap.get(matchingExamCode)!;
           // Sort records by timestamp (newest first)
-          records.sort((a: MarkingResult, b: MarkingResult) => 
+          records.sort((a: MarkingResult, b: MarkingResult) =>
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
           return {
@@ -202,7 +243,7 @@ export function groupMarkingResults(
 /**
  * Parse exam series string to Date (e.g., "June 2024" -> Date)
  */
-function parseExamSeriesDate(examSeries: string): Date {
+export function parseExamSeriesDate(examSeries: string): Date {
   const months: { [key: string]: number } = {
     'january': 0, 'february': 1, 'march': 2, 'april': 3,
     'may': 4, 'june': 5, 'july': 6, 'august': 7,
@@ -217,7 +258,7 @@ function parseExamSeriesDate(examSeries: string): Date {
       return new Date(year, month, 1);
     }
   }
-  
+
   // Fallback: return current date if parsing fails
   return new Date();
 }
@@ -229,7 +270,7 @@ export function getGroupIndicator(group: GroupedMarkingResult): 'green' | 'yello
   const examCodeGroups = group.examCodeGroups;
   const groupsWithResults = examCodeGroups.filter(eg => eg.records.length > 0);
   const totalExpected = group.paperCodeSet.length;
-  
+
   if (groupsWithResults.length === 0) {
     return 'red'; // No results
   } else if (groupsWithResults.length === totalExpected) {
@@ -245,4 +286,3 @@ export function getGroupIndicator(group: GroupedMarkingResult): 'green' | 'yello
 export function getExamCodeIndicator(examCodeGroup: ExamCodeGroup): 'green' | 'red' {
   return examCodeGroup.records.length > 0 ? 'green' : 'red';
 }
-

@@ -8,6 +8,11 @@
   display: block;
   width: 100%;
   margin-bottom: 0;
+  z-index: 10;
+}
+
+.qualification-selector-container.is-open {
+  z-index: 1001;
 }
 
 .qualification-selector-button {
@@ -62,7 +67,7 @@
 }
 
 .qualification-selector-container:active .qualification-selector-arrow,
-.qualification-selector-dropdown:active ~ .qualification-selector-button .qualification-selector-arrow {
+.qualification-selector-dropdown:active~.qualification-selector-button .qualification-selector-arrow {
   transform: rotate(180deg);
 }
 

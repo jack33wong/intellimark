@@ -11,6 +11,7 @@ import admin from 'firebase-admin';
 
 // Import Firebase instances from centralized config
 import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
+import { NormalizationService } from '../services/marking/NormalizationService.js';
 
 const router = express.Router();
 
@@ -73,9 +74,15 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
 
         snapshot.forEach(doc => {
           const data = doc.data();
+          const examMeta = data.exam || data.metadata || (data.examDetails || {});
+          const board = examMeta.board || examMeta.exam_board || '';
+          const series = examMeta.exam_series || examMeta.date || '';
+          const normalizedSeries = series ? NormalizationService.normalizeExamSeries(series, board) : series;
+
           const entry = {
             id: doc.id,
             ...data,
+            normalizedSeries,
             uploadedAt: data.uploadedAt ?
               (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
               new Date().toISOString()

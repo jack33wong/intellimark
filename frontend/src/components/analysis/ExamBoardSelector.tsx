@@ -47,7 +47,7 @@ const ExamBoardSelector: React.FC<ExamBoardSelectorProps> = ({
   }
 
   return (
-    <div className="exam-board-selector-container" ref={dropdownRef}>
+    <div className={`exam-board-selector-container ${isOpen ? 'is-open' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         className="exam-board-selector-button"

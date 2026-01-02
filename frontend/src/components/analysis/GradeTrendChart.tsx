@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, TrendingUp } from 'lucide-react';
 import type { GroupedMarkingResult } from './markingResultsUtils';
-import { extractPaperCode } from './markingResultsUtils';
+import { extractPaperCode, parseExamSeriesDate } from './markingResultsUtils';
 import './GradeTrendChart.css';
 
 interface PaperCodeSetGroup {
@@ -24,29 +24,6 @@ interface ChartDataPoint {
   paperCode: string;
   grade: number;
   date: Date;
-}
-
-/**
- * Parse exam series string to Date (e.g., "June 2024" -> Date)
- */
-function parseExamSeriesDate(examSeries: string): Date {
-  const months: { [key: string]: number } = {
-    'january': 0, 'february': 1, 'march': 2, 'april': 3,
-    'may': 4, 'june': 5, 'july': 6, 'august': 7,
-    'september': 8, 'october': 9, 'november': 10, 'december': 11
-  };
-
-  const parts = examSeries.toLowerCase().split(' ');
-  if (parts.length >= 2) {
-    const month = months[parts[0]];
-    const year = parseInt(parts[1], 10);
-    if (month !== undefined && !isNaN(year)) {
-      return new Date(year, month, 1);
-    }
-  }
-
-  // Fallback: return current date if parsing fails
-  return new Date();
 }
 
 const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
@@ -79,7 +56,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
     // Process each paper code set
     allGroupedResults.forEach(({ paperCodeSet, grouped }) => {
       const tierLabel = paperCodeSet.tier ? ` (${paperCodeSet.tier})` : '';
-      
+
       // Process each group in this paper code set
       grouped.forEach(group => {
         group.examCodeGroups.forEach(examCodeGroup => {
@@ -118,7 +95,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
 
             // Include tier label in paper code for distinction
             const paperCodeLabel = `${paperCode}${tierLabel}`;
-            
+
             dataPoints.push({
               examSeries: group.examSeries,
               paperCode: paperCodeLabel,
@@ -135,7 +112,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
 
     // Filter to only include latest 10 exam series
     const latestSeries = new Set(examSeriesList);
-    return allPoints.filter(point => 
+    return allPoints.filter(point =>
       point.examSeries && latestSeries.has(point.examSeries)
     );
   }, [allGroupedResults, examSeriesList]);
@@ -156,7 +133,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
 
     allGroupedResults.forEach(({ paperCodeSet, grouped }) => {
       const tierLabel = paperCodeSet.tier ? ` (${paperCodeSet.tier})` : '';
-      
+
       grouped.forEach(group => {
         group.examCodeGroups.forEach(examCodeGroup => {
           if (examCodeGroup.records.length === 0) return;
@@ -239,7 +216,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
     });
 
     // Sort by attempt number
-    const allPoints = dataPoints.sort((a, b) => 
+    const allPoints = dataPoints.sort((a, b) =>
       (a.attemptNumber || 0) - (b.attemptNumber || 0)
     );
 
@@ -251,13 +228,13 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
       }
     });
     const sortedAttempts = Array.from(attemptNumbers).sort((a, b) => a - b);
-    
+
     // Limit to latest 10 attempt numbers overall
     const latest10AttemptNumbers = sortedAttempts.slice(-10);
     const latest10AttemptSet = new Set(latest10AttemptNumbers);
 
     // Filter to only include data points with latest 10 attempt numbers
-    return allPoints.filter(point => 
+    return allPoints.filter(point =>
       point.attemptNumber !== undefined && latest10AttemptSet.has(point.attemptNumber)
     );
   }, [allGroupedResults]);
@@ -374,10 +351,10 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
         x = attemptToX(point.attemptNumber || 0);
       }
       const y = gradeToY(point.grade);
-      return { 
-        x, 
-        y, 
-        grade: point.grade, 
+      return {
+        x,
+        y,
+        grade: point.grade,
         examSeries: point.examSeries,
         attemptNumber: point.attemptNumber
       };
@@ -399,7 +376,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
   };
 
   // Determine if we have data for the active tab
-  const hasData = activeTab === 'examSeries' 
+  const hasData = activeTab === 'examSeries'
     ? (chartDataExamSeries.length > 0 && examSeriesList.length > 0)
     : (chartDataAttempts.length > 0 && attemptNumbersList.length > 0);
 

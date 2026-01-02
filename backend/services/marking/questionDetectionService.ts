@@ -399,7 +399,20 @@ export class QuestionDetectionService {
 
     // Split hint into keywords, removing punctuation that might be decorative (hyphens, commas)
     // We keep "/" as it's common in exam codes (e.g., 1MA1/1H)
-    const keywords = normalizedHint
+    let processedHint = normalizedHint;
+
+    // Normalize "May" to "June" if it looks like an Edexcel series hint
+    // This allows "Edexcel May 2024" to match "Edexcel June 2024"
+    if (processedHint.includes('edexcel') && processedHint.includes('may')) {
+      processedHint = processedHint.replace(/\bmay\b/gi, 'june');
+    } else if (processedHint.includes('may')) {
+      // If "edexcel" isn't in the hint but "may" is, we still replace it 
+      // because papers are stored as "June 2024" in the database.
+      // This is safe because "may" is rarely a part of other metadata keywords.
+      processedHint = processedHint.replace(/\bmay\b/gi, 'june');
+    }
+
+    const keywords = processedHint
       .replace(/[-,]/g, ' ') // Replace hyphens and commas with spaces
       .split(/\s+/)
       .filter(k => k.length > 0 && /[a-z0-9]/i.test(k)); // Only keep keywords with alphanumeric content

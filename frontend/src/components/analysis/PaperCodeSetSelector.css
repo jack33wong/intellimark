@@ -8,6 +8,11 @@
   display: block;
   width: 100%;
   margin-bottom: 0;
+  z-index: 10;
+}
+
+.paper-code-set-selector-container.is-open {
+  z-index: 1001;
 }
 
 .paper-code-set-selector-button {
@@ -64,7 +69,7 @@
 }
 
 .paper-code-set-selector-container:active .paper-code-set-selector-arrow,
-.paper-code-set-selector-dropdown:active ~ .paper-code-set-selector-button .paper-code-set-selector-arrow {
+.paper-code-set-selector-dropdown:active~.paper-code-set-selector-button .paper-code-set-selector-arrow {
   transform: rotate(180deg);
 }
 

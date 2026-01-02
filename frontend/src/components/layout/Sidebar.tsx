@@ -21,9 +21,7 @@ import {
   Lock,
   ChevronDown,
   PanelLeft,
-  User,
-  Info,
-  LayoutDashboard
+  User
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -418,23 +416,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span>Analysis</span>
           </button>
 
-          <button
-            className="mark-homework-main-btn"
-            onClick={() => navigate('/dashboard')}
-            style={{ marginTop: '8px' }}
-          >
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
-          </button>
-
-          <button
-            className="mark-homework-main-btn"
-            onClick={() => navigate('/about')}
-            style={{ marginTop: '8px' }}
-          >
-            <Info size={20} />
-            <span>About</span>
-          </button>
 
           {!user && (
             <button
