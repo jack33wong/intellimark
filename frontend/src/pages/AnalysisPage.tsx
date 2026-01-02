@@ -478,120 +478,127 @@ const AnalysisPage: React.FC = () => {
 
   return (
     <div className="analysis-page">
-      <div className="analysis-page-header">
-        <h1>Performance Analysis</h1>
-      </div>
-
-      {availableSubjects.length > 0 ? (
-        <>
-          {/* Level 2: Subject */}
-          <div className="subject-tabs-container">
-            {availableSubjects.map((subject) => (
-              <button
-                key={subject}
-                className={`subject-tab ${selectedSubject === subject ? 'active' : ''}`}
-                onClick={() => setSelectedSubject(subject)}
-              >
-                {subject}
-              </button>
-            ))}
+      <div className="analysis-max-container">
+        <div className="analysis-page-header">
+          <div className="header-titles">
+            <h1>Performance Analysis</h1>
           </div>
+        </div>
 
-          {/* Level 1, 3 & 4: Qualification, Exam Board and Paper Code Set (in one container) */}
-          {selectedSubject && (availableQualifications.length > 0 || availableExamBoards.length > 0 || availablePaperCodeSets.length > 0) && (
-            <div className="qualification-exam-board-paper-code-container">
-              {availableQualifications.length > 0 && (
-                <QualificationSelector
-                  selectedQualification={selectedQualification}
-                  availableQualifications={availableQualifications}
-                  onChange={setSelectedQualification}
-                />
-              )}
-              {availableExamBoards.length > 0 && (
-                <ExamBoardSelector
-                  selectedExamBoard={selectedExamBoard}
-                  availableExamBoards={availableExamBoards}
-                  onChange={setSelectedExamBoard}
-                />
-              )}
-              {selectedExamBoard && availablePaperCodeSets.length > 0 && (
-                <PaperCodeSetSelector
-                  selectedPaperCodeSet={selectedPaperCodeSet}
-                  availablePaperCodeSets={availablePaperCodeSets}
-                  onChange={setSelectedPaperCodeSet}
-                />
-              )}
+        {availableSubjects.length > 0 ? (
+          <>
+            {/* Level 2: Subject Tabs */}
+            <div className="subject-tabs-container">
+              {availableSubjects.map((subject) => (
+                <button
+                  key={subject}
+                  className={`subject-tab ${selectedSubject === subject ? 'active' : ''}`}
+                  onClick={() => setSelectedSubject(subject)}
+                >
+                  {subject}
+                </button>
+              ))}
             </div>
-          )}
 
-          <div className="analysis-content">
-            {selectedSubject && (
-              <>
-                {/* Exam Series and Tier Reminder */}
-                {selectedExamBoard && gradeBoundaries.length > 0 && availablePaperCodeSets.length > 0 && (
-                  <ExamSeriesTierReminder
-                    markingResults={allMarkingResults}
-                    gradeBoundaries={gradeBoundaries}
-                    availablePaperCodeSets={availablePaperCodeSets}
-                    selectedExamBoard={selectedExamBoard}
+            {/* Selectors Row */}
+            {selectedSubject && (availableQualifications.length > 0 || availableExamBoards.length > 0 || availablePaperCodeSets.length > 0) && (
+              <div className="selectors-row-container">
+                {availableQualifications.length > 0 && (
+                  <QualificationSelector
                     selectedQualification={selectedQualification}
-                    selectedSubject={selectedSubject}
+                    availableQualifications={availableQualifications}
+                    onChange={setSelectedQualification}
                   />
                 )}
-
-                {/* Paper Code Aggregated Stats */}
-                {selectedPaperCodeSet && paperCodeStats.length > 0 && (
-                  <div className="aggregated-stats-section">
-                    <PaperCodeAggregatedStats
-                      stats={paperCodeStats}
-                      paperCodeSet={selectedPaperCodeSet}
-                    />
-                  </div>
+                {availableExamBoards.length > 0 && (
+                  <ExamBoardSelector
+                    selectedExamBoard={selectedExamBoard}
+                    availableExamBoards={availableExamBoards}
+                    onChange={setSelectedExamBoard}
+                  />
                 )}
-
-                {/* Marking Results Table */}
-                {filteredMarkingResults.length > 0 && availablePaperCodeSets.length > 0 && (
-                  <div className="marking-results-section">
-                    <MarkingResultsTableEnhanced
-                      markingResults={filteredMarkingResults}
-                      paperCodeSets={availablePaperCodeSets}
-                      subject={selectedSubject}
-                      onDelete={() => fetchMarkingResults(selectedSubject)}
-                      getAuthToken={getAuthToken}
-                    />
-                  </div>
+                {selectedExamBoard && availablePaperCodeSets.length > 0 && (
+                  <PaperCodeSetSelector
+                    selectedPaperCodeSet={selectedPaperCodeSet}
+                    availablePaperCodeSets={availablePaperCodeSets}
+                    onChange={setSelectedPaperCodeSet}
+                  />
                 )}
-
-                {/* Analysis Report - Only render when all filters are ready */}
-                {filtersReady ? (
-                  <div className="analysis-section">
-                    <AnalysisReport
-                      key={`${selectedSubject}-${selectedQualification}-${selectedExamBoard}-${selectedPaperCodeSet?.join(',')}`}
-                      subject={selectedSubject}
-                      qualification={selectedQualification}
-                      examBoard={selectedExamBoard}
-                      paperCodeSet={selectedPaperCodeSet}
-                      reAnalysisNeeded={reAnalysisNeeded}
-                    />
-                  </div>
-                ) : (
-                  <div className="analysis-section">
-                    <div className="analysis-loading">
-                      <div className="loading-spinner"></div>
-                      <p>Loading filters...</p>
-                    </div>
-                  </div>
-                )}
-              </>
+              </div>
             )}
+
+            <div className="analysis-content">
+              {selectedSubject && (
+                <>
+                  {/* Exam Series and Tier Reminder (Missing Attempts Banner) */}
+                  {selectedExamBoard && gradeBoundaries.length > 0 && availablePaperCodeSets.length > 0 && (
+                    <div className="reminder-section">
+                      <ExamSeriesTierReminder
+                        markingResults={allMarkingResults}
+                        gradeBoundaries={gradeBoundaries}
+                        availablePaperCodeSets={availablePaperCodeSets}
+                        selectedExamBoard={selectedExamBoard}
+                        selectedQualification={selectedQualification}
+                        selectedSubject={selectedSubject}
+                      />
+                    </div>
+                  )}
+
+                  {/* Paper Code Aggregated Stats */}
+                  {selectedPaperCodeSet && paperCodeStats.length > 0 && (
+                    <div className="aggregated-stats-section">
+                      <PaperCodeAggregatedStats
+                        stats={paperCodeStats}
+                        paperCodeSet={selectedPaperCodeSet}
+                      />
+                    </div>
+                  )}
+
+                  {/* Marking Results Table & Integrated Graph */}
+                  {filteredMarkingResults.length > 0 && availablePaperCodeSets.length > 0 && (
+                    <div className="marking-results-section">
+                      <h3 className="section-title">Marking Results</h3>
+                      <MarkingResultsTableEnhanced
+                        markingResults={filteredMarkingResults}
+                        paperCodeSets={availablePaperCodeSets}
+                        subject={selectedSubject}
+                        onDelete={() => fetchMarkingResults(selectedSubject)}
+                        getAuthToken={getAuthToken}
+                      />
+                    </div>
+                  )}
+
+                  {/* Bottom: Analysis Report (Summary Cards) */}
+                  {filtersReady ? (
+                    <div className="analysis-summary-section">
+                      <AnalysisReport
+                        key={`${selectedSubject}-${selectedQualification}-${selectedExamBoard}-${selectedPaperCodeSet?.join(',')}`}
+                        subject={selectedSubject}
+                        qualification={selectedQualification}
+                        examBoard={selectedExamBoard}
+                        paperCodeSet={selectedPaperCodeSet}
+                        reAnalysisNeeded={reAnalysisNeeded}
+                      />
+                    </div>
+                  ) : (
+                    <div className="analysis-section-placeholder">
+                      <div className="analysis-loading">
+                        <div className="loading-spinner"></div>
+                        <p>Loading filters...</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="no-sessions">
+            <p>No marking sessions found.</p>
+            <p className="hint">Upload and mark some homework to see analysis reports.</p>
           </div>
-        </>
-      ) : (
-        <div className="no-sessions">
-          <p>No marking sessions found.</p>
-          <p className="hint">Upload and mark some homework to see analysis reports.</p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

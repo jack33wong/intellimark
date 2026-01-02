@@ -263,6 +263,7 @@
 .theme-options {
     display: flex;
     gap: 12px;
+    padding-right: 200px;
 }
 
 /* Theme Option Button */

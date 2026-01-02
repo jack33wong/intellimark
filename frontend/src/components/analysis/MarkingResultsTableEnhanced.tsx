@@ -49,17 +49,17 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
   // Group marking results for all paper code sets
   const allGroupedResults = useMemo(() => {
     if (!paperCodeSets || paperCodeSets.length === 0) return [];
-    
+
     // Group results for each paper code set
     const results: Array<{ paperCodeSet: PaperCodeSet; grouped: GroupedMarkingResult[] }> = [];
-    
+
     paperCodeSets.forEach(paperCodeSet => {
       const grouped = groupMarkingResults(markingResults, paperCodeSet.paperCodes);
       // Always include paper code sets, even if they have no records
       // This ensures all paper code sets from grade boundaries are shown
       results.push({ paperCodeSet, grouped });
     });
-    
+
     return results;
   }, [markingResults, paperCodeSets]);
 
@@ -76,7 +76,7 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
   useEffect(() => {
     if (allGroupedResults.length > 0) {
       // Find first paper code set with records
-      const firstPaperCodeSetWithRecords = allGroupedResults.find(result => 
+      const firstPaperCodeSetWithRecords = allGroupedResults.find(result =>
         result.grouped.some(group => group.examCodeGroups.some(eg => eg.records.length > 0))
       );
 
@@ -87,7 +87,7 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
 
         if (firstGroupWithRecords) {
           const groupKey = getGroupKey(firstGroupWithRecords);
-          
+
           // Expand the group
           setExpandedGroups(prev => {
             if (!prev.has(groupKey)) {
@@ -105,7 +105,7 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
 
           if (firstExamCodeWithRecords) {
             const examCodeKey = getExamCodeKey(firstGroupWithRecords, firstExamCodeWithRecords.examCode || '');
-            
+
             // Expand the exam code
             setExpandedExamCodes(prev => {
               if (!prev.has(examCodeKey)) {
@@ -285,8 +285,8 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
         style={{ backgroundColor: colorMap[color] }}
         title={
           color === 'green' ? 'All exam codes have results' :
-          color === 'yellow' ? 'Partial set (some exam codes have results)' :
-          'No results found'
+            color === 'yellow' ? 'Partial set (some exam codes have results)' :
+              'No results found'
         }
       />
     );
@@ -305,179 +305,181 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
   return (
     <div className="marking-results-enhanced-container">
       <div className="marking-results-layout">
-        {/* Left Column: Table */}
-        <div className="marking-results-table-column">
-          {allGroupedResults.map(({ paperCodeSet, grouped }) => (
-            grouped.map((group) => {
-            const groupKey = getGroupKey(group);
-            const isExpanded = expandedGroups.has(groupKey);
-            const indicator = getGroupIndicator(group);
-            const tierLabel = group.tier ? ` (${group.tier})` : '';
+        {/* Left Column: Table with Panel Wrapper */}
+        <div className="marking-results-table-panel">
+          <h3 className="marking-results-section-title">Detailed Marking Results</h3>
+          <div className="marking-results-table-column">
+            {allGroupedResults.map(({ paperCodeSet, grouped }) => (
+              grouped.map((group) => {
+                const groupKey = getGroupKey(group);
+                const isExpanded = expandedGroups.has(groupKey);
+                const indicator = getGroupIndicator(group);
 
-            return (
-              <div key={groupKey} className="marking-results-group">
-                {/* Paper Code Set + Exam Series Header */}
-                <div
-                  className="group-header"
-                  onClick={() => toggleGroup(groupKey)}
-                >
-                  {renderIndicator(indicator)}
-                  <span className="group-title">
-                    Paper Code Set: [{group.paperCodeSet.join(' ')}]{paperCodeSet.tier ? ` (${paperCodeSet.tier})` : tierLabel} - Exam Series: {group.examSeries}
-                  </span>
-                  {isExpanded ? (
-                    <ChevronDown size={16} className="chevron-icon" />
-                  ) : (
-                    <ChevronRight size={16} className="chevron-icon" />
-                  )}
-                </div>
+                return (
+                  <div key={groupKey} className="marking-results-group">
+                    {/* Simplified Group Header */}
+                    <div
+                      className="group-header"
+                      onClick={() => toggleGroup(groupKey)}
+                    >
+                      {renderIndicator(indicator)}
+                      <span className="group-title">
+                        [{group.paperCodeSet.join(' ')}] {group.examSeries}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronDown size={16} className="chevron-icon" />
+                      ) : (
+                        <ChevronRight size={16} className="chevron-icon" />
+                      )}
+                    </div>
 
-                {isExpanded && (
-                  <div className="group-content">
-                    {group.examCodeGroups.map((examCodeGroup) => {
-                      if (examCodeGroup.records.length === 0 && !examCodeGroup.examCode) {
-                        return null; // Skip empty groups without exam codes
-                      }
+                    {isExpanded && (
+                      <div className="group-content">
+                        {group.examCodeGroups.map((examCodeGroup) => {
+                          if (examCodeGroup.records.length === 0 && !examCodeGroup.examCode) {
+                            return null; // Skip empty groups without exam codes
+                          }
 
-                      const examCodeKey = getExamCodeKey(group, examCodeGroup.examCode || '');
-                      const isExamCodeExpanded = expandedExamCodes.has(examCodeKey);
-                      const examCodeIndicator = getExamCodeIndicator(examCodeGroup);
-                      const paperCode = extractPaperCode(examCodeGroup.examCode || '');
+                          const examCodeKey = getExamCodeKey(group, examCodeGroup.examCode || '');
+                          const isExamCodeExpanded = expandedExamCodes.has(examCodeKey);
+                          const examCodeIndicator = getExamCodeIndicator(examCodeGroup);
+                          const paperCode = extractPaperCode(examCodeGroup.examCode || '');
 
-                      return (
-                        <div key={examCodeKey} className="exam-code-group">
-                          {/* Exam Code Header */}
-                          <div
-                            className="exam-code-header"
-                            onClick={() => examCodeGroup.records.length > 0 && toggleExamCode(examCodeKey)}
-                          >
-                            {renderIndicator(examCodeIndicator)}
-                            <span className="exam-code-title">
-                              Exam Code: {examCodeGroup.examCode || (paperCode ? `[${paperCode}]` : 'N/A')}
-                              {examCodeGroup.records.length > 0 && (
-                                <span className="record-count">
-                                  {' '}({examCodeGroup.records.length} total, showing latest {Math.min(10, examCodeGroup.records.length)})
+                          return (
+                            <div key={examCodeKey} className="exam-code-group">
+                              {/* Exam Code Header */}
+                              <div
+                                className="exam-code-header"
+                                onClick={() => examCodeGroup.records.length > 0 && toggleExamCode(examCodeKey)}
+                              >
+                                {renderIndicator(examCodeIndicator)}
+                                <span className="exam-code-title">
+                                  Exam Code: {examCodeGroup.examCode || (paperCode ? `[${paperCode}]` : 'N/A')}
+                                  {examCodeGroup.records.length > 0 && (
+                                    <span className="record-count">
+                                      {' '}({examCodeGroup.records.length} total, showing latest {Math.min(10, examCodeGroup.records.length)})
+                                    </span>
+                                  )}
                                 </span>
-                              )}
-                            </span>
-                            {examCodeGroup.records.length > 0 && (
-                              isExamCodeExpanded ? (
-                                <ChevronDown size={14} className="chevron-icon" />
-                              ) : (
-                                <ChevronRight size={14} className="chevron-icon" />
-                              )
-                            )}
-                          </div>
+                                {examCodeGroup.records.length > 0 && (
+                                  isExamCodeExpanded ? (
+                                    <ChevronDown size={14} className="chevron-icon" />
+                                  ) : (
+                                    <ChevronRight size={14} className="chevron-icon" />
+                                  )
+                                )}
+                              </div>
 
-                          {/* Individual Records Table */}
-                          {isExamCodeExpanded && examCodeGroup.records.length > 0 && (() => {
-                            // Sort records by timestamp (newest first) and limit to last 10
-                            const sortedRecords = [...examCodeGroup.records].sort((a, b) => 
-                              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-                            );
-                            const latest10Records = sortedRecords.slice(0, 10);
-                            
-                            return (
-                            <div className="records-table-container">
-                              <table className="records-table">
-                                <thead>
-                                  <tr>
-                                    <th>Score</th>
-                                    <th>Grade</th>
-                                    <th>Model Used</th>
-                                    <th>Date</th>
-                                    <th></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {latest10Records.map((result, index) => (
-                                    <tr key={`${result.sessionId}-${index}`}>
-                                      <td className="score-cell">
-                                        <span className="score-text">
-                                          {result.overallScore.awardedMarks}/{result.overallScore.totalMarks}
-                                        </span>
-                                        <span className="score-percentage">
-                                          ({result.overallScore.totalMarks > 0
-                                            ? Math.round((result.overallScore.awardedMarks / result.overallScore.totalMarks) * 100)
-                                            : 0}%)
-                                        </span>
-                                      </td>
-                                      <td className="grade-cell">
-                                        {result.grade ? (
-                                          <span className="grade-badge">{result.grade}</span>
-                                        ) : (
-                                          <span className="no-grade">-</span>
-                                        )}
-                                      </td>
-                                      <td className="model-cell">{result.modelUsed || 'N/A'}</td>
-                                      <td className="date-cell">{formatDate(result.timestamp)}</td>
-                                      <td className="actions-cell">
-                                        <div className="marking-result-actions-container">
-                                          <button
-                                            className="marking-result-dropdown-btn"
-                                            onClick={(e) => handleDropdownToggle(result.sessionId, e)}
-                                            title="Actions"
-                                            ref={(el) => {
-                                              if (el) {
-                                                buttonRefs.current[result.sessionId] = el;
-                                              }
-                                            }}
-                                          >
-                                            <MoreHorizontal size={16} />
-                                          </button>
-                                          {openDropdownId === result.sessionId && (
-                                            <div
-                                              className="marking-result-dropdown"
-                                              ref={(el) => {
-                                                if (el) {
-                                                  dropdownRefs.current[result.sessionId] = el;
-                                                  const button = buttonRefs.current[result.sessionId];
-                                                  if (button) {
-                                                    const rect = button.getBoundingClientRect();
-                                                    el.style.top = `${rect.bottom + window.scrollY + 8}px`;
-                                                    el.style.right = `${window.innerWidth - rect.right}px`;
-                                                  }
-                                                }
-                                              }}
-                                            >
-                                              <div
-                                                className="dropdown-item"
-                                                onClick={(e) => handleLocateInMarking(result.sessionId, e)}
-                                              >
-                                                <MapPin size={16} />
-                                                <span>Locate in Marking</span>
+                              {/* Individual Records Table */}
+                              {isExamCodeExpanded && examCodeGroup.records.length > 0 && (() => {
+                                // Sort records by timestamp (newest first) and limit to last 10
+                                const sortedRecords = [...examCodeGroup.records].sort((a, b) =>
+                                  new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                                );
+                                const latest10Records = sortedRecords.slice(0, 10);
+
+                                return (
+                                  <div className="records-table-container">
+                                    <table className="records-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Score</th>
+                                          <th>Grade</th>
+                                          <th>Model Used</th>
+                                          <th>Date</th>
+                                          <th></th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {latest10Records.map((result, index) => (
+                                          <tr key={`${result.sessionId}-${index}`}>
+                                            <td className="score-cell">
+                                              <span className="score-text">
+                                                {result.overallScore.awardedMarks}/{result.overallScore.totalMarks}
+                                              </span>
+                                              <span className="score-percentage">
+                                                ({result.overallScore.totalMarks > 0
+                                                  ? Math.round((result.overallScore.awardedMarks / result.overallScore.totalMarks) * 100)
+                                                  : 0}%)
+                                              </span>
+                                            </td>
+                                            <td className="grade-cell">
+                                              {result.grade ? (
+                                                <span className="grade-badge">{result.grade}</span>
+                                              ) : (
+                                                <span className="no-grade">-</span>
+                                              )}
+                                            </td>
+                                            <td className="model-cell">{result.modelUsed || 'N/A'}</td>
+                                            <td className="date-cell">{formatDate(result.timestamp)}</td>
+                                            <td className="actions-cell">
+                                              <div className="marking-result-actions-container">
+                                                <button
+                                                  className="marking-result-dropdown-btn"
+                                                  onClick={(e) => handleDropdownToggle(result.sessionId, e)}
+                                                  title="Actions"
+                                                  ref={(el) => {
+                                                    if (el) {
+                                                      buttonRefs.current[result.sessionId] = el;
+                                                    }
+                                                  }}
+                                                >
+                                                  <MoreHorizontal size={16} />
+                                                </button>
+                                                {openDropdownId === result.sessionId && (
+                                                  <div
+                                                    className="marking-result-dropdown"
+                                                    ref={(el) => {
+                                                      if (el) {
+                                                        dropdownRefs.current[result.sessionId] = el;
+                                                        const button = buttonRefs.current[result.sessionId];
+                                                        if (button) {
+                                                          const rect = button.getBoundingClientRect();
+                                                          el.style.top = `${rect.bottom + window.scrollY + 8}px`;
+                                                          el.style.right = `${window.innerWidth - rect.right}px`;
+                                                        }
+                                                      }
+                                                    }}
+                                                  >
+                                                    <div
+                                                      className="dropdown-item"
+                                                      onClick={(e) => handleLocateInMarking(result.sessionId, e)}
+                                                    >
+                                                      <MapPin size={16} />
+                                                      <span>Locate in Marking</span>
+                                                    </div>
+                                                    <div
+                                                      className={`dropdown-item danger ${deletingSessionId === result.sessionId ? 'disabled' : ''}`}
+                                                      onClick={(e) => {
+                                                        if (deletingSessionId !== result.sessionId) {
+                                                          handleDelete(result.sessionId, e);
+                                                        }
+                                                      }}
+                                                    >
+                                                      <Trash2 size={16} />
+                                                      <span>{deletingSessionId === result.sessionId ? 'Deleting...' : 'Delete'}</span>
+                                                    </div>
+                                                  </div>
+                                                )}
                                               </div>
-                                              <div
-                                                className={`dropdown-item danger ${deletingSessionId === result.sessionId ? 'disabled' : ''}`}
-                                                onClick={(e) => {
-                                                  if (deletingSessionId !== result.sessionId) {
-                                                    handleDelete(result.sessionId, e);
-                                                  }
-                                                }}
-                                              >
-                                                <Trash2 size={16} />
-                                                <span>{deletingSessionId === result.sessionId ? 'Deleting...' : 'Delete'}</span>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                );
+                              })()}
                             </div>
-                            );
-                          })()}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-            })
-          ))}
+                );
+              })
+            ))}
+          </div>
         </div>
 
         {/* Right Column: Chart */}

@@ -164,10 +164,10 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
 
   return (
     <div className="exam-series-tier-reminder">
-      <div className="reminder-icon">⚠️</div>
-      <div className="reminder-content">
-        <span className="reminder-title">Missing Attempts (Last 5 Years):</span>{' '}
-        <span className="reminder-text">{parts.join(' | ')}</span>
+      <div className="reminder-icon">ⓘ</div>
+      <div className="reminder-content-stack">
+        <div className="reminder-title-row">Missing Attempts (Last 5 Years):</div>
+        <div className="reminder-text-row">{parts.join(' | ')}</div>
       </div>
     </div>
   );

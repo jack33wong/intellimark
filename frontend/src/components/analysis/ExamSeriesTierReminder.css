@@ -1,51 +1,71 @@
+:root {
+  --reminder-bg: rgba(147, 51, 234, 0.05);
+  --reminder-border: rgba(147, 51, 234, 0.1);
+}
+
+html.dark {
+  --reminder-bg: rgba(147, 51, 234, 0.08);
+  /* Restore original banner look */
+  --reminder-border: rgba(147, 51, 234, 0.2);
+}
+
 .exam-series-tier-reminder {
   display: flex;
-  gap: 12px;
-  padding: 2px 6px;
-  background: var(--background-card-gray);
-  border: 1px solid var(--function-warning);
-  border-radius: 6px;
-  margin-bottom: 24px;
-  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--reminder-bg);
+  border: 1px solid var(--reminder-border);
+  border-radius: 12px;
+  align-items: flex-start;
+  transition: all 0.3s ease;
+}
+
+.exam-series-tier-reminder:hover {
+  background: rgba(147, 51, 234, 0.12);
+  border-color: rgba(147, 51, 234, 0.3);
 }
 
 .reminder-icon {
   font-size: 20px;
+  color: #c084fc;
+  background: rgba(147, 51, 234, 0.1);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-.reminder-content {
-  flex: 1;
+.reminder-content-stack {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 4px;
+}
+
+.reminder-title-row {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--analysis-text-title);
+}
+
+.reminder-text-row {
   font-size: 13px;
-  color: var(--function-warning);
-  line-height: 1.5;
-}
-
-.reminder-title {
-  font-weight: 600;
-  color: var(--function-warning);
-}
-
-.reminder-text {
-  color: var(--function-warning);
+  color: var(--analysis-tab-text);
+  line-height: 1.4;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
   .exam-series-tier-reminder {
-    padding: 10px 12px;
-    gap: 10px;
+    padding: 12px 16px;
+    gap: 12px;
   }
 
-  .reminder-title {
-    font-size: 13px;
-  }
-
-  .reminder-details {
-    font-size: 12px;
+  .reminder-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
   }
 }

@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import StrengthsWeaknesses from './StrengthsWeaknesses';
 import './AnalysisReport.css';
 
 interface AnalysisResult {
@@ -42,13 +41,13 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [reAnalysisNeeded, setReAnalysisNeeded] = useState(reAnalysisNeededProp);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   useEffect(() => {
     if (subject) {
       // Only load analysis if all required filters are set
       // This prevents race conditions where filters are being set asynchronously
       const allFiltersReady = qualification && examBoard && paperCodeSet && paperCodeSet.length > 0;
-      
+
       if (allFiltersReady) {
         // Reset state when filters change
         setAnalysis(null);
@@ -68,39 +67,39 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, qualification, examBoard, paperCodeSet]);
-  
+
   useEffect(() => {
     setReAnalysisNeeded(reAnalysisNeededProp);
-    
+
     // Don't trigger analysis automatically when flag changes - only when user explicitly visits the page
     // Analysis will be triggered in loadAnalysis() when component first loads
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reAnalysisNeededProp]);
-  
+
   const loadAnalysis = async () => {
     if (!subject) return;
-    
+
     try {
       const authToken = user ? await getAuthToken() : null;
-      
+
       if (!authToken) {
         setError('Authentication required');
         setIsLoading(false);
         return;
       }
-      
+
       // When filters are active, check for cached analysis or generate new one
       if (examBoard && paperCodeSet && paperCodeSet.length > 0 && qualification) {
         // Trigger analysis generation (backend will check cache first)
         await triggerBackgroundAnalysis();
         return;
       }
-      
+
       // No filters - get existing analysis (legacy support)
-      const apiBaseUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://api-f4ov4wv3qq-uc.a.run.app' 
+      const apiBaseUrl = process.env.NODE_ENV === 'production'
+        ? 'https://api-f4ov4wv3qq-uc.a.run.app'
         : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001');
-      
+
       const getResponse = await fetch(`${apiBaseUrl}/api/analysis/${encodeURIComponent(subject)}`, {
         method: 'GET',
         headers: {
@@ -108,13 +107,13 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
           'Authorization': `Bearer ${authToken}`
         }
       });
-      
+
       if (getResponse.ok) {
         const getData = await getResponse.json();
         if (getData.success && getData.subjectMarkingResult) {
           const analysisData = getData.subjectMarkingResult.analysis;
           const needsReAnalysis = getData.subjectMarkingResult.reAnalysisNeeded || false;
-          
+
           // Handle both old structure (direct analysis) and new structure (nested)
           let analysisToUse = null;
           if (analysisData) {
@@ -123,13 +122,13 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
               analysisToUse = analysisData;
             }
           }
-          
+
           if (analysisToUse) {
             setAnalysis(analysisToUse);
           }
           setReAnalysisNeeded(needsReAnalysis);
           setIsLoading(false);
-          
+
           if (needsReAnalysis && !isGenerating) {
             triggerBackgroundAnalysis();
           }
@@ -144,42 +143,42 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       setIsLoading(false);
     }
   };
-  
+
   const triggerBackgroundAnalysis = async () => {
     if (!subject || isGenerating) return;
-    
+
     try {
       setIsGenerating(true);
       setError(null);
-      
+
       const authToken = user ? await getAuthToken() : null;
-      
+
       if (!authToken) {
         return;
       }
-      
+
       // Generate analysis in background with filters
-      const apiBaseUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://api-f4ov4wv3qq-uc.a.run.app' 
+      const apiBaseUrl = process.env.NODE_ENV === 'production'
+        ? 'https://api-f4ov4wv3qq-uc.a.run.app'
         : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001');
-      
+
       const requestUrl = `${apiBaseUrl}/api/analysis/generate`;
-      
+
       const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ 
-          subject, 
+        body: JSON.stringify({
+          subject,
           qualification,
           examBoard,
           paperCodeSet,
-          model: 'auto' 
+          model: 'auto'
         })
       });
-      
+
       if (!response.ok) {
         // Try to parse error response
         let errorData: any = null;
@@ -190,7 +189,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
           // If parsing fails, create a default error object
           errorData = { error: `Failed to generate analysis: ${response.status} ${response.statusText}` };
         }
-        
+
         // For actual errors, log and set error state
         const errorMessage = errorData?.error || `Failed to generate analysis: ${response.status} ${response.statusText}`;
         console.error(`❌ Analysis generation failed: ${response.status} ${response.statusText}`, errorMessage);
@@ -198,9 +197,9 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         setIsLoading(false);
         return;
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         // Handle empty result (no marking results found)
         if (data.empty || !data.analysis) {
@@ -223,7 +222,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       setIsGenerating(false);
     }
   };
-  
+
   // Show loading spinner if loading or generating
   if (isLoading || isGenerating) {
     return (
@@ -233,7 +232,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="analysis-error">
@@ -242,7 +241,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       </div>
     );
   }
-  
+
   if (!analysis && !error) {
     return (
       <div className="analysis-empty-state">
@@ -251,35 +250,62 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       </div>
     );
   }
-  
+
   if (!analysis) {
     return null;
   }
-  
+
   return (
-    <div className="analysis-report">
-      {/* Performance Summary */}
-      {analysis.performance.summary && (
-        <div className="performance-summary-section">
+    <div className="analysis-summary-grid">
+      {/* 1. Performance Summary */}
+      <div className="summary-card">
+        <div className="card-header">
           <h3>Performance Summary</h3>
+        </div>
+        <div className="card-body">
           <p>{analysis.performance.summary}</p>
         </div>
-      )}
-      
-      {/* Grade Analysis - How to maintain or achieve higher grade */}
-      {analysis.performance.gradeAnalysis && (
-        <div className="grade-analysis">
+      </div>
+
+      {/* 2. Grade Improvement Strategy */}
+      <div className="summary-card gold">
+        <div className="card-header">
           <h3>Grade Improvement Strategy</h3>
+        </div>
+        <div className="card-body">
           <div className="grade-analysis-text">
             <p>{analysis.performance.gradeAnalysis}</p>
           </div>
         </div>
-      )}
-      
-      <StrengthsWeaknesses 
-        strengths={analysis.strengths}
-        weaknesses={analysis.weaknesses}
-      />
+      </div>
+
+      {/* 3. Strengths */}
+      <div className="summary-card success">
+        <div className="card-header">
+          <h3>Strengths</h3>
+        </div>
+        <div className="card-body">
+          <ul className="stat-bullet-list">
+            {analysis.strengths.map((s, i) => (
+              <li key={i}><span className="bullet-icon">✓</span> {s}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* 4. Areas for Improvement */}
+      <div className="summary-card danger">
+        <div className="card-header">
+          <h3>Areas for Improvement</h3>
+        </div>
+        <div className="card-body">
+          <ul className="stat-bullet-list">
+            {analysis.weaknesses.map((w, i) => (
+              <li key={i}><span className="bullet-icon">✕</span> {w}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,149 +1,166 @@
 /* Analysis Page Styles */
 
+:root {
+  --analysis-bg: #f8f8f7;
+  --analysis-header-border: rgba(147, 51, 234, 0.2);
+  --analysis-text-title: #1a1a19;
+  --analysis-text-subtitle: #7f00ff;
+  --analysis-selector-bg: rgba(0, 0, 0, 0.02);
+  --analysis-selector-border: rgba(0, 0, 0, 0.05);
+  --analysis-tab-bg: rgba(0, 0, 0, 0.03);
+  --analysis-tab-border: rgba(0, 0, 0, 0.08);
+  --analysis-tab-text: #5e5e5b;
+}
+
+html.dark {
+  --analysis-bg: #0d0f14;
+  /* Correct deep dark background */
+  --analysis-header-border: rgba(147, 51, 234, 0.2);
+  --analysis-text-title: #ffffff;
+  --analysis-text-subtitle: #c084fc;
+  --analysis-selector-bg: rgba(255, 255, 255, 0.02);
+  --analysis-selector-border: rgba(255, 255, 255, 0.05);
+  --analysis-tab-bg: rgba(255, 255, 255, 0.03);
+  --analysis-tab-border: rgba(255, 255, 255, 0.08);
+  --analysis-tab-text: #9ca3af;
+}
+
 .analysis-page {
-  padding: 24px;
-  max-width: 1400px;
-  min-width: 100%;
+  padding: 24px 16px;
+  background-color: var(--analysis-bg);
+  min-height: 100vh;
+  color: var(--text-primary);
+  overflow-y: scroll;
+}
+
+.analysis-max-container {
+  max-width: 1300px;
   margin: 0 auto;
-  min-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .analysis-page-header {
-  margin-bottom: 24px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--analysis-header-border);
+  padding-bottom: 8px;
 }
 
-.analysis-page-header h1 {
-  margin: 0 0 8px 0;
-  font-size: 24px;
+.header-titles h1 {
+  font-size: 22px;
+  /* Smaller title */
   font-weight: 700;
-  color: var(--text-primary);
-}
-
-.analysis-page-header p {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--analysis-text-title);
 }
 
-/* Selectors */
-.qualification-selector-container {
-  margin-bottom: 0;
-}
-
-/* Qualification, Exam Board and Paper Code Set Container (in one container) */
-.qualification-exam-board-paper-code-container {
-  display: grid;
-  grid-template-columns: minmax(100px, 120px) minmax(150px, 200px) 1fr;
-  gap: 4px;
-  margin-bottom: 12px;
-  max-width: 700px;
-  align-items: start;
-}
-
-.qualification-exam-board-paper-code-container .qualification-selector-container,
-.qualification-exam-board-paper-code-container .exam-board-selector-container,
-.qualification-exam-board-paper-code-container .paper-code-set-selector-container {
-  margin-bottom: 0;
-  position: relative;
-  min-width: 0;
-  /* Allows grid items to shrink below their content size */
-  overflow: visible;
-  /* Ensure dropdown is not clipped */
-}
-
-/* Ensure dropdown menus appear below and match select width */
-.qualification-exam-board-paper-code-container .qualification-selector-container select,
-.qualification-exam-board-paper-code-container .exam-board-selector-container select,
-.qualification-exam-board-paper-code-container .paper-code-set-selector-container select {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  position: relative;
-  z-index: 1;
-}
-
-/* When select is focused/open, ensure dropdown appears correctly */
-.qualification-exam-board-paper-code-container .qualification-selector-container select:focus,
-.qualification-exam-board-paper-code-container .exam-board-selector-container select:focus,
-.qualification-exam-board-paper-code-container .paper-code-set-selector-container select:focus {
-  z-index: 10;
-}
-
-/* Subject Tabs */
+/* Level 2: Subject Tabs */
 .subject-tabs-container {
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--border-main);
-  padding-bottom: 0;
+  gap: 6px;
+  margin-bottom: 2px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .subject-tab {
-  padding: 12px 24px;
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  color: var(--text-secondary);
-  font-size: 16px;
+  padding: 4px 12px;
+  background: var(--analysis-tab-bg);
+  border: 1px solid var(--analysis-tab-border);
+  border-radius: 4px;
+  color: var(--analysis-tab-text);
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  bottom: -1px;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .subject-tab:hover {
-  color: var(--text-primary);
-  background: var(--background-gray-main);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--analysis-text-title);
 }
 
 .subject-tab.active {
-  color: var(--text-brand);
-  border-bottom-color: var(--text-brand);
-  font-weight: 600;
+  background: rgba(147, 51, 234, 0.15);
+  border-color: #c084fc;
+  color: var(--analysis-text-title);
+  box-shadow: 0 0 8px rgba(147, 51, 234, 0.15);
 }
 
-/* Analysis Content */
-.analysis-content {
-  background: var(--background-secondary);
+/* Selectors row */
+.selectors-row-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--analysis-selector-bg);
+  padding: 8px;
   border-radius: 8px;
-  padding: 24px;
-  min-height: 600px;
-  border: 1px solid var(--border-main);
-  overflow-y: auto;
-  max-height: calc(100vh - 250px);
+  border: 1px solid var(--analysis-selector-border);
+  margin-bottom: 2px;
 }
 
-.no-sessions {
-  padding: 40px;
+.selectors-row-container>div {
+  flex: 1;
+  min-width: 150px;
+}
+
+/* Content Layout */
+.analysis-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Sections */
+.reminder-section {
+  margin-bottom: -12px;
+}
+
+/* Side-by-Side Results & Graph */
+.middle-dashboard-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--analysis-text-title);
+}
+
+.no-results-placeholder {
+  padding: 60px;
+  background: var(--analysis-selector-bg);
+  border: 1px dashed var(--analysis-selector-border);
+  border-radius: 16px;
   text-align: center;
-  color: var(--text-secondary);
-}
-
-.no-sessions .hint {
-  margin-top: 8px;
-  font-size: 12px;
   color: var(--text-tertiary);
 }
 
+/* Generic Loading */
 .analysis-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 40px;
-  text-align: center;
+  padding: 100px 0;
   color: var(--text-secondary);
 }
 
-.analysis-loading .loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border-main);
-  border-top-color: var(--text-brand);
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border-main);
+  border-top-color: #c084fc;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  margin-bottom: 20px;
 }
 
 @keyframes spin {
@@ -152,64 +169,38 @@
   }
 }
 
-.aggregated-stats-section {
-  margin-bottom: 32px;
+.no-sessions {
+  text-align: center;
+  padding: 120px 20px;
+  background: var(--analysis-selector-bg);
+  border-radius: 20px;
+  border: 1px solid var(--analysis-selector-border);
 }
 
-.marking-results-section {
-  margin-bottom: 32px;
+.no-sessions p {
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: var(--analysis-text-title);
 }
 
-.marking-results-section h2 {
-  margin: 0 0 12px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.filter-indicator {
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: var(--background-gray-main);
-  border-radius: 6px;
+.no-sessions .hint {
   font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.analysis-section {
-  margin-top: 32px;
-}
-
-.analysis-section h2 {
-  margin: 0 0 20px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-tertiary);
 }
 
 /* Responsive */
+@media (max-width: 1100px) {
+  .middle-dashboard-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .analysis-page {
-    padding: 16px;
+    padding: 24px 12px;
   }
 
-  .subject-tabs-container {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .subject-tab {
-    padding: 10px 16px;
-    font-size: 14px;
-  }
-
-  .exam-board-paper-code-container {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .analysis-content {
-    padding: 16px;
-    max-height: calc(100vh - 200px);
+  .header-titles h1 {
+    font-size: 24px;
   }
 }

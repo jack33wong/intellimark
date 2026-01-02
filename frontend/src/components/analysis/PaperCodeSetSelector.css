@@ -17,16 +17,16 @@
 
 .paper-code-set-selector-button {
   width: 100%;
-  padding: 4px 8px;
+  padding: 2px 8px;
   border: 1px solid var(--border-main);
   border-radius: 4px;
   background: var(--background-secondary);
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  height: 32px;
+  height: 28px;
   box-sizing: border-box;
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
 }
@@ -85,7 +85,7 @@
   border-radius: 4px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-  font-size: 13px;
+  font-size: 12px;
   max-height: 200px;
   overflow-y: auto;
 }
