@@ -404,7 +404,7 @@ export class MarkingSchemeOrchestrationService {
         });
 
         // Get the full list of sub-questions from the database paper structure
-        let dbSubParts: string[] = [];
+        const dbSubParts = new Set<string>();
         const questionsSchema = firstMatch?.examPaper?.questions;
         if (questionsSchema) {
           const questionData = Array.isArray(questionsSchema)
@@ -413,12 +413,32 @@ export class MarkingSchemeOrchestrationService {
 
           if (questionData && (questionData.sub_questions || questionData.subQuestions)) {
             const dbSubQs = questionData.sub_questions || questionData.subQuestions || [];
-            dbSubParts = dbSubQs.map((sq: any) => normalizeSubQuestionPart(sq.question_part || ''));
+            dbSubQs.forEach((sq: any) => {
+              const part = normalizeSubQuestionPart(sq.question_part || '');
+              if (part) dbSubParts.add(part);
+            });
           }
         }
 
-        // If no DB structure found, fall back to what we found in the group
-        const allPartsToProcess = dbSubParts.length > 0 ? dbSubParts : Array.from(itemsBySubPart.keys());
+        // RECOVERY: Also check the Marking Scheme keys for siblings
+        // This handles cases where the examPaper structure is incomplete but the scheme has marks
+        const paperMarkingScheme = group[0].detectionResult.match?.markingScheme;
+        if (paperMarkingScheme?.questions) {
+          const schemeKeys = Object.keys(paperMarkingScheme.questions);
+          schemeKeys.forEach(key => {
+            // Check if this key belongs to our current base question (e.g. "11b" for base "11")
+            if (key.startsWith(baseQuestionNumber)) {
+              const subPart = key.substring(baseQuestionNumber.length).toLowerCase();
+              const normalizedSubPart = normalizeSubQuestionPart(subPart);
+              if (normalizedSubPart) {
+                dbSubParts.add(normalizedSubPart);
+              }
+            }
+          });
+        }
+
+        // Combine all discovered parts and process
+        const allPartsToProcess = Array.from(new Set([...dbSubParts, ...itemsBySubPart.keys()]));
         allPartsToProcess.sort();
 
         for (const normalizedSubLabel of allPartsToProcess) {
@@ -452,6 +472,8 @@ export class MarkingSchemeOrchestrationService {
             }
           } else {
             // RECOVERY: sibling was missed by mapper
+            console.log(`[MARKING SCHEME ORCHESTRATION] 🔄 Recovering missing sibling Q${displayQNum} from marking scheme.`);
+
             // Use the marking scheme from the first detected sibling as it represents the whole paper
             const paperMarkingScheme = group[0].detectionResult.match?.markingScheme;
             if (paperMarkingScheme?.questions) {

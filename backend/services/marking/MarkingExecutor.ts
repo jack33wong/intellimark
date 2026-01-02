@@ -2198,10 +2198,16 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    const promptSubQuestions = group.subQuestions.map(sq => ({
-      ...sq,
-      studentWork: (subQContentMap.get(sq.part) || []).join('\n')
-    })).filter(sq => sq.studentWork.trim().length > 0);
+    const promptSubQuestions = group.subQuestions.map(sq => {
+      const detectedWork = (subQContentMap.get(sq.part) || []).join('\n');
+      return {
+        ...sq,
+        studentWork: detectedWork.trim().length > 0 ? detectedWork : (sq.studentWork || "[No student work text detected]")
+      };
+    }).filter(sq => {
+      // Include if it has work OR if it was recovered from marking scheme
+      return sq.studentWork.trim().length > 0;
+    });
 
     // Format combined student work with sequential labels that EXACTLY match sequentialId
     const combinedStudentWork = formatGroupedStudentWork(
