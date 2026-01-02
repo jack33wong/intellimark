@@ -391,123 +391,103 @@ export class MarkingSchemeOrchestrationService {
         const subQuestionMaxScoresMap = new Map<string, number>(); // NEW: Store max scores from database
 
         const processedSubLabels = new Set<string>(); // Track processed sub-questions to prevent duplicates
+        const firstMatch = firstItem.detectionResult.match;
 
-        for (const item of group) {
-          const actualQNum = item.actualQuestionNumber;
-          const originalQNum = item.originalQuestionNumber;
-          const match = item.detectionResult.match;
+        // Create a map of existing group items for easy lookup
+        const itemsBySubPart = new Map<string, typeof group[0]>();
+        group.forEach(item => {
+          const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+          const subLabelMatch = displayQNum.match(/([a-z]+|[ivx]+)$/i);
+          const subLabel = subLabelMatch ? subLabelMatch[1].toLowerCase() : displayQNum.toLowerCase();
+          const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
+          itemsBySubPart.set(normalizedSubLabel, item);
+        });
 
-          // Check if this is a "main" question detection (no sub-part label)
-          // that actually has sub-questions defined in the database
-          const questions = match?.examPaper?.questions;
-          const questionData = Array.isArray(questions)
-            ? questions.find((q: any) => String(q.question_number || q.number) === String(match?.questionNumber))
-            : (questions ? (questions as any)[match?.questionNumber] : null);
+        // Get the full list of sub-questions from the database paper structure
+        let dbSubParts: string[] = [];
+        const questionsSchema = firstMatch?.examPaper?.questions;
+        if (questionsSchema) {
+          const questionData = Array.isArray(questionsSchema)
+            ? questionsSchema.find((q: any) => String(q.question_number || q.number) === baseQuestionNumber)
+            : (questionsSchema ? (questionsSchema as any)[baseQuestionNumber] : null);
 
-          const dbSubQuestions = questionData?.sub_questions || questionData?.subQuestions || [];
-          const isMainQ = !isSubQuestion(originalQNum) && !isSubQuestion(actualQNum);
+          if (questionData && (questionData.sub_questions || questionData.subQuestions)) {
+            const dbSubQs = questionData.sub_questions || questionData.subQuestions || [];
+            dbSubParts = dbSubQs.map((sq: any) => normalizeSubQuestionPart(sq.question_part || ''));
+          }
+        }
 
-          if (isMainQ && dbSubQuestions.length > 0) {
-            // EXPAND main question into its sub-parts
-            for (const subQ of dbSubQuestions) {
-              const subPart = String(subQ.question_part || '').toLowerCase();
-              if (!subPart) continue;
+        // If no DB structure found, fall back to what we found in the group
+        const allPartsToProcess = dbSubParts.length > 0 ? dbSubParts : Array.from(itemsBySubPart.keys());
+        allPartsToProcess.sort();
 
-              const normalizedSubPart = normalizeSubQuestionPart(subPart);
-              if (processedSubLabels.has(normalizedSubPart)) continue;
-              processedSubLabels.add(normalizedSubPart);
+        for (const normalizedSubLabel of allPartsToProcess) {
+          // Skip if we've already processed this sub-question (relevant for dbSubParts fallback)
+          if (processedSubLabels.has(normalizedSubLabel)) {
+            continue;
+          }
+          processedSubLabels.add(normalizedSubLabel);
 
-              const subQNumLabel = `${match.questionNumber}${subPart}`;
+          const item = itemsBySubPart.get(normalizedSubLabel);
+          const displayQNum = `${baseQuestionNumber}${normalizedSubLabel}`;
 
-              // Extract answer
-              const subQAnswer = subQ.answer || '';
-              subQuestionAnswers.push(subQAnswer);
-              subQuestionAnswersMap.set(normalizedSubPart, subQAnswer);
+          // RECOVERY LOGIC: If item is missing (not detected by mapper), fetch its scheme from the paper's marking scheme
+          let marksArray: any[] = [];
+          let subQAnswer = '';
+          let subQMaxScore = 0;
+          let subQQuestionText = '';
 
-              // Extract marks
-              let subMarksArray: any[] = [];
-              const ms = match.markingScheme;
-              const qMarks = ms?.questionMarks || ms;
+          if (item) {
+            // NORMAL: use detected item's scheme
+            const markingScheme = item.detectionResult.match?.markingScheme;
+            subQAnswer = item.detectionResult.match?.answer ||
+              markingScheme?.answer ||
+              markingScheme?.questionMarks?.answer || '';
+            subQMaxScore = item.detectionResult.match?.marks || 0;
+            subQQuestionText = item.detectionResult.match?.databaseQuestionText || '';
 
-              if (qMarks?.subQuestionMarks && qMarks.subQuestionMarks[subQNumLabel]) {
-                subMarksArray = qMarks.subQuestionMarks[subQNumLabel];
-              } else if (qMarks?.marks && Array.isArray(qMarks.marks) && dbSubQuestions.length > 1) {
-                // FALLBACK: If marking scheme is flat but we have multiple sub-questions,
-                // try to slice it based on expected marks if possible, or just use the whole thing
-                // (AI will handle segmentation if we provide headers)
-                // For now, if we can't slice precisely, we'll keep it as the full array
-                // but labeled with the sub-question number.
-                subMarksArray = qMarks.marks;
-              } else if (Array.isArray(qMarks)) {
-                subMarksArray = qMarks;
-              }
-
-              subQuestionMarksMap.set(subQNumLabel, subMarksArray);
-              mergedMarks.push(...subMarksArray);
-
-              const subQMaxScore = typeof subQ.marks === 'number' ? subQ.marks : 0;
-              subQuestionMaxScoresMap.set(normalizedSubPart, subQMaxScore);
-
-              combinedQuestionTexts.push(item.question.text);
-              combinedDatabaseQuestionTexts.push(subQ.text || subQ.question || subQ.question_text || '');
-              questionNumbers.push(subQNumLabel);
+            if (markingScheme?.questionMarks) {
+              const qMarks = markingScheme.questionMarks;
+              marksArray = Array.isArray(qMarks.marks) ? qMarks.marks : (Array.isArray(qMarks) ? qMarks : []);
             }
           } else {
-            // NORMAL processing for already-segmented or truly-individual questions
-            const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
-
-            // Extract just the sub-question label (e.g., "11a" -> "a") for deduplication
-            const subLabelMatch = displayQNum.match(/([a-z]+|[ivx]+)$/i);
-            const subLabel = subLabelMatch ? subLabelMatch[1].toLowerCase() : displayQNum.toLowerCase();
-            const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
-
-            // Skip if we've already processed this sub-question
-            if (processedSubLabels.has(normalizedSubLabel)) {
-              continue;
-            }
-            processedSubLabels.add(normalizedSubLabel);
-
-            // Extract answer for this sub-question
-            const subQAnswer = item.detectionResult.match?.answer ||
-              item.detectionResult.match?.markingScheme?.answer ||
-              item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
-              '';
-
-            subQuestionAnswers.push(subQAnswer);
-            subQuestionAnswersMap.set(normalizedSubLabel, subQAnswer);
-
-            // Extract marks array
-            let marksArray: any[] = [];
-            const markingScheme = item.detectionResult.match?.markingScheme;
-            let questionMarks: any = null;
-
-            if (markingScheme) {
-              questionMarks = markingScheme.questionMarks;
-
-              if (questionMarks) {
-                if (Array.isArray(questionMarks.marks)) {
-                  marksArray = questionMarks.marks;
-                } else if (Array.isArray(questionMarks)) {
-                  marksArray = questionMarks;
-                } else if (typeof questionMarks === 'object' && 'marks' in questionMarks && Array.isArray(questionMarks.marks)) {
-                  marksArray = questionMarks.marks;
+            // RECOVERY: sibling was missed by mapper
+            // Use the marking scheme from the first detected sibling as it represents the whole paper
+            const paperMarkingScheme = group[0].detectionResult.match?.markingScheme;
+            if (paperMarkingScheme?.questions) {
+              const fullSchemeQuestions = paperMarkingScheme.questions;
+              const siblingScheme = fullSchemeQuestions[displayQNum];
+              if (siblingScheme) {
+                marksArray = Array.isArray(siblingScheme.marks) ? siblingScheme.marks : [];
+                subQAnswer = siblingScheme.answer || '';
+                // Try to find text and max score in the exam paper structure
+                if (questionsSchema) {
+                  const questionData = Array.isArray(questionsSchema)
+                    ? questionsSchema.find((q: any) => String(q.question_number || q.number) === baseQuestionNumber)
+                    : (questionsSchema ? (questionsSchema as any)[baseQuestionNumber] : null);
+                  const dbSubQs = questionData?.sub_questions || questionData?.subQuestions || [];
+                  const dbSubQ = dbSubQs.find((sq: any) => normalizeSubQuestionPart(sq.question_part || '') === normalizedSubLabel);
+                  if (dbSubQ) {
+                    subQQuestionText = dbSubQ.text || dbSubQ.question || dbSubQ.question_text || '';
+                    subQMaxScore = typeof dbSubQ.marks === 'number' ? dbSubQ.marks : 0;
+                  }
                 }
               }
             }
+          }
 
+          if (marksArray.length > 0 || subQAnswer) {
+            subQuestionAnswers.push(subQAnswer);
+            subQuestionAnswersMap.set(normalizedSubLabel, subQAnswer);
             subQuestionMarksMap.set(displayQNum, marksArray);
             mergedMarks.push(...marksArray);
+            subQuestionMaxScoresMap.set(normalizedSubLabel, subQMaxScore);
 
-            // Extract max score
-            const maxScore = item.detectionResult.match?.marks;
-            if (typeof maxScore === 'number') {
-              subQuestionMaxScoresMap.set(normalizedSubLabel, maxScore);
+            if (item) {
+              combinedQuestionTexts.push(item.question.text);
             }
-
-            combinedQuestionTexts.push(item.question.text);
-            const dbQuestionText = item.detectionResult.match?.databaseQuestionText || '';
-            if (dbQuestionText) {
-              combinedDatabaseQuestionTexts.push(dbQuestionText);
+            if (subQQuestionText) {
+              combinedDatabaseQuestionTexts.push(subQQuestionText);
             }
             questionNumbers.push(displayQNum);
           }
@@ -524,7 +504,6 @@ export class MarkingSchemeOrchestrationService {
 
         // Get main question text from parent question in the exam paper
         let mainQuestionDatabaseText = '';
-        const firstMatch = firstItem.detectionResult.match;
         if (firstMatch) {
           try {
             const db = getFirestore();

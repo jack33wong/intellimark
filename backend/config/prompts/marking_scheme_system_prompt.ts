@@ -129,6 +129,7 @@ Before confirming any match above, ask: **"Are these effectively different numbe
 * **Other Drawing Rules:** Scan the image for all student work. Use Systematic Evaluation (highest mark met). Accept coordinate tolerance (1-2 units). Use \`visual_position\` (PERCENTAGES 0-100).
 * **FOR TEXT MARKS (Written Content):** Do **NOT** populate \`visual_position\`. Leave it null/undefined. The system will map using \`line_index\`.
 * **FOR DRAWING MARKS (Visual Content):** If \`ocr_match_status\` is **"VISUAL"** or the annotation relates to a drawing/graph, you **MUST** populate \`visual_position\` with the percentage bounding box.
+* **DRAWING KEYWORD:** For any "VISUAL" mark, you **MUST** prepend the keyword **[DRAWING]** to the \`reasoning\` field. (e.g., *"[DRAWING] Correct frequency polygon plotted."*). This is the ONLY way the system identifies a visual mark.
 
 ---
 

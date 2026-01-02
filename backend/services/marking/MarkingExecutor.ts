@@ -43,7 +43,8 @@ export interface MarkingTask {
     }>;
     subQuestionNumbers?: string[];  // ["22a", "22b"] for reference
   };
-  subQuestionPageMap?: Record<string, number>; // NEW: Explicit mapping of sub-question part -> pageIndex
+  subQuestionPageMap?: Record<string, number[]>; // NEW: Explicit mapping of sub-question part -> pageIndex(es)
+  allowedPageUnion?: number[]; // NEW: Union of all pages for the main question (for fallback routing)
   // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
   aiSegmentationResults?: Array<{ content: string; source?: string; blockId?: string; studentWorkLines?: any[] }>;
   blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
@@ -969,6 +970,70 @@ const enrichAnnotationsWithPositions = (
 
 
 
+
+    // --- SIMPLIFIED DRAWING DETECTION ---
+    const drawingKeywordsRegex = /\b(draw|plot|sketch|shade|label|cumulative|frequency|graph|grid)\b/i;
+    const isDrawingContext = drawingKeywordsRegex.test(task.questionText || '') ||
+      drawingKeywordsRegex.test(originalStep?.text || '') ||
+      drawingKeywordsRegex.test(String(targetSubQ || ''));
+
+    const aiMatchStatus = (anno as any).ocr_match_status;
+    const isDrawingAnno = (anno as any).text?.includes('[DRAWING]') ||
+      (anno as any).reasoning?.includes('[DRAWING]') ||
+      aiLineId.toLowerCase().includes('drawing') ||
+      (isDrawingContext && (aiMatchStatus === 'MATCHED' || !effectiveVisualPos));
+
+    if (isDrawingAnno) {
+      const calculatedBaseQNum = getBaseQuestionNumber(String(questionId));
+      const partKey = targetSubQ ? targetSubQ.toLowerCase() : '';
+
+      // Determine target page(s)
+      let targetPages = [defaultPageIndex];
+      if (partKey && task.subQuestionPageMap && task.subQuestionPageMap[partKey] && task.subQuestionPageMap[partKey].length > 0) {
+        targetPages = task.subQuestionPageMap[partKey];
+      } else if (task.allowedPageUnion && task.allowedPageUnion.length > 0) {
+        targetPages = task.allowedPageUnion;
+      }
+
+      // Pick the best page and find the vertical slice
+      let bestPage = targetPages[targetPages.length - 1]; // Assume drawing is usually on the later page of a range
+      let sliceIndex = 0;
+      let sliceCount = 1;
+
+      for (const p of targetPages) {
+        const questionsOnThisPage = task.questionsOnPage?.get(p) || [];
+        const fullSubQ = `${calculatedBaseQNum}${targetSubQ || ''}`;
+        const idx = questionsOnThisPage.findIndex(q => q.toLowerCase().includes(fullSubQ.toLowerCase()));
+
+        if (idx !== -1) {
+          bestPage = p;
+          sliceIndex = idx;
+          sliceCount = questionsOnThisPage.length;
+          break;
+        }
+      }
+
+      const pDims = pageDimensions?.get(bestPage) || { width: 1000, height: 1400 };
+      const sliceHeight = pDims.height / sliceCount;
+      const sliceCenterY = (sliceIndex * sliceHeight) + (sliceHeight / 2);
+
+      // Ensure it's not too high up if it's the first slice
+      const visualY = sliceCenterY;
+      const pixelBbox: [number, number, number, number] = [pDims.width * 0.1, visualY, pDims.width * 0.8, 100];
+
+      console.log(`[DRAWING DEBUG] Q${questionId}${targetSubQ || ''} -> detected via keyword. Slicing on Page ${bestPage} (Index ${sliceIndex}/${sliceCount})`);
+
+      return {
+        ...anno,
+        bbox: pixelBbox,
+        pageIndex: bestPage,
+        line_id: `drawing_slice_${bestPage}_${sliceIndex}`,
+        ocr_match_status: 'VISUAL',
+        subQuestion: targetSubQ || anno.subQuestion,
+        isDrawing: true
+      };
+    }
+
     // [COORD SNAP] If we matched a classification line, try to snap to a nearby Mathpix block with similar text
     // This fixes the "Shifted Left" issue by using Mathpix pixels instead of Gemini percentages
     if (originalStep && originalStep.ocrSource === 'classification' && originalStep.text) {
@@ -1555,31 +1620,49 @@ const enrichAnnotationsWithPositions = (
         return enriched;
       }
 
-      // FALLBACK: If unmatched and no previous annotation.
-      // STRATEGY: Find the "Question X" header block and place the annotation BELOW it.
-      // This is safer than guessing "student work" blocks which might be confused with question text.
-      // If we place it below the header, it appears in the whitespace where the student should have written.
+      // FALLBACK: If unmatched, use standard geometric slicing
+      const calculatedBaseQNum = getBaseQuestionNumber(String(questionId));
+      const partKey = targetSubQ ? targetSubQ.toLowerCase() : '';
 
-      const questionHeaderBlock = stepsDataForMapping.find(s =>
-        s.text.includes('Question ' + questionId)
-      );
-
-      if (questionHeaderBlock && questionHeaderBlock.bbox) {
-        // console.log(`[MARKING EXECUTOR] Using Question Header offset for unmatched annotation`);
-        const headerBbox = questionHeaderBlock.bbox;
-        // Place it 30px below the header, with a standard height
-        const newY = headerBbox[1] + headerBbox[3] + 30;
-        const newBbox = [headerBbox[0], newY, 200, 50]; // Reasonable size for a text annotation
-
-        return {
-          ...anno,
-          bbox: newBbox as [number, number, number, number],
-          pageIndex: questionHeaderBlock.pageIndex ?? defaultPageIndex,
-          line_id: questionHeaderBlock.line_id || `unmatched_${idx}`,
-          ocr_match_status: 'UNMATCHED', // Ensure status is preserved
-          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
-        };
+      let targetPages = [defaultPageIndex];
+      if (partKey && task.subQuestionPageMap && task.subQuestionPageMap[partKey] && task.subQuestionPageMap[partKey].length > 0) {
+        targetPages = task.subQuestionPageMap[partKey];
+      } else if (task.allowedPageUnion && task.allowedPageUnion.length > 0) {
+        targetPages = task.allowedPageUnion;
       }
+
+      let bestPage = targetPages[0];
+      let sliceIndex = 0;
+      let sliceCount = 1;
+
+      for (const p of targetPages) {
+        const questionsOnThisPage = task.questionsOnPage?.get(p) || [];
+        const fullSubQ = `${calculatedBaseQNum}${targetSubQ || ''}`;
+        const idx = questionsOnThisPage.findIndex(q => q.toLowerCase().includes(fullSubQ.toLowerCase()));
+
+        if (idx !== -1) {
+          bestPage = p;
+          sliceIndex = idx;
+          sliceCount = questionsOnThisPage.length;
+          break;
+        }
+      }
+
+      const pDims = pageDimensions?.get(bestPage) || { width: 1000, height: 1400 };
+      const sliceH = pDims.height / sliceCount;
+      const visualY = (sliceIndex * sliceH) + (sliceH / 2);
+
+      console.log(`[FALLBACK] Q${questionId} -> Unmatched, using slice ${sliceIndex}/${sliceCount} on Page ${bestPage}`);
+
+      return {
+        ...anno,
+        bbox: [pDims.width * 0.1, visualY, pDims.width * 0.8, 50] as [number, number, number, number],
+        pageIndex: bestPage,
+        line_id: `fallback_slice_${bestPage}_${sliceIndex}`,
+        ocr_match_status: 'UNMATCHED',
+        subQuestion: targetSubQ || anno.subQuestion
+      };
+
 
       // [DEBUG LOCK Q2/3/6] - Log final result
       if (['2', '3', '6'].some(q => String(questionId).startsWith(q))) {
@@ -1606,11 +1689,15 @@ const enrichAnnotationsWithPositions = (
     if (task?.subQuestionPageMap) {
       // Use targetSubQ which is already normalized (e.g. "b")
       const subKey = targetSubQ;
-      if (subKey && task.subQuestionPageMap[subKey] !== undefined) {
-        const constraintPage = task.subQuestionPageMap[subKey];
-        if (pageIndex !== constraintPage) {
-          if (String(questionId).startsWith('3') || String(questionId).startsWith('6')) {
-            console.log(`🔍 [EXECUTOR OVERRIDE] Enforcing Mapper Truth for Q${questionId}${subKey}: Page ${pageIndex} -> Page ${constraintPage}`);
+      const allowedPages = subKey ? task.subQuestionPageMap[subKey] : undefined;
+
+      if (allowedPages && allowedPages.length > 0) {
+        // Relaxed Constraint: If current page is in the allowed list, let it stay!
+        // This allows drawings on secondary pages to be correctly attributed.
+        if (!allowedPages.includes(pageIndex)) {
+          const constraintPage = allowedPages[0];
+          if (String(questionId).startsWith('3') || String(questionId).startsWith('6') || String(questionId).startsWith('11')) {
+            console.log(`🔍 [EXECUTOR OVERRIDE] Enforcing Mapper Truth for Q${questionId}${subKey}: Page ${pageIndex} -> Page ${constraintPage} (Allowed: ${allowedPages.join(',')})`);
           }
           pageIndex = constraintPage;
         }
@@ -1813,7 +1900,7 @@ export function createMarkingTasksFromClassification(
 
   // START: Build Robust Sub-Question Page Map from MAPPER RESULTS
   // This is the "Single Source of Truth" that bypasses any classification drift
-  const globalMapperPageMap: Record<string, number> = {};
+  const globalMapperPageMap: Record<string, number[]> = {};
 
   if (mapperResults) {
     mapperResults.forEach(({ pageIndex, result }) => {
@@ -1825,13 +1912,11 @@ export function createMarkingTasksFromClassification(
           if (q.subQuestions) {
             q.subQuestions.forEach((sq: any) => {
               if (sq.part) {
-                // Map "3b" -> Page 5
-                // normalize the key: if qNum is "3", part is "b", key should be "b" relative to Q3 task?
-                // Wait, the subQuestionPageMap in MarkingTask is specific to THAT task (Q3).
-                // So we need to store it keyed by "BaseQNum + Part" globally, then filter later?
-                // Actually, let's just build a lookup: "3b" -> 5
                 const key = `${baseQ}${sq.part}`.toLowerCase(); // e.g. "3b"
-                globalMapperPageMap[key] = pageIndex;
+                if (!globalMapperPageMap[key]) globalMapperPageMap[key] = [];
+                if (!globalMapperPageMap[key].includes(pageIndex)) {
+                  globalMapperPageMap[key].push(pageIndex);
+                }
               }
             });
           }
@@ -1883,7 +1968,7 @@ export function createMarkingTasksFromClassification(
     baseQNum: string;
     sourceImageIndices: number[]; // Array of page indices (for multi-page questions)
     aiSegmentationResults: Array<{ content: string; studentWorkPosition?: any }>; // Store accumulated results
-    subQuestionPageMap: Record<string, number>; // NEW: Track page index for each sub-question
+    subQuestionPageMap: Record<string, number[]>; // NEW: Track page indexed(s) for each sub-question
   }>();
 
   // First pass: Collect all questions, use FULL question number as grouping key (e.g., "3a", "3b" separately)
@@ -2026,9 +2111,12 @@ export function createMarkingTasksFromClassification(
             studentWorkLines: subQ.studentWorkLines || [] // Store lines with positions
           } as any);
 
-          // NEW: Update subQuestionPageMap with current pageIndex
+          // NEW: Update subQuestionPageMap with current pageIndex(es)
           if (subPart && subQ.pageIndex !== undefined) {
-            group.subQuestionPageMap[subPart] = subQ.pageIndex;
+            if (!group.subQuestionPageMap[subPart]) group.subQuestionPageMap[subPart] = [];
+            if (!group.subQuestionPageMap[subPart].includes(subQ.pageIndex)) {
+              group.subQuestionPageMap[subPart].push(subQ.pageIndex);
+            }
           }
 
           // LINE-LEVEL SEGMENTATION: Push individual lines for sub-question
@@ -2050,6 +2138,27 @@ export function createMarkingTasksFromClassification(
           }
         }
       }
+    }
+  }
+
+  // PASS 1.5: Sync subQuestions with marking scheme to include recovered siblings
+  // This ensures that siblings missed by classification (like 11b) are included in the page union calculation
+  for (const [baseQNum, group] of questionGroups.entries()) {
+    if (group.markingScheme?.questionMarks?.subQuestionMarks) {
+      const msParts = Object.keys(group.markingScheme.questionMarks.subQuestionMarks);
+      msParts.forEach(msPart => {
+        // msPart is e.g. "11b"
+        const partLabelMatch = msPart.match(/([a-z]+|[ivx]+)$/i);
+        const partLabel = partLabelMatch ? partLabelMatch[1].toLowerCase() : msPart.toLowerCase();
+
+        if (!group.subQuestions.find(sq => sq.part.toLowerCase() === partLabel)) {
+          group.subQuestions.push({
+            part: partLabel,
+            studentWork: "[Sibling recovered from marking scheme - check image]",
+            studentWorkLines: []
+          } as any);
+        }
+      });
     }
   }
 
@@ -2179,23 +2288,83 @@ export function createMarkingTasksFromClassification(
       images: questionImages, // Pass the array of images
       // NEW: Pass the page map to the task
       subQuestionPageMap: (() => {
-        const map: Record<string, number> = {};
+        const map: Record<string, number[]> = {};
 
         // existing map from classification
-        Object.assign(map, group.subQuestionPageMap);
+        Object.entries(group.subQuestionPageMap).forEach(([part, pages]) => {
+          map[part] = [...pages];
+        });
 
-        // OVERRIDE with Global Mapper Map
+        // MERGE with Global Mapper Map
         if (Object.keys(globalMapperPageMap).length > 0) {
+          // Pre-calculate Question Union for all pages this main question appears on
+          // This helps solve split questions like 11b where work is on a separate page from the label.
+          const questionPageUnionSet = new Set<number>();
+          group.subQuestions.forEach(sqInner => {
+            const keyInner = `${baseQNum}${sqInner.part}`.toLowerCase();
+            if (globalMapperPageMap[keyInner]) {
+              globalMapperPageMap[keyInner].forEach(p => questionPageUnionSet.add(p));
+            }
+          });
+          const questionPageUnion = Array.from(questionPageUnionSet);
+
           group.subQuestions.forEach(sq => {
-            const key = `${baseQNum}${sq.part}`.toLowerCase(); // e.g. "3b"
-            if (globalMapperPageMap[key] !== undefined) {
-              // Use normalized key "b" for the task map
-              map[sq.part.toLowerCase()] = globalMapperPageMap[key];
+            const partKey = sq.part.toLowerCase();
+            if (!map[partKey]) map[partKey] = [];
+
+            // Check if this sub-question specifically requires drawing/graphing
+            // Heuristic: check text for keywords or if it was flagged as drawing
+            // FIX: Tighten regex to exclude "Use your graph" instructions (like 11c/11d)
+            // We want 'draw', 'plot', 'sketch', 'shade'.
+            // Explicitly exclude "Use your graph" or "Use the graph".
+            const drawingRegex = /\b(draw|plot|sketch|shade)\b/i;
+            const useGraphRegex = /use\s+(your|the)\s+graph/i;
+
+            const subQText = (sq.text || '').toLowerCase();
+            const studentWorkText = (sq.studentWork || '').toLowerCase();
+
+            const isDrawingSubQ = (drawingRegex.test(subQText) && !useGraphRegex.test(subQText)) ||
+              (drawingRegex.test(studentWorkText) && !useGraphRegex.test(studentWorkText));
+
+            // Check if we have a SPECIFIC mapper result for this part
+            const specificMapperKey = `${baseQNum}${sq.part}`.toLowerCase();
+            const hasSpecificMapperResult = globalMapperPageMap[specificMapperKey] && globalMapperPageMap[specificMapperKey].length > 0;
+
+            if (isDrawingSubQ || !hasSpecificMapperResult) {
+              // BROADEN: If it involves drawing (which often spans pages) OR if we have no specific location,
+              // allow it to be anywhere the main question is.
+              questionPageUnion.forEach(p => {
+                if (!map[partKey].includes(p)) map[partKey].push(p);
+              });
+            } else {
+              // RESTRICT: If it's a normal text question and we found it specifically, trust the mapper!
+              // This fixes Q11a being pulled to Page 13 when it is clearly on Page 12.
+              if (globalMapperPageMap[specificMapperKey]) {
+                globalMapperPageMap[specificMapperKey].forEach(p => {
+                  if (!map[partKey].includes(p)) map[partKey].push(p);
+                });
+              }
             }
           });
         }
         console.log(`[EXECUTOR DEBUG] Q${baseQNum} SubQuestionPageMap:`, JSON.stringify(map));
         return map;
+      })(),
+      // NEW: Pass the pre-calculated union of pages for Visual Annotation fallback
+      allowedPageUnion: (() => {
+        // Re-calculate the union (duplicated logic for clarity/scope, or could be hoisted)
+        const questionPageUnionSet = new Set<number>();
+        if (globalMapperPageMap && Object.keys(globalMapperPageMap).length > 0) {
+          group.subQuestions.forEach(sq => {
+            const key = `${baseQNum}${sq.part}`.toLowerCase(); // e.g. "3b"
+            if (globalMapperPageMap[key]) {
+              globalMapperPageMap[key].forEach(p => questionPageUnionSet.add(p));
+            }
+          });
+        }
+        // Also include existing map pages just in case
+        Object.values(group.subQuestionPageMap).forEach(pages => pages.forEach(p => questionPageUnionSet.add(p)));
+        return Array.from(questionPageUnionSet);
       })(),
       subQuestionMetadata: {
         hasSubQuestions: group.subQuestions.length > 0,

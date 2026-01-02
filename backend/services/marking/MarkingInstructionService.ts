@@ -208,7 +208,8 @@ export interface MarkingInputs {
   sourceImageIndices?: number[]; // Array of global page indices for multi-page questions (e.g., [3, 4] for Pages 4-5)
   markingScheme?: any;  // NEW: Pass marking scheme (assuming MarkingSchemeContent is 'any' for now)
   extractedOcrText?: string; // NEW: Pass extracted OCR text for mapping
-  subQuestionPageMap?: Record<string, number>; // NEW: Explicit mapping of sub-question part -> pageIndex
+  subQuestionPageMap?: Record<string, number[]>; // NEW: Explicit mapping of sub-question part -> pageIndex(es)
+  allowedPageUnion?: number[]; // NEW: Union of all pages for the main question (for fallback routing)
   tracker?: any; // UsageTracker (optional)
 }
 
@@ -760,7 +761,8 @@ export class MarkingInstructionService {
     images?: string[], // Array of images for multi-page questions
     positionMap?: Map<string, { x: number; y: number; width: number; height: number }>, // NEW: Position map for drawing fallback
     sourceImageIndices?: number[], // NEW: Source image indices for drawing fallback
-    subQuestionPageMap?: Record<string, number>, // NEW: Explicit mapping of sub-question part -> pageIndex
+    subQuestionPageMap?: Record<string, number[]>, // NEW: Explicit mapping of sub-question part -> pageIndex(es)
+    allowedPageUnion?: number[], // NEW: Union of all pages for the main question
     tracker?: any // NEW: UsageTracker for tracking LLM tokens
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
     // Parse and format OCR text if it's JSON
@@ -843,7 +845,7 @@ export class MarkingInstructionService {
           classificationStudentWork || 'No student work provided',
           rawOcrBlocks,
           questionText,
-          subQuestionPageMap // NEW: Pass the hint map
+          subQuestionPageMap as any // NEW: Pass the hint map
         );
 
         // DEBUG: Log prompt for Q3 to investigate persistent mapping issues
