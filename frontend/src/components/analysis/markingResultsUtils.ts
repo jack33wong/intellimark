@@ -65,10 +65,10 @@ export function normalizeExamSeries(series: string, board?: string): string {
   const normalizedSeries = series.trim();
   const normalizedBoard = board ? normalizeExamBoard(board) : '';
 
-  // Pearson Edexcel: map "May [Year]" to "June [Year]"
+  // Pearson Edexcel: map "May [Year]", "June [Year]" to "Summer [Year]"
   if (normalizedBoard === 'Pearson Edexcel' || !normalizedBoard) {
-    if (/^May\s+\d{4}$/i.test(normalizedSeries)) {
-      return normalizedSeries.replace(/^May/i, 'June');
+    if (/^(May|June|Summer)\s+\d{4}$/i.test(normalizedSeries)) {
+      return normalizedSeries.replace(/^(May|June|Summer)/i, 'Summer');
     }
   }
 
@@ -247,7 +247,8 @@ export function parseExamSeriesDate(examSeries: string): Date {
   const months: { [key: string]: number } = {
     'january': 0, 'february': 1, 'march': 2, 'april': 3,
     'may': 4, 'june': 5, 'july': 6, 'august': 7,
-    'september': 8, 'october': 9, 'november': 10, 'december': 11
+    'september': 8, 'october': 9, 'november': 10, 'december': 11,
+    'summer': 5 // Treat Summer as June for sorting purposes
   };
 
   const parts = examSeries.toLowerCase().split(' ');

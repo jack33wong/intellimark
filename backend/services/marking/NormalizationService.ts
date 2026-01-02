@@ -27,10 +27,10 @@ export class NormalizationService {
         const normalizedSeries = series.trim();
         const normalizedBoard = board ? this.normalizeExamBoard(board) : '';
 
-        // Pearson Edexcel: map "May [Year]" to "June [Year]"
+        // Pearson Edexcel: map "May [Year]", "June [Year]" to "Summer [Year]"
         if (normalizedBoard === 'Pearson Edexcel' || !normalizedBoard) {
-            if (/^May\s+\d{4}$/i.test(normalizedSeries)) {
-                return normalizedSeries.replace(/^May/i, 'June');
+            if (/^(May|June|Summer)\s+\d{4}$/i.test(normalizedSeries)) {
+                return normalizedSeries.replace(/^(May|June|Summer)/i, 'Summer');
             }
         }
 
