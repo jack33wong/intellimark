@@ -27,7 +27,7 @@ const AboutPage: React.FC = () => {
                 <div className="about-hero-image">
                     <div className="hero-image-wrapper">
                         {/* Using the generated image once available, for now using a placeholder div with gradient */}
-                        <img src="/artifacts/ai_brain_chip_illustration.png" alt="AI Brain Analytics" className="floating-ai-visual" />
+                        <img src="/images/ai-brain.png" alt="AI Brain Analytics" className="floating-ai-visual" />
                         <div className="hero-glow"></div>
                     </div>
                 </div>
