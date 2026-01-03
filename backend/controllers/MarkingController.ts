@@ -16,8 +16,22 @@ export class MarkingController {
         const usageTracker = new UsageTracker();
 
         // 1. Validate Request
+        console.log(`🚀 [MARKING] Controller started - Files: ${Array.isArray(req.files) ? req.files.length : 0}, Body Keys: ${Object.keys(req.body || {}).join(', ')}`);
+
         if (!req.files || (Array.isArray(req.files) && req.files.length === 0)) {
-            res.status(400).json({ error: 'No files uploaded.' });
+            console.warn('⚠️ [MARKING] 400 Bad Request: No files found in request.');
+            console.log('[MARKING-DEBUG] Full Body:', JSON.stringify(req.body));
+            res.status(400).json({
+                error: 'No files uploaded.',
+                debug: {
+                    hasFiles: !!req.files,
+                    filesCount: Array.isArray(req.files) ? req.files.length : 0,
+                    bodyKeys: Object.keys(req.body || {}),
+                    contentType: req.headers['content-type'],
+                    hasRawBody: !!(req as any).rawBody,
+                    rawBodySize: (req as any).rawBody?.length || 0
+                }
+            });
             return;
         }
 

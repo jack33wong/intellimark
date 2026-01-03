@@ -25,6 +25,14 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 
+// Simple Request Logging for debugging production 500s
+app.use((req, _res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Content-Type: ${req.headers['content-type']}`);
+  }
+  next();
+});
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -46,9 +54,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parsing middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// (Body parsing moved to individual routes to prevent interference with Multer)
 
 // Swagger UI setup
 try {
@@ -83,35 +90,24 @@ import configRoutes from './routes/config.js';
 import creditsRoutes from './routes/credits.js';
 import adminCreditsRoutes from './routes/admin/credits.js';
 
-// Enable auth routes
-app.use('/api/auth', authRoutes);
+// Enable auth routes (Apply JSON/URLENCODED here)
+app.use('/api/auth', express.json({ limit: '50mb' }), express.urlencoded({ extended: true, limit: '50mb' }), authRoutes);
 
-// Enable marking API
+// Enable marking API (Multer handles its own parsing)
 app.use('/api/marking', markingRouter);
 
-// Enable admin routes
-app.use('/api/admin', adminRoutes);
+// Enable other APIs with standard parsers
+const jsonParser = express.json({ limit: '50mb' });
+const urlParser = express.urlencoded({ extended: true, limit: '50mb' });
 
-// Enable messages API (new UnifiedMessage system)
-app.use('/api/messages', messagesRoutes);
-
-// Enable analysis API
-app.use('/api/analysis', analysisRouter);
-
-// Enable usage API (user-specific usage statistics)
-app.use('/api/usage', usageRoutes);
-
-// Enable payment system
-app.use('/api/payment', paymentRoutes);
-
-// Enable config API (credit system configuration)
-app.use('/api/config', configRoutes);
-
-// Enable credits API (user credit management)
-app.use('/api/credits', creditsRoutes);
-
-// Enable admin credits API
-app.use('/api/admin/credits', adminCreditsRoutes);
+app.use('/api/admin', jsonParser, urlParser, adminRoutes);
+app.use('/api/messages', jsonParser, urlParser, messagesRoutes);
+app.use('/api/analysis', jsonParser, urlParser, analysisRouter);
+app.use('/api/usage', jsonParser, urlParser, usageRoutes);
+app.use('/api/payment', jsonParser, urlParser, paymentRoutes);
+app.use('/api/config', jsonParser, urlParser, configRoutes);
+app.use('/api/credits', jsonParser, urlParser, creditsRoutes);
+app.use('/api/admin/credits', jsonParser, urlParser, adminCreditsRoutes);
 
 
 
@@ -153,12 +149,21 @@ app.get('/api', (_req, res) => {
 
 
 // Error handling middleware
-app.use((err: any, _req: any, res: any, _next: any) => {
-  console.error(err.stack);
+app.use((err: any, req: any, res: any, _next: any) => {
+  const timestamp = new Date().toISOString();
+  console.error(`❌ [${timestamp}] ERROR on ${req.method} ${req.path}`);
+  console.error(`❌ Message: ${err.message}`);
+  console.error(`❌ Stack: ${err.stack}`);
+
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File too large', message: 'One or more files exceed the size limit.' });
+  }
+
   res.status(500).json({
     error: 'Something went wrong!',
     message: err.message, // TEMPORARY DEBUG: Expose error in production
-    stack: err.stack // TEMPORARY DEBUG
+    stack: err.stack, // TEMPORARY DEBUG
+    timestamp
   });
 });
 

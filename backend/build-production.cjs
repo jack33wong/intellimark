@@ -48,7 +48,11 @@ const esbuildCommand = [
   '--external:stripe',
   '--external:canvas',
   '--external:sharp',
-  '--minify',
+  '--external:multer',
+  '--external:busboy',
+  '--external:axios',
+  '--external:string-similarity',
+  '--external:node-fetch',
   '--sourcemap'
 ].join(' ');
 
@@ -86,7 +90,13 @@ const functionsPackageJson = {
     "helmet": "^7.1.0",
     "sharp": "^0.34.3",
     "stripe": "^18.5.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "multer": "^1.4.4-lts.1",
+    "busboy": "^1.6.0",
+    "axios": "^1.11.0",
+    "canvas": "^3.2.0",
+    "string-similarity": "^4.0.4",
+    "node-fetch": "^3.3.2"
   }
 };
 
@@ -102,12 +112,17 @@ fs.copyFileSync(
   path.join(deployDir, 'server.js')
 );
 
-// Create Firebase Functions index.js
-const indexJs = `const functions = require('firebase-functions');
+// Create Firebase Functions index.js (using v2 for advanced options like memory/timeout)
+const indexJs = `const { onRequest } = require('firebase-functions/v2/https');
 const app = require('./server.js').default;
 
-// Export the Express app as a Firebase Function
-exports.api = functions.https.onRequest(app);
+// Export the Express app as a Firebase Function with increased memory and timeout
+exports.api = onRequest({ 
+  memory: '2GiB', 
+  timeoutSeconds: 300,
+  cpu: 1,
+  region: 'us-central1'
+}, app);
 `;
 
 fs.writeFileSync(path.join(deployDir, 'index.js'), indexJs);
