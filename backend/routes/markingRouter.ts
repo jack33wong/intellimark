@@ -13,8 +13,8 @@ import { attachUserPlan } from '../middleware/planMiddleware.js';
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit per file
-    files: 50 // Maximum 50 files
+    fileSize: 100 * 1024 * 1024, // 100MB limit per file (Increased from 50MB)
+    files: 100 // Maximum 100 files (Increased from 50)
   }
 });
 
