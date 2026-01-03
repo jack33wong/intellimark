@@ -1433,6 +1433,9 @@ export class MarkingPipelineService {
             progressCallback(createProgressData(7, 'Aggregating results and generating annotated images...', MULTI_IMAGE_STEPS));
             const logOutputGenerationComplete = logStep('Output Generation', 'output-generation');
 
+            // Determine production mode status from environment safely
+            const isProduction = process.env.NODE_ENV === 'production';
+
             const {
                 finalAnnotatedOutput,
                 overallScore,
@@ -1451,7 +1454,8 @@ export class MarkingPipelineService {
                 options,
                 markingSchemesMap,
                 progressCallback,
-                MULTI_IMAGE_STEPS
+                MULTI_IMAGE_STEPS,
+                isProduction
             );
 
             // ========================= REALIGN DETECTION RESULTS (FOR EXAM TAB) =========================

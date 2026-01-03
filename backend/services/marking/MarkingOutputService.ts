@@ -27,7 +27,8 @@ export class MarkingOutputService {
         options: { userId?: string },
         markingSchemesMap: Map<string, any>,
         progressCallback: (data: any) => void,
-        MULTI_IMAGE_STEPS: string[]
+        MULTI_IMAGE_STEPS: string[],
+        isProduction: boolean = false
     ): Promise<{
         finalAnnotatedOutput: string[];
         overallScore: number;
@@ -134,7 +135,8 @@ export class MarkingOutputService {
                         imageDimensions,
                         scoresToDraw,
                         totalScoreToDraw,
-                        hasMetaPage
+                        hasMetaPage,
+                        isProduction
                     );
                 } catch (drawError) {
                     console.error(`❌ [ANNOTATION] Failed to draw annotations on page ${pageIndex}:`, drawError);

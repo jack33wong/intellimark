@@ -65,19 +65,6 @@ export interface SVGOverlayConfig {
 export class SVGOverlayService {
 
   /**
-   * Production mode flag to disable debug visual elements (like borders)
-   */
-  private static isProductionMode = false;
-
-  /**
-   * Set production mode status
-   * @param enabled True if running in production
-   */
-  static setProductionMode(enabled: boolean): void {
-    this.isProductionMode = enabled;
-  }
-
-  /**
    * Centralized configuration for SVG overlay styling
    */
   private static CONFIG: SVGOverlayConfig = {
@@ -189,7 +176,8 @@ export class SVGOverlayService {
     imageDimensions: ImageDimensions,
     scoreToDraw?: { scoreText: string } | { scoreText: string }[], // UPDATED: Accept array for multiple circles
     totalScoreText?: string,
-    hasMetaPage?: boolean
+    hasMetaPage?: boolean,
+    isProduction: boolean = false
   ): Promise<string> {
     try {
       // Allow drawing even if no annotations, as long as we have scores to draw
@@ -214,7 +202,7 @@ export class SVGOverlayService {
 
 
       // Create SVG overlay with extended dimensions (no scaling needed since we're using actual burn dimensions)
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, isProduction);
 
       // Create SVG buffer
       const svgBuffer = Buffer.from(svgOverlay);
@@ -250,7 +238,7 @@ export class SVGOverlayService {
   /**
    * Create SVG overlay for burning into image
    */
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, isProduction: boolean = false): string {
     // Allow creating SVG even if no annotations, as long as we have scores to draw
     const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
     if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
@@ -378,7 +366,7 @@ export class SVGOverlayService {
         try {
           const decision = decisionMap.get(index) || 'TRUST_OCR';
           const yOffset = offsets.get(index) || 0;
-          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, decision, yOffset, subQuestionCount);
+          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, decision, yOffset, subQuestionCount, isProduction);
         } catch (error) {
           console.error(`❌ [SVG ERROR] Failed to create SVG for annotation ${index}:`, error);
           console.error(`❌ [SVG ERROR] Annotation data:`, annotation);
@@ -405,7 +393,7 @@ export class SVGOverlayService {
   /**
    * Create annotation SVG element based on type
    */
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, positionDecision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR', yOffset: number = 0, subQuestionCount: number = 1): string {
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, positionDecision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR', yOffset: number = 0, subQuestionCount: number = 1, isProduction: boolean = false): string {
     let [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
@@ -519,8 +507,8 @@ export class SVGOverlayService {
     const borderWidth = 2;
 
     // Draw border for all annotations (unless in production)
-    // Draw border for all annotations (unless in production via static config)
-    if (!this.isProductionMode) {
+    // Draw border for all annotations (unless in production via passed flag)
+    if (!isProduction) {
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
               fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
               stroke-dasharray="${strokeDash}"/>`;
