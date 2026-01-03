@@ -157,7 +157,8 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err.stack);
   res.status(500).json({
     error: 'Something went wrong!',
-    message: process.env['NODE_ENV'] === 'development' ? err.message : 'Internal server error'
+    message: err.message, // TEMPORARY DEBUG: Expose error in production
+    stack: err.stack // TEMPORARY DEBUG
   });
 });
 
