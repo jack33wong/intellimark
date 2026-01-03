@@ -507,9 +507,12 @@ export class SVGOverlayService {
 
     // Draw border for all annotations (unless in production)
     // Draw border for all annotations
+    // TEMPORARILY DISABLED: User requested to remove borders in all environments
+    /* 
     svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
             fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
             stroke-dasharray="${strokeDash}"/>`;
+    */
 
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;
