@@ -65,6 +65,19 @@ export interface SVGOverlayConfig {
 export class SVGOverlayService {
 
   /**
+   * Production mode flag to disable debug visual elements (like borders)
+   */
+  private static isProductionMode = false;
+
+  /**
+   * Set production mode status
+   * @param enabled True if running in production
+   */
+  static setProductionMode(enabled: boolean): void {
+    this.isProductionMode = enabled;
+  }
+
+  /**
    * Centralized configuration for SVG overlay styling
    */
   private static CONFIG: SVGOverlayConfig = {
@@ -506,17 +519,8 @@ export class SVGOverlayService {
     const borderWidth = 2;
 
     // Draw border for all annotations (unless in production)
-    // SAFE CHECK: Wrap environment access to prevent 500 errors if process is undefined
-    let isProduction = false;
-    try {
-      if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production') {
-        isProduction = true;
-      }
-    } catch (e) {
-      // Ignore error, default to false (draw borders)
-    }
-
-    if (!isProduction) {
+    // Draw border for all annotations (unless in production via static config)
+    if (!this.isProductionMode) {
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
               fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
               stroke-dasharray="${strokeDash}"/>`;

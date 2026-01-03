@@ -22,6 +22,10 @@ const DEFAULT_PORT = parseInt(process.env['PORT'] || '5001');
 // Trust proxy for rate limiting (needed for X-Forwarded-For header)
 app.set('trust proxy', 1);
 
+// Initialize SVG service config
+import { SVGOverlayService } from './services/marking/svgOverlayService.js';
+SVGOverlayService.setProductionMode(process.env['NODE_ENV'] === 'production');
+
 // Security middleware
 app.use(helmet());
 
