@@ -422,16 +422,18 @@ export class MarkingSchemeOrchestrationService {
 
         // RECOVERY: Also check the Marking Scheme keys for siblings
         // This handles cases where the examPaper structure is incomplete but the scheme has marks
+        const subPartToOriginalKey = new Map<string, string>(); // NEW: Map normalized part to original key
         const paperMarkingScheme = group[0].detectionResult.match?.markingScheme;
         if (paperMarkingScheme?.questions) {
           const schemeKeys = Object.keys(paperMarkingScheme.questions);
           schemeKeys.forEach(key => {
-            // Check if this key belongs to our current base question (e.g. "11b" for base "11")
+            // Check if this key belongs to our current base question (e.g. "11b" or "11 (b)" for base "11")
             if (key.startsWith(baseQuestionNumber)) {
-              const subPart = key.substring(baseQuestionNumber.length).toLowerCase();
-              const normalizedSubPart = normalizeSubQuestionPart(subPart);
+              const subPartText = key.substring(baseQuestionNumber.length).trim();
+              const normalizedSubPart = normalizeSubQuestionPart(subPartText);
               if (normalizedSubPart) {
                 dbSubParts.add(normalizedSubPart);
+                subPartToOriginalKey.set(normalizedSubPart, key); // Store the actual key for fetching
               }
             }
           });
@@ -478,7 +480,11 @@ export class MarkingSchemeOrchestrationService {
             const paperMarkingScheme = group[0].detectionResult.match?.markingScheme;
             if (paperMarkingScheme?.questions) {
               const fullSchemeQuestions = paperMarkingScheme.questions;
-              const siblingScheme = fullSchemeQuestions[displayQNum];
+
+              // Use the original key mapping we built earlier to ensure we match "11 (b)" vs "11b"
+              const originalKey = subPartToOriginalKey.get(normalizedSubLabel) || displayQNum;
+              const siblingScheme = fullSchemeQuestions[originalKey];
+
               if (siblingScheme) {
                 marksArray = Array.isArray(siblingScheme.marks) ? siblingScheme.marks : [];
                 subQAnswer = siblingScheme.answer || '';
