@@ -291,9 +291,7 @@ export async function executeMarkingForQuestion(
               finalBbox[2] = (bbox[2] / 100) * effectiveWidth;
               finalBbox[3] = (bbox[3] / 100) * effectiveHeight;
 
-              if (String(task.questionNumber).startsWith('6') || String(task.questionNumber).startsWith('2')) {
-                console.log(`[COORD DEBUG] Q${task.questionNumber} line_${stepIndex + 1} normalized: ${oldX.toFixed(1)}% -> ${Math.round(finalBbox[0])}px (Page ${pageIdx} Width: ${effectiveWidth})`);
-              }
+              // Log removed
             }
           }
         }
@@ -1083,24 +1081,16 @@ const enrichAnnotationsWithPositions = (
         const DISTANCE_THRESHOLD = 350;
 
         if (bestTwin && minDistance < DISTANCE_THRESHOLD) {
-          if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
-            console.log(`[COORD SNAP] 🎯 TWIN FOUND Q${questionId} "${aiLineId}" (${originalStep.text}) ➔ "${bestTwin.line_id}" (${bestTwin.text}) | Distance: ${Math.round(minDistance)}px | SNAPPING DISABLED`);
-          }
+          // Log removed
           // originalStep = bestTwin; // DISABLED: Trust original AI classification position per user request
           // (anno as any).ocr_match_status = 'MATCHED'; // Keep as UNMATCHED/VISUAL
         } else if (bestTwin) {
-          if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
-            console.log(`[COORD SNAP] Rejected distant twin for Q${questionId} "${aiLineId}": ${Math.round(minDistance)}px > ${DISTANCE_THRESHOLD}px`);
-            console.log(`            AI pos: [${Math.round(aX)}, ${Math.round(aY)}] vs Twin pos: [${Math.round(bestTwin.bbox![0])}, ${Math.round(bestTwin.bbox![1])}]`);
-          }
+          // Log removed
         }
       }
     }
 
-    if (String(questionId).startsWith('6') || String(questionId).startsWith('2')) {
-      console.log(`[DEBUG LOCK Q${questionId}] Step mapping for "${aiLineId}": ${originalStep ? 'FOUND' : 'NOT FOUND'} (Source: ${originalStep?.ocrSource || 'N/A'})`);
-      if (originalStep) console.log(`  ↳ Target Page: ${originalStep.pageIndex} | Bbox: ${JSON.stringify(originalStep.bbox)}`);
-    }
+    // Log removed
 
     // FIX: Check if we have visible position data even if Unmatched (e.g. Q11 C1/C1)
     // DISCARD LAZY POSITIONS: If AI returned 0/0/100/100 for an UNMATCHED annotation, treat it as missing position.
@@ -1183,15 +1173,7 @@ const enrichAnnotationsWithPositions = (
       }
     }
 
-    // [DEBUG LOCK Q6] - Track matching for Q6
-    if (String(questionId).startsWith('6')) {
-      const matchType = originalStep ? 'OCR BLOCK' : 'NO OCR MATCH';
-      console.log(`[DEBUG LOCK Q${questionId}] Annotation: "${anno.text}" | LineID: ${aiLineId} | SubQ: ${targetSubQ || 'none'} | Status: ${matchType}`);
-      if (originalStep) {
-        console.log(`[DEBUG LOCK Q${questionId}]   ↳ Matched to OCR Text: "${(originalStep.text || '').substring(0, 50)}..."`);
-      }
-    }
-
+    // Log removed
 
 
     // Special handling for [DRAWING] annotations
@@ -1335,10 +1317,7 @@ const enrichAnnotationsWithPositions = (
               pageIndex: line.pageIndex
             };
 
-            if (String(questionId).startsWith('6')) {
-              console.log(`[DEBUG LOCK Q${questionId}]   ↳ UNMATCHED fallback: Using student work position estimate (Line ${lineIndex + 1}: "${(line.text || '').substring(0, 30)}...")`);
-              console.log(`[DEBUG LOCK Q${questionId}]   ↳ Position: [${classificationPosition.x.toFixed(0)}, ${classificationPosition.y.toFixed(0)}, ${classificationPosition.width?.toFixed(0) || 100}, ${classificationPosition.height?.toFixed(0) || 20}] | Page: ${classificationPosition.pageIndex}`);
-            }
+            // Log removed
           }
         } else if (String(questionId).startsWith('6')) {
           console.log(`[DEBUG LOCK Q${questionId}]   ↳ UNMATCHED fallback: Line index ${lineIndex + 1} out of range (Total lines: ${allLines.length})`);
@@ -1408,16 +1387,12 @@ const enrichAnnotationsWithPositions = (
           if (h < 30) h = 30;
         }
 
-        if (String(questionId).startsWith('6')) {
-          console.log(`[DEBUG LOCK Q6] Visual Fallback for "${anno.text}": [${Math.round(x)}, ${Math.round(y)}, ${Math.round(w)}, ${Math.round(h)}] (MinSize Enforced)`);
-        }
+        // Log removed
 
         const lineIndex = (anno as any).lineIndex !== undefined ? (anno as any).lineIndex : (anno as any).line_index;
         const classificationLine = (task.classificationBlocks || []).flatMap(b => b.subQuestions.flatMap(sq => sq.studentWorkLines || []))[lineIndex];
 
-        if (String(questionId).startsWith('6')) {
-          console.log(`[DEBUG LOCK Q6] Falling back to student work line for "${anno.text}": Line ${lineIndex + 1}`);
-        }
+        // Log removed
         // Determine page index for UNMATCHED fallback
         // Priority: 1. Line's own pageIndex, 2. task.sourcePages[0], 3. defaultPageIndex
         const fallbackPageIndex = classificationLine?.pageIndex !== undefined ? classificationLine.pageIndex : (task.sourcePages?.[0] ?? defaultPageIndex);
@@ -1529,7 +1504,7 @@ const enrichAnnotationsWithPositions = (
       const fallbackPageDims = pageDimensions?.get(defaultPageIndex) || { width: 1000, height: 1400 };
       const sliceCenterPixelY = (staggeredYPercent / 100) * fallbackPageDims.height;
 
-      console.log(`[MARKING EXECUTOR] 🎯 SLICE FALLBACK for Q${questionId} "${anno.text}" (Page: ${defaultPageIndex}, Slice: ${safeIdxInSlice + 1}/${count})`);
+      console.log(`[FALLBACK] Q${questionId} -> Unmatched, using slice ${safeIdxInSlice + 1}/${count} on Page ${defaultPageIndex}`);
 
       return {
         ...anno,
@@ -1540,6 +1515,16 @@ const enrichAnnotationsWithPositions = (
         hasLineData: false,
         subQuestion: targetSubQ || anno.subQuestion
       };
+
+
+      // Log removed
+
+      // Final fallback if absolutely no blocks found (rare)
+      const RED = '\x1b[31m';
+      const BOLD = '\x1b[1m';
+      const RESET = '\x1b[0m';
+      console.log(`${BOLD}${RED}[ERROR: COORDINATE FAILURE] Q${questionId}: No coordinates found for "${anno.text}". Annotation will not appear.${RESET}`);
+      return null;
     }
 
     // Fallback logic for missing line ID (e.g., Q3b "No effect")
@@ -1689,11 +1674,7 @@ const enrichAnnotationsWithPositions = (
       };
 
 
-      // [DEBUG LOCK Q2/3/6] - Log final result
-      if (['2', '3', '6'].some(q => String(questionId).startsWith(q))) {
-        const pIdx = (originalStep?.pageIndex ?? (anno as any).pageIndex ?? defaultPageIndex);
-        console.log(`[DEBUG LOCK Q${questionId}] Result: ${anno.text} | Page: ${pIdx} | Status: ${(anno as any).ocr_match_status} | ID: ${aiLineId} | Final Bbox: ${JSON.stringify(anno.bbox)}`);
-      }
+      // Log removed
 
       // Final fallback if absolutely no blocks found (rare)
       const RED = '\x1b[31m';
@@ -1721,9 +1702,7 @@ const enrichAnnotationsWithPositions = (
         // This allows drawings on secondary pages to be correctly attributed.
         if (!allowedPages.includes(pageIndex)) {
           const constraintPage = allowedPages[0];
-          if (String(questionId).startsWith('3') || String(questionId).startsWith('6') || String(questionId).startsWith('11')) {
-            console.log(`🔍 [EXECUTOR OVERRIDE] Enforcing Mapper Truth for Q${questionId}${subKey}: Page ${pageIndex} -> Page ${constraintPage} (Allowed: ${allowedPages.join(',')})`);
-          }
+          // Log removed
           pageIndex = constraintPage;
         }
         // ALWAYS lock the source to prevent downstream reversion (e.g. by OCR step)
@@ -1953,7 +1932,7 @@ export function createMarkingTasksFromClassification(
         });
       }
     });
-    // console.log('[EXECUTOR DEBUG] Global Mapper Page Map:', JSON.stringify(globalMapperPageMap)); 
+    // Log removed
   }
   // END: Mapper Page Map
 
@@ -2218,7 +2197,7 @@ export function createMarkingTasksFromClassification(
 
       const finalIndices = Array.from(expandedIndices).sort((a, b) => a - b);
       if (finalIndices.length > group.sourceImageIndices.length) {
-        // console.log(`[EXECUTOR] 📂 Broadened Q${baseQNum} scope from ${group.sourceImageIndices.length} to ${finalIndices.length} pages due to recovered siblings.`);
+        // Log removed
         group.sourceImageIndices = finalIndices;
       }
     }
@@ -2247,9 +2226,7 @@ export function createMarkingTasksFromClassification(
     // 2. Geometric Overlap Filter: Discard student work that physically overlays printed landmarks
     // This creates a physical barrier that prevents AI from match-annotating question text
     const allLandmarks = allMathBlocks.filter(b => (b as any).isHandwritten === false);
-    if (allLandmarks.length > 0) {
-      console.log(`[🛡️ SYSTEMATIC FIX] 📍 Identified ${allLandmarks.length} printed landmarks (question text) for Q${baseQNum}.`);
-    }
+    // Log removed
 
     group.aiSegmentationResults = group.aiSegmentationResults.filter(seg => {
       const segPos = (seg as any).lineData?.position;
@@ -2460,7 +2437,7 @@ export function createMarkingTasksFromClassification(
             }
           });
         }
-        console.log(`[EXECUTOR DEBUG] Q${baseQNum} SubQuestionPageMap:`, JSON.stringify(map));
+        // Log removed
         return map;
       })(),
       // NEW: Pass the pre-calculated union of pages for Visual Annotation fallback

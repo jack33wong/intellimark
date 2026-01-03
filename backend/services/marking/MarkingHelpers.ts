@@ -248,483 +248,116 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
 export function logAnnotationSummary(allQuestionResults: QuestionResult[], markingTasks: any[]) {
   // ========================== ANNOTATION SUMMARY ==========================
   console.log('\n📊 [ANNOTATION SUMMARY]');
-  // Header line
-  // Header line
-  console.log('----------------------------------------------------------------------------------------------------------------------------------------------------');
-  console.log(`| Q#       | Score | WS,Drw    | Scheme${' '.repeat(27)}| Ann${' '.repeat(43)}| Match/Visual/Unmatch/Split       |`);
-  console.log(`|----------|-------|-----------|${'-'.repeat(34)}|${'-'.repeat(46)}|----------------------------------|`);
+  console.log('----------------------------------------------------------------------');
+  console.log('| Q#       | Score | Marks Awarded           | Match Status              |');
+  console.log('|----------|-------|-------------------------|---------------------------|');
 
-  const sortedResults = allQuestionResults; // Now sorted in place
+  const sortedResults = allQuestionResults;
+
+  // Helper to calc stats for a list of annotations
+  const calcStats = (list: any[]) => {
+    let m = 0, v = 0, u = 0, s = 0;
+    list.forEach((a: any) => {
+      // Logic mirrored from MarkingExecutor match statuses
+      if (a.ocr_match_status === 'VISUAL') v++;
+      else if (a.ocr_match_status === 'UNMATCHED') u++;
+      else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) s++;
+      else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) m++;
+      else m++; // Default to match if it has reliable bbox
+    });
+    return { m, v, u, s };
+  };
 
   sortedResults.forEach(result => {
+    // 1. Prepare Main Row Data
     const qNum = String(result.questionNumber).padEnd(8);
-
-    // Extract Score
-    let scoreStr = '-';
-    const r = result as any;
-    const scoreObj = r.studentScore || r.score;
-    let isFullMark = true;
-
-    if (scoreObj) {
-      if (scoreObj.scoreText) {
-        scoreStr = scoreObj.scoreText;
-        // Try to parse "X/Y"
-        if (scoreStr.includes('/')) {
-          const parts = scoreStr.split('/');
-          const awarded = parseFloat(parts[0]);
-          const total = parseFloat(parts[1]);
-          if (!isNaN(awarded) && !isNaN(total) && awarded < total) {
-            isFullMark = false;
-          }
-        }
-      } else if (typeof scoreObj.awardedMarks === 'number') {
-        scoreStr = `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`;
-        if (scoreObj.awardedMarks < scoreObj.totalMarks) {
-          isFullMark = false;
-        }
-      }
-    }
-    let paddedScore = scoreStr.padEnd(5);
-    if (!isFullMark) {
-      paddedScore = `\x1b[31m${paddedScore}\x1b[0m`;
-    }
-
-    // We need access to the original task to count blocks/drawings
-    const task = markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber));
-
-    // Group annotations by sub-question
-    const annotationsBySubQ = new Map<string, string[]>();
-    const mainAnnotations: string[] = [];
-
-    if (result.annotations) {
-      result.annotations.forEach((ann: any) => {
-        const text = ann.text || '';
-        let codes: string[] = [];
-
-        if (text) {
-          // NEW: Smart split that handles B2, M2 etc.
-          const rawCodes = text.split(/[\s,]+/).filter((c: string) => c.trim());
-
-          rawCodes.forEach((code: string) => {
-            // Check for multi-mark codes (e.g. B2, M2)
-            const match = code.match(/^([A-Z])(\d+)$/i);
-            if (match && parseInt(match[2]) > 1) {
-              const count = parseInt(match[2]);
-              // Push the code multiple times to reflect the weight
-              for (let i = 0; i < count; i++) {
-                codes.push(code);
-              }
-            } else {
-              codes.push(code);
-            }
-          });
-        } else {
-          // Handle textless annotations (tick/cross only)
-          if (ann.action === 'tick') codes.push('✓');
-          else if (ann.action === 'cross') codes.push('✗');
-        }
-
-
-
-
-        if (codes.length > 0) {
-          const annSubQ = (ann.subQuestion || 'null').toLowerCase();
-          const qNumStr = String(result.questionNumber).toLowerCase();
-
-          if (annSubQ !== 'null' && annSubQ !== '') {
-            // FIX: Normalize key by stripping question number prefix if present
-            let key = annSubQ;
-            if (key.startsWith(qNumStr) && key !== qNumStr) {
-              key = key.substring(qNumStr.length);
-            }
-
-            // If it matches exactly the question number (e.g. "15"), treat as main question
-            if (key === qNumStr) {
-              mainAnnotations.push(...codes);
-            } else {
-              if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
-              annotationsBySubQ.get(key)!.push(...codes);
-            }
-          } else {
-            mainAnnotations.push(...codes);
-          }
-        }
-      });
-    }
-
-    // Sub-questions collection
-    const subQuestionStats: Array<{ label: string, wb: number, drw: number, annotations: string }> = [];
-
-    // Work Blocks & Drawings: Count Lines (Main + Sub-questions)
-    let lineCount = 0;
-    let drawingCount = 0;
-
-    if (task && task.classificationBlocks) {
-      task.classificationBlocks.forEach((b: any) => {
-        // Main lines
-        if (b.studentWorkLines) {
-          lineCount += b.studentWorkLines.length;
-
-          // Count main drawings
-          if (b.hasStudentDrawing) {
-            drawingCount++;
-            let textDrawings = 0;
-            b.studentWorkLines.forEach((line: any) => {
-              const txt = (line.text || '').toLowerCase();
-              if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                textDrawings++;
-              }
-            });
-            if (textDrawings > 1) drawingCount += (textDrawings - 1);
-          } else {
-            b.studentWorkLines.forEach((line: any) => {
-              const txt = (line.text || '').toLowerCase();
-              if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                drawingCount++;
-              }
-            });
-          }
-
-          // SYSTEMATIC FIX: Also check Marking AI results for drawings that Classification missed (e.g. Q11b)
-          // We look for annotations that are marked as 'drawing' or have drawing-related text
-          if (result.annotations) {
-            const aiFoundDrawing = result.annotations.some((ann: any) => {
-              const txt = (ann.text || '').toLowerCase();
-              const stepId = (ann.line_id || '').toLowerCase();
-              return stepId.includes('drawing') || txt.includes('[drawing]');
-            });
-            // If AI found a drawing but Classification didn't flag it (drawingCount is 0 for this block), increment it.
-            // Note: This is a rough heuristic. Ideally we'd map back to specific blocks.
-            // But for the summary table, we just want to show *some* drawing count if it exists.
-            if (aiFoundDrawing && !b.hasStudentDrawing && drawingCount === 0) {
-              drawingCount++;
-            }
-          }
-        }
-
-        // Sub-question lines
-        if (b.subQuestions && Array.isArray(b.subQuestions)) {
-          b.subQuestions.forEach((sq: any) => {
-            let sqWb = 0;
-            let sqDrw = 0;
-            if (sq.studentWorkLines) {
-              sqWb = sq.studentWorkLines.length;
-              lineCount += sqWb; // Add to total
-
-              // Count drawings for this sub-question
-              if (sq.hasStudentDrawing) {
-                sqDrw = 1;
-                if (sq.studentWorkLines && sq.studentWorkLines.length > 0) {
-                  let textDrawings = 0;
-                  sq.studentWorkLines.forEach((line: any) => {
-                    const txt = (line.text || '').toLowerCase();
-                    if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                      textDrawings++;
-                    }
-                  });
-                  if (textDrawings > 1) sqDrw = textDrawings;
-                }
-              } else {
-                sq.studentWorkLines.forEach((line: any) => {
-                  const txt = (line.text || '').toLowerCase();
-                  if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                    sqDrw++;
-                  }
-                });
-              }
-            }
-
-            // Add to stats if there is work OR annotations
-            const subQAnns = annotationsBySubQ.get(sq.part) || [];
-            if (sqWb > 0 || subQAnns.length > 0) {
-              subQuestionStats.push({
-                label: `${result.questionNumber}${sq.part}`,
-                wb: sqWb,
-                drw: sqDrw,
-                annotations: subQAnns.length > 0 ? `(${subQAnns.join(',')})` : '-'
-              });
-            }
-          });
-        }
-      });
-    }
-
-    // Track stats for main question (or aggregate)
-    let matched = 0;      // M: Has OCR bbox
-    let visual = 0;       // V: Drawing with AI position
-    let unmatched = 0;    // U: No OCR data (AI returned UNMATCHED)
-    let split = 0;        // S: Multi-page split
-    let fallback = 0;     // F: Error case (shouldn't happen)
-    let totalAnnotationCount = 0; // Total count of codes (marks)
-    let totalAnnotationCodes: string[] = [];
-
-    // Helper to calc stats for a list of annotations
-    const calcStats = (list: any[]) => {
-      let m = 0, v = 0, u = 0, s = 0, f = 0;
-      list.forEach((a: any) => {
-        if (a.ocr_match_status === 'VISUAL') v++;
-        else if (a.ocr_match_status === 'UNMATCHED') u++;
-        else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) s++;
-        else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) m++;
-        else f++;
-      });
-      return { m, v, u, s, f };
-    };
-
-    if (subQuestionStats.length > 0) {
-      // AGGREGATE MODE: Sum stats from sub-questions
-      subQuestionStats.forEach((sq: any) => {
-        // Re-fetch annotations for this sub-q
-        const subPart = sq.label.replace(String(result.questionNumber), '');
-        const subAnns = result.annotations ? result.annotations.filter((a: any) => {
-          const sId = (a.line_id || '').toLowerCase();
-          const uId = (a.unified_line_id || '').toLowerCase();
-          return (sId.includes(`_${subPart}`) || uId.includes(subPart));
-        }) : [];
-
-        const stats = calcStats(subAnns);
-        matched += stats.m;
-        visual += stats.v;
-        unmatched += stats.u;
-        split += stats.s;
-        fallback += stats.f;
-
-        // Codes count (Restored)
-        const subCodes = annotationsBySubQ.get(subPart) || [];
-        totalAnnotationCount += subCodes.length;
-        totalAnnotationCodes.push(...subCodes);
-      });
-
-      // FIX: Add orphaned annotations (e.g. 'a' when scheme has 'ai', 'aii')
-      // These keys exist in the map but didn't match any subQuestionStats label (which uses scheme parts)
-      annotationsBySubQ.forEach((codes, key) => {
-        // Check if this key was used in any subQuestionStats
-        const isUsed = subQuestionStats.some(sq => {
-          // sq.label is like "2ai", key is "a".
-          // sq.part is "ai".
-          // We check if this key was "consumed" by any sub-question
-          const subPart = sq.label.replace(String(result.questionNumber), '');
-          return subPart === key;
-        });
-
-        if (!isUsed) {
-          totalAnnotationCount += codes.length;
-          totalAnnotationCodes.push(...codes);
-        }
-      });
-
-      // FIX: Also add "unassigned" annotations (those belonging to main question but not specific sub-question)
-
-      const unassignedAnns = result.annotations ? result.annotations.filter((a: any) => {
-        const sId = (a.line_id || '').toLowerCase();
-        const uId = (a.unified_line_id || '').toLowerCase();
-
-        // Check if this annotation belongs to ANY sub-question
-        const isAssigned = subQuestionStats.some((sq: any) => {
-          const part = sq.label.replace(String(result.questionNumber), '').toLowerCase();
-          return sId.includes(`_${part}`) || uId.includes(part);
-        });
-        return !isAssigned;
-      }) : [];
-
-      // if (['2', '6'].includes(String(result.questionNumber))) {
-      //   console.log(`\n🔍 [DEBUG Q${result.questionNumber} TABLE ANALYSIS]`);
-      //   console.log(`   - Total Annotations: ${result.annotations?.length || 0}`);
-      //   console.log(`   - Aggregated Count: ${totalAnnotationCount} + ${unassignedAnns.length} (Unassigned)`);
-      //   console.log(`   - Unassigned: ${unassignedAnns.map((a: any) => `${a.text} [${a.ocr_match_status}]`).join(', ')}`);
-      //   console.log(`   - Sub-Q Stats: ${JSON.stringify(subQuestionStats.map((s: any) => ({ label: s.label, anns: s.annotations })))}`);
-      //   result.annotations?.forEach((a: any) => {
-      //     console.log(`     > [${a.text}] ID: ${a.line_id || a.unified_line_id || 'N/A'} | Status: ${a.ocr_match_status} | Line: ${a.hasLineData}`);
-      //   });
-      //   console.log(`---------------------------------------------------\n`);
-      // }
-
-
-      if (unassignedAnns.length > 0) {
-        const stats = calcStats(unassignedAnns);
-        matched += stats.m;
-        visual += stats.v;
-        unmatched += stats.u;
-        split += stats.s;
-        fallback += stats.f;
-
-        // Add unassigned codes
-        // These are already in `mainAnnotations` array populated at start of function
-        // But `mainAnnotations` might contain ALL codes if logic was loose?
-        // Let's rely on `mainAnnotations` array which we populated based on `!ann.subQuestion` check earlier.
-        // IF `ann.subQuestion` was null, it went to `mainAnnotations`.
-        totalAnnotationCount += mainAnnotations.length;
-        totalAnnotationCodes.push(...mainAnnotations);
-      }
-
-    } else {
-      // STANDARD MODE: Use main annotations directly
-      if (result.annotations) {
-        const stats = calcStats(result.annotations);
-        matched = stats.m;
-        visual = stats.v;
-        unmatched = stats.u;
-        split = stats.s;
-        fallback = stats.f;
-
-        // Count codes
-        totalAnnotationCount = mainAnnotations.length;
-        totalAnnotationCodes = mainAnnotations;
-      }
-    }
-
-    // Color coding: M=Green, V=White, U=Yellow, S=White, F=Red
-    const unmatchedStr = ` \x1b[33mU:${unmatched}\x1b[0m`; // Always show U count in yellow
-    const fallbackStr = fallback > 0 ? ` \x1b[31mF:${fallback}\x1b[0m` : '';
-    // M is now Green (\x1b[32m) instead of Orange (\x1b[33m)
-    const statusStr = `M:\x1b[32m${matched}\x1b[0m V:${visual}${unmatchedStr} S:${split}${fallbackStr}`;
-
-    // Color coding
     const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
 
-    // Annotation Count (Main Question)
-    // FIX: Use totalAnnotationCount (which is code sum) instead of raw annotation object count
-    const annotationCount = totalAnnotationCount;
-    const annotationStr = totalAnnotationCodes.length > 0 ? `(${totalAnnotationCodes.join(',')})` : '';
-    const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(46); // Increased to 46
-    const matchStats = `M:${matched} V:${visual}${unmatchedStr} S:${split}${fallbackStr}`;
-
-    const totalAnnCount = totalAnnotationCount;
-    const countStr = String(totalAnnCount);
-    const coloredCount = totalAnnCount < lineCount ? `\x1b[31m${countStr}\x1b[0m` : countStr;
-
-    // If we have sub-questions, maybe we shouldn't list all codes in the main row to avoid clutter/confusion?
-    // Let's list main codes only if there are sub-questions.
-    const displayCodesStr = subQuestionStats.length > 0 ? (mainAnnotations.length > 0 ? ` (${mainAnnotations.join(',')})` : '') : annotationStr; // Use annotationStr here
-
-    const visibleLength = countStr.length + displayCodesStr.length;
-    // Update padding calculation for Ann column (width 46)
-    const paddingNeeded = Math.max(0, 46 - visibleLength);
-    const padding = ' '.repeat(paddingNeeded);
-
-    const finalAnnCol = `${coloredCount}${displayCodesStr}${padding}`;
-
-    // Calculate padding for status string (visible length)
-    // Raw string length calculation (stripping ANSI codes for length check)
-    const rawStatusStr = `M:${matched} V:${visual} U:${unmatched} S:${split}${fallback > 0 ? ` F:${fallback}` : ''}`;
-    const statusPadding = ' '.repeat(Math.max(0, 32 - rawStatusStr.length));
-    // Recalculate Total WS/Drw if Sub-Questions exist (Ensure Main Row = Sum of Sub Rows)
-    if (subQuestionStats.length > 0) {
-      lineCount = subQuestionStats.reduce((sum, sq) => sum + sq.wb, 0);
-      drawingCount = subQuestionStats.reduce((sum, sq) => sum + sq.drw, 0);
-    }
-
-    const wsDrwCol = `${lineCount},${drawingCount}`.padEnd(10);
-
-    // Extract Scheme Summary
-    let schemeStr = '-';
-    if (task && task.markingScheme) {
-      // DEBUG: Log scheme structure for Q14 to understand why column is empty
-      if (result.questionNumber == 14) {
-        // console.log('[DEBUG TABLE] Q14 Scheme:', JSON.stringify(task.markingScheme).substring(0, 200));
-
-        // Validation for array format which is required for table building
-        if (!Array.isArray(task.markingScheme) && !task.markingScheme?.questionMarks) {
-          // console.log('[DEBUG TABLE] Q14 Scheme Structure Invalid:',
-          //    JSON.stringify(task.markingScheme).substring(0, 100));
-          return;
-        }
-      }
-      try {
-        let schemeMarks: any[] = [];
-        let schemeJson = result.markingScheme || task.markingScheme; // Prefer Scheme actually used by AI
-
-        // Handle if likely already an object, or string
-        if (typeof schemeJson === 'string') {
-          try { schemeJson = JSON.parse(schemeJson); } catch (e) { }
-        }
-
-        if (Array.isArray(schemeJson)) {
-          schemeMarks = schemeJson;
-        } else if (schemeJson && schemeJson.marks) {
-          schemeMarks = schemeJson.marks;
-        } else if (schemeJson && schemeJson.questionMarks && schemeJson.questionMarks.marks) {
-          schemeMarks = schemeJson.questionMarks.marks;
-        } else {
-          // DEBUG: Log why we couldn't find marks
-          if (result.questionNumber == 14) {
-            console.log('[DEBUG TABLE] Q14 Scheme Structure Invalid:',
-              typeof schemeJson,
-              schemeJson ? Object.keys(schemeJson) : 'null'
-            );
-          }
-        }
-
-        if (schemeMarks.length > 0) {
-          const codes = schemeMarks.map((m: any) => m.mark || '?');
-          // Summarize: 4(P1,P1,P1,A1)
-          const countStr = String(codes.length);
-          // Highlight count in GREEN if it matches the total annotation count EXACTLY
-          const coloredCount = (codes.length === totalAnnotationCount)
-            ? `\x1b[32m${countStr}\x1b[0m`
-            : countStr;
-
-          schemeStr = `${coloredCount}(${codes.join(',')})`;
-        }
-      } catch (e) {
-        // invalid json
+    let scoreStr = '-';
+    // const s = result.score;
+    const scoreObj = (result as any).studentScore || result.score;
+    if (scoreObj) {
+      if (typeof scoreObj.awardedMarks === 'number' && typeof scoreObj.totalMarks === 'number') {
+        scoreStr = `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`;
+      } else if (scoreObj.scoreText) {
+        scoreStr = scoreObj.scoreText;
       }
     }
-    // Truncate if too long to fit in 33 chars (column width 34 - 1 space padding)
-    if (schemeStr.length > 33) {
-      schemeStr = schemeStr.substring(0, 32) + '…';
-    }
-    const schemeCol = schemeStr.padEnd(42);
+    const paddedScore = scoreStr.padEnd(5);
 
-    console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${schemeCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
+    // Get main annotations
+    const questionAnns = result.annotations || [];
+    const mainMarks = questionAnns.map(a => a.text).filter(t => t).join(', ');
 
-    // Sort sub-question rows alphabetically by label (e.g., 11a, 11b, 11c)
-    subQuestionStats.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+    // Calculate Main Status
+    const stats = calcStats(questionAnns);
+    const statusStr = `M:${stats.m} V:${stats.v} U:${stats.u} S:${stats.s}`;
 
-    // Print sub-question rows
-    subQuestionStats.forEach(sq => {
-      const sqLabel = `  ${sq.label}`.padEnd(8);
-      const coloredSqLabel = `\x1b[92m${sqLabel}\x1b[0m`;
+    console.log(`| ${coloredQNum} | ${paddedScore} | ${mainMarks.padEnd(23)} | ${statusStr.padEnd(25)} |`);
 
-      // Format annotation column for sub-question
-      const subCodes = annotationsBySubQ.get(sq.label.replace(String(result.questionNumber), '')) || [];
-      const subCount = subCodes.length;
-      const subAnnotationStr = subCodes.length > 0 ? `(${subCodes.join(',')})` : '';
-      const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(46); // Standardized to 46
-      const subWorkBlocks = sq.wb;
-      const subDrawings = sq.drw;
-      const subWsDrwCol = `${subWorkBlocks},${subDrawings}`.padEnd(10);
+    // 2. Prepare Sub-Question Rows
+    // Group annotations by sub-question label
+    const subs = new Map<string, string[]>();
+    const subAnnsMap = new Map<string, any[]>();
 
-      // Format Scheme column for sub-question
-      let subSchemeStr = '-';
-      if (task && task.markingScheme) {
-        try {
-          let schemeJson: any = result.markingScheme || task.markingScheme;
-          if (typeof schemeJson === 'string') { try { schemeJson = JSON.parse(schemeJson); } catch (e) { } }
-
-          let marks: any[] = [];
-          if (Array.isArray(schemeJson)) marks = schemeJson;
-          else if (schemeJson && schemeJson.marks) marks = schemeJson.marks;
-          else if (schemeJson && schemeJson.questionMarks && schemeJson.questionMarks.marks) marks = schemeJson.questionMarks.marks;
-
-          // Filter for this sub-question (e.g. "a" from "6a")
-          // sq.label includes question number e.g. "11a". We need "a".
-          const part = sq.label.replace(String(result.questionNumber), '');
-          const subMarks = marks.filter((m: any) => m.subQuestion === part);
-
-          if (subMarks.length > 0) {
-            const codes = subMarks.map((m: any) => m.mark || '?');
-            subSchemeStr = `${codes.length} (${codes.join(',')})`;
-          }
-        } catch (e) { }
+    questionAnns.forEach(a => {
+      if (a.subQuestion) {
+        let label = a.subQuestion.replace(String(result.questionNumber), '').trim();
+        if (!label) label = 'Main';
+        if (!subs.has(label)) {
+          subs.set(label, []);
+          subAnnsMap.set(label, []);
+        }
+        subs.get(label)!.push(a.text);
+        subAnnsMap.get(label)!.push(a);
       }
-      if (subSchemeStr.length > 33) subSchemeStr = subSchemeStr.substring(0, 32) + '…';
-      const subSchemeCol = subSchemeStr.padEnd(33); // Standardized to 33
-
-      console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subSchemeCol}| ${subAnnotationCol}| ${'-'.padEnd(32)} |`);
     });
 
-    console.log(`|----------|-------|-----------|${'-'.repeat(34)}|${'-'.repeat(46)}|----------------------------------|`);
+    if (subs.size > 0) {
+      const sortedKeys = Array.from(subs.keys()).sort();
+      sortedKeys.forEach(key => {
+        if (key === 'Main') return;
+
+        // Indented Label: "  a"
+        // Q# Col Width is 10 (8 char + padding). 
+        // We want "|   a      |" to align.
+        const indentLabel = `  ${key}`.padEnd(8);
+        const coloredLabel = `\x1b[90m${indentLabel}\x1b[0m`; // Gray for sub-questions
+
+        const subMarks = subs.get(key)!.join(', ');
+
+        // Calculate Sub-Score
+        let subAwarded = 0;
+        let subTotal = 0;
+
+        // Calc awarded
+        subs.get(key)!.forEach(m => {
+          const match = m.match(/(\d+)$/);
+          if (match) subAwarded += parseInt(match[1]);
+          else subAwarded += 1;
+        });
+
+        // Calc total from scheme
+        const scheme = (result as any).markingScheme || (markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber))?.markingScheme);
+        if (scheme) {
+          let allMarks: any[] = [];
+          if (Array.isArray(scheme)) allMarks = scheme;
+          else if (scheme.marks) allMarks = scheme.marks;
+          else if (scheme.questionMarks?.marks) allMarks = scheme.questionMarks.marks;
+
+          const subSchemeMarks = allMarks.filter((m: any) => m.subQuestion === key);
+          subTotal = subSchemeMarks.reduce((acc: number, m: any) => acc + (m.mark ? parseInt(m.mark.match(/(\d+)$/)?.[1] || '1') : 1), 0);
+        }
+        const subScoreStr = subTotal > 0 ? `${subAwarded}/${subTotal}` : `${subAwarded}`;
+
+        // Calculate Sub Status
+        const subStats = calcStats(subAnnsMap.get(key) || []);
+        const subStatusStr = `M:${subStats.m} V:${subStats.v} U:${subStats.u} S:${subStats.s}`;
+
+        console.log(`| ${coloredLabel} | ${subScoreStr.padEnd(5)} | ${subMarks.padEnd(23)} | ${subStatusStr.padEnd(25)} |`);
+      });
+    }
+    console.log('|----------|-------|-------------------------|---------------------------|');
   });
 }
 
@@ -1030,7 +663,7 @@ export function formatGroupedStudentWork(
       const subQLabel = `[SUB-QUESTION ${subQ.part.toUpperCase()} STUDENT WORK]`;
       const lines = subQ.studentWork.trim().split('\n');
       const numberedLines = lines.map((line) => {
-        const lineId = customLineIds ? customLineIds[globalLineIndex - 1] : `line_${globalLineIndex}`;
+        const lineId = (customLineIds && customLineIds[globalLineIndex - 1]) ? customLineIds[globalLineIndex - 1] : `line_${globalLineIndex}`;
         globalLineIndex++;
         const label = lineId.includes('line_') ? lineId.replace('line_', 'Line ') : lineId;
         return `[${label}] ${line} (ID: ${lineId})`;

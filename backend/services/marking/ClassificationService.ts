@@ -351,7 +351,7 @@ ${pageHints}
                     const isFuzzyPrintedMatch = normalizedLine.length > 10 && normalizedQuestion.includes(normalizedLine);
 
                     if (isPrintedMatch || isQuestionNumberHeader || isFuzzyPrintedMatch) {
-                      console.log(`[🛡️ TEXT SHIELD] 🚫 Filtering printed text: "${lineText.substring(0, 30)}..." (Reason: ${isQuestionNumberHeader ? 'QHeader' : 'Match'})`);
+                      // console.log(`[🛡️ TEXT SHIELD] 🚫 Filtering printed text: "${lineText.substring(0, 30)}..." (Reason: ${isQuestionNumberHeader ? 'QHeader' : 'Match'})`);
                       return false;
                     }
                     return true;

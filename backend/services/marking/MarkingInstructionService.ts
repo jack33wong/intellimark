@@ -1141,7 +1141,6 @@ export class MarkingInstructionService {
                     }
                   });
 
-                  console.log(`[SCORE DEBUG] Q${inputQuestionNumber || '?'} | Original AI Score: ${originalAwarded} | Recalculated Score: ${totalAwarded}`);
 
                   parsedResponse.studentScore.awardedMarks = totalAwarded;
                   if (parsedResponse.studentScore.totalMarks) {
@@ -1291,10 +1290,8 @@ export class MarkingInstructionService {
       // Log visual observation if present (diagnostic for drawing questions)
       // Log visual observation if present (diagnostic for drawing questions)
       if (parsedResponse.visualObservation && parsedResponse.visualObservation.trim()) {
-        console.log(`  ${CYAN}📋 [VISUAL OBSERVATION] Found in AI Response:${RESET} "${parsedResponse.visualObservation.substring(0, 50)}..."`);
         // console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
       } else {
-        console.log(`  ${RED}❌ [VISUAL OBSERVATION] NOT FOUND in AI Response${RESET}`);
       }
 
       // Log individual annotations for debugging (especially for answers like 18.6)
