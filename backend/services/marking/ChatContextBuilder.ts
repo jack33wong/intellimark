@@ -22,7 +22,8 @@ export class ChatContextBuilder {
         markingSchemesMap: Map<string, any>,
         detectionResults: any[],
         overallScore: { awardedMarks: number; totalMarks: number; percentage: number; scoreText: string; },
-        gradeBoundaryResult?: any
+        gradeBoundaryResult?: any,
+        standardizedPages?: import('../../types/markingRouter.js').StandardizedPage[]
     }): Promise<MarkingContext> {
 
         // 1. Build Question Results with clean nested structure

@@ -33,6 +33,8 @@ export class MarkingOutputService {
         overallScore: number;
         totalPossibleScore: number;
         overallScoreText: string;
+        updatedQuestionResults: QuestionResult[];
+        sortedStandardizedPages: StandardizedPage[];
     }> {
         // --- Calculate Overall Score and Per-Page Scores ---
         const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(allQuestionResults);
@@ -301,13 +303,62 @@ export class MarkingOutputService {
             return `[${i + 1}] Page ${p.pageNumber} (\x1b[37m${qInfo}\x1b[32m)`;
         }).join(' -> ');
 
+        // ========================= LOGICAL RE-INDEXING (FOR FRONTEND SYNC) =========================
+        console.log(`\x1b[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...\x1b[0m`);
+
+        // 1. Create mapping from OLD pageIndex to NEW sorted position
+        const oldToNewIndex = new Map<number, number>();
+        pagesWithOutput.forEach((item, newIdx) => {
+            oldToNewIndex.set(item.pageIndex, newIdx);
+        });
+
+        // 2. Identify the sorted standardizedPages
+        const sortedStandardizedPages = pagesWithOutput.map((item, newIdx) => {
+            // Update the pageIndex in the StandardizedPage object itself to match its new position
+            return {
+                ...item.page,
+                pageIndex: newIdx,
+                originalPageIndex: item.pageIndex // Store the original index for re-alignment mapping
+            };
+        });
+
+        // 3. Deep-update allQuestionResults to point to these new indices
+        const updatedQuestionResults = allQuestionResults.map(qr => {
+            const newQr = { ...qr };
+
+            // Update top-level pageIndex for the result (if it exists)
+            if (qr.pageIndex !== undefined && qr.pageIndex >= 0) {
+                newQr.pageIndex = oldToNewIndex.get(qr.pageIndex) ?? qr.pageIndex;
+            }
+
+            // Update all sourceImageIndices (for multi-page questions)
+            if (qr.sourceImageIndices) {
+                newQr.sourceImageIndices = qr.sourceImageIndices.map(idx => oldToNewIndex.get(idx) ?? idx);
+            }
+
+            // Update all annotations
+            if (qr.annotations) {
+                newQr.annotations = qr.annotations.map(anno => ({
+                    ...anno,
+                    pageIndex: oldToNewIndex.get(anno.pageIndex) ?? anno.pageIndex
+                }));
+            }
+
+            return newQr;
+        });
+
+        console.log(`\x1b[32m✅ [LOGICAL RE-INDEXING] Re-indexed ${updatedQuestionResults.length} questions and ${sortedStandardizedPages.length} pages.\x1b[0m`);
+        // =========================================================================================
+
         console.log(`\x1b[32m✅ \x1b[1m[FINAL PAGE ORDER]\x1b[0m \x1b[32m${pageOrderLog}\x1b[0m`);
 
         return {
             finalAnnotatedOutput,
             overallScore,
             totalPossibleScore,
-            overallScoreText
+            overallScoreText,
+            updatedQuestionResults,
+            sortedStandardizedPages
         };
     }
 }

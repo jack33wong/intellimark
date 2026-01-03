@@ -67,6 +67,7 @@ export interface QuestionResult {
   questionText?: string; // Detected question text
   databaseQuestionText?: string; // Text from database match
   pageIndex?: number; // Primary page index for this question
+  sourceImageIndices?: number[]; // NEW: All page indices this question spans (for multi-page questions)
   overallPerformanceSummary?: string; // AI-generated overall performance summary
   cleanedOcrText?: string; // OCR text without LaTeX/markers
 }

@@ -96,7 +96,8 @@ export class MarkingPersistenceService {
                 files,
                 isPdf,
                 isMultiplePdfs,
-                pdfContext
+                pdfContext,
+                standardizedPages
             );
 
             dbUserMessage = SessionManagementService.createUserMessageForDatabase(
@@ -182,7 +183,8 @@ export class MarkingPersistenceService {
                     percentage: totalPossibleScore > 0 ? Math.round((overallScore / totalPossibleScore) * 100) : 0,
                     scoreText: overallScoreText
                 },
-                gradeBoundaryResult: gradeResult
+                gradeBoundaryResult: gradeResult,
+                standardizedPages // NEW: Correct metadata mapping
             });
 
             // console.log(`[CONTEXT FLOW] 💾 Persisting marking context (Qs: ${richMarkingContext.totalQuestionsMarked}, Score: ${richMarkingContext.overallScore.scoreText})`);

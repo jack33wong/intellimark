@@ -1441,7 +1441,9 @@ export class MarkingPipelineService {
                 finalAnnotatedOutput,
                 overallScore,
                 totalPossibleScore,
-                overallScoreText
+                overallScoreText,
+                updatedQuestionResults,
+                sortedStandardizedPages
             } = await MarkingOutputService.generateOutput(
                 standardizedPages,  // Already filtered upstream - only marking pages
                 allQuestionResults,
@@ -1455,6 +1457,37 @@ export class MarkingPipelineService {
                 progressCallback,
                 MULTI_IMAGE_STEPS
             );
+
+            // ========================= REALIGN DETECTION RESULTS (FOR EXAM TAB) =========================
+            // After re-indexing, we must also update sourceImageIndex in detectionResults 
+            // so that the Exam Tab (sidebar) points to the correct physical pages.
+            const oldToNewIndex = new Map<number, number>();
+            sortedStandardizedPages.forEach((p, newIdx) => {
+                // We need to know which OLD index this NEW index represents.
+                // Wait, sortedStandardizedPages mapping is done in MarkingOutputService.
+                // It already has the correct pageIndex (which is the NEW index).
+            });
+
+            // Actually, MarkingOutputService already built the map internally.
+            // Let's create a map from originalPageIndex to new physical index.
+            const originalToPhysicalMap = new Map<number, number>();
+            sortedStandardizedPages.forEach((p, physicalIdx) => {
+                if (p.originalPageIndex !== undefined) {
+                    originalToPhysicalMap.set(p.originalPageIndex, physicalIdx);
+                }
+            });
+
+            const reindexedDetectionResults = detectionResults.map(dr => {
+                const newDr = { ...dr };
+                if (dr.question?.sourceImageIndex !== undefined && dr.question.sourceImageIndex >= 0) {
+                    newDr.question = {
+                        ...dr.question,
+                        sourceImageIndex: originalToPhysicalMap.get(dr.question.sourceImageIndex) ?? dr.question.sourceImageIndex
+                    };
+                }
+                return newDr;
+            });
+            // ===========================================================================================
 
 
             logOutputGenerationComplete();
@@ -1489,12 +1522,12 @@ export class MarkingPipelineService {
                 options,
                 submissionId,
                 startTime,
-                standardizedPages,
-                allQuestionResults,
+                sortedStandardizedPages, // RE-INDEXED
+                updatedQuestionResults, // RE-INDEXED
                 classificationResult,
                 allClassificationResults,
                 markingSchemesMap,
-                detectionResults,  // Add detection results for Exam Tab building
+                reindexedDetectionResults,  // RE-INDEXED for Exam Tab building
                 globalQuestionText,
                 finalAnnotatedOutput,
                 overallScore,

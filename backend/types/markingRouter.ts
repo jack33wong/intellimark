@@ -8,6 +8,8 @@ export interface StandardizedPage {
   pageIndex: number;
   imageData: string;
   originalFileName?: string;
+  originalPageIndex?: number; // NEW: For logical re-indexing mapping
+  fileSize?: number;
   width?: number;
   height?: number;
 }

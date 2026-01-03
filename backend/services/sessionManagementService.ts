@@ -62,6 +62,7 @@ export interface AIMessageData {
   markingContext?: import('../types/index.js').MarkingContext;
   usageTracker?: any;
   stepTimings?: any;
+  standardizedPages?: import('../types/markingRouter.js').StandardizedPage[]; // NEW: For metadata sync
 }
 
 export class SessionManagementService {
@@ -592,7 +593,7 @@ export class SessionManagementService {
     isPdf: boolean,
     isMultiplePdfs: boolean,
     pdfContext?: any,
-    isAuthenticated?: boolean
+    standardizedPages?: import('../types/markingRouter.ts').StandardizedPage[]
   ): { structuredImageDataArray?: any[]; structuredPdfContexts?: any[] } {
     let structuredImageDataArray: any[] | undefined = undefined;
     let structuredPdfContexts: any[] | undefined = undefined;
@@ -607,13 +608,6 @@ export class SessionManagementService {
           if (!ctx.originalPdfLink) {
             // Detailed logging for authenticated users to diagnose why originalPdfLink is null
             console.error(`❌ [PDF UPLOAD DIAGNOSTIC] Multiple PDFs - Missing Firebase URL for ${ctx.originalFileName || 'unknown'}:`);
-            console.error(`  - isAuthenticated: ${isAuthenticated}`);
-            console.error(`  - originalPdfLink: ${ctx.originalPdfLink || 'null'}`);
-            console.error(`  - originalPdfDataUrl: ${ctx.originalPdfDataUrl ? 'exists' : 'null'}`);
-            console.error(`  - fileSize: ${ctx.fileSize || 'unknown'} bytes`);
-            console.error(`  - fileSizeMB: ${ctx.fileSizeMB || 'unknown'}`);
-            console.error(`  - fileIndex: ${ctx.fileIndex !== undefined ? ctx.fileIndex : 'unknown'}`);
-            console.error(`  - pdfContext structure: isMultiplePdfs=${pdfContext.isMultiplePdfs}, pdfContexts.length=${pdfContext.pdfContexts?.length || 0}`);
             throw new Error(`PDF upload failed for ${ctx.originalFileName || 'unknown'}: No Firebase URL available (authenticated user - upload should have succeeded)`);
           }
           return {
@@ -627,13 +621,6 @@ export class SessionManagementService {
         if (!pdfContext.originalPdfLink) {
           // Detailed logging for authenticated users to diagnose why originalPdfLink is null
           console.error(`❌ [PDF UPLOAD DIAGNOSTIC] Single PDF - Missing Firebase URL for ${pdfContext.originalFileName || 'unknown'}:`);
-          console.error(`  - isAuthenticated: ${isAuthenticated}`);
-          console.error(`  - originalPdfLink: ${pdfContext.originalPdfLink || 'null'}`);
-          console.error(`  - originalPdfDataUrl: ${pdfContext.originalPdfDataUrl ? 'exists' : 'null'}`);
-          console.error(`  - fileSize: ${pdfContext.fileSize || 'unknown'} bytes`);
-          console.error(`  - fileSizeMB: ${pdfContext.fileSizeMB || 'unknown'}`);
-          console.error(`  - originalFileType: ${pdfContext.originalFileType || 'unknown'}`);
-          console.error(`  - pdfContext structure: isMultiplePdfs=${pdfContext.isMultiplePdfs}, has pdfContexts=${!!pdfContext.pdfContexts}`);
           throw new Error(`PDF upload failed for ${pdfContext.originalFileName || 'unknown'}: No Firebase URL available (authenticated user - upload should have succeeded)`);
         }
         structuredPdfContexts = [{
@@ -644,7 +631,6 @@ export class SessionManagementService {
       } else {
         // No pdfContext provided - this should not happen if upload succeeded
         console.error(`❌ [PDF UPLOAD DIAGNOSTIC] PDF context missing:`);
-        console.error(`  - isAuthenticated: ${isAuthenticated}`);
         console.error(`  - isPdf: ${isPdf}`);
         console.error(`  - isMultiplePdfs: ${isMultiplePdfs}`);
         console.error(`  - pdfContext: ${pdfContext ? 'exists but invalid structure' : 'null/undefined'}`);
@@ -656,7 +642,14 @@ export class SessionManagementService {
 
     } else {
       // For images, use imageDataArray for all users
-      if (files.length === 1) {
+      if (standardizedPages && standardizedPages.length > 0) {
+        // PREFER standardizedPages for metadata sync (essential for re-indexing)
+        structuredImageDataArray = standardizedPages.map(page => ({
+          url: null,
+          originalFileName: page.originalFileName || 'unknown-page',
+          fileSize: page.fileSize || 0
+        }));
+      } else if (files.length === 1) {
         structuredImageDataArray = [{
           url: null, // Will be updated to Firebase URL for authenticated users
           originalFileName: files[0].originalname,
@@ -759,7 +752,8 @@ export class SessionManagementService {
       gradeBoundaryType,
       gradeBoundaries,
       markingContext,
-      usageTracker
+      usageTracker,
+      standardizedPages // NEW
     } = aiData;
 
     // Calculate real processing stats for the AI message using the tracker for accuracy
@@ -786,11 +780,18 @@ export class SessionManagementService {
     // Create structured imageDataArray for AI message
     // DIAGNOSTIC: Check for base64 in finalAnnotatedOutput (causes Firestore payload size error) - REMOVED to reduce log noise
 
-    const structuredAiImageDataArray = finalAnnotatedOutput.map((annotatedImage, index) => ({
-      url: annotatedImage,
-      originalFileName: files[index]?.originalname || `annotated-image-${index + 1}.png`,
-      fileSize: annotatedImage.length
-    }));
+    const structuredAiImageDataArray = finalAnnotatedOutput.map((annotatedImage, index) => {
+      // FIX: Use actual standardized page metadata if available, fallback to indexed files
+      const page = standardizedPages?.[index];
+      const fileName = page?.originalFileName || files[index]?.originalname || `annotated-image-${index + 1}.png`;
+      const size = page?.fileSize || annotatedImage.length;
+
+      return {
+        url: annotatedImage,
+        originalFileName: fileName,
+        fileSize: size
+      };
+    });
 
     // Create detectedQuestion data from detection results for frontend display
     let detectedQuestion: any;
