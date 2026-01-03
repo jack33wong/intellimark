@@ -1513,16 +1513,32 @@ const enrichAnnotationsWithPositions = (
       // Legacy "Largest Block" fallback removed as per user request.
       // It was causing marks to snap to Question Text blocks inappropriately.
 
-      // Final fallback (staggered) if absolutely no blocks found
-      const yOffset = 10 + (idx % 3) * 5;
+      // Final Fallback: Robust Slice Center (Q15 Fix)
+      // This is triggered if AI-matching and student work estimation both fail.
+      const questionsOnPage = task.questionsOnPage?.get(defaultPageIndex) || [];
+      const baseQNum = getBaseQuestionNumber(String(questionId));
+      const myIdx = questionsOnPage.indexOf(baseQNum);
+      const count = questionsOnPage.length || 1;
+      const safeIdxInSlice = myIdx === -1 ? 0 : myIdx;
+
+      // Stagger within slice based on index
+      const sliceSizePercent = 100 / count;
+      const centerYPercent = (safeIdxInSlice * sliceSizePercent) + (sliceSizePercent / 2);
+      const staggeredYPercent = centerYPercent + (idx % 3) * 2;
+
+      const fallbackPageDims = pageDimensions?.get(defaultPageIndex) || { width: 1000, height: 1400 };
+      const sliceCenterPixelY = (staggeredYPercent / 100) * fallbackPageDims.height;
+
+      console.log(`[MARKING EXECUTOR] 🎯 SLICE FALLBACK for Q${questionId} "${anno.text}" (Page: ${defaultPageIndex}, Slice: ${safeIdxInSlice + 1}/${count})`);
+
       return {
         ...anno,
-        aiPosition: { x: 50, y: yOffset, width: 40, height: 5 },
-        bbox: [1, 1, 1, 1] as [number, number, number, number],
+        bbox: [fallbackPageDims.width * 0.1, sliceCenterPixelY, fallbackPageDims.width * 0.2, 40] as [number, number, number, number],
         pageIndex: defaultPageIndex,
         line_id: `unmatched_${idx}`,
         ocr_match_status: 'UNMATCHED',
-        hasLineData: false
+        hasLineData: false,
+        subQuestion: targetSubQ || anno.subQuestion
       };
     }
 
