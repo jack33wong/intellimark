@@ -572,7 +572,7 @@
 }
 
 .action-btn.primary {
-    background: var(--text-primary);
+    background: var(--modal-bg);
     color: #000;
     border-color: var(--text-primary);
 }

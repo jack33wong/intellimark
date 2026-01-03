@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, AlertCircle, CheckCircle, Info, ArrowRight } from 'lucide-react';
 import './Modal.css';
 
@@ -79,12 +80,19 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         }
     };
 
-    return (
-        <div className="modal-backdrop" onClick={onClose}>
+    return createPortal(
+        <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 999999 }}>
             <div
                 className="modal modal-small"
                 onClick={e => e.stopPropagation()}
-                style={{ maxWidth: '440px', padding: '0', border: '1px solid rgba(255,255,255,0.1)' }}
+                style={{
+                    maxWidth: '440px',
+                    width: '90%',
+                    padding: '0',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'var(--background-menu-white, #fff)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                }}
             >
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {/* Header with Icon */}
@@ -103,7 +111,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                             }}>
                                 {getIcon()}
                             </div>
-                            <div>
+                            <div style={{ flex: 1 }}>
                                 <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary, #111)' }}>
                                     {title}
                                 </h3>
@@ -119,7 +127,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                                 border: 'none',
                                 color: 'var(--text-tertiary, #999)',
                                 cursor: 'pointer',
-                                padding: '4px'
+                                padding: '4px',
+                                flexShrink: 0
                             }}
                         >
                             <X size={20} />
@@ -167,7 +176,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                     </div>
                 </div>
             </div>
-        </div>
+        </div >,
+        document.body
     );
 };
 

@@ -3,7 +3,7 @@
 
 .upgrade-page {
   min-height: 100vh;
-  background: var(--background-white-main);
+  background: var(--background-gray-main);
   color: var(--text-primary);
   padding: 60px 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;

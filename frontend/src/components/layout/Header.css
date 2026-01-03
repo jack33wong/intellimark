@@ -1491,7 +1491,7 @@
 .header-signup-btn {
   background: var(--primary-color);
   border: 1px solid var(--primary-color);
-  color: white;
+  color: var(--text-primary);
   padding: 8px 20px;
   border-radius: 8px;
   font-size: 14px;

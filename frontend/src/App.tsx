@@ -82,6 +82,7 @@ function AppContent() {
 
   const [autoSplit, setAutoSplit] = useState<boolean>(false);
   const [initialImageIndex, setInitialImageIndex] = useState<number>(0);
+  const [isGuestLimitModalOpen, setIsGuestLimitModalOpen] = useState(false);
 
   // Listen for custom event to load marking session from other pages
   useEffect(() => {
@@ -116,10 +117,22 @@ function AppContent() {
     };
 
     window.addEventListener('loadMarkingSession', handleLoadMarkingSession as any);
+
+    // Listen for other UI events
+    const cleanup = EventManager.listenToMultiple({
+      [EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL]: () => {
+        setIsGuestLimitModalOpen(true);
+      },
+      [EVENT_TYPES.OPEN_AUTH_MODAL]: () => {
+        navigate('/login');
+      }
+    });
+
     return () => {
       window.removeEventListener('loadMarkingSession', handleLoadMarkingSession as any);
+      cleanup();
     };
-  }, []);
+  }, [navigate]);
 
   const handleMarkingHistoryClick = async (result: MarkingResult & { id: string }) => {
     try {
@@ -235,6 +248,10 @@ function AppContent() {
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <GuestLimitModal
+        isOpen={isGuestLimitModalOpen}
+        onClose={() => setIsGuestLimitModalOpen(false)}
+      />
     </div>
   );
 }
@@ -242,16 +259,6 @@ function AppContent() {
 const App: React.FC = () => {
   // Initialize theme
   useTheme();
-
-  const [isGuestLimitModalOpen, setIsGuestLimitModalOpen] = useState(false);
-
-  // Listen for guest limit modal events
-  useEffect(() => {
-    const cleanup = EventManager.listen(EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL, () => {
-      setIsGuestLimitModalOpen(true);
-    });
-    return () => cleanup();
-  }, []);
 
   return (
     <AuthProvider>
@@ -262,10 +269,6 @@ const App: React.FC = () => {
         <AnalyticsTracker />
         <AppContent />
         <UnifiedProfileModal />
-        <GuestLimitModal
-          isOpen={isGuestLimitModalOpen}
-          onClose={() => setIsGuestLimitModalOpen(false)}
-        />
       </Router>
     </AuthProvider>
   );

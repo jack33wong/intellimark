@@ -29,7 +29,7 @@ body.login-page .auth-container {
   bottom: 0;
   background: radial-gradient(circle at 20% 80%, var(--text-brand) 0%, transparent 50%),
     radial-gradient(circle at 80% 20%, var(--text-brand) 0%, transparent 50%);
-  opacity: 0.1;
+  opacity: 0.3;
   z-index: 0;
 }
 

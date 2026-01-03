@@ -403,30 +403,18 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => {
               if (user && canAccessAnalysis) {
                 navigate('/analysis');
-              } else if (!user) {
-                EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' });
               } else {
                 setIsUpgradeModalOpen(true);
               }
             }}
             style={{ marginTop: '8px', opacity: (user && canAccessAnalysis) ? 1 : 0.6 }}
-            title={!user ? "Sign up to access Analysis" : (!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis")}
+            title={!user ? "Sign up to access Analysis" : (!canAccessAnalysis ? "Available on Pro and Ultra plans" : "Analysis")}
           >
             {(user && canAccessAnalysis) ? <BarChart3 size={20} /> : <Lock size={20} />}
             <span>Analysis</span>
           </button>
 
 
-          {!user && (
-            <button
-              className="mark-homework-main-btn guest-signup-btn"
-              onClick={() => EventManager.dispatch('OPEN_AUTH_MODAL', { mode: 'signup' })}
-              style={{ marginTop: '24px', backgroundColor: 'var(--primary-color)', color: 'white' }}
-            >
-              <User size={20} />
-              <span>Sign up for free</span>
-            </button>
-          )}
         </div>
 
         <ConfirmationModal
@@ -434,11 +422,19 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClose={() => setIsUpgradeModalOpen(false)}
           onConfirm={() => {
             setIsUpgradeModalOpen(false);
-            navigate('/upgrade');
+            if (!user) {
+              navigate('/login');
+              // Also dispatch for any other listeners that might need it
+              EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+            } else {
+              navigate('/upgrade');
+            }
           }}
-          title="Upgrade Required"
-          message="Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade now and unlock diagnostic insights?"
-          confirmText="Upgrade to Pro"
+          title={!user ? "Authentication Required" : "Upgrade Required"}
+          message={!user
+            ? "Analysis feature is available on Pro and Ultra plans. Please sign up or log in to access this feature and unlock diagnostic insights."
+            : "Analysis feature is available on Pro and Ultra plans. Would you like to upgrade now and unlock diagnostic insights?"}
+          confirmText={!user ? "Sign Up / Log In" : "Upgrade to Pro"}
           cancelText="Maybe later"
           variant="primary"
           icon={<BarChart3 size={24} />}

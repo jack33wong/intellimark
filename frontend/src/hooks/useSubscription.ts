@@ -80,21 +80,38 @@ export const useSubscription = (): UseSubscriptionResult => {
         }
     }, [user?.uid]);
 
-    const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'ultra';
+    const planId = (subscription?.status === 'active' ? subscription.planId.toLowerCase() : 'free') as 'free' | 'pro' | 'ultra';
+
+    // DEBUG LOG
+    console.log('🔍 [useSubscription] Current State:', {
+        hasSubscription: !!subscription,
+        status: subscription?.status,
+        rawPlanId: subscription?.planId,
+        computedPlanId: planId,
+        userId: user?.uid
+    });
 
     // Get allowed plans from env vars or default (ROBUST: trim spaces)
     const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,ultra').split(',').map(p => p.trim()), []);
     const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'ultra').split(',').map(p => p.trim()), []);
 
     const checkPermission = useCallback((feature: 'analysis' | 'model_selection') => {
+        // ROBUST CHECK: Using keyword matching to handle Variations like "Ultra Plan" or "Pro Month"
+        const isUltra = planId.includes('ultra');
+        const isPro = planId.includes('pro');
+
+        console.log(`🛡️ [checkPermission] Checking ${feature}:`, { isUltra, isPro, planId });
+
         if (feature === 'analysis') {
-            return ALLOWED_ANALYSIS_PLANS.includes(planId);
+            // Both Pro and Ultra (or keywords) are allowed
+            return isPro || isUltra;
         }
         if (feature === 'model_selection') {
-            return ALLOWED_MODEL_SELECTION_PLANS.includes(planId);
+            // Only Ultra (or Keyword) allowed
+            return isUltra;
         }
         return false;
-    }, [planId, ALLOWED_ANALYSIS_PLANS, ALLOWED_MODEL_SELECTION_PLANS]);
+    }, [planId]);
 
     return {
         subscription,

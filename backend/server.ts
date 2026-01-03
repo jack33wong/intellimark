@@ -25,13 +25,6 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 
-// Simple Request Logging for debugging production 500s
-app.use((req, _res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Content-Type: ${req.headers['content-type']}`);
-  }
-  next();
-});
 
 // Rate limiting
 const limiter = rateLimit({
