@@ -888,8 +888,24 @@ const enrichAnnotationsWithPositions = (
   }
 
   const results = annotations.map((anno, idx) => {
+    // 🛡️ 1. ANNOTATION INTERCEPTOR: Prevent marks on printed question text (Fail-Safe Layer 3)
+    // If the AI stubbornely matches a printed landmark despite our filters, we strip it here.
+    let aiLineId = (anno as any).line_id || (anno as any).lineId || (anno as any).line || '';
+
+    const targetOcrBlock = task?.mathBlocks?.find(b =>
+      (b as any).globalBlockId === aiLineId || (b as any).id === aiLineId
+    );
+
+    if (targetOcrBlock && (targetOcrBlock as any).isHandwritten === false) {
+      console.warn(`[🛡️ INTERCEPTOR] 🛑 Intercepted AI match to printed block ${aiLineId}. Stripping to force fallback.`);
+      (anno as any).line_id = undefined;
+      (anno as any).lineId = undefined;
+      (anno as any).ocr_match_status = 'UNMATCHED';
+      aiLineId = ''; // Clear local reference for subsequent matching
+    }
+
     // Unified Identifier Standard: Use only lineId
-    const aiLineId = (anno as any).line_id || (anno as any).lineId || (anno as any).line || '';
+    // aiLineId is already extracted above
 
     // Helper to normalize IDs
     function normalizeId(id: string) {
@@ -897,7 +913,7 @@ const enrichAnnotationsWithPositions = (
     }
 
     // Find the original step
-    let originalStep = stepsDataForMapping.find(s => {
+    let originalStep = aiLineId ? stepsDataForMapping.find(s => {
       const stepId = s.line_id || s.lineId || s.unified_line_id || s.globalBlockId || s.id || '';
       // Direct match
       if (s.line_id === aiLineId || s.lineId === aiLineId || s.unified_line_id === aiLineId) return true;
@@ -910,7 +926,7 @@ const enrichAnnotationsWithPositions = (
         if (!isDrawingPlaceholder) return false;
       }
       return isMatch;
-    });
+    }) : undefined;
 
     // determine pageIndex
     let pageIndex = originalStep?.pageIndex ?? defaultPageIndex;
@@ -918,15 +934,23 @@ const enrichAnnotationsWithPositions = (
       pageIndex = ((anno as any)._page?.global ?? (anno as any).pageIndex) as number;
     }
 
-    // Check for AI Visual Position
+    // Check for AI Visual Position or missing/zeroed bbox
     const rawVisualPos = (anno as any).aiPosition || (anno as any).visual_position;
     let effectiveVisualPos = rawVisualPos;
 
-    if (effectiveVisualPos) {
-      const isLazy = parseFloat(effectiveVisualPos.x) === 0 &&
+    // Determine if we have a valid physical anchor
+    const hasPhysicalAnchor = originalStep &&
+      originalStep.bbox &&
+      originalStep.bbox.length === 4 &&
+      (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0 || originalStep.bbox[2] > 0 || originalStep.bbox[3] > 0);
+
+    if (effectiveVisualPos || !hasPhysicalAnchor) {
+      const isLazy = !effectiveVisualPos || (
+        parseFloat(effectiveVisualPos.x) === 0 &&
         parseFloat(effectiveVisualPos.y) === 0 &&
         parseFloat(effectiveVisualPos.width) === 100 &&
-        parseFloat(effectiveVisualPos.height) === 100;
+        parseFloat(effectiveVisualPos.height) === 100
+      );
 
       if (isLazy) {
         // Simple Slicing Fallback
@@ -945,7 +969,7 @@ const enrichAnnotationsWithPositions = (
           width: "80",
           height: String(sliceSize * 0.8)
         };
-        console.log(`[MARKING EXECUTOR] 🥧 Sliced Fallback for Q${questionId}: Placing at center ${centerY}% (Slice ${safeIdx + 1}/${count})`);
+        console.log(`[MARKING EXECUTOR] 🥧 Fallback used for Q${questionId}: Placing at center ${centerY}% (Reason: ${!hasPhysicalAnchor ? 'Missing BBox' : 'Lazy VisualPos'})`);
       }
     }
 
@@ -1921,8 +1945,11 @@ export function createMarkingTasksFromClassification(
               }
             });
           }
-          // Also map the main question?
-          // globalMapperPageMap[baseQ] = pageIndex; 
+          // Also map the main question (for single-part questions like Q15)
+          if (!globalMapperPageMap[baseQ]) globalMapperPageMap[baseQ] = [];
+          if (!globalMapperPageMap[baseQ].includes(pageIndex)) {
+            globalMapperPageMap[baseQ].push(pageIndex);
+          }
         });
       }
     });
@@ -2165,8 +2192,75 @@ export function createMarkingTasksFromClassification(
 
   // Second pass: Create one task per main question (with all sub-questions grouped)
   for (const [baseQNum, group] of questionGroups.entries()) {
-    // Deduplicate aiSegmentationResults based on content to prevent repeated student work in prompt
-    // This fixes issues where the same text is attributed to multiple pages or question parts
+    // 1. Get all OCR blocks from ALL pages this question spans (COLLECT EARLY for filtering)
+    const allMathBlocks: MathBlock[] = [];
+    group.sourceImageIndices.forEach((pageIndex) => {
+      // FIX: Use find instead of array index to handle split/re-indexed pages correctly
+      const pageOcrData = allPagesOcrData.find(d => d.pageIndex === pageIndex);
+      if (pageOcrData?.ocrData?.mathBlocks) {
+        pageOcrData.ocrData.mathBlocks.forEach((block: MathBlock, idx: number) => {
+          // FORCE pageIndex to be the absolute global index
+          (block as any).pageIndex = pageIndex;
+          // Assign global block ID if not present
+          if (!(block as any).globalBlockId) {
+            (block as any).globalBlockId = `block_${pageIndex}_${idx}`;
+          }
+          allMathBlocks.push(block);
+        });
+      }
+    });
+
+    // 2. Geometric Overlap Filter: Discard student work that physically overlays printed landmarks
+    // This creates a physical barrier that prevents AI from match-annotating question text
+    const allLandmarks = allMathBlocks.filter(b => (b as any).isHandwritten === false);
+    if (allLandmarks.length > 0) {
+      console.log(`[🛡️ SYSTEMATIC FIX] 📍 Identified ${allLandmarks.length} printed landmarks (question text) for Q${baseQNum}.`);
+    }
+
+    group.aiSegmentationResults = group.aiSegmentationResults.filter(seg => {
+      const segPos = (seg as any).lineData?.position;
+      if (!segPos) return true;
+
+      const segPage = (seg as any).lineData?.position?.pageIndex ?? (seg as any).lineData?.pageIndex;
+      const landmarksOnPage = allLandmarks.filter(l => (l as any).pageIndex === segPage);
+
+      for (const landmark of landmarksOnPage) {
+        const lPosRaw = (landmark as any).position || (landmark as any).bbox;
+        if (!lPosRaw) continue;
+
+        // Get page dimensions to normalize from pixels to 0-100
+        const page = standardizedPages.find(p => p.pageIndex === segPage);
+        const pW = page?.width || 1;
+        const pH = page?.height || 1;
+
+        // Normalize lPos to 0-100 scale
+        const l = Array.isArray(lPosRaw)
+          ? { x: (lPosRaw[0] / pW) * 100, y: (lPosRaw[1] / pH) * 100, w: (lPosRaw[2] / pW) * 100, h: (lPosRaw[3] / pH) * 100 }
+          : {
+            x: ((lPosRaw.x || 0) / pW) * 100,
+            y: ((lPosRaw.y || 0) / pH) * 100,
+            w: ((lPosRaw.width || lPosRaw.w || 0) / pW) * 100,
+            h: ((lPosRaw.height || lPosRaw.h || 0) / pH) * 100
+          };
+
+        const s = { x: segPos.x, y: segPos.y, w: segPos.width, h: segPos.height };
+
+        const x_overlap = Math.max(0, Math.min(l.x + l.w, s.x + s.w) - Math.max(l.x, s.x));
+        const y_overlap = Math.max(0, Math.min(l.y + l.h, s.y + s.h) - Math.max(l.y, s.y));
+        const overlap_area = x_overlap * y_overlap;
+        const seg_area = s.w * s.h;
+
+        // If >= 95% of the student work line is inside a printed landmark, discard it
+        // This is a "Safety-First" design to prevent AI from latching onto printed question text
+        if (seg_area > 0 && (overlap_area / seg_area) > 0.95) {
+          console.log(`[🛡️ SPATIAL SHIELD] 🚫 Stripping student work line overlapping question text: "${seg.content.substring(0, 30)}..." (Overlap: ${(overlap_area / seg_area * 100).toFixed(0)}%)`);
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // 3. Deduplicate aiSegmentationResults based on content to prevent repeated student work in prompt
     const uniqueContent = new Set<string>();
     group.aiSegmentationResults = group.aiSegmentationResults.filter(result => {
       const normalizedContent = result.content.trim();
@@ -2183,7 +2277,6 @@ export function createMarkingTasksFromClassification(
     });
 
     // Build prompt components from FILTERED segmentation results
-    // This ensures [Line X] in the prompt EXACTLY matches line_X in stepsDataForMapping
     let promptMainWork = '';
     const subQContentMap = new Map<string, string[]>();
 
@@ -2218,8 +2311,6 @@ export function createMarkingTasksFromClassification(
     );
 
     // Skip if no student work at all (neither main nor sub-questions)
-    // UNLESS we have a marking scheme - in that case, we should still create a task
-    // so the AI can mark it (e.g., as 0 if blank, or maybe classification missed the work but image has it)
     const hasMainWork = promptMainWork && promptMainWork !== 'null' && promptMainWork.trim() !== '';
     const hasSubWork = promptSubQuestions.length > 0;
     const hasMarkingScheme = !!group.markingScheme;
@@ -2230,27 +2321,8 @@ export function createMarkingTasksFromClassification(
 
     // If we have a scheme but no work, we proceed (AI will see the image)
     if (!hasMainWork && !hasSubWork && hasMarkingScheme) {
-      // Add a placeholder so formatGroupedStudentWork doesn't return empty string
       promptMainWork = "[No student work text detected by classification - please check image]";
     }
-
-    // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
-    const allMathBlocks: MathBlock[] = [];
-    group.sourceImageIndices.forEach((pageIndex) => {
-      // FIX: Use find instead of array index to handle split/re-indexed pages correctly
-      const pageOcrData = allPagesOcrData.find(d => d.pageIndex === pageIndex);
-      if (pageOcrData?.ocrData?.mathBlocks) {
-        pageOcrData.ocrData.mathBlocks.forEach((block: MathBlock, idx: number) => {
-          // FORCE pageIndex to be the absolute global index
-          (block as any).pageIndex = pageIndex;
-          // Assign global block ID if not present
-          if (!(block as any).globalBlockId) {
-            (block as any).globalBlockId = `block_${pageIndex}_${idx}`;
-          }
-          allMathBlocks.push(block);
-        });
-      }
-    });
 
     // Extract sub-question numbers for metadata
     const subQuestionNumbers = group.subQuestions.map(sq => `${baseQNum}${sq.part}`);

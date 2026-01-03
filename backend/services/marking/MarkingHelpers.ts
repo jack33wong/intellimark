@@ -328,18 +328,23 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
 
         if (codes.length > 0) {
-          if (ann.subQuestion && ann.subQuestion !== 'null') {
+          const annSubQ = (ann.subQuestion || 'null').toLowerCase();
+          const qNumStr = String(result.questionNumber).toLowerCase();
+
+          if (annSubQ !== 'null' && annSubQ !== '') {
             // FIX: Normalize key by stripping question number prefix if present
-            // e.g. "2ai" -> "ai", "11b" -> "b"
-            // This ensures matches with sq.part (which is "ai", "b", etc.)
-            let key = ann.subQuestion.toLowerCase();
-            const qNumStr = String(result.questionNumber).toLowerCase();
+            let key = annSubQ;
             if (key.startsWith(qNumStr) && key !== qNumStr) {
               key = key.substring(qNumStr.length);
             }
 
-            if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
-            annotationsBySubQ.get(key)!.push(...codes);
+            // If it matches exactly the question number (e.g. "15"), treat as main question
+            if (key === qNumStr) {
+              mainAnnotations.push(...codes);
+            } else {
+              if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
+              annotationsBySubQ.get(key)!.push(...codes);
+            }
           } else {
             mainAnnotations.push(...codes);
           }

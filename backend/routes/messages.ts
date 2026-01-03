@@ -23,17 +23,37 @@ const router = express.Router();
 function formatYourWorkSection(parts: QuestionPart[], questionNumber: string): string {
   if (!parts || parts.length === 0) return '';
 
-  // Helper to convert LaTeX to HTML entities
-  const convertLatexToHtml = (text: string): string => {
+  // Helper to ensure LaTeX has proper backslashes and formatting
+  const fixLatexAndMath = (text: string): string => {
     if (!text) return '';
-    return text
-      .replace(/\$\\times\$/g, '×')
+
+    // 1. Restore missing backslashes for common OCR commands
+    let fixed = text
+      .replace(/(?<!\\)frac\s*{/g, '\\frac{')
+      .replace(/(?<!\\)sqrt\s*{/g, '\\sqrt{')
+      .replace(/(?<!\\)times(\s|$)/g, '\\times$1')
+      .replace(/(?<!\\)div(\s|$)/g, '\\div$1')
+      .replace(/(?<!\\)degree/g, '\\degree')
+      .replace(/(?<!\\)pm/g, '\\pm');
+
+    // 2. Wrap in $ if it contains LaTeX commands and is NOT already wrapped
+    // We check for \ (backslash), ^ (superscript), or _ (subscript)
+    const hasLatex = /[\\^_{}]/.test(fixed);
+    const isWrapped = fixed.trim().startsWith('$') && fixed.trim().endsWith('$');
+
+    if (hasLatex && !isWrapped) {
+      // Proactively wrap in math delimiters for the frontend renderer
+      return `$${fixed.trim()}$`;
+    }
+
+    // 3. Simple text-based cleanup if no LaTeX
+    return fixed
       .replace(/\\times/g, '×')
+      .replace(/\\div/g, '÷')
       .replace(/\^{([^}]+)}/g, '<sup>$1</sup>')
       .replace(/\^(\d)/g, '<sup>$1</sup>')
       .replace(/_{([^}]+)}/g, '<sub>$1</sub>')
-      .replace(/_(\d)/g, '<sub>$1</sub>')
-      .replace(/\$/g, ''); // Remove remaining $ symbols
+      .replace(/_(\d)/g, '<sub>$1</sub>');
   };
 
   let output = `:::your-work\n`;
@@ -43,10 +63,12 @@ function formatYourWorkSection(parts: QuestionPart[], questionNumber: string): s
 
   parts.forEach((part) => {
     part.marks.forEach((mark, markIdx) => {
-      const cleanWork = mark.work ? convertLatexToHtml(mark.work) : '';
+      const cleanWork = mark.work ? fixLatexAndMath(mark.work) : '';
 
       // First mark of a part (a, b...) gets the label
-      const partLabel = (markIdx === 0 && part.part) ? `${part.part}) ` : '';
+      // FIX: Don't repeat the question number if the part is exactly the question number (for single part questions)
+      const isSinglePartHeader = part.part === questionNumber || !part.part;
+      const partLabel = (markIdx === 0 && part.part && !isSinglePartHeader) ? `${part.part}) ` : '';
 
       // Alignment padding: if we don't have a part label (subsequent marks), we must pad its space
       const partPadding = (markIdx > 0 && part.part) ? ' '.repeat(part.part.length + 2) : '';

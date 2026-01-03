@@ -848,11 +848,11 @@ export class MarkingInstructionService {
           subQuestionPageMap as any // NEW: Pass the hint map
         );
 
-        // DEBUG: Log prompt for Q3 to investigate persistent mapping issues
-        if (inputQuestionNumber === '3') {
-          console.log(`\n\x1b[36m[DEBUG Q3 PROMPT] Input for AI Marking:\x1b[0m`);
+        // DEBUG: Log prompt for Q3 and Q15 to investigate persistent mapping issues
+        if (inputQuestionNumber === '3' || inputQuestionNumber === '15') {
+          console.log(`\n\x1b[36m[DEBUG Q${inputQuestionNumber} PROMPT] Input for AI Marking:\x1b[0m`);
           console.log(userPrompt);
-          console.log(`\x1b[36m[DEBUG Q3 PROMPT END]\x1b[0m\n`);
+          console.log(`\x1b[36m[DEBUG Q${inputQuestionNumber} PROMPT END]\x1b[0m\n`);
         }
       } else {
         // Scheme doesn't match current question - don't pass it to AI

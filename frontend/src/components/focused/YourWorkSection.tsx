@@ -61,9 +61,9 @@ const parseRowContent = (text: string): { work: string, marks: string, reason: s
         reason = rawReason;
     }
 
-    // SANITIZATION: Strip trailing $ or \$ which often leak from OCR or math injection
-    studentWork = studentWork.replace(/\\?\$$/, '').trim();
-    reason = reason.replace(/\\?\$$/, '').trim();
+    // SANITIZATION: Strip trailing \$ which often leak from OCR (keep balanced $)
+    studentWork = studentWork.replace(/\\\$$/, '').trim();
+    reason = reason.replace(/\\\$$/, '').trim();
 
     return { work: studentWork, marks, reason };
 };
