@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Moon, Sun, Monitor, Grid, List } from 'lucide-react';
+import { Settings, Moon, Sun, Monitor } from 'lucide-react';
 import useTheme from '../../hooks/useTheme';
 import { STORAGE_KEYS, AI_MODELS } from '../../utils/constants';
 

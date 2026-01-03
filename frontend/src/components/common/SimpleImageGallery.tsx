@@ -14,29 +14,13 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
   images,
   onImageClick,
   className = '',
-  showViewToggle = false,
+  showViewToggle = false, // Deprecated but kept for signature compatibility
   onImageLoad
 }) => {
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
 
-  // Read initial view mode from localStorage
-  const [viewMode, setViewMode] = useState<'grid' | 'horizontal'>(() => {
-    const saved = localStorage.getItem('galleryViewMode');
-    return (saved as 'grid' | 'horizontal') || 'grid';
-  });
-
-  // Listen for changes from Settings modal
-  useEffect(() => {
-    const handleViewModeChange = (event: CustomEvent) => {
-      setViewMode(event.detail as 'grid' | 'horizontal');
-    };
-
-    window.addEventListener('galleryViewModeChanged', handleViewModeChange as EventListener);
-
-    return () => {
-      window.removeEventListener('galleryViewModeChanged', handleViewModeChange as EventListener);
-    };
-  }, []);
+  // Enforce Horizontal (List) View Mode always
+  const viewMode = 'horizontal';
 
   if (!images || images.length === 0) {
     return null;
@@ -66,24 +50,7 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
 
   return (
     <div className="gallery-container">
-      {showViewToggle && (
-        <div className="gallery-view-toggle">
-          <button
-            className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Grid View"
-          >
-            <Grid size={16} />
-          </button>
-          <button
-            className={`view-toggle-btn ${viewMode === 'horizontal' ? 'active' : ''}`}
-            onClick={() => setViewMode('horizontal')}
-            title="Horizontal View"
-          >
-            <List size={16} />
-          </button>
-        </div>
-      )}
+      {/* View Toggle Removed - Enforced Horizontal View */}
       <div className={`${gridClass} ${className}`}>
         {images.map((image, index) => {
           const imageSrc = getImageSrc(image);
