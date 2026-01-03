@@ -556,8 +556,6 @@ export class MarkingPipelineService {
             // MINIMAL EVIDENCE LOG
             const q3aPages = allClassificationResults.filter(r => r.result.questions?.some(q => q.questionNumber === '3' && (q.subQuestions?.some((sq: any) => sq.part === 'a') || q.text?.includes('3a')))).map(r => r.pageIndex + 1);
             const q3bPages = allClassificationResults.filter(r => r.result.questions?.some(q => q.questionNumber === '3' && (q.subQuestions?.some((sq: any) => sq.part === 'b') || q.text?.includes('3b')))).map(r => r.pageIndex + 1);
-            console.log(`\n🔍 [EVIDENCE] Q3a mapped to Page(s): ${q3aPages.join(', ') || 'None'}`);
-            console.log(`🔍 [EVIDENCE] Q3b mapped to Page(s): ${q3bPages.join(', ') || 'None'}\n`);
 
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
@@ -1073,7 +1071,6 @@ export class MarkingPipelineService {
                     });
                 }
             });
-            console.log('[PIPELINE DEBUG] ✅ Drawing image passing configured, proceeding to create marking tasks...');
 
             // ========================= START: ENHANCE DRAWINGS =========================
             // Drawing Enhancement Service removed as per new design (AI Marking provides coordinates)
@@ -1082,7 +1079,6 @@ export class MarkingPipelineService {
             // ========================= START: IMPLEMENT STAGE 3 =========================
             // --- Stage 3: Create Marking Tasks Directly from Classification (Bypass Segmentation) ---
             progressCallback(createProgressData(5, 'Preparing marking tasks...', MULTI_IMAGE_STEPS));
-            console.log('[PIPELINE DEBUG] Starting createMarkingTasksFromClassification...');
 
 
             // Create page dimensions map from standardizedPages for accurate drawing position calculation
@@ -1157,15 +1153,15 @@ export class MarkingPipelineService {
                     standardizedPages,
                     allClassificationResults // NEW: Pass authoritative mapper results
                 );
-                console.log(`[PIPELINE DEBUG] ✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
+                console.log(`✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
             } catch (error) {
-                console.error('[PIPELINE DEBUG] ❌ createMarkingTasksFromClassification failed:', error);
+                console.error('❌ createMarkingTasksFromClassification failed:', error);
                 throw error;
             }
 
             // Handle case where no student work is found
             if (markingTasks.length === 0) {
-                console.log('[PIPELINE DEBUG] No marking tasks created, exiting early');
+                console.log('No marking tasks created, exiting early');
                 progressCallback(createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
                 const finalOutput = {
                     submissionId, // Pass through submissionId

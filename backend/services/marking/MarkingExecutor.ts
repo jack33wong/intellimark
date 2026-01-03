@@ -785,13 +785,6 @@ export async function executeMarkingForQuestion(
       tracker: tracker
     });
 
-    if (String(questionId).startsWith('6')) {
-      console.log(`[DEBUG LOCK Q6] Raw AI Response Anno Count: ${markingResult.annotations?.length || 0}`);
-      if (markingResult.annotations?.length > 0) {
-        console.log(`[DEBUG LOCK Q6] 1st Anno Keys: ${Object.keys(markingResult.annotations[0]).join(', ')}`);
-        console.log(`[DEBUG LOCK Q6] 1st Anno ID: ${(markingResult.annotations[0] as any).line_id}`);
-      }
-    }
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
@@ -809,8 +802,6 @@ export async function executeMarkingForQuestion(
     const defaultPageIndex = sourcePages.find(p => p !== 0) ?? sourcePages[0] ?? 0;
 
     // 5. Enrich annotations with positions (map to OCR blocks or visual positions)
-    console.log(`[MARKING EXECUTOR] 🔍 markingResult keys: ${Object.keys(markingResult).join(', ')}`);
-    console.log(`[MARKING EXECUTOR] 🔍 visualObservation value: "${(markingResult as any).visualObservation}"`);
 
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations || [],
@@ -881,11 +872,6 @@ const enrichAnnotationsWithPositions = (
   let lastValidAnnotation: EnrichedAnnotation | null = null;
   const allMarks = (task.markingScheme as any)?.marks || [];
 
-  if (visualObservation) {
-    console.log(`[MARKING EXECUTOR] 📋 Propagating Visual Observation: "${visualObservation.substring(0, 30)}..."`);
-  } else {
-    console.log(`[MARKING EXECUTOR] ⚠️ No Visual Observation provided to enrichAnnotationsWithPositions`);
-  }
 
   const results = annotations.map((anno, idx) => {
     // 🛡️ 1. ANNOTATION INTERCEPTOR: Prevent marks on printed question text (Fail-Safe Layer 3)
@@ -969,7 +955,6 @@ const enrichAnnotationsWithPositions = (
           width: "80",
           height: String(sliceSize * 0.8)
         };
-        console.log(`[MARKING EXECUTOR] 🥧 Fallback used for Q${questionId}: Placing at center ${centerY}% (Reason: ${!hasPhysicalAnchor ? 'Missing BBox' : 'Lazy VisualPos'})`);
       }
     }
 
@@ -1046,7 +1031,6 @@ const enrichAnnotationsWithPositions = (
       const visualY = sliceCenterY;
       const pixelBbox: [number, number, number, number] = [pDims.width * 0.1, visualY, pDims.width * 0.8, 100];
 
-      console.log(`[DRAWING DEBUG] Q${questionId}${targetSubQ || ''} -> detected via keyword. Slicing on Page ${bestPage} (Index ${sliceIndex}/${sliceCount})`);
 
       return {
         ...anno,
@@ -1954,7 +1938,6 @@ export function createMarkingTasksFromClassification(
       }
     });
     // console.log('[EXECUTOR DEBUG] Global Mapper Page Map:', JSON.stringify(globalMapperPageMap)); 
-    console.log('[EXECUTOR DEBUG] Global Mapper Page Map:', JSON.stringify(globalMapperPageMap)); // ENABLED FOR DEBUG
   }
   // END: Mapper Page Map
 

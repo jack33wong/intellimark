@@ -474,16 +474,6 @@ export class FirestoreService {
             ...(message.updatedAt ? {} : { updatedAt: new Date().toISOString() })
           };
 
-          // DEBUG: Log message type being saved
-          if (index === messages.length - 1) { // Only log the last message (AI message)
-            console.log('[FirestoreService] Saving AI message with type:', {
-              messageId: messageDoc.id,
-              type: messageDoc.type,
-              role: messageDoc.role,
-              hasImageDataArray: !!messageDoc.imageDataArray,
-              imageDataArrayLength: messageDoc.imageDataArray?.length
-            });
-          }
 
           // Remove null values, imageData, and base64 pdfContexts (base64 should not be in Firestore)
           const finalMessage = Object.fromEntries(
@@ -501,7 +491,6 @@ export class FirestoreService {
                   if (pdf.url && typeof pdf.url === 'string' && pdf.url.startsWith('data:')) {
                     // This is base64, filter it out
                     const sizeMB = pdf.url.length / (1024 * 1024);
-                    console.log(`🔍 [DIAGNOSTIC] Filtering out pdfContext base64 from message ${index} (${pdf.originalFileName || 'unknown'}), size: ${sizeMB.toFixed(2)}MB`);
                     return null;
                   }
                   return pdf; // Keep Firebase URLs
@@ -519,20 +508,6 @@ export class FirestoreService {
             })
           );
 
-          // DIAGNOSTIC: Log message payload size before saving
-          const messageSize = JSON.stringify(finalMessage).length;
-          const messageSizeMB = messageSize / (1024 * 1024);
-          if (messageSizeMB > 1) {
-            console.log(`🔍 [DIAGNOSTIC] Message ${index} payload size: ${messageSize.toLocaleString()} bytes (${messageSizeMB.toFixed(2)}MB)`);
-            // Log which fields are largest
-            Object.entries(finalMessage).forEach(([key, value]) => {
-              const fieldSize = JSON.stringify(value).length;
-              const fieldSizeMB = fieldSize / (1024 * 1024);
-              if (fieldSizeMB > 0.5) {
-                console.log(`  - Field "${key}": ${fieldSize.toLocaleString()} bytes (${fieldSizeMB.toFixed(2)}MB)`);
-              }
-            });
-          }
 
           return finalMessage;
         }));
@@ -546,9 +521,6 @@ export class FirestoreService {
 
       // Create single session document with nested messages
 
-      // DIAGNOSTIC: Calculate total payload size before saving
-      const totalPayloadSize = JSON.stringify(unifiedMessages).length;
-      const totalPayloadSizeMB = totalPayloadSize / (1024 * 1024);
 
 
       // Calculate cost for the session if sessionStats exists
@@ -598,16 +570,7 @@ export class FirestoreService {
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
 
-      // DEBUG: Log messageType being saved
-      console.log('[FirestoreService] Creating session with messageType:', {
-        sessionId,
-        messageType,
-        title: title.substring(0, 50)
-      });
 
-      // DIAGNOSTIC: Calculate final document size
-      const finalDocSize = JSON.stringify(sessionDoc).length;
-      const finalDocSizeMB = finalDocSize / (1024 * 1024);
 
 
       // Only include detectedQuestion if it exists and is not null
