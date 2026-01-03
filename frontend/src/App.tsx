@@ -16,6 +16,7 @@ import GuestLimitModal from './components/common/GuestLimitModal';
 import AnalyticsTracker from './components/common/AnalyticsTracker';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import useTheme from './hooks/useTheme';
+import HeroAnimation from './components/layout/HeroAnimation';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -239,10 +240,7 @@ function AppContent() {
         <Route path="/" element={
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps}>
-              <div className="welcome-message">
-                <h1>Welcome to AI Marking</h1>
-                <p>Your AI-powered homework marking assistant</p>
-              </div>
+              <HeroAnimation />
             </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />

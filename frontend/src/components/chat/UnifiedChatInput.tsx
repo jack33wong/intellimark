@@ -454,6 +454,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
           </p>
         </div>
       )}
+
       <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''} ${mode}`}>
         <div className="followup-input-wrapper">
           {contextQuestionId && (

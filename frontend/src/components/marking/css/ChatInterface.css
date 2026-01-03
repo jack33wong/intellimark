@@ -13,7 +13,7 @@
 /* Follow-up Chat Input Container - Center position (initial) */
 .follow-up-chat-input-container.follow-up-center {
   position: absolute;
-  top: 40%;
+  top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: 100%;
@@ -1341,7 +1341,6 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 
 /* Landing Page Intro Image */
 .landing-intro-image-container {
-  margin-top: 40px;
   width: 100%;
   display: flex;
   justify-content: center;

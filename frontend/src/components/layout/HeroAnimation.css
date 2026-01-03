@@ -1,0 +1,242 @@
+.hero-animation-container {
+    padding: 0;
+    width: 100%;
+    max-width: 900px;
+    margin: 20px auto 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: visible;
+    background: transparent;
+}
+
+.hero-main-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    width: 100%;
+}
+
+.hero-text-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    flex: 1;
+}
+
+.hero-headlines-wrapper {
+    height: 50px;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.hero-headline {
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin: 0;
+    position: absolute;
+    left: 0;
+    opacity: 0;
+    transform: translateY(100%);
+    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    line-height: 1;
+    letter-spacing: -0.04em;
+}
+
+.hero-headline.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.hero-headline.exit {
+    opacity: 0;
+    transform: translateY(-100%);
+}
+
+/* Step-specific colors to replace inline styles */
+.hero-headline.step-0 {
+    color: var(--function-primary);
+}
+
+.hero-headline.step-1 {
+    color: var(--function-error);
+}
+
+.hero-headline.step-2 {
+    color: var(--function-warning);
+}
+
+.hero-headline.step-3 {
+    color: var(--text-brand);
+}
+
+/* Base circle colors mapping to steps */
+.hero-circle-bg.step-0 {
+    background-color: color-mix(in srgb, var(--function-primary), transparent 90%);
+}
+
+.hero-circle-bg.step-1 {
+    background-color: color-mix(in srgb, var(--function-error), transparent 90%);
+}
+
+.hero-circle-bg.step-2 {
+    background-color: color-mix(in srgb, var(--function-warning), transparent 90%);
+}
+
+.hero-circle-bg.step-3 {
+    background-color: color-mix(in srgb, var(--text-brand), transparent 90%);
+}
+
+.hero-static-description {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    max-width: 350px;
+    margin: 6px 0 0 0;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.5s ease;
+}
+
+.hero-static-description.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.hero-image-side {
+    position: relative;
+    width: 420px;
+    height: 420px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* The colored circle from Google Ads reference */
+.hero-circle-bg {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    z-index: 0;
+    transition: background 0.8s ease;
+}
+
+.hero-floating-frame {
+    position: relative;
+    width: 280px;
+    aspect-ratio: 1;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    z-index: 1;
+    border: none;
+    animation: hero-float-mini 4s ease-in-out infinite;
+}
+
+.hero-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.6s ease-in-out;
+    border-radius: 24px;
+    /* Premium rounded looks */
+}
+
+.hero-image.active {
+    opacity: 1;
+}
+
+@keyframes hero-float-mini {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+.hero-controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 8px;
+}
+
+.hero-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border-main);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    padding: 0;
+    opacity: 0.4;
+}
+
+.hero-dot.active {
+    background: var(--text-brand);
+    transform: scale(1.2);
+    opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+    .hero-main-row {
+        flex-direction: column;
+        text-align: center;
+        gap: 20px;
+    }
+
+    .hero-text-side {
+        align-items: center;
+    }
+
+    .hero-headlines-wrapper {
+        width: 100%;
+        text-align: center;
+    }
+
+    .hero-headline {
+        left: 50%;
+        transform: translate(-50%, 100%);
+        font-size: 2rem;
+    }
+
+    .hero-headline.active {
+        transform: translate(-50%, 0);
+    }
+
+    .hero-headline.exit {
+        transform: translate(-50%, -100%);
+    }
+
+    .hero-image-side {
+        width: 180px;
+        height: 180px;
+    }
+
+    .hero-circle-bg {
+        width: 160px;
+        height: 160px;
+    }
+
+    .hero-floating-frame {
+        width: 130px;
+    }
+}

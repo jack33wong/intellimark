@@ -18,6 +18,7 @@ import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
 import QuestionNavigator from './QuestionNavigator';
 import ImageViewer from '../common/ImageViewer';
+import HeroAnimation from '../layout/HeroAnimation';
 
 const MainLayout: React.FC = () => {
   const {
@@ -462,14 +463,9 @@ const MainLayout: React.FC = () => {
             isNegative={isNegative}
           />
 
-          {/* Intro Image for Landing Page */}
           {!isFollowUp && (
             <div className="landing-intro-image-container">
-              <img
-                src="/images/intro-diagram.png"
-                alt="How AI Grading Works"
-                className="landing-intro-image"
-              />
+              <HeroAnimation />
             </div>
           )}
         </div>

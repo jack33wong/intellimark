@@ -103,28 +103,7 @@
   color: var(--text-primary);
 }
 
-.welcome-message {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
-  text-align: center;
-  min-height: 0;
-}
 
-.welcome-message h1 {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  color: var(--text-brand);
-}
-
-.welcome-message p {
-  font-size: 1.2rem;
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-}
 
 
 /* Additional App-specific styles */
