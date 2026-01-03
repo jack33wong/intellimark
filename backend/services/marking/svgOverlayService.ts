@@ -506,7 +506,15 @@ export class SVGOverlayService {
     const borderWidth = 2;
 
     // Draw border for all annotations (unless in production)
-    const isProduction = process.env.NODE_ENV === 'production';
+    // SAFE CHECK: Wrap environment access to prevent 500 errors if process is undefined
+    let isProduction = false;
+    try {
+      if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production') {
+        isProduction = true;
+      }
+    } catch (e) {
+      // Ignore error, default to false (draw borders)
+    }
 
     if (!isProduction) {
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
