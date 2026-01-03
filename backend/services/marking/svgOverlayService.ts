@@ -505,10 +505,14 @@ export class SVGOverlayService {
 
     const borderWidth = 2;
 
-    // Draw border for all annotations
-    svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
-            fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
-            stroke-dasharray="${strokeDash}"/>`;
+    // Draw border for all annotations (unless in production)
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (!isProduction) {
+      svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
+              fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
+              stroke-dasharray="${strokeDash}"/>`;
+    }
 
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;
