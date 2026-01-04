@@ -279,7 +279,7 @@ export const MarkingPageProvider = ({
 
       // Generate a predictable AI message ID that backend can use
       const aiMessageId = createAIMessageId(trimmedText);
-      startAIThinking(aiProgressData, aiMessageId, []); // For text messages, imageDataArray is empty
+      startAIThinking(textProgressData, aiMessageId, []); // For text messages, imageDataArray is empty
 
       // --- NEW: Context Chat Support for Guests ---
       // If the user is unauthenticated, the backend won't have the session context in DB.
@@ -544,7 +544,8 @@ export const MarkingPageProvider = ({
         currentStepIndex: 0,
       };
 
-      startAIThinking(multiImageProgressData, multiImageAiMessageId, imageDataArray);
+      const thinkingImages = hasPDFs ? pdfContexts : imageDataArray;
+      startAIThinking(multiImageProgressData, multiImageAiMessageId, thinkingImages);
 
       // Execute API call in background so UI resets immediately
       processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId)
