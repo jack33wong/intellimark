@@ -457,7 +457,7 @@ const MainLayout: React.FC = () => {
               <div
                 className="chat-bottom-spacer"
                 style={{
-                  height: (isProcessing || isAIThinking) ? '85vh' : '250px',
+                  height: (isProcessing || isAIThinking) ? '60vh' : '250px',
                   flexShrink: 0
                 }}
               />

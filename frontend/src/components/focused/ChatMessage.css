@@ -470,7 +470,7 @@
 
 /* Skeleton Loading Gallery */
 .skeleton-gallery-wrapper {
-  margin: 12px 0;
+  margin: 4px 0 12px 0;
   padding-left: 25px;
 }
 
@@ -486,11 +486,12 @@
   position: relative;
   flex: 0 0 120px;
   height: 160px;
-  background: var(--background-menu-gray);
-  /* Matches gallery item background */
+  background: var(--background-gray-main);
+  /* Lighter background */
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border-main);
+  opacity: 0.6;
 }
 
 .skeleton-shimmer {
@@ -501,9 +502,9 @@
   height: 100%;
   background: linear-gradient(90deg,
       rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0.1) 50%,
       rgba(255, 255, 255, 0) 100%);
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.5s infinite linear;
 }
 
 .skeleton-overlay {

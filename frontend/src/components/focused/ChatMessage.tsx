@@ -444,21 +444,25 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             );
           })()}
 
-          {/* Processing Skeletons */}
-          {message.isProcessing && (message as any).imageDataArray?.length > 0 && (
-            <div className="skeleton-gallery-wrapper">
-              <div className="skeleton-gallery thumbnail-horizontal">
-                {(message as any).imageDataArray.map((_: any, idx: number) => (
-                  <div key={idx} className="skeleton-item">
-                    <div className="skeleton-shimmer"></div>
-                    <div className="skeleton-overlay">
-                      <span className="skeleton-label">Page {idx + 1}</span>
+          {/* Processing Skeletons - ONLY show if no real images/content yet */}
+          {message.isProcessing &&
+            !message.progressData?.isComplete &&
+            (message as any).imageDataArray?.length > 0 &&
+            !content &&
+            !isAnnotatedImageMessage(message) && (
+              <div className="skeleton-gallery-wrapper">
+                <div className="skeleton-gallery thumbnail-horizontal">
+                  {(message as any).imageDataArray.map((_: any, idx: number) => (
+                    <div key={idx} className="skeleton-item">
+                      <div className="skeleton-shimmer"></div>
+                      <div className="skeleton-overlay">
+                        <span className="skeleton-label">Page {idx + 1}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Galleries and Images */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (
