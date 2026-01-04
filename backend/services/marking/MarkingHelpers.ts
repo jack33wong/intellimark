@@ -800,7 +800,8 @@ export function buildClassificationPageToSubQuestionMap(
 export function buildPageToQuestionNumbersMap(
   allQuestionResults: Array<{ questionNumber: string | number | null | undefined; annotations?: Array<{ pageIndex?: number }> }>,
   markingSchemesMap: Map<string, any>,
-  classificationPageToSubQuestion: Map<number, string[]>
+  classificationPageToSubQuestion: Map<number, string[]>,
+  classificationResult?: any
 ): Map<number, number[]> {
   const pageToQuestionNumbers = new Map<number, number[]>();
 
@@ -865,32 +866,41 @@ export function buildPageToQuestionNumbersMap(
       });
     } else {
       // Single question (not grouped sub-questions) - use base question number
-      // Get pageIndex from annotations (most common pageIndex if question spans multiple pages)
-      let pageIndex: number | undefined;
+      // Get all unique pages that have annotations for this question
+      const uniquePages = new Set<number>();
       if (qr.annotations && qr.annotations.length > 0) {
-        const pageIndexCounts = new Map<number, number>();
         qr.annotations.forEach(anno => {
           if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
-            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+            uniquePages.add(anno.pageIndex);
           }
         });
-        if (pageIndexCounts.size > 0) {
-          pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
-        }
       }
 
-      if (pageIndex !== undefined) {
+      if (uniquePages.size > 0) {
         // Convert question number to sortable value (preserves sub-question order)
         const sortValue = getQuestionSortValue(baseQNum);
-        // console.log(`[SORT DEBUG]   -> Page ${pageIndex} mapped to Q${baseQNum} (Sort: ${sortValue})`);
+
+        uniquePages.forEach(pageIndex => {
+          if (sortValue !== Infinity && sortValue > 0) {
+            if (!pageToQuestionNumbers.has(pageIndex)) {
+              pageToQuestionNumbers.set(pageIndex, []);
+            }
+            // Add sort value to EVERY page this question appears on
+            if (!pageToQuestionNumbers.get(pageIndex)!.includes(sortValue)) {
+              pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
+            }
+          }
+        });
+      } else {
+        // Fallback: try to match by question number from classificationResult if no annotations
+        const pageIndex = getPageIndexFromQuestionResult(qr as any, classificationResult);
+        const sortValue = getQuestionSortValue(baseQNum);
         if (sortValue !== Infinity && sortValue > 0) {
           if (!pageToQuestionNumbers.has(pageIndex)) {
             pageToQuestionNumbers.set(pageIndex, []);
           }
           pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
         }
-      } else {
-        // console.log(`[SORT DEBUG]   -> Q${baseQNum} has no valid pageIndex from annotations`);
       }
     }
   });

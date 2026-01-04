@@ -179,7 +179,7 @@ export class MarkingOutputService {
 
         // Create mapping from pageIndex to question numbers using MARKING RESULTS (Ground Truth)
         const classificationPageToSubQuestion = buildClassificationPageToSubQuestionMap(classificationResult);
-        const pageToQuestionNumbers = buildPageToQuestionNumbersMap(allQuestionResults, markingSchemesMap, classificationPageToSubQuestion);
+        const pageToQuestionNumbers = buildPageToQuestionNumbersMap(allQuestionResults, markingSchemesMap, classificationPageToSubQuestion, classificationResult);
 
         // Create array with page info and annotated output for sorting
         const pagesWithOutput = standardizedPages.map((page, index) => {
@@ -234,31 +234,33 @@ export class MarkingOutputService {
             };
         });
 
-        // Sort: metadata pages first, then by question number, then by page number
-        // Sort: metadata pages first, then strictly by page number
-        // Rationale: Question numbers can be detected out of order (e.g. Q11 appearing on an earlier page due to errors)
-        // or misidentified. Page numbers are the physical truth of the exam paper structure.
+        // Sort: metadata pages first, then strictly by logical question order, then by filename sequence
         pagesWithOutput.sort((a, b) => {
             if (a.isMetadataPage && !b.isMetadataPage) return -1;
             if (!a.isMetadataPage && b.isMetadataPage) return 1;
 
-            // Strict Page Number Sorting
-            // Only use question number if page numbers are totally missing (rare) or equal
+            // NEW: Prioritize Detected Question Order (Logical Ground Truth)
+            // This ensures Page 23 (containing Q18) is sorted after Q17, not at the end.
+            const aHasQuestions = a.lowestQuestionNumber !== Infinity;
+            const bHasQuestions = b.lowestQuestionNumber !== Infinity;
+
+            if (aHasQuestions && bHasQuestions) {
+                if (a.lowestQuestionNumber !== b.lowestQuestionNumber) {
+                    return a.lowestQuestionNumber - b.lowestQuestionNumber;
+                }
+            }
+
+            // Fallback: Physical Page Number Sorting (Filename sequence)
+            // Use this for pages without detected question numbers or within the same question
             if (a.pageNumber !== null && b.pageNumber !== null) {
                 return a.pageNumber - b.pageNumber;
             }
 
-            // Fallback for missing page numbers:
-            const aHasQuestions = a.lowestQuestionNumber !== Infinity;
-            const bHasQuestions = b.lowestQuestionNumber !== Infinity;
-
+            // Secondary fallback: questions before non-questions
             if (aHasQuestions && !bHasQuestions) return -1;
             if (!aHasQuestions && bHasQuestions) return 1;
 
-            if (aHasQuestions && bHasQuestions) {
-                return a.lowestQuestionNumber - b.lowestQuestionNumber;
-            }
-
+            // Final fallback: original upload sequence
             return a.originalIndex - b.originalIndex;
         });
 

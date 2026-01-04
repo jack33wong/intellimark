@@ -47,6 +47,7 @@ const initialState = {
   visibleTableIds: new Set(),
   isQuestionTableVisible: true,
   isContextFilterActive: false,
+  isGlobalSplit: true,
 };
 
 function markingPageReducer(state, action) {
@@ -64,7 +65,8 @@ function markingPageReducer(state, action) {
       return {
         ...state,
         splitModeImages: action.payload.images,
-        activeImageIndex: action.payload.index || 0
+        activeImageIndex: action.payload.index || 0,
+        isGlobalSplit: action.payload.isGlobal ?? true
       };
     case 'EXIT_SPLIT_MODE':
 
@@ -131,7 +133,7 @@ export const MarkingPageProvider = ({
   }, [apiProcessor]);
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
-  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive } = state;
+  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive, isGlobalSplit } = state;
 
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
@@ -141,21 +143,21 @@ export const MarkingPageProvider = ({
   }, [selectedMarkingResult, loadSession]);
 
   // Auto-sync split mode images when session changes (persistent split mode)
+  // Only sync if we are in GLOBAL split mode (not viewing a specific message's images)
   useEffect(() => {
-    if (splitModeImages && currentSession) {
+    if (splitModeImages && isGlobalSplit && currentSession) {
       const newImages = getSessionImages(currentSession);
       if (newImages && newImages.length > 0) {
         // If the images are actually different, update them
-        // We compare first image URL/id for a simple check
         if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',
-            payload: { images: newImages, index: 0 }
+            payload: { images: newImages, index: 0, isGlobal: true }
           });
         }
       }
     }
-  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length]);
+  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length, isGlobalSplit]);
 
   // Listen for model changes from Settings (or other tabs)
   useEffect(() => {
@@ -185,7 +187,7 @@ export const MarkingPageProvider = ({
 
         dispatch({
           type: 'ENTER_SPLIT_MODE',
-          payload: { images, index: validIndex }
+          payload: { images, index: validIndex, isGlobal: true }
         });
 
         // Also ensure page mode is chat so we see the results
@@ -589,8 +591,8 @@ export const MarkingPageProvider = ({
   const onToggleInfoDropdown = useCallback(() => dispatch({ type: 'TOGGLE_INFO_DROPDOWN' }), []);
   const setHoveredRating = useCallback((rating) => dispatch({ type: 'SET_HOVERED_RATING', payload: rating }), []);
 
-  const enterSplitMode = useCallback((images, index = 0) => {
-    dispatch({ type: 'ENTER_SPLIT_MODE', payload: { images, index } });
+  const enterSplitMode = useCallback((images, index = 0, isGlobal = true) => {
+    dispatch({ type: 'ENTER_SPLIT_MODE', payload: { images, index, isGlobal } });
     // Auto-collapse sidebar to mini mode (72px) - DISABLED by user request
     // if (setSidebarOpen) {
     //   setSidebarOpen(false); // Collapsed = false in your Sidebar logic

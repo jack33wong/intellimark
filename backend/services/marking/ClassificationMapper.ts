@@ -18,7 +18,8 @@ export class ClassificationMapper {
     static async mapQuestionsToPages(
         images: Array<{ imageData: string; fileName?: string; pageIndex: number }>,
         tracker?: UsageTracker,  // UsageTracker (optional)
-        model?: string  // User-selected model (defaults to gemini-2.0-flash for backward compatibility)
+        model?: string,  // User-selected model (defaults to gemini-2.0-flash for backward compatibility)
+        debug: boolean = false
     ): Promise<PageMap[]> {
         // Use user-selected model or default to Flash for cost optimization
         const MAPPING_MODEL = model || 'gemini-2.0-flash';
@@ -29,7 +30,7 @@ export class ClassificationMapper {
 
         // SINGLE BATCH: Process all pages at once to maintain full context (e.g. Q11 on Page 13 -> Q11 on Page 12)
         // Gemini 1.5 Flash has 1M context window, so 50 images is trivial.
-        const processAllPages = async () => {
+        const processAllPages = async (debug: boolean = false) => {
             const systemPrompt = getPrompt('classification.mapper.system', images.length);
             const userPrompt = getPrompt('classification.mapper.user', images.length);
             const accessToken = ModelProvider.getGeminiApiKey();
@@ -57,6 +58,7 @@ export class ClassificationMapper {
 
             const { getModelConfig } = await import('../../config/aiModels.js');
             const config = getModelConfig(MAPPING_MODEL as any);
+
 
             const response = await ModelProvider.withRetry(async () => {
                 const res = await fetch(`${config.apiEndpoint}?key=${accessToken}`, {
@@ -95,7 +97,7 @@ export class ClassificationMapper {
                 tracker.recordMapper(inputTokens, outputTokens);  // Use mapper phase
             }
 
-            let parsed: any;
+            let parsed: any; // Declare 'parsed' before the try-catch block
             try {
                 parsed = JSON.parse(content.replace(/```json\n|\n```/g, ''));
             } catch (e) { parsed = { pages: [] }; }
@@ -120,7 +122,7 @@ export class ClassificationMapper {
 
         // Execute single batch
         try {
-            const allPages = await processAllPages();
+            const allPages = await processAllPages(!!debug);
 
             const duration = (Date.now() - startTime) / 1000;
             console.log(`✅ [MAPPER] Map Pass complete in ${duration.toFixed(2)}s. Mapped ${allPages.length} pages.`);

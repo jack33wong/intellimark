@@ -536,28 +536,9 @@ export class MarkingPipelineService {
             let allClassificationResults = await ClassificationService.classifyMultipleImages(
                 standardizedPages,
                 actualModel as ModelType,  // Cast to ModelType
-                false,  // debug
+                false,  // debug (DISABLED)
                 usageTracker  // Pass tracker for auto-recording
             );
-
-
-            // DEBUG: Log Mapper Response (Page Index -> Question Number)
-            console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('[MAPPER RESPONSE] Page Index -> Question Number Map');
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            allClassificationResults.forEach(({ pageIndex, result }) => {
-                const qNums = result.questions?.map((q: any) => {
-                    const subQs = q.subQuestions?.map((sq: any) => sq.part).join(',') || '';
-                    return q.questionNumber + (subQs ? `(${subQs})` : '');
-                }).filter(Boolean).join(', ') || 'No Questions';
-                console.log(`Page ${pageIndex}: [${qNums}] (Category: ${result.category})`);
-            });
-
-            // MINIMAL EVIDENCE LOG
-            const q3aPages = allClassificationResults.filter(r => r.result.questions?.some(q => q.questionNumber === '3' && (q.subQuestions?.some((sq: any) => sq.part === 'a') || q.text?.includes('3a')))).map(r => r.pageIndex + 1);
-            const q3bPages = allClassificationResults.filter(r => r.result.questions?.some(q => q.questionNumber === '3' && (q.subQuestions?.some((sq: any) => sq.part === 'b') || q.text?.includes('3b')))).map(r => r.pageIndex + 1);
-
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
             logClassificationComplete();
 

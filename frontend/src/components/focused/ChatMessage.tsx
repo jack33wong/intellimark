@@ -38,7 +38,7 @@ interface ChatMessageProps {
   addMessage?: (message: any) => void; // Function to add messages to chat
   startAIThinking?: (progressData: any, aiMessageId?: string) => void;
   selectedModel?: string; // Selected AI model for follow-up requests
-  onEnterSplitMode?: (images: any[], index: number) => void; // Handler for Split Mode
+  onEnterSplitMode?: (images: any[], index: number, isGlobal?: boolean) => void; // Handler for Split Mode
   onNavigate?: (qNum: string | number, imgIdx: number, source: 'ribbon' | 'image' | 'scroll') => void;
   isSyncingRef?: React.MutableRefObject<boolean>;
 }
@@ -119,19 +119,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }
 
     if (imageDataArray.length > 0) {
-      if (onEnterSplitMode && session) {
-        try {
-          const sessionImages = getSessionImages(session);
-          const startOffset = findImageIndex(sessionImages, message.id);
-          if (startOffset >= 0) {
-            onEnterSplitMode(sessionImages, startOffset + index);
-            return;
-          }
-        } catch (e) {
-          console.error("Error mapping grid image to session:", e);
-        }
-      }
-
       const isUserUpload = message.role === 'user';
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
         const src = typeof item === 'string' ? item : item?.url;
@@ -146,12 +133,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           src: src,
           filename: `${prefix}${originalFileName}`,
           alt: `${typeLabel} ${originalFileName}`,
-          type: 'uploaded' as const
+          type: 'uploaded' as const,
+          messageId: message.id,
+          messageRole: message.role,
+          messageType: message.type || 'unknown'
         };
       });
 
       if (onEnterSplitMode) {
-        onEnterSplitMode(sessionImages, index);
+        // Pass false for isGlobal to indicate this is a message-specific view
+        onEnterSplitMode(sessionImages, index, false);
       } else {
         setIsImageModeOpen(true);
         (window as any).__currentSessionImages = sessionImages;
@@ -165,12 +156,30 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       if ((message as any)?.imageDataArray?.length > 0) {
         handleMultiImageClick(0);
       } else {
-        if (onEnterSplitMode && session) {
-          const sessionImages = getSessionImages(session);
-          const index = findImageIndex(sessionImages, message.id);
-          onEnterSplitMode(sessionImages, index >= 0 ? index : 0);
-        } else {
-          setIsImageModeOpen(true);
+        const src = getImageSrc(message);
+        if (src) {
+          const isUserUpload = message.role === 'user';
+          const prefix = isUserUpload ? '' : 'annotated-';
+          const originalFileName = (message as any)?.originalFileName || `image-${message.id}`;
+
+          const sessionImages = [{
+            id: `img-${message.id}`,
+            src,
+            filename: `${prefix}${originalFileName}`,
+            alt: `Image from ${message.role}`,
+            type: 'uploaded' as const,
+            messageId: message.id,
+            messageRole: message.role,
+            messageType: message.type || 'unknown'
+          }];
+
+          if (onEnterSplitMode) {
+            onEnterSplitMode(sessionImages, 0, false);
+          } else {
+            setIsImageModeOpen(true);
+            (window as any).__currentSessionImages = sessionImages;
+            (window as any).__currentImageIndex = 0;
+          }
         }
       }
     }

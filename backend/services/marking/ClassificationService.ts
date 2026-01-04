@@ -134,7 +134,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         resolvedPageMaps = await ClassificationMapper.mapQuestionsToPages(
           images as Array<{ imageData: string; fileName?: string; pageIndex: number }>,
           tracker,  // Pass tracker for auto-recording
-          model     // Pass user-selected model instead of defaulting to Flash
+          model,     // Pass user-selected model
+          debug
         );
       }
 
@@ -258,6 +259,7 @@ ${pageHints}
           taskUserPrompt = `Extract Question ${questionNumber} and its parts from these pages following the provided mapping.`;
         }
 
+
         // Call AI (User Selected Model)
         // We reuse the existing single-request logic but with a subset of images
         let content: string;
@@ -305,6 +307,7 @@ ${pageHints}
         }
         const cleanContent = this.cleanGeminiResponse(content);
         parsed = this.parseJsonWithSanitization(cleanContent);
+
 
 
         const { getModelConfig } = await import('../../config/aiModels.js');

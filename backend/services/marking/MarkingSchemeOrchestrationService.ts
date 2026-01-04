@@ -139,16 +139,6 @@ export class MarkingSchemeOrchestrationService {
         });
 
         detectionResults.push({ question, detectionResult });
-
-        // DEBUG: Trace Q6 extraction to debug Frankenstein/AQA issues
-        if (question.questionNumber && (question.questionNumber === '6' || question.questionNumber.startsWith('6') || question.questionNumber === '06')) {
-          console.log(`\n🔍 [DEBUG Q6] Extraction & Detection Debug:`);
-          console.log(`   - Extracted Text (First 100 chars): "${question.text.substring(0, 100).replace(/\n/g, ' ')}..."`);
-          console.log(`   - Detected Paper: ${detectionResult.match?.paperTitle || 'None'}`);
-          console.log(`   - Similarity: ${detectionResult.match?.confidence?.toFixed(3) || '0.000'}`);
-          console.log(`   - Matched Q#: ${detectionResult.match?.questionNumber || 'N/A'}`);
-          console.log(`   - Is Frankenstein Source?: ${detectionResult.match?.board === 'AQA' ? 'YES (Suspected)' : 'No'}\n`);
-        }
       } else {
         detectionStats.notDetected++;
         detectionStats.questionDetails.push({
@@ -448,6 +438,15 @@ export class MarkingSchemeOrchestrationService {
           if (processedSubLabels.has(normalizedSubLabel)) {
             continue;
           }
+
+          // REDUNDANCY FILTER: If we have actual sub-parts (e.g. i, ii, iii) in the database,
+          // then any AI detection that is just the base number (e.g. "12") is redundant
+          // and would cause double-counting of marks.
+          if (normalizedSubLabel === baseQuestionNumber && dbSubParts.size > 0) {
+            console.log(`[MARKING SCHEME ORCHESTRATION] ⚠️ Skipping redundant parent detection Q${normalizedSubLabel} because sub-parts exist.`);
+            continue;
+          }
+
           processedSubLabels.add(normalizedSubLabel);
 
           const item = itemsBySubPart.get(normalizedSubLabel);
@@ -465,8 +464,24 @@ export class MarkingSchemeOrchestrationService {
             subQAnswer = item.detectionResult.match?.answer ||
               markingScheme?.answer ||
               markingScheme?.questionMarks?.answer || '';
-            subQMaxScore = item.detectionResult.match?.marks || 0;
             subQQuestionText = item.detectionResult.match?.databaseQuestionText || '';
+
+            // SCHEMA-FIRST MARKS: Look up max score from database structure for consistency
+            if (questionsSchema) {
+              const questionData = Array.isArray(questionsSchema)
+                ? questionsSchema.find((q: any) => String(q.question_number || q.number) === baseQuestionNumber)
+                : (questionsSchema ? (questionsSchema as any)[baseQuestionNumber] : null);
+              const dbSubQs = questionData?.sub_questions || questionData?.subQuestions || [];
+              const dbSubQ = dbSubQs.find((sq: any) => normalizeSubQuestionPart(sq.question_part || '') === normalizedSubLabel);
+              if (dbSubQ && typeof dbSubQ.marks === 'number') {
+                subQMaxScore = dbSubQ.marks;
+              } else {
+                // Fallback to detected marks if not in schema (should be rare)
+                subQMaxScore = item.detectionResult.match?.marks || 0;
+              }
+            } else {
+              subQMaxScore = item.detectionResult.match?.marks || 0;
+            }
 
             if (markingScheme?.questionMarks) {
               const qMarks = markingScheme.questionMarks;
@@ -504,7 +519,7 @@ export class MarkingSchemeOrchestrationService {
             }
           }
 
-          if (marksArray.length > 0 || subQAnswer) {
+          if (marksArray.length > 0 || subQAnswer || subQMaxScore > 0) {
             subQuestionAnswers.push(subQAnswer);
             subQuestionAnswersMap.set(normalizedSubLabel, subQAnswer);
             subQuestionMarksMap.set(displayQNum, marksArray);
@@ -600,6 +615,8 @@ export class MarkingSchemeOrchestrationService {
         // rather than the database's total which might include missing parts.
         const calculatedTotalMarks = Array.from(subQuestionMaxScoresMap.values()).reduce((a, b) => a + b, 0);
         const finalTotalMarks = calculatedTotalMarks > 0 ? calculatedTotalMarks : parentQuestionMarks;
+
+
         // Store merged marking scheme with totalMarks AND parentQuestionMarks for calculateOverallScore
         const schemeWithTotalMarks = {
           questionMarks: mergedQuestionMarks,

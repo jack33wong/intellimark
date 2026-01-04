@@ -292,21 +292,29 @@ const MainLayout: React.FC = () => {
     if (!splitModeImages) return null;
 
     return splitModeImages.map((img: any, idx: number) => {
-      const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
-      if (match) {
-        const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
-        return {
-          ...img,
-          badgeText: `Q${match.questionNumber} ${scoreText}`,
-          badgeColor: getGroupColor(match)
-        };
+      // Only show badges for assistant/annotated messages
+      const isAnnotated = img.messageRole === 'assistant' || img.messageType === 'marking_annotated';
+
+      if (isAnnotated) {
+        const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
+        if (match) {
+          const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
+          return {
+            ...img,
+            badgeText: `Q${match.questionNumber} ${scoreText}`,
+            badgeColor: getGroupColor(match)
+          };
+        }
       }
-      return img;
+      return {
+        ...img,
+        badgeText: undefined // Ensure no badge for originals
+      };
     });
   }, [splitModeImages, groupedQuestions, getGroupColor]);
 
   // Enhanced Split Mode Entry
-  const enterSplitModeEnriched = useCallback((images: any[], index: number) => {
+  const enterSplitModeEnriched = useCallback((images: any[], index: number, isGlobal?: boolean) => {
     // Determine the question associated with this image index to keep the Ribbon in sync
     const match = groupedQuestions.find(g => g.sourceImageIndex === index);
     if (match && activeQuestionId !== match.questionNumber) {
@@ -315,12 +323,18 @@ const MainLayout: React.FC = () => {
 
     // If we're not in split mode, enter it
     if (!splitModeImages) {
-      enterSplitMode(images, index);
+      enterSplitMode(images, index, isGlobal);
       return;
     }
 
-    // If we are already in split mode, just update the index
-    if (activeImageIndex !== index) {
+    // If already in split mode, check if we need to update the image set
+    // (e.g. switching from session-wide view to message-specific view)
+    const imagesChanged = images.length !== splitModeImages.length ||
+      (images.length > 0 && images[0].src !== splitModeImages[0].src);
+
+    if (imagesChanged) {
+      enterSplitMode(images, index, isGlobal);
+    } else if (activeImageIndex !== index) {
       setActiveImageIndex(index);
     }
   }, [splitModeImages, enterSplitMode, activeImageIndex, setActiveImageIndex, groupedQuestions, activeQuestionId, setActiveQuestionId]);

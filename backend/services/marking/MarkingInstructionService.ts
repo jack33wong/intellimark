@@ -1045,10 +1045,14 @@ export class MarkingInstructionService {
               const normalizedSubQ = subQ.replace(/^\d+[\s()]*|[\s()]+/g, '').toLowerCase();
 
               if (subQuestionPageMap[normalizedSubQ] !== undefined) {
-                const constraintPage = subQuestionPageMap[normalizedSubQ];
-                if (anno.pageIndex !== constraintPage) {
-                  console.log(`🔍 [PAGE OVERRIDE] Correcting Q${inputQuestionNumber} sub-question ${subQ} (normalized: ${normalizedSubQ}) from Page ${anno.pageIndex} to Page ${constraintPage} based on Mapper constraints.`);
-                  anno.pageIndex = constraintPage;
+                const constraintPages = subQuestionPageMap[normalizedSubQ];
+                // Mapper constraints are always an array of allowed pages
+                const allowedPages = Array.isArray(constraintPages) ? constraintPages : [constraintPages];
+
+                if (!allowedPages.includes(anno.pageIndex)) {
+                  const targetPage = allowedPages[0];
+                  console.log(`🔍 [PAGE OVERRIDE] Correcting Q${inputQuestionNumber} sub-question ${subQ} (normalized: ${normalizedSubQ}) from Page ${anno.pageIndex} to allowed Page ${targetPage} (of ${allowedPages.join(',')}) based on Mapper constraints.`);
+                  anno.pageIndex = targetPage;
                 }
               }
             }

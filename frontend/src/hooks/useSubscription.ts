@@ -62,7 +62,6 @@ export const useSubscription = (): UseSubscriptionResult => {
 
         // Listen for subscription updates (e.g., after upgrade/downgrade)
         const cleanup = EventManager.listen(EVENT_TYPES.SUBSCRIPTION_UPDATED, () => {
-            console.log('🔄 [useSubscription] Received update event, refreshing...');
             fetchSubscription();
         });
 
@@ -82,14 +81,6 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     const planId = (subscription?.status === 'active' ? subscription.planId.toLowerCase() : 'free') as 'free' | 'pro' | 'ultra';
 
-    // DEBUG LOG
-    console.log('🔍 [useSubscription] Current State:', {
-        hasSubscription: !!subscription,
-        status: subscription?.status,
-        rawPlanId: subscription?.planId,
-        computedPlanId: planId,
-        userId: user?.uid
-    });
 
     // Get allowed plans from env vars or default (ROBUST: trim spaces)
     const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,ultra').split(',').map(p => p.trim()), []);
@@ -99,8 +90,6 @@ export const useSubscription = (): UseSubscriptionResult => {
         // ROBUST CHECK: Using keyword matching to handle Variations like "Ultra Plan" or "Pro Month"
         const isUltra = planId.includes('ultra');
         const isPro = planId.includes('pro');
-
-        console.log(`🛡️ [checkPermission] Checking ${feature}:`, { isUltra, isPro, planId });
 
         if (feature === 'analysis') {
             // Both Pro and Ultra (or keywords) are allowed

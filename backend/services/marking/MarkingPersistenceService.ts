@@ -123,19 +123,12 @@ export class MarkingPersistenceService {
 
             if (isMixedContent && questionOnlyClassificationResult) {
                 console.log('[PERSISTENCE] Processing questionOnly responses for mixed mode');
-                console.log(`[PERSISTENCE DEBUG] Received ${Array.isArray(questionOnlyClassificationResult) ? questionOnlyClassificationResult.length : 'N/A'} responses`);
-
-                // Handle array format from unifiedSession.questionResponses
                 if (Array.isArray(questionOnlyClassificationResult)) {
                     // REUSE Question Mode's formatted responses AS-IS (no duplicate formatting!)
                     // qr.response already has the proper markdown header from QuestionModeHandler
                     // Example: "### Question 1 (1 mark)\n\n<answer with marking codes>"
                     const formattedIndividualResponses = questionOnlyClassificationResult.map((qr: any, index: number) => {
                         const response = qr.response || ''; // Already formatted by Question Mode!
-                        const isEmpty = !response || response.trim() === '';
-                        if (isEmpty) {
-                            console.log(`[PERSISTENCE DEBUG] Response ${index + 1} (Q${qr.questionNumber}) is EMPTY`);
-                        }
                         // NO additional header needed - already has "### Question X (Y marks)"
                         return response;
                     }).filter(r => r);
@@ -144,7 +137,6 @@ export class MarkingPersistenceService {
                     const formattedResponse = formattedIndividualResponses.join('\n\n' + '_'.repeat(80) + '\n\n');
                     questionOnlyResponses = [formattedResponse]; // Single combined string
 
-                    console.log(`[PERSISTENCE DEBUG] formattedIndividualResponses count: ${formattedIndividualResponses.length}`);
                     console.log(`[PERSISTENCE] Reused ${questionOnlyClassificationResult.length} pre-formatted question responses from Question Mode`);
                 } else if (questionOnlyClassificationResult.questions) {
                     // Legacy fallback - should not be used anymore
