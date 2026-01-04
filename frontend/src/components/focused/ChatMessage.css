@@ -467,3 +467,80 @@
   margin: 16px 0 8px 0;
   opacity: 0.3;
 }
+
+/* Skeleton Loading Gallery */
+.skeleton-gallery-wrapper {
+  margin: 12px 0;
+  padding-left: 25px;
+}
+
+.skeleton-gallery {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.skeleton-item {
+  position: relative;
+  flex: 0 0 120px;
+  height: 160px;
+  background: var(--background-menu-gray);
+  /* Matches gallery item background */
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-main);
+}
+
+.skeleton-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 100%);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+}
+
+.skeleton-label {
+  font-size: 11px;
+  color: white;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Dark mode tweaks for shimmer */
+@media (prefers-color-scheme: dark) {
+  .skeleton-shimmer {
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.03) 50%,
+        rgba(255, 255, 255, 0) 100%);
+  }
+}

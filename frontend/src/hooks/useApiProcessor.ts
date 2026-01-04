@@ -48,7 +48,7 @@ export const useApiProcessor = () => {
     setApiState(prev => ({ ...prev, isProcessing: false }));
   }, []);
 
-  const startAIThinking = useCallback((progressData: any = null, aiMessageId?: string) => {
+  const startAIThinking = useCallback((progressData: any = null, aiMessageId?: string, imageDataArray?: any[]) => {
     setApiState(prev => ({ ...prev, isAIThinking: true }));
 
     // Use provided aiMessageId or generate one
@@ -60,6 +60,7 @@ export const useApiProcessor = () => {
       content: '',
       isProcessing: true,
       progressData: progressData || { allSteps: [] },
+      imageDataArray: imageDataArray || [],
       timestamp: new Date().toISOString()
     };
     simpleSessionService.addMessage(processingMessage);
