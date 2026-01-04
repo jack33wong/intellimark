@@ -544,7 +544,7 @@ export const MarkingPageProvider = ({
         currentStepIndex: 0,
       };
 
-      const thinkingImages = hasPDFs ? pdfContexts : imageDataArray;
+      const thinkingImages = hasPDFs ? optimisticMessage.pdfContexts : optimisticMessage.imageDataArray;
       startAIThinking(multiImageProgressData, multiImageAiMessageId, thinkingImages);
 
       // Execute API call in background so UI resets immediately
