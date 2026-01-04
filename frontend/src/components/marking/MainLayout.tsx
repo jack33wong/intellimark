@@ -8,7 +8,7 @@ import { ChevronDown, Brain } from 'lucide-react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
-import { ChatMessage } from '../focused';
+import ChatMessage from '../focused/ChatMessage';
 import type { UnifiedMessage } from '../../types';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';

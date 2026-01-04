@@ -131,8 +131,8 @@ export const isSystemMessage = (message) => {
  */
 export const hasImage = (message) => {
   return message && (
-    message.imageLink || 
-    message.imageData || 
+    message.imageLink ||
+    message.imageData ||
     (message.imageDataArray && Array.isArray(message.imageDataArray) && message.imageDataArray.length > 0) ||
     // Also check for PDF messages
     (message.originalFileType === 'pdf' && message.pdfContexts && Array.isArray(message.pdfContexts) && message.pdfContexts.length > 0)
@@ -168,17 +168,18 @@ export const getMessageDisplayText = (message) => {
     return 'No message';
   }
 
+  // For AI messages with progress data but no final content, don't show "Image message" or "Empty message"
+  // This allows the skeleton loading animation to show in ChatMessage.tsx
+  if (message.role === 'assistant' && message.isProcessing && !message.content) {
+    return '';
+  }
+
   if (message.content) {
     return message.content;
   }
 
   if (hasImage(message)) {
     return 'Image message';
-  }
-
-  // For AI messages with progress data but no content, don't show "Empty message"
-  if (message.role === 'assistant' && message.progressData && !message.content) {
-    return '';
   }
 
   return 'Empty message';
@@ -234,7 +235,7 @@ export const sortMessagesByTimestamp = (messages, ascending = true) => {
   return [...messages].sort((a, b) => {
     const timeA = new Date(a.timestamp || 0).getTime();
     const timeB = new Date(b.timestamp || 0).getTime();
-    
+
     return ascending ? timeA - timeB : timeB - timeA;
   });
 };
@@ -299,7 +300,7 @@ export const isRecentMessage = (message, minutes = 5) => {
     const messageTime = new Date(message.timestamp).getTime();
     const now = Date.now();
     const threshold = minutes * 60 * 1000; // Convert to milliseconds
-    
+
     return (now - messageTime) <= threshold;
   } catch (error) {
     return false;
@@ -321,11 +322,11 @@ export const deduplicateMessages = (messages) => {
     if (!message || !message.id) {
       return false;
     }
-    
+
     if (seen.has(message.id)) {
       return false;
     }
-    
+
     seen.add(message.id);
     return true;
   });
@@ -363,7 +364,7 @@ export const parseResponse = (data) => {
     const messages = [];
     if (data.userMessage) messages.push(data.userMessage);
     if (data.aiMessage) messages.push(data.aiMessage);
-    
+
     return {
       type: 'single_message',
       messages
@@ -433,12 +434,12 @@ export const generateContentHash = (content, length = 8) => {
   if (!content || typeof content !== 'string') {
     return 'empty';
   }
-  
+
   const hash = content.split('').reduce((a, b) => {
     a = ((a << 5) - a) + b.charCodeAt(0);
     return a & a;
   }, 0);
-  
+
   return Math.abs(hash).toString(36).substring(0, length);
 };
 
@@ -464,12 +465,12 @@ export const isGhostMessage = (message) => {
   if (message.role !== 'assistant') {
     return false;
   }
-  
+
   // Keep assistant messages that have content or are processing
   const hasContent = message.content && message.content.trim() !== '';
   const isProcessing = message.isProcessing === true;
   const hasProgressData = !!message.progressData;
-  
+
   // Filter out empty assistant messages that are not processing
   return !hasContent && !isProcessing && !hasProgressData;
 };
@@ -483,7 +484,7 @@ export const shouldRenderMessage = (message) => {
   if (message.role === 'user') {
     return true; // Always render user messages
   }
-  
+
   // For assistant messages, check if it's not a ghost message
   return !isGhostMessage(message);
 };

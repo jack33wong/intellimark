@@ -94,9 +94,6 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
           }, 450);
         }
         // Priority 2: If we are currently in AI thinking mode or just updated a processing message, 
-        // DO NOT scroll to bottom. We want to keep the user locked to their current reading position 
-        // (usually the start of the user's last question).
-        // Priority 2: If we are currently in AI thinking mode or just updated a processing message, 
         // OR if this is the final AI response arriving, DO NOT scroll to bottom. 
         // We want to keep the user locked to their current reading position (usually the start of their last question).
         else if (isAIThinking || (lastMessage && lastMessage.role === 'assistant')) {
