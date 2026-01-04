@@ -299,7 +299,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     if ((message as any)?.isMultiImage === true && (message as any)?.fileCount > 1) return true;
     if (message.role === 'user' && (message as any)?.imageDataArray?.length > 1) return true;
     if (message.role === 'user' && (message as any)?.pdfContexts?.length > 1) return true;
-    if (message.role === 'assistant' && (message as any)?.imageDataArray?.length > 0) return true;
+    if (message.role === 'assistant' && (message as any)?.imageDataArray?.length > 0) {
+      // Don't treat as multi-image message if it's still processing (we show skeletons instead)
+      if (message.isProcessing) return false;
+      return true;
+    }
     return false;
   };
 

@@ -8,7 +8,11 @@
 /* Ensure last message is fully visible */
 .chat-message:last-child {
   margin-bottom: 24px;
-  /* Extra margin for last message to ensure visibility */
+}
+
+.chat-message {
+  scroll-margin-top: 140px;
+  /* Clearance for sticky header/ribbon */
 }
 
 /* Progress steps display */

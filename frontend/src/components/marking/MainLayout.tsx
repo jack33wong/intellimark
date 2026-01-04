@@ -434,9 +434,11 @@ const MainLayout: React.FC = () => {
                   onImageLoad={() => {
                     const lastUserMsg = [...(chatMessages || [])].reverse().find(m => m.role === 'user');
                     if (msg.id === lastUserMsg?.id) {
-                      scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
-                    } else {
-                      scrollToBottom();
+                      // We used to scrollToBottom() here, but it causes "jumpy" behavior when AI images load.
+                      // Now we rely on the scroll manager to maintain position, or only scroll if it's the USER's own message.
+                      if (msg.role === 'user') {
+                        scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
+                      }
                     }
                   }}
                   getImageSrc={getImageSrc}

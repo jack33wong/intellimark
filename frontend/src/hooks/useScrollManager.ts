@@ -96,8 +96,11 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
         // Priority 2: If we are currently in AI thinking mode or just updated a processing message, 
         // DO NOT scroll to bottom. We want to keep the user locked to their current reading position 
         // (usually the start of the user's last question).
-        else if (isAIThinking || (lastMessage && lastMessage.role === 'assistant' && lastMessage.isProcessing)) {
-          console.log('[SCROLL] Skipping auto-scroll during AI processing to maintain user view lock.');
+        // Priority 2: If we are currently in AI thinking mode or just updated a processing message, 
+        // OR if this is the final AI response arriving, DO NOT scroll to bottom. 
+        // We want to keep the user locked to their current reading position (usually the start of their last question).
+        else if (isAIThinking || (lastMessage && lastMessage.role === 'assistant')) {
+          console.log('[SCROLL] Locking view position to maintain user focus during/after AI response.');
         }
         // Priority 3: Otherwise (final response, system message), scroll to bottom.
         else {
