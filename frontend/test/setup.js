@@ -85,9 +85,9 @@ function checkDependencies() {
 async function checkSetup() {
   log('\n🔧 IntelliMark Test Environment Setup Check', 'bold');
   log('='.repeat(50));
-  
+
   let allGood = true;
-  
+
   // Check backend
   log('\n📋 Checking Backend...', 'blue');
   const backendRunning = await checkPort(5001, 'Backend');
@@ -95,7 +95,7 @@ async function checkSetup() {
     log('   Start backend: cd backend && npm run dev', 'yellow');
     allGood = false;
   }
-  
+
   // Check frontend
   log('\n📋 Checking Frontend...', 'blue');
   const frontendRunning = await checkPort(3000, 'Frontend');
@@ -103,7 +103,7 @@ async function checkSetup() {
     log('   Start frontend: cd frontend && npm start', 'yellow');
     allGood = false;
   }
-  
+
   // Check test image
   log('\n📋 Checking Test Files...', 'blue');
   const projectRoot = path.join(__dirname, '..', '..');
@@ -114,21 +114,32 @@ async function checkSetup() {
   if (!testImageExists) {
     allGood = false;
   }
-  
+
   // Check dependencies
   log('\n📋 Checking Dependencies...', 'blue');
   const depsInstalled = checkDependencies();
   if (!depsInstalled) {
     allGood = false;
   }
-  
+
   // Summary
   log('\n📊 Setup Check Summary', 'bold');
   log('='.repeat(50));
-  
+
   if (allGood) {
     log('🎉 All checks passed! Test environment is ready.', 'green');
-    log('\n📋 Test Account: admin@intellimark.com / 123456', 'blue');
+    // Assuming config is defined elsewhere or needs to be added.
+    // For now, using a placeholder for config.
+    const config = {
+      TEST_USER: process.env.TEST_USER,
+      TEST_PASS: process.env.TEST_PASS
+    };
+
+    if (config.TEST_USER) {
+      log(`\n📋 Test Account: ${config.TEST_USER} / ${config.TEST_PASS || '******'}`, 'blue');
+    } else {
+      log('\n📋 Test Account: admin@example.com / 123456', 'blue');
+    }
     log('📋 Run tests: node run-tests.js', 'blue');
   } else {
     log('❌ Some checks failed. Please fix the issues above.', 'red');
@@ -137,7 +148,7 @@ async function checkSetup() {
     log('   Frontend: cd frontend && npm start', 'yellow');
     log('   Install:  npm install puppeteer', 'yellow');
   }
-  
+
   return allGood;
 }
 

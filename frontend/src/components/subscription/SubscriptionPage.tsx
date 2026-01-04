@@ -7,6 +7,7 @@ import API_CONFIG from '../../config/api';
 import SubscriptionService from '../../services/subscriptionService';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import ConfirmationModal from '../common/ConfirmationModal';
+import SEO from '../common/SEO';
 import './SubscriptionPage.css';
 import '../credits.css';
 
@@ -185,6 +186,10 @@ const SubscriptionPage: React.FC = () => {
   if (!planCredits) {
     return (
       <div className="upgrade-page">
+        <SEO
+          title="Pricing & Plans"
+          description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading."
+        />
         <div className="upgrade-page-container">
           <div className="upgrade-page-header">
             <h1>Loading Credit Configuration...</h1>

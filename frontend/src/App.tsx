@@ -17,6 +17,7 @@ import AnalyticsTracker from './components/common/AnalyticsTracker';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import useTheme from './hooks/useTheme';
 import HeroAnimation from './components/layout/HeroAnimation';
+import { HelmetProvider } from 'react-helmet-async';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -254,21 +255,24 @@ function AppContent() {
   );
 }
 
+
 const App: React.FC = () => {
   // Initialize theme
   useTheme();
 
   return (
-    <AuthProvider>
-      <Router future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true
-      }}>
-        <AnalyticsTracker />
-        <AppContent />
-        <UnifiedProfileModal />
-      </Router>
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        <Router future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true
+        }}>
+          <AnalyticsTracker />
+          <AppContent />
+          <UnifiedProfileModal />
+        </Router>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }
 

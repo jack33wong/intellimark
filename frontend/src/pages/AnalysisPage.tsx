@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import SEO from '../components/common/SEO';
 import {
   AnalysisReport,
   QualificationSelector,
@@ -478,6 +479,7 @@ const AnalysisPage: React.FC = () => {
 
   return (
     <div className="analysis-page">
+      <SEO title='Analysis' />
       <div className="analysis-max-container">
         <div className="analysis-page-header">
           <div className="header-titles">

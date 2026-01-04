@@ -10,6 +10,8 @@ import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../../config/firebase';
 import './Login.css';
 import '../common/LoadingSpinner.css';
+import API_CONFIG from '../../config/api';
+import SEO from '../common/SEO';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -224,6 +226,10 @@ const Login = () => {
 
   return (
     <div className="auth-container">
+      <SEO
+        title={currentPage === 'email-signup' ? "Sign Up" : "Login"}
+        description="Access your AI marking account to grade GCSE Maths papers and view performance reports."
+      />
       <div className="auth-card-container">
         <button className="auth-close-button" onClick={handleClose} aria-label="Close">
           <X size={20} />

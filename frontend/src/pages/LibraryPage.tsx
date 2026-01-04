@@ -12,6 +12,7 @@ import { getSessionImages, type SessionImage } from '../utils/imageCollectionUti
 import type { UnifiedSession } from '../types';
 import ImageModeModal from '../components/common/ImageModeModal';
 import LibraryGroup from '../components/library/LibraryGroup';
+import SEO from '../components/common/SEO';
 import './LibraryPage.css';
 
 export interface LibraryItem {
@@ -272,6 +273,10 @@ const LibraryPage: React.FC = () => {
 
   return (
     <div className="library-page">
+      <SEO
+        title="Session Library"
+        description="View and manage your past AI marking sessions. Access graded GCSE maths papers and feedback."
+      />
       {/* Header */}
       <div className="library-header">
         <h1 className="library-title">Library</h1>

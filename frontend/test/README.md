@@ -1,6 +1,6 @@
 # Frontend Test Suite
 
-This folder contains automated tests for the IntelliMark frontend application.
+This folder contains automated tests for the AI Marking frontend application.
 
 > **Note**: This test suite has been cleaned up. For comprehensive E2E testing, see the `test/e2e-regression/` folder.
 

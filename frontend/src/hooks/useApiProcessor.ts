@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { simpleSessionService } from '../services/markingApiService';
 import type { UnifiedMessage, UnifiedSession } from '../types';
 
@@ -12,7 +12,7 @@ interface ApiState {
   loadingTotalSteps: number | null;
   loadingMessage: string;
   showProgressDetails: boolean;
-  progressData: any; 
+  progressData: any;
   stepList: any[];
   currentStepIndex: number;
 }
@@ -50,7 +50,7 @@ export const useApiProcessor = () => {
 
   const startAIThinking = useCallback((progressData: any = null, aiMessageId?: string) => {
     setApiState(prev => ({ ...prev, isAIThinking: true }));
-    
+
     // Use provided aiMessageId or generate one
     // This ensures React treats processing and final messages as the same component
     const processingMessage: Partial<UnifiedMessage> = {
@@ -67,11 +67,11 @@ export const useApiProcessor = () => {
 
   const stopAIThinking = useCallback(() => {
     setApiState(prev => ({ ...prev, isAIThinking: false }));
-    
+
     // Clean up any orphaned processing messages (defense in depth)
     const currentSession = simpleSessionService.getCurrentSession() as any;
     if (currentSession?.messages && Array.isArray(currentSession.messages)) {
-      const filteredMessages = currentSession.messages.filter((msg: any) => 
+      const filteredMessages = currentSession.messages.filter((msg: any) =>
         !(msg.role === 'assistant' && msg.isProcessing)
       );
       if (filteredMessages.length !== currentSession.messages.length) {
@@ -151,7 +151,7 @@ export const useApiProcessor = () => {
     setApiState(prev => ({ ...prev, showProgressDetails: show }));
   }, []);
 
-  return {
+  return useMemo(() => ({
     ...apiState,
     startProcessing,
     stopProcessing,
@@ -162,6 +162,17 @@ export const useApiProcessor = () => {
     processImageAPI,
     processMultiImageAPI,
     setShowProgressDetails,
-  };
+  }), [
+    apiState,
+    startProcessing,
+    stopProcessing,
+    startAIThinking,
+    stopAIThinking,
+    handleError,
+    updateProgress,
+    processImageAPI,
+    processMultiImageAPI,
+    setShowProgressDetails
+  ]);
 };
 

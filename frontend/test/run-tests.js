@@ -68,9 +68,9 @@ function getAllTestFiles() {
 function runTest(testFile) {
   console.log(`\n🧪 Running ${testFile}...`);
   console.log('='.repeat(50));
-  
+
   try {
-    const result = execSync(`node ${testFile}`, { 
+    const result = execSync(`node ${testFile}`, {
       cwd: __dirname,
       stdio: 'inherit',
       timeout: 60000 // 60 second timeout
@@ -94,13 +94,13 @@ function runCategory(category) {
     console.log(`Available categories: ${Object.keys(testCategories).join(', ')}`);
     return;
   }
-  
+
   console.log(`\n🚀 Running ${category} tests...`);
   console.log(`Tests: ${tests.join(', ')}`);
-  
+
   let passed = 0;
   let failed = 0;
-  
+
   for (const test of tests) {
     if (fs.existsSync(path.join(__dirname, test))) {
       if (runTest(test)) {
@@ -112,7 +112,7 @@ function runCategory(category) {
       console.log(`⚠️  Test file not found: ${test}`);
     }
   }
-  
+
   console.log(`\n📊 ${category} tests completed: ${passed} passed, ${failed} failed`);
 }
 
@@ -120,10 +120,10 @@ function runCategory(category) {
 function runAllTests() {
   const allTests = getAllTestFiles();
   console.log(`\n🚀 Running all tests (${allTests.length} files)...`);
-  
+
   let passed = 0;
   let failed = 0;
-  
+
   for (const test of allTests) {
     if (runTest(test)) {
       passed++;
@@ -131,9 +131,9 @@ function runAllTests() {
       failed++;
     }
   }
-  
+
   console.log(`\n📊 All tests completed: ${passed} passed, ${failed} failed`);
-  
+
   if (failed === 0) {
     console.log('🎉 All tests passed!');
   } else {
@@ -145,11 +145,11 @@ function runAllTests() {
 function main() {
   const args = process.argv.slice(2);
   const category = args[0];
-  
-  console.log('🧪 IntelliMark Frontend Test Runner');
+
+  console.log('🧪 AI Marking Frontend Test Runner');
   console.log('📋 Test Account: admin@intellimark.com / 123456');
   console.log('📋 Make sure backend (port 5001) and frontend (port 3000) are running');
-  
+
   if (!category) {
     runAllTests();
   } else {

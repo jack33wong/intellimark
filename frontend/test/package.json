@@ -1,7 +1,7 @@
 {
-  "name": "intellimark-frontend-tests",
+  "name": "ai-marking-frontend-tests",
   "version": "1.0.0",
-  "description": "Frontend test suite for IntelliMark application",
+  "description": "Frontend test suite for AI Marking application",
   "main": "run-tests.js",
   "scripts": {
     "test": "node run-tests.js",
@@ -19,13 +19,10 @@
   },
   "devDependencies": {},
   "keywords": [
-    "testing",
-    "puppeteer",
-    "frontend",
-    "intellimark"
+    "ai",
+    "marking",
+    "education"
   ],
-  "author": "IntelliMark Team",
+  "author": "AI Marking Team",
   "license": "MIT"
 }
-
-

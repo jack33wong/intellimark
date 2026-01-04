@@ -116,8 +116,19 @@ export const MarkingPageProvider = ({
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
 
   const apiProcessor = useApiProcessor();
-  const { isProcessing, isAIThinking, error, ...progressProps } = apiProcessor;
+  const { isProcessing, isAIThinking, error } = apiProcessor;
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
+
+  const progressProps = useMemo(() => {
+    const {
+      loadingProgress, loadingStep, loadingTotalSteps, loadingMessage,
+      showProgressDetails, progressData, stepList, currentStepIndex, updateProgress, setShowProgressDetails
+    } = apiProcessor;
+    return {
+      loadingProgress, loadingStep, loadingTotalSteps, loadingMessage,
+      showProgressDetails, progressData, stepList, currentStepIndex, updateProgress, setShowProgressDetails
+    };
+  }, [apiProcessor]);
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive } = state;

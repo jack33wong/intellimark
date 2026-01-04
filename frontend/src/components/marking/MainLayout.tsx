@@ -17,8 +17,26 @@ import { useQuestionGrouping } from '../../hooks/useQuestionGrouping';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
 import QuestionNavigator from './QuestionNavigator';
+import SEO from '../common/SEO';
 import ImageViewer from '../common/ImageViewer';
 import HeroAnimation from '../layout/HeroAnimation';
+
+const productSchema = {
+  "@context": "https://schema.org/",
+  "@type": "Product",
+  "name": "AI Marking",
+  "description": "AI-powered marking for GCSE Maths papers. Get instant grades and step-by-step logic analysis.",
+  "brand": {
+    "@type": "Brand",
+    "name": "AI Marking"
+  },
+  "offers": {
+    "@type": "Offer",
+    "url": "https://aimarking.ai",
+    "priceCurrency": "GBP",
+    "availability": "https://schema.org/InStock"
+  }
+};
 
 const MainLayout: React.FC = () => {
   const {
@@ -42,7 +60,7 @@ const MainLayout: React.FC = () => {
     addMessage,
     startAIThinking,
     isAIThinking,
-    // Split Mode Context
+    // Context related state
     splitModeImages,
     activeImageIndex,
     enterSplitMode,
@@ -54,7 +72,7 @@ const MainLayout: React.FC = () => {
     setContextFilterActive,
     isQuestionTableVisible,
     visibleTableIds,
-    isNegative,
+    isNegative
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -476,9 +494,13 @@ const MainLayout: React.FC = () => {
   // Determine layout class
   const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`;
 
-  if (splitModeImages) {
-    return (
-      <div className={layoutClass}>
+  return (
+    <div className={layoutClass}>
+      <SEO
+        title={!isFollowUp ? "Instant GCSE Maths Marking" : currentSession?.title || "Session"}
+        schemaData={!isFollowUp ? productSchema : undefined}
+      />
+      {splitModeImages ? (
         <div className="split-view-container">
           <div className="split-chat-panel">
             {renderChatContent()}
@@ -493,15 +515,11 @@ const MainLayout: React.FC = () => {
             />
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={layoutClass}>
-      <div className="mark-homework-main-content">
-        {renderChatContent()}
-      </div>
+      ) : (
+        <div className="mark-homework-main-content">
+          {renderChatContent()}
+        </div>
+      )}
     </div>
   );
 };
