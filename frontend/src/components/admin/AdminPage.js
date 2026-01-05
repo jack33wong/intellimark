@@ -146,6 +146,12 @@ function AdminPage() {
   // Query tab state
   const [isClearingSessions, setIsClearingSessions] = useState(false);
 
+  // Edit Mode State for Exam Papers
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedExamData, setEditedExamData] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
 
   // Usage tab state
   const [usageData, setUsageData] = useState([]);
@@ -455,6 +461,108 @@ function AdminPage() {
     }
   }, [getAuthToken]);
 
+  // Handle Edit Mode
+  const enableEditMode = useCallback((entry) => {
+    const examData = entry.data || entry;
+    // Deep copy to avoid mutating original state directly
+    setEditedExamData(JSON.parse(JSON.stringify(examData)));
+    setEditingId(entry.id);
+    setIsEditing(true);
+    setExpandedJsonId(entry.id); // Ensure it's expanded
+  }, []);
+
+  const cancelEditMode = useCallback(() => {
+    setIsEditing(false);
+    setEditedExamData(null);
+    setEditingId(null);
+  }, []);
+
+  const handleMarkChange = useCallback((questionIndex, newMarks) => {
+    setEditedExamData(prev => {
+      const updated = { ...prev };
+      if (updated.questions && updated.questions[questionIndex]) {
+        updated.questions[questionIndex].marks = newMarks;
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleSubQuestionMarkChange = useCallback((questionIndex, subQuestionIndex, newMarks) => {
+    setEditedExamData(prev => {
+      const updated = { ...prev };
+      if (updated.questions && updated.questions[questionIndex]) {
+        const subQuestions = updated.questions[questionIndex].subQuestions || updated.questions[questionIndex].sub_questions;
+        if (subQuestions && subQuestions[subQuestionIndex]) {
+          subQuestions[subQuestionIndex].marks = newMarks;
+        }
+      }
+      return updated;
+    });
+  }, []);
+
+  const saveExamPaperChanges = useCallback(async () => {
+    if (!editedExamData || !editingId) return;
+
+    setIsSaving(true);
+    try {
+      const authToken = await getAuthToken();
+      // PATCH request to update only the specific entry
+      await ApiClient.patch(`/api/admin/json/collections/fullExamPapers/${editingId}`, editedExamData);
+
+      // Update local state
+      setJsonEntries(prev => prev.map(entry => {
+        if (entry.id === editingId) {
+          // Merge updates back into the correct structure (handling data/metadata wrapper if present)
+          if (entry.data) {
+            return { ...entry, data: { ...entry.data, ...editedExamData } };
+          }
+          return { ...entry, ...editedExamData };
+        }
+        return entry;
+      }));
+
+      setError('✅ Changes saved successfully');
+      setIsEditing(false);
+      setEditedExamData(null);
+      setEditingId(null);
+      setTimeout(() => setError(null), 3000);
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      setError(`Failed to save changes: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editedExamData, editingId, getAuthToken]);
+
+  // Validation Helper
+  const getValidationErrors = useCallback((data) => {
+    const errors = {
+      totalMismatch: false,
+      questionMismatches: {} // Map of question index -> boolean
+    };
+    if (!data || !data.questions) return errors;
+
+    const totalMarks = data.questions.reduce((sum, q) => sum + (parseInt(q.marks) || 0), 0);
+
+    // Check total marks (GCSE Maths specific check, customizable)
+    const isGCSEMaths = (data.metadata?.subject || data.exam?.subject || '').toLowerCase().includes('math');
+    if (isGCSEMaths && totalMarks !== 80) {
+      errors.totalMismatch = true;
+    }
+
+    data.questions.forEach((q, idx) => {
+      const subQs = q.subQuestions || q.sub_questions || [];
+      if (subQs.length > 0) {
+        const subQSum = subQs.reduce((sum, sq) => sum + (parseInt(sq.marks) || 0), 0);
+        if (parseInt(q.marks) !== subQSum) {
+          errors.questionMismatches[idx] = true;
+        }
+      }
+    });
+
+    return errors;
+  }, []);
+
   // Delete all marking scheme entries
   const deleteAllMarkingSchemeEntries = useCallback(async () => {
     if (!window.confirm('Are you sure you want to delete ALL marking scheme data? This action cannot be undone.')) {
@@ -494,6 +602,107 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
+
+  /**
+   * Compare Exam Paper and Marking Scheme structure
+   * Returns an array of mismatch descriptions or empty array if match
+   */
+  const checkStructureMismatch = (examPaper, markingScheme) => {
+    const questions1 = examPaper.questions || [];
+    const questions2 = markingScheme.questions || [];
+    const mismatches = [];
+
+    // Helper to build a structure map: "1" -> ["a", "b"], "2" -> []
+    const buildMap = (qs) => {
+      const map = {};
+      if (!Array.isArray(qs)) return map;
+
+      qs.forEach(q => {
+        const qNum = String(q.number || q.questionNumber || q.question_number || '').trim();
+        if (!qNum) return;
+
+        const subQs = q.subQuestions || q.sub_questions || [];
+        if (Array.isArray(subQs)) {
+          map[qNum] = subQs.map(sq => String(sq.part || sq.question_part || sq.subQuestionNumber || '').trim()).filter(Boolean);
+        } else {
+          map[qNum] = [];
+        }
+      });
+      return map;
+    };
+
+    const map1 = buildMap(questions1);
+    const map2 = buildMap(questions2);
+
+    // Flatten both maps to a set of canonical IDs (e.g. "1", "1a", "2")
+    const flattenMap = (map) => {
+      const flat = new Set();
+      // Normalize key helper: 
+      // 1. Remove "Question"/"Q" prefix (e.g. "Question 1" -> "1", "Q1" -> "1")
+      // 2. Remove all non-alphanumeric characters (e.g. "1(a)" -> "1a", "1.a" -> "1a")
+      // 3. Lowercase
+      const normalizeKey = (k) => {
+        let norm = k.toLowerCase().trim();
+        norm = norm.replace(/^q(?:uestion)?\.?\s*(\d)/, '$1');
+        return norm.replace(/[^a-z0-9]/g, '');
+      };
+
+      Object.keys(map).forEach(key => {
+        const subs = map[key];
+        const normMain = normalizeKey(key);
+
+        if (subs && subs.length > 0) {
+          subs.forEach(s => flat.add(`${normMain}${normalizeKey(s)}`));
+        } else {
+          flat.add(normMain);
+        }
+      });
+      return flat;
+    };
+
+    const set1 = flattenMap(map1);
+    const set2 = flattenMap(map2);
+
+    // Compare sets
+
+
+    // Compare sets
+    const allKeys = new Set([...set1, ...set2]);
+    const sortedKeys = Array.from(allKeys).sort((a, b) => {
+      // Try numeric sort logic if possible (extract numbers)
+      const getNum = (str) => parseFloat(str.match(/^\d+/)?.[0] || '0');
+      const numA = getNum(a);
+      const numB = getNum(b);
+      if (numA !== numB) return numA - numB;
+      return a.localeCompare(b);
+    });
+
+    sortedKeys.forEach(key => {
+      if (!set1.has(key)) {
+        // If missing in Exam Paper, check if it's an "alt" question in Marking Scheme
+        // "alt" questions are design choices and not mismatches
+        if (!key.toLowerCase().endsWith('alt')) {
+          mismatches.push(`Question ${key}: Missing in Exam Paper`);
+        }
+      } else if (!set2.has(key)) {
+        // Check if maybe the main question exists in set2 but we are looking for a part?
+        // e.g. key is "1a", set2 has "1".
+        // Some schemes just say "1".
+        const mainKey = key.match(/^\d+/)?.[0];
+        if (mainKey && set2.has(mainKey) && !key.match(/^\d+$/)) {
+          // Approximate match: Scheme has "1", we have "1a". 
+          // Don't flag as missing if scheme has the parent, assuming it might cover parts.
+          // BUT user wants precise checking. 
+          // Let's flag it but maybe softer? No, strict for now.
+          mismatches.push(`Question ${key}: Missing in Marking Scheme`);
+        } else {
+          mismatches.push(`Question ${key}: Missing in Marking Scheme`);
+        }
+      }
+    });
+
+    return mismatches;
+  };
 
   // Delete all grade boundary entries
   const deleteAllGradeBoundaryEntries = useCallback(async () => {
@@ -549,7 +758,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.post('/api/admin/json/collections/fullExamPapers', JSON.parse(jsonForm.jsonData));
-      console.log('JSON uploaded successfully:', result);
       setJsonEntries(prev => [result.entry, ...prev]);
       resetJsonForm();
       setError(`✅ JSON data uploaded successfully to fullExamPapers collection.`);
@@ -1247,7 +1455,7 @@ function AdminPage() {
                         <th className="admin-table__header">Exam Series</th>
                         <th className="admin-table__header">Qualification</th>
                         <th className="admin-table__header">Subject</th>
-                        <th className="admin-table__header">Questions</th>
+                        <th className="admin-table__header">Total Marks</th>
                         <th className="admin-table__header">Has Marking Scheme</th>
                         <th className="admin-table__header">Has Grade Boundary</th>
                         <th className="admin-table__header">Actions</th>
@@ -1272,9 +1480,17 @@ function AdminPage() {
                           const code = examMeta.code || examMeta.exam_code || 'N/A';
 
                           // Use database fields for question counts
-                          const questionCount = examMeta.totalQuestions || examMeta.total_questions || (examData.questions ? examData.questions.length : 0);
-                          const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions || (examData.questions ?
-                            examData.questions.reduce((total, q) => total + ((q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).length : 0), 0) : 0);
+                          const questionsList = Array.isArray(examData.questions) ? examData.questions : [];
+                          const questionCount = examMeta.totalQuestions || examMeta.total_questions || questionsList.length;
+                          const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions ||
+                            questionsList.reduce((total, q) => total + ((q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).length : 0), 0);
+
+                          // Calculate total marks and log if not 80 (debug)
+                          const totalMarks = questionsList.reduce((total, q) => {
+                            const questionMarks = parseInt(q.marks) || 0;
+                            return total + questionMarks;
+                          }, 0);
+
 
                           // Check if marking scheme and grade boundary exist
                           const hasScheme = hasMarkingScheme(entry);
@@ -1293,15 +1509,7 @@ function AdminPage() {
                                 <td className="admin-table__cell exam-paper-link">
                                   <div
                                     className="clickable-exam-paper"
-                                    onClick={() => {
-                                      console.log('Exam paper clicked:', entry.id, 'Current expanded:', expandedJsonId);
-                                      console.log('Entry data structure:', entry);
-                                      console.log('Exam data:', examData);
-                                      console.log('Questions found:', examData.questions);
-                                      const newExpandedId = expandedJsonId === entry.id ? null : entry.id;
-                                      console.log('Setting expanded to:', newExpandedId);
-                                      setExpandedJsonId(newExpandedId);
-                                    }}
+                                    onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
                                     title="Click to view exam paper content"
                                   >
                                     <span className="exam-paper-name">
@@ -1319,20 +1527,92 @@ function AdminPage() {
                                 <td className="admin-table__cell">{qualification}</td>
                                 <td className="admin-table__cell">{subject}</td>
                                 <td className="admin-table__cell">
-                                  {questionCount ? (
-                                    <span className="question-count">
-                                      {questionCount} Q{subQuestionCount ? ` (${subQuestionCount} sub)` : ''}
+                                  {examData.questions ? (
+                                    <span className="mark-count">
+                                      <span style={{
+                                        color: (subject || '').toLowerCase().includes('math') && (qualification || '').includes('GCSE') && totalMarks !== 80 ? '#ef4444' : 'inherit',
+                                        fontWeight: (subject || '').toLowerCase().includes('math') && (qualification || '').includes('GCSE') && totalMarks !== 80 ? 'bold' : 'normal'
+                                      }}>
+                                        {totalMarks} marks
+                                      </span>
+
                                     </span>
                                   ) : (
-                                    <span className="no-questions">No questions</span>
+                                    <span className="no-marks">No marks</span>
                                   )}
                                 </td>
                                 <td className="admin-table__cell">
-                                  {hasScheme ? (
-                                    <span className="status-badge status-badge--success">Yes</span>
-                                  ) : (
-                                    <span className="status-badge status-badge--warning">No</span>
-                                  )}
+                                  {(() => {
+                                    // Logic to find marking scheme for mismatched check
+                                    // We replicate the finder logic here to properly conditionally color the badge
+                                    // Note: reusing the loop context 'board', 'examSeries', 'code'
+
+                                    const matchingScheme = markingSchemeEntries.find(s => {
+                                      const sData = s.data || s;
+                                      // Marking schemes often store meta in examDetails
+                                      const sMeta = sData.examDetails || sData.exam || sData.metadata || {};
+
+                                      const sBoard = normalizeExamBoard(sMeta.board || sMeta.exam_board);
+                                      const tBoard = normalizeExamBoard(board);
+                                      const sSeries = normalizeExamSeries(sMeta.exam_series || sMeta.date, sBoard).toLowerCase();
+                                      const tSeries = normalizeExamSeries(examSeries, tBoard).toLowerCase();
+                                      const sCode = (sMeta.code || sMeta.exam_code || sMeta.paperCode || '').trim().toLowerCase();
+                                      const tCode = code.trim().toLowerCase();
+
+                                      return sBoard === tBoard &&
+                                        (sSeries === tSeries || sSeries === tSeries.replace(/^june\s+/i, '')) &&
+                                        sCode === tCode;
+                                    });
+
+                                    if (matchingScheme) {
+                                      // Marking scheme questions are often an object { "1": {...}, "2": {...} }
+                                      // We need to normalize this to an array for checkStructureMismatch
+                                      const schemeData = matchingScheme.data || matchingScheme;
+                                      const schemeQuestionsObj = schemeData.questions || (schemeData.markingSchemeData && schemeData.markingSchemeData.questions) || {};
+
+                                      let schemeQuestions = [];
+                                      if (Array.isArray(schemeQuestionsObj)) {
+                                        schemeQuestions = schemeQuestionsObj;
+                                      } else {
+                                        // Convert object to array
+                                        schemeQuestions = Object.entries(schemeQuestionsObj).map(([key, val]) => ({
+                                          number: key,
+                                          ...val
+                                        }));
+                                      }
+
+                                      const mismatches = checkStructureMismatch(examData, { questions: schemeQuestions });
+                                      const hasMismatch = mismatches.length > 0;
+
+                                      return (
+                                        <span
+                                          className={`status-badge ${hasMismatch ? 'status-badge--warning' : 'status-badge--success'}`}
+                                          style={{
+                                            cursor: 'pointer',
+                                            backgroundColor: hasMismatch ? '#fee2e2' : undefined,
+                                            color: hasMismatch ? '#b91c1c' : undefined,
+                                            borderColor: hasMismatch ? '#f87171' : undefined
+                                          }}
+                                          title={hasMismatch ? `Structure Mismatch:\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            console.log('Navigating to marking scheme:', matchingScheme.id);
+                                            setActiveTab('marking-scheme');
+                                            setExpandedMarkingSchemeId(matchingScheme.id);
+                                            // Scroll attempt
+                                            setTimeout(() => {
+                                              const element = document.getElementById(matchingScheme.id);
+                                              if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                            }, 100);
+                                          }}
+                                        >
+                                          YES
+                                        </span>
+                                      );
+                                    } else {
+                                      return <span className="status-badge status-badge--warning">No</span>;
+                                    }
+                                  })()}
                                 </td>
                                 <td className="admin-table__cell">
                                   {hasBoundary ? (
@@ -1359,98 +1639,208 @@ function AdminPage() {
                                 </td>
                               </tr>
 
-                              {expandedJsonId === entry.id && (
-                                <tr className="admin-expanded-row">
-                                  <td colSpan="8">
-                                    <div className="admin-expanded-content">
-                                      <div className="admin-content-header">
-                                        <h4 className="admin-content-header__title">Exam Paper Content: {
-                                          board !== 'N/A' ?
-                                            `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
-                                            examData.originalName || examData.filename || entry.id
-                                        }</h4>
-                                        <div className="admin-content-info">
-                                          <span className="admin-content-info__text">Questions are displayed in numerical order</span>
-                                          <button
-                                            className="admin-close-btn"
-                                            onClick={() => setExpandedJsonId(null)}
-                                            title="Close"
-                                          >
-                                            ×
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {examData.questions && examData.questions.length > 0 ? (
-                                        <div className="admin-questions-content">
-                                          <div className="admin-questions-summary">
-                                            <span className="admin-summary-item">
-                                              <strong>Exam Series:</strong> {examSeries}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Total Questions:</strong> {questionCount}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Sub-questions:</strong> {subQuestionCount}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Total Marks:</strong> {examData.questions.reduce((total, q) => {
-                                                // Fix: Only sum the parent question marks as requested by user.
-                                                // Previous logic double-counted (parent + subQuestions).
-                                                // Also ensure marks are parsed as integers to avoid string concatenation.
-                                                const questionMarks = parseInt(q.marks) || 0;
-                                                return total + questionMarks;
-                                              }, 0)}
-                                            </span>
-                                          </div>
-
-                                          <div className="admin-questions-list">
-                                            {examData.questions.map((question, qIndex) => (
-                                              <div key={qIndex} className="admin-question-item">
-                                                <div className="admin-question-header">
-                                                  <div className="admin-question-main">
-                                                    <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
-                                                    <span className="admin-question-text">{question.text || question.question_text}</span>
-                                                  </div>
-                                                  {question.marks && (
-                                                    <span className="admin-question-marks">[{question.marks} marks]</span>
-                                                  )}
-                                                </div>
-
-                                                {(question.subQuestions || question.sub_questions) && (question.subQuestions || question.sub_questions).length > 0 && (
-                                                  <div className="admin-sub-questions">
-                                                    {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
-                                                      <div key={sIndex} className="admin-sub-question-item">
-                                                        <div className="admin-sub-question-content">
-                                                          <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
-                                                          <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
-                                                        </div>
-                                                        {subQ.marks && (
-                                                          <span className="admin-sub-question-marks">[{subQ.marks} marks]</span>
-                                                        )}
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                )}
+                              {
+                                expandedJsonId === entry.id && (
+                                  <tr className="admin-expanded-row">
+                                    <td colSpan="8">
+                                      <div className="admin-expanded-content">
+                                        <div className="admin-content-header">
+                                          <h4 className="admin-content-header__title">
+                                            {isEditing && editingId === entry.id ? 'Editing: ' : 'Exam Paper Content: '}
+                                            {
+                                              board !== 'N/A' ?
+                                                `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
+                                                examData.originalName || examData.filename || entry.id
+                                            }</h4>
+                                          <div className="admin-content-info">
+                                            {isEditing && editingId === entry.id ? (
+                                              <div className="admin-edit-actions">
+                                                <button
+                                                  className="admin-btn admin-btn--primary"
+                                                  onClick={saveExamPaperChanges}
+                                                  disabled={isSaving}
+                                                >
+                                                  {isSaving ? 'Saving...' : 'Save Changes'}
+                                                </button>
+                                                <button
+                                                  className="admin-btn admin-btn--secondary"
+                                                  onClick={cancelEditMode}
+                                                  disabled={isSaving}
+                                                >
+                                                  Cancel
+                                                </button>
                                               </div>
-                                            ))}
+                                            ) : (
+                                              <>
+                                                <button
+                                                  className="admin-btn admin-btn--secondary"
+                                                  onClick={() => enableEditMode(entry)}
+                                                  style={{ marginRight: '10px' }}
+                                                >
+                                                  Edit Marks
+                                                </button>
+                                                <span className="admin-content-info__text">Questions are displayed in numerical order</span>
+                                                <button
+                                                  className="admin-close-btn"
+                                                  onClick={() => setExpandedJsonId(null)}
+                                                  title="Close"
+                                                >
+                                                  ×
+                                                </button>
+                                              </>
+                                            )}
                                           </div>
                                         </div>
-                                      ) : (
-                                        <div className="no-questions">
-                                          <p>No questions found in this exam paper data.</p>
-                                          <details style={{ marginTop: '16px' }}>
-                                            <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Exam JSON</summary>
-                                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
-                                              {JSON.stringify(examData, null, 2)}
-                                            </pre>
-                                          </details>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
+
+                                        {/* Use edited data if in edit mode for this entry */}
+                                        {(() => {
+                                          const displayData = (isEditing && editingId === entry.id) ? editedExamData : examData;
+                                          // Always run validation to show warnings in display mode too
+                                          const validationErrors = getValidationErrors(displayData);
+
+                                          return (displayData.questions && displayData.questions.length > 0 ? (
+                                            <div className="admin-questions-content">
+                                              <div className="admin-questions-summary">
+                                                <span className="admin-summary-item">
+                                                  <strong>Exam Series:</strong> {examSeries}
+                                                </span>
+                                                <span className="admin-summary-item">
+                                                  <strong>Total Questions:</strong> {questionCount}
+                                                </span>
+                                                <span className="admin-summary-item">
+                                                  <strong>Sub-questions:</strong> {subQuestionCount}
+                                                </span>
+                                                <span className="admin-summary-item">
+                                                  <strong>Total Marks:</strong>
+                                                  {displayData.questions.reduce((total, q) => {
+                                                    const questionMarks = parseInt(q.marks) || 0;
+                                                    return total + questionMarks;
+                                                  }, 0)}
+                                                  {validationErrors.totalMismatch && (
+                                                    <span title="Total marks mismatch (expected 80) - check for errors" style={{ marginLeft: '8px', cursor: 'help', fontSize: '1.2em' }}>🛑</span>
+                                                  )}
+                                                </span>
+                                              </div>
+
+                                              {/* Detailed Structure Mismatch Alert */}
+                                              {(() => {
+                                                const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
+
+                                                const matchingScheme = markingSchemeEntries.find(s => {
+                                                  const sData = s.data || s;
+                                                  const sMeta = sData.metadata || sData.exam || {};
+
+                                                  // Normalized comparison
+                                                  const sBoard = normalizeExamBoard(sMeta.board || sMeta.exam_board);
+                                                  const tBoard = normalizeExamBoard(board);
+
+                                                  const sSeries = normalizeExamSeries(sMeta.exam_series || sMeta.date, sBoard).toLowerCase();
+                                                  const tSeries = normalizeExamSeries(examSeries, tBoard).toLowerCase();
+
+                                                  const sCode = (sMeta.code || sMeta.exam_code || '').trim().toLowerCase();
+                                                  const tCode = code.trim().toLowerCase();
+
+                                                  return sBoard === tBoard &&
+                                                    (sSeries === tSeries || sSeries === tSeries.replace(/^june\s+/i, '')) &&
+                                                    sCode === tCode;
+                                                });
+
+                                                if (matchingScheme) {
+                                                  const mismatches = checkStructureMismatch(displayData, matchingScheme.data || matchingScheme);
+                                                  if (mismatches.length > 0) {
+                                                    return (
+                                                      <div className="admin-alert admin-alert--warning" style={{ margin: '16px 0', padding: '12px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '4px', color: '#9a3412' }}>
+                                                        <strong style={{ display: 'block', marginBottom: '8px' }}>🏗️ Structure Mismatch detected with Marking Scheme:</strong>
+                                                        <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                                                          {mismatches.map((m, i) => <li key={i}>{m}</li>)}
+                                                        </ul>
+                                                      </div>
+                                                    );
+                                                  }
+                                                }
+                                                return null;
+                                              })()}
+
+                                              <div className="admin-questions-list">
+                                                {displayData.questions.map((question, qIndex) => (
+                                                  <div key={qIndex} className="admin-question-item">
+                                                    <div className="admin-question-header">
+                                                      <div className="admin-question-main">
+                                                        <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
+                                                        <span className="admin-question-text">{question.text || question.question_text}</span>
+                                                      </div>
+
+                                                      {isEditing && editingId === entry.id ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                          {validationErrors.questionMismatches && validationErrors.questionMismatches[qIndex] && (
+                                                            <span title="Marks sum mismatch with sub-questions" style={{ marginRight: '8px', cursor: 'help', fontSize: '16px' }}>❌</span>
+                                                          )}
+                                                          <input
+                                                            type="number"
+                                                            className="admin-mark-input"
+                                                            value={question.marks}
+                                                            onChange={(e) => handleMarkChange(qIndex, e.target.value)}
+                                                            style={{ width: '60px', padding: '4px' }}
+                                                          />
+                                                        </div>
+                                                      ) : (
+                                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                          {validationErrors.questionMismatches && validationErrors.questionMismatches[qIndex] && (
+                                                            <span title="Marks sum mismatch with sub-questions" style={{ marginRight: '8px', cursor: 'help', fontSize: '16px' }}>❌</span>
+                                                          )}
+                                                          {question.marks && (
+                                                            <span className="admin-question-marks">[{question.marks} marks]</span>
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
+
+                                                    {(question.subQuestions || question.sub_questions) && (question.subQuestions || question.sub_questions).length > 0 && (
+                                                      <div className="admin-sub-questions">
+                                                        {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
+                                                          <div key={sIndex} className="admin-sub-question-item">
+                                                            <div className="admin-sub-question-content">
+                                                              <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
+                                                              <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
+                                                            </div>
+                                                            {isEditing && editingId === entry.id ? (
+                                                              <input
+                                                                type="number"
+                                                                className="admin-mark-input"
+                                                                value={subQ.marks}
+                                                                onChange={(e) => handleSubQuestionMarkChange(qIndex, sIndex, e.target.value)}
+                                                                style={{ width: '50px', padding: '2px' }}
+                                                              />
+                                                            ) : (
+                                                              subQ.marks && (
+                                                                <span className="admin-sub-question-marks">[{subQ.marks} marks]</span>
+                                                              )
+                                                            )}
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <div className="no-questions">
+                                              <p>No questions found in this exam paper data.</p>
+                                              <details style={{ marginTop: '16px' }}>
+                                                <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Exam JSON</summary>
+                                                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
+                                                  {JSON.stringify(examData, null, 2)}
+                                                </pre>
+                                              </details>
+                                            </div>
+                                          ));
+                                        })()}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              }
                             </React.Fragment>
                           );
                         })
@@ -1535,8 +1925,6 @@ function AdminPage() {
                         <th className="admin-table__header">Qualification</th>
                         <th className="admin-table__header">Subject</th>
                         <th className="admin-table__header">Exam Series</th>
-                        <th className="admin-table__header">Questions</th>
-                        <th className="admin-table__header">Marks</th>
                         <th className="admin-table__header">Uploaded</th>
                         <th className="admin-table__header">Actions</th>
                       </tr>
@@ -1568,9 +1956,6 @@ function AdminPage() {
                             return a.localeCompare(b);
                           });
                           const questionCount = entry.totalQuestions || sortedQuestionKeys.length || 0;
-                          const markCount = entry.totalMarks || Object.values(questions).reduce((total, question) => {
-                            return total + (question.marks ? question.marks.length : 0);
-                          }, 0);
 
                           // Determine render group color
                           const currentGroupSeries = entry.normalizedSeries || examSeries;
@@ -1605,24 +1990,6 @@ function AdminPage() {
                                 <td className="admin-table__cell">{qualification}</td>
                                 <td className="admin-table__cell">{subject}</td>
                                 <td className="admin-table__cell">{examSeries}</td>
-                                <td className="admin-table__cell">
-                                  {questionCount ? (
-                                    <span className="question-count">
-                                      {questionCount} Q
-                                    </span>
-                                  ) : (
-                                    <span className="no-questions">No questions</span>
-                                  )}
-                                </td>
-                                <td className="admin-table__cell">
-                                  {markCount ? (
-                                    <span className="mark-count">
-                                      {markCount} marks
-                                    </span>
-                                  ) : (
-                                    <span className="no-marks">No marks</span>
-                                  )}
-                                </td>
                                 <td className="admin-table__cell">{formatDate(entry.createdAt || entry.uploadedAt)}</td>
                                 <td className="admin-table__cell actions-cell">
                                   <button

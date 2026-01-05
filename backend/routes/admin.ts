@@ -262,6 +262,65 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
 });
 
 /**
+ * PATCH /api/admin/json/collections/:collectionName/:entryId
+ * Update a specific entry in a JSON collection
+ */
+router.patch('/json/collections/:collectionName/:entryId', async (req: Request, res: Response) => {
+  try {
+    const { collectionName, entryId } = req.params;
+    const updateData = req.body;
+
+    if (!updateData) {
+      return res.status(400).json({ error: 'Update data is required' });
+    }
+
+    // Update in Firestore if available
+    const db = getFirestore();
+    if (db) {
+      try {
+        const docRef = db.collection(collectionName).doc(entryId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+          return res.status(404).json({ error: 'Entry not found' });
+        }
+
+        // Merge update data
+        await docRef.set({
+          ...updateData,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+      } catch (firestoreError) {
+        console.error('Firestore update error:', firestoreError);
+        // Continue with mock data
+      }
+    }
+
+    // Update in mock data
+    if (mockData[collectionName]) {
+      const index = mockData[collectionName].findIndex(entry => entry.id === entryId);
+      if (index !== -1) {
+        mockData[collectionName][index] = {
+          ...mockData[collectionName][index],
+          ...updateData,
+          updatedAt: new Date().toISOString()
+        };
+      }
+    }
+
+    res.json({
+      message: 'Entry updated successfully',
+      collectionName,
+      entryId
+    });
+  } catch (error) {
+    console.error('Update entry error:', error);
+    res.status(500).json({ error: `Failed to update entry: ${error.message}` });
+  }
+});
+
+/**
  * DELETE /api/admin/json/collections/:collectionName/:entryId
  * Delete a specific entry from a JSON collection
  */
