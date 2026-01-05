@@ -3,6 +3,7 @@
  * This is the definitive version with the fix for the re-mounting bug.
  */
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ReactDOM from 'react-dom';
 import { ChevronDown, Brain } from 'lucide-react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
@@ -20,6 +21,7 @@ import QuestionNavigator from './QuestionNavigator';
 import SEO from '../common/SEO';
 import ImageViewer from '../common/ImageViewer';
 import HeroAnimation from '../layout/HeroAnimation';
+import { analyticsService } from '../../services/AnalyticsService';
 
 const productSchema = {
   "@context": "https://schema.org/",
@@ -88,6 +90,25 @@ const MainLayout: React.FC = () => {
       }, 1000);
     }
   }, [currentSession?.id]);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Track subscription success from redirect
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('subscription') === 'success') {
+      // Track conversion
+      analyticsService.logPurchase(
+        `sub_redirect_${Date.now()}`,
+        9.99 // Defaulting to Pro Monthly estimate for redirect flows if we can't detect otherwise
+      );
+
+      // Clean up URL without reload
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [location]);
 
   // State to track if we've scrolled past the header to prevent ribbon overlap
   const [showRibbonOnScroll, setShowRibbonOnScroll] = React.useState(false);
