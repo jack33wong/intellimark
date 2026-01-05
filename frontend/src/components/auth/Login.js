@@ -12,6 +12,7 @@ import './Login.css';
 import '../common/LoadingSpinner.css';
 import API_CONFIG from '../../config/api';
 import { analyticsService } from '../../services/AnalyticsService';
+import SEO from '../common/SEO';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
