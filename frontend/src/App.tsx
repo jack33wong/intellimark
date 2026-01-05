@@ -145,11 +145,11 @@ function AppContent() {
       } else {
         setSelectedMarkingResult(result);
       }
-      navigate('/mark-homework');
+      navigate('/app');
     } catch (error) {
       console.error('Error fetching session data:', error);
       setSelectedMarkingResult(result);
-      navigate('/mark-homework');
+      navigate('/app');
     }
   };
 
@@ -218,7 +218,7 @@ function AppContent() {
         } />
 
 
-        <Route path="/mark-homework" element={
+        <Route path="/app" element={
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps} rightSideClass={isChatMode ? 'chat-mode' : ''}>
               <div className="mark-homework-main-content">

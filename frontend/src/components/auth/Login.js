@@ -42,7 +42,7 @@ const Login = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/mark-homework');
+      navigate('/app');
     }
   }, [user, navigate]);
 

@@ -849,7 +849,7 @@ function AdminPage() {
       EventManager.dispatch(EVENT_TYPES.SESSIONS_CLEARED);
 
       // Navigate to mark homework page after clearing all sessions
-      window.location.href = '/mark-homework';
+      window.location.href = '/app';
     } catch (error) {
       console.error('Error clearing sessions:', error);
       setError(`Error clearing sessions: ${error.message}`);

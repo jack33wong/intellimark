@@ -199,7 +199,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleGoToMarkHomework = () => {
     setSelectedSessionId(null);
     onMarkHomeworkClick();
-    navigate('/mark-homework');
+    navigate('/app');
   };
 
   const handleSessionClick = (session: UnifiedSession) => {

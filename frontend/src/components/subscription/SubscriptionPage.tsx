@@ -462,7 +462,7 @@ const SubscriptionPage: React.FC = () => {
                 showCancel: false,
                 action: () => {
                   EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
-                  navigate('/mark-homework');
+                  navigate('/app');
                 }
               });
 
@@ -556,7 +556,7 @@ const SubscriptionPage: React.FC = () => {
           planId,
           billingCycle,
           userId: user.uid,
-          successUrl: `${window.location.origin}/mark-homework?subscription=success`,
+          successUrl: `${window.location.origin}/app?subscription=success`,
           cancelUrl: `${window.location.origin}/upgrade?canceled=true`,
         }),
       });
@@ -601,7 +601,7 @@ const SubscriptionPage: React.FC = () => {
       {/* Close Button - Top Right */}
       <button
         className="upgrade-page-close-button"
-        onClick={() => navigate('/mark-homework')}
+        onClick={() => navigate('/app')}
       >
         <X size={24} />
       </button>

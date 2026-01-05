@@ -236,16 +236,16 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
             detail: { session: data.session }
           });
           window.dispatchEvent(event);
-          navigate('/mark-homework');
+          navigate('/app');
         } else {
-          navigate(`/mark-homework?sessionId=${sessionId}`);
+          navigate(`/app?sessionId=${sessionId}`);
         }
       } else {
-        navigate(`/mark-homework?sessionId=${sessionId}`);
+        navigate(`/app?sessionId=${sessionId}`);
       }
     } catch (error) {
       console.error('Failed to fetch session:', error);
-      navigate(`/mark-homework?sessionId=${sessionId}`);
+      navigate(`/app?sessionId=${sessionId}`);
     }
   };
 

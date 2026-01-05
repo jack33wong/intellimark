@@ -245,7 +245,7 @@ const LibraryPage: React.FC = () => {
   // Handle thumbnail click - Navigate to marking page in split mode
   const handleThumbnailClick = (item: LibraryItem, imageIndex: number) => {
     // Navigate to marking page
-    navigate('/mark-homework');
+    navigate('/app');
 
     // Dispatch event to load session with autoSplit instruction
     const event = new CustomEvent('loadMarkingSession', {
