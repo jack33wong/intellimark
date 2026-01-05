@@ -11,6 +11,7 @@ import LibraryPage from './pages/LibraryPage';
 import AnalysisPage from './pages/AnalysisPage';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
+import MobileCameraPage from './pages/MobileCameraPage';
 import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
 import GuestLimitModal from './components/common/GuestLimitModal';
 import AnalyticsTracker from './components/common/AnalyticsTracker';
@@ -240,11 +241,25 @@ function AppContent() {
 
         <Route path="/" element={
           <OptionalAuthRoute>
-            <MainLayoutWrapper {...layoutProps}>
-              <HeroAnimation />
+            <MainLayoutWrapper {...layoutProps} rightSideClass={isChatMode ? 'chat-mode' : ''}>
+              <div className="mark-homework-main-content">
+                <MarkingPageProvider
+                  key={markHomeworkResetKey}
+                  selectedMarkingResult={selectedMarkingResult}
+                  onPageModeChange={setIsChatMode}
+                  onProcessingChange={setIsProcessing}
+                  setSidebarOpen={setIsSidebarOpen}
+                  autoSplit={autoSplit}
+                  initialImageIndex={initialImageIndex}
+                >
+                  <MarkingPage />
+                </MarkingPageProvider>
+              </div>
             </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
+        <Route path="/mobile-upload/:sessionId" element={<MobileCameraPage />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <GuestLimitModal

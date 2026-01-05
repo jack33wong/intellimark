@@ -3,8 +3,9 @@
  * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Plus, Brain, X, Check, Sparkles } from 'lucide-react';
+import { Plus, Brain, X, Check, Sparkles, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import MobileUploadModal from '../upload/MobileUploadModal';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -57,7 +58,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [isMultiImage, setIsMultiImage] = useState<boolean>(false);
+
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
+  const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
 
   // Metadata & Autocomplete State
   const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
@@ -571,6 +574,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
                     <Plus size={14} />
                   </button>
+                  <button
+                    className="followup-upload-button mobile-scan-btn"
+                    onClick={() => setIsMobileUploadOpen(true)}
+                    disabled={isProcessing}
+                    title="Scan from Mobile"
+                  >
+                    <Smartphone size={14} />
+                  </button>
                 </div>
                 <div className="followup-right-buttons">
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
@@ -635,7 +646,48 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
           )}
         </div>
       </div>
+
       <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
+
+      <MobileUploadModal
+        isOpen={isMobileUploadOpen}
+        onClose={() => setIsMobileUploadOpen(false)}
+        onImageReceived={useCallback(async (imageUrl: string) => {
+          try {
+            // Fetch the image from the URL (which is a download URL from Firebase Storage)
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const filename = `mobile-scan-${Date.now()}.jpg`;
+            const file = new File([blob], filename, { type: 'image/jpeg' });
+
+            // Append to existing files if any
+            if (imageFiles.length > 0 || imageFile) {
+              const existingFiles = [...imageFiles, ...(imageFile ? [imageFile] : [])];
+              // Check for duplicates (unlikely with timestamp name but good practice)
+              if (!existingFiles.some(f => f.name === file.name)) {
+                const allFiles = [...existingFiles, file];
+                setImageFiles(allFiles);
+                setImageFile(null);
+                setPreviewImage(null);
+                setIsMultiImage(true);
+
+                // Add preview
+                setPreviewImages(prev => [...prev, imageUrl]);
+              }
+            } else {
+              // Single file case
+              setImageFile(file);
+              setImageFiles([]);
+              setPreviewImage(imageUrl);
+              setPreviewImages([]);
+              setIsMultiImage(false);
+            }
+            setIsExpanded(true);
+          } catch (err) {
+            console.error('Failed to process mobile image:', err);
+          }
+        }, [imageFiles, imageFile])}
+      />
 
       {/* Enterprise Upgrade Modal */}
       <ConfirmationModal

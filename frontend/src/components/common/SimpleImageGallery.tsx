@@ -31,9 +31,13 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
     setImageErrors(prev => new Set(prev).add(index));
   };
 
-  const getImageSrc = (image: string | { url: string; originalFileName?: string; fileSize?: number }) => {
+  const getImageSrc = (image: string | { url: string; originalFileName?: string; fileSize?: number } | null | undefined) => {
+    if (!image) return '';
+
     // Handle both old format (string) and new format (object)
-    const imageSrc = typeof image === 'string' ? image : image.url;
+    const imageSrc = typeof image === 'string' ? image : image?.url;
+
+    if (!imageSrc) return '';
 
     // Handle both base64 data URLs and Firebase Storage links
     if (imageSrc.startsWith('data:') || imageSrc.startsWith('http')) {

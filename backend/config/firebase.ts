@@ -50,7 +50,7 @@ const initializeFirebase = (): boolean => {
 
         firebaseAdmin = admin.initializeApp({
           credential: admin.credential.cert(serviceAccountPath),
-          storageBucket: 'intellimark-6649e.appspot.com'
+          storageBucket: 'intellimark-6649e.firebasestorage.app'
         });
         isInitialized = true;
       } catch (error) {

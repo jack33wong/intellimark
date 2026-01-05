@@ -546,6 +546,11 @@
   transform: scale(0.95);
 }
 
+.followup-upload-button.mobile-scan-btn {
+  color: var(--text-brand);
+  font-weight: 800;
+}
+
 .followup-chat-input-bar .followup-upload-button:disabled {
   background: #374151;
   color: #6b7280;

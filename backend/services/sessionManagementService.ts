@@ -718,14 +718,14 @@ export class SessionManagementService {
     if (isAuthenticated && originalImageLinks) {
       if (files.length === 1) {
         (dbUserMessage as any).imageLink = originalImageLinks[0];
-      } else {
-        // Update structured data with Firebase URLs
-        this.updateStructuredDataWithFirebaseUrls(
-          structuredImageDataArray,
-          structuredPdfContexts,
-          originalImageLinks
-        );
       }
+
+      // Update structured data with Firebase URLs (ALWAYS do this, even for single files)
+      this.updateStructuredDataWithFirebaseUrls(
+        structuredImageDataArray,
+        structuredPdfContexts,
+        originalImageLinks
+      );
     }
 
     return dbUserMessage;

@@ -8,15 +8,15 @@ export interface ImageStorageConfig {
   maxFileSizeMB: number;
   maxWidth: number;
   maxHeight: number;
-  
+
   // Compression settings
   compressionQuality: number;
   enableCompression: boolean;
-  
+
   // Storage settings
   bucketName: string;
   defaultContentType: string;
-  
+
   // File naming
   filenamePrefix: string;
   filenameSuffix: string;
@@ -25,19 +25,19 @@ export interface ImageStorageConfig {
 export const IMAGE_STORAGE_CONFIG: ImageStorageConfig = {
   // Size limits (in MB)
   maxFileSizeMB: 50, // 50MB max file size
-  
+
   // Image dimensions (pixels)
   maxWidth: 1920,
   maxHeight: 1080,
-  
+
   // Compression settings (1-100)
   compressionQuality: 85,
   enableCompression: true,
-  
+
   // Storage settings
   bucketName: 'intellimark-6649e.firebasestorage.app', // Correct bucket name
   defaultContentType: 'image/jpeg',
-  
+
   // File naming
   filenamePrefix: 'marking-images',
   filenameSuffix: '.jpg'

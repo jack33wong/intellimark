@@ -89,7 +89,25 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   }, []);
 
   const getMultiImageData = useCallback(() => {
-    return (message as any)?.imageDataArray || [];
+    const imageDataArray = (message as any)?.imageDataArray;
+    if (imageDataArray && Array.isArray(imageDataArray) && imageDataArray.length > 0) {
+      // Fix for legacy data: if single item has no URL but message has imageLink, use it
+      if (imageDataArray.length === 1 && !imageDataArray[0]?.url && (message as any)?.imageLink) {
+        return [{
+          ...imageDataArray[0],
+          url: (message as any).imageLink
+        }];
+      }
+      return imageDataArray;
+    }
+    // Fallback for legacy/single image messages
+    if ((message as any)?.imageLink) {
+      return [(message as any).imageLink];
+    }
+    if ((message as any)?.imageData) {
+      return [(message as any).imageData];
+    }
+    return [];
   }, [message]);
 
   const getImageSourceFromArray = useCallback((imageDataArray: any[], index: number) => {
@@ -97,8 +115,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       return null;
     }
     const item = imageDataArray[index];
-    return typeof item === 'string' ? item : item?.url;
-  }, []);
+    // Prioritize item.url, then item as string, then fallback to message.imageLink if single item and url missing
+    if (typeof item === 'string') return item;
+    if (item?.url) return item.url;
+
+    // Fallback: if this is the only item and it has no URL, check if message has imageLink
+    if (imageDataArray.length === 1 && (message as any)?.imageLink) {
+      return (message as any).imageLink;
+    }
+
+    return null;
+  }, [message]);
 
   const formatFileSize = useCallback((fileSize: number | string) => {
     if (!fileSize) return 'Unknown size';
@@ -456,30 +483,39 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             !isAnnotatedImageMessage(message) && (
               <div className="skeleton-gallery-wrapper">
                 <div className="skeleton-gallery thumbnail-horizontal">
-                  {(message as any).imageDataArray.map((_: any, idx: number) => (
-                    <div key={idx} className="skeleton-item">
-                      <div className="skeleton-shimmer"></div>
-                      <div className="skeleton-overlay">
-                        <span className="skeleton-label">Page {idx + 1}</span>
+                  {(message as any).imageDataArray.map((imgItem: any, idx: number) => {
+                    const src = typeof imgItem === 'string' ? imgItem : imgItem?.url;
+                    return (
+                      <div key={idx} className="skeleton-item">
+                        {src ? (
+                          <img src={src} alt={`Processing page ${idx + 1}`} className="skeleton-image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
+                        ) : (
+                          <div className="skeleton-shimmer"></div>
+                        )}
+                        <div className="skeleton-overlay">
+                          <span className="skeleton-label">Analyzing Page {idx + 1}...</span>
+                        </div>
+                        {src && <div className="skeleton-shimmer" style={{ opacity: 0.3 }}></div>}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-          {/* Galleries and Images */}
-          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (
+          {/* Galleries and Images - Only show when NOT processing/thinking (skeletons show then) */}
+          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
             <div className="gallery-side"><SimpleImageGallery images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} /></div>
           )}
 
-          {!isUser && (message as any)?.imageDataArray?.length === 1 && !isPdfMessage() && (
+          {!isUser && (message as any)?.imageDataArray?.length === 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
               <img src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} />
             </div>
           )}
 
-          {!isUser && isAnnotatedImageMessage(message) && imageSrc && !imageError && (
+          {/* Legacy fallback - Only if imageDataArray is empty */}
+          {!isUser && isAnnotatedImageMessage(message) && imageSrc && !imageError && (!(message as any)?.imageDataArray || (message as any)?.imageDataArray.length === 0) && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
               <img src={imageSrc} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} />
             </div>
