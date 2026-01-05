@@ -11,6 +11,7 @@ import {
 } from '../../types/payment';
 import { ArrowLeft, CreditCard, Lock } from 'lucide-react';
 import API_CONFIG from '../../config/api';
+import { analyticsService } from '../../services/AnalyticsService';
 import './StripePayment.css';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || '');
@@ -175,6 +176,33 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
       }
 
       const subscriptionData: SubscriptionResponse = await response.json();
+
+      // Track successful purchase via analytics
+      if (subscriptionData) {
+        // Calculate the amount based on the plan and billing cycle
+        // Only trigger if we have valid data
+        try {
+          // We use a small timeout to ensure the analytics service is ready if it lazy loads
+          setTimeout(() => {
+            // Default to Pro Monthly (£9.99) or Pro Yearly (£99.99) approximate values 
+            // if we don't have the exact price handy in this component scope easily.
+            // Ideally we should pass the price prop or get it from the response.
+            // For now, let's try to infer from the planId/billingCycle or use a generic value.
+            // Better yet, let's import the AnalyticsService and log it properly.
+            analyticsService.logPurchase(
+              subscriptionData.subscriptionId || `sub_${Date.now()}`,
+              // We don't have the exact price variable here easily accessible without passing it down
+              // but we can estimate or leave value as 0 for now if strict accuracy isn't critical
+              // or better: let's use a dynamic lookup map if possible, or just log the event.
+              // Actually the PaymentIntent in state has the amount!
+              state.paymentIntent ? state.paymentIntent.amount / 100 : 0
+            );
+          }, 100);
+        } catch (e) {
+          console.warn('Analytics log failed', e);
+        }
+      }
+
       onSuccess(subscriptionData);
     } catch (error) {
       console.error('Error creating subscription:', error);

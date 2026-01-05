@@ -778,15 +778,28 @@ function AdminPage() {
     }
 
     try {
+      // Validate JSON format first
+      let parsedData;
+      try {
+        parsedData = JSON.parse(markingSchemeForm.markingSchemeData);
+      } catch (e) {
+        setError('Invalid JSON format. Please check your syntax.');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
       const authToken = await getAuthToken();
       await ApiClient.post('/api/admin/json/collections/markingSchemes', {
-        markingSchemeData: markingSchemeForm.markingSchemeData
+        markingSchemeData: parsedData
       });
 
       setError(null);
       resetMarkingSchemeForm();
       // Reload marking scheme entries
       loadMarkingSchemeEntries();
+      // Show success message
+      setError('✅ Marking scheme uploaded successfully');
+      setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error uploading marking scheme:', error);
       setError(`Error uploading marking scheme: ${error.message}`);

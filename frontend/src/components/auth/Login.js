@@ -11,7 +11,7 @@ import { auth, googleProvider, facebookProvider } from '../../config/firebase';
 import './Login.css';
 import '../common/LoadingSpinner.css';
 import API_CONFIG from '../../config/api';
-import SEO from '../common/SEO';
+import { analyticsService } from '../../services/AnalyticsService';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +63,11 @@ const Login = () => {
       // 👇 FIX 2: The `signInWithPopup` is all that's needed. The onAuthStateChanged
       // listener in the AuthContext will handle the successful login.
       await signInWithPopup(auth, authProvider);
+
+      // Track successful social login/signup (GA4 doesn't distinguish easily without more logic, 
+      // but 'login' or 'sign_up' intent is clear here)
+      analyticsService.logSignUp(provider);
+
       // The useEffect listening for the `user` object will now handle the redirect.
       // No need to call navigate here directly.
     } catch (error) {
@@ -89,12 +94,18 @@ const Login = () => {
     setIsLoading(true);
     setFirebaseError(null);
     try {
-      const result = currentPage === 'email-signup'
+      const isSignUp = currentPage === 'email-signup';
+      const result = isSignUp
         ? await emailPasswordSignup(formData.email, formData.password, '')
         : await emailPasswordSignin(formData.email, formData.password);
 
       if (!result.success) {
         setFirebaseError(result.message);
+      } else {
+        // Track successful email signup
+        if (isSignUp) {
+          analyticsService.logSignUp('email');
+        }
       }
       // The useEffect will handle the redirect on success.
     } catch (error) {
