@@ -190,7 +190,7 @@ export class SVGOverlayService {
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
       // Get image metadata to ensure we have correct dimensions
-      const imageMetadata = await sharp(imageBuffer).metadata();
+      const imageMetadata = await sharp(imageBuffer).rotate().metadata();
       const originalWidth = imageMetadata.width || imageDimensions.width;
       const originalHeight = imageMetadata.height || imageDimensions.height;
 
@@ -208,6 +208,7 @@ export class SVGOverlayService {
 
       // Composite the SVG overlay directly onto the original image (no extension)
       const burnedImageBuffer = await sharp(imageBuffer)
+        .rotate() // Auto-orient images based on EXIF data
         .composite([
           {
             input: svgBuffer,
