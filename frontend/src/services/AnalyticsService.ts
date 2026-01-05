@@ -27,7 +27,7 @@ class AnalyticsService {
             const isProduction = process.env.NODE_ENV === 'production';
             const hasMeasurementId = process.env.REACT_APP_FIREBASE_MEASUREMENT_ID;
 
-            if (isProduction && hasMeasurementId) {
+            if (isProduction && hasMeasurementId && app) {
                 const firebaseAnalytics = await import('firebase/analytics');
                 this.analytics = firebaseAnalytics.getAnalytics(app);
                 this.initialized = true;
