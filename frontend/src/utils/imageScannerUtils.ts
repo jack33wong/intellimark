@@ -108,10 +108,33 @@ export const processScannerImage = async (
                 return s;
             };
 
-            // 1. Grayscale & Background Estimation (Shadow Division)
-            // Strategy: Divide Original by Blur to flatten lighting.
+            // Helper: Otsu Threshold for robust mask generation
+            const getOtsuThreshold = (pixels: Uint8ClampedArray) => {
+                const histogram = new Array(256).fill(0);
+                for (let i = 0; i < pixels.length; i++) histogram[pixels[i]]++;
+                let total = pixels.length;
+                let sum = 0;
+                for (let i = 0; i < 256; i++) sum += i * histogram[i];
+                let sumB = 0, wB = 0, wF = 0, varMax = 0, threshold = 0;
+                for (let i = 0; i < 256; i++) {
+                    wB += histogram[i];
+                    if (wB === 0) continue;
+                    wF = total - wB;
+                    if (wF === 0) break;
+                    sumB += i * histogram[i];
+                    const mB = sumB / wB;
+                    const mF = (sum - sumB) / wF;
+                    const varBetween = wB * wF * (mB - mF) * (mB - mF);
+                    if (varBetween > varMax) {
+                        varMax = varBetween;
+                        threshold = i;
+                    }
+                }
+                return threshold;
+            };
+
+            // 1. Grayscale
             const gray = new Uint8ClampedArray(width * height);
-            const background = new Uint8ClampedArray(width * height);
             let minVal = 255, maxVal = 0;
 
             for (let i = 0; i < width * height; i++) {
@@ -121,30 +144,12 @@ export const processScannerImage = async (
                 // Luma calculation
                 const val = 0.299 * r + 0.587 * g + 0.114 * b;
                 gray[i] = val;
-                background[i] = val; // For blur
+                if (val < minVal) minVal = val;
+                if (val > maxVal) maxVal = val;
             }
 
-            // 1.1 Heavy Blur for Background (Radius 20)
-            // This estimates the "shadow plane".
-            boxBlur(background, width, height, 20);
-
-            // 1.2 Division Normalization
-            for (let i = 0; i < width * height; i++) {
-                const bg = background[i] || 1;
-                // Perfect white = 255. If pixel matches background, it becomes 255.
-                // If pixel is darker (text), it stays dark relative to bg.
-                let norm = (gray[i] / bg) * 255;
-                if (norm > 255) norm = 255;
-                if (norm < 0) norm = 0;
-                gray[i] = norm;
-
-                // Track min/max for subsequent strengthening 
-                if (norm < minVal) minVal = norm;
-                if (norm > maxVal) maxVal = norm;
-            }
-
-            // 1.3 Histogram Stretching (Enhance Text)
-            // After normalization, text might be light gray. We stretch it to black.
+            // 1.1 Contrast Stretching (Enhance Text)
+            // Essential since we removed standard normalization
             const range = maxVal - minVal;
             if (range > 0) {
                 for (let i = 0; i < width * height; i++) {
@@ -152,28 +157,39 @@ export const processScannerImage = async (
                 }
             }
 
-            // 1.4: Adaptive Thresholding
-            // With flat lighting, we can use a tighter threshold.
+            // 2. MASK GENERATION (For Corner Detection)
+            // Use Otsu's Threshold to find the paper blob. This is robust vs shading.
+            const otsuLevel = getOtsuThreshold(gray);
+            const mask = new Uint8Array(width * height);
+            for (let i = 0; i < width * height; i++) {
+                mask[i] = gray[i] >= otsuLevel ? 1 : 0;
+            }
+
+            // 3. OUTPUT GENERATION (For Display/Warp)
+            // Use standard Adaptive Thresholding on a BLURRED image to remove shadows/noise.
+            // We reverted background division as it was unstable.
+
+            // 3.1 Blur the gray channel (7x7)
+            const blurredGray = new Uint8ClampedArray(width * height);
+            for (let i = 0; i < width * height; i++) blurredGray[i] = gray[i];
+            boxBlur(blurredGray, width, height, 7);
+
+            // 3.2 Adaptive Threshold
             const thresholded = new Uint8ClampedArray(width * height);
             const integral = new Int32Array(width * height);
 
-            // Create Integral Image
             let sum = 0;
-            for (let i = 0; i < width; i++) {
-                sum += gray[i];
-                integral[i] = sum;
-            }
+            for (let i = 0; i < width; i++) { sum += blurredGray[i]; integral[i] = sum; }
             for (let y = 1; y < height; y++) {
                 sum = 0;
                 for (let x = 0; x < width; x++) {
-                    sum += gray[y * width + x];
+                    sum += blurredGray[y * width + x];
                     integral[y * width + x] = integral[(y - 1) * width + x] + sum;
                 }
             }
 
-            // t=15 (Good balance for normalized images)
             const s = Math.round(width / 8);
-            const t = 15;
+            const t = 15; // Tuned for Otsu+Blur approach
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
@@ -185,7 +201,7 @@ export const processScannerImage = async (
                     const sumRegion = getSum(x1, y1, x2, y2);
                     const regionMean = sumRegion / count;
 
-                    if (gray[y * width + x] <= regionMean * ((100 - t) / 100)) {
+                    if (blurredGray[y * width + x] <= regionMean * ((100 - t) / 100)) {
                         thresholded[y * width + x] = 1;
                     } else {
                         thresholded[y * width + x] = 0;
@@ -193,23 +209,20 @@ export const processScannerImage = async (
                 }
             }
 
-            // Apply thresholded result to image data
+            // Apply thresholded result to image data (This is what wraps around the paper)
             for (let i = 0; i < width * height; i++) {
-                const val = thresholded[i] === 1 ? 0 : 255; // 1=black, 0=white
+                const val = thresholded[i] === 1 ? 0 : 255;
                 data[i * 4] = val;
                 data[i * 4 + 1] = val;
                 data[i * 4 + 2] = val;
                 data[i * 4 + 3] = 255;
             }
 
-            // Step 3: Pro Rectification (RANSAC + Erosion)
+            // Step 3: Pro Rectification (Uses 'mask' from Otsu)
             onStatusUpdate?.('Detecting edges...');
 
-            // 3.1 Mask Generation and Processing
-            const mask = new Uint8Array(width * height);
-            for (let i = 0; i < width * height; i++) {
-                mask[i] = data[i * 4] === 255 ? 1 : 0; // 1 = White (Paper), 0 = Black (Background)
-            }
+            // 3.1 Mask Processing (Use the Otsu mask we calculated earlier)
+            // (Previously we re-calculated mask from data, but data is now noisy text. Otsu is solid.)
 
             // 3.1.2: Mask Erosion (3x3 kernel)
             // Detach paper from edge artifacts
@@ -397,7 +410,7 @@ export const processScannerImage = async (
             if (pointCount === 0 || edgePoints.length < 20) {
                 // Fallback: Return original
                 ctx.putImageData(imageData, 0, 0);
-                canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', quality);
+                canvas.toBlob((blob) => resolve(blob!), 'image/png');
                 return;
             }
 
@@ -442,10 +455,6 @@ export const processScannerImage = async (
             // A tighter crop makes the paper larger and reduces desk inclusion.
             const margin = 0.10;
 
-            // ... (coordinates calculation) ...
-
-            // 3.4: Pro-Warp Correction: Push corners slightly outwards
-            // ... (expansion logic) ...
             const minX = Math.min(tl.x, tr.x, br.x, bl.x);
             const maxX = Math.max(tl.x, tr.x, br.x, bl.x);
             const minY = Math.min(tl.y, tr.y, br.y, bl.y);
