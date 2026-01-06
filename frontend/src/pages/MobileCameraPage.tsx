@@ -34,11 +34,13 @@ const MobileCameraPage: React.FC = () => {
                 // Allow UI to update briefly before heavy work starts
                 await new Promise(r => setTimeout(r, 100));
 
+                // Determine file type from extension or default to png
+                const isPng = selectedFile.name.toLowerCase().endsWith('.png');
                 // Process the image (adaptive thresholding and auto-crop) with real feedback
                 const processedBlob = await processScannerImage(selectedFile, {
-                    maxWidth: 2800,
-                    maxHeight: 2800,
-                    onStatusUpdate: (step) => setProcessingStep(step)
+                    // Optimized for A4 documents
+                    quality: 1.0,
+                    onStatusUpdate: setProcessingStep
                 });
 
                 setFile(processedBlob);

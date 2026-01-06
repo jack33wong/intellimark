@@ -8,9 +8,9 @@
 
 export interface ScanOptions {
     contrast?: number;      // -100 to 100
-    brightness?: number;    // -100 to 100
-    maxWidth?: number;
-    maxHeight?: number;
+    // Configuration: Max Resolution & Quality
+    // Bumped to 4500px for "Ultra High Res"
+    // maxWidth and maxHeight are now fixed constants within the function, not options.
     quality?: number;       // 0 to 1
     onStatusUpdate?: (status: string) => void;
 }
@@ -21,11 +21,13 @@ export const processScannerImage = async (
 ): Promise<Blob> => {
     // Pro-grade settings for the "Super Scanner"
     const {
-        maxWidth = 3000, // Reduced from 6000 to 3000 to fix "sent to receiver longer" (User Report)
-        maxHeight = 3000,
         quality = 0.85, // Slightly lower quality for faster transmission
         onStatusUpdate
     } = options;
+
+    // Fixed max dimensions for "Ultra High Res"
+    const maxWidth = 4500;
+    const maxHeight = 4500;
 
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -62,90 +64,142 @@ export const processScannerImage = async (
             const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
 
-            // Step 1: Grayscale + Basic Contrast Boost
-            onStatusUpdate?.('Analyzing lighting...');
-            const grayscale = new Uint8Array(width * height);
-            for (let i = 0; i < data.length; i += 4) {
-                // Standard luminance weights
-                grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-            }
-
-            // Step 1.1: Box Blur (5x5) - ERROR CORRECTION
-            // User reported "iPhone shadow" and "not top down".
-            // 3x3 blur was too weak to smooth out the hand shadow. 5x5 provides a cleaner background signal
-            // for the adaptive thresholder, suppressing large, soft shadows effectively.
-            const blurred = new Uint8Array(width * height);
-            const blurKernel = 2; // Radius 2 = 5x5
-            for (let y = blurKernel; y < height - blurKernel; y++) {
-                for (let x = blurKernel; x < width - blurKernel; x++) {
-                    let sum = 0;
-                    for (let dy = -blurKernel; dy <= blurKernel; dy++) {
-                        for (let dx = -blurKernel; dx <= blurKernel; dx++) {
-                            sum += grayscale[(y + dy) * width + (x + dx)];
+            // Helper for box blur
+            const boxBlur = (pixels: Uint8ClampedArray, w: number, h: number, radius: number) => {
+                const temp = new Uint8ClampedArray(w * h);
+                // Horizontal pass
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        let sum = 0;
+                        let count = 0;
+                        for (let i = -radius; i <= radius; i++) {
+                            const nx = x + i;
+                            if (nx >= 0 && nx < w) {
+                                sum += pixels[y * w + nx];
+                                count++;
+                            }
                         }
+                        temp[y * w + x] = sum / count;
                     }
-                    blurred[y * width + x] = sum / 25;
                 }
-            }
-            // Copy back to grayscale for next steps
-            for (let i = 0; i < width * height; i++) grayscale[i] = blurred[i];
+                // Vertical pass
+                for (let x = 0; x < w; x++) {
+                    for (let y = 0; y < h; y++) {
+                        let sum = 0;
+                        let count = 0;
+                        for (let i = -radius; i <= radius; i++) {
+                            const ny = y + i;
+                            if (ny >= 0 && ny < h) {
+                                sum += temp[ny * w + x];
+                                count++;
+                            }
+                        }
+                        pixels[y * w + x] = sum / count;
+                    }
+                }
+            };
 
-            // Contrast Normalization (Histogram Stretching)
-            // This maximizes separation between dark background and light paper
+            // Helper for integral image sum query
+            const getSum = (x1: number, y1: number, x2: number, y2: number) => {
+                let s = integral[y2 * width + x2];
+                if (x1 > 0) s -= integral[y2 * width + (x1 - 1)];
+                if (y1 > 0) s -= integral[(y1 - 1) * width + x2];
+                if (x1 > 0 && y1 > 0) s += integral[(y1 - 1) * width + (x1 - 1)];
+                return s;
+            };
+
+            // 1. Grayscale & Background Estimation (Shadow Division)
+            // Strategy: Divide Original by Blur to flatten lighting.
+            const gray = new Uint8ClampedArray(width * height);
+            const background = new Uint8ClampedArray(width * height);
             let minVal = 255, maxVal = 0;
-            for (let i = 0; i < grayscale.length; i++) {
-                if (grayscale[i] < minVal) minVal = grayscale[i];
-                if (grayscale[i] > maxVal) maxVal = grayscale[i];
+
+            for (let i = 0; i < width * height; i++) {
+                const r = data[i * 4];
+                const g = data[i * 4 + 1];
+                const b = data[i * 4 + 2];
+                // Luma calculation
+                const val = 0.299 * r + 0.587 * g + 0.114 * b;
+                gray[i] = val;
+                background[i] = val; // For blur
             }
-            if (maxVal > minVal) {
-                const scale = 255 / (maxVal - minVal);
-                for (let i = 0; i < grayscale.length; i++) {
-                    grayscale[i] = (grayscale[i] - minVal) * scale;
+
+            // 1.1 Heavy Blur for Background (Radius 20)
+            // This estimates the "shadow plane".
+            boxBlur(background, width, height, 20);
+
+            // 1.2 Division Normalization
+            for (let i = 0; i < width * height; i++) {
+                const bg = background[i] || 1;
+                // Perfect white = 255. If pixel matches background, it becomes 255.
+                // If pixel is darker (text), it stays dark relative to bg.
+                let norm = (gray[i] / bg) * 255;
+                if (norm > 255) norm = 255;
+                if (norm < 0) norm = 0;
+                gray[i] = norm;
+
+                // Track min/max for subsequent strengthening 
+                if (norm < minVal) minVal = norm;
+                if (norm > maxVal) maxVal = norm;
+            }
+
+            // 1.3 Histogram Stretching (Enhance Text)
+            // After normalization, text might be light gray. We stretch it to black.
+            const range = maxVal - minVal;
+            if (range > 0) {
+                for (let i = 0; i < width * height; i++) {
+                    gray[i] = ((gray[i] - minVal) / range) * 255;
                 }
             }
 
-            // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
-            onStatusUpdate?.('Removing shadows...');
-            const s = Math.floor(width / 8);
-            const t = 18; // Keep 18
-            const integralImage = new Float64Array(width * height);
+            // 1.4: Adaptive Thresholding
+            // With flat lighting, we can use a tighter threshold.
+            const thresholded = new Uint8ClampedArray(width * height);
+            const integral = new Int32Array(width * height);
 
-            // Calculate integral image (2D prefix sum)
+            // Create Integral Image
+            let sum = 0;
             for (let i = 0; i < width; i++) {
-                let colSum = 0;
-                for (let j = 0; j < height; j++) {
-                    const idx = j * width + i;
-                    colSum += grayscale[idx];
-                    if (i === 0) {
-                        integralImage[idx] = colSum;
+                sum += gray[i];
+                integral[i] = sum;
+            }
+            for (let y = 1; y < height; y++) {
+                sum = 0;
+                for (let x = 0; x < width; x++) {
+                    sum += gray[y * width + x];
+                    integral[y * width + x] = integral[(y - 1) * width + x] + sum;
+                }
+            }
+
+            // t=15 (Good balance for normalized images)
+            const s = Math.round(width / 8);
+            const t = 15;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const x1 = Math.max(0, x - s);
+                    const x2 = Math.min(width - 1, x + s);
+                    const y1 = Math.max(0, y - s);
+                    const y2 = Math.min(height - 1, y + s);
+                    const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+                    const sumRegion = getSum(x1, y1, x2, y2);
+                    const regionMean = sumRegion / count;
+
+                    if (gray[y * width + x] <= regionMean * ((100 - t) / 100)) {
+                        thresholded[y * width + x] = 1;
                     } else {
-                        integralImage[idx] = integralImage[idx - 1] + colSum;
+                        thresholded[y * width + x] = 0;
                     }
                 }
             }
 
-            // Perform thresholding and store B&W in data
-            for (let i = 0; i < width; i++) {
-                for (let j = 0; j < height; j++) {
-                    const index = j * width + i;
-                    const x1 = Math.max(i - Math.floor(s / 2), 0);
-                    const x2 = Math.min(i + Math.floor(s / 2), width - 1);
-                    const y1 = Math.max(j - Math.floor(s / 2), 0);
-                    const y2 = Math.min(j + Math.floor(s / 2), height - 1);
-                    const count = (x2 - x1) * (y2 - y1);
-
-                    let sum = integralImage[y2 * width + x2];
-                    if (x1 > 0) sum -= integralImage[y2 * width + (x1 - 1)];
-                    if (y1 > 0) sum -= integralImage[(y1 - 1) * width + x2];
-                    if (x1 > 0 && y1 > 0) sum += integralImage[(y1 - 1) * width + (x1 - 1)];
-
-                    const val = (grayscale[index] * count) < (sum * (100 - t) / 100) ? 0 : 255;
-
-                    data[index * 4] = val;
-                    data[index * 4 + 1] = val;
-                    data[index * 4 + 2] = val;
-                    data[index * 4 + 3] = 255;
-                }
+            // Apply thresholded result to image data
+            for (let i = 0; i < width * height; i++) {
+                const val = thresholded[i] === 1 ? 0 : 255; // 1=black, 0=white
+                data[i * 4] = val;
+                data[i * 4 + 1] = val;
+                data[i * 4 + 2] = val;
+                data[i * 4 + 3] = 255;
             }
 
             // Step 3: Pro Rectification (RANSAC + Erosion)
@@ -469,8 +523,24 @@ export const processScannerImage = async (
                 return dCanvas;
             };
 
-            const fW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
-            const fH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
+            // 3.4: A4 Aspect Ratio Enforcement (Top-Down Fix)
+            let fW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
+            let fH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
+
+            // Fix "Not Top Down": Snap to A4 Ratio (1 : 1.414) if close
+            // This prevents "squashed" or "fat" rectangles.
+            const currentRatio = fW / fH;
+            const targetRatio = 1 / 1.414; // A4 Portrait (~0.707)
+
+            // If it's a portrait document (ratio < 0.9), force A4 aspect
+            if (currentRatio < 0.9) {
+                // Keep the larger dimension to maximize resolution
+                if (fH > fW) {
+                    fW = Math.round(fH * targetRatio);
+                } else {
+                    fH = Math.round(fW / targetRatio);
+                }
+            }
 
             // 3.5: Border Cleanup
             const cleanBorders = (canvas: HTMLCanvasElement) => {
@@ -550,8 +620,7 @@ export const processScannerImage = async (
             if (warpedCanvas) {
                 // Post-process the warped result
                 cleanBorders(warpedCanvas);
-                // Return as PNG (Lossless) - User suggestion "better?"
-                // PNG is superior for text/scanned docs as it has no compression artifacts (cleaner edges).
+                // Return as PNG (Lossless)
                 warpedCanvas.toBlob((blob) => resolve(blob!), 'image/png');
             } else {
                 ctx.putImageData(imageData, 0, 0);
