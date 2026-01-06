@@ -21,9 +21,9 @@ export const processScannerImage = async (
 ): Promise<Blob> => {
     // Pro-grade settings for the "Super Scanner"
     const {
-        maxWidth = 3840, // 4K resolution to preserve original dimensions
-        maxHeight = 3840,
-        quality = 0.9,
+        maxWidth = 6000, // 6K limit (effectively uncompressed for mobile)
+        maxHeight = 6000,
+        quality = 0.95, // Bump quality
         onStatusUpdate
     } = options;
 
@@ -91,7 +91,7 @@ export const processScannerImage = async (
             // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
             onStatusUpdate?.('Removing shadows...');
             const s = Math.floor(width / 8); // Smaller window (1/8) handles gradients better
-            const t = 14; // Tuned to 14: Thicker text for better legibility (User Request "More Clear")
+            const t = 25; // High Contrast Mode: Aggressively removes shadows and sharpens text (User Request)
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
