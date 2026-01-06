@@ -42,6 +42,9 @@ const MobileCameraPage: React.FC = () => {
                     maxHeight: 2400
                 });
 
+                setProcessingStep('Warping document...');
+                await new Promise(r => setTimeout(r, 400));
+
                 setProcessingStep('Finalizing scan...');
                 await new Promise(r => setTimeout(r, 300));
 

@@ -122,19 +122,14 @@ export const processScannerImage = async (
             // Commit thresholded pixels back to the canvas
             ctx.putImageData(imageData, 0, 0);
 
-            // Step 3: Edge Detection & Auto-Crop (Optional but helpful)
-            // We use a Sobel filter on the grayscale image to find document boundaries.
-            let minX = width, minY = height, maxX = 0, maxY = 0;
-            const edgeThreshold = 40;
+            // Step 3: 4-Point Corner Detection & Perspective Warp
+            // 1. Find all sharp edge points (Sobel)
+            const edgePoints: { x: number, y: number }[] = [];
+            const edgeThreshold = 30;
 
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
+            for (let y = 4; y < height - 4; y += 4) { // Step 4 for speed
+                for (let x = 4; x < width - 4; x += 4) {
                     const idx = y * width + x;
-
-                    // Sobel Kernels
-                    // gx = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
-                    // gy = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
-
                     const p1 = grayscale[(y - 1) * width + (x - 1)];
                     const p2 = grayscale[(y - 1) * width + x];
                     const p3 = grayscale[(y - 1) * width + (x + 1)];
@@ -149,58 +144,126 @@ export const processScannerImage = async (
                     const magnitude = Math.sqrt(gx * gx + gy * gy);
 
                     if (magnitude > edgeThreshold) {
-                        if (x < minX) minX = x;
-                        if (x > maxX) maxX = x;
-                        if (y < minY) minY = y;
-                        if (y > maxY) maxY = y;
+                        edgePoints.push({ x, y });
                     }
                 }
             }
 
-            // Apply a small margin to the auto-crop
-            const margin = 20;
-            minX = Math.max(0, minX - margin);
-            minY = Math.max(0, minY - margin);
-            maxX = Math.min(width, maxX + margin);
-            maxY = Math.min(height, maxY + margin);
-
-            const finalWidth = maxX - minX;
-            const finalHeight = maxY - minY;
-
-            // Only crop if we found a reasonable document shape (at least 30% of original)
-            const areaRatio = (finalWidth * finalHeight) / (width * height);
-
-            if (areaRatio > 0.3 && finalWidth > 100 && finalHeight > 100) {
-                // Create a secondary canvas for the cropped result
-                const cropCanvas = document.createElement('canvas');
-                cropCanvas.width = finalWidth;
-                cropCanvas.height = finalHeight;
-                const cropCtx = cropCanvas.getContext('2d');
-                if (cropCtx) {
-                    cropCtx.putImageData(ctx.getImageData(minX, minY, finalWidth, finalHeight), 0, 0);
-
-                    // Use cropCanvas for export
-                    cropCanvas.toBlob(
-                        (blob) => {
-                            if (blob) resolve(blob);
-                            else reject(new Error('Crop toBlob failed'));
-                        },
-                        'image/jpeg',
-                        quality
-                    );
-                    return;
-                }
-            }
-
-            // Fallback: Export original thresholded image
-            canvas.toBlob(
-                (blob) => {
+            if (edgePoints.length < 30) {
+                // Fallback: Just return the thresholded image if we can't find edges
+                canvas.toBlob((blob) => {
                     if (blob) resolve(blob);
                     else reject(new Error('Canvas toBlob failed'));
-                },
-                'image/jpeg',
-                quality
+                }, 'image/jpeg', quality);
+                return;
+            }
+
+            // 2. Identify 4 extreme corners
+            let tl = edgePoints[0], tr = edgePoints[0], br = edgePoints[0], bl = edgePoints[0];
+            let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
+
+            for (const p of edgePoints) {
+                const sum = p.x + p.y;
+                const diff = p.x - p.y;
+                if (sum < minSum) { minSum = sum; tl = p; }
+                if (sum > maxSum) { maxSum = sum; br = p; }
+                if (diff < minDiff) { minDiff = diff; bl = p; }
+                if (diff > maxDiff) { maxDiff = diff; tr = p; }
+            }
+
+            // 3. Perspective Warp Implementation
+            const warp = (
+                srcPoints: { x: number, y: number }[],
+                dstPoints: { x: number, y: number }[],
+                sWidth: number,
+                sHeight: number,
+                dWidth: number,
+                dHeight: number
+            ) => {
+                const dstCanvas = document.createElement('canvas');
+                dstCanvas.width = dWidth;
+                dstCanvas.height = dHeight;
+                const dstCtx = dstCanvas.getContext('2d');
+                if (!dstCtx) return null;
+
+                // Solving for H where H * [xs, ys, 1] = [xd, yd, 1]
+                // We actually solve for the inverse transform to sample pixels from src
+                const getH = (s: typeof srcPoints, d: typeof dstPoints) => {
+                    const a = [];
+                    for (let i = 0; i < 4; i++) {
+                        a.push([s[i].x, s[i].y, 1, 0, 0, 0, -s[i].x * d[i].x, -s[i].y * d[i].x]);
+                        a.push([0, 0, 0, s[i].x, s[i].y, 1, -s[i].x * d[i].y, -s[i].y * d[i].y]);
+                    }
+                    const b = [d[0].x, d[0].y, d[1].x, d[1].y, d[2].x, d[2].y, d[3].x, d[3].y];
+
+                    // Gaussian elimination Ax = B
+                    const n = 8;
+                    for (let i = 0; i < n; i++) {
+                        let max = i;
+                        for (let j = i + 1; j < n; j++) if (Math.abs(a[j][i]) > Math.abs(a[max][i])) max = j;
+                        [a[i], a[max]] = [a[max], a[i]];
+                        [b[i], b[max]] = [b[max], b[i]];
+                        for (let j = i + 1; j < n; j++) {
+                            const c = a[j][i] / a[i][i];
+                            for (let k = i; k < n; k++) a[j][k] -= c * a[i][k];
+                            b[j] -= c * b[i];
+                        }
+                    }
+                    const xArr = new Array(n);
+                    for (let i = n - 1; i >= 0; i--) {
+                        let sumVal = 0;
+                        for (let j = i + 1; j < n; j++) sumVal += a[i][j] * xArr[j];
+                        xArr[i] = (b[i] - sumVal) / a[i][i];
+                    }
+                    return [...xArr, 1];
+                };
+
+                const h = getH(dstPoints, srcPoints); // Inverse transform
+                const dstImgData = dstCtx.createImageData(dWidth, dHeight);
+                const dData = dstImgData.data;
+
+                for (let y = 0; y < dHeight; y++) {
+                    for (let x = 0; x < dWidth; x++) {
+                        const w = h[6] * x + h[7] * y + h[8];
+                        const sx = Math.floor((h[0] * x + h[1] * y + h[2]) / w);
+                        const sy = Math.floor((h[3] * x + h[4] * y + h[5]) / w);
+
+                        if (sx >= 0 && sx < sWidth && sy >= 0 && sy < sHeight) {
+                            const sIdx = (sy * sWidth + sx) * 4;
+                            const dIdx = (y * dWidth + x) * 4;
+                            dData[dIdx] = data[sIdx];
+                            dData[dIdx + 1] = data[sIdx + 1];
+                            dData[dIdx + 2] = data[sIdx + 2];
+                            dData[dIdx + 3] = 255;
+                        }
+                    }
+                }
+                dstCtx.putImageData(dstImgData, 0, 0);
+                return dstCanvas;
+            };
+
+            // Estimate final dimensions
+            const dist = (p1: any, p2: any) => Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+            const finalW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
+            const finalH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
+
+            const warpedCanvas = warp(
+                [tl, tr, br, bl],
+                [{ x: 0, y: 0 }, { x: finalW, y: 0 }, { x: finalW, y: finalH }, { x: 0, y: finalH }],
+                width, height, finalW, finalH
             );
+
+            if (warpedCanvas) {
+                warpedCanvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Warp toBlob failed'));
+                }, 'image/jpeg', quality);
+            } else {
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Canvas toBlob failed'));
+                }, 'image/jpeg', quality);
+            }
         };
 
         img.onerror = (err) => {
