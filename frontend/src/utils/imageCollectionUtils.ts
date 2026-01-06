@@ -46,16 +46,13 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
   // Process all messages to collect images
   session.messages.forEach((message) => {
     // Filter out potential placeholder ghost messages
-    // Log every message to see what's in the session.
     // Note: Assistant messages with no text content often have "ai-empty" in their ID.
-    console.log(`[imageCollectionUtils DEBUG] Processing Msg: ${message.id.substring(0, 8)} | Role: ${message.role} | Type: ${message.type}`);
 
     if (hasImage(message)) {
       // Determine if this message should be treated as annotated (primary markers)
       // Check type for 'marking_annotated' OR role for 'assistant'
       const isAnnotated = message.type === 'marking_annotated' || message.role === 'assistant';
 
-      console.log(`[imageCollectionUtils DEBUG] -> Categorized as Annotated: ${isAnnotated}`);
 
       // Handle imageDataArray (multiple images in one message)
       if (message.imageDataArray && message.imageDataArray.length > 0) {
@@ -150,12 +147,7 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
   const annotatedBasenames = new Set(annotatedImages.map(img => img.filename?.replace(/^annotated-/, '')));
   const filteredOriginals = originalImages.filter(img => !annotatedBasenames.has(img.filename as string));
 
-  console.log(`[imageCollectionUtils DEBUG] Collection Complete. Annotated: ${annotatedImages.length}, Total Originals: ${originalImages.length}, Unique Originals: ${filteredOriginals.length}`);
-  const result = [...annotatedImages, ...filteredOriginals];
-  if (result.length > 0) {
-    console.log(`[imageCollectionUtils DEBUG] First 3 IDs in order:`, result.slice(0, 3).map(img => img.id));
-  }
-  return result;
+  return [...annotatedImages, ...filteredOriginals];
 };
 
 /**

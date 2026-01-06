@@ -142,7 +142,6 @@ export const MarkingPageProvider = ({
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
-      console.log(`[MarkingPageContext DEBUG] Switching to session ${selectedMarkingResult.id}. Preparing split transition.`);
       // If we are currently in split mode, keep it open but clear the images
       if (state.splitModeImages) {
         dispatch({ type: 'PREPARE_SPLIT_TRANSITION' });
@@ -172,16 +171,13 @@ export const MarkingPageProvider = ({
       const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
 
       if (sessionChanged) {
-        console.log(`[MarkingPageContext DEBUG] Session change detected: ${lastSyncedSessionId.current} -> ${currentSession.id}. Forced update.`);
         if (newImages && newImages.length > 0) {
-          console.log(`[MarkingPageContext DEBUG] Found ${newImages.length} images in new session. Re-entering split mode with index 0.`);
           dispatch({
             type: 'ENTER_SPLIT_MODE',
             payload: { images: newImages, index: 0, isGlobal: true }
           });
           lastSyncedSessionId.current = currentSession.id;
         } else {
-          console.log(`[MarkingPageContext DEBUG] New session has no images. Exiting split mode.`);
           dispatch({ type: 'EXIT_SPLIT_MODE' });
           lastSyncedSessionId.current = currentSession.id;
         }
@@ -199,7 +195,6 @@ export const MarkingPageProvider = ({
         const shouldJumpToResults = hasAnnotatedNew && !hasAnnotatedPrev;
 
         if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length || shouldJumpToResults) {
-          console.log(`[MarkingPageContext DEBUG] Syncing images. Should jump to results: ${shouldJumpToResults}`);
           dispatch({
             type: 'ENTER_SPLIT_MODE',
             payload: {
