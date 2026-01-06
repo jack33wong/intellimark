@@ -58,6 +58,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   onNavigate,
   isSyncingRef
 }) => {
+  useEffect(() => {
+    if (message.role === 'user' && hasImage(message)) {
+      console.log(`[ChatMessage DEBUG] Rendered Message ${message.id} in Session ${session?.id}`);
+      console.log(`[ChatMessage DEBUG] imageDataArray:`, (message as any)?.imageDataArray);
+      console.log(`[ChatMessage DEBUG] imageLink:`, (message as any)?.imageLink);
+    }
+  }, [message.id, session?.id, message.role]);
+
   const [imageError, setImageError] = useState<boolean>(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
@@ -505,19 +513,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
           {/* Galleries and Images - Only show when NOT processing/thinking (skeletons show then) */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
-            <div className="gallery-side"><SimpleImageGallery images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} /></div>
+            <div className="gallery-side"><SimpleImageGallery key={`${session?.id}-${message.id}-multi`} images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} /></div>
           )}
 
           {!isUser && (message as any)?.imageDataArray?.length === 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
-              <img src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} />
+              <img src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} key={`${session?.id}-${message.id}-single`} />
             </div>
           )}
 
           {/* Legacy fallback - Only if imageDataArray is empty */}
           {!isUser && isAnnotatedImageMessage(message) && imageSrc && !imageError && (!(message as any)?.imageDataArray || (message as any)?.imageDataArray.length === 0) && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
-              <img src={imageSrc} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} />
+              <img src={imageSrc} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} key={`${session?.id}-${message.id}-legacy`} />
             </div>
           )}
 
@@ -543,7 +551,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 ))}
               </div>
             ) : (
-              <SimpleImageGallery images={getMultiImageData()} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} />
+              <SimpleImageGallery key={`${session?.id}-${message.id}-user`} images={getMultiImageData()} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} />
             )}
           </div>
         )}

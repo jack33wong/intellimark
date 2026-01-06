@@ -241,3 +241,79 @@
     font-size: 0.9rem;
     margin-top: 8px;
 }
+
+/* Scanner Enhancement Styles */
+.processing-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.processing-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: fadeIn 0.3s ease;
+}
+
+.processing-icon {
+    color: var(--text-blue, #0081f2);
+}
+
+.processing-content h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: white;
+}
+
+.processing-content p {
+    margin: 0;
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* Give it a slight "paper" feel */
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes spin-pulse {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+
+    50% {
+        transform: rotate(180deg) scale(1.2);
+    }
+
+    100% {
+        transform: rotate(360deg) scale(1);
+    }
+}
+
+.spin-pulse {
+    animation: spin-pulse 2s infinite ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

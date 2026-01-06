@@ -17,7 +17,16 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
   showViewToggle = false, // Deprecated but kept for signature compatibility
   onImageLoad
 }) => {
+  useEffect(() => {
+    console.log(`[SimpleImageGallery DEBUG] Received ${images?.length || 0} images. First URL: ${typeof images[0] === 'string' ? images[0]?.substring(0, 50) : (images[0] as any)?.url?.substring(0, 50)}...`);
+  }, [images]);
+
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
+
+  // Reset errors when images array changes identity
+  useEffect(() => {
+    setImageErrors(new Set());
+  }, [images]);
 
   // Enforce Horizontal (List) View Mode always
   const viewMode = 'horizontal';
@@ -60,9 +69,14 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
           const imageSrc = getImageSrc(image);
           const hasError = imageErrors.has(index);
 
+          // Deep debug log for each thumbnail
+          if (imageSrc) {
+            console.log(`[SimpleImageGallery ITEM] Index ${index} src: ${imageSrc.substring(0, 80)}...`);
+          }
+
           return (
             <div
-              key={index}
+              key={`${imageSrc}-${index}`}
               className="thumbnail-item"
               onClick={() => onImageClick?.(index)}
               role="button"
@@ -76,6 +90,7 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
             >
               {!hasError ? (
                 <img
+                  key={`img-${imageSrc}-${index}`}
                   src={imageSrc}
                   alt={`Gallery item ${index + 1}`}
                   className="thumbnail-image"

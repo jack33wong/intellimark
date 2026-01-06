@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
-import { Camera, Image as ImageIcon, Check, Share, Loader2 } from 'lucide-react';
+import { processScannerImage } from '../utils/imageScannerUtils';
+import { Camera, Image as ImageIcon, Check, Share, Loader2, Wand2 } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
 
@@ -9,9 +10,10 @@ const MobileCameraPage: React.FC = () => {
     const { sessionId } = useParams<{ sessionId: string }>();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [file, setFile] = useState<File | null>(null);
+    const [file, setFile] = useState<File | Blob | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
     const [errorMsg, setErrorMsg] = useState<string>('');
 
     useEffect(() => {
@@ -21,12 +23,31 @@ const MobileCameraPage: React.FC = () => {
         };
     }, [previewUrl]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
-            setFile(selectedFile);
-            setPreviewUrl(URL.createObjectURL(selectedFile));
-            setStatus('idle');
+            try {
+                setIsProcessing(true);
+                setStatus('idle');
+
+                // Process the image (fix orientation and apply scan filters)
+                const processedBlob = await processScannerImage(selectedFile, {
+                    contrast: 40,
+                    brightness: 10,
+                    maxWidth: 2400,
+                    maxHeight: 2400
+                });
+
+                setFile(processedBlob);
+                setPreviewUrl(URL.createObjectURL(processedBlob));
+                setIsProcessing(false);
+            } catch (err) {
+                console.error('Failed to process image:', err);
+                // Fallback to original file
+                setFile(selectedFile);
+                setPreviewUrl(URL.createObjectURL(selectedFile));
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -96,6 +117,15 @@ const MobileCameraPage: React.FC = () => {
 
 
             <div className="mobile-content">
+                {isProcessing && (
+                    <div className="processing-overlay">
+                        <div className="processing-content">
+                            <Wand2 className="processing-icon spin-pulse" size={48} />
+                            <h3>Enhancing Scan...</h3>
+                            <p>Fixing orientation and lighting</p>
+                        </div>
+                    </div>
+                )}
                 {!previewUrl ? (
                     <div className="empty-state">
                         <div className="placeholder-camera" onClick={triggerCamera}>

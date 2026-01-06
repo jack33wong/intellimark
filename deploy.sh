@@ -31,26 +31,35 @@ fi
 
 
 echo "🧹 Cleaning deploy directory..."
-# Preserve firebase.json and .firebase directory
+# Create a temporary backup of critical firebase files
+TEMP_BACKUP_DIR=$(mktemp -d)
+
 if [ -f "deploy/firebase.json" ]; then
-    cp deploy/firebase.json /tmp/firebase.json.backup
+    cp deploy/firebase.json "$TEMP_BACKUP_DIR/"
 fi
 if [ -d "deploy/.firebase" ]; then
-    cp -r deploy/.firebase /tmp/.firebase.backup
+    # Use find to copy contents to avoid recursive nesting if we used cp -r deploy/.firebase
+    mkdir -p "$TEMP_BACKUP_DIR/.firebase"
+    cp -Rp deploy/.firebase/ "$TEMP_BACKUP_DIR/.firebase/"
 fi
 
-rm -rf deploy/*
+# Deep clean deploy directory including dotfiles
+# We don't use rm -rf deploy/* because it misses dotfiles
+find deploy -mindepth 1 -delete
+
 mkdir -p deploy/functions
 
-# Restore firebase.json and .firebase directory
-if [ -f "/tmp/firebase.json.backup" ]; then
-    cp /tmp/firebase.json.backup deploy/firebase.json
-    rm /tmp/firebase.json.backup
+# Restore from backup
+if [ -f "$TEMP_BACKUP_DIR/firebase.json" ]; then
+    cp "$TEMP_BACKUP_DIR/firebase.json" deploy/firebase.json
 fi
-if [ -d "/tmp/.firebase.backup" ]; then
-    cp -r /tmp/.firebase.backup deploy/.firebase
-    rm -rf /tmp/.firebase.backup
+if [ -d "$TEMP_BACKUP_DIR/.firebase" ]; then
+    mkdir -p deploy/.firebase
+    cp -Rp "$TEMP_BACKUP_DIR/.firebase/." deploy/.firebase/
 fi
+
+# Cleanup temp backup
+rm -rf "$TEMP_BACKUP_DIR"
 
 echo "📦 Building production backend..."
 
