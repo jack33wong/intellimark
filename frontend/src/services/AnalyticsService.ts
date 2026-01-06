@@ -31,9 +31,6 @@ class AnalyticsService {
                 const firebaseAnalytics = await import('firebase/analytics');
                 this.analytics = firebaseAnalytics.getAnalytics(app);
                 this.initialized = true;
-                console.log('📊 AnalyticsService initialized');
-            } else if (!isProduction) {
-                console.log('🚧 AnalyticsService in Development Mode (Events will be logged to console)');
             }
         } catch (error) {
             console.warn('Failed to initialize AnalyticsService:', error);
@@ -53,7 +50,6 @@ class AnalyticsService {
         if (this.analytics) {
             try {
                 logEvent(this.analytics, eventName, params);
-                console.log(`📡 [GA4] Event logged: ${eventName}`, params);
             } catch (error) {
                 console.error(`❌ [GA4] Failed to log event ${eventName}:`, error);
             }

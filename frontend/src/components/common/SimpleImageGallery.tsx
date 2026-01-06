@@ -18,13 +18,7 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
   onImageLoad
 }) => {
   useEffect(() => {
-    console.log(`[SimpleImageGallery DEBUG] Received ${images?.length || 0} images. First URL: ${typeof images[0] === 'string' ? images[0]?.substring(0, 50) : (images[0] as any)?.url?.substring(0, 50)}...`);
-  }, [images]);
-
-  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
-
-  // Reset errors when images array changes identity
-  useEffect(() => {
+    // Reset errors when images array changes identity
     setImageErrors(new Set());
   }, [images]);
 

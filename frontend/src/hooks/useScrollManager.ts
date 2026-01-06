@@ -97,7 +97,7 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
         // OR if this is the final AI response arriving, DO NOT scroll to bottom. 
         // We want to keep the user locked to their current reading position (usually the start of their last question).
         else if (isAIThinking || (lastMessage && lastMessage.role === 'assistant')) {
-          console.log('[SCROLL] Locking view position to maintain user focus during/after AI response.');
+          // No-op: Maintain user focus position
         }
         // Priority 3: Otherwise (final response, system message), scroll to bottom.
         else {

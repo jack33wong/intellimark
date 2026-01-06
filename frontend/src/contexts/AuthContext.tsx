@@ -54,8 +54,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // 👇 ON_ID_TOKEN_CHANGED: Fires on login, logout, and token refresh
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        console.log("🔐 [AUTH] ID Token changed or refreshed for user:", firebaseUser.uid);
-
         const idTokenResult = await firebaseUser.getIdTokenResult();
         const appUser: AppUser = {
           ...(firebaseUser as any),
@@ -68,7 +66,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
         setUser(appUser);
       } else {
-        console.log("🔐 [AUTH] User logged out or session ended");
         setUser(null);
         // 👇 FIX 3: Emit USER_LOGGED_OUT event to clear chat history
         EventManager.dispatch(EVENT_TYPES.USER_LOGGED_OUT, {});
