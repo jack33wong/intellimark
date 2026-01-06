@@ -122,54 +122,47 @@ export const processScannerImage = async (
             // Commit thresholded pixels back to the canvas
             ctx.putImageData(imageData, 0, 0);
 
-            // Step 3: 4-Point Corner Detection & Perspective Warp
-            // 1. Find all sharp edge points (Sobel)
-            const edgePoints: { x: number, y: number }[] = [];
-            const edgeThreshold = 30;
+            // Step 3: 4-Point Corner Detection (Diagonal Probing)
+            // Instead of searching all edge points, we scan from the corners of the image
+            // towards the center to find the first "white" document pixel.
+            const findCorner = (startX: number, startY: number, stepX: number, stepY: number) => {
+                const maxSteps = Math.min(width, height) / 2;
+                for (let s = 0; s < maxSteps; s++) {
+                    // Check a small local window to avoid noise
+                    const x = Math.floor(startX + s * stepX);
+                    const y = Math.floor(startY + s * stepY);
 
-            for (let y = 4; y < height - 4; y += 4) { // Step 4 for speed
-                for (let x = 4; x < width - 4; x += 4) {
-                    const idx = y * width + x;
-                    const p1 = grayscale[(y - 1) * width + (x - 1)];
-                    const p2 = grayscale[(y - 1) * width + x];
-                    const p3 = grayscale[(y - 1) * width + (x + 1)];
-                    const p4 = grayscale[y * width + (x - 1)];
-                    const p6 = grayscale[y * width + (x + 1)];
-                    const p7 = grayscale[(y + 1) * width + (x - 1)];
-                    const p8 = grayscale[(y + 1) * width + x];
-                    const p9 = grayscale[(y + 1) * width + (x + 1)];
+                    if (x < 0 || x >= width || y < 0 || y >= height) continue;
 
-                    const gx = (p3 + 2 * p6 + p9) - (p1 + 2 * p4 + p7);
-                    const gy = (p7 + 2 * p8 + p9) - (p1 + 2 * p2 + p3);
-                    const magnitude = Math.sqrt(gx * gx + gy * gy);
-
-                    if (magnitude > edgeThreshold) {
-                        edgePoints.push({ x, y });
+                    const idx = (y * width + x) * 4;
+                    if (data[idx] === 255) {
+                        // verify it's not a single noise pixel by checking neighbors
+                        let count = 0;
+                        for (let dy = -2; dy <= 2; dy++) {
+                            for (let dx = -2; dx <= 2; dx++) {
+                                const nx = x + dx, ny = y + dy;
+                                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                    if (data[(ny * width + nx) * 4] === 255) count++;
+                                }
+                            }
+                        }
+                        if (count > 15) return { x, y };
                     }
                 }
-            }
+                return { x: startX, y: startY }; // Fallback
+            };
 
-            if (edgePoints.length < 30) {
-                // Fallback: Just return the thresholded image if we can't find edges
-                canvas.toBlob((blob) => {
-                    if (blob) resolve(blob);
-                    else reject(new Error('Canvas toBlob failed'));
-                }, 'image/jpeg', quality);
-                return;
-            }
+            // 2. Identify 4 extreme corners with a small safety inset
+            const tl = findCorner(0, 0, 1, 1);
+            const tr = findCorner(width - 1, 0, -1, 1);
+            const br = findCorner(width - 1, height - 1, -1, -1);
+            const bl = findCorner(0, height - 1, 1, -1);
 
-            // 2. Identify 4 extreme corners
-            let tl = edgePoints[0], tr = edgePoints[0], br = edgePoints[0], bl = edgePoints[0];
-            let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
-
-            for (const p of edgePoints) {
-                const sum = p.x + p.y;
-                const diff = p.x - p.y;
-                if (sum < minSum) { minSum = sum; tl = p; }
-                if (sum > maxSum) { maxSum = sum; br = p; }
-                if (diff < minDiff) { minDiff = diff; bl = p; }
-                if (diff > maxDiff) { maxDiff = diff; tr = p; }
-            }
+            // Apply a small 10px safety inset to ensure we grab only the paper
+            tl.x += 10; tl.y += 10;
+            tr.x -= 10; tr.y += 10;
+            br.x -= 10; br.y -= 10;
+            bl.x += 10; bl.y -= 10;
 
             // 3. Perspective Warp Implementation
             const warp = (
