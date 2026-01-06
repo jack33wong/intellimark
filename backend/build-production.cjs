@@ -72,7 +72,7 @@ const functionsPackageJson = {
   "main": "index.js",
   "type": "commonjs",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "start": "node server.js"
@@ -85,7 +85,7 @@ const functionsPackageJson = {
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "firebase-admin": "^12.0.0",
-    "firebase-functions": "^5.1.1",
+    "firebase-functions": "^6.0.0",
     "google-gax": "^5.0.3",
     "helmet": "^7.1.0",
     "sharp": "^0.34.3",
@@ -112,12 +112,18 @@ fs.copyFileSync(
   path.join(deployDir, 'server.js')
 );
 
-// Create Firebase Functions index.js (using v1 for Gen 1 compatibility)
-const indexJs = `const functions = require('firebase-functions');
-const app = require('./server.js');
+// Create Firebase Functions index.js (using v2 for advanced options)
+const indexJs = `const { onRequest } = require('firebase-functions/v2/https');
+const app = require('./server.js').default;
 
-// Export the Express app as a Firebase Function
-exports.api = functions.https.onRequest(app);
+// Export the Express app as a Firebase Function with Gen 2 options
+exports.api = onRequest({ 
+  memory: '2GiB', 
+  timeoutSeconds: 300, 
+  cpu: 1,
+  region: 'us-central1',
+  cors: true
+}, app);
 `;
 
 fs.writeFileSync(path.join(deployDir, 'index.js'), indexJs);
