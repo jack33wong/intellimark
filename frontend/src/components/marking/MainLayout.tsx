@@ -544,6 +544,7 @@ const MainLayout: React.FC = () => {
           </div>
           <div className="split-canvas-panel">
             <ImageViewer
+              key={currentSession?.id || 'viewer'}
               images={enrichedSplitModeImages || []}
               initialImageIndex={activeImageIndex || 0}
               onClose={exitSplitMode}

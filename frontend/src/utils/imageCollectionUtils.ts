@@ -38,7 +38,8 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     return [];
   }
 
-  const images: SessionImage[] = [];
+  const annotatedImages: SessionImage[] = [];
+  const originalImages: SessionImage[] = [];
   const seenImageSrcs = new Set<string>(); // Track by src to avoid duplicates
 
 
@@ -86,7 +87,7 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             // Only prefix 'annotated-' if it's an assistant result
             const filename = isAnnotated ? `annotated-${finalFileName}` : finalFileName;
 
-            images.push({
+            const imgObj = {
               id: `img-${message.id}-${index}`,
               src,
               filename,
@@ -94,7 +95,13 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
               messageRole: message.role,
               messageType: message.type || 'unknown',
               alt: `${isAnnotated ? 'Annotated' : 'Original'} image ${index + 1} from ${message.role}`
-            });
+            };
+
+            if (isAnnotated) {
+              annotatedImages.push(imgObj);
+            } else {
+              originalImages.push(imgObj);
+            }
           } catch (error) {
             console.warn('Failed to get image source for message array item:', message.id, index, error);
           }
@@ -108,7 +115,7 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             const originalFileName = (message as any)?.originalFileName || `image-${message.id}`;
             const filename = isAnnotated ? `annotated-${originalFileName}` : originalFileName;
 
-            images.push({
+            const imgObj = {
               id: `img-${message.id}`,
               src,
               filename,
@@ -116,7 +123,13 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
               messageRole: message.role,
               messageType: message.type || 'unknown',
               alt: `${isAnnotated ? 'Annotated' : 'Original'} image from ${message.role}`
-            });
+            };
+
+            if (isAnnotated) {
+              annotatedImages.push(imgObj);
+            } else {
+              originalImages.push(imgObj);
+            }
           }
         } catch (error) {
           console.warn('Failed to get image source for message:', message.id, error);
@@ -125,7 +138,8 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     }
   });
 
-  return images;
+  // 👇 Prioritize annotated images over originals
+  return [...annotatedImages, ...originalImages];
 };
 
 /**

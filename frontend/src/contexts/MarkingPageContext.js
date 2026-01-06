@@ -135,20 +135,50 @@ export const MarkingPageProvider = ({
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive, isGlobalSplit } = state;
 
+  const lastSyncedSessionId = useRef(null);
+
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
       loadSession(selectedMarkingResult);
+      dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
+    } else {
+      clearSession();
+      dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+      dispatch({ type: 'EXIT_SPLIT_MODE' });
     }
-  }, [selectedMarkingResult, loadSession]);
+  }, [selectedMarkingResult, loadSession, clearSession]);
 
   // Auto-sync split mode images when session changes (persistent split mode)
-  // Only sync if we are in GLOBAL split mode (not viewing a specific message's images)
   useEffect(() => {
-    if (splitModeImages && isGlobalSplit && currentSession) {
+    if (!currentSession) {
+      lastSyncedSessionId.current = null;
+      return;
+    }
+
+    if (splitModeImages) {
       const newImages = getSessionImages(currentSession);
-      if (newImages && newImages.length > 0) {
-        // If the images are actually different, update them
+      const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
+
+      // If session changed, ALWAYS force update to global view of the new session
+      // This ensures we don't stay "stuck" on a local message view from the previous session
+      if (sessionChanged) {
+        if (newImages && newImages.length > 0) {
+          dispatch({
+            type: 'ENTER_SPLIT_MODE',
+            payload: { images: newImages, index: 0, isGlobal: true }
+          });
+          lastSyncedSessionId.current = currentSession.id;
+        } else {
+          // If the new session has no images, exit split mode to avoid showing stale data
+          dispatch({ type: 'EXIT_SPLIT_MODE' });
+          lastSyncedSessionId.current = currentSession.id;
+        }
+        return;
+      }
+
+      // If same session but we are in GLOBAL split mode, sync with any NEW images (e.g. from more marking)
+      if (isGlobalSplit && newImages && newImages.length > 0) {
         if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',
@@ -157,7 +187,7 @@ export const MarkingPageProvider = ({
         }
       }
     }
-  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length, isGlobalSplit]);
+  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length, isGlobalSplit, currentSession]);
 
   // Listen for model changes from Settings (or other tabs)
   useEffect(() => {
