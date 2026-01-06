@@ -91,7 +91,7 @@ export const processScannerImage = async (
             // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
             onStatusUpdate?.('Removing shadows...');
             const s = Math.floor(width / 8); // Smaller window (1/8) handles gradients better
-            const t = 25; // High Contrast Mode: Aggressively removes shadows and sharpens text (User Request)
+            const t = 18; // Tuned to 18: The "Sweet Spot". Balances shadow removal (better than 14) vs text integrity (safer than 25).
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
