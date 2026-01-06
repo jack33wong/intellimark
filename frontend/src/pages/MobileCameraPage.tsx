@@ -13,7 +13,7 @@ const MobileCameraPage: React.FC = () => {
     const [file, setFile] = useState<File | Blob | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
-    const [isProcessing, setIsProcessing] = useState<boolean>(false);
+    const [processingStep, setProcessingStep] = useState<string>('');
     const [errorMsg, setErrorMsg] = useState<string>('');
 
     useEffect(() => {
@@ -27,26 +27,33 @@ const MobileCameraPage: React.FC = () => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
             try {
-                setIsProcessing(true);
                 setStatus('idle');
 
-                // Process the image (fix orientation and apply scan filters)
+                // Processing sequence
+                setProcessingStep('Analyzing lighting...');
+
+                // Allow UI to update
+                await new Promise(r => setTimeout(r, 500));
+                setProcessingStep('Removing shadows...');
+
+                // Process the image (adaptive thresholding and auto-crop)
                 const processedBlob = await processScannerImage(selectedFile, {
-                    contrast: 40,
-                    brightness: 10,
                     maxWidth: 2400,
                     maxHeight: 2400
                 });
 
+                setProcessingStep('Finalizing scan...');
+                await new Promise(r => setTimeout(r, 300));
+
                 setFile(processedBlob);
                 setPreviewUrl(URL.createObjectURL(processedBlob));
-                setIsProcessing(false);
+                setProcessingStep('');
             } catch (err) {
                 console.error('Failed to process image:', err);
                 // Fallback to original file
                 setFile(selectedFile);
                 setPreviewUrl(URL.createObjectURL(selectedFile));
-                setIsProcessing(false);
+                setProcessingStep('');
             }
         }
     };
@@ -117,12 +124,12 @@ const MobileCameraPage: React.FC = () => {
 
 
             <div className="mobile-content">
-                {isProcessing && (
+                {!!processingStep && (
                     <div className="processing-overlay">
                         <div className="processing-content">
                             <Wand2 className="processing-icon spin-pulse" size={48} />
-                            <h3>Enhancing Scan...</h3>
-                            <p>Fixing orientation and lighting</p>
+                            <h3>{processingStep}</h3>
+                            <p>Optimizing for AI marking</p>
                         </div>
                     </div>
                 )}
