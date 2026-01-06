@@ -48,11 +48,8 @@ const esbuildCommand = [
   '--external:stripe',
   '--external:canvas',
   '--external:sharp',
-  '--external:multer',
-  '--external:busboy',
-  '--external:axios',
-  '--external:string-similarity',
-  '--external:node-fetch',
+  `--define:import.meta.url='"file://${process.cwd()}/server.ts"'`,
+  '--minify',
   '--sourcemap'
 ].join(' ');
 
@@ -66,9 +63,9 @@ try {
 
 // Create Firebase Functions package.json
 const functionsPackageJson = {
-  "name": "ai-marking-functions",
+  "name": "intellimark-functions",
   "version": "1.0.0",
-  "description": "AI Marking Firebase Functions",
+  "description": "IntelliMark Firebase Functions",
   "main": "index.js",
   "type": "commonjs",
   "engines": {
@@ -84,19 +81,13 @@ const functionsPackageJson = {
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
-    "firebase-admin": "^12.0.0",
-    "firebase-functions": "^5.1.1",
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.4.0",
     "google-gax": "^5.0.3",
     "helmet": "^7.1.0",
     "sharp": "^0.34.3",
     "stripe": "^18.5.0",
-    "uuid": "^9.0.1",
-    "multer": "^1.4.4-lts.1",
-    "busboy": "^1.6.0",
-    "axios": "^1.11.0",
-    "canvas": "^3.2.0",
-    "string-similarity": "^4.0.4",
-    "node-fetch": "^3.3.2"
+    "uuid": "^9.0.1"
   }
 };
 
@@ -112,17 +103,9 @@ fs.copyFileSync(
   path.join(deployDir, 'server.js')
 );
 
-// Create Firebase Functions index.js (v1)
-// We use the most standard Gen 1 initialization
+// Create Firebase Functions index.js
 const indexJs = `const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-
-// Ensure admin is initialized
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-}
-
-const app = require('./server.js').default || require('./server.js');
+const app = require('./server.js');
 
 // Export the Express app as a Firebase Function
 exports.api = functions.https.onRequest(app);
@@ -146,3 +129,9 @@ if (fs.existsSync(serviceAccountFile)) {
 
 console.log('✅ Production build complete!');
 console.log(`📁 Files ready in ${deployDir}`);
+console.log('📋 Build summary:');
+console.log('  - server.js: Bundled CommonJS file');
+console.log('  - index.js: Firebase Functions entry point');
+console.log('  - package.json: Firebase Functions dependencies');
+console.log('  - .env.local: Environment variables (if exists)');
+console.log('  - Service account key (if exists)');
