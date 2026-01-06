@@ -113,11 +113,11 @@ fs.copyFileSync(
 );
 
 // Create Firebase Functions index.js (v1)
-const indexJs = `const functions = require('firebase-functions');
+const indexJs = `const functions = require('firebase-functions/v1');
 const app = require('./server.js').default || require('./server.js');
 
 // Export the Express app as a Firebase Function
-// Using v1 syntax for stability and easier permissions
+// Using v1 specific package for stability in v6+ environments
 exports.api = functions.runWith({
   timeoutSeconds: 300,
   memory: '2GB'
