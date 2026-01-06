@@ -69,10 +69,8 @@ export const processScannerImage = async (
             }
 
             // Step 2: Adaptive Thresholding (Bradley-Roth)
-            // This handles variable lighting and removes shadows by comparing each pixel 
-            // to the average of its neighbors.
-            const s = Math.floor(width / 4); // Larger window size for better shadow removal
-            const t = 18; // Increased threshold percentage (Bradley-Roth)
+            const s = Math.floor(width / 4);
+            const t = 18;
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
@@ -94,7 +92,6 @@ export const processScannerImage = async (
                 for (let j = 0; j < height; j++) {
                     const index = j * width + i;
 
-                    // Calc neighborhood bounds (s x s)
                     const x1 = Math.max(i - Math.floor(s / 2), 0);
                     const x2 = Math.min(i + Math.floor(s / 2), width - 1);
                     const y1 = Math.max(j - Math.floor(s / 2), 0);
@@ -102,168 +99,155 @@ export const processScannerImage = async (
 
                     const count = (x2 - x1) * (y2 - y1);
 
-                    // Sum of neighborhood using integral image
-                    // Formula: S(x2, y2) - S(x1-1, y2) - S(x2, y1-1) + S(x1-1, y1-1)
                     let sum = integralImage[y2 * width + x2];
                     if (x1 > 0) sum -= integralImage[y2 * width + (x1 - 1)];
                     if (y1 > 0) sum -= integralImage[(y1 - 1) * width + x2];
                     if (x1 > 0 && y1 > 0) sum += integralImage[(y1 - 1) * width + (x1 - 1)];
 
-                    // Set pixel to black or white
                     const val = (grayscale[index] * count) < (sum * (100 - t) / 100) ? 0 : 255;
 
-                    data[index * 4] = val;     // R
-                    data[index * 4 + 1] = val; // G
-                    data[index * 4 + 2] = val; // B
-                    data[index * 4 + 3] = 255; // Force opaque
+                    data[index * 4] = val;
+                    data[index * 4 + 1] = val;
+                    data[index * 4 + 2] = val;
+                    data[index * 4 + 3] = 255;
                 }
             }
 
-            // Commit thresholded pixels back to the canvas
             ctx.putImageData(imageData, 0, 0);
 
-            // Step 3: 4-Point Corner Detection (Diagonal Probing)
-            // Instead of searching all edge points, we scan from the corners of the image
-            // towards the center to find the first "white" document pixel.
-            const findCorner = (startX: number, startY: number, stepX: number, stepY: number) => {
-                const maxSteps = Math.min(width, height) / 2;
-                for (let s = 0; s < maxSteps; s++) {
-                    // Check a small local window to avoid noise
-                    const x = Math.floor(startX + s * stepX);
-                    const y = Math.floor(startY + s * stepY);
+            // Step 3: 4-Point Corner Detection (Grid-Search Paper Mass)
+            const paperPoints: { x: number, y: number }[] = [];
+            const gridSize = 15;
+            const win = 10;
+            const paperThreshold = 180;
 
-                    if (x < 0 || x >= width || y < 0 || y >= height) continue;
+            for (let gy = gridSize; gy < height - gridSize; gy += gridSize) {
+                for (let gx = gridSize; gx < width - gridSize; gx += gridSize) {
+                    const x1 = Math.max(gx - win, 0);
+                    const x2 = Math.min(gx + win, width - 1);
+                    const y1 = Math.max(gy - win, 0);
+                    const y2 = Math.min(gy + win, height - 1);
+                    const count = (x2 - x1) * (y2 - y1);
 
-                    const idx = (y * width + x) * 4;
-                    if (data[idx] === 255) {
-                        // verify it's not a single noise pixel by checking neighbors
-                        let count = 0;
-                        for (let dy = -2; dy <= 2; dy++) {
-                            for (let dx = -2; dx <= 2; dx++) {
-                                const nx = x + dx, ny = y + dy;
-                                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                                    if (data[(ny * width + nx) * 4] === 255) count++;
-                                }
-                            }
-                        }
-                        if (count > 15) return { x, y };
+                    let sum = integralImage[y2 * width + x2];
+                    if (x1 > 0) sum -= integralImage[y2 * width + (x1 - 1)];
+                    if (y1 > 0) sum -= integralImage[(y1 - 1) * width + x2];
+                    if (x1 > 0 && y1 > 0) sum += integralImage[(y1 - 1) * width + (x1 - 1)];
+
+                    if (sum / count > paperThreshold) {
+                        paperPoints.push({ x: gx, y: gy });
                     }
                 }
-                return { x: startX, y: startY }; // Fallback
-            };
+            }
 
-            // 2. Identify 4 extreme corners with a small safety inset
-            const tl = findCorner(0, 0, 1, 1);
-            const tr = findCorner(width - 1, 0, -1, 1);
-            const br = findCorner(width - 1, height - 1, -1, -1);
-            const bl = findCorner(0, height - 1, 1, -1);
+            if (paperPoints.length < 100) {
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Canvas toBlob failed'));
+                }, 'image/jpeg', quality);
+                return;
+            }
 
-            // Apply a small 10px safety inset to ensure we grab only the paper
-            tl.x += 10; tl.y += 10;
-            tr.x -= 10; tr.y += 10;
-            br.x -= 10; br.y -= 10;
-            bl.x += 10; bl.y -= 10;
+            // 2. Identify 4 extreme corners
+            let tl = paperPoints[0], tr = paperPoints[0], br = paperPoints[0], bl = paperPoints[0];
+            let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
 
-            // 3. Perspective Warp Implementation
+            for (const p of paperPoints) {
+                const sum = p.x + p.y;
+                const diff = p.x - p.y;
+                if (sum < minSum) { minSum = sum; tl = p; }
+                if (sum > maxSum) { maxSum = sum; br = p; }
+                if (diff < minDiff) { minDiff = diff; bl = p; }
+                if (diff > maxDiff) { maxDiff = diff; tr = p; }
+            }
+
+            // Safety Inset
+            const inset = 20;
+            tl = { x: tl.x + inset, y: tl.y + inset };
+            tr = { x: tr.x - inset, y: tr.y + inset };
+            br = { x: br.x - inset, y: br.y - inset };
+            bl = { x: bl.x + inset, y: bl.y - inset };
+
+            // 3. Perspective Warp
             const warp = (
-                srcPoints: { x: number, y: number }[],
-                dstPoints: { x: number, y: number }[],
-                sWidth: number,
-                sHeight: number,
-                dWidth: number,
-                dHeight: number
+                srcP: { x: number, y: number }[],
+                dstP: { x: number, y: number }[],
+                sW: number, sH: number, dW: number, dH: number
             ) => {
-                const dstCanvas = document.createElement('canvas');
-                dstCanvas.width = dWidth;
-                dstCanvas.height = dHeight;
-                const dstCtx = dstCanvas.getContext('2d');
-                if (!dstCtx) return null;
+                const dCanvas = document.createElement('canvas');
+                dCanvas.width = dW; dCanvas.height = dH;
+                const dCtx = dCanvas.getContext('2d');
+                if (!dCtx) return null;
 
-                // Solving for H where H * [xs, ys, 1] = [xd, yd, 1]
-                // We actually solve for the inverse transform to sample pixels from src
-                const getH = (s: typeof srcPoints, d: typeof dstPoints) => {
+                const getH = (s: typeof srcP, d: typeof dstP) => {
                     const a = [];
                     for (let i = 0; i < 4; i++) {
                         a.push([s[i].x, s[i].y, 1, 0, 0, 0, -s[i].x * d[i].x, -s[i].y * d[i].x]);
                         a.push([0, 0, 0, s[i].x, s[i].y, 1, -s[i].x * d[i].y, -s[i].y * d[i].y]);
                     }
-                    const b = [d[0].x, d[0].y, d[1].x, d[1].y, d[2].x, d[2].y, d[3].x, d[3].y];
-
-                    // Gaussian elimination Ax = B
+                    const bArr = [d[0].x, d[0].y, d[1].x, d[1].y, d[2].x, d[2].y, d[3].x, d[3].y];
                     const n = 8;
                     for (let i = 0; i < n; i++) {
                         let max = i;
                         for (let j = i + 1; j < n; j++) if (Math.abs(a[j][i]) > Math.abs(a[max][i])) max = j;
                         [a[i], a[max]] = [a[max], a[i]];
-                        [b[i], b[max]] = [b[max], b[i]];
+                        [bArr[i], bArr[max]] = [bArr[max], bArr[i]];
                         for (let j = i + 1; j < n; j++) {
                             const c = a[j][i] / a[i][i];
                             for (let k = i; k < n; k++) a[j][k] -= c * a[i][k];
-                            b[j] -= c * b[i];
+                            bArr[j] -= c * bArr[i];
                         }
                     }
-                    const xArr = new Array(n);
+                    const x = new Array(n);
                     for (let i = n - 1; i >= 0; i--) {
-                        let sumVal = 0;
-                        for (let j = i + 1; j < n; j++) sumVal += a[i][j] * xArr[j];
-                        xArr[i] = (b[i] - sumVal) / a[i][i];
+                        let sv = 0;
+                        for (let j = i + 1; j < n; j++) sv += a[i][j] * x[j];
+                        x[i] = (bArr[i] - sv) / a[i][i];
                     }
-                    return [...xArr, 1];
+                    return [...x, 1];
                 };
 
-                const h = getH(dstPoints, srcPoints); // Inverse transform
-                const dstImgData = dstCtx.createImageData(dWidth, dHeight);
-                const dData = dstImgData.data;
+                const h = getH(dstP, srcP);
+                const dImgData = dCtx.createImageData(dW, dH);
+                const dD = dImgData.data;
 
-                for (let y = 0; y < dHeight; y++) {
-                    for (let x = 0; x < dWidth; x++) {
+                for (let y = 0; y < dH; y++) {
+                    for (let x = 0; x < dW; x++) {
                         const w = h[6] * x + h[7] * y + h[8];
                         const sx = Math.floor((h[0] * x + h[1] * y + h[2]) / w);
                         const sy = Math.floor((h[3] * x + h[4] * y + h[5]) / w);
-
-                        if (sx >= 0 && sx < sWidth && sy >= 0 && sy < sHeight) {
-                            const sIdx = (sy * sWidth + sx) * 4;
-                            const dIdx = (y * dWidth + x) * 4;
-                            dData[dIdx] = data[sIdx];
-                            dData[dIdx + 1] = data[sIdx + 1];
-                            dData[dIdx + 2] = data[sIdx + 2];
-                            dData[dIdx + 3] = 255;
+                        if (sx >= 0 && sx < sW && sy >= 0 && sy < sH) {
+                            const si = (sy * sW + sx) * 4; const di = (y * dW + x) * 4;
+                            dD[di] = data[si]; dD[di + 1] = data[si + 1]; dD[di + 2] = data[si + 2]; dD[di + 3] = 255;
                         }
                     }
                 }
-                dstCtx.putImageData(dstImgData, 0, 0);
-                return dstCanvas;
+                dCtx.putImageData(dImgData, 0, 0);
+                return dCanvas;
             };
 
-            // Estimate final dimensions
             const dist = (p1: any, p2: any) => Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
-            const finalW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
-            const finalH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
+            const fW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
+            const fH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
 
-            const warpedCanvas = warp(
-                [tl, tr, br, bl],
-                [{ x: 0, y: 0 }, { x: finalW, y: 0 }, { x: finalW, y: finalH }, { x: 0, y: finalH }],
-                width, height, finalW, finalH
-            );
+            const wCanvas = warp([tl, tr, br, bl], [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }], width, height, fW, fH);
 
-            if (warpedCanvas) {
-                warpedCanvas.toBlob((blob) => {
+            if (wCanvas) {
+                wCanvas.toBlob((blob) => {
                     if (blob) resolve(blob);
-                    else reject(new Error('Warp toBlob failed'));
+                    else reject(new Error('Warp failed'));
                 }, 'image/jpeg', quality);
             } else {
                 canvas.toBlob((blob) => {
                     if (blob) resolve(blob);
-                    else reject(new Error('Canvas toBlob failed'));
+                    else reject(new Error('Fallback failed'));
                 }, 'image/jpeg', quality);
             }
         };
 
         img.onerror = (err) => {
-            URL.revokeObjectURL(url);
-            reject(err);
+            URL.revokeObjectURL(url); reject(err);
         };
-
         img.src = url;
     });
 };
