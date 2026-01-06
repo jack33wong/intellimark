@@ -17,6 +17,8 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
   showViewToggle = false, // Deprecated but kept for signature compatibility
   onImageLoad
 }) => {
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     // Reset errors when images array changes identity
     setImageErrors(new Set());
