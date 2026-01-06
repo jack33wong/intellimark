@@ -45,6 +45,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
 
   // Process all messages to collect images
   session.messages.forEach((message) => {
+    // Filter out potential placeholder ghost messages
+    if (message.id?.includes('ai-empty')) {
+      return;
+    }
+
     if (hasImage(message)) {
       // Determine if this message should be treated as annotated (primary markers)
       const isAnnotated = message.type === 'marking_annotated' || message.role === 'assistant';
@@ -138,9 +143,12 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     }
   });
 
-  // 👇 Prioritize annotated images over originals
-  console.log(`[imageCollectionUtils DEBUG] Collection Complete. Annotated: ${annotatedImages.length}, Originals: ${originalImages.length}`);
-  const result = [...annotatedImages, ...originalImages];
+  // 👇 Deduplicate: If an annotated version of a filename exists, hide the original
+  const annotatedBasenames = new Set(annotatedImages.map(img => img.filename?.replace(/^annotated-/, '')));
+  const filteredOriginals = originalImages.filter(img => !annotatedBasenames.has(img.filename as string));
+
+  console.log(`[imageCollectionUtils DEBUG] Collection Complete. Annotated: ${annotatedImages.length}, Total Originals: ${originalImages.length}, Unique Originals: ${filteredOriginals.length}`);
+  const result = [...annotatedImages, ...filteredOriginals];
   if (result.length > 0) {
     console.log(`[imageCollectionUtils DEBUG] First 3 IDs in order:`, result.slice(0, 3).map(img => img.id));
   }

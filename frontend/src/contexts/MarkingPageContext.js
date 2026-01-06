@@ -140,7 +140,7 @@ export const MarkingPageProvider = ({
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
-      console.log(`[MarkingPageContext DEBUG] Switching to session ${selectedMarkingResult}. Clearing previous split state.`);
+      console.log(`[MarkingPageContext DEBUG] Switching to session ${selectedMarkingResult.id}. Clearing previous split state.`);
       // Force exit and clear everything before loading the new session
       dispatch({ type: 'EXIT_SPLIT_MODE' });
       lastSyncedSessionId.current = null;
