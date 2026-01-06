@@ -117,11 +117,7 @@ const indexJs = `const functions = require('firebase-functions/v1');
 const app = require('./server.js').default || require('./server.js');
 
 // Export the Express app as a Firebase Function
-// Using v1 specific package for stability in v6+ environments
-exports.api = functions.runWith({
-  timeoutSeconds: 300,
-  memory: '2GB'
-}).https.onRequest(app);
+exports.api = functions.https.onRequest(app);
 `;
 
 fs.writeFileSync(path.join(deployDir, 'index.js'), indexJs);
