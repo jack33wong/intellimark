@@ -140,6 +140,11 @@ export const MarkingPageProvider = ({
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
+      console.log(`[MarkingPageContext DEBUG] Switching to session ${selectedMarkingResult}. Clearing previous split state.`);
+      // Force exit and clear everything before loading the new session
+      dispatch({ type: 'EXIT_SPLIT_MODE' });
+      lastSyncedSessionId.current = null;
+
       loadSession(selectedMarkingResult);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
     } else {
@@ -160,17 +165,17 @@ export const MarkingPageProvider = ({
       const newImages = getSessionImages(currentSession);
       const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
 
-      // If session changed, ALWAYS force update to global view of the new session
-      // This ensures we don't stay "stuck" on a local message view from the previous session
       if (sessionChanged) {
+        console.log(`[MarkingPageContext DEBUG] Session change detected: ${lastSyncedSessionId.current} -> ${currentSession.id}. Forced update.`);
         if (newImages && newImages.length > 0) {
+          console.log(`[MarkingPageContext DEBUG] Found ${newImages.length} images in new session. Re-entering split mode with index 0.`);
           dispatch({
             type: 'ENTER_SPLIT_MODE',
             payload: { images: newImages, index: 0, isGlobal: true }
           });
           lastSyncedSessionId.current = currentSession.id;
         } else {
-          // If the new session has no images, exit split mode to avoid showing stale data
+          console.log(`[MarkingPageContext DEBUG] New session has no images. Exiting split mode.`);
           dispatch({ type: 'EXIT_SPLIT_MODE' });
           lastSyncedSessionId.current = currentSession.id;
         }

@@ -139,7 +139,12 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
   });
 
   // 👇 Prioritize annotated images over originals
-  return [...annotatedImages, ...originalImages];
+  console.log(`[imageCollectionUtils DEBUG] Collection Complete. Annotated: ${annotatedImages.length}, Originals: ${originalImages.length}`);
+  const result = [...annotatedImages, ...originalImages];
+  if (result.length > 0) {
+    console.log(`[imageCollectionUtils DEBUG] First 3 IDs in order:`, result.slice(0, 3).map(img => img.id));
+  }
+  return result;
 };
 
 /**
