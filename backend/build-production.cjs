@@ -72,7 +72,7 @@ const functionsPackageJson = {
   "main": "index.js",
   "type": "commonjs",
   "engines": {
-    "node": "18"
+    "node": "22"
   },
   "scripts": {
     "start": "node server.js"
@@ -113,6 +113,7 @@ fs.copyFileSync(
 );
 
 // Create Firebase Functions index.js (v1)
+// We use the simplest v1 export and Node 22 to avoid decommissioning issues
 const indexJs = `const functions = require('firebase-functions/v1');
 const app = require('./server.js').default || require('./server.js');
 
