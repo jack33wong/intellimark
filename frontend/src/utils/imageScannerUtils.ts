@@ -18,12 +18,11 @@ export const processScannerImage = async (
     file: File | Blob,
     options: ScanOptions = {}
 ): Promise<Blob> => {
+    // Pro-grade settings for the "Super Scanner"
     const {
-        contrast = 30,
-        brightness = 5,
-        maxWidth = 2000,
-        maxHeight = 2000,
-        quality = 0.85
+        maxWidth = 2800,
+        maxHeight = 2800,
+        quality = 0.9
     } = options;
 
     return new Promise((resolve, reject) => {
@@ -39,12 +38,12 @@ export const processScannerImage = async (
 
             if (width > maxWidth || height > maxHeight) {
                 const ratio = Math.min(maxWidth / width, maxHeight / height);
-                width = width * ratio;
-                height = height * ratio;
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
             }
 
             const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
             if (!ctx) {
                 reject(new Error('Could not get canvas context'));
@@ -62,9 +61,9 @@ export const processScannerImage = async (
             const data = imageData.data;
 
             // Step 1: Grayscale + Basic Contrast Boost
-            // (Standard luminance weights: 0.299R + 0.587G + 0.114B)
             const grayscale = new Uint8Array(width * height);
             for (let i = 0; i < data.length; i += 4) {
+                // Standard luminance weights
                 grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
             }
 
@@ -87,16 +86,14 @@ export const processScannerImage = async (
                 }
             }
 
-            // Perform thresholding
+            // Perform thresholding and store B&W in data
             for (let i = 0; i < width; i++) {
                 for (let j = 0; j < height; j++) {
                     const index = j * width + i;
-
                     const x1 = Math.max(i - Math.floor(s / 2), 0);
                     const x2 = Math.min(i + Math.floor(s / 2), width - 1);
                     const y1 = Math.max(j - Math.floor(s / 2), 0);
                     const y2 = Math.min(j + Math.floor(s / 2), height - 1);
-
                     const count = (x2 - x1) * (y2 - y1);
 
                     let sum = integralImage[y2 * width + x2];
@@ -113,42 +110,44 @@ export const processScannerImage = async (
                 }
             }
 
-            ctx.putImageData(imageData, 0, 0);
-
-            // Step 3: 4-Point Corner Detection (Grid-Search Paper Mass)
+            // Step 3: Super Scanner Density-Grid Corner Detection
+            // We scan a dense grid to find the "mass" of the document.
             const paperPoints: { x: number, y: number }[] = [];
-            const gridSize = 15;
-            const win = 10;
-            const paperThreshold = 180;
+            const gridSpacing = Math.max(4, Math.floor(width / 100));
+            const window = Math.max(2, Math.floor(width / 200));
+            const paperBrightnessThreshold = 200; // Documents are very bright white in BW
 
-            for (let gy = gridSize; gy < height - gridSize; gy += gridSize) {
-                for (let gx = gridSize; gx < width - gridSize; gx += gridSize) {
-                    const x1 = Math.max(gx - win, 0);
-                    const x2 = Math.min(gx + win, width - 1);
-                    const y1 = Math.max(gy - win, 0);
-                    const y2 = Math.min(gy + win, height - 1);
+            for (let y = gridSpacing; y < height - gridSpacing; y += gridSpacing) {
+                for (let x = gridSpacing; x < width - gridSpacing; x += gridSpacing) {
+                    const x1 = x - window, x2 = x + window;
+                    const y1 = y - window, y2 = y + window;
                     const count = (x2 - x1) * (y2 - y1);
 
-                    let sum = integralImage[y2 * width + x2];
-                    if (x1 > 0) sum -= integralImage[y2 * width + (x1 - 1)];
-                    if (y1 > 0) sum -= integralImage[(y1 - 1) * width + x2];
-                    if (x1 > 0 && y1 > 0) sum += integralImage[(y1 - 1) * width + (x1 - 1)];
+                    // Simple pixel check on thresholded data is very reliable
+                    let pCount = 0;
+                    for (let wy = y1; wy <= y2; wy++) {
+                        for (let wx = x1; wx <= x2; wx++) {
+                            if (data[(wy * width + wx) * 4] === 255) pCount++;
+                        }
+                    }
 
-                    if (sum / count > paperThreshold) {
-                        paperPoints.push({ x: gx, y: gy });
+                    if (pCount / count > 0.8) { // 80% white in window = paper
+                        paperPoints.push({ x, y });
                     }
                 }
             }
 
-            if (paperPoints.length < 100) {
+            if (paperPoints.length < 50) {
+                // Return standard thresholded image if we can't find a paper mass
+                ctx.putImageData(imageData, 0, 0);
                 canvas.toBlob((blob) => {
                     if (blob) resolve(blob);
-                    else reject(new Error('Canvas toBlob failed'));
+                    else reject(new Error('Canvas fallback failed'));
                 }, 'image/jpeg', quality);
                 return;
             }
 
-            // 2. Identify 4 extreme corners
+            // Quadrant-Extreme logic to find 4 corners
             let tl = paperPoints[0], tr = paperPoints[0], br = paperPoints[0], bl = paperPoints[0];
             let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
 
@@ -161,14 +160,24 @@ export const processScannerImage = async (
                 if (diff > maxDiff) { maxDiff = diff; tr = p; }
             }
 
-            // Safety Inset
-            const inset = 20;
-            tl = { x: tl.x + inset, y: tl.y + inset };
-            tr = { x: tr.x - inset, y: tr.y + inset };
-            br = { x: br.x - inset, y: br.y - inset };
-            bl = { x: bl.x + inset, y: bl.y - inset };
+            // Pro-Warp Correction: Push corners slightly outwards (2%) to capture full paper
+            const expand = (p: { x: number, y: number }, center: { x: number, y: number }, factor: number) => ({
+                x: Math.max(0, Math.min(width - 1, p.x + (p.x - center.x) * factor)),
+                y: Math.max(0, Math.min(height - 1, p.y + (p.y - center.y) * factor))
+            });
 
-            // 3. Perspective Warp
+            const center = {
+                x: (tl.x + tr.x + br.x + bl.x) / 4,
+                y: (tl.y + tr.y + br.y + bl.y) / 4
+            };
+
+            const margin = 0.02; // 2% outward margin
+            tl = expand(tl, center, margin);
+            tr = expand(tr, center, margin);
+            br = expand(br, center, margin);
+            bl = expand(bl, center, margin);
+
+            // Perspective Warp Implementation
             const warp = (
                 srcP: { x: number, y: number }[],
                 dstP: { x: number, y: number }[],
@@ -185,24 +194,24 @@ export const processScannerImage = async (
                         a.push([s[i].x, s[i].y, 1, 0, 0, 0, -s[i].x * d[i].x, -s[i].y * d[i].x]);
                         a.push([0, 0, 0, s[i].x, s[i].y, 1, -s[i].x * d[i].y, -s[i].y * d[i].y]);
                     }
-                    const bArr = [d[0].x, d[0].y, d[1].x, d[1].y, d[2].x, d[2].y, d[3].x, d[3].y];
+                    const bA = [d[0].x, d[0].y, d[1].x, d[1].y, d[2].x, d[2].y, d[3].x, d[3].y];
                     const n = 8;
                     for (let i = 0; i < n; i++) {
                         let max = i;
                         for (let j = i + 1; j < n; j++) if (Math.abs(a[j][i]) > Math.abs(a[max][i])) max = j;
                         [a[i], a[max]] = [a[max], a[i]];
-                        [bArr[i], bArr[max]] = [bArr[max], bArr[i]];
+                        [bA[i], bA[max]] = [bA[max], bA[i]];
                         for (let j = i + 1; j < n; j++) {
                             const c = a[j][i] / a[i][i];
                             for (let k = i; k < n; k++) a[j][k] -= c * a[i][k];
-                            bArr[j] -= c * bArr[i];
+                            bA[j] -= c * bA[i];
                         }
                     }
                     const x = new Array(n);
                     for (let i = n - 1; i >= 0; i--) {
                         let sv = 0;
                         for (let j = i + 1; j < n; j++) sv += a[i][j] * x[j];
-                        x[i] = (bArr[i] - sv) / a[i][i];
+                        x[i] = (bA[i] - sv) / a[i][i];
                     }
                     return [...x, 1];
                 };
@@ -230,24 +239,32 @@ export const processScannerImage = async (
             const fW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
             const fH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
 
-            const wCanvas = warp([tl, tr, br, bl], [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }], width, height, fW, fH);
+            // Rectify: Warp corners to a top-down flat rectangle
+            const warpedCanvas = warp(
+                [tl, tr, br, bl],
+                [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }],
+                width, height, fW, fH
+            );
 
-            if (wCanvas) {
-                wCanvas.toBlob((blob) => {
+            if (warpedCanvas) {
+                warpedCanvas.toBlob((blob) => {
                     if (blob) resolve(blob);
-                    else reject(new Error('Warp failed'));
+                    else reject(new Error('Warp result failed'));
                 }, 'image/jpeg', quality);
             } else {
+                ctx.putImageData(imageData, 0, 0);
                 canvas.toBlob((blob) => {
                     if (blob) resolve(blob);
-                    else reject(new Error('Fallback failed'));
+                    else reject(new Error('Final fallback failed'));
                 }, 'image/jpeg', quality);
             }
         };
 
         img.onerror = (err) => {
-            URL.revokeObjectURL(url); reject(err);
+            URL.revokeObjectURL(url);
+            reject(err);
         };
+
         img.src = url;
     });
 };

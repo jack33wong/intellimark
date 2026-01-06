@@ -38,8 +38,8 @@ const MobileCameraPage: React.FC = () => {
 
                 // Process the image (adaptive thresholding and auto-crop)
                 const processedBlob = await processScannerImage(selectedFile, {
-                    maxWidth: 2400,
-                    maxHeight: 2400
+                    maxWidth: 2800,
+                    maxHeight: 2800
                 });
 
                 setProcessingStep('Analyzing document shape...');
