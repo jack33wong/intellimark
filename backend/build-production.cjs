@@ -48,8 +48,11 @@ const esbuildCommand = [
   '--external:stripe',
   '--external:canvas',
   '--external:sharp',
-  `--define:import.meta.url='"file://${process.cwd()}/server.ts"'`,
-  '--minify',
+  '--external:multer',
+  '--external:busboy',
+  '--external:axios',
+  '--external:string-similarity',
+  '--external:node-fetch',
   '--sourcemap'
 ].join(' ');
 
@@ -63,9 +66,9 @@ try {
 
 // Create Firebase Functions package.json
 const functionsPackageJson = {
-  "name": "intellimark-functions",
+  "name": "ai-marking-functions",
   "version": "1.0.0",
-  "description": "IntelliMark Firebase Functions",
+  "description": "AI Marking Firebase Functions",
   "main": "index.js",
   "type": "commonjs",
   "engines": {
@@ -88,7 +91,12 @@ const functionsPackageJson = {
     "sharp": "^0.34.3",
     "stripe": "^18.5.0",
     "uuid": "^9.0.1",
-    "canvas": "^3.2.0"
+    "multer": "^1.4.4-lts.1",
+    "busboy": "^1.6.0",
+    "axios": "^1.11.0",
+    "canvas": "^3.2.0",
+    "string-similarity": "^4.0.4",
+    "node-fetch": "^3.3.2"
   }
 };
 
@@ -104,7 +112,7 @@ fs.copyFileSync(
   path.join(deployDir, 'server.js')
 );
 
-// Create Firebase Functions index.js
+// Create Firebase Functions index.js (using v1 for Gen 1 compatibility)
 const indexJs = `const functions = require('firebase-functions');
 const app = require('./server.js');
 
