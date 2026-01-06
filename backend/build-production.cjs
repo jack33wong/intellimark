@@ -72,7 +72,7 @@ const functionsPackageJson = {
   "main": "index.js",
   "type": "commonjs",
   "engines": {
-    "node": "22"
+    "node": "20"
   },
   "scripts": {
     "start": "node server.js"
@@ -84,8 +84,8 @@ const functionsPackageJson = {
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
-    "firebase-admin": "^13.5.0",
-    "firebase-functions": "^6.4.0",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.1.1",
     "google-gax": "^5.0.3",
     "helmet": "^7.1.0",
     "sharp": "^0.34.3",
@@ -113,8 +113,15 @@ fs.copyFileSync(
 );
 
 // Create Firebase Functions index.js (v1)
-// We use the simplest v1 export and Node 22 to avoid decommissioning issues
-const indexJs = `const functions = require('firebase-functions/v1');
+// We use the most standard Gen 1 initialization
+const indexJs = `const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+
+// Ensure admin is initialized
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
+
 const app = require('./server.js').default || require('./server.js');
 
 // Export the Express app as a Firebase Function
@@ -139,9 +146,3 @@ if (fs.existsSync(serviceAccountFile)) {
 
 console.log('✅ Production build complete!');
 console.log(`📁 Files ready in ${deployDir}`);
-console.log('📋 Build summary:');
-console.log('  - server.js: Bundled CommonJS file');
-console.log('  - index.js: Firebase Functions entry point');
-console.log('  - package.json: Firebase Functions dependencies');
-console.log('  - .env.local: Environment variables (if exists)');
-console.log('  - Service account key (if exists)');
