@@ -385,14 +385,15 @@ export const processScannerImage = async (
                 br = { x: width, y: height }; bl = { x: 0, y: height };
             }
 
-            // Pro-Warp Correction: Push corners slightly outwards (17%)
-            // User requested 17% for unified tuning.
-            const margin = 0.17;
+            // Pro-Warp Correction: Push corners slightly outwards (10%)
+            // Reduced from 17% to 10% to fix "perspective distortion" and "bottom black edge" (User Report)
+            // A tighter crop makes the paper larger and reduces desk inclusion.
+            const margin = 0.10;
 
-            // 3.4: Pro-Warp Correction: Push corners slightly outwards (17%)
-            // Fix: Use Bounding Box Center instead of Polygon Centroid.
-            // Polygon centroid is biased towards the "wider" side (bottom) in perspective shots,
-            // causing uneven margins (top gets expanded more than bottom).
+            // ... (coordinates calculation) ...
+
+            // 3.4: Pro-Warp Correction: Push corners slightly outwards
+            // ... (expansion logic) ...
             const minX = Math.min(tl.x, tr.x, br.x, bl.x);
             const maxX = Math.max(tl.x, tr.x, br.x, bl.x);
             const minY = Math.min(tl.y, tr.y, br.y, bl.y);
@@ -408,168 +409,78 @@ export const processScannerImage = async (
             });
             tl = expand(tl); tr = expand(tr); br = expand(br); bl = expand(bl);
 
-            // Perspective Warp (Reuse logic)
-            onStatusUpdate?.('Warping document...');
-            const warp = (
-                srcP: { x: number, y: number }[],
-                dstP: { x: number, y: number }[],
-                sW: number, sH: number, dW: number, dH: number
-            ) => {
-                const dCanvas = document.createElement('canvas');
-                dCanvas.width = dW; dCanvas.height = dH;
-                const dCtx = dCanvas.getContext('2d');
-                if (!dCtx) return null;
+            // ... (warp function) ...
 
-                const getH = (s: typeof srcP, d: typeof dstP) => {
-                    const a = [];
-                    for (let i = 0; i < 4; i++) {
-                        a.push([s[i].x, s[i].y, 1, 0, 0, 0, -s[i].x * d[i].x, -s[i].y * d[i].x]);
-                        a.push([0, 0, 0, s[i].x, s[i].y, 1, -s[i].x * d[i].y, -s[i].y * d[i].y]);
-                    }
-                    const bA = [d[0].x, d[0].y, d[1].x, d[1].y, d[2].x, d[2].y, d[3].x, d[3].y];
-                    const n = 8;
-                    for (let i = 0; i < n; i++) {
-                        let max = i;
-                        for (let j = i + 1; j < n; j++) if (Math.abs(a[j][i]) > Math.abs(a[max][i])) max = j;
-                        [a[i], a[max]] = [a[max], a[i]];
-                        [bA[i], bA[max]] = [bA[max], bA[i]];
-                        for (let j = i + 1; j < n; j++) {
-                            const c = a[j][i] / a[i][i];
-                            for (let k = i; k < n; k++) a[j][k] -= c * a[i][k];
-                            bA[j] -= c * bA[i];
-                        }
-                    }
-                    const x = new Array(n);
-                    for (let i = n - 1; i >= 0; i--) {
-                        let sv = 0;
-                        for (let j = i + 1; j < n; j++) sv += a[i][j] * x[j];
-                        x[i] = (bA[i] - sv) / a[i][i];
-                    }
-                    return [...x, 1];
-                };
-
-                const h = getH(dstP, srcP);
-                const dImgData = dCtx.createImageData(dW, dH);
-                const dD = dImgData.data;
-
-                for (let y = 0; y < dH; y++) {
-                    for (let x = 0; x < dW; x++) {
-                        const w = h[6] * x + h[7] * y + h[8];
-                        const sx = Math.floor((h[0] * x + h[1] * y + h[2]) / w);
-                        const sy = Math.floor((h[3] * x + h[4] * y + h[5]) / w);
-                        if (sx >= 0 && sx < sW && sy >= 0 && sy < sH) {
-                            const si = (sy * sW + sx) * 4; const di = (y * dW + x) * 4;
-                            dD[di] = data[si]; dD[di + 1] = data[si + 1]; dD[di + 2] = data[si + 2]; dD[di + 3] = 255;
-                        } else {
-                            // Out of bounds: Fill with WHITE (paper color) instead of transparent black
-                            const di = (y * dW + x) * 4;
-                            dD[di] = 255; dD[di + 1] = 255; dD[di + 2] = 255; dD[di + 3] = 255;
-                        }
-                    }
+            // Clean Bottom (Tune: 0.50 Threshold)
+            // Was 0.85 (Conservative). Lowered to 0.50 (Aggressive) to kill "bottom black edge".
+            // Since the footer barcode is surrounded by white, it will survive.
+            for (let y = h - 1; y > h * 0.95; y--) {
+                let blackCount = 0;
+                for (let x = 0; x < w; x++) {
+                    if (isBlack((y * w + x) * 4)) blackCount++;
                 }
-                dCtx.putImageData(dImgData, 0, 0);
-                return dCanvas;
-            };
-
-
-            const fW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
-            const fH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
-
-            // 3.5: Border Cleanup
-            // Remove "desk artifacts" that appear as black bars on the edges due to wide cropping.
-            // Heuristic: Scan from edges. If > 50% of the row/col is black, clear it.
-            const cleanBorders = (canvas: HTMLCanvasElement) => {
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return;
-                const w = canvas.width;
-                const h = canvas.height;
-                const imgData = ctx.getImageData(0, 0, w, h);
-                const d = imgData.data;
-
-                const isBlack = (pixelIdx: number) => d[pixelIdx] === 0; // Assuming threshold output is 0 or 255
-
-                // Clean Top (Aggressive)
-                for (let y = 0; y < h * 0.1; y++) { // Limit to 10% margin
-                    let blackCount = 0;
+                if (blackCount > w * 0.50) { // Aggressive: > 50% black means it's definitely desk
                     for (let x = 0; x < w; x++) {
-                        if (isBlack((y * w + x) * 4)) blackCount++;
+                        const i = (y * w + x) * 4;
+                        d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
                     }
-                    if (blackCount > w * 0.15) { // Aggressive: > 15% black is enough to trigger clean
-                        for (let x = 0; x < w; x++) {
-                            const i = (y * w + x) * 4;
-                            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
-                        }
-                    } else break; // Stop at first "clean" row
-                }
-
-                // Clean Bottom (Conservative - Protect Footer Barcode)
-                for (let y = h - 1; y > h * 0.95; y--) {
-                    let blackCount = 0;
-                    for (let x = 0; x < w; x++) {
-                        if (isBlack((y * w + x) * 4)) blackCount++;
-                    }
-                    if (blackCount > w * 0.85) { // Conservative: Must be > 85% black (solid desk)
-                        for (let x = 0; x < w; x++) {
-                            const i = (y * w + x) * 4;
-                            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
-                        }
-                    } else break;
-                }
-
-                // Clean Left (Aggressive)
-                for (let x = 0; x < w * 0.1; x++) {
-                    let blackCount = 0;
-                    for (let y = 0; y < h; y++) {
-                        if (isBlack((y * w + x) * 4)) blackCount++;
-                    }
-                    if (blackCount > h * 0.15) { // Aggressive
-                        for (let y = 0; y < h; y++) {
-                            const i = (y * w + x) * 4;
-                            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
-                        }
-                    } else break;
-                }
-
-                // Clean Right (Aggressive)
-                for (let x = w - 1; x > w * 0.9; x--) {
-                    let blackCount = 0;
-                    for (let y = 0; y < h; y++) {
-                        if (isBlack((y * w + x) * 4)) blackCount++;
-                    }
-                    if (blackCount > h * 0.15) { // Aggressive
-                        for (let y = 0; y < h; y++) {
-                            const i = (y * w + x) * 4;
-                            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
-                        }
-                    } else break;
-                }
-
-                ctx.putImageData(imgData, 0, 0);
-            };
-
-            const warpedCanvas = warp(
-                [tl, tr, br, bl],
-                [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }],
-                width, height, fW, fH
-            );
-
-            if (warpedCanvas) {
-                // Post-process the warped result
-                cleanBorders(warpedCanvas);
-                // Return as PNG (Lossless) - User suggestion "better?"
-                // PNG is superior for text/scanned docs as it has no compression artifacts (cleaner edges).
-                warpedCanvas.toBlob((blob) => resolve(blob!), 'image/png');
-            } else {
-                ctx.putImageData(imageData, 0, 0);
-                canvas.toBlob((blob) => resolve(blob!), 'image/png');
+                } else break;
             }
+
+            // Clean Left (Aggressive)
+            for (let x = 0; x < w * 0.1; x++) {
+                let blackCount = 0;
+                for (let y = 0; y < h; y++) {
+                    if (isBlack((y * w + x) * 4)) blackCount++;
+                }
+                if (blackCount > h * 0.15) { // Aggressive
+                    for (let y = 0; y < h; y++) {
+                        const i = (y * w + x) * 4;
+                        d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+                    }
+                } else break;
+            }
+
+            // Clean Right (Aggressive)
+            for (let x = w - 1; x > w * 0.9; x--) {
+                let blackCount = 0;
+                for (let y = 0; y < h; y++) {
+                    if (isBlack((y * w + x) * 4)) blackCount++;
+                }
+                if (blackCount > h * 0.15) { // Aggressive
+                    for (let y = 0; y < h; y++) {
+                        const i = (y * w + x) * 4;
+                        d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+                    }
+                } else break;
+            }
+
+            ctx.putImageData(imgData, 0, 0);
         };
 
-        img.onerror = (err) => {
-            URL.revokeObjectURL(url);
-            reject(err);
-        };
+        const warpedCanvas = warp(
+            [tl, tr, br, bl],
+            [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }],
+            width, height, fW, fH
+        );
 
-        img.src = url;
-    });
+        if (warpedCanvas) {
+            // Post-process the warped result
+            cleanBorders(warpedCanvas);
+            // Return as PNG (Lossless) - User suggestion "better?"
+            // PNG is superior for text/scanned docs as it has no compression artifacts (cleaner edges).
+            warpedCanvas.toBlob((blob) => resolve(blob!), 'image/png');
+        } else {
+            ctx.putImageData(imageData, 0, 0);
+            canvas.toBlob((blob) => resolve(blob!), 'image/png');
+        }
+    };
+
+    img.onerror = (err) => {
+        URL.revokeObjectURL(url);
+        reject(err);
+    };
+
+    img.src = url;
+});
 };
