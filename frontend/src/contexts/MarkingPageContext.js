@@ -68,6 +68,8 @@ function markingPageReducer(state, action) {
         activeImageIndex: action.payload.index || 0,
         isGlobalSplit: action.payload.isGlobal ?? true
       };
+    case 'PREPARE_SPLIT_TRANSITION':
+      return { ...state, splitModeImages: [], activeImageIndex: 0 };
     case 'EXIT_SPLIT_MODE':
 
       return { ...state, splitModeImages: null, activeImageIndex: 0 };
@@ -140,9 +142,13 @@ export const MarkingPageProvider = ({
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
-      console.log(`[MarkingPageContext DEBUG] Switching to session ${selectedMarkingResult.id}. Clearing previous split state.`);
-      // Force exit and clear everything before loading the new session
-      dispatch({ type: 'EXIT_SPLIT_MODE' });
+      console.log(`[MarkingPageContext DEBUG] Switching to session ${selectedMarkingResult.id}. Preparing split transition.`);
+      // If we are currently in split mode, keep it open but clear the images
+      if (state.splitModeImages) {
+        dispatch({ type: 'PREPARE_SPLIT_TRANSITION' });
+      } else {
+        dispatch({ type: 'EXIT_SPLIT_MODE' });
+      }
       lastSyncedSessionId.current = null;
 
       loadSession(selectedMarkingResult);
