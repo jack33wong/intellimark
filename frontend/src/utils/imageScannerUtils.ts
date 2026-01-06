@@ -463,12 +463,12 @@ export const processScannerImage = async (
                 const isBlack = (pixelIdx: number) => d[pixelIdx] === 0; // Assuming threshold output is 0 or 255
 
                 // Clean Top
-                for (let y = 0; y < h * 0.15; y++) { // Limit to 15% margin
+                for (let y = 0; y < h * 0.1; y++) { // Limit to 10% margin
                     let blackCount = 0;
                     for (let x = 0; x < w; x++) {
                         if (isBlack((y * w + x) * 4)) blackCount++;
                     }
-                    if (blackCount > w * 0.4) { // If > 40% black, clear row
+                    if (blackCount > w * 0.85) { // Strict: Must be > 85% black (solid desk)
                         for (let x = 0; x < w; x++) {
                             const i = (y * w + x) * 4;
                             d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
@@ -477,12 +477,13 @@ export const processScannerImage = async (
                 }
 
                 // Clean Bottom
-                for (let y = h - 1; y > h * 0.85; y--) {
+                // Reduce range to 5% to protect footer barcodes
+                for (let y = h - 1; y > h * 0.95; y--) {
                     let blackCount = 0;
                     for (let x = 0; x < w; x++) {
                         if (isBlack((y * w + x) * 4)) blackCount++;
                     }
-                    if (blackCount > w * 0.4) {
+                    if (blackCount > w * 0.85) {
                         for (let x = 0; x < w; x++) {
                             const i = (y * w + x) * 4;
                             d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
@@ -491,12 +492,12 @@ export const processScannerImage = async (
                 }
 
                 // Clean Left
-                for (let x = 0; x < w * 0.15; x++) {
+                for (let x = 0; x < w * 0.1; x++) {
                     let blackCount = 0;
                     for (let y = 0; y < h; y++) {
                         if (isBlack((y * w + x) * 4)) blackCount++;
                     }
-                    if (blackCount > h * 0.4) {
+                    if (blackCount > h * 0.85) {
                         for (let y = 0; y < h; y++) {
                             const i = (y * w + x) * 4;
                             d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
@@ -505,12 +506,12 @@ export const processScannerImage = async (
                 }
 
                 // Clean Right
-                for (let x = w - 1; x > w * 0.85; x--) {
+                for (let x = w - 1; x > w * 0.9; x--) {
                     let blackCount = 0;
                     for (let y = 0; y < h; y++) {
                         if (isBlack((y * w + x) * 4)) blackCount++;
                     }
-                    if (blackCount > h * 0.4) {
+                    if (blackCount > h * 0.85) {
                         for (let y = 0; y < h; y++) {
                             const i = (y * w + x) * 4;
                             d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
