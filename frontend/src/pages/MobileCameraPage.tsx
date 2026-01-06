@@ -29,27 +29,17 @@ const MobileCameraPage: React.FC = () => {
             try {
                 setStatus('idle');
 
-                // Processing sequence
-                setProcessingStep('Analyzing lighting...');
+                setProcessingStep('Initializing...');
 
-                // Allow UI to update
-                await new Promise(r => setTimeout(r, 500));
-                setProcessingStep('Removing shadows...');
+                // Allow UI to update briefly before heavy work starts
+                await new Promise(r => setTimeout(r, 100));
 
-                // Process the image (adaptive thresholding and auto-crop)
+                // Process the image (adaptive thresholding and auto-crop) with real feedback
                 const processedBlob = await processScannerImage(selectedFile, {
                     maxWidth: 2800,
-                    maxHeight: 2800
+                    maxHeight: 2800,
+                    onStatusUpdate: (step) => setProcessingStep(step)
                 });
-
-                setProcessingStep('Analyzing document shape...');
-                await new Promise(r => setTimeout(r, 400));
-
-                setProcessingStep('Warping document...');
-                await new Promise(r => setTimeout(r, 400));
-
-                setProcessingStep('Finalizing scan...');
-                await new Promise(r => setTimeout(r, 300));
 
                 setFile(processedBlob);
                 setPreviewUrl(URL.createObjectURL(processedBlob));
@@ -130,6 +120,9 @@ const MobileCameraPage: React.FC = () => {
 
 
             <div className="mobile-content">
+                <div className="brand-logo">
+                    <img src="/images/logo.png" alt="IntelliMark" />
+                </div>
                 {!!processingStep && (
                     <div className="processing-overlay">
                         <div className="processing-content">

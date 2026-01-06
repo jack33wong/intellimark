@@ -141,18 +141,18 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                         )}
                     </div>
 
-                    <div className="instructions">
-                        <div className="step">
+                    <div className="instructions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '240px' }}>
+                        <div className="step" style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
                             <span className="step-num">1</span>
                             <span>Open Camera</span>
                         </div>
-                        <div className="step-line" />
-                        <div className="step">
+                        <div className="step-line" style={{ width: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)', marginTop: '10px' }} />
+                        <div className="step" style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
                             <span className="step-num">2</span>
                             <span>Scan QR</span>
                         </div>
-                        <div className="step-line" />
-                        <div className="step">
+                        <div className="step-line" style={{ width: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)', marginTop: '10px' }} />
+                        <div className="step" style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
                             <span className="step-num">3</span>
                             <span>Upload</span>
                         </div>

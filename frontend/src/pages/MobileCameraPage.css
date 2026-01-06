@@ -24,7 +24,7 @@
 .logo-placeholder span {
     font-weight: 600;
     font-size: 1.1rem;
-    color: var(--text-blue, #0081f2);
+    color: var(--text-brand, #7f00ff);
 }
 
 .mobile-content {
@@ -59,7 +59,7 @@
 
 .connection-status {
     font-size: 0.9rem;
-    color: #0081f2;
+    color: var(--text-brand, #7f00ff);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -69,9 +69,9 @@
     content: '';
     width: 8px;
     height: 8px;
-    background-color: #0081f2;
+    background-color: var(--text-brand, #7f00ff);
     border-radius: 50%;
-    box-shadow: 0 0 8px #0081f2;
+    box-shadow: 0 0 8px var(--text-brand, #7f00ff);
 }
 
 .preview-container {
@@ -90,7 +90,9 @@
 .preview-overlay {
     position: absolute;
     top: 16px;
-    left: 16px;
+    right: 16px;
+    /* Moved to right to make room for logo */
+    z-index: 20;
 }
 
 .retake-btn {
@@ -135,7 +137,7 @@
 .shutter-inner {
     width: 100%;
     height: 100%;
-    background: var(--text-blue, #0081f2);
+    background: var(--text-brand, #7f00ff);
     border-radius: 50%;
 }
 
@@ -167,7 +169,7 @@
     width: 100%;
     max-width: 300px;
     height: 56px;
-    background: var(--text-blue, #0081f2);
+    background: var(--text-brand, #7f00ff);
     color: white;
     border: none;
     border-radius: 28px;
@@ -267,7 +269,7 @@
 }
 
 .processing-icon {
-    color: var(--text-blue, #0081f2);
+    color: var(--text-brand, #7f00ff);
 }
 
 .processing-content h3 {
@@ -321,8 +323,10 @@
 .enhanced-badge {
     position: absolute;
     top: 1rem;
-    left: 1rem;
-    background: rgba(0, 129, 242, 0.9);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    background: rgba(127, 0, 255, 0.9);
     color: white;
     padding: 0.4rem 0.8rem;
     border-radius: 2rem;
@@ -346,6 +350,20 @@
 
     to {
         opacity: 1;
-        transform: scale(1);
+        transform: translateX(-50%) scale(1);
     }
+}
+
+.brand-logo {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 50;
+    pointer-events: none;
+}
+
+.brand-logo img {
+    height: 32px;
+    width: auto;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
