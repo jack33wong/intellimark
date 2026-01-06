@@ -162,7 +162,31 @@ export const processScannerImage = async (
                 }
             }
 
-            // 3.1.5: Noise Isolation - Largest Connected Component (LCC)
+
+            // 3.1.5: Vertical Smear (Bridge Gaps)
+            // CRITICAL FIX: Footer barcodes are often separated from the main text by whitespace.
+            // If we run LCC directly, the barcode becomes a separate "island" and is deleted.
+            // We smear the mask VERTICALLY to bridge these gaps before detecting components.
+            const smearedMask = new Uint8Array(width * height);
+            const smearRadius = 20; // Bridge gaps up to ~40px
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // If current pixel is 1, smear it down
+                    if (erodedMask[y * width + x] === 1) {
+                        for (let k = 0; k <= smearRadius && y + k < height; k++) {
+                            smearedMask[(y + k) * width + x] = 1;
+                        }
+                    }
+                    // Keep existing white pixels
+                    if (erodedMask[y * width + x] === 1) smearedMask[y * width + x] = 1;
+                }
+            }
+            // Use smearedMask for LCC, but keep erodedMask logic for final structure if needed?
+            // Actually, we want the detection to use the Connected Union.
+            // Let's copy smeared back to erodedMask for the LCC step.
+            erodedMask.set(smearedMask);
+
+            // 3.1.6: Noise Isolation - Largest Connected Component (LCC)
             // Filter out independent noise blobs (like desk edges) that aren't the main paper.
             // Using Iterative BFS with a pre-allocated queue for performance.
 
