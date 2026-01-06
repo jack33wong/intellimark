@@ -71,20 +71,20 @@ export const processScannerImage = async (
             // Step 2: Adaptive Thresholding (Bradley-Roth)
             // This handles variable lighting and removes shadows by comparing each pixel 
             // to the average of its neighbors.
-            const s = Math.floor(width / 8); // Window size
-            const t = 15; // Threshold percentage
-            const integralImage = new Int32Array(width * height);
+            const s = Math.floor(width / 4); // Larger window size for better shadow removal
+            const t = 18; // Increased threshold percentage (Bradley-Roth)
+            const integralImage = new Float64Array(width * height);
 
-            // Calculate integral image
+            // Calculate integral image (2D prefix sum)
             for (let i = 0; i < width; i++) {
-                let sum = 0;
+                let colSum = 0;
                 for (let j = 0; j < height; j++) {
-                    const index = j * width + i;
-                    sum += grayscale[index];
+                    const idx = j * width + i;
+                    colSum += grayscale[idx];
                     if (i === 0) {
-                        integralImage[index] = sum;
+                        integralImage[idx] = colSum;
                     } else {
-                        integralImage[index] = integralImage[index - 1] + sum;
+                        integralImage[idx] = integralImage[idx - 1] + colSum;
                     }
                 }
             }
@@ -118,6 +118,9 @@ export const processScannerImage = async (
                     data[index * 4 + 3] = 255; // Force opaque
                 }
             }
+
+            // Commit thresholded pixels back to the canvas
+            ctx.putImageData(imageData, 0, 0);
 
             // Step 3: Edge Detection & Auto-Crop (Optional but helpful)
             // We use a Sobel filter on the grayscale image to find document boundaries.

@@ -151,6 +151,11 @@ const MobileCameraPage: React.FC = () => {
                                 Retake
                             </button>
                         </div>
+                        {/* Enhanced Indicator Badge */}
+                        <div className="enhanced-badge">
+                            <Wand2 size={16} />
+                            <span>Enhanced</span>
+                        </div>
                     </div>
                 )}
             </div>
