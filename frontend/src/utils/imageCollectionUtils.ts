@@ -52,7 +52,10 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
 
     if (hasImage(message)) {
       // Determine if this message should be treated as annotated (primary markers)
+      // Check type for 'marking_annotated' OR role for 'assistant'
       const isAnnotated = message.type === 'marking_annotated' || message.role === 'assistant';
+
+      console.log(`[imageCollectionUtils DEBUG] Msg: ${message.id.substring(0, 8)} | Role: ${message.role} | Type: ${message.type} | IsAnnotated: ${isAnnotated}`);
 
       // Handle imageDataArray (multiple images in one message)
       if (message.imageDataArray && message.imageDataArray.length > 0) {

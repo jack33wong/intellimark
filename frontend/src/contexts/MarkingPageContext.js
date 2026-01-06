@@ -190,10 +190,23 @@ export const MarkingPageProvider = ({
 
       // If same session but we are in GLOBAL split mode, sync with any NEW images (e.g. from more marking)
       if (isGlobalSplit && newImages && newImages.length > 0) {
-        if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length) {
+        const hasAnnotatedNew = newImages.some(img => img.filename?.startsWith('annotated-'));
+        const hasAnnotatedPrev = splitModeImages.some(img => img.filename?.startsWith('annotated-'));
+
+        // JUMP TO INDEX 0 IF:
+        // 1. Image set changed AND
+        // 2. We previously had NO annotated images but now we DO
+        const shouldJumpToResults = hasAnnotatedNew && !hasAnnotatedPrev;
+
+        if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length || shouldJumpToResults) {
+          console.log(`[MarkingPageContext DEBUG] Syncing images. Should jump to results: ${shouldJumpToResults}`);
           dispatch({
             type: 'ENTER_SPLIT_MODE',
-            payload: { images: newImages, index: 0, isGlobal: true }
+            payload: {
+              images: newImages,
+              index: shouldJumpToResults ? 0 : (activeImageIndex || 0),
+              isGlobal: true
+            }
           });
         }
       }
