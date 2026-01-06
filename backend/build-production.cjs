@@ -87,14 +87,8 @@ const functionsPackageJson = {
     "helmet": "^7.1.0",
     "sharp": "^0.34.3",
     "stripe": "^18.5.0",
-    "stripe": "^18.5.0",
     "uuid": "^9.0.1",
-    "multer": "^1.4.4-lts.1",
-    "busboy": "^1.6.0",
-    "axios": "^1.11.0",
-    "canvas": "^3.2.0",
-    "string-similarity": "^4.0.4",
-    "node-fetch": "^3.3.2"
+    "canvas": "^3.2.0"
   }
 };
 
