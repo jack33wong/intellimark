@@ -69,11 +69,6 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
           const imageSrc = getImageSrc(image);
           const hasError = imageErrors.has(index);
 
-          // Deep debug log for each thumbnail
-          if (imageSrc) {
-            console.log(`[SimpleImageGallery ITEM] Index ${index} src: ${imageSrc.substring(0, 80)}...`);
-          }
-
           return (
             <div
               key={`${imageSrc}-${index}`}

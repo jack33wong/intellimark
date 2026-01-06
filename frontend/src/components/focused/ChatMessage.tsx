@@ -58,14 +58,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   onNavigate,
   isSyncingRef
 }) => {
-  useEffect(() => {
-    if (message.role === 'user' && hasImage(message)) {
-      console.log(`[ChatMessage DEBUG] Rendered Message ${message.id} in Session ${session?.id}`);
-      console.log(`[ChatMessage DEBUG] imageDataArray:`, (message as any)?.imageDataArray);
-      console.log(`[ChatMessage DEBUG] imageLink:`, (message as any)?.imageLink);
-    }
-  }, [message.id, session?.id, message.role]);
-
   const [imageError, setImageError] = useState<boolean>(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);

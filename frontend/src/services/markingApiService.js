@@ -158,7 +158,9 @@ class SimpleSessionService {
       mergedSession.messages = [];
     }
 
-    if (localSession?.messages && mergedSession.messages) {
+    // 👇 FIX: Only merge local image data if we are staying within the same session.
+    // This prevents stale images from Session A leaking into Session B if they share message content.
+    if (localSession?.id === newSessionData.id && localSession?.messages && mergedSession.messages) {
       const localImageContentMap = new Map();
       const localImageArrayContentMap = new Map();
 

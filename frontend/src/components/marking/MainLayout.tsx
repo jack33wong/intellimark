@@ -447,40 +447,34 @@ const MainLayout: React.FC = () => {
           {!hasMessages ? (
             null
           ) : (
-            <div className="chat-messages">
-              {displayedMessages.map((msg: any) => {
-                const msgKey = `${currentSession?.id || 'no-session'}-${msg.id}`;
-                if (msg.role === 'user') {
-                  console.log(`[MainLayout DEBUG] Rendering ChatMessage with key: ${msgKey}`);
-                }
-                return (
-                  <ChatMessage
-                    key={msgKey}
-                    message={msg}
-                    onImageLoad={() => {
-                      const lastUserMsg = [...(chatMessages || [])].reverse().find(m => m.role === 'user');
-                      if (msg.id === lastUserMsg?.id) {
-                        // We used to scrollToBottom() here, but it causes "jumpy" behavior when AI images load.
-                        // Now we rely on the scroll manager to maintain position, or only scroll if it's the USER's own message.
-                        if (msg.role === 'user') {
-                          scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
-                        }
+            <div className="chat-messages" key={currentSession?.id || 'empty'}>
+              {displayedMessages.map((msg: any) => (
+                <ChatMessage
+                  key={`${currentSession?.id || 'no-session'}-${msg.id}`}
+                  message={msg}
+                  onImageLoad={() => {
+                    const lastUserMsg = [...(chatMessages || [])].reverse().find(m => m.role === 'user');
+                    if (msg.id === lastUserMsg?.id) {
+                      // We used to scrollToBottom() here, but it causes "jumpy" behavior when AI images load.
+                      // Now we rely on the scroll manager to maintain position, or only scroll if it's the USER's own message.
+                      if (msg.role === 'user') {
+                        scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
                       }
-                    }}
-                    getImageSrc={getImageSrc}
-                    MarkdownMathRenderer={MarkdownMathRenderer}
-                    ensureStringContent={ensureStringContent}
-                    scrollToBottom={scrollToBottom}
-                    session={currentSession}
-                    addMessage={addMessage}
-                    startAIThinking={startAIThinking}
-                    selectedModel={selectedModel}
-                    onEnterSplitMode={enterSplitModeEnriched}
-                    onNavigate={navigateToQuestion}
-                    isSyncingRef={isSyncingRef}
-                  />
-                );
-              })}
+                    }
+                  }}
+                  getImageSrc={getImageSrc}
+                  MarkdownMathRenderer={MarkdownMathRenderer}
+                  ensureStringContent={ensureStringContent}
+                  scrollToBottom={scrollToBottom}
+                  session={currentSession}
+                  addMessage={addMessage}
+                  startAIThinking={startAIThinking}
+                  selectedModel={selectedModel}
+                  onEnterSplitMode={enterSplitModeEnriched}
+                  onNavigate={navigateToQuestion}
+                  isSyncingRef={isSyncingRef}
+                />
+              ))}
               {/* Bottom spacer with dynamic height */}
               {/* When thinking, expand to push user question to top (85vh). Otherwise standard spacer (250px). */}
               <div
