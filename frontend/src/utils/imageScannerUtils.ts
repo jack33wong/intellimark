@@ -21,9 +21,9 @@ export const processScannerImage = async (
 ): Promise<Blob> => {
     // Pro-grade settings for the "Super Scanner"
     const {
-        maxWidth = 6000, // 6K limit (effectively uncompressed for mobile)
-        maxHeight = 6000,
-        quality = 0.95, // Bump quality
+        maxWidth = 3000, // Reduced from 6000 to 3000 to fix "sent to receiver longer" (User Report)
+        maxHeight = 3000,
+        quality = 0.85, // Slightly lower quality for faster transmission
         onStatusUpdate
     } = options;
 
@@ -70,8 +70,23 @@ export const processScannerImage = async (
                 grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
             }
 
-            // [REMOVED] Box Blur: Removed to achieve crisp "CamScanner" text quality.
-            // Blur was causing soft edges; removing it preserves high-frequency detail.
+            // Step 1.1: Box Blur (3x3) - RE-ENABLED
+            // User reported "shadow appear" and worse clarity without it.
+            // Blur is crucial for the adaptive thresholder to see "average" local background and kill shadows effectively.
+            const blurred = new Uint8Array(width * height);
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    let sum = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            sum += grayscale[(y + dy) * width + (x + dx)];
+                        }
+                    }
+                    blurred[y * width + x] = sum / 9;
+                }
+            }
+            // Copy back to grayscale for next steps
+            for (let i = 0; i < width * height; i++) grayscale[i] = blurred[i];
 
             // Contrast Normalization (Histogram Stretching)
             // This maximizes separation between dark background and light paper
@@ -91,7 +106,7 @@ export const processScannerImage = async (
             // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
             onStatusUpdate?.('Removing shadows...');
             const s = Math.floor(width / 8); // Smaller window (1/8) handles gradients better
-            const t = 18; // Tuned to 18: The "Sweet Spot". Balances shadow removal (better than 14) vs text integrity (safer than 25).
+            const t = 18; // Keep 18. With Blur back, this should be perfect.
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
@@ -135,16 +150,16 @@ export const processScannerImage = async (
             // Step 3: Pro Rectification (RANSAC + Erosion)
             onStatusUpdate?.('Detecting edges...');
 
-            // 3.1: Create Binary Mask & Erode to remove noise
+            // 3.1 Mask Generation and Processing
             const mask = new Uint8Array(width * height);
-            // First pass: fill mask from thresholded data
             for (let i = 0; i < width * height; i++) {
-                mask[i] = data[i * 4] === 255 ? 1 : 0;
+                mask[i] = data[i * 4] === 255 ? 1 : 0; // 1 = White (Paper), 0 = Black (Background)
             }
 
-            // Morphological Erosion (3x3) to detach paper from edge noise
+            // 3.1.2: Mask Erosion (3x3 kernel)
+            // Detach paper from edge artifacts
+            const kernelSize = 1; // 3x3
             const erodedMask = new Uint8Array(width * height);
-            const kernelSize = 1; // Radius 1 = 3x3 kernel
             for (let y = kernelSize; y < height - kernelSize; y++) {
                 for (let x = kernelSize; x < width - kernelSize; x++) {
                     let minVal = 1;
@@ -164,20 +179,21 @@ export const processScannerImage = async (
 
 
             // 3.1.5: Vertical Smear (Bridge Gaps)
-            // CRITICAL FIX: Footer barcodes are often separated from the main text by whitespace.
-            // If we run LCC directly, the barcode becomes a separate "island" and is deleted.
-            // We smear the mask VERTICALLY to bridge these gaps before detecting components.
+            // FIX: Only smear the BOTTOM 30% of the image.
+            // Smearing the top caused top desk noise to fuse with the paper, breaking the crop.
             const smearedMask = new Uint8Array(width * height);
             const smearRadius = 20; // Bridge gaps up to ~40px
+            const smearStart = Math.floor(height * 0.7); // Start smearing from bottom 30%
+
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
-                    // If current pixel is 1, smear it down
-                    if (erodedMask[y * width + x] === 1) {
+                    // Only apply smear logic in the bottom footer area
+                    if (y > smearStart && erodedMask[y * width + x] === 1) {
                         for (let k = 0; k <= smearRadius && y + k < height; k++) {
                             smearedMask[(y + k) * width + x] = 1;
                         }
                     }
-                    // Keep existing white pixels
+                    // Always keep existing white pixels
                     if (erodedMask[y * width + x] === 1) smearedMask[y * width + x] = 1;
                 }
             }
