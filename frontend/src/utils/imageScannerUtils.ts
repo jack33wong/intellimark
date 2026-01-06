@@ -67,9 +67,10 @@ export const processScannerImage = async (
                 grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
             }
 
-            // Step 2: Adaptive Thresholding (Bradley-Roth)
-            const s = Math.floor(width / 4);
-            const t = 18;
+
+            // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
+            const s = Math.floor(width / 8); // Smaller window (1/8) handles gradients better
+            const t = 25; // Increased threshold (was 18) to force light greys (shadows) to white
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
@@ -110,27 +111,23 @@ export const processScannerImage = async (
                 }
             }
 
-            // Step 3: Super Scanner Density-Grid Corner Detection
+            // Step 3: Virtual Corner Detection via Line Fitting
             // We scan a dense grid to find the "mass" of the document.
             const paperPoints: { x: number, y: number }[] = [];
-            const gridSpacing = Math.max(4, Math.floor(width / 100));
-            const window = Math.max(2, Math.floor(width / 200));
-            const paperBrightnessThreshold = 200; // Documents are very bright white in BW
+            const gridSpacing = Math.max(4, Math.floor(width / 100)); // 1% spacing
+            const window = Math.max(2, Math.floor(width / 200)); // 0.5% window
 
             for (let y = gridSpacing; y < height - gridSpacing; y += gridSpacing) {
                 for (let x = gridSpacing; x < width - gridSpacing; x += gridSpacing) {
                     const x1 = x - window, x2 = x + window;
                     const y1 = y - window, y2 = y + window;
                     const count = (x2 - x1) * (y2 - y1);
-
-                    // Simple pixel check on thresholded data is very reliable
                     let pCount = 0;
                     for (let wy = y1; wy <= y2; wy++) {
                         for (let wx = x1; wx <= x2; wx++) {
                             if (data[(wy * width + wx) * 4] === 255) pCount++;
                         }
                     }
-
                     if (pCount / count > 0.8) { // 80% white in window = paper
                         paperPoints.push({ x, y });
                     }
@@ -147,18 +144,124 @@ export const processScannerImage = async (
                 return;
             }
 
-            // Quadrant-Extreme logic to find 4 corners
-            let tl = paperPoints[0], tr = paperPoints[0], br = paperPoints[0], bl = paperPoints[0];
-            let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
+            // Calculate Centroid
+            let cx = 0, cy = 0;
+            for (const p of paperPoints) { cx += p.x; cy += p.y; }
+            cx /= paperPoints.length;
+            cy /= paperPoints.length;
+
+            // Helper: Fit line y = mx + c (or x = my + c) via Least Squares
+            const fitLine = (points: { x: number, y: number }[], isVertical: boolean) => {
+                if (points.length < 2) return null;
+                let sumX = 0, sumY = 0, sumXY = 0, sumsq = 0;
+                const n = points.length;
+                for (const p of points) {
+                    const u = isVertical ? p.y : p.x; // Independent var
+                    const v = isVertical ? p.x : p.y; // Dependent var
+                    sumX += u; sumY += v;
+                    sumXY += u * v; sumsq += u * u;
+                }
+                const m = (n * sumXY - sumX * sumY) / (n * sumsq - sumX * sumX);
+                const c = (sumY - m * sumX) / n;
+                return { m, c, isVertical };
+            };
+
+            // Helper: Find intersection of two lines
+            const intersect = (l1: any, l2: any) => {
+                if (!l1 || !l2) return null;
+                // Line 1: y = m1*x + c1 (if !vert), x = m1*y + c1 (if vert)
+                // We convert strictly to Ax + By = C form for general solver
+                // Non-vert: -m*x + 1*y = c -> A=-m, B=1, C=c
+                // Vert: 1*x - m*y = c -> A=1, B=-m, C=c
+                const getABC = (line: any) => line.isVertical
+                    ? { A: 1, B: -line.m, C: line.c }
+                    : { A: -line.m, B: 1, C: line.c };
+
+                const L1 = getABC(l1), L2 = getABC(l2);
+                const det = L1.A * L2.B - L2.A * L1.B;
+                if (Math.abs(det) < 1e-6) return null; // Parallel
+
+                const x = (L2.B * L1.C - L1.B * L2.C) / det;
+                const y = (L1.A * L2.C - L2.A * L1.C) / det;
+                return { x, y };
+            };
+
+            // Bucket points by angle + Extract Outer Hulls
+            const topPts: { x: number, y: number }[] = [], rightPts: { x: number, y: number }[] = [];
+            const bottomPts: { x: number, y: number }[] = [], leftPts: { x: number, y: number }[] = [];
+
+            // To reduce noise, we use "Hull" logic: 
+            // For Top edge, we group by X-intervals and keep ONLY the MIN Y point in each interval.
+            const bucketSize = Math.floor(width / 20); // 5% buckets
+            const topMap = new Map<number, { x: number, y: number }>();
+            const bottomMap = new Map<number, { x: number, y: number }>();
+            const leftMap = new Map<number, { x: number, y: number }>();
+            const rightMap = new Map<number, { x: number, y: number }>();
 
             for (const p of paperPoints) {
-                const sum = p.x + p.y;
-                const diff = p.x - p.y;
-                if (sum < minSum) { minSum = sum; tl = p; }
-                if (sum > maxSum) { maxSum = sum; br = p; }
-                if (diff < minDiff) { minDiff = diff; bl = p; }
-                if (diff > maxDiff) { maxDiff = diff; tr = p; }
+                const dx = p.x - cx;
+                const dy = p.y - cy;
+                // Ideally, document is within +/- 45 degrees of axis.
+                // Top: dy is negative, |dy| > |dx|
+                // Bottom: dy is positive, |dy| > |dx|
+                // Left: dx is negative, |dx| > |dy|
+                // Right: dx is positive, |dx| > |dy|
+
+                if (Math.abs(dy) > Math.abs(dx)) {
+                    // Top or Bottom
+                    const k = Math.floor(p.x / bucketSize);
+                    if (dy < 0) { // Top
+                        if (!topMap.has(k) || p.y < topMap.get(k)!.y) topMap.set(k, p);
+                    } else { // Bottom
+                        if (!bottomMap.has(k) || p.y > bottomMap.get(k)!.y) bottomMap.set(k, p);
+                    }
+                } else {
+                    // Left or Right
+                    const k = Math.floor(p.y / bucketSize);
+                    if (dx < 0) { // Left
+                        if (!leftMap.has(k) || p.x < leftMap.get(k)!.x) leftMap.set(k, p);
+                    } else { // Right
+                        if (!rightMap.has(k) || p.x > rightMap.get(k)!.x) rightMap.set(k, p);
+                    }
+                }
             }
+
+            topMap.forEach(p => topPts.push(p));
+            bottomMap.forEach(p => bottomPts.push(p));
+            leftMap.forEach(p => leftPts.push(p));
+            rightMap.forEach(p => rightPts.push(p));
+
+            // Fit Lines (Top/Bottom not vertical, Left/Right vertical-ish)
+            const lTop = fitLine(topPts, false);
+            const lRight = fitLine(rightPts, true);
+            const lBottom = fitLine(bottomPts, false);
+            const lLeft = fitLine(leftPts, true);
+
+            // Calculate Virtual Intersections
+            let tl = intersect(lTop, lLeft);
+            let tr = intersect(lTop, lRight);
+            let br = intersect(lBottom, lRight);
+            let bl = intersect(lBottom, lLeft);
+
+            // Fallback to extreme points if intersection fails (e.g. infinite lines or missing edges)
+            if (!tl || !tr || !br || !bl) {
+                tl = paperPoints[0]; tr = paperPoints[0]; br = paperPoints[0]; bl = paperPoints[0];
+                let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
+                for (const p of paperPoints) {
+                    const sum = p.x + p.y; const diff = p.x - p.y;
+                    if (sum < minSum) { minSum = sum; tl = p; }
+                    if (sum > maxSum) { maxSum = sum; br = p; }
+                    if (diff < minDiff) { minDiff = diff; bl = p; }
+                    if (diff > maxDiff) { maxDiff = diff; tr = p; }
+                }
+            }
+
+            // Constrain to canvas
+            const clamp = (p: { x: number, y: number }) => ({
+                x: Math.max(0, Math.min(width - 1, p.x)),
+                y: Math.max(0, Math.min(height - 1, p.y))
+            });
+            tl = clamp(tl); tr = clamp(tr); br = clamp(br); bl = clamp(bl);
 
             // Pro-Warp Correction: Push corners slightly outwards (2%) to capture full paper
             const expand = (p: { x: number, y: number }, center: { x: number, y: number }, factor: number) => ({
