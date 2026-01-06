@@ -46,16 +46,16 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
   // Process all messages to collect images
   session.messages.forEach((message) => {
     // Filter out potential placeholder ghost messages
-    if (message.id?.includes('ai-empty')) {
-      return;
-    }
+    // Log every message to see what's in the session.
+    // Note: Assistant messages with no text content often have "ai-empty" in their ID.
+    console.log(`[imageCollectionUtils DEBUG] Processing Msg: ${message.id.substring(0, 8)} | Role: ${message.role} | Type: ${message.type}`);
 
     if (hasImage(message)) {
       // Determine if this message should be treated as annotated (primary markers)
       // Check type for 'marking_annotated' OR role for 'assistant'
       const isAnnotated = message.type === 'marking_annotated' || message.role === 'assistant';
 
-      console.log(`[imageCollectionUtils DEBUG] Msg: ${message.id.substring(0, 8)} | Role: ${message.role} | Type: ${message.type} | IsAnnotated: ${isAnnotated}`);
+      console.log(`[imageCollectionUtils DEBUG] -> Categorized as Annotated: ${isAnnotated}`);
 
       // Handle imageDataArray (multiple images in one message)
       if (message.imageDataArray && message.imageDataArray.length > 0) {
