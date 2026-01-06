@@ -556,10 +556,12 @@ export const processScannerImage = async (
             if (warpedCanvas) {
                 // Post-process the warped result
                 cleanBorders(warpedCanvas);
-                warpedCanvas.toBlob((blob) => resolve(blob!), 'image/jpeg', quality);
+                // Return as PNG (Lossless) - User suggestion "better?"
+                // PNG is superior for text/scanned docs as it has no compression artifacts (cleaner edges).
+                warpedCanvas.toBlob((blob) => resolve(blob!), 'image/png');
             } else {
                 ctx.putImageData(imageData, 0, 0);
-                canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', quality);
+                canvas.toBlob((blob) => resolve(blob!), 'image/png');
             }
         };
 
