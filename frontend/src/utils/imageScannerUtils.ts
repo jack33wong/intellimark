@@ -21,8 +21,8 @@ export const processScannerImage = async (
 ): Promise<Blob> => {
     // Pro-grade settings for the "Super Scanner"
     const {
-        maxWidth = 2800,
-        maxHeight = 2800,
+        maxWidth = 3840, // 4K resolution to preserve original dimensions
+        maxHeight = 3840,
         quality = 0.9,
         onStatusUpdate
     } = options;
@@ -70,22 +70,8 @@ export const processScannerImage = async (
                 grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
             }
 
-            // Step 1.1: Box Blur (3x3) to reduce high-frequency noise/texture
-            // This prevents "paper grain" from being detected as separate components
-            const blurred = new Uint8Array(width * height);
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    let sum = 0;
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            sum += grayscale[(y + dy) * width + (x + dx)];
-                        }
-                    }
-                    blurred[y * width + x] = sum / 9;
-                }
-            }
-            // Copy back to grayscale for next steps
-            for (let i = 0; i < width * height; i++) grayscale[i] = blurred[i];
+            // [REMOVED] Box Blur: Removed to achieve crisp "CamScanner" text quality.
+            // Blur was causing soft edges; removing it preserves high-frequency detail.
 
             // Contrast Normalization (Histogram Stretching)
             // This maximizes separation between dark background and light paper
