@@ -363,10 +363,18 @@ export const processScannerImage = async (
             // User requested 17% for unified tuning.
             const margin = 0.17;
 
-            // 3.4: RANSAC Line Fitting
+            // 3.4: Pro-Warp Correction: Push corners slightly outwards (17%)
+            // Fix: Use Bounding Box Center instead of Polygon Centroid.
+            // Polygon centroid is biased towards the "wider" side (bottom) in perspective shots,
+            // causing uneven margins (top gets expanded more than bottom).
+            const minX = Math.min(tl.x, tr.x, br.x, bl.x);
+            const maxX = Math.max(tl.x, tr.x, br.x, bl.x);
+            const minY = Math.min(tl.y, tr.y, br.y, bl.y);
+            const maxY = Math.max(tl.y, tr.y, br.y, bl.y);
+
             const center = {
-                x: (tl.x + tr.x + br.x + bl.x) / 4,
-                y: (tl.y + tr.y + br.y + bl.y) / 4
+                x: (minX + maxX) / 2,
+                y: (minY + maxY) / 2
             };
             const expand = (p: { x: number, y: number }) => ({
                 x: Math.max(0, Math.min(width - 1, p.x + (p.x - center.x) * margin)),
