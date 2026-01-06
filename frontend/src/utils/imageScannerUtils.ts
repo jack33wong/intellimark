@@ -70,19 +70,21 @@ export const processScannerImage = async (
                 grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
             }
 
-            // Step 1.1: Box Blur (3x3) - RE-ENABLED
-            // User reported "shadow appear" and worse clarity without it.
-            // Blur is crucial for the adaptive thresholder to see "average" local background and kill shadows effectively.
+            // Step 1.1: Box Blur (5x5) - ERROR CORRECTION
+            // User reported "iPhone shadow" and "not top down".
+            // 3x3 blur was too weak to smooth out the hand shadow. 5x5 provides a cleaner background signal
+            // for the adaptive thresholder, suppressing large, soft shadows effectively.
             const blurred = new Uint8Array(width * height);
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
+            const blurKernel = 2; // Radius 2 = 5x5
+            for (let y = blurKernel; y < height - blurKernel; y++) {
+                for (let x = blurKernel; x < width - blurKernel; x++) {
                     let sum = 0;
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -blurKernel; dy <= blurKernel; dy++) {
+                        for (let dx = -blurKernel; dx <= blurKernel; dx++) {
                             sum += grayscale[(y + dy) * width + (x + dx)];
                         }
                     }
-                    blurred[y * width + x] = sum / 9;
+                    blurred[y * width + x] = sum / 25;
                 }
             }
             // Copy back to grayscale for next steps
@@ -102,11 +104,10 @@ export const processScannerImage = async (
                 }
             }
 
-
             // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
             onStatusUpdate?.('Removing shadows...');
-            const s = Math.floor(width / 8); // Smaller window (1/8) handles gradients better
-            const t = 18; // Keep 18. With Blur back, this should be perfect.
+            const s = Math.floor(width / 8);
+            const t = 18; // Keep 18
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
@@ -177,17 +178,17 @@ export const processScannerImage = async (
                 }
             }
 
-
             // 3.1.5: Vertical Smear (Bridge Gaps)
-            // FIX: Only smear the BOTTOM 30% of the image.
-            // Smearing the top caused top desk noise to fuse with the paper, breaking the crop.
+            // Tuned: Radius 15px (was 20), Bottom 50% (was 30).
+            // - Reduced radius to prevent merging distant shadows (like the user's hand).
+            // - Increased area to 50% to safely catch high footers without touching the top desk edge.
             const smearedMask = new Uint8Array(width * height);
-            const smearRadius = 20; // Bridge gaps up to ~40px
-            const smearStart = Math.floor(height * 0.7); // Start smearing from bottom 30%
+            const smearRadius = 15;
+            const smearStart = Math.floor(height * 0.5);
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
-                    // Only apply smear logic in the bottom footer area
+                    // Only apply smear logic in the bottom half
                     if (y > smearStart && erodedMask[y * width + x] === 1) {
                         for (let k = 0; k <= smearRadius && y + k < height; k++) {
                             smearedMask[(y + k) * width + x] = 1;
@@ -197,9 +198,6 @@ export const processScannerImage = async (
                     if (erodedMask[y * width + x] === 1) smearedMask[y * width + x] = 1;
                 }
             }
-            // Use smearedMask for LCC, but keep erodedMask logic for final structure if needed?
-            // Actually, we want the detection to use the Connected Union.
-            // Let's copy smeared back to erodedMask for the LCC step.
             erodedMask.set(smearedMask);
 
             // 3.1.6: Noise Isolation - Largest Connected Component (LCC)

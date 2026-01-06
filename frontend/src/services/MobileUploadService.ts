@@ -72,7 +72,7 @@ class MobileUploadService {
             await setDoc(sessionRef, { status: 'uploading' }, { merge: true });
 
             // 2. Upload to Storage
-            const filename = `mobile_upload_${Date.now()}.jpg`;
+            const filename = `mobile_upload_${Date.now()}.png`;
             const storageRef = ref(storage, `temp_uploads/${sessionId}/${filename}`);
             await uploadBytes(storageRef, file);
             const downloadUrl = await getDownloadURL(storageRef);
