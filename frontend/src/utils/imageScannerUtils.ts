@@ -91,7 +91,7 @@ export const processScannerImage = async (
             // Step 2: Adaptive Thresholding (Bradley-Roth) - Tuned for maximum shadow kill
             onStatusUpdate?.('Removing shadows...');
             const s = Math.floor(width / 8); // Smaller window (1/8) handles gradients better
-            const t = 16; // Tuned to 16 per user request. Slight reduction to improve text clarity.
+            const t = 14; // Tuned to 14: Thicker text for better legibility (User Request "More Clear")
             const integralImage = new Float64Array(width * height);
 
             // Calculate integral image (2D prefix sum)
