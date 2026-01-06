@@ -37,6 +37,9 @@ TEMP_BACKUP_DIR=$(mktemp -d)
 if [ -f "deploy/firebase.json" ]; then
     cp deploy/firebase.json "$TEMP_BACKUP_DIR/"
 fi
+if [ -f "deploy/.firebaserc" ]; then
+    cp deploy/.firebaserc "$TEMP_BACKUP_DIR/"
+fi
 if [ -d "deploy/.firebase" ]; then
     # Use find to copy contents to avoid recursive nesting if we used cp -r deploy/.firebase
     mkdir -p "$TEMP_BACKUP_DIR/.firebase"
@@ -52,6 +55,9 @@ mkdir -p deploy/functions
 # Restore from backup
 if [ -f "$TEMP_BACKUP_DIR/firebase.json" ]; then
     cp "$TEMP_BACKUP_DIR/firebase.json" deploy/firebase.json
+fi
+if [ -f "$TEMP_BACKUP_DIR/.firebaserc" ]; then
+    cp "$TEMP_BACKUP_DIR/.firebaserc" deploy/.firebaserc
 fi
 if [ -d "$TEMP_BACKUP_DIR/.firebase" ]; then
     mkdir -p deploy/.firebase

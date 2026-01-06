@@ -72,7 +72,7 @@ const functionsPackageJson = {
   "main": "index.js",
   "type": "commonjs",
   "engines": {
-    "node": "22"
+    "node": "18"
   },
   "scripts": {
     "start": "node server.js"
@@ -112,17 +112,16 @@ fs.copyFileSync(
   path.join(deployDir, 'server.js')
 );
 
-// Create Firebase Functions index.js (using v2 for advanced options like memory/timeout)
-const indexJs = `const { onRequest } = require('firebase-functions/v2/https');
-const app = require('./server.js').default;
+// Create Firebase Functions index.js (v1)
+const indexJs = `const functions = require('firebase-functions');
+const app = require('./server.js').default || require('./server.js');
 
-// Export the Express app as a Firebase Function with increased memory and timeout
-exports.api = onRequest({ 
-  memory: '2GiB', 
+// Export the Express app as a Firebase Function
+// Using v1 syntax for stability and easier permissions
+exports.api = functions.runWith({
   timeoutSeconds: 300,
-  cpu: 1,
-  region: 'us-central1'
-}, app);
+  memory: '2GB'
+}).https.onRequest(app);
 `;
 
 fs.writeFileSync(path.join(deployDir, 'index.js'), indexJs);
