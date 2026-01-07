@@ -6,6 +6,8 @@ import {
     onSnapshot,
     deleteDoc,
     serverTimestamp,
+    updateDoc,
+    arrayUnion,
     type DocumentSnapshot
 } from 'firebase/firestore';
 import {
@@ -23,7 +25,7 @@ const TEMP_UPLOADS_COLLECTION = 'temp_uploads';
 export interface UploadSession {
     id: string;
     status: 'waiting' | 'uploading' | 'completed' | 'error';
-    imageUrl?: string;
+    imageUrls?: string[]; // Multiple images for batch
     filename?: string;
     createdAt: any;
 }
@@ -63,13 +65,13 @@ class MobileUploadService {
     }
 
     /**
-     * Upload an image from the mobile device
+     * Upload an image as part of a batch
      */
-    async uploadImage(sessionId: string, file: Blob): Promise<string> {
+    async uploadBatchImage(sessionId: string, file: Blob): Promise<string> {
         try {
-            // 1. Update status to uploading
             const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
-            await setDoc(sessionRef, { status: 'uploading' }, { merge: true });
+            // 1. Mark as uploading (transient state)
+            await updateDoc(sessionRef, { status: 'uploading' });
 
             // 2. Upload to Storage
             const filename = `mobile_upload_${Date.now()}.png`;
@@ -77,20 +79,36 @@ class MobileUploadService {
             await uploadBytes(storageRef, file);
             const downloadUrl = await getDownloadURL(storageRef);
 
-            // 3. Update Firestore with URL and completed status
-            await setDoc(sessionRef, {
-                status: 'completed',
-                imageUrl: downloadUrl,
-                filename: filename
-            }, { merge: true });
+            // 3. Atomically add to array and maintain 'uploading' status
+            await updateDoc(sessionRef, {
+                status: 'uploading',
+                imageUrls: arrayUnion(downloadUrl)
+            });
 
             return downloadUrl;
         } catch (error) {
             console.error('Mobile upload failed:', error);
             const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
-            await setDoc(sessionRef, { status: 'error' }, { merge: true });
+            await updateDoc(sessionRef, { status: 'error' });
             throw error;
         }
+    }
+
+    /**
+     * Legacy single upload (kept for compatibility)
+     */
+    async uploadImage(sessionId: string, file: Blob): Promise<string> {
+        const url = await this.uploadBatchImage(sessionId, file);
+        await this.finalizeSession(sessionId);
+        return url;
+    }
+
+    /**
+     * Mark the session as completed (Used by Mobile after all pages are sent)
+     */
+    async finalizeSession(sessionId: string): Promise<void> {
+        const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
+        await updateDoc(sessionRef, { status: 'completed' });
     }
 
     /**

@@ -461,22 +461,29 @@
 
 .followup-remove-preview {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 24px;
-  height: 24px;
+  top: -12px;
+  right: -12px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #ef4444;
   color: white;
-  border: none;
+  border: 2px solid var(--background-white-main);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: bold;
   line-height: 1;
   transition: all 0.2s ease;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.followup-remove-preview:hover {
+  background: #dc2626;
+  transform: scale(1.15) rotate(90deg);
 }
 
 .followup-remove-preview:hover {
@@ -609,11 +616,11 @@
 .multi-image-scroll {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
   overflow-x: auto;
   overflow-y: scroll;
-  max-height: 300px;
-  padding: 12px 12px 4px 0;
+  max-height: 400px;
+  padding: 16px 16px 8px 0;
   /* Add right padding to prevent button clipping */
   scrollbar-width: thin;
   scrollbar-color: #ccc transparent;
@@ -653,15 +660,15 @@
 
 .multi-image-remove {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
+  top: -10px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: #dc3545;
+  background: #ef4444;
   color: white;
-  border: none;
-  font-size: 14px;
+  border: 2px solid var(--background-white-main);
+  font-size: 18px;
   font-weight: bold;
   cursor: pointer;
   display: flex;
@@ -669,12 +676,13 @@
   justify-content: center;
   line-height: 1;
   transition: all 0.2s ease;
-  z-index: 1;
+  z-index: 100;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
 }
 
 .multi-image-remove:hover {
-  background: #c82333;
-  transform: scale(1.1);
+  background: #dc2626;
+  transform: scale(1.15) rotate(90deg);
 }
 
 .multi-image-label {

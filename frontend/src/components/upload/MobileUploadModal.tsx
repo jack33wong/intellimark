@@ -8,7 +8,7 @@ import './MobileUploadModal.css';
 interface MobileUploadModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onImageReceived: (imageUrl: string) => void;
+    onImageReceived: (imageUrls: string[]) => void;
 }
 
 const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
@@ -18,6 +18,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
 }) => {
     const [sessionId, setSessionId] = useState<string>('');
     const [status, setStatus] = useState<UploadSession['status']>('waiting');
+    const [receivedUrls, setReceivedUrls] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
 
     // Initialize session
@@ -26,6 +27,9 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
 
         const initSession = async () => {
             try {
+                // Reset state for new session
+                setReceivedUrls([]);
+                setError('');
                 const newSessionId = mobileUploadService.generateSessionId();
                 setSessionId(newSessionId);
                 setStatus('waiting');
@@ -46,20 +50,33 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
         const unsubscribe = mobileUploadService.listenToSession(sessionId, (data) => {
             if (data) {
                 setStatus(data.status);
-                if (data.status === 'completed' && data.imageUrl) {
-                    // Add a small delay so user sees the success state
-                    setTimeout(async () => {
-                        onImageReceived(data.imageUrl!);
-                        onClose();
-                        // Cleanup checks
-                        await mobileUploadService.cleanupSession(sessionId);
-                    }, 1500);
+                if (data.imageUrls && data.imageUrls.length > receivedUrls.length) {
+                    setReceivedUrls(data.imageUrls);
                 }
             }
         });
 
         return () => unsubscribe();
-    }, [sessionId, isOpen, onImageReceived, onClose]);
+    }, [sessionId, isOpen, receivedUrls.length]);
+
+    // Auto-import when completed
+    useEffect(() => {
+        // V16.1 Fix: Only fire if modal is actually open. 
+        // Prevents re-importing when component re-renders while closed.
+        if (isOpen && status === 'completed' && receivedUrls.length > 0) {
+            const handleAutoImport = async () => {
+                onImageReceived(receivedUrls);
+                onClose();
+                if (sessionId) {
+                    await mobileUploadService.cleanupSession(sessionId);
+                    // Clear local state to prevent "Zombie" re-mounts
+                    setReceivedUrls([]);
+                    setStatus('waiting');
+                }
+            };
+            handleAutoImport();
+        }
+    }, [status, receivedUrls, sessionId, onImageReceived, onClose, isOpen]);
 
     if (!isOpen) return null;
 
@@ -81,7 +98,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                     <p className="subtitle">Use your phone camera to snap & upload instantly</p>
 
                     <div className="qr-container">
-                        {status === 'waiting' && (
+                        {(status === 'waiting' || status === 'uploading') && receivedUrls.length === 0 && (
                             <div className="qr-wrapper">
                                 <QRCode
                                     value={uploadUrl}
@@ -89,74 +106,55 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                                     viewBox={`0 0 256 256`}
                                 />
+                                {status === 'uploading' && (
+                                    <div className="upload-spinner-overlay">
+                                        <Loader2 className="spin" size={32} />
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {status === 'uploading' && (
-                            <div className="status-wrapper uploading">
-                                <Loader2 size={48} className="spin" />
-                                <p>Receiving image...</p>
-                            </div>
-                        )}
-
-                        {status === 'completed' && (
+                        {receivedUrls.length > 0 && (
                             <div className="status-wrapper success">
                                 <div className="success-icon">
-                                    <Check size={32} />
+                                    {status === 'completed' ? <Check size={32} /> : <Loader2 className="spin" size={32} />}
                                 </div>
-                                <p>Image received!</p>
+                                <p>
+                                    {status === 'completed'
+                                        ? `Importing ${receivedUrls.length} Page${receivedUrls.length !== 1 ? 's' : ''}...`
+                                        : `${receivedUrls.length} Page${receivedUrls.length !== 1 ? 's' : ''} Received`
+                                    }
+                                </p>
                             </div>
                         )}
 
                         {status === 'error' && (
                             <div className="status-wrapper error" style={{ color: '#ef4444' }}>
-                                <div className="error-icon" style={{
-                                    width: '64px',
-                                    height: '64px',
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginBottom: '16px'
-                                }}>
-                                    <RefreshCw size={32} />
-                                </div>
+                                <RefreshCw size={32} />
                                 <p>Connection failed</p>
-                                <button
-                                    onClick={() => setStatus('waiting')}
-                                    style={{
-                                        marginTop: '12px',
-                                        background: 'transparent',
-                                        border: '1px solid currentColor',
-                                        padding: '6px 16px',
-                                        borderRadius: '16px',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem'
-                                    }}
-                                >
-                                    Try Again
-                                </button>
+                                <button onClick={() => setStatus('waiting')}>Try Again</button>
                             </div>
                         )}
                     </div>
 
-                    <div className="instructions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '240px' }}>
-                        <div className="step" style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
-                            <span className="step-num">1</span>
-                            <span>Open Camera</span>
+                    {receivedUrls.length === 0 && (
+                        <div className="instructions">
+                            <div className="step">
+                                <span className="step-num">1</span>
+                                <span>Open Camera</span>
+                            </div>
+                            <div className="step-line" />
+                            <div className="step">
+                                <span className="step-num">2</span>
+                                <span>Scan QR</span>
+                            </div>
+                            <div className="step-line" />
+                            <div className="step">
+                                <span className="step-num">3</span>
+                                <span>Upload</span>
+                            </div>
                         </div>
-                        <div className="step-line" style={{ width: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)', marginTop: '10px' }} />
-                        <div className="step" style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
-                            <span className="step-num">2</span>
-                            <span>Scan QR</span>
-                        </div>
-                        <div className="step-line" style={{ width: '1rem', height: '1px', background: 'rgba(255,255,255,0.1)', marginTop: '10px' }} />
-                        <div className="step" style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
-                            <span className="step-num">3</span>
-                            <span>Upload</span>
-                        </div>
-                    </div>
+                    )}
 
                     <div className="modal-footer">
                         <p className="helper-text">Works with standard iPhone & Android cameras</p>

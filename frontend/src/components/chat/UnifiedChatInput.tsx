@@ -539,7 +539,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     ) : (
                       <>
                         <img src={previewImage || ''} alt="Preview" className="followup-preview-image" />
-                        <button className="followup-remove-preview" onClick={removePreview} type="button">×</button>
+                        <button className="followup-remove-preview" onClick={(e) => { e.stopPropagation(); removePreview(); }} type="button">×</button>
                       </>
                     )}
                   </div>
@@ -582,6 +582,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   >
                     <Smartphone size={14} />
                   </button>
+                  {/* Development Only: Test Scanner Button (Safe for production) */}
+                  {window.location.hostname === 'localhost' && (
+                    <button
+                      className="followup-upload-button"
+                      onClick={() => document.getElementById('scanner-test-input')?.click()}
+                      disabled={isProcessing}
+                      title="Test Scanner (Dev Only)"
+                      style={{ backgroundColor: '#9333ea', color: 'white', marginLeft: '4px' }}
+                    >
+                      <Smartphone size={14} /> T
+                    </button>
+                  )}
                 </div>
                 <div className="followup-right-buttons">
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
@@ -649,44 +661,73 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
 
+      {/* Development Only: Hidden input for Scanner Test (Safe for production) */}
+      {window.location.hostname === 'localhost' && (
+        <input
+          id="scanner-test-input"
+          type="file"
+          accept="image/*"
+          onChange={async (e) => {
+            if (e.target.files && e.target.files[0]) {
+              try {
+                const { processScannerImage } = await import('../../utils/imageScannerUtils');
+                const processedBlob = await processScannerImage(e.target.files[0], {
+                  onStatusUpdate: (s) => console.log(s)
+                });
+                const processedFile = new File([processedBlob], `scanned-${e.target.files[0].name.replace(/\.[^/.]+$/, "")}.png`, { type: 'image/png' });
+
+                setImageFile(processedFile);
+                setImageFiles([]);
+                setIsMultiImage(false);
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === 'string') setPreviewImage(reader.result);
+                };
+                reader.readAsDataURL(processedFile);
+                setIsExpanded(true);
+              } catch (err) {
+                console.error("Scanner Failed:", err);
+              }
+              e.target.value = '';
+            }
+          }}
+          style={{ display: 'none' }}
+        />
+      )}
+
       <MobileUploadModal
         isOpen={isMobileUploadOpen}
         onClose={() => setIsMobileUploadOpen(false)}
-        onImageReceived={useCallback(async (imageUrl: string) => {
+        onImageReceived={useCallback(async (imageUrls: string[]) => {
           try {
-            // Fetch the image from the URL (which is a download URL from Firebase Storage)
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const filename = `mobile-scan-${Date.now()}.jpg`;
-            const file = new File([blob], filename, { type: 'image/jpeg' });
+            const files: File[] = [];
+            for (let i = 0; i < imageUrls.length; i++) {
+              const url = imageUrls[i];
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const filename = `mobile-scan-${Date.now()}-${i}.jpg`;
+              files.push(new File([blob], filename, { type: 'image/jpeg' }));
+            }
 
-            // Append to existing files if any
-            if (imageFiles.length > 0 || imageFile) {
-              const existingFiles = [...imageFiles, ...(imageFile ? [imageFile] : [])];
-              // Check for duplicates (unlikely with timestamp name but good practice)
-              if (!existingFiles.some(f => f.name === file.name)) {
-                const allFiles = [...existingFiles, file];
-                setImageFiles(allFiles);
-                setImageFile(null);
-                setPreviewImage(null);
-                setIsMultiImage(true);
-
-                // Add preview
-                setPreviewImages(prev => [...prev, imageUrl]);
-              }
-            } else {
-              // Single file case
-              setImageFile(file);
+            if (files.length === 1) {
+              setImageFile(files[0]);
               setImageFiles([]);
-              setPreviewImage(imageUrl);
+              setPreviewImage(imageUrls[0]);
               setPreviewImages([]);
               setIsMultiImage(false);
+            } else {
+              setImageFiles(files);
+              setImageFile(null);
+              setPreviewImage(null);
+              setPreviewImages(imageUrls);
+              setIsMultiImage(true);
             }
             setIsExpanded(true);
           } catch (err) {
-            console.error('Failed to process mobile image:', err);
+            console.error('Failed to process mobile images:', err);
           }
-        }, [imageFiles, imageFile])}
+        }, [setImageFile, setImageFiles, setPreviewImage, setPreviewImages, setIsMultiImage, setIsExpanded])}
       />
 
       {/* Enterprise Upgrade Modal */}
