@@ -169,10 +169,12 @@ export const processScannerImage = async (
             // Use standard Adaptive Thresholding on a BLURRED image to remove shadows/noise.
             // We reverted background division as it was unstable.
 
-            // 3.1 Blur the gray channel (7x7)
+            // 3.1 Blur the gray channel (Denoise)
+            // Tuning: Reduced from 7 (15x15) to 2 (5x5) to fix "Diffuse Ink".
+            // A smaller radius preserves text sharpness while still killing paper grain.
             const blurredGray = new Uint8ClampedArray(width * height);
             for (let i = 0; i < width * height; i++) blurredGray[i] = gray[i];
-            boxBlur(blurredGray, width, height, 7);
+            boxBlur(blurredGray, width, height, 2);
 
             // 3.2 Adaptive Threshold
             const thresholded = new Uint8ClampedArray(width * height);
@@ -188,12 +190,11 @@ export const processScannerImage = async (
                 }
             }
 
-            // TUNING FOR SHADOW RESCUE:
-            // High s (width/8) causes large shadows to turn black (global comparison).
-            // Low s (width/64) adapts to local shadow but might hollow thick text.
-            // Optimal: width / 40 (~100px on 4k). Large enough for text, small enough for hand shadow.
+            // TUNING FOR SHADOW RESCUE + CLARITY:
+            // s = width / 40 (~100px): Local adaptation kills heavy shadows.
+            // t = 15: Sharper cutoff (was 10). Increases contrast of faint text.
             const s = Math.round(width / 40);
-            const t = 10; // Lower threshold (10%) to be less aggressive.
+            const t = 15;
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
