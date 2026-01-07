@@ -479,7 +479,8 @@ export const processScannerImage = async (
             const warp = (
                 srcP: { x: number, y: number }[],
                 dstP: { x: number, y: number }[],
-                sW: number, sH: number, dW: number, dH: number
+                sW: number, sH: number, dW: number, dH: number,
+                srcData: Uint8ClampedArray = data // Default to main image data
             ) => {
                 const dCanvas = document.createElement('canvas');
                 dCanvas.width = dW; dCanvas.height = dH;
@@ -525,7 +526,7 @@ export const processScannerImage = async (
                         const sy = Math.floor((h[3] * x + h[4] * y + h[5]) / w);
                         if (sx >= 0 && sx < sW && sy >= 0 && sy < sH) {
                             const si = (sy * sW + sx) * 4; const di = (y * dW + x) * 4;
-                            dD[di] = data[si]; dD[di + 1] = data[si + 1]; dD[di + 2] = data[si + 2]; dD[di + 3] = 255;
+                            dD[di] = srcData[si]; dD[di + 1] = srcData[si + 1]; dD[di + 2] = srcData[si + 2]; dD[di + 3] = 255;
                         } else {
                             const di = (y * dW + x) * 4;
                             dD[di] = 255; dD[di + 1] = 255; dD[di + 2] = 255; dD[di + 3] = 255;
@@ -631,17 +632,64 @@ export const processScannerImage = async (
                 ctx.putImageData(imgData, 0, 0);
             };
 
+            // 3.5: Border Cleanup via Mask Compositing (Bulletproof)
+            // Problem: Margin expansion (10%) brings back desk texture, which becomes black noise.
+            // Solution: Warp the detection MASK along with the image. Force background pixels to White.
+
+            // 1. Warp the Image (Thresholded Data)
             const warpedCanvas = warp(
                 [tl, tr, br, bl],
                 [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }],
-                width, height, fW, fH
+                width, height, fW, fH,
+                data // Source: Thresholded Image
             );
 
-            if (warpedCanvas) {
-                // Post-process the warped result
-                cleanBorders(warpedCanvas);
-                // Return as PNG (Lossless)
-                warpedCanvas.toBlob((blob) => resolve(blob!), 'image/png');
+            // 2. Warp the Mask (dilatedMask2 - The Paper Blob)
+            // We need to convert the Uint8 mask to RGBA for the warp function
+            const maskData = new Uint8ClampedArray(width * height * 4);
+            for (let i = 0; i < width * height; i++) {
+                const val = dilatedMask2[i] === 1 ? 255 : 0;
+                maskData[i * 4] = val;   // R
+                maskData[i * 4 + 1] = val; // G
+                maskData[i * 4 + 2] = val; // B
+                maskData[i * 4 + 3] = 255; // A
+            }
+
+            const warpedMaskCanvas = warp(
+                [tl, tr, br, bl],
+                [{ x: 0, y: 0 }, { x: fW, y: 0 }, { x: fW, y: fH }, { x: 0, y: fH }],
+                width, height, fW, fH,
+                maskData // Source: The Mask
+            );
+
+            if (warpedCanvas && warpedMaskCanvas) {
+                const ctx = warpedCanvas.getContext('2d');
+                const maskCtx = warpedMaskCanvas.getContext('2d');
+                if (ctx && maskCtx) {
+                    const outData = ctx.getImageData(0, 0, fW, fH);
+                    const outMask = maskCtx.getImageData(0, 0, fW, fH).data;
+                    const d = outData.data;
+
+                    // 3. Composite: If Mask says "Background", Set to White.
+                    // We check the Red channel of the mask (0 = Black/Bg, 255 = White/Paper)
+                    for (let i = 0; i < fW * fH; i++) {
+                        // Use a loose threshold (128) to handle interpolation gray areas
+                        if (outMask[i * 4] < 128) {
+                            d[i * 4] = 255;     // R
+                            d[i * 4 + 1] = 255; // G
+                            d[i * 4 + 2] = 255; // B
+                            d[i * 4 + 3] = 255; // A
+                        }
+                    }
+                    ctx.putImageData(outData, 0, 0);
+
+                    // Optional: Run cleanBorders as a secondary safety net
+                    cleanBorders(warpedCanvas);
+
+                    warpedCanvas.toBlob((blob) => resolve(blob!), 'image/png');
+                } else {
+                    resolve(null as any); // Should not happen
+                }
             } else {
                 ctx.putImageData(imageData, 0, 0);
                 canvas.toBlob((blob) => resolve(blob!), 'image/png');
