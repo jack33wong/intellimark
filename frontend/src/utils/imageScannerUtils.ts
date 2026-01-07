@@ -536,18 +536,25 @@ export const processScannerImage = async (
                 return dCanvas;
             };
 
-            // 3.4: A4 Aspect Ratio Enforcement (Top-Down Fix)
+            // 3.4: "Smart Snap" Aspect Ratio Enforcement
+            // Problem: Angled A4 photos look short/fat (Squashed). 
+            // Solution: Snap to A4 (1:1.414) ONLY if the raw shape is within the "A4 Zone".
+            // Non-A4 items (Receipts, Square notes) are preserved exactly as-is.
+
             let fW = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
             let fH = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
 
-            // Fix "Not Top Down": Snap to A4 Ratio (1 : 1.414) if close
-            // This prevents "squashed" or "fat" rectangles.
             const currentRatio = fW / fH;
             const targetRatio = 1 / 1.414; // A4 Portrait (~0.707)
 
-            // If it's a portrait document (ratio < 0.9), force A4 aspect
-            if (currentRatio < 0.9) {
-                // Keep the larger dimension to maximize resolution
+            // A4 Zone: 0.60 to 0.85
+            // - Raw A4 is 0.707.
+            // - Angled A4 often reads as 0.75 - 0.80.
+            // - Receipts are usually < 0.50.
+            // - Letter/US Paper is ~0.77 (will snap to A4, which is acceptable).
+            // - Square-ish items are > 0.85.
+            if (currentRatio > 0.60 && currentRatio < 0.85) {
+                // It's likely an A4 Page -> Snap to Perfect Dimensions
                 if (fH > fW) {
                     fW = Math.round(fH * targetRatio);
                 } else {
