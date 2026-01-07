@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
-import { processScannerImage } from '../utils/imageScannerUtils';
+import { processScannerImage, performInstantCrop, NormalizedPoint } from '../utils/imageScannerUtils';
+import { useDocumentDetection } from '../hooks/useDocumentDetection';
 import { Camera, Image as ImageIcon, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
@@ -11,6 +12,17 @@ interface ScannedPage {
     preview: string;
     id: string;
 }
+
+// Helper: Check if corners form a valid convex shape (not twisted) (V19.2)
+const isValidQuad = (corners: NormalizedPoint[]) => {
+    if (!corners || corners.length !== 4) return false;
+
+    // Simple Sanity Check: Upper points should be above lower points
+    const avgTopY = (corners[0].y + corners[1].y) / 2;
+    const avgBotY = (corners[2].y + corners[3].y) / 2;
+
+    return avgTopY < avgBotY; // If top is below bottom, it's flipped/twisted
+};
 
 const MobileCameraPage: React.FC = () => {
     const { sessionId } = useParams<{ sessionId: string }>();
@@ -32,6 +44,20 @@ const MobileCameraPage: React.FC = () => {
     const activeStreamRef = useRef<MediaStream | null>(null);
     const allObjectUrls = useRef<Set<string>>(new Set());
     const carouselRef = useRef<HTMLDivElement>(null);
+
+    // Latest Corners Ref for Shutter (V19)
+    const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
+
+    // 1. Pro CV Engine (V19)
+    const { detectedCorners, isSteady, isCvReady } = useDocumentDetection(
+        videoRef,
+        streamStatus === 'active' && !isReviewOpen && !processingStep
+    );
+
+    // Update ref whenever hook gives new corners
+    useEffect(() => {
+        latestCornersRef.current = detectedCorners;
+    }, [detectedCorners]);
 
     // 1. Unified Camera Initialization (V15 - Crucial for iOS)
     useEffect(() => {
@@ -161,13 +187,24 @@ const MobileCameraPage: React.FC = () => {
         };
     }, [streamStatus]);
 
-    const addScannedPage = async (blob: Blob) => {
+    const addScannedPage = async (blob: Blob, cornersToUse?: NormalizedPoint[] | null) => {
         try {
-            setProcessingStep('Analyzing...');
-            const processedBlob = await processScannerImage(blob, {
-                quality: 1.0,
-                onStatusUpdate: setProcessingStep
-            });
+            let processedBlob: Blob;
+
+            if (cornersToUse) {
+                // FAST PATH: Use live detection results (V19)
+                console.log("Capture: Using live detected corners for instant crop");
+                setProcessingStep('Cropping...');
+                processedBlob = await performInstantCrop(blob, cornersToUse);
+            } else {
+                // SLOW PATH: Fallback to full analysis (e.g. uploaded file)
+                console.log("Capture: Performing full analysis");
+                setProcessingStep('Analyzing...');
+                processedBlob = await processScannerImage(blob, {
+                    quality: 1.0,
+                    onStatusUpdate: setProcessingStep
+                });
+            }
 
             const newPage: ScannedPage = {
                 blob: processedBlob,
@@ -201,6 +238,15 @@ const MobileCameraPage: React.FC = () => {
     const capturePhoto = () => {
         if (!videoRef.current || !canvasRef.current) return;
 
+        // Freeze the exact corners visible at this moment (V19)
+        let cornersAtCaptureMoment = latestCornersRef.current;
+
+        // SAFETY CHECK: Validate corners (V19.2)
+        if (cornersAtCaptureMoment && !isValidQuad(cornersAtCaptureMoment)) {
+            console.warn("Detected corners were twisted. Ignoring them.");
+            cornersAtCaptureMoment = null; // Fallback to full image scan
+        }
+
         const video = videoRef.current;
         const canvas = canvasRef.current;
 
@@ -213,10 +259,14 @@ const MobileCameraPage: React.FC = () => {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(async (blob) => {
                 if (blob) {
-                    await addScannedPage(blob);
+                    await addScannedPage(blob, cornersAtCaptureMoment);
                 }
             }, 'image/jpeg', 0.95);
         }
+    };
+
+    const getPolygonPoints = (corners: NormalizedPoint[]) => {
+        return corners.map(p => `${p.x * 100},${p.y * 100}`).join(' ');
     };
 
     const removePage = (id: string) => {
@@ -250,7 +300,7 @@ const MobileCameraPage: React.FC = () => {
             // Clear batch
             scannedPages.forEach(p => URL.revokeObjectURL(p.preview));
             setScannedPages([]);
-            setStatus('idle');
+            setStatus('success');
             setIsReviewOpen(false);
 
             // Auto-dismiss notification
@@ -275,136 +325,200 @@ const MobileCameraPage: React.FC = () => {
             <div className="mobile-content">
                 <div className="brand-logo"><img src="/images/logo.png" alt="IntelliMark" /></div>
 
-                {!!processingStep && (
-                    <div className="processing-overlay">
-                        <div className="processing-content">
-                            <Wand2 className="processing-icon spin-pulse" size={48} />
-                            <h3>{processingStep}</h3>
-                            <p>Optimizing for AI marking</p>
-                        </div>
-                    </div>
-                )}
-
-                <div className="camera-viewport">
-                    {/* Always render video to ensure Ref availability, hidden until active */}
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="live-camera"
-                        onLoadedData={() => {
-                            console.log("[Camera] Data loaded, switching to active");
-                            setStreamStatus('active');
-                            setCameraError(null);
-                        }}
-                        style={{
-                            opacity: streamStatus === 'active' ? 1 : 0.01,
-                            pointerEvents: streamStatus === 'active' ? 'auto' : 'none'
-                        }}
-                    />
-
-                    {streamStatus !== 'active' && (
-                        <div className="view-finder" onClick={manualStart} style={{ cursor: 'pointer' }}>
-                            {streamStatus === 'denied' ? (
-                                <>
-                                    <AlertCircle size={48} color="#ef4444" />
-                                    <p>Camera permission denied.</p>
-                                    <button className="retry-perm-btn" onClick={() => window.location.reload()}>
-                                        <RotateCw size={16} /> Enable Camera
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <Loader2 size={48} className="spin" />
-                                    <p style={{ fontWeight: '600', fontSize: '1.2rem', color: '#fff', marginTop: '12px' }}>
-                                        {activeStreamRef.current ? "Scanner Ready" : "Starting Camera..."}
-                                    </p>
-                                    <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '8px' }}>
-                                        {activeStreamRef.current ? "Tap anywhere to begin" : "Please wait a moment..."}
-                                    </p>
-
-                                    {cameraError && (
-                                        <div className="camera-error-inline" style={{ marginTop: '10px', fontSize: '12px', color: '#ff6b6b', padding: '0 20px', textAlign: 'center', zIndex: 100 }}>
-                                            <p onClick={() => setShowDebug(!showDebug)} style={{ textDecoration: 'underline', cursor: 'pointer', marginBottom: '8px' }}>
-                                                {showDebug ? 'Hide Technical Info' : 'Show Technical Info'}
-                                            </p>
-                                            {showDebug && <code style={{ display: 'block', background: 'rgba(0,0,0,0.8)', padding: '10px', borderRadius: '8px', wordBreak: 'break-all', color: '#fff' }}>{cameraError}</code>}
-                                        </div>
-                                    )}
-
-
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="camera-guides" style={{ opacity: streamStatus === 'active' ? 1 : 0 }}>
-                        <div className="corner-tl" />
-                        <div className="corner-tr" />
-                        <div className="corner-bl" />
-                        <div className="corner-br" />
-                    </div>
-
-                    {scannedPages.length > 0 && (
-                        <div className="floating-batch-list" onClick={() => setIsReviewOpen(true)}>
-                            <div className="batch-count-indicator">{scannedPages.length}</div>
-                            <div className="batch-list-scroll">
-                                {scannedPages.map((page, idx) => (
-                                    <div key={page.id} className="batch-thumb">
-                                        <img src={page.preview} alt={`Scan ${idx + 1}`} />
-                                        <div className="thumb-idx">{idx + 1}</div>
-                                    </div>
-                                ))}
+                {status === 'success' ? (
+                    <div className="success-screen">
+                        <div className="success-content">
+                            <div className="success-checkmark">
+                                <Check size={64} />
                             </div>
-                        </div>
-                    )}
-
-                    {notification && (
-                        <div className={`toast-notification ${notification.type}`}>
-                            {notification.type === 'success' ? <Check size={18} /> : <X size={18} />}
-                            <span>{notification.message}</span>
-                        </div>
-                    )}
-
-                    {/* Development Only: Simualte Camera with File Pick */}
-                    {window.location.hostname === 'localhost' && sessionId && (
-                        <div className="mobile-dev-tools">
-                            <button className="dev-pick-btn" onClick={() => triggerCamera()}>
-                                <ImageIcon size={18} />
-                                <span>Simulate Camera</span>
+                            <h2>All Set!</h2>
+                            <p>Your work has been submitted successfully.</p>
+                            <div className="success-details">
+                                <p>You can now close this tab and return to your computer to see the results.</p>
+                            </div>
+                            <button className="done-close-btn" onClick={() => window.close()}>
+                                Close Scanner
                             </button>
                         </div>
-                    )}
-                    {/* Hidden Canvas for Capture */}
-                    <canvas ref={canvasRef} style={{ display: 'none' }} />
-                </div>
-            </div>
+                    </div>
+                ) : (
+                    <>
+                        {!!processingStep && (
+                            <div className="processing-overlay">
+                                <div className="processing-content">
+                                    <Wand2 className="processing-icon spin-pulse" size={48} />
+                                    <h3>{processingStep}</h3>
+                                    <p>Optimizing for AI marking</p>
+                                </div>
+                            </div>
+                        )}
 
-            <div className="mobile-actions">
-                <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+                        <div className="camera-viewport">
+                            {/* Always render video to ensure Ref availability, hidden until active */}
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="live-camera"
+                                onLoadedData={() => {
+                                    console.log("[Camera] Data loaded, switching to active");
+                                    setStreamStatus('active');
+                                    setCameraError(null);
+                                }}
+                                style={{
+                                    opacity: streamStatus === 'active' ? 1 : 0.01,
+                                    pointerEvents: streamStatus === 'active' ? 'auto' : 'none'
+                                }}
+                            />
 
-                <div className="shutter-row">
-                    <button className="gallery-btn" onClick={() => { fileInputRef.current?.removeAttribute('capture'); fileInputRef.current?.click(); }}>
-                        <ImageIcon size={24} />
-                    </button>
+                            {/* SHOW OPENCV LOADING STATE IF NEEDED (V19) */}
+                            {streamStatus === 'active' && !isCvReady && (
+                                <div className="cv-loading-toast">
+                                    Loading Computer Vision...
+                                </div>
+                            )}
 
-                    <button className="shutter-btn" onClick={capturePhoto} disabled={streamStatus !== 'active'}>
-                        <div className="shutter-inner" />
-                    </button>
+                            {/* THE NEW CAMSCANNER HIGHLIGHT OVERLAY (V19) */}
+                            {streamStatus === 'active' && detectedCorners && (
+                                <div className="detection-overlay">
+                                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                                        <polygon
+                                            points={getPolygonPoints(detectedCorners)}
+                                            fill="rgba(66, 245, 135, 0.25)"
+                                            stroke={isSteady ? "#42f587" : "rgba(255, 255, 255, 0.8)"}
+                                            strokeWidth="1.5"
+                                            vectorEffect="non-scaling-stroke"
+                                            style={{ transition: 'all 0.1s ease-out' }}
+                                        />
+                                        {detectedCorners.map((p, i) => (
+                                            <circle key={i} cx={p.x * 100} cy={p.y * 100} r="1.5" fill="#42f587" vectorEffect="non-scaling-stroke" />
+                                        ))}
+                                    </svg>
+                                    {isSteady && (
+                                        <div className="steady-indicator">
+                                            Hold Steady
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                    <button
-                        className={`action-btn done-submit-btn ${scannedPages.length > 0 ? 'active' : ''}`}
-                        onClick={handleUploadAll}
-                        disabled={scannedPages.length === 0 || status === 'uploading'}
-                    >
-                        <div className="done-icon-wrapper">
-                            {status === 'uploading' ? <Loader2 className="spin" size={20} /> : <Check size={20} />}
+                            {streamStatus !== 'active' && (
+                                <div className="view-finder" onClick={manualStart} style={{ cursor: 'pointer' }}>
+                                    {streamStatus === 'denied' ? (
+                                        <>
+                                            <AlertCircle size={48} color="#ef4444" />
+                                            <p>Camera permission denied.</p>
+                                            <button className="retry-perm-btn" onClick={() => window.location.reload()}>
+                                                <RotateCw size={16} /> Enable Camera
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Loader2 size={48} className="spin" />
+                                            <p className="status-main-text">
+                                                {activeStreamRef.current ? "Scanner Ready" : "Starting Camera..."}
+                                            </p>
+                                            <p className="status-sub-text">
+                                                {activeStreamRef.current ? "Tap anywhere to begin" : "Please wait a moment..."}
+                                            </p>
+
+                                            {cameraError && (
+                                                <div className="camera-error-inline">
+                                                    <p onClick={() => setShowDebug(!showDebug)} style={{ textDecoration: 'underline', cursor: 'pointer', marginBottom: '8px' }}>
+                                                        {showDebug ? 'Hide Technical Info' : 'Show Technical Info'}
+                                                    </p>
+                                                    {showDebug && <code className="debug-code">{cameraError}</code>}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="camera-guides" style={{ opacity: streamStatus === 'active' ? 1 : 0 }}>
+                                <div className="corner-tl" />
+                                <div className="corner-tr" />
+                                <div className="corner-bl" />
+                                <div className="corner-br" />
+                            </div>
+
+                            {/* Stacked Preview (V20) */}
+                            {scannedPages.length > 0 && (
+                                <div className="stacked-preview-container" onClick={() => setIsReviewOpen(true)}>
+                                    <div className="preview-stack">
+                                        {scannedPages.slice(-3).map((page, idx) => (
+                                            <div
+                                                key={page.id}
+                                                className="stack-layer"
+                                                style={{ transform: `rotate(${(idx - 1) * 5}deg) translate(${idx * 2}px, ${idx * 2}px)` }}
+                                            >
+                                                <img src={page.preview} alt="Stack" />
+                                            </div>
+                                        ))}
+                                        <div className="stack-badge">{scannedPages.length}</div>
+                                    </div>
+                                    <span className="modify-label">Modify</span>
+                                </div>
+                            )}
+
+                            {notification && (
+                                <div className={`toast-notification ${notification.type}`}>
+                                    {notification.type === 'success' ? <Check size={18} /> : <X size={18} />}
+                                    <span>{notification.message}</span>
+                                </div>
+                            )}
+
+                            {/* Development Only: Simualte Camera with File Pick */}
+                            {window.location.hostname === 'localhost' && sessionId && (
+                                <div className="mobile-dev-tools">
+                                    <button className="dev-pick-btn" onClick={() => triggerCamera()}>
+                                        <ImageIcon size={18} />
+                                        <span>Simulate Camera</span>
+                                    </button>
+                                </div>
+                            )}
+                            <canvas ref={canvasRef} style={{ display: 'none' }} />
                         </div>
-                        <span>Done</span>
-                    </button>
-                </div>
+                    </>
+                )}
             </div>
+
+            {status !== 'success' && (
+                <div className="mobile-actions">
+                    <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+
+                    <div className="scan-mode-label">Scan</div>
+
+                    <div className="shutter-row">
+                        <button
+                            className="action-icon-btn discard-btn"
+                            onClick={() => {
+                                if (window.confirm("Discard all scanned pages?")) {
+                                    scannedPages.forEach(p => URL.revokeObjectURL(p.preview));
+                                    setScannedPages([]);
+                                    setIsReviewOpen(false);
+                                }
+                            }}
+                            disabled={scannedPages.length === 0}
+                        >
+                            <Undo2 size={28} />
+                        </button>
+
+                        <button className="shutter-btn" onClick={capturePhoto} disabled={streamStatus !== 'active' || !!processingStep}>
+                            <div className="shutter-inner" />
+                        </button>
+
+                        <button
+                            className={`done-status-btn ${scannedPages.length > 0 ? 'active' : ''}`}
+                            onClick={handleUploadAll}
+                            disabled={scannedPages.length === 0 || status === 'uploading'}
+                        >
+                            {status === 'uploading' ? <Loader2 className="spin" size={20} /> : "Done"}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {isReviewOpen && (
                 <div className="review-modal">
