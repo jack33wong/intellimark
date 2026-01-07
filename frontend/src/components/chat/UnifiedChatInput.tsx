@@ -582,6 +582,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   >
                     <Smartphone size={14} />
                   </button>
+                  {/* TEMP: Test Scanner Button */}
+                  <button
+                    className="followup-upload-button"
+                    onClick={() => document.getElementById('scanner-test-input')?.click()}
+                    disabled={isProcessing}
+                    title="Test Scanner (Local)"
+                    style={{ backgroundColor: '#9333ea', color: 'white', marginLeft: '4px' }}
+                  >
+                    <Smartphone size={14} /> T
+                  </button>
                 </div>
                 <div className="followup-right-buttons">
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
@@ -648,6 +658,45 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       </div>
 
       <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
+
+      {/* Hidden input for Scanner Test */}
+      <input
+        id="scanner-test-input"
+        type="file"
+        accept="image/*"
+        onChange={async (e) => {
+          if (e.target.files && e.target.files[0]) {
+            try {
+              const { processScannerImage } = await import('../../utils/imageScannerUtils'); // Dynamic import to avoid cycles/bloat if simple
+              const processedBlob = await processScannerImage(e.target.files[0], {
+                onStatusUpdate: (s) => console.log(s) // Simple log
+              });
+              // Convert Blob to File
+              const processedFile = new File([processedBlob], `scanned-${e.target.files[0].name.replace(/\.[^/.]+$/, "")}.png`, { type: 'image/png' });
+
+              // Simulate file selection event structure to reuse handler logic
+              // But simpler: just set it directly since we processed it
+              setImageFile(processedFile);
+              setImageFiles([]); // Clear others for this test
+              setIsMultiImage(false);
+
+              // Preview
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === 'string') setPreviewImage(reader.result);
+              };
+              reader.readAsDataURL(processedFile);
+              setIsExpanded(true);
+
+            } catch (err) {
+              console.error("Scanner Failed:", err);
+              alert("Scanner failed: " + err);
+            }
+            e.target.value = ''; // Reset
+          }
+        }}
+        style={{ display: 'none' }}
+      />
 
       <MobileUploadModal
         isOpen={isMobileUploadOpen}
