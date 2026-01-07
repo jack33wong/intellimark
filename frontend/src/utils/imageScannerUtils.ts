@@ -213,6 +213,25 @@ export const processScannerImage = async (
                 }
             }
 
+            // 3.3 GEOMETRIC FILL (Clarity V6)
+            // Problem: Ballpoint pens leave "hollow" centers (railroad tracks).
+            // Solution: Simulate Dilation using Box Blur on the binary mask.
+            // If nearby pixels are black (>12% coverage), fill the gap.
+
+            const geometricTemp = new Uint8ClampedArray(width * height);
+            // Scale up to 0-255 for blur precision
+            for (let i = 0; i < width * height; i++) geometricTemp[i] = thresholded[i] * 255;
+
+            // Radius 3 (7x7) -> Bridges ~6px gaps (enough for 4500px strokes)
+            boxBlur(geometricTemp, width, height, 3);
+
+            // Apply Fill
+            for (let i = 0; i < width * height; i++) {
+                if (geometricTemp[i] > 30) { // >12% coverage in kernel -> Solid Black
+                    thresholded[i] = 1;
+                }
+            }
+
             // Apply thresholded result to image data (This is what wraps around the paper)
             for (let i = 0; i < width * height; i++) {
                 const val = thresholded[i] === 1 ? 0 : 255;
