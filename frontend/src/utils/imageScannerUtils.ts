@@ -188,8 +188,12 @@ export const processScannerImage = async (
                 }
             }
 
-            const s = Math.round(width / 8);
-            const t = 15; // Tuned for Otsu+Blur approach
+            // TUNING FOR SHADOW RESCUE:
+            // High s (width/8) causes large shadows to turn black (global comparison).
+            // Low s (width/64) adapts to local shadow but might hollow thick text.
+            // Optimal: width / 40 (~100px on 4k). Large enough for text, small enough for hand shadow.
+            const s = Math.round(width / 40);
+            const t = 10; // Lower threshold (10%) to be less aggressive.
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
