@@ -192,9 +192,10 @@ export const processScannerImage = async (
 
             // TUNING FOR SHADOW RESCUE + CLARITY:
             // s = width / 40 (~100px): Local adaptation kills heavy shadows.
-            // t = 15: Sharper cutoff (was 10). Increases contrast of faint text.
+            // t = 10: Lowered from 15 to fix "Hollow Text".
+            // Combination: Low Blur (2) + Low Threshold (10) = Sharp, Filled Text.
             const s = Math.round(width / 40);
-            const t = 15;
+            const t = 10;
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
