@@ -170,11 +170,12 @@ export const processScannerImage = async (
             // We reverted background division as it was unstable.
 
             // 3.1 Blur the gray channel (Denoise)
-            // Tuning: Reduced from 7 (15x15) to 2 (5x5) to fix "Diffuse Ink".
-            // A smaller radius preserves text sharpness while still killing paper grain.
+            // Tuning: Set to 4 (9x9).
+            // At 4500px, Radius 2 (5x5) was too small, causing "Broken" text (ink variation).
+            // Radius 4 is large enough to smooth strokes but sharper than original 7.
             const blurredGray = new Uint8ClampedArray(width * height);
             for (let i = 0; i < width * height; i++) blurredGray[i] = gray[i];
-            boxBlur(blurredGray, width, height, 2);
+            boxBlur(blurredGray, width, height, 4);
 
             // 3.2 Adaptive Threshold
             const thresholded = new Uint8ClampedArray(width * height);
@@ -192,10 +193,9 @@ export const processScannerImage = async (
 
             // TUNING FOR SHADOW RESCUE + CLARITY:
             // s = width / 40 (~100px): Local adaptation kills heavy shadows.
-            // t = 10: Lowered from 15 to fix "Hollow Text".
-            // Combination: Low Blur (2) + Low Threshold (10) = Sharp, Filled Text.
+            // t = 12: Balanced. (10 was solid but maybe noisy, 15 was hollow).
             const s = Math.round(width / 40);
-            const t = 10;
+            const t = 12;
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
