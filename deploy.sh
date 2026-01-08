@@ -117,6 +117,7 @@ if [ $? -eq 0 ]; then
     echo "✅ Deployment completed successfully!"
     echo "🌐 Your app is live at: https://ai-marking-6649e.web.app"
     echo "📊 Backend API: https://us-central1-ai-marking-6649e.cloudfunctions.net/api"
+    echo "⏰ Deployment Time: $(date)"
 else
     echo "❌ Deployment failed"
     exit 1
