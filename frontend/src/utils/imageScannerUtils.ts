@@ -381,6 +381,26 @@ export const performInstantCrop = async (
                 enhanced[i + 3] = 255;
             }
 
+            // --- V17 FIX: EDGE WHITENING (The "Scanner Trick") ---
+            // We overwrite the outer 20 pixels with pure white.
+            // This hides any "wood slivers" caused by imperfect cropping.
+            const BORDER_SIZE = 20; // 20px white frame
+
+            for (let y = 0; y < TARGET_HEIGHT; y++) {
+                for (let x = 0; x < TARGET_WIDTH; x++) {
+                    // Check if pixel is near the edge
+                    if (x < BORDER_SIZE || x > TARGET_WIDTH - BORDER_SIZE ||
+                        y < BORDER_SIZE || y > TARGET_HEIGHT - BORDER_SIZE) {
+
+                        const idx = (y * TARGET_WIDTH + x) * 4;
+                        enhanced[idx] = 255;   // R
+                        enhanced[idx + 1] = 255; // G
+                        enhanced[idx + 2] = 255; // B
+                        enhanced[idx + 3] = 255; // Alpha
+                    }
+                }
+            }
+
             const fCanvas = document.createElement('canvas');
             fCanvas.width = TARGET_WIDTH; fCanvas.height = TARGET_HEIGHT;
             fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, TARGET_WIDTH, TARGET_HEIGHT), 0, 0);
