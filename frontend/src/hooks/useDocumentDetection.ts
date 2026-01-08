@@ -19,10 +19,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     const HISTORY_LENGTH = 5;
 
-    // V17 CONFIG: TIGHTER TOLERANCES
-    const PAD_TOP = 0.05;    // 5% Up (was 9%)
-    const PAD_BOTTOM = 0.18; // 18% Down (Keep for barcode)
-    const PAD_SIDE = 0.03;   // 3% Side (was 6%)
+    // V13 CONFIG: Asymmetric Inflation (Best for Exam Papers)
+    const PAD_TOP = 0.09;    // 9% Up
+    const PAD_BOTTOM = 0.18; // 18% Down
+    const PAD_SIDE = 0.06;   // 6% Side
 
     const isCvReady = () => window.cv && window.cv.Mat;
 

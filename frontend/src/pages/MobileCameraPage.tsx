@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
 import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
 import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
-import { Camera, Image as ImageIcon, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle } from 'lucide-react';
+import { Camera, Image as ImageIcon, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
 
@@ -58,6 +58,7 @@ const MobileCameraPage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const [scannedPages, setScannedPages] = useState<ScannedPage[]>([]);
     const [currentPreview, setCurrentPreview] = useState<string | null>(null);
@@ -101,6 +102,8 @@ const MobileCameraPage: React.FC = () => {
                 const constraints = {
                     video: {
                         facingMode: 'environment',
+                        // We ask for a standard aspect ratio (4:3) which uses the full sensor
+                        aspectRatio: { ideal: 1.333 },
                         width: { ideal: 4096 },
                         height: { ideal: 2160 },
                         // Focus mode is critical for text
@@ -359,8 +362,19 @@ const MobileCameraPage: React.FC = () => {
 
     return (
         <div className="mobile-page">
-            <div className="mobile-content">
-                <div className="brand-logo"><img src="/images/logo.png" alt="IntelliMark" /></div>
+            <div className="mobile-content" style={{ backgroundColor: '#000' }}>
+                {/* V19 TOP BAR */}
+                <div style={{
+                    padding: '20px', display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', zIndex: 20,
+                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)'
+                }}>
+                    <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'white' }}>
+                        <ArrowLeft size={28} />
+                    </button>
+                    <div style={{ color: 'white', fontWeight: 600 }}>Scan Document</div>
+                    <div style={{ width: 28 }}></div>
+                </div>
 
                 {status === 'success' ? (
                     <div className="success-screen">
@@ -390,7 +404,7 @@ const MobileCameraPage: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="camera-viewport">
+                        <div className="camera-viewport" ref={containerRef} style={{ backgroundColor: '#000' }}>
                             {/* Always render video to ensure Ref availability, hidden until active */}
                             <video
                                 ref={videoRef}
@@ -413,7 +427,7 @@ const MobileCameraPage: React.FC = () => {
                             />
 
                             {/* GREEN BOX OVERLAY */}
-                            {detectedCorners && videoRef.current && (
+                            {detectedCorners && videoRef.current && containerRef.current && (
                                 <div className="detection-overlay">
                                     <svg
                                         style={{
@@ -428,7 +442,7 @@ const MobileCameraPage: React.FC = () => {
                                     >
                                         <polygon
                                             points={detectedCorners.map(p => {
-                                                const rect = videoRef.current!.getBoundingClientRect();
+                                                const rect = containerRef.current!.getBoundingClientRect();
                                                 const mapped = mapPointToScreen(
                                                     p,
                                                     videoRef.current!.videoWidth,
@@ -440,21 +454,9 @@ const MobileCameraPage: React.FC = () => {
                                             }).join(' ')}
                                             fill="rgba(66, 245, 135, 0.2)"
                                             stroke="#42f587"
-                                            strokeWidth="3"
+                                            strokeWidth="2"
                                             strokeLinejoin="round"
                                         />
-                                        {/* Corners */}
-                                        {detectedCorners.map((p, i) => {
-                                            const rect = videoRef.current!.getBoundingClientRect();
-                                            const mapped = mapPointToScreen(
-                                                p,
-                                                videoRef.current!.videoWidth,
-                                                videoRef.current!.videoHeight,
-                                                rect.width,
-                                                rect.height
-                                            );
-                                            return <circle key={i} cx={mapped.x} cy={mapped.y} r="6" fill="#42f587" />;
-                                        })}
                                     </svg>
                                     {isSteady && (
                                         <div className="steady-indicator">
@@ -553,12 +555,10 @@ const MobileCameraPage: React.FC = () => {
             </div>
 
             {status !== 'success' && (
-                <div className="mobile-actions">
+                <div className="mobile-actions" style={{ padding: '40px 20px', background: 'black', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
                     <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
 
-                    <div className="scan-mode-label">Scan</div>
-
-                    <div className="shutter-row">
+                    <div className="shutter-row" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
                         <button
                             className="action-icon-btn discard-btn"
                             onClick={() => {
@@ -569,18 +569,33 @@ const MobileCameraPage: React.FC = () => {
                                 }
                             }}
                             disabled={scannedPages.length === 0}
+                            style={{ background: 'none', border: 'none', color: 'white' }}
                         >
                             <Undo2 size={28} />
                         </button>
 
-                        <button className="shutter-btn" onClick={capturePhoto} disabled={streamStatus !== 'active' || !!processingStep}>
-                            <div className="shutter-inner" />
+                        <button
+                            className="shutter-btn"
+                            onClick={capturePhoto}
+                            disabled={streamStatus !== 'active' || !!processingStep}
+                            style={{
+                                width: '80px', height: '80px', borderRadius: '50%',
+                                backgroundColor: 'white', border: '4px solid rgba(255,255,255,0.3)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <div style={{
+                                width: '68px', height: '68px', borderRadius: '50%',
+                                border: '2px solid black', backgroundColor: 'white'
+                            }} />
                         </button>
 
                         <button
                             className={`done-status-btn ${scannedPages.length > 0 ? 'active' : ''}`}
                             onClick={handleUploadAll}
                             disabled={scannedPages.length === 0 || status === 'uploading'}
+                            style={{ background: 'none', border: 'none', color: scannedPages.length > 0 ? '#42f587' : '#666', fontWeight: 'bold' }}
                         >
                             {status === 'uploading' ? <Loader2 className="spin" size={20} /> : "Done"}
                         </button>
