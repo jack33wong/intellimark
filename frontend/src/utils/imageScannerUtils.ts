@@ -1,10 +1,4 @@
-/**
- * Ultimate Document Scanner V12 - Morphological Edition
- * 1. Detection: Luminance-based (Otsu) - ignores wood grain/textures.
- * 2. Perspective: sortCorners ensures NO twisted/hourglass images.
- * 3. Shadow Killer: Morphological Closing (Max Filter) erases text from background map.
- * 4. Legibility: Gamma + Black Point Clamping + Division Normalization.
- */
+import { NormalizedPoint } from '../hooks/useDocumentDetection';
 
 export interface ScanOptions {
     contrast?: number;      // 0.0 to 2.0 (Default: 1.1)
@@ -185,6 +179,7 @@ function maxFilter(data: Uint8Array, w: number, h: number, radius: number) {
     return output;
 }
 
+// --- HELPER: Box Blur for Background Estimation ---
 function boxBlur(data: Uint8Array, w: number, h: number, r: number) {
     const temp = new Float32Array(data.length);
     const out = new Uint8Array(data.length);
@@ -279,7 +274,6 @@ function findCornersFromMask(mask: Uint8Array, w: number, h: number) {
 }
 
 // Interface for normalized points from the hook
-export interface NormalizedPoint { x: number; y: number; }
 
 /**
  * Performs an instant perspective crop using pre-calculated corners.
@@ -300,18 +294,32 @@ export const performInstantCrop = async (
             URL.revokeObjectURL(url);
             const w = img.width, h = img.height;
 
-            // 1. De-normalize
+            // 1. De-normalize to Full Resolution
             const realCorners = normalizedCorners.map(p => ({
                 x: Math.round(p.x * w),
                 y: Math.round(p.y * h)
             }));
 
-            // 2. FORCE HIGH-RES A4 DIMENSIONS (Fixes Distortion)
-            // A4 at ~300 DPI equivalent
-            const dwW = 2480;
-            const dhH = 3508;
+            // 2. High-Res Output (Force 2500px width min)
+            // This is critical for clarity on angled shots
+            const dist = (p1: any, p2: any) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            let dwW = Math.max(dist(realCorners[0], realCorners[1]), dist(realCorners[2], realCorners[3]));
+            let dhH = Math.max(dist(realCorners[0], realCorners[3]), dist(realCorners[1], realCorners[2]));
 
-            // 3. Get Source Data
+            if (dwW < 2500) {
+                const scale = 2500 / dwW;
+                dwW = 2500;
+                dhH = dhH * scale;
+            }
+
+            // A4 Snap
+            const ar = dwW / dhH;
+            if (ar > 0.6 && ar < 0.85) dwW = dhH * 0.707;
+
+            dwW = Math.round(dwW);
+            dhH = Math.round(dhH);
+
+            // 3. Draw Source
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -319,58 +327,62 @@ export const performInstantCrop = async (
             ctx.drawImage(img, 0, 0);
             const imgData = ctx.getImageData(0, 0, w, h);
 
-            // --- V8 NATIVE OPENCV WARP (Perfect Perspective) ---
+            // 4. OpenCV Hardware Warp (Perspective Fix)
             let src = cv.matFromImageData(imgData);
             let dst = new cv.Mat();
 
-            // Source Points (The Green Box)
             let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                realCorners[0].x, realCorners[0].y, // TL
-                realCorners[1].x, realCorners[1].y, // TR
-                realCorners[2].x, realCorners[2].y, // BR
-                realCorners[3].x, realCorners[3].y  // BL
+                realCorners[0].x, realCorners[0].y,
+                realCorners[1].x, realCorners[1].y,
+                realCorners[2].x, realCorners[2].y,
+                realCorners[3].x, realCorners[3].y
             ]);
 
-            // Destination Points (Perfect A4 Rectangle)
-            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0, 0,      // TL
-                dwW, 0,    // TR
-                dwW, dhH,  // BR
-                0, dhH     // BL
-            ]);
+            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, dwW, 0, dwW, dhH, 0, dhH]);
 
-            // Compute & Apply Transform
             let M = cv.getPerspectiveTransform(srcTri, dstTri);
-            cv.warpPerspective(src, dst, M, new cv.Size(dwW, dhH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+            // Linear Interpolation ensures text smoothness
+            cv.warpPerspective(src, dst, M, new cv.Size(dwW, dhH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255));
 
-            // Get Warped Data back to JS
             const warpedData = new Uint8ClampedArray(dst.data);
 
-            // Cleanup OpenCV objects immediately
+            // Cleanup OpenCV
             src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
 
-            // 4. ENHANCEMENT (Magic Color Clean)
+            // 5. "MAGIC COLOR" FILTER (Better than Thresholding)
+            // Uses Green Channel to estimate illumination and divide it out.
+
             const enhanced = new Uint8ClampedArray(dwW * dhH * 4);
             const gray = new Uint8Array(dwW * dhH);
-            for (let i = 0; i < dwW * dhH; i++) gray[i] = warpedData[i * 4 + 1]; // Green channel
 
-            // Shadow Map (Radius 3%)
+            // Extract Luma (Green channel is sharpest)
+            for (let i = 0; i < dwW * dhH; i++) gray[i] = warpedData[i * 4 + 1];
+
+            // Estimate Background (Shadows)
+            // Radius 3% covers text but captures shadows
             const bgBlur = boxBlur(gray, dwW, dhH, Math.ceil(dwW * 0.03));
 
             for (let i = 0; i < dwW * dhH; i++) {
                 const idx = i * 4;
-                const px = warpedData[idx + 1];
+                const px = warpedData[idx + 1]; // Use Green channel pixel
                 const bg = bgBlur[i] || 1;
 
-                // Division
+                // A. Division (The Magic Step)
+                // Removes shadows, makes background pure white (255)
                 let val = (px / bg) * 255;
 
-                // Gentle Gamma (1.2)
+                // B. Sharpening (Subtle Unsharp Mask)
+                // If pixel is darker than background, darken it further.
+                const diff = val - 255;
+                val = val + (diff * 0.5); // 50% sharpening
+
+                // C. Gamma Correction (Darken Text)
+                // 1.2 is natural. 1.8 is too black.
                 val = 255 * Math.pow(val / 255, 1.2);
 
-                // Clean ends
-                if (val < 40) val = val * 0.7; // Deepen blacks
-                if (val > 235) val = 255;      // Clean whites
+                // D. Soft Clamp
+                // Clean up near-whites
+                if (val > 230) val = 255;
 
                 val = Math.max(0, Math.min(255, val));
 
@@ -382,11 +394,10 @@ export const performInstantCrop = async (
 
             const fCanvas = document.createElement('canvas');
             fCanvas.width = dwW; fCanvas.height = dhH;
-            const imageData = new ImageData(dwW, dhH);
-            imageData.data.set(enhanced);
-            fCanvas.getContext('2d')?.putImageData(imageData, 0, 0);
+            fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, dwW, dhH), 0, 0);
+
             // High Quality JPEG
-            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.98);
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
         };
         img.onerror = reject;
         img.src = url;

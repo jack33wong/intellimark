@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
-import { processScannerImage, performInstantCrop, NormalizedPoint } from '../utils/imageScannerUtils';
-import { useDocumentDetection } from '../hooks/useDocumentDetection';
+import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
+import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
 import { Camera, Image as ImageIcon, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
@@ -270,9 +270,6 @@ const MobileCameraPage: React.FC = () => {
         }
     };
 
-    const getPolygonPoints = (corners: NormalizedPoint[]) => {
-        return corners.map(p => `${p.x * 100},${p.y * 100}`).join(' ');
-    };
 
     const removePage = (id: string) => {
         setScannedPages(prev => {
@@ -433,20 +430,33 @@ const MobileCameraPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* THE NEW CAMSCANNER HIGHLIGHT OVERLAY (V19) */}
+                            {/* THE NEW CAMSCANNER HIGHLIGHT OVERLAY (V19/V13 Production) */}
                             {streamStatus === 'active' && detectedCorners && (
                                 <div className="detection-overlay">
-                                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                                    <svg
+                                        style={{
+                                            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                                            pointerEvents: 'none', zIndex: 10
+                                        }}
+                                    >
                                         <polygon
-                                            points={getPolygonPoints(detectedCorners)}
-                                            fill="rgba(66, 245, 135, 0.25)"
-                                            stroke={isSteady ? "#42f587" : "rgba(255, 255, 255, 0.8)"}
-                                            strokeWidth="1.5"
-                                            vectorEffect="non-scaling-stroke"
-                                            style={{ transition: 'all 0.1s ease-out' }}
+                                            points={detectedCorners.map(p =>
+                                                `${p.x * window.innerWidth},${p.y * window.innerHeight}`
+                                            ).join(' ')}
+                                            fill="rgba(66, 245, 135, 0.2)" // Semi-transparent green fill
+                                            stroke="#42f587"               // Bright Green Stroke
+                                            strokeWidth="3"
+                                            strokeLinejoin="round"
                                         />
+                                        {/* Draw Corner Handles for better visibility */}
                                         {detectedCorners.map((p, i) => (
-                                            <circle key={i} cx={p.x * 100} cy={p.y * 100} r="1.5" fill="#42f587" vectorEffect="non-scaling-stroke" />
+                                            <circle
+                                                key={i}
+                                                cx={p.x * window.innerWidth}
+                                                cy={p.y * window.innerHeight}
+                                                r="6"
+                                                fill="#42f587"
+                                            />
                                         ))}
                                     </svg>
                                     {isSteady && (
