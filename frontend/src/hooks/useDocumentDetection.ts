@@ -244,7 +244,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
         };
     }, [isActive, videoRef]);
 
-    return { detectedCorners, isSteady, cvStatus, debugLog, debugCanvasRef };
+    return { detectedCorners, isSteady, isCvReady, cvStatus, debugLog, debugCanvasRef };
 };
 
 // --- Helpers remain the same ---
