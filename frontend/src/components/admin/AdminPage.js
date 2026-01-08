@@ -2138,8 +2138,8 @@ function AdminPage() {
                                                           {validationErrors.questionMismatches && validationErrors.questionMismatches[qIndex] && (
                                                             <span title={`Marks sum mismatch: Parent (${validationErrors.questionMismatches[qIndex].parent}) vs Sub (${validationErrors.questionMismatches[qIndex].sub})`} style={{ marginRight: '8px', cursor: 'help', fontSize: '16px' }}>❌</span>
                                                           )}
-                                                          {question.marks && (
-                                                            <span className="admin-question-marks">[{question.marks} marks]</span>
+                                                          {getQuestionMarksRecursive(question) > 0 && (
+                                                            <span className="admin-question-marks">[{getQuestionMarksRecursive(question)} marks]</span>
                                                           )}
                                                         </div>
                                                       )}
