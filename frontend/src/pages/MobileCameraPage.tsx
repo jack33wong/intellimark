@@ -13,6 +13,40 @@ interface ScannedPage {
     id: string;
 }
 
+// Add this helper function at the top of MobileCameraPage.tsx (outside the component)
+function mapPointToScreen(
+    p: { x: number; y: number },
+    videoW: number,
+    videoH: number,
+    screenW: number,
+    screenH: number
+) {
+    // Determine the scale based on "object-fit: cover" logic
+    const videoRatio = videoW / videoH;
+    const screenRatio = screenW / screenH;
+
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (screenRatio > videoRatio) {
+        // Screen is wider than video (Video is cropped top/bottom) - Rare on mobile
+        scale = screenW / videoW;
+        const drawnH = videoH * scale;
+        offsetY = (screenH - drawnH) / 2;
+    } else {
+        // Screen is taller than video (Video is cropped left/right) - Common on mobile
+        scale = screenH / videoH;
+        const drawnW = videoW * scale;
+        offsetX = (screenW - drawnW) / 2;
+    }
+
+    return {
+        x: (p.x * videoW * scale) + offsetX,
+        y: (p.y * videoH * scale) + offsetY
+    };
+}
+
 // Helper: Trust detection (V4TrustMode) - No longer rejecting "weird" quads
 const isValidQuad = (corners: NormalizedPoint[]) => {
     return true; // We always trust the green box if it's on screen
@@ -431,7 +465,7 @@ const MobileCameraPage: React.FC = () => {
                             )}
 
                             {/* THE NEW CAMSCANNER HIGHLIGHT OVERLAY (V19/V13 Production) */}
-                            {streamStatus === 'active' && detectedCorners && (
+                            {streamStatus === 'active' && detectedCorners && videoRef.current && (
                                 <div className="detection-overlay">
                                     <svg
                                         style={{
@@ -440,24 +474,41 @@ const MobileCameraPage: React.FC = () => {
                                         }}
                                     >
                                         <polygon
-                                            points={detectedCorners.map(p =>
-                                                `${p.x * window.innerWidth},${p.y * window.innerHeight}`
-                                            ).join(' ')}
-                                            fill="rgba(66, 245, 135, 0.2)" // Semi-transparent green fill
-                                            stroke="#42f587"               // Bright Green Stroke
+                                            points={detectedCorners.map(p => {
+                                                // MAP COORDINATES CORRECTLY
+                                                const mapped = mapPointToScreen(
+                                                    p,
+                                                    videoRef.current!.videoWidth,
+                                                    videoRef.current!.videoHeight,
+                                                    window.innerWidth,
+                                                    window.innerHeight
+                                                );
+                                                return `${mapped.x},${mapped.y}`;
+                                            }).join(' ')}
+                                            fill="rgba(66, 245, 135, 0.15)" // Lighter fill
+                                            stroke="#42f587"
                                             strokeWidth="3"
                                             strokeLinejoin="round"
                                         />
-                                        {/* Draw Corner Handles for better visibility */}
-                                        {detectedCorners.map((p, i) => (
-                                            <circle
-                                                key={i}
-                                                cx={p.x * window.innerWidth}
-                                                cy={p.y * window.innerHeight}
-                                                r="6"
-                                                fill="#42f587"
-                                            />
-                                        ))}
+                                        {/* Handles */}
+                                        {detectedCorners.map((p, i) => {
+                                            const mapped = mapPointToScreen(
+                                                p,
+                                                videoRef.current!.videoWidth,
+                                                videoRef.current!.videoHeight,
+                                                window.innerWidth,
+                                                window.innerHeight
+                                            );
+                                            return (
+                                                <circle
+                                                    key={i}
+                                                    cx={mapped.x}
+                                                    cy={mapped.y}
+                                                    r="6"
+                                                    fill="#42f587"
+                                                />
+                                            );
+                                        })}
                                     </svg>
                                     {isSteady && (
                                         <div className="steady-indicator">
