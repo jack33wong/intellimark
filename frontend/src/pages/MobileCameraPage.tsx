@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
 import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
 import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
-import { Camera, Image as ImageIcon, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Camera, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
 
@@ -55,7 +55,6 @@ const isValidQuad = (corners: NormalizedPoint[]) => {
 
 const MobileCameraPage: React.FC = () => {
     const { sessionId } = useParams<{ sessionId: string }>();
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -265,12 +264,6 @@ const MobileCameraPage: React.FC = () => {
         }
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            await addScannedPage(selectedFile);
-        }
-    };
 
     const capturePhoto = () => {
         if (!videoRef.current || !canvasRef.current) return;
@@ -354,9 +347,6 @@ const MobileCameraPage: React.FC = () => {
         }
     };
 
-    const triggerCamera = () => {
-        fileInputRef.current?.click();
-    };
 
 
 
@@ -525,15 +515,6 @@ const MobileCameraPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Development Only: Simualte Camera with File Pick */}
-                            {window.location.hostname === 'localhost' && sessionId && (
-                                <div className="mobile-dev-tools">
-                                    <button className="dev-pick-btn" onClick={() => triggerCamera()}>
-                                        <ImageIcon size={18} />
-                                        <span>Simulate Camera</span>
-                                    </button>
-                                </div>
-                            )}
                             <canvas ref={canvasRef} style={{ display: 'none' }} />
 
                             {/* CONFIRMATION TOAST (V37) */}
@@ -556,7 +537,6 @@ const MobileCameraPage: React.FC = () => {
 
             {status !== 'success' && (
                 <div className="mobile-actions" style={{ padding: '40px 20px', background: 'black', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
-                    <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
 
                     <div className="shutter-row" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
                         <button
