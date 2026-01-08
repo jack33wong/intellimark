@@ -582,16 +582,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   >
                     <Smartphone size={14} />
                   </button>
-                  {/* Development Only: Test Scanner Button (Safe for production) */}
+                  {/* Development Only: Mobile Camera Test Shortcut (Safe for production) */}
                   {window.location.hostname === 'localhost' && (
                     <button
                       className="followup-upload-button"
-                      onClick={() => document.getElementById('scanner-test-input')?.click()}
+                      onClick={() => navigate('/mobile-upload/test-dev-session')}
                       disabled={isProcessing}
-                      title="Test Scanner (Dev Only)"
-                      style={{ backgroundColor: '#9333ea', color: 'white', marginLeft: '4px' }}
+                      title="Test Mobile Camera (Dev Only)"
+                      style={{ backgroundColor: '#e11d48', color: 'white', marginLeft: '4px' }}
                     >
-                      <Smartphone size={14} /> T
+                      <Smartphone size={14} /> M
                     </button>
                   )}
                 </div>
@@ -661,40 +661,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
 
-      {/* Development Only: Hidden input for Scanner Test (Safe for production) */}
-      {window.location.hostname === 'localhost' && (
-        <input
-          id="scanner-test-input"
-          type="file"
-          accept="image/*"
-          onChange={async (e) => {
-            if (e.target.files && e.target.files[0]) {
-              try {
-                const { processScannerImage } = await import('../../utils/imageScannerUtils');
-                const processedBlob = await processScannerImage(e.target.files[0], {
-                  onStatusUpdate: (s) => console.log(s)
-                });
-                const processedFile = new File([processedBlob], `scanned-${e.target.files[0].name.replace(/\.[^/.]+$/, "")}.png`, { type: 'image/png' });
 
-                setImageFile(processedFile);
-                setImageFiles([]);
-                setIsMultiImage(false);
-
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (typeof reader.result === 'string') setPreviewImage(reader.result);
-                };
-                reader.readAsDataURL(processedFile);
-                setIsExpanded(true);
-              } catch (err) {
-                console.error("Scanner Failed:", err);
-              }
-              e.target.value = '';
-            }
-          }}
-          style={{ display: 'none' }}
-        />
-      )}
 
       <MobileUploadModal
         isOpen={isMobileUploadOpen}

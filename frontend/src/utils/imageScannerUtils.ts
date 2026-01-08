@@ -106,7 +106,6 @@ export const processScannerImage = async (
             for (let i = 0; i < finalW * finalH; i++) warpedGreen[i] = warped[i * 4 + 1];
 
             // 3.1 MORPHOLOGICAL CLOSING
-            // Erasure of text from bg map using Max Filter (Dilation)
             const textRemoved = maxFilter(warpedGreen, finalW, finalH, Math.ceil(finalW * 0.015));
 
             // Create Shadow Map with Heavy Blur
@@ -296,65 +295,79 @@ export const performInstantCrop = async (
 
         img.onload = () => {
             URL.revokeObjectURL(url);
+            const w = img.width, h = img.height;
 
-            const width = img.width;
-            const height = img.height;
-
-            // 1. De-normalize corners to full image coordinates
+            // 1. De-normalize
             const realCorners = normalizedCorners.map(p => ({
-                x: p.x * width,
-                y: p.y * height
+                x: Math.round(p.x * w),
+                y: Math.round(p.y * h)
             }));
 
-            // 2. Calculate destination dimensions (A4 logic)
+            // 2. Dimensions (High Res)
             const dist = (p1: any, p2: any) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
             let dwW = Math.max(dist(realCorners[0], realCorners[1]), dist(realCorners[2], realCorners[3]));
             let dhH = Math.max(dist(realCorners[0], realCorners[3]), dist(realCorners[1], realCorners[2]));
 
+            // Force Minimum 2000px width for clarity
+            if (dwW < 2000) {
+                const scale = 2000 / dwW;
+                dwW = 2000;
+                dhH = dhH * scale;
+            }
+
+            // Aspect Ratio Snap (A4)
             const ar = dwW / dhH;
-            // Snap to A4 portrait if close
             if (ar > 0.6 && ar < 0.85) dwW = dhH * 0.707;
-            // Snap to A4 landscape if close
-            else if (ar > 1.2 && ar < 1.5) dwW = dhH * 1.414;
+            dwW = Math.round(dwW); dhH = Math.round(dhH);
 
-            dwW = Math.round(dwW);
-            dhH = Math.round(dhH);
-
-            // 3. Draw original image to get data
+            // 3. Draw & Warp
             const canvas = document.createElement('canvas');
-            canvas.width = width; canvas.height = height;
+            canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            if (!ctx) { reject("Context failed"); return; }
+            if (!ctx) { reject("ctx"); return; }
             ctx.drawImage(img, 0, 0);
-            const data = ctx.getImageData(0, 0, width, height).data;
+            const data = ctx.getImageData(0, 0, w, h).data;
 
-            // 4. Perform the Warp using existing utility function
-            const warped = warpPerspective(data, width, height, realCorners, dwW, dhH);
+            // USE OpenCV Warp if available, fallback to manual logic
+            let warped;
+            if (window.cv && window.cv.Mat) {
+                console.log("🚀 USING OPENCV WARP");
+                warped = warpPerspectiveCV(data, w, h, realCorners, dwW, dhH);
+            } else {
+                console.log("⚠️ USING MANUAL WARP FALLBACK");
+                warped = warpPerspective(data, w, h, realCorners, dwW, dhH);
+            }
 
-            // --- PHASE 3: SHADOW KILLING ENHANCEMENT (V19.1 SYNC) ---
-            const blackPoint = 50;
-            const contrast = 1.1;
-
-            const warpedGreen = new Uint8Array(dwW * dhH);
-            for (let i = 0; i < dwW * dhH; i++) warpedGreen[i] = warped[i * 4 + 1];
-
-            // 3.1 MORPHOLOGICAL CLOSING
-            const textRemoved = maxFilter(warpedGreen, dwW, dhH, Math.ceil(dwW * 0.015));
-            const shadowMap = boxBlur(textRemoved, dwW, dhH, Math.ceil(dwW * 0.05));
-
+            // 4. "MAGIC COLOR" ENHANCEMENT (Natural Look)
             const enhanced = new Uint8ClampedArray(dwW * dhH * 4);
+            const gray = new Uint8Array(dwW * dhH);
+            for (let i = 0; i < dwW * dhH; i++) gray[i] = warped[i * 4 + 1]; // Green channel (best detail)
+
+            // Calculate Shadow Map (Background)
+            // Blur radius 3% of width
+            const bgBlur = boxBlur(gray, dwW, dhH, Math.ceil(dwW * 0.03));
 
             for (let i = 0; i < dwW * dhH; i++) {
-                const pixel = warped[i * 4 + 1];
-                const bg = shadowMap[i] || 1;
+                const px = warped[i * 4 + 1];
+                const bg = bgBlur[i] || 1;
 
-                // 3.2 Division Normalization
-                let val = (pixel / bg) * 255;
+                // A. Background Division (The core "Scanner" math)
+                // If Pixel == Background, Result is 255 (White)
+                // If Pixel < Background, Result is Darker (Text)
+                let val = (px / bg) * 255;
 
-                // 3.3 Gamma Correction & Enhancement
-                val = 255 * Math.pow(val / 255, 2.0); // Gamma
-                if (val < blackPoint) val = 0; // Black point clamp
-                val = ((val - 128) * contrast) + 128; // Contrast
+                // B. Gentle Gamma Correction
+                // Darken the pencil text naturally (1.3)
+                val = 255 * Math.pow(val / 255, 1.3);
+
+                // C. Black Point Clamp
+                // Only clamp extremely dark pixels to black. Leave gray pixels alone.
+                if (val < 50) val = val * 0.8;
+
+                // D. White Point Clamp
+                // Clean up near-white noise
+                if (val > 230) val = 255;
+
                 val = Math.max(0, Math.min(255, val));
 
                 enhanced[i * 4] = val;
@@ -363,14 +376,10 @@ export const performInstantCrop = async (
                 enhanced[i * 4 + 3] = 255;
             }
 
-            // 5. Put data onto final canvas
-            const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = dwW; finalCanvas.height = dhH;
-            const fCtx = finalCanvas.getContext('2d');
-            fCtx?.putImageData(new ImageData(enhanced, dwW, dhH), 0, 0);
-
-            // 6. Return result
-            finalCanvas.toBlob(blob => resolve(blob!), 'image/jpeg', 0.95);
+            const fCanvas = document.createElement('canvas');
+            fCanvas.width = dwW; fCanvas.height = dhH;
+            fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, dwW, dhH), 0, 0);
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
         };
         img.onerror = reject;
         img.src = url;
@@ -382,6 +391,45 @@ export function sortCorners(pts: { x: number, y: number }[]) {
     const top = pts.slice(0, 2).sort((a, b) => a.x - b.x);
     const bottom = pts.slice(2, 4).sort((a, b) => a.x - b.x);
     return [top[0], top[1], bottom[1], bottom[0]];
+}
+
+/**
+ * OpenCV Perspective Warp (Mathematically Perfect)
+ */
+function warpPerspectiveCV(srcData: Uint8ClampedArray, sw: number, sh: number, corners: any[], dw: number, dh: number) {
+    const cv = window.cv;
+    const src = cv.matFromImageData(new ImageData(srcData, sw, sh));
+    const dst = new cv.Mat();
+    const dsize = new cv.Size(dw, dh);
+
+    // Source coordinates
+    const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        corners[0].x, corners[0].y,
+        corners[1].x, corners[1].y,
+        corners[2].x, corners[2].y,
+        corners[3].x, corners[3].y
+    ]);
+
+    // Destination coordinates
+    const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        0, 0,
+        dw, 0,
+        dw, dh,
+        0, dh
+    ]);
+
+    const M = cv.getPerspectiveTransform(srcPts, dstPts);
+    cv.warpPerspective(src, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+    // Convert back to Uint8ClampedArray
+    const result = new Uint8ClampedArray(dw * dh * 4);
+    new ImageData(new Uint8ClampedArray(dst.data), dw, dh); // Validation
+    result.set(dst.data);
+
+    // Cleanup
+    src.delete(); dst.delete(); M.delete(); srcPts.delete(); dstPts.delete();
+
+    return result;
 }
 
 export function warpPerspective(src: Uint8ClampedArray, sw: number, sh: number, corners: any[], dw: number, dh: number) {

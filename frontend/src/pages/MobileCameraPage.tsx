@@ -13,15 +13,9 @@ interface ScannedPage {
     id: string;
 }
 
-// Helper: Check if corners form a valid convex shape (not twisted) (V19.2)
+// Helper: Trust detection (V4TrustMode) - No longer rejecting "weird" quads
 const isValidQuad = (corners: NormalizedPoint[]) => {
-    if (!corners || corners.length !== 4) return false;
-
-    // Simple Sanity Check: Upper points should be above lower points
-    const avgTopY = (corners[0].y + corners[1].y) / 2;
-    const avgBotY = (corners[2].y + corners[3].y) / 2;
-
-    return avgTopY < avgBotY; // If top is below bottom, it's flipped/twisted
+    return true; // We always trust the green box if it's on screen
 };
 
 const MobileCameraPage: React.FC = () => {
@@ -41,6 +35,7 @@ const MobileCameraPage: React.FC = () => {
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [showDebug, setShowDebug] = useState(false);
+    const [correctionMsg, setCorrectionMsg] = useState<string | null>(null);
     const activeStreamRef = useRef<MediaStream | null>(null);
     const allObjectUrls = useRef<Set<string>>(new Set());
     const carouselRef = useRef<HTMLDivElement>(null);
@@ -48,8 +43,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Pro CV Engine (V19)
-    const { detectedCorners, isSteady, isCvReady } = useDocumentDetection(
+    // 1. Pro CV Engine (V21/V23/V25)
+    const { detectedCorners, isSteady, isCvReady, cvStatus, debugLog, debugCanvasRef } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -67,21 +62,21 @@ const MobileCameraPage: React.FC = () => {
             if (isReviewOpen || selectedPageId) return;
 
             try {
-                console.log("[Camera] initializing...");
-                setStreamStatus('initializing');
-
+                console.log("[Camera] Requesting 4K...");
                 const constraints = {
                     video: {
                         facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
+                        width: { ideal: 4096 },
+                        height: { ideal: 2160 },
+                        // Focus mode is critical for text
+                        advanced: [{ focusMode: 'continuous' }] as any
                     },
                     audio: false
                 };
 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints)
                     .catch(async () => {
-                        console.warn("[Camera] Ideal constraints failed, falling back...");
+                        console.warn("[Camera] 4K constraints failed, falling back...");
                         return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                     });
 
@@ -192,6 +187,10 @@ const MobileCameraPage: React.FC = () => {
             let processedBlob: Blob;
 
             if (cornersToUse) {
+                // VISUAL FEEDBACK (V37)
+                setCorrectionMsg("⚡ Auto-Correcting Perspective...");
+                setTimeout(() => setCorrectionMsg(null), 2000);
+
                 // FAST PATH: Use live detection results (V19)
                 console.log("Capture: Using live detected corners for instant crop");
                 setProcessingStep('Cropping...');
@@ -238,14 +237,10 @@ const MobileCameraPage: React.FC = () => {
     const capturePhoto = () => {
         if (!videoRef.current || !canvasRef.current) return;
 
-        // Freeze the exact corners visible at this moment (V19)
-        let cornersAtCaptureMoment = latestCornersRef.current;
-
-        // SAFETY CHECK: Validate corners (V19.2)
-        if (cornersAtCaptureMoment && !isValidQuad(cornersAtCaptureMoment)) {
-            console.warn("Detected corners were twisted. Ignoring them.");
-            cornersAtCaptureMoment = null; // Fallback to full image scan
-        }
+        // 1. Get the detected corners
+        // IMPORTANT: We trust these corners now (V4 Aggressive Engine).
+        // If the green box is visible, we assume it's the valid boundary.
+        let cornersToUse = latestCornersRef.current;
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -259,7 +254,17 @@ const MobileCameraPage: React.FC = () => {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(async (blob) => {
                 if (blob) {
-                    await addScannedPage(blob, cornersAtCaptureMoment);
+                    // 2. DEBUG LOG (V4)
+                    if (cornersToUse) {
+                        console.log("🚀 FORCE CROP TRIGGERED", cornersToUse);
+                        setCorrectionMsg("Auto-Cropping...");
+                        setTimeout(() => setCorrectionMsg(null), 1500);
+                    } else {
+                        console.log("⚠️ No box detected, capturing full image");
+                    }
+
+                    // 3. Execute
+                    await addScannedPage(blob, cornersToUse);
                 }
             }, 'image/jpeg', 0.95);
         }
@@ -372,6 +377,53 @@ const MobileCameraPage: React.FC = () => {
                                 }}
                             />
 
+                            {/* --- ENHANCED DIAGNOSTIC HUD (V25) --- */}
+                            <div style={{
+                                position: 'absolute',
+                                top: '65px',
+                                left: '15px',
+                                width: '200px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                color: '#00ff00',
+                                padding: '10px',
+                                borderRadius: '12px',
+                                fontSize: '10px',
+                                fontFamily: 'monospace',
+                                zIndex: 9999,
+                                pointerEvents: 'none',
+                                border: '1px solid rgba(0, 255, 0, 0.3)',
+                                backdropFilter: 'blur(5px)'
+                            }}>
+                                <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: isCvReady ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
+                                <div style={{ marginBottom: '6px' }}><strong>ENGINE:</strong> {debugLog}</div>
+
+                                {/* VISUAL X-RAY: See what the computer sees */}
+                                <div style={{
+                                    border: '1px solid #00ff00',
+                                    marginTop: '8px',
+                                    borderRadius: '4px',
+                                    overflow: 'hidden',
+                                    backgroundColor: '#000'
+                                }}>
+                                    <canvas
+                                        ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
+                                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                                    />
+                                </div>
+                                <div style={{ textAlign: 'center', color: '#666', marginTop: '4px', fontSize: '9px' }}>CV BINARY MASK</div>
+
+                                <div style={{ marginTop: '8px', borderTop: '1px solid rgba(0, 255, 0, 0.2)', paddingTop: '6px' }}>
+                                    <strong>LOCK:</strong> {detectedCorners ? (
+                                        <span style={{ color: isSteady ? '#00ff00' : '#ffff00' }}>
+                                            {isSteady ? 'SOLID 🟢' : 'HOLD... 🟡'}
+                                        </span>
+                                    ) : (
+                                        <span style={{ color: '#ff4444' }}>SEARCH 🔴</span>
+                                    )}
+                                </div>
+                            </div>
+                            {/* --- END HUD --- */}
+
                             {/* SHOW OPENCV LOADING STATE IF NEEDED (V19) */}
                             {streamStatus === 'active' && !isCvReady && (
                                 <div className="cv-loading-toast">
@@ -436,13 +488,6 @@ const MobileCameraPage: React.FC = () => {
                                 </div>
                             )}
 
-                            <div className="camera-guides" style={{ opacity: streamStatus === 'active' ? 1 : 0 }}>
-                                <div className="corner-tl" />
-                                <div className="corner-tr" />
-                                <div className="corner-bl" />
-                                <div className="corner-br" />
-                            </div>
-
                             {/* Stacked Preview (V20) */}
                             {scannedPages.length > 0 && (
                                 <div className="stacked-preview-container" onClick={() => setIsReviewOpen(true)}>
@@ -479,6 +524,20 @@ const MobileCameraPage: React.FC = () => {
                                 </div>
                             )}
                             <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+                            {/* CONFIRMATION TOAST (V37) */}
+                            {correctionMsg && (
+                                <div style={{
+                                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                                    background: 'rgba(0,0,0,0.85)', color: '#42f587', padding: '15px 25px', borderRadius: '30px',
+                                    fontWeight: 'bold', zIndex: 10000, display: 'flex', alignItems: 'center', gap: '10px',
+                                    backdropFilter: 'blur(10px)', border: '1px solid rgba(66, 245, 135, 0.3)',
+                                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)', whiteSpace: 'nowrap'
+                                }}>
+                                    <Wand2 size={20} />
+                                    {correctionMsg}
+                                </div>
+                            )}
                         </div>
                     </>
                 )}

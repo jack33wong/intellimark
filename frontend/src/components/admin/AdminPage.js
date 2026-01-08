@@ -64,9 +64,16 @@ const normalizeExamSeries = (series, board) => {
   const normalizedBoard = board ? normalizeExamBoard(board) : '';
 
   // Pearson Edexcel: map "May [Year]", "June [Year]" to "Summer [Year]"
-  if (normalizedBoard === 'Pearson Edexcel' || !normalizedBoard) {
+  if (normalizedBoard === 'Pearson Edexcel') {
     if (/^(May|June|Summer)\s+\d{4}$/i.test(normalizedSeries)) {
       return normalizedSeries.replace(/^(May|June|Summer)/i, 'Summer');
+    }
+  }
+
+  // OCR: map "May [Year]" to "June [Year]" (Series is often stored as June in schemes)
+  if (normalizedBoard === 'OCR') {
+    if (/^May\s+\d{4}$/i.test(normalizedSeries)) {
+      return normalizedSeries.replace(/^May/i, 'June');
     }
   }
 
@@ -1609,6 +1616,17 @@ function AdminPage() {
                                           title={hasMismatch ? `Structure Mismatch:\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
                                           onClick={(e) => {
                                             e.stopPropagation();
+
+                                            // Copy Mismatches to Clipboard (Admin Enhancement)
+                                            if (hasMismatch) {
+                                              const copyText = `Structure Mismatch for ${matchingScheme.board} ${matchingScheme.code}:\n${mismatches.join('\n')}`;
+                                              navigator.clipboard.writeText(copyText).then(() => {
+                                                alert('Copied structure mismatches to clipboard');
+                                              }).catch(err => {
+                                                console.error('Failed to copy mismatches:', err);
+                                              });
+                                            }
+
                                             console.log('Navigating to marking scheme:', matchingScheme.id);
                                             setActiveTab('marking-scheme');
                                             setExpandedMarkingSchemeId(matchingScheme.id);
