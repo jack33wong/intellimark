@@ -8,7 +8,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
     const [isSteady, setIsSteady] = useState(false);
 
-    // Debug
     const [cvStatus, setCvStatus] = useState<string>("Init...");
     const [debugLog, setDebugLog] = useState<string>("Waiting...");
     const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -19,10 +18,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     const HISTORY_LENGTH = 5;
 
-    // CONFIG: Inflation factors (Only applied if we detect "Inner Border")
-    const PAD_TOP = 0.09;
-    const PAD_BOTTOM = 0.18;
-    const PAD_SIDE = 0.06;
+    // --- V15: RADIAL INFLATION FACTOR ---
+    // 1.15 = Expand outwards by 15% from center.
+    // This naturally covers margins regardless of perspective angle.
+    const INFLATION_SCALE = 1.15;
 
     const isCvReady = () => window.cv && window.cv.Mat;
 
@@ -71,11 +70,12 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                 processingRef.current = true;
 
                 try {
-                    const w = 350;
+                    // Increase resolution slightly for better corner precision on angled shots
+                    const w = 400;
                     const scale = w / video.videoWidth;
                     const h = Math.floor(video.videoHeight * scale);
 
-                    // Debug Canvas Setup
+                    // Debug Canvas
                     let debugCtx: CanvasRenderingContext2D | null = null;
                     if (debugCanvasRef.current) {
                         debugCanvasRef.current.width = w;
@@ -91,37 +91,32 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     ctx.drawImage(video, 0, 0, w, h);
                     const imgData = ctx.getImageData(0, 0, w, h);
 
-                    // Load Data
                     if (src.cols !== w || src.rows !== h) {
                         src.delete(); src = new cv.Mat(h, w, cv.CV_8UC4);
                     }
                     src.data.set(imgData.data);
 
-                    // Blue Channel (Best for Wood vs Paper)
+                    // Blue Channel Strategy
                     cv.split(src, channels);
                     const bChannel = channels.get(2);
                     bChannel.copyTo(blue);
                     bChannel.delete();
 
-                    // Process
                     cv.GaussianBlur(blue, blurred, new cv.Size(5, 5), 0);
                     cv.Canny(blurred, edges, 30, 100);
                     cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, kernel);
 
-                    // Draw Raw Edges to Debug
+                    // Draw raw edges for debug
                     if (debugCtx) {
                         const imgDataEdges = new ImageData(new Uint8ClampedArray(w * h * 4), w, h);
                         for (let i = 0; i < w * h; i++) {
                             const val = edges.data[i];
-                            imgDataEdges.data[i * 4] = val;
-                            imgDataEdges.data[i * 4 + 1] = val;
-                            imgDataEdges.data[i * 4 + 2] = val;
-                            imgDataEdges.data[i * 4 + 3] = 255;
+                            imgDataEdges.data[i * 4] = val; imgDataEdges.data[i * 4 + 1] = val;
+                            imgDataEdges.data[i * 4 + 2] = val; imgDataEdges.data[i * 4 + 3] = 255;
                         }
                         debugCtx.putImageData(imgDataEdges, 0, 0);
                     }
 
-                    // Contours
                     cv.findContours(edges, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
 
                     let bestCorners: NormalizedPoint[] | null = null;
@@ -145,15 +140,11 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
                         if (pointsFound === 4) {
                             const pts = [];
-                            let touchesBorder = false;
-                            const buffer = 2;
+                            // Removed border check - we need to catch edges even if they touch screen bounds
                             for (let j = 0; j < 4; j++) {
-                                const px = poly.data32S[j * 2];
-                                const py = poly.data32S[j * 2 + 1];
-                                if (px < buffer || px > w - buffer || py < buffer || py > h - buffer) touchesBorder = true;
-                                pts.push({ x: px, y: py });
+                                pts.push({ x: poly.data32S[j * 2], y: poly.data32S[j * 2 + 1] });
                             }
-                            if (!touchesBorder) candidates.push({ area: area, pts: pts });
+                            candidates.push({ area: area, pts: pts });
                         }
                     }
 
@@ -164,108 +155,55 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         maxArea = winner.area;
                         const sorted = sortPointsClockwise(winner.pts);
 
-                        // --- RAW RED BOX (Visualization) ---
+                        // Draw Raw Red Box
                         if (debugCtx) {
-                            debugCtx.beginPath();
-                            debugCtx.strokeStyle = 'red';
-                            debugCtx.lineWidth = 2;
+                            debugCtx.beginPath(); debugCtx.strokeStyle = 'red'; debugCtx.lineWidth = 2;
                             debugCtx.moveTo(sorted[0].x, sorted[0].y);
                             sorted.forEach(p => debugCtx!.lineTo(p.x, p.y));
-                            debugCtx.closePath();
-                            debugCtx.stroke();
+                            debugCtx.closePath(); debugCtx.stroke();
                         }
 
-                        // --- SMART PROBE LOGIC ---
-                        // Check pixels 20px outside the detected box midpoints
-                        const center = { x: 0, y: 0 };
-                        sorted.forEach(p => { center.x += p.x; center.y += p.y; });
-                        center.x /= 4; center.y /= 4;
+                        // --- V15: RADIAL "CENTER-OUT" INFLATION ---
 
-                        let brightnessSum = 0;
-                        let probes = 0;
+                        // 1. Find geometric center
+                        const cx = (sorted[0].x + sorted[1].x + sorted[2].x + sorted[3].x) / 4;
+                        const cy = (sorted[0].y + sorted[1].y + sorted[2].y + sorted[3].y) / 4;
 
-                        // Check midpoint of Top, Right, Bottom, Left
-                        for (let i = 0; i < 4; i++) {
-                            const p1 = sorted[i];
-                            const p2 = sorted[(i + 1) % 4];
-                            const midX = (p1.x + p2.x) / 2;
-                            const midY = (p1.y + p2.y) / 2;
+                        // 2. Expand every point outwards from center by scale factor
+                        const inflated = sorted.map((p) => {
+                            // Vector from center to point
+                            const dx = p.x - cx;
+                            const dy = p.y - cy;
 
-                            // Vector from center to mid
-                            const vecX = midX - center.x;
-                            const vecY = midY - center.y;
+                            // Scale vector and add back to center
+                            return {
+                                x: cx + (dx * INFLATION_SCALE),
+                                y: cy + (dy * INFLATION_SCALE)
+                            };
+                        });
 
-                            // Normalize and extend by 20px
-                            const len = Math.hypot(vecX, vecY);
-                            const probeX = Math.round(midX + (vecX / len) * 20);
-                            const probeY = Math.round(midY + (vecY / len) * 20);
-
-                            if (probeX > 0 && probeX < w && probeY > 0 && probeY < h) {
-                                // Read Blue Channel Brightness
-                                const val = blue.ucharPtr(probeY, probeX)[0];
-                                brightnessSum += val;
-                                probes++;
-                                // Draw probe point
-                                if (debugCtx) {
-                                    debugCtx.fillStyle = val > 150 ? 'yellow' : 'blue';
-                                    debugCtx.fillRect(probeX - 2, probeY - 2, 4, 4);
-                                }
-                            }
-                        }
-
-                        const avgBrightness = probes > 0 ? brightnessSum / probes : 0;
-
-                        // DECISION:
-                        // High Brightness (>140) = White Paper outside = INNER BOX -> INFLATE
-                        // Low Brightness (<140) = Dark Wood outside = OUTER EDGE -> RAW
-                        const isInnerBox = avgBrightness > 140;
-
-                        let finalPts = sorted;
-
-                        if (isInnerBox) {
-                            // Apply Inflation
-                            const widthX = Math.hypot(sorted[0].x - sorted[1].x, sorted[0].y - sorted[1].y);
-                            const heightY = Math.hypot(sorted[0].x - sorted[3].x, sorted[0].y - sorted[3].y);
-                            const shiftX = widthX * PAD_SIDE;
-                            const shiftTop = heightY * PAD_TOP;
-                            const shiftBot = heightY * PAD_BOTTOM;
-
-                            finalPts = sorted.map((p) => {
-                                let dx = p.x - center.x;
-                                let dy = p.y - center.y;
-                                const nx = p.x + (dx > 0 ? shiftX : -shiftX);
-                                let ny = p.y;
-                                if (dy < 0) ny -= shiftTop; else ny += shiftBot;
-                                return { x: nx, y: ny };
-                            });
-
-                            setDebugLog(`Type: INNER (Bright: ${Math.round(avgBrightness)}) -> INFLATED`);
-                        } else {
-                            setDebugLog(`Type: OUTER (Dark: ${Math.round(avgBrightness)}) -> RAW`);
-                        }
-
-                        // --- GREEN BOX (Result) ---
-                        // Clamp
-                        const clamped = finalPts.map(p => ({
-                            x: Math.max(0.001, Math.min(w - 1.001, p.x)),
-                            y: Math.max(0.001, Math.min(h - 1.001, p.y))
+                        // 3. Safe Clamping (keep 1px buffer)
+                        const clamped = inflated.map(p => ({
+                            x: Math.max(1, Math.min(w - 1, p.x)),
+                            y: Math.max(1, Math.min(h - 1, p.y))
                         }));
 
+                        // Draw Final Green Box
                         if (debugCtx) {
-                            debugCtx.beginPath();
-                            debugCtx.strokeStyle = '#00ff00';
-                            debugCtx.lineWidth = 3;
+                            debugCtx.beginPath(); debugCtx.strokeStyle = '#00ff00'; debugCtx.lineWidth = 3;
                             debugCtx.moveTo(clamped[0].x, clamped[0].y);
                             clamped.forEach(p => debugCtx!.lineTo(p.x, p.y));
-                            debugCtx.closePath();
-                            debugCtx.stroke();
+                            debugCtx.closePath(); debugCtx.stroke();
                         }
 
                         bestCorners = clamped.map(p => ({ x: p.x / w, y: p.y / h }));
+                        setDebugLog(`LOCKED: Area ${Math.round(maxArea)}`);
+
                     } else {
                         setDebugLog("Searching...");
                     }
 
+                    // State Updates & Smoothing
                     if (bestCorners) {
                         historyRef.current.push(bestCorners);
                         if (historyRef.current.length > HISTORY_LENGTH) historyRef.current.shift();
@@ -292,6 +230,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
             loopRef.current = requestAnimationFrame(processFrame);
 
+            // Cleanup
             return () => {
                 cancelAnimationFrame(loopRef.current!);
                 try {
@@ -305,10 +244,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
         };
     }, [isActive, videoRef]);
 
-    return { detectedCorners, isSteady, cvStatus, debugLog, debugCanvasRef, isCvReady };
+    return { detectedCorners, isSteady, cvStatus, debugLog, debugCanvasRef };
 };
 
-// --- HELPERS ---
+// --- Helpers remain the same ---
 function sortPointsClockwise(pts: { x: number, y: number }[]) {
     const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
     const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
