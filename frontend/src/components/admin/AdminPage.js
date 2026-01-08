@@ -762,7 +762,9 @@ function AdminPage() {
       if (subQs.length > 0) {
         const subSum = subQs.reduce((s, sq) => s + getQuestionMarksRecursive(sq), 0);
         const pMark = parseFloat(q.marks) || parseFloat(q.max_marks) || parseFloat(q.total_marks) || 0;
-        if (pMark !== subSum && subSum > 0) {
+        // Only flag if parent has non-zero marks that conflict with sub-sum
+        // If parent is 0, we assume it's just a header/container (valid)
+        if (pMark > 0 && pMark !== subSum && subSum > 0) {
           errors.questionMismatches[idx] = { parent: pMark, sub: subSum };
         }
       }
