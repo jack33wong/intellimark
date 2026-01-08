@@ -14,6 +14,40 @@ interface ScannedPage {
 }
 
 
+// --- HELPER: Map Video Points to Screen (Supports Black Bars) ---
+function mapPointToScreen(
+    p: { x: number; y: number },
+    videoW: number,
+    videoH: number,
+    elementW: number,
+    elementH: number
+) {
+    const videoRatio = videoW / videoH;
+    const screenRatio = elementW / elementH;
+
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    // Logic for "object-fit: contain" (Fit within screen, show black bars)
+    if (screenRatio > videoRatio) {
+        // Screen is wider than video -> Video fits Height
+        scale = elementH / videoH;
+        const drawnW = videoW * scale;
+        offsetX = (elementW - drawnW) / 2; // Black bars on sides
+    } else {
+        // Screen is narrower than video -> Video fits Width
+        scale = elementW / videoW;
+        const drawnH = videoH * scale;
+        offsetY = (elementH - drawnH) / 2; // Black bars on top/bottom
+    }
+
+    return {
+        x: (p.x * videoW * scale) + offsetX,
+        y: (p.y * videoH * scale) + offsetY
+    };
+}
+
 // Helper: Trust detection (V4TrustMode) - No longer rejecting "weird" quads
 const isValidQuad = (corners: NormalizedPoint[]) => {
     return true; // We always trust the green box if it's on screen
@@ -370,75 +404,18 @@ const MobileCameraPage: React.FC = () => {
                                     setCameraError(null);
                                 }}
                                 style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'contain',
                                     opacity: streamStatus === 'active' ? 1 : 0.01,
                                     pointerEvents: streamStatus === 'active' ? 'auto' : 'none'
                                 }}
                             />
 
-                            {/* --- ENHANCED DIAGNOSTIC HUD (V25) --- */}
-                            <div style={{
-                                position: 'absolute',
-                                top: '65px',
-                                left: '15px',
-                                width: '200px',
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                color: '#00ff00',
-                                padding: '10px',
-                                borderRadius: '12px',
-                                fontSize: '10px',
-                                fontFamily: 'monospace',
-                                zIndex: 9999,
-                                pointerEvents: 'none',
-                                border: '1px solid rgba(0, 255, 0, 0.3)',
-                                backdropFilter: 'blur(5px)'
-                            }}>
-                                <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: isCvReady() ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
-                                <div style={{ marginBottom: '6px' }}><strong>ENGINE:</strong> {debugLog}</div>
-
-                                {/* VISUAL X-RAY: See what the computer sees */}
-                                <div style={{
-                                    border: '1px solid #00ff00',
-                                    marginTop: '8px',
-                                    borderRadius: '4px',
-                                    overflow: 'hidden',
-                                    backgroundColor: '#000'
-                                }}>
-                                    <canvas
-                                        ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
-                                        style={{ width: '100%', height: 'auto', display: 'block' }}
-                                    />
-                                </div>
-                                <div style={{ fontSize: '9px', color: '#fff', marginTop: '4px', textAlign: 'center' }}>
-                                    Red=Raw | Green=Adjusted
-                                </div>
-
-                                <div style={{ marginTop: '8px', borderTop: '1px solid rgba(0, 255, 0, 0.2)', paddingTop: '6px' }}>
-                                    <strong>LOCK:</strong> {detectedCorners ? (
-                                        <span style={{ color: isSteady ? '#00ff00' : '#ffff00' }}>
-                                            {isSteady ? 'SOLID 🟢' : 'HOLD... 🟡'}
-                                        </span>
-                                    ) : (
-                                        <span style={{ color: '#ff4444' }}>SEARCH 🔴</span>
-                                    )}
-                                </div>
-                            </div>
-                            {/* --- END HUD --- */}
-
-                            {/* SHOW OPENCV LOADING STATE IF NEEDED (V19) */}
-                            {streamStatus === 'active' && !isCvReady() && (
-                                <div className="cv-loading-toast">
-                                    Loading Computer Vision...
-                                </div>
-                            )}
-
-                            {/* GREEN BOX OVERLAY - PERFECT SYNC VERSION */}
+                            {/* GREEN BOX OVERLAY */}
                             {detectedCorners && videoRef.current && (
                                 <div className="detection-overlay">
                                     <svg
-                                        // 1. Set viewBox to match the raw VIDEO dimensions
-                                        viewBox={`0 0 ${videoRef.current.videoWidth} ${videoRef.current.videoHeight}`}
-                                        // 2. Preserve Aspect Ratio exactly like 'object-fit: cover'
-                                        preserveAspectRatio="xMidYMid slice"
                                         style={{
                                             position: 'absolute',
                                             top: 0,
@@ -450,25 +427,34 @@ const MobileCameraPage: React.FC = () => {
                                         }}
                                     >
                                         <polygon
-                                            points={detectedCorners.map(p =>
-                                                // Just use RAW video coordinates!
-                                                `${p.x * videoRef.current!.videoWidth},${p.y * videoRef.current!.videoHeight}`
-                                            ).join(' ')}
+                                            points={detectedCorners.map(p => {
+                                                const rect = videoRef.current!.getBoundingClientRect();
+                                                const mapped = mapPointToScreen(
+                                                    p,
+                                                    videoRef.current!.videoWidth,
+                                                    videoRef.current!.videoHeight,
+                                                    rect.width,
+                                                    rect.height
+                                                );
+                                                return `${mapped.x},${mapped.y}`;
+                                            }).join(' ')}
                                             fill="rgba(66, 245, 135, 0.2)"
                                             stroke="#42f587"
-                                            strokeWidth="5" // Thicker stroke because video res is high
+                                            strokeWidth="3"
                                             strokeLinejoin="round"
                                         />
-                                        {/* Corner Handles */}
-                                        {detectedCorners.map((p, i) => (
-                                            <circle
-                                                key={i}
-                                                cx={p.x * videoRef.current!.videoWidth}
-                                                cy={p.y * videoRef.current!.videoHeight}
-                                                r="10" // Larger radius for high-res video
-                                                fill="#42f587"
-                                            />
-                                        ))}
+                                        {/* Corners */}
+                                        {detectedCorners.map((p, i) => {
+                                            const rect = videoRef.current!.getBoundingClientRect();
+                                            const mapped = mapPointToScreen(
+                                                p,
+                                                videoRef.current!.videoWidth,
+                                                videoRef.current!.videoHeight,
+                                                rect.width,
+                                                rect.height
+                                            );
+                                            return <circle key={i} cx={mapped.x} cy={mapped.y} r="6" fill="#42f587" />;
+                                        })}
                                     </svg>
                                     {isSteady && (
                                         <div className="steady-indicator">
