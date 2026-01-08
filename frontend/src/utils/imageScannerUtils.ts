@@ -294,43 +294,20 @@ export const performInstantCrop = async (
             URL.revokeObjectURL(url);
             const w = img.width, h = img.height;
 
-            // 1. De-normalize
+            // 1. De-normalize corners to full image resolution
             const realCorners = normalizedCorners.map(p => ({
                 x: Math.round(p.x * w),
                 y: Math.round(p.y * h)
             }));
 
-            // 2. Calculate Natural Dimensions (Pythagoras)
-            const widthTop = Math.hypot(realCorners[0].x - realCorners[1].x, realCorners[0].y - realCorners[1].y);
-            const widthBot = Math.hypot(realCorners[2].x - realCorners[3].x, realCorners[2].y - realCorners[3].y);
-            const heightLeft = Math.hypot(realCorners[0].x - realCorners[3].x, realCorners[0].y - realCorners[3].y);
-            const heightRight = Math.hypot(realCorners[1].x - realCorners[2].x, realCorners[1].y - realCorners[2].y);
+            // 2. FORCE A4 DIMENSIONS (Auto-Perspective Correction)
+            // Instead of guessing the size from the angled image (which creates distortion),
+            // we force the output to be exactly A4 at high resolution (300 DPI approx).
+            // A4 Ratio = 1.414
+            const TARGET_WIDTH = 2480;
+            const TARGET_HEIGHT = 3508;
 
-            // Get max width/height to preserve resolution
-            let dwW = Math.max(widthTop, widthBot);
-            let dhH = Math.max(heightLeft, heightRight);
-
-            // --- SMART ASPECT RATIO LOGIC ---
-            // A4 Ratio is 1.414 (Height / Width)
-            const currentRatio = dhH / dwW; // e.g., 1.45 or 1.2
-
-            // If it's close to A4 (1.3 to 1.55), snap to A4 High Res
-            // This fixes "angled perspective" by regularizing the shape
-            if (currentRatio > 1.3 && currentRatio < 1.55) {
-                dwW = 2480;
-                dhH = 3508;
-            } else {
-                // Otherwise, keep natural ratio but upscale for clarity
-                // This prevents "squashing" if the detection was weird
-                const scale = 2500 / dwW;
-                dwW = 2500;
-                dhH = dhH * scale;
-            }
-
-            dwW = Math.round(dwW);
-            dhH = Math.round(dhH);
-
-            // 3. Draw Source
+            // 3. Prepare Input
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -338,60 +315,75 @@ export const performInstantCrop = async (
             ctx.drawImage(img, 0, 0);
             const imgData = ctx.getImageData(0, 0, w, h);
 
-            // 4. OpenCV Warp
+            // 4. OpenCV Warp (The "Un-Distort" Step)
             let src = cv.matFromImageData(imgData);
             let dst = new cv.Mat();
 
+            // Source: The detected green box (trapezoid)
             let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                realCorners[0].x, realCorners[0].y,
-                realCorners[1].x, realCorners[1].y,
-                realCorners[2].x, realCorners[2].y,
-                realCorners[3].x, realCorners[3].y
+                realCorners[0].x, realCorners[0].y, // TL
+                realCorners[1].x, realCorners[1].y, // TR
+                realCorners[2].x, realCorners[2].y, // BR
+                realCorners[3].x, realCorners[3].y  // BL
             ]);
 
-            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, dwW, 0, dwW, dhH, 0, dhH]);
+            // Dest: A perfect A4 rectangle
+            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                0, 0,                        // TL
+                TARGET_WIDTH, 0,            // TR
+                TARGET_WIDTH, TARGET_HEIGHT,// BR
+                0, TARGET_HEIGHT            // BL
+            ]);
 
+            // This matrix calculates how to stretch the trapezoid into the rectangle
             let M = cv.getPerspectiveTransform(srcTri, dstTri);
-            cv.warpPerspective(src, dst, M, new cv.Size(dwW, dhH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255));
 
+            // Warp it!
+            cv.warpPerspective(src, dst, M, new cv.Size(TARGET_WIDTH, TARGET_HEIGHT), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255));
+
+            // Get result
             const warpedData = new Uint8ClampedArray(dst.data);
 
             // Cleanup
             src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
 
-            // 5. Magic Color Enhancement
-            const enhanced = new Uint8ClampedArray(dwW * dhH * 4);
-            const gray = new Uint8Array(dwW * dhH);
-            for (let i = 0; i < dwW * dhH; i++) gray[i] = warpedData[i * 4 + 1];
+            // 5. ENHANCE (Magic Color)
+            const enhanced = new Uint8ClampedArray(TARGET_WIDTH * TARGET_HEIGHT * 4);
+            const gray = new Uint8Array(TARGET_WIDTH * TARGET_HEIGHT);
 
-            const bgBlur = boxBlur(gray, dwW, dhH, Math.ceil(dwW * 0.03));
+            // Extract Green Channel (Sharpest)
+            for (let i = 0; i < warpedData.length / 4; i++) gray[i] = warpedData[i * 4 + 1];
 
-            for (let i = 0; i < dwW * dhH; i++) {
-                const idx = i * 4;
-                const px = warpedData[idx + 1];
-                const bg = bgBlur[i] || 1;
+            // Background Estimation
+            const bgBlur = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, Math.ceil(TARGET_WIDTH * 0.03));
 
+            for (let i = 0; i < warpedData.length; i += 4) {
+                const px = warpedData[i + 1];
+                const bg = bgBlur[i / 4] || 1;
+
+                // A. Division Normalization (White Balance)
                 let val = (px / bg) * 255;
 
-                // Subtle Sharpen
+                // B. Sharpening
                 const diff = val - 255;
-                val = val + (diff * 0.5);
+                val = val + (diff * 0.6); // 60% Sharpen
 
-                // Gamma 1.2
+                // C. Gamma (Darken Text)
                 val = 255 * Math.pow(val / 255, 1.2);
 
-                if (val > 230) val = 255;
+                // D. Clamp
+                if (val > 230) val = 255; // Clean noise
                 val = Math.max(0, Math.min(255, val));
 
-                enhanced[idx] = val;
-                enhanced[idx + 1] = val;
-                enhanced[idx + 2] = val;
-                enhanced[idx + 3] = 255;
+                enhanced[i] = val;
+                enhanced[i + 1] = val;
+                enhanced[i + 2] = val;
+                enhanced[i + 3] = 255;
             }
 
             const fCanvas = document.createElement('canvas');
-            fCanvas.width = dwW; fCanvas.height = dhH;
-            fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, dwW, dhH), 0, 0);
+            fCanvas.width = TARGET_WIDTH; fCanvas.height = TARGET_HEIGHT;
+            fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, TARGET_WIDTH, TARGET_HEIGHT), 0, 0);
 
             fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
         };

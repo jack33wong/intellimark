@@ -13,32 +13,33 @@ interface ScannedPage {
     id: string;
 }
 
-// Add this helper function at the top of MobileCameraPage.tsx (outside the component)
+// Helper: Map normalized coordinates (0..1) to the actual screen pixels
+// accounting for "object-fit: cover" cropping.
 function mapPointToScreen(
     p: { x: number; y: number },
     videoW: number,
     videoH: number,
-    screenW: number,
-    screenH: number
+    elementW: number,
+    elementH: number
 ) {
-    // Determine the scale based on "object-fit: cover" logic
     const videoRatio = videoW / videoH;
-    const screenRatio = screenW / screenH;
+    const screenRatio = elementW / elementH;
 
     let scale = 1;
     let offsetX = 0;
     let offsetY = 0;
 
+    // "Cover" logic:
     if (screenRatio > videoRatio) {
-        // Screen is wider than video (Video is cropped top/bottom) - Rare on mobile
-        scale = screenW / videoW;
+        // Screen is wider -> Fit Width, Crop Top/Bottom
+        scale = elementW / videoW;
         const drawnH = videoH * scale;
-        offsetY = (screenH - drawnH) / 2;
+        offsetY = (elementH - drawnH) / 2;
     } else {
-        // Screen is taller than video (Video is cropped left/right) - Common on mobile
-        scale = screenH / videoH;
+        // Screen is taller -> Fit Height, Crop Left/Right (Standard Mobile Portrait)
+        scale = elementH / videoH;
         const drawnW = videoW * scale;
-        offsetX = (screenW - drawnW) / 2;
+        offsetX = (elementW - drawnW) / 2;
     }
 
     return {
@@ -465,7 +466,7 @@ const MobileCameraPage: React.FC = () => {
                             )}
 
                             {/* THE NEW CAMSCANNER HIGHLIGHT OVERLAY (V19/V13 Production) */}
-                            {streamStatus === 'active' && detectedCorners && videoRef.current && (
+                            {detectedCorners && videoRef.current && (
                                 <div className="detection-overlay">
                                     <svg
                                         style={{
@@ -475,37 +476,36 @@ const MobileCameraPage: React.FC = () => {
                                     >
                                         <polygon
                                             points={detectedCorners.map(p => {
-                                                // MAP COORDINATES CORRECTLY
+                                                // Get the ACTUAL rendered size of the video element
+                                                const rect = videoRef.current!.getBoundingClientRect();
+
                                                 const mapped = mapPointToScreen(
                                                     p,
                                                     videoRef.current!.videoWidth,
                                                     videoRef.current!.videoHeight,
-                                                    window.innerWidth,
-                                                    window.innerHeight
+                                                    rect.width,
+                                                    rect.height
                                                 );
                                                 return `${mapped.x},${mapped.y}`;
                                             }).join(' ')}
-                                            fill="rgba(66, 245, 135, 0.15)" // Lighter fill
+                                            fill="rgba(66, 245, 135, 0.2)"
                                             stroke="#42f587"
                                             strokeWidth="3"
                                             strokeLinejoin="round"
                                         />
-                                        {/* Handles */}
+                                        {/* Corner Handles */}
                                         {detectedCorners.map((p, i) => {
+                                            const rect = videoRef.current!.getBoundingClientRect();
                                             const mapped = mapPointToScreen(
                                                 p,
                                                 videoRef.current!.videoWidth,
                                                 videoRef.current!.videoHeight,
-                                                window.innerWidth,
-                                                window.innerHeight
+                                                rect.width,
+                                                rect.height
                                             );
                                             return (
                                                 <circle
-                                                    key={i}
-                                                    cx={mapped.x}
-                                                    cy={mapped.y}
-                                                    r="6"
-                                                    fill="#42f587"
+                                                    key={i} cx={mapped.x} cy={mapped.y} r="6" fill="#42f587"
                                                 />
                                             );
                                         })}
