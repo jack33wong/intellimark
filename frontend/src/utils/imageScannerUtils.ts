@@ -179,6 +179,28 @@ function maxFilter(data: Uint8Array, w: number, h: number, radius: number) {
     return output;
 }
 
+// Helper: Convolution for Sharpening
+function convolve(data: Uint8Array, w: number, h: number, kernel: number[]) {
+    const out = new Float32Array(data.length);
+    const kh = Math.sqrt(kernel.length);
+    const half = Math.floor(kh / 2);
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let r = 0;
+            for (let ky = 0; ky < kh; ky++) {
+                for (let kx = 0; kx < kh; kx++) {
+                    const py = Math.min(Math.max(y + ky - half, 0), h - 1);
+                    const px = Math.min(Math.max(x + kx - half, 0), w - 1);
+                    r += data[py * w + px] * kernel[ky * kh + kx];
+                }
+            }
+            out[y * w + x] = r;
+        }
+    }
+    return out;
+}
+
 // --- HELPER: Box Blur for Background Estimation ---
 function boxBlur(data: Uint8Array, w: number, h: number, r: number) {
     const temp = new Float32Array(data.length);
@@ -275,10 +297,6 @@ function findCornersFromMask(mask: Uint8Array, w: number, h: number) {
 
 // Interface for normalized points from the hook
 
-/**
- * Performs an instant perspective crop using pre-calculated corners.
- * Skips heavy detection algorithms for immediate results.
- */
 export const performInstantCrop = async (
     imageBlob: Blob,
     normalizedCorners: NormalizedPoint[]
@@ -299,7 +317,16 @@ export const performInstantCrop = async (
                 y: Math.round(p.y * h)
             }));
 
-            // Force A4 High-Res
+            // --- 1. CALCULATE STRETCH FACTOR ---
+            // How much is the top edge narrower than the bottom?
+            // High Ratio (e.g., 2.0) means extreme angle -> Needs Extreme Sharpening
+            const topWidth = Math.hypot(realCorners[0].x - realCorners[1].x, realCorners[0].y - realCorners[1].y);
+            const botWidth = Math.hypot(realCorners[2].x - realCorners[3].x, realCorners[2].y - realCorners[3].y);
+            const stretchRatio = botWidth / (topWidth || 1);
+
+            const isExtremeAngle = stretchRatio > 1.3;
+
+            // Target A4 High-Res
             const TARGET_WIDTH = 2480;
             const TARGET_HEIGHT = 3508;
 
@@ -309,7 +336,7 @@ export const performInstantCrop = async (
             if (!ctx) { reject("ctx error"); return; }
             ctx.drawImage(img, 0, 0);
 
-            // --- OPENCV WARP + ANTI-CURVE ---
+            // --- 2. OPENCV WARP + ANTI-CURVE ---
             let src = cv.matFromImageData(ctx.getImageData(0, 0, w, h));
             let dst = new cv.Mat();
 
@@ -320,14 +347,16 @@ export const performInstantCrop = async (
                 realCorners[3].x, realCorners[3].y
             ]);
 
-            // V21: Stronger "Pinch" (4%) to counteract heavy lens curve
-            const PAD = TARGET_WIDTH * 0.04;
+            // Apply Pinch Correction based on angle severity
+            // More angle = More pinch needed
+            const pinchStrength = isExtremeAngle ? 0.05 : 0.02;
+            const PAD = TARGET_WIDTH * pinchStrength;
 
             let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0 + PAD, 0,                 // TL (Moved Right)
-                TARGET_WIDTH - PAD, 0,      // TR (Moved Left)
-                TARGET_WIDTH, TARGET_HEIGHT,// BR (Normal)
-                0, TARGET_HEIGHT            // BL (Normal)
+                0 + PAD, 0,
+                TARGET_WIDTH - PAD, 0,
+                TARGET_WIDTH, TARGET_HEIGHT,
+                0, TARGET_HEIGHT
             ]);
 
             let M = cv.getPerspectiveTransform(srcTri, dstTri);
@@ -336,37 +365,53 @@ export const performInstantCrop = async (
             const warpedData = new Uint8ClampedArray(dst.data);
             src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
 
-            // --- ENHANCEMENT: HIGH PASS & THRESHOLD ---
+            // --- 3. DYNAMIC ENHANCEMENT ---
             const enhanced = new Uint8ClampedArray(TARGET_WIDTH * TARGET_HEIGHT * 4);
             const gray = new Uint8Array(TARGET_WIDTH * TARGET_HEIGHT);
-
-            // Extract Gray (Green Channel)
             for (let i = 0; i < TARGET_WIDTH * TARGET_HEIGHT; i++) gray[i] = warpedData[i * 4 + 1];
 
-            // 1. Background Map (Shadows)
+            // A. Background Map
             const bgBlur = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, Math.ceil(TARGET_WIDTH * 0.04));
 
-            // 2. High-Pass Map (Details)
-            // Use small blur to find edges
-            const detailBlur = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, 2);
+            // B. Conditional Sharpening Map
+            // If extreme angle, use Strong Unsharp Mask
+            let detailMap: Float32Array;
+            if (isExtremeAngle) {
+                // Strong sharpening kernel
+                const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+                detailMap = convolve(gray, TARGET_WIDTH, TARGET_HEIGHT, kernel);
+            } else {
+                // Gentle blur subtraction
+                detailMap = new Float32Array(gray.length);
+                const subtle = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, 2);
+                for (let i = 0; i < gray.length; i++) detailMap[i] = gray[i] + (gray[i] - subtle[i]) * 1.5;
+            }
 
             for (let i = 0; i < warpedData.length; i += 4) {
                 const px = warpedData[i + 1];
                 const bg = bgBlur[i / 4] || 1;
-                const blurredPx = detailBlur[i / 4];
 
-                // A. Flat Field Correction (Remove Shadows)
+                // 1. Flatten Lighting
                 let val = (px / bg) * 255;
 
-                // B. High Pass Sharpening
-                // (Original - Blur) = Edges. Add Edges back to Flat Image.
-                const edge = px - blurredPx;
-                val = val + (edge * 2.0); // Boost edges 2x
+                // 2. Apply Sharpening
+                if (isExtremeAngle) {
+                    // Blend original with sharpened version
+                    const sharpVal = detailMap[i / 4];
+                    // On angled shots, text is grey/blurry. We prefer the sharpened signal.
+                    val = (val * 0.4) + ((sharpVal / bg) * 255 * 0.6);
+                } else {
+                    const sharpVal = detailMap[i / 4];
+                    val = (val * 0.7) + ((sharpVal / bg) * 255 * 0.3);
+                }
 
-                // C. Adaptive Scanner Threshold
-                // Push darks down, lights up
-                if (val < 100) val = val * 0.8; // Darken ink
-                else if (val > 180) val = 255;  // Clean paper
+                // 3. Contrast Crush (The "Scanner" Look)
+                // If Angled, we must be more aggressive to hide blur
+                const blackPoint = isExtremeAngle ? 120 : 100;
+                const whitePoint = isExtremeAngle ? 190 : 210;
+
+                if (val < blackPoint) val *= 0.7; // Crush blacks
+                if (val > whitePoint) val = 255;  // Blow out whites
 
                 // Gamma
                 val = 255 * Math.pow(val / 255, 1.1);
@@ -378,13 +423,13 @@ export const performInstantCrop = async (
                 enhanced[i + 3] = 255;
             }
 
-            // White Border Safety
-            const BORDER = 20;
+            // White Border
+            const BORDER = 25;
             for (let y = 0; y < TARGET_HEIGHT; y++) {
                 for (let x = 0; x < TARGET_WIDTH; x++) {
                     if (x < BORDER || x > TARGET_WIDTH - BORDER || y < BORDER || y > TARGET_HEIGHT - BORDER) {
                         const idx = (y * TARGET_WIDTH + x) * 4;
-                        enhanced[idx] = 255; enhanced[idx + 1] = 255; enhanced[idx + 2] = 255;
+                        enhanced[idx] = 255; enhanced[idx + 1] = 255; enhanced[idx + 2] = 255; enhanced[idx + 3] = 255;
                     }
                 }
             }
