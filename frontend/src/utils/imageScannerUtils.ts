@@ -284,99 +284,92 @@ export const performInstantCrop = async (
     normalizedCorners: NormalizedPoint[]
 ): Promise<Blob> => {
     return new Promise((resolve, reject) => {
-        if (!window.cv || !window.cv.Mat) { reject("OpenCV not ready"); return; }
+        if (!window.cv || !window.cv.Mat) { reject("OpenCV missing"); return; }
         const cv = window.cv;
-
         const img = new Image();
         const url = URL.createObjectURL(imageBlob);
 
         img.onload = () => {
             URL.revokeObjectURL(url);
-            const w = img.width, h = img.height;
+            const w = img.width;
+            const h = img.height;
 
-            // 1. De-normalize corners to full image resolution
             const realCorners = normalizedCorners.map(p => ({
                 x: Math.round(p.x * w),
                 y: Math.round(p.y * h)
             }));
 
-            // 2. FORCE A4 DIMENSIONS (Auto-Perspective Correction)
-            // Instead of guessing the size from the angled image (which creates distortion),
-            // we force the output to be exactly A4 at high resolution (300 DPI approx).
-            // A4 Ratio = 1.414
+            // Force A4 High-Res
             const TARGET_WIDTH = 2480;
             const TARGET_HEIGHT = 3508;
 
-            // 3. Prepare Input
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            if (!ctx) { reject("ctx"); return; }
+            if (!ctx) { reject("ctx error"); return; }
             ctx.drawImage(img, 0, 0);
-            const imgData = ctx.getImageData(0, 0, w, h);
 
-            // 4. OpenCV Warp (The "Un-Distort" Step)
-            let src = cv.matFromImageData(imgData);
+            // --- OPENCV WARP + ANTI-CURVE ---
+            let src = cv.matFromImageData(ctx.getImageData(0, 0, w, h));
             let dst = new cv.Mat();
 
-            // Source: The detected green box (trapezoid)
             let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                realCorners[0].x, realCorners[0].y, // TL
-                realCorners[1].x, realCorners[1].y, // TR
-                realCorners[2].x, realCorners[2].y, // BR
-                realCorners[3].x, realCorners[3].y  // BL
+                realCorners[0].x, realCorners[0].y,
+                realCorners[1].x, realCorners[1].y,
+                realCorners[2].x, realCorners[2].y,
+                realCorners[3].x, realCorners[3].y
             ]);
 
-            // V20 FIX: "Anti-Curve" Mapping
-            // We apply a slight padding to the destination top corners.
-            // Squeezing the top destination width by 1.5% helps straighten barrel distortion.
-            const CORRECTION_PAD = TARGET_WIDTH * 0.015;
+            // V21: Stronger "Pinch" (4%) to counteract heavy lens curve
+            const PAD = TARGET_WIDTH * 0.04;
 
             let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0 + CORRECTION_PAD, 0,          // TL (Moved Right)
-                TARGET_WIDTH - CORRECTION_PAD, 0, // TR (Moved Left)
-                TARGET_WIDTH, TARGET_HEIGHT,    // BR (Normal)
-                0, TARGET_HEIGHT                // BL (Normal)
+                0 + PAD, 0,                 // TL (Moved Right)
+                TARGET_WIDTH - PAD, 0,      // TR (Moved Left)
+                TARGET_WIDTH, TARGET_HEIGHT,// BR (Normal)
+                0, TARGET_HEIGHT            // BL (Normal)
             ]);
 
-            // This matrix calculates how to stretch the trapezoid into the rectangle
             let M = cv.getPerspectiveTransform(srcTri, dstTri);
-
-            // Warp it!
             cv.warpPerspective(src, dst, M, new cv.Size(TARGET_WIDTH, TARGET_HEIGHT), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255));
 
-            // Get result
             const warpedData = new Uint8ClampedArray(dst.data);
-
-            // Cleanup
             src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
 
-            // 5. ENHANCE (Magic Color)
+            // --- ENHANCEMENT: HIGH PASS & THRESHOLD ---
             const enhanced = new Uint8ClampedArray(TARGET_WIDTH * TARGET_HEIGHT * 4);
             const gray = new Uint8Array(TARGET_WIDTH * TARGET_HEIGHT);
 
-            // Extract Green Channel (Sharpest)
-            for (let i = 0; i < warpedData.length / 4; i++) gray[i] = warpedData[i * 4 + 1];
+            // Extract Gray (Green Channel)
+            for (let i = 0; i < TARGET_WIDTH * TARGET_HEIGHT; i++) gray[i] = warpedData[i * 4 + 1];
 
-            // Background Estimation
-            const bgBlur = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, Math.ceil(TARGET_WIDTH * 0.03));
+            // 1. Background Map (Shadows)
+            const bgBlur = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, Math.ceil(TARGET_WIDTH * 0.04));
+
+            // 2. High-Pass Map (Details)
+            // Use small blur to find edges
+            const detailBlur = boxBlur(gray, TARGET_WIDTH, TARGET_HEIGHT, 2);
 
             for (let i = 0; i < warpedData.length; i += 4) {
                 const px = warpedData[i + 1];
                 const bg = bgBlur[i / 4] || 1;
+                const blurredPx = detailBlur[i / 4];
 
-                // A. Division Normalization (White Balance)
+                // A. Flat Field Correction (Remove Shadows)
                 let val = (px / bg) * 255;
 
-                // B. Sharpening
-                const diff = val - 255;
-                val = val + (diff * 0.6); // 60% Sharpen
+                // B. High Pass Sharpening
+                // (Original - Blur) = Edges. Add Edges back to Flat Image.
+                const edge = px - blurredPx;
+                val = val + (edge * 2.0); // Boost edges 2x
 
-                // C. Gamma (Darken Text)
-                val = 255 * Math.pow(val / 255, 1.2);
+                // C. Adaptive Scanner Threshold
+                // Push darks down, lights up
+                if (val < 100) val = val * 0.8; // Darken ink
+                else if (val > 180) val = 255;  // Clean paper
 
-                // D. Clamp
-                if (val > 230) val = 255; // Clean noise
+                // Gamma
+                val = 255 * Math.pow(val / 255, 1.1);
                 val = Math.max(0, Math.min(255, val));
 
                 enhanced[i] = val;
@@ -385,22 +378,13 @@ export const performInstantCrop = async (
                 enhanced[i + 3] = 255;
             }
 
-            // --- V17 FIX: EDGE WHITENING (The "Scanner Trick") ---
-            // We overwrite the outer 20 pixels with pure white.
-            // This hides any "wood slivers" caused by imperfect cropping.
-            const BORDER_SIZE = 20; // 20px white frame
-
+            // White Border Safety
+            const BORDER = 20;
             for (let y = 0; y < TARGET_HEIGHT; y++) {
                 for (let x = 0; x < TARGET_WIDTH; x++) {
-                    // Check if pixel is near the edge
-                    if (x < BORDER_SIZE || x > TARGET_WIDTH - BORDER_SIZE ||
-                        y < BORDER_SIZE || y > TARGET_HEIGHT - BORDER_SIZE) {
-
+                    if (x < BORDER || x > TARGET_WIDTH - BORDER || y < BORDER || y > TARGET_HEIGHT - BORDER) {
                         const idx = (y * TARGET_WIDTH + x) * 4;
-                        enhanced[idx] = 255;   // R
-                        enhanced[idx + 1] = 255; // G
-                        enhanced[idx + 2] = 255; // B
-                        enhanced[idx + 3] = 255; // Alpha
+                        enhanced[idx] = 255; enhanced[idx + 1] = 255; enhanced[idx + 2] = 255;
                     }
                 }
             }
@@ -408,8 +392,7 @@ export const performInstantCrop = async (
             const fCanvas = document.createElement('canvas');
             fCanvas.width = TARGET_WIDTH; fCanvas.height = TARGET_HEIGHT;
             fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, TARGET_WIDTH, TARGET_HEIGHT), 0, 0);
-
-            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.90);
         };
         img.onerror = reject;
         img.src = url;

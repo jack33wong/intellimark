@@ -29,15 +29,15 @@ function mapPointToScreen(
     let offsetX = 0;
     let offsetY = 0;
 
-    // "Cover" Logic (Fill screen)
+    // "Contain" logic ensures the green box tracks perfectly with black bars.
     if (screenRatio > videoRatio) {
-        scale = elementW / videoW;
-        const drawnH = videoH * scale;
-        offsetY = (elementH - drawnH) / 2;
-    } else {
         scale = elementH / videoH;
         const drawnW = videoW * scale;
         offsetX = (elementW - drawnW) / 2;
+    } else {
+        scale = elementW / videoW;
+        const drawnH = videoH * scale;
+        offsetY = (elementH - drawnH) / 2;
     }
 
     return {
@@ -99,11 +99,11 @@ const MobileCameraPage: React.FC = () => {
                 const constraints = {
                     video: {
                         facingMode: 'environment',
-                        // V20 FIX: Request 16:9 Aspect Ratio
-                        // This matches tall phone screens better, reducing the "Zoom In" effect
-                        aspectRatio: { ideal: 1.777 },
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
+                        // V21 FIX: Request 4:3 Aspect Ratio (Full Sensor)
+                        // This gives the widest possible vertical field of view.
+                        aspectRatio: { ideal: 1.333 }, // 4:3 (Full Sensor)
+                        width: { ideal: 2560 },        // High Res Photo Quality
+                        height: { ideal: 1920 },
                         // Focus mode is critical for text
                         advanced: [{ focusMode: 'continuous' }] as any
                     },
@@ -351,12 +351,12 @@ const MobileCameraPage: React.FC = () => {
 
     return (
         <div className="mobile-page">
-            <div className="mobile-content" style={{ backgroundColor: '#000' }}>
-                {/* V19 TOP BAR */}
+            <div className="mobile-content" style={{ backgroundColor: '#111' }}>
+                {/* V21 TOP BAR */}
                 <div style={{
                     padding: '20px', display: 'flex', justifyContent: 'space-between',
                     alignItems: 'center', zIndex: 20,
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)'
+                    background: 'rgba(0,0,0,0.4)'
                 }}>
                     <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'white' }}>
                         <ArrowLeft size={28} />
@@ -409,7 +409,7 @@ const MobileCameraPage: React.FC = () => {
                                 style={{
                                     width: '100%',
                                     height: '100%',
-                                    objectFit: 'cover',
+                                    objectFit: 'contain',
                                     opacity: streamStatus === 'active' ? 1 : 0.01,
                                     pointerEvents: streamStatus === 'active' ? 'auto' : 'none'
                                 }}
@@ -535,7 +535,7 @@ const MobileCameraPage: React.FC = () => {
             </div>
 
             {status !== 'success' && (
-                <div className="mobile-actions" style={{ padding: '40px 20px', background: 'black', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
+                <div className="mobile-actions" style={{ padding: '40px 20px', background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
 
                     <div className="shutter-row" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
                         <button
@@ -566,7 +566,7 @@ const MobileCameraPage: React.FC = () => {
                         >
                             <div style={{
                                 width: '68px', height: '68px', borderRadius: '50%',
-                                border: '2px solid black', backgroundColor: 'white'
+                                border: '2px solid #111', backgroundColor: 'white'
                             }} />
                         </button>
 
