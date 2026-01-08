@@ -327,12 +327,16 @@ export const performInstantCrop = async (
                 realCorners[3].x, realCorners[3].y  // BL
             ]);
 
-            // Dest: A perfect A4 rectangle
+            // V20 FIX: "Anti-Curve" Mapping
+            // We apply a slight padding to the destination top corners.
+            // Squeezing the top destination width by 1.5% helps straighten barrel distortion.
+            const CORRECTION_PAD = TARGET_WIDTH * 0.015;
+
             let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                0, 0,                        // TL
-                TARGET_WIDTH, 0,            // TR
-                TARGET_WIDTH, TARGET_HEIGHT,// BR
-                0, TARGET_HEIGHT            // BL
+                0 + CORRECTION_PAD, 0,          // TL (Moved Right)
+                TARGET_WIDTH - CORRECTION_PAD, 0, // TR (Moved Left)
+                TARGET_WIDTH, TARGET_HEIGHT,    // BR (Normal)
+                0, TARGET_HEIGHT                // BL (Normal)
             ]);
 
             // This matrix calculates how to stretch the trapezoid into the rectangle

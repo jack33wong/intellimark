@@ -14,7 +14,7 @@ interface ScannedPage {
 }
 
 
-// --- HELPER: Map Video Points to Screen (Supports Black Bars) ---
+// Helper: Map Screen Points (Standard Cover Mode logic)
 function mapPointToScreen(
     p: { x: number; y: number },
     videoW: number,
@@ -29,17 +29,15 @@ function mapPointToScreen(
     let offsetX = 0;
     let offsetY = 0;
 
-    // Logic for "object-fit: contain" (Fit within screen, show black bars)
+    // "Cover" Logic (Fill screen)
     if (screenRatio > videoRatio) {
-        // Screen is wider than video -> Video fits Height
-        scale = elementH / videoH;
-        const drawnW = videoW * scale;
-        offsetX = (elementW - drawnW) / 2; // Black bars on sides
-    } else {
-        // Screen is narrower than video -> Video fits Width
         scale = elementW / videoW;
         const drawnH = videoH * scale;
-        offsetY = (elementH - drawnH) / 2; // Black bars on top/bottom
+        offsetY = (elementH - drawnH) / 2;
+    } else {
+        scale = elementH / videoH;
+        const drawnW = videoW * scale;
+        offsetX = (elementW - drawnW) / 2;
     }
 
     return {
@@ -101,10 +99,11 @@ const MobileCameraPage: React.FC = () => {
                 const constraints = {
                     video: {
                         facingMode: 'environment',
-                        // We ask for a standard aspect ratio (4:3) which uses the full sensor
-                        aspectRatio: { ideal: 1.333 },
-                        width: { ideal: 4096 },
-                        height: { ideal: 2160 },
+                        // V20 FIX: Request 16:9 Aspect Ratio
+                        // This matches tall phone screens better, reducing the "Zoom In" effect
+                        aspectRatio: { ideal: 1.777 },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
                         // Focus mode is critical for text
                         advanced: [{ focusMode: 'continuous' }] as any
                     },
@@ -410,7 +409,7 @@ const MobileCameraPage: React.FC = () => {
                                 style={{
                                     width: '100%',
                                     height: '100%',
-                                    objectFit: 'contain',
+                                    objectFit: 'cover',
                                     opacity: streamStatus === 'active' ? 1 : 0.01,
                                     pointerEvents: streamStatus === 'active' ? 'auto' : 'none'
                                 }}
