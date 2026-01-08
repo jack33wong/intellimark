@@ -534,8 +534,8 @@
   height: 32px;
   width: 32px;
   padding: 0;
-  background: var(--fill-gray);
-  border: none;
+  background: var(--background-white-main);
+  border: 1px solid var(--border-primary);
   border-radius: 50%;
   color: var(--text-secondary);
   cursor: pointer;
@@ -545,12 +545,14 @@
 }
 
 .followup-chat-input-bar .followup-upload-button:hover:not(:disabled) {
-  background: var(--fill-gray-hover);
+  background: var(--background-white-main);
+  filter: brightness(0.9);
   transform: scale(1.05);
 }
 
 .followup-chat-input-bar .followup-upload-button:active:not(:disabled) {
   transform: scale(0.95);
+  filter: brightness(0.85);
 }
 
 .followup-upload-button.mobile-scan-btn {

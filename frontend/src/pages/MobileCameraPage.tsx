@@ -13,40 +13,6 @@ interface ScannedPage {
     id: string;
 }
 
-// Helper: Map normalized coordinates (0..1) to the actual screen pixels
-// accounting for "object-fit: cover" cropping.
-function mapPointToScreen(
-    p: { x: number; y: number },
-    videoW: number,
-    videoH: number,
-    elementW: number,
-    elementH: number
-) {
-    const videoRatio = videoW / videoH;
-    const screenRatio = elementW / elementH;
-
-    let scale = 1;
-    let offsetX = 0;
-    let offsetY = 0;
-
-    // "Cover" logic:
-    if (screenRatio > videoRatio) {
-        // Screen is wider -> Fit Width, Crop Top/Bottom
-        scale = elementW / videoW;
-        const drawnH = videoH * scale;
-        offsetY = (elementH - drawnH) / 2;
-    } else {
-        // Screen is taller -> Fit Height, Crop Left/Right (Standard Mobile Portrait)
-        scale = elementH / videoH;
-        const drawnW = videoW * scale;
-        offsetX = (elementW - drawnW) / 2;
-    }
-
-    return {
-        x: (p.x * videoW * scale) + offsetX,
-        y: (p.y * videoH * scale) + offsetY
-    };
-}
 
 // Helper: Trust detection (V4TrustMode) - No longer rejecting "weird" quads
 const isValidQuad = (corners: NormalizedPoint[]) => {
@@ -465,50 +431,44 @@ const MobileCameraPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* THE NEW CAMSCANNER HIGHLIGHT OVERLAY (V19/V13 Production) */}
+                            {/* GREEN BOX OVERLAY - PERFECT SYNC VERSION */}
                             {detectedCorners && videoRef.current && (
                                 <div className="detection-overlay">
                                     <svg
+                                        // 1. Set viewBox to match the raw VIDEO dimensions
+                                        viewBox={`0 0 ${videoRef.current.videoWidth} ${videoRef.current.videoHeight}`}
+                                        // 2. Preserve Aspect Ratio exactly like 'object-fit: cover'
+                                        preserveAspectRatio="xMidYMid slice"
                                         style={{
-                                            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                                            pointerEvents: 'none', zIndex: 10
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: '100%',
+                                            pointerEvents: 'none',
+                                            zIndex: 10
                                         }}
                                     >
                                         <polygon
-                                            points={detectedCorners.map(p => {
-                                                // Get the ACTUAL rendered size of the video element
-                                                const rect = videoRef.current!.getBoundingClientRect();
-
-                                                const mapped = mapPointToScreen(
-                                                    p,
-                                                    videoRef.current!.videoWidth,
-                                                    videoRef.current!.videoHeight,
-                                                    rect.width,
-                                                    rect.height
-                                                );
-                                                return `${mapped.x},${mapped.y}`;
-                                            }).join(' ')}
+                                            points={detectedCorners.map(p =>
+                                                // Just use RAW video coordinates!
+                                                `${p.x * videoRef.current!.videoWidth},${p.y * videoRef.current!.videoHeight}`
+                                            ).join(' ')}
                                             fill="rgba(66, 245, 135, 0.2)"
                                             stroke="#42f587"
-                                            strokeWidth="3"
+                                            strokeWidth="5" // Thicker stroke because video res is high
                                             strokeLinejoin="round"
                                         />
                                         {/* Corner Handles */}
-                                        {detectedCorners.map((p, i) => {
-                                            const rect = videoRef.current!.getBoundingClientRect();
-                                            const mapped = mapPointToScreen(
-                                                p,
-                                                videoRef.current!.videoWidth,
-                                                videoRef.current!.videoHeight,
-                                                rect.width,
-                                                rect.height
-                                            );
-                                            return (
-                                                <circle
-                                                    key={i} cx={mapped.x} cy={mapped.y} r="6" fill="#42f587"
-                                                />
-                                            );
-                                        })}
+                                        {detectedCorners.map((p, i) => (
+                                            <circle
+                                                key={i}
+                                                cx={p.x * videoRef.current!.videoWidth}
+                                                cy={p.y * videoRef.current!.videoHeight}
+                                                r="10" // Larger radius for high-res video
+                                                fill="#42f587"
+                                            />
+                                        ))}
                                     </svg>
                                     {isSteady && (
                                         <div className="steady-indicator">

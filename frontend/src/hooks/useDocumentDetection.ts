@@ -8,6 +8,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
     const [isSteady, setIsSteady] = useState(false);
 
+    // Debug
     const [cvStatus, setCvStatus] = useState<string>("Init...");
     const [debugLog, setDebugLog] = useState<string>("Waiting...");
     const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -18,10 +19,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     const HISTORY_LENGTH = 5;
 
-    // --- V15: RADIAL INFLATION FACTOR ---
-    // 1.15 = Expand outwards by 15% from center.
-    // This naturally covers margins regardless of perspective angle.
-    const INFLATION_SCALE = 1.15;
+    // V13 CONFIG: Asymmetric Inflation (Best for Exam Papers)
+    const PAD_TOP = 0.09;    // 9% Up
+    const PAD_BOTTOM = 0.18; // 18% Down
+    const PAD_SIDE = 0.06;   // 6% Side
 
     const isCvReady = () => window.cv && window.cv.Mat;
 
@@ -70,12 +71,11 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                 processingRef.current = true;
 
                 try {
-                    // Increase resolution slightly for better corner precision on angled shots
-                    const w = 400;
+                    const w = 350;
                     const scale = w / video.videoWidth;
                     const h = Math.floor(video.videoHeight * scale);
 
-                    // Debug Canvas
+                    // Debug Canvas Setup
                     let debugCtx: CanvasRenderingContext2D | null = null;
                     if (debugCanvasRef.current) {
                         debugCanvasRef.current.width = w;
@@ -91,32 +91,37 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     ctx.drawImage(video, 0, 0, w, h);
                     const imgData = ctx.getImageData(0, 0, w, h);
 
+                    // Load Data
                     if (src.cols !== w || src.rows !== h) {
                         src.delete(); src = new cv.Mat(h, w, cv.CV_8UC4);
                     }
                     src.data.set(imgData.data);
 
-                    // Blue Channel Strategy
+                    // Blue Channel
                     cv.split(src, channels);
                     const bChannel = channels.get(2);
                     bChannel.copyTo(blue);
                     bChannel.delete();
 
+                    // Process
                     cv.GaussianBlur(blue, blurred, new cv.Size(5, 5), 0);
                     cv.Canny(blurred, edges, 30, 100);
                     cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, kernel);
 
-                    // Draw raw edges for debug
+                    // Draw Raw Edges to Debug
                     if (debugCtx) {
                         const imgDataEdges = new ImageData(new Uint8ClampedArray(w * h * 4), w, h);
                         for (let i = 0; i < w * h; i++) {
                             const val = edges.data[i];
-                            imgDataEdges.data[i * 4] = val; imgDataEdges.data[i * 4 + 1] = val;
-                            imgDataEdges.data[i * 4 + 2] = val; imgDataEdges.data[i * 4 + 3] = 255;
+                            imgDataEdges.data[i * 4] = val;
+                            imgDataEdges.data[i * 4 + 1] = val;
+                            imgDataEdges.data[i * 4 + 2] = val;
+                            imgDataEdges.data[i * 4 + 3] = 255;
                         }
                         debugCtx.putImageData(imgDataEdges, 0, 0);
                     }
 
+                    // Contours
                     cv.findContours(edges, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
 
                     let bestCorners: NormalizedPoint[] | null = null;
@@ -140,11 +145,15 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
                         if (pointsFound === 4) {
                             const pts = [];
-                            // Removed border check - we need to catch edges even if they touch screen bounds
+                            let touchesBorder = false;
+                            const buffer = 2;
                             for (let j = 0; j < 4; j++) {
-                                pts.push({ x: poly.data32S[j * 2], y: poly.data32S[j * 2 + 1] });
+                                const px = poly.data32S[j * 2];
+                                const py = poly.data32S[j * 2 + 1];
+                                if (px < buffer || px > w - buffer || py < buffer || py > h - buffer) touchesBorder = true;
+                                pts.push({ x: px, y: py });
                             }
-                            candidates.push({ area: area, pts: pts });
+                            if (!touchesBorder) candidates.push({ area: area, pts: pts });
                         }
                     }
 
@@ -155,55 +164,94 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         maxArea = winner.area;
                         const sorted = sortPointsClockwise(winner.pts);
 
-                        // Draw Raw Red Box
+                        // --- RAW RED BOX (Visualization) ---
                         if (debugCtx) {
-                            debugCtx.beginPath(); debugCtx.strokeStyle = 'red'; debugCtx.lineWidth = 2;
+                            debugCtx.beginPath();
+                            debugCtx.strokeStyle = 'red';
+                            debugCtx.lineWidth = 2;
                             debugCtx.moveTo(sorted[0].x, sorted[0].y);
                             sorted.forEach(p => debugCtx!.lineTo(p.x, p.y));
-                            debugCtx.closePath(); debugCtx.stroke();
+                            debugCtx.closePath();
+                            debugCtx.stroke();
                         }
 
-                        // --- V15: RADIAL "CENTER-OUT" INFLATION ---
+                        // --- SMART PROBE LOGIC (V13) ---
+                        // Check pixels outside to detect Wood vs Paper
+                        const center = { x: 0, y: 0 };
+                        sorted.forEach(p => { center.x += p.x; center.y += p.y; });
+                        center.x /= 4; center.y /= 4;
 
-                        // 1. Find geometric center
-                        const cx = (sorted[0].x + sorted[1].x + sorted[2].x + sorted[3].x) / 4;
-                        const cy = (sorted[0].y + sorted[1].y + sorted[2].y + sorted[3].y) / 4;
+                        let brightnessSum = 0;
+                        let probes = 0;
 
-                        // 2. Expand every point outwards from center by scale factor
-                        const inflated = sorted.map((p) => {
-                            // Vector from center to point
-                            const dx = p.x - cx;
-                            const dy = p.y - cy;
+                        for (let i = 0; i < 4; i++) {
+                            const p1 = sorted[i];
+                            const p2 = sorted[(i + 1) % 4];
+                            const midX = (p1.x + p2.x) / 2;
+                            const midY = (p1.y + p2.y) / 2;
 
-                            // Scale vector and add back to center
-                            return {
-                                x: cx + (dx * INFLATION_SCALE),
-                                y: cy + (dy * INFLATION_SCALE)
-                            };
-                        });
+                            const vecX = midX - center.x;
+                            const vecY = midY - center.y;
+                            const len = Math.hypot(vecX, vecY);
+                            const probeX = Math.round(midX + (vecX / len) * 20);
+                            const probeY = Math.round(midY + (vecY / len) * 20);
 
-                        // 3. Safe Clamping (keep 1px buffer)
-                        const clamped = inflated.map(p => ({
-                            x: Math.max(1, Math.min(w - 1, p.x)),
-                            y: Math.max(1, Math.min(h - 1, p.y))
+                            if (probeX > 0 && probeX < w && probeY > 0 && probeY < h) {
+                                const val = blue.ucharPtr(probeY, probeX)[0];
+                                brightnessSum += val;
+                                probes++;
+                            }
+                        }
+
+                        const avgBrightness = probes > 0 ? brightnessSum / probes : 0;
+                        const isInnerBox = avgBrightness > 140; // Bright = Paper = Inner Box
+
+                        let finalPts = sorted;
+
+                        if (isInnerBox) {
+                            // Apply Asymmetric Inflation
+                            const widthX = Math.hypot(sorted[0].x - sorted[1].x, sorted[0].y - sorted[1].y);
+                            const heightY = Math.hypot(sorted[0].x - sorted[3].x, sorted[0].y - sorted[3].y);
+                            const shiftX = widthX * PAD_SIDE;
+                            const shiftTop = heightY * PAD_TOP;
+                            const shiftBot = heightY * PAD_BOTTOM;
+
+                            finalPts = sorted.map((p) => {
+                                let dx = p.x - center.x;
+                                let dy = p.y - center.y;
+                                const nx = p.x + (dx > 0 ? shiftX : -shiftX);
+                                let ny = p.y;
+                                if (dy < 0) ny -= shiftTop; else ny += shiftBot;
+                                return { x: nx, y: ny };
+                            });
+
+                            setDebugLog(`Type: INNER -> INFLATED`);
+                        } else {
+                            setDebugLog(`Type: OUTER -> RAW`);
+                        }
+
+                        // Clamp
+                        const clamped = finalPts.map(p => ({
+                            x: Math.max(0.001, Math.min(w - 1.001, p.x)),
+                            y: Math.max(0.001, Math.min(h - 1.001, p.y))
                         }));
 
-                        // Draw Final Green Box
+                        // Draw Green Box
                         if (debugCtx) {
-                            debugCtx.beginPath(); debugCtx.strokeStyle = '#00ff00'; debugCtx.lineWidth = 3;
+                            debugCtx.beginPath();
+                            debugCtx.strokeStyle = '#00ff00';
+                            debugCtx.lineWidth = 3;
                             debugCtx.moveTo(clamped[0].x, clamped[0].y);
                             clamped.forEach(p => debugCtx!.lineTo(p.x, p.y));
-                            debugCtx.closePath(); debugCtx.stroke();
+                            debugCtx.closePath();
+                            debugCtx.stroke();
                         }
 
                         bestCorners = clamped.map(p => ({ x: p.x / w, y: p.y / h }));
-                        setDebugLog(`LOCKED: Area ${Math.round(maxArea)}`);
-
                     } else {
                         setDebugLog("Searching...");
                     }
 
-                    // State Updates & Smoothing
                     if (bestCorners) {
                         historyRef.current.push(bestCorners);
                         if (historyRef.current.length > HISTORY_LENGTH) historyRef.current.shift();
@@ -230,7 +278,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
             loopRef.current = requestAnimationFrame(processFrame);
 
-            // Cleanup
             return () => {
                 cancelAnimationFrame(loopRef.current!);
                 try {
@@ -247,7 +294,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
     return { detectedCorners, isSteady, isCvReady, cvStatus, debugLog, debugCanvasRef };
 };
 
-// --- Helpers remain the same ---
 function sortPointsClockwise(pts: { x: number, y: number }[]) {
     const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
     const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;

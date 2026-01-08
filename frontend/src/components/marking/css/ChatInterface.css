@@ -176,8 +176,13 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   height: 24px;
   /* More compact button */
   width: 24px;
-  font-size: 12px;
-  /* Smaller icon */
+  font-size: 10px;
+  /* Reduced to fit icon */
+  border: 1px solid var(--border-primary);
+  background: var(--background-white-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .follow-up-chat-input-container.follow-up-bottom .send-button {
