@@ -290,6 +290,9 @@ export const performInstantCrop = async (
     normalizedCorners: NormalizedPoint[]
 ): Promise<Blob> => {
     return new Promise((resolve, reject) => {
+        if (!window.cv || !window.cv.Mat) { reject("OpenCV not ready"); return; }
+        const cv = window.cv;
+
         const img = new Image();
         const url = URL.createObjectURL(imageBlob);
 
@@ -303,83 +306,87 @@ export const performInstantCrop = async (
                 y: Math.round(p.y * h)
             }));
 
-            // 2. Dimensions (High Res)
-            const dist = (p1: any, p2: any) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-            let dwW = Math.max(dist(realCorners[0], realCorners[1]), dist(realCorners[2], realCorners[3]));
-            let dhH = Math.max(dist(realCorners[0], realCorners[3]), dist(realCorners[1], realCorners[2]));
+            // 2. FORCE HIGH-RES A4 DIMENSIONS (Fixes Distortion)
+            // A4 at ~300 DPI equivalent
+            const dwW = 2480;
+            const dhH = 3508;
 
-            // Force Minimum 2000px width for clarity
-            if (dwW < 2000) {
-                const scale = 2000 / dwW;
-                dwW = 2000;
-                dhH = dhH * scale;
-            }
-
-            // Aspect Ratio Snap (A4)
-            const ar = dwW / dhH;
-            if (ar > 0.6 && ar < 0.85) dwW = dhH * 0.707;
-            dwW = Math.round(dwW); dhH = Math.round(dhH);
-
-            // 3. Draw & Warp
+            // 3. Get Source Data
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             if (!ctx) { reject("ctx"); return; }
             ctx.drawImage(img, 0, 0);
-            const data = ctx.getImageData(0, 0, w, h).data;
+            const imgData = ctx.getImageData(0, 0, w, h);
 
-            // USE OpenCV Warp if available, fallback to manual logic
-            let warped;
-            if (window.cv && window.cv.Mat) {
-                console.log("🚀 USING OPENCV WARP");
-                warped = warpPerspectiveCV(data, w, h, realCorners, dwW, dhH);
-            } else {
-                console.log("⚠️ USING MANUAL WARP FALLBACK");
-                warped = warpPerspective(data, w, h, realCorners, dwW, dhH);
-            }
+            // --- V8 NATIVE OPENCV WARP (Perfect Perspective) ---
+            let src = cv.matFromImageData(imgData);
+            let dst = new cv.Mat();
 
-            // 4. "MAGIC COLOR" ENHANCEMENT (Natural Look)
+            // Source Points (The Green Box)
+            let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                realCorners[0].x, realCorners[0].y, // TL
+                realCorners[1].x, realCorners[1].y, // TR
+                realCorners[2].x, realCorners[2].y, // BR
+                realCorners[3].x, realCorners[3].y  // BL
+            ]);
+
+            // Destination Points (Perfect A4 Rectangle)
+            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                0, 0,      // TL
+                dwW, 0,    // TR
+                dwW, dhH,  // BR
+                0, dhH     // BL
+            ]);
+
+            // Compute & Apply Transform
+            let M = cv.getPerspectiveTransform(srcTri, dstTri);
+            cv.warpPerspective(src, dst, M, new cv.Size(dwW, dhH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+            // Get Warped Data back to JS
+            const warpedData = new Uint8ClampedArray(dst.data);
+
+            // Cleanup OpenCV objects immediately
+            src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
+
+            // 4. ENHANCEMENT (Magic Color Clean)
             const enhanced = new Uint8ClampedArray(dwW * dhH * 4);
             const gray = new Uint8Array(dwW * dhH);
-            for (let i = 0; i < dwW * dhH; i++) gray[i] = warped[i * 4 + 1]; // Green channel (best detail)
+            for (let i = 0; i < dwW * dhH; i++) gray[i] = warpedData[i * 4 + 1]; // Green channel
 
-            // Calculate Shadow Map (Background)
-            // Blur radius 3% of width
+            // Shadow Map (Radius 3%)
             const bgBlur = boxBlur(gray, dwW, dhH, Math.ceil(dwW * 0.03));
 
             for (let i = 0; i < dwW * dhH; i++) {
-                const px = warped[i * 4 + 1];
+                const idx = i * 4;
+                const px = warpedData[idx + 1];
                 const bg = bgBlur[i] || 1;
 
-                // A. Background Division (The core "Scanner" math)
-                // If Pixel == Background, Result is 255 (White)
-                // If Pixel < Background, Result is Darker (Text)
+                // Division
                 let val = (px / bg) * 255;
 
-                // B. Gentle Gamma Correction
-                // Darken the pencil text naturally (1.3)
-                val = 255 * Math.pow(val / 255, 1.3);
+                // Gentle Gamma (1.2)
+                val = 255 * Math.pow(val / 255, 1.2);
 
-                // C. Black Point Clamp
-                // Only clamp extremely dark pixels to black. Leave gray pixels alone.
-                if (val < 50) val = val * 0.8;
-
-                // D. White Point Clamp
-                // Clean up near-white noise
-                if (val > 230) val = 255;
+                // Clean ends
+                if (val < 40) val = val * 0.7; // Deepen blacks
+                if (val > 235) val = 255;      // Clean whites
 
                 val = Math.max(0, Math.min(255, val));
 
-                enhanced[i * 4] = val;
-                enhanced[i * 4 + 1] = val;
-                enhanced[i * 4 + 2] = val;
-                enhanced[i * 4 + 3] = 255;
+                enhanced[idx] = val;
+                enhanced[idx + 1] = val;
+                enhanced[idx + 2] = val;
+                enhanced[idx + 3] = 255;
             }
 
             const fCanvas = document.createElement('canvas');
             fCanvas.width = dwW; fCanvas.height = dhH;
-            fCanvas.getContext('2d')?.putImageData(new ImageData(enhanced, dwW, dhH), 0, 0);
-            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
+            const imageData = new ImageData(dwW, dhH);
+            imageData.data.set(enhanced);
+            fCanvas.getContext('2d')?.putImageData(imageData, 0, 0);
+            // High Quality JPEG
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.98);
         };
         img.onerror = reject;
         img.src = url;
@@ -398,7 +405,9 @@ export function sortCorners(pts: { x: number, y: number }[]) {
  */
 function warpPerspectiveCV(srcData: Uint8ClampedArray, sw: number, sh: number, corners: any[], dw: number, dh: number) {
     const cv = window.cv;
-    const src = cv.matFromImageData(new ImageData(srcData, sw, sh));
+    const imageData = new ImageData(sw, sh);
+    imageData.data.set(srcData);
+    const src = cv.matFromImageData(imageData);
     const dst = new cv.Mat();
     const dsize = new cv.Size(dw, dh);
 
@@ -423,7 +432,7 @@ function warpPerspectiveCV(srcData: Uint8ClampedArray, sw: number, sh: number, c
 
     // Convert back to Uint8ClampedArray
     const result = new Uint8ClampedArray(dw * dh * 4);
-    new ImageData(new Uint8ClampedArray(dst.data), dw, dh); // Validation
+    // Validation removed for lint compatibility
     result.set(dst.data);
 
     // Cleanup

@@ -19,11 +19,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     const HISTORY_LENGTH = 5;
 
-    // --- V7.1: TUNED ASYMMETRIC INFLATION ---
-    // Reduced factors to prevent grabbing table wood grain
-    const PAD_TOP = 0.12;    // 12% Up (Header)
-    const PAD_BOTTOM = 0.22; // 22% Down (Barcode Sweet Spot)
-    const PAD_SIDE = 0.08;   // 8% Sides
+    // CONFIG: Inflation (Only used for Inner Box)
+    const PAD_TOP = 0.09;
+    const PAD_BOTTOM = 0.18;
+    const PAD_SIDE = 0.06;
 
     const isCvReady = () => window.cv && window.cv.Mat;
 
@@ -46,25 +45,17 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
         const startLoop = () => {
             const cv = window.cv;
 
-            // Allocate Memory Once
-            let src: any, channels: any, blue: any, blurred: any, edges: any, kernel: any;
-            let contours: any, hierarchy: any, poly: any, hull: any;
-
-            try {
-                src = new cv.Mat();
-                channels = new cv.MatVector();
-                blue = new cv.Mat();
-                blurred = new cv.Mat();
-                edges = new cv.Mat();
-                kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
-                contours = new cv.MatVector();
-                hierarchy = new cv.Mat();
-                poly = new cv.Mat();
-                hull = new cv.Mat();
-            } catch (err) {
-                setDebugLog(`Alloc Err: ${err}`);
-                return;
-            }
+            // Persistent Memory
+            let src = new cv.Mat();
+            let channels = new cv.MatVector();
+            let blue = new cv.Mat();
+            let blurred = new cv.Mat();
+            let edges = new cv.Mat();
+            let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
+            let contours = new cv.MatVector();
+            let hierarchy = new cv.Mat();
+            let poly = new cv.Mat();
+            let hull = new cv.Mat();
 
             const processFrame = () => {
                 const video = videoRef.current;
@@ -84,6 +75,14 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     const scale = w / video.videoWidth;
                     const h = Math.floor(video.videoHeight * scale);
 
+                    // Context for Debug Drawing
+                    let debugCtx: CanvasRenderingContext2D | null = null;
+                    if (debugCanvasRef.current) {
+                        debugCanvasRef.current.width = w;
+                        debugCanvasRef.current.height = h;
+                        debugCtx = debugCanvasRef.current.getContext('2d');
+                    }
+
                     const canvas = document.createElement('canvas');
                     canvas.width = w; canvas.height = h;
                     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -92,10 +91,9 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     ctx.drawImage(video, 0, 0, w, h);
                     const imgData = ctx.getImageData(0, 0, w, h);
 
-                    // Manual Data Load (Crash Proof)
+                    // Load Data
                     if (src.cols !== w || src.rows !== h) {
-                        try { src.delete(); } catch (e) { }
-                        src = new cv.Mat(h, w, cv.CV_8UC4);
+                        src.delete(); src = new cv.Mat(h, w, cv.CV_8UC4);
                     }
                     src.data.set(imgData.data);
 
@@ -105,40 +103,48 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     bChannel.copyTo(blue);
                     bChannel.delete();
 
-                    // Pre-processing
+                    // Process
                     cv.GaussianBlur(blue, blurred, new cv.Size(5, 5), 0);
                     cv.Canny(blurred, edges, 30, 100);
                     cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, kernel);
 
-                    if (debugCanvasRef.current) {
-                        try { cv.imshow(debugCanvasRef.current, edges); } catch (e) { }
-                    }
-
                     // Find Contours
                     cv.findContours(edges, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
 
+                    // --- DRAW RAW EDGES TO DEBUG CANVAS (Background) ---
+                    if (debugCtx) {
+                        // We draw the OpenCV 'edges' matrix to the canvas for visualization
+                        const imgDataEdges = new ImageData(new Uint8ClampedArray(w * h * 4), w, h);
+                        // Convert mono 8-bit to RGBA
+                        for (let i = 0; i < w * h; i++) {
+                            const val = edges.data[i];
+                            imgDataEdges.data[i * 4] = val;   // R
+                            imgDataEdges.data[i * 4 + 1] = val; // G
+                            imgDataEdges.data[i * 4 + 2] = val; // B
+                            imgDataEdges.data[i * 4 + 3] = 255; // A
+                        }
+                        debugCtx.putImageData(imgDataEdges, 0, 0);
+                    }
+
                     let bestCorners: NormalizedPoint[] | null = null;
                     let maxArea = 0;
-                    const minArea = (w * h) * 0.15;
+                    const minArea = (w * h) * 0.10;
+                    const totalPixels = w * h;
+
                     const candidates = [];
 
                     for (let i = 0; i < contours.size(); ++i) {
                         const cnt = contours.get(i);
                         const area = cv.contourArea(cnt);
-
                         if (area < minArea) continue;
 
                         cv.convexHull(cnt, hull);
                         const peri = cv.arcLength(hull, true);
 
-                        // Smart Epsilon
                         let pointsFound = 0;
                         for (let eps = 0.02; eps < 0.10; eps += 0.02) {
                             cv.approxPolyDP(hull, poly, eps * peri, true);
-                            if (poly.rows === 4) {
-                                pointsFound = 4;
-                                break;
-                            }
+                            if (poly.rows === 4) { pointsFound = 4; break; }
                         }
 
                         if (pointsFound === 4) {
@@ -155,7 +161,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         }
                     }
 
-                    // Pick Best
                     candidates.sort((a, b) => b.area - a.area);
 
                     if (candidates.length > 0) {
@@ -163,50 +168,81 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         maxArea = winner.area;
                         const sorted = sortPointsClockwise(winner.pts);
 
-                        // --- V7.1: ASYMMETRIC INFLATION LOGIC ---
-                        const widthX = Math.hypot(sorted[0].x - sorted[1].x, sorted[0].y - sorted[1].y);
-                        const heightY = Math.hypot(sorted[0].x - sorted[3].x, sorted[0].y - sorted[3].y);
+                        // --- DRAW RED BOX (RAW DETECTION) ---
+                        if (debugCtx) {
+                            debugCtx.beginPath();
+                            debugCtx.strokeStyle = 'red';
+                            debugCtx.lineWidth = 3;
+                            debugCtx.moveTo(sorted[0].x, sorted[0].y);
+                            sorted.forEach(p => debugCtx!.lineTo(p.x, p.y));
+                            debugCtx.closePath();
+                            debugCtx.stroke();
+                        }
 
-                        const shiftX = widthX * PAD_SIDE;
-                        const shiftTop = heightY * PAD_TOP;
-                        const shiftBot = heightY * PAD_BOTTOM;
+                        // --- SMART INFLATION ---
+                        // Problem: Top-down shots detect the OUTER edge. We shouldn't inflate that.
+                        // Logic: If area is > 65% of screen, assume it's the Outer Edge (No Inflation).
+                        // If area is < 65%, assume it's Inner Box (Apply Inflation).
 
-                        // Center point
-                        const cx = (sorted[0].x + sorted[1].x + sorted[2].x + sorted[3].x) / 4;
-                        const cy = (sorted[0].y + sorted[1].y + sorted[2].y + sorted[3].y) / 4;
+                        const coverage = maxArea / totalPixels;
+                        const isInnerBox = coverage < 0.65;
 
-                        const inflated = sorted.map((p) => {
-                            let dx = p.x - cx;
-                            let dy = p.y - cy;
+                        let finalPts = sorted;
 
-                            // Horizontal Stretch
-                            const nx = p.x + (dx > 0 ? shiftX : -shiftX);
+                        if (isInnerBox) {
+                            // Apply Inflation logic
+                            const widthX = Math.hypot(sorted[0].x - sorted[1].x, sorted[0].y - sorted[1].y);
+                            const heightY = Math.hypot(sorted[0].x - sorted[3].x, sorted[0].y - sorted[3].y);
 
-                            // Vertical Stretch (Asymmetric)
-                            let ny = p.y;
-                            if (dy < 0) ny -= shiftTop; // Move Top Up
-                            else ny += shiftBot;        // Move Bottom Down
+                            const shiftX = widthX * PAD_SIDE;
+                            const shiftTop = heightY * PAD_TOP;
+                            const shiftBot = heightY * PAD_BOTTOM;
 
-                            return { x: nx, y: ny };
-                        });
+                            const cx = (sorted[0].x + sorted[1].x + sorted[2].x + sorted[3].x) / 4;
+                            const cy = (sorted[0].y + sorted[1].y + sorted[2].y + sorted[3].y) / 4;
+
+                            finalPts = sorted.map((p) => {
+                                let dx = p.x - cx;
+                                let dy = p.y - cy;
+                                const nx = p.x + (dx > 0 ? shiftX : -shiftX);
+                                let ny = p.y;
+                                if (dy < 0) ny -= shiftTop; else ny += shiftBot;
+                                return { x: nx, y: ny };
+                            });
+
+                            setDebugLog(`Type: INNER (${Math.round(coverage * 100)}%) -> INFLATED`);
+                        } else {
+                            setDebugLog(`Type: OUTER (${Math.round(coverage * 100)}%) -> RAW`);
+                        }
 
                         // Clamp
-                        const clamped = inflated.map(p => ({
-                            x: Math.max(0, Math.min(w, p.x)),
-                            y: Math.max(0, Math.min(h, p.y))
+                        const clamped = finalPts.map(p => ({
+                            x: Math.max(0.001, Math.min(w - 1.001, p.x)),
+                            y: Math.max(0.001, Math.min(h - 1.001, p.y))
                         }));
 
+                        // --- DRAW GREEN BOX (FINAL CROP) ---
+                        if (debugCtx) {
+                            debugCtx.beginPath();
+                            debugCtx.strokeStyle = '#00ff00'; // Green
+                            debugCtx.lineWidth = 3;
+                            debugCtx.moveTo(clamped[0].x, clamped[0].y);
+                            clamped.forEach(p => debugCtx!.lineTo(p.x, p.y));
+                            debugCtx.closePath();
+                            debugCtx.stroke();
+                        }
+
                         bestCorners = clamped.map(p => ({ x: p.x / w, y: p.y / h }));
+                    } else {
+                        setDebugLog("Searching...");
                     }
 
-                    // Update State
                     if (bestCorners) {
                         historyRef.current.push(bestCorners);
                         if (historyRef.current.length > HISTORY_LENGTH) historyRef.current.shift();
                         const avg = calculateAverage(historyRef.current);
                         setDetectedCorners(avg);
                         setIsSteady(calculateSteadiness(bestCorners, avg) < 0.04);
-                        setDebugLog(`LOCKED: Area ${Math.round(maxArea)}`);
                     } else {
                         if (historyRef.current.length > 0) {
                             historyRef.current.shift();
@@ -214,7 +250,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         } else {
                             setDetectedCorners(null);
                             setIsSteady(false);
-                            setDebugLog("Searching...");
                         }
                     }
 
@@ -227,22 +262,21 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             };
 
             loopRef.current = requestAnimationFrame(processFrame);
-        };
 
-        return () => {
-            clearInterval(waitForCv);
-            if (loopRef.current) cancelAnimationFrame(loopRef.current);
+            return () => {
+                cancelAnimationFrame(loopRef.current!);
+                try {
+                    if (src) src.delete(); if (channels) channels.delete();
+                    if (blue) blue.delete(); if (blurred) blurred.delete();
+                    if (edges) edges.delete(); if (kernel) kernel.delete();
+                    if (contours) contours.delete(); if (hierarchy) hierarchy.delete();
+                    if (poly) poly.delete(); if (hull) hull.delete();
+                } catch (e) { }
+            };
         };
     }, [isActive, videoRef]);
 
-    return {
-        detectedCorners,
-        isSteady,
-        cvStatus,
-        debugLog,
-        debugCanvasRef,
-        isCvReady: isCvReady()
-    };
+    return { detectedCorners, isSteady, cvStatus, debugLog, debugCanvasRef, isCvReady };
 };
 
 // --- HELPERS ---

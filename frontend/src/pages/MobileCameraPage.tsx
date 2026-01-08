@@ -394,7 +394,7 @@ const MobileCameraPage: React.FC = () => {
                                 border: '1px solid rgba(0, 255, 0, 0.3)',
                                 backdropFilter: 'blur(5px)'
                             }}>
-                                <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: isCvReady ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
+                                <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: isCvReady() ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
                                 <div style={{ marginBottom: '6px' }}><strong>ENGINE:</strong> {debugLog}</div>
 
                                 {/* VISUAL X-RAY: See what the computer sees */}
@@ -410,7 +410,9 @@ const MobileCameraPage: React.FC = () => {
                                         style={{ width: '100%', height: 'auto', display: 'block' }}
                                     />
                                 </div>
-                                <div style={{ textAlign: 'center', color: '#666', marginTop: '4px', fontSize: '9px' }}>CV BINARY MASK</div>
+                                <div style={{ fontSize: '9px', color: '#fff', marginTop: '4px', textAlign: 'center' }}>
+                                    Red=Raw | Green=Adjusted
+                                </div>
 
                                 <div style={{ marginTop: '8px', borderTop: '1px solid rgba(0, 255, 0, 0.2)', paddingTop: '6px' }}>
                                     <strong>LOCK:</strong> {detectedCorners ? (
@@ -425,7 +427,7 @@ const MobileCameraPage: React.FC = () => {
                             {/* --- END HUD --- */}
 
                             {/* SHOW OPENCV LOADING STATE IF NEEDED (V19) */}
-                            {streamStatus === 'active' && !isCvReady && (
+                            {streamStatus === 'active' && !isCvReady() && (
                                 <div className="cv-loading-toast">
                                     Loading Computer Vision...
                                 </div>

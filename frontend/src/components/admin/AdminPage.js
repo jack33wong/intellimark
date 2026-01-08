@@ -80,6 +80,39 @@ const normalizeExamSeries = (series, board) => {
   return normalizedSeries;
 };
 
+/**
+ * Helper to get marks for a single question or sub-question (recursively)
+ */
+const getQuestionMarksRecursive = (q) => {
+  const pMark = parseFloat(q.marks) || parseFloat(q.max_marks) || parseFloat(q.total_marks) || 0;
+  const subQs = q.subQuestions || q.sub_questions || [];
+
+  if (subQs.length === 0) return pMark;
+
+  const subSum = subQs.reduce((total, sq) => total + getQuestionMarksRecursive(sq), 0);
+
+  // Return the higher of parent vs sub-sum to be robust against partial scraping
+  return Math.max(pMark, subSum);
+};
+
+/**
+ * Calculate total marks for an exam paper
+ * Returns { total, audit: { qNum: marks } }
+ */
+const calculateExamTotalMarksDetailed = (questions) => {
+  if (!Array.isArray(questions)) return { total: 0, audit: {} };
+  const audit = {};
+  const total = questions.reduce((sum, q, idx) => {
+    const qNum = String(q.number || q.questionNumber || q.question_number || (idx + 1));
+    const marks = getQuestionMarksRecursive(q);
+    audit[qNum] = marks;
+    return sum + marks;
+  }, 0);
+  return { total, audit };
+};
+
+const calculateExamTotalMarks = (questions) => calculateExamTotalMarksDetailed(questions).total;
+
 
 
 // Format marking scheme as Markdown
@@ -605,6 +638,48 @@ function AdminPage() {
     });
   }, []);
 
+  /**
+   * Extract all question/sub-question numbers and copy to clipboard (V10 Admin)
+   */
+  const extractAndCopyQuestionNumbers = useCallback((entry) => {
+    try {
+      const examData = entry.data || entry;
+      const questions = examData.questions || [];
+      const list = [];
+
+      questions.forEach((q, qIndex) => {
+        const parentNum = (q.number || q.question_number || q.questionNumber || (qIndex + 1)).toString().trim();
+        const subQs = q.subQuestions || q.sub_questions || [];
+
+        if (subQs.length > 0) {
+          subQs.forEach((sq, sIndex) => {
+            const part = (sq.part || sq.question_part || sq.subQuestionNumber || String.fromCharCode(97 + sIndex)).toString().trim();
+            // Combine parent + part if it doesn't already include it (e.g. "1" + "a" = "1a")
+            const fullNum = (part.toLowerCase().startsWith(parentNum.toLowerCase())) ? part : `${parentNum}${part}`;
+            list.push(fullNum);
+          });
+        } else {
+          list.push(parentNum);
+        }
+      });
+
+      // Join with newlines (Preserve document order)
+      const textToCopy = list.join('\n');
+
+      if (textToCopy) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          console.log('Question numbers copied to clipboard');
+          setError('📋 Question list copied to clipboard');
+          setTimeout(() => setError(null), 2000);
+        }).catch(err => {
+          console.error('Failed to copy question numbers:', err);
+        });
+      }
+    } catch (error) {
+      console.error('Error in extractAndCopyQuestionNumbers:', error);
+    }
+  }, [setError]);
+
   const saveExamPaperChanges = useCallback(async () => {
     if (!editingId) return;
 
@@ -658,24 +733,37 @@ function AdminPage() {
   const getValidationErrors = useCallback((data) => {
     const errors = {
       totalMismatch: false,
-      questionMismatches: {} // Map of question index -> boolean
+      questionMismatches: {}, // Map of question index -> {parent, sub}
+      audit: {}
     };
     if (!data || !data.questions) return errors;
 
-    const totalMarks = data.questions.reduce((sum, q) => sum + (parseInt(q.marks) || 0), 0);
+    const { total: totalMarks, audit } = calculateExamTotalMarksDetailed(data.questions);
+    errors.audit = audit;
 
-    // Check total marks (GCSE Maths specific check, customizable)
-    const isGCSEMaths = (data.metadata?.subject || data.exam?.subject || '').toLowerCase().includes('math');
-    if (isGCSEMaths && totalMarks !== 80) {
-      errors.totalMismatch = true;
+    // Check total marks (Board-specific GCSE Maths check)
+    const subject = (data.metadata?.subject || data.exam?.subject || '').toLowerCase();
+    const board = normalizeExamBoard(data.metadata?.board || data.exam?.board || data.metadata?.exam_board || data.exam?.exam_board || '');
+    const qual = (data.metadata?.qualification || data.exam?.qualification || '');
+
+    const isGCSEMaths = subject.includes('math') && qual.includes('GCSE');
+
+    if (isGCSEMaths) {
+      // OCR J560 is 100 marks, Edexcel 1MA1 and AQA 8300 are 80 marks
+      const expectedMarks = board === 'OCR' ? 100 : 80;
+      if (totalMarks !== expectedMarks) {
+        errors.totalMismatch = true;
+        errors.expectedMarks = expectedMarks;
+      }
     }
 
     data.questions.forEach((q, idx) => {
       const subQs = q.subQuestions || q.sub_questions || [];
       if (subQs.length > 0) {
-        const subQSum = subQs.reduce((sum, sq) => sum + (parseInt(sq.marks) || 0), 0);
-        if (parseInt(q.marks) !== subQSum) {
-          errors.questionMismatches[idx] = true;
+        const subSum = subQs.reduce((s, sq) => s + getQuestionMarksRecursive(sq), 0);
+        const pMark = parseFloat(q.marks) || parseFloat(q.max_marks) || parseFloat(q.total_marks) || 0;
+        if (pMark !== subSum && subSum > 0) {
+          errors.questionMismatches[idx] = { parent: pMark, sub: subSum };
         }
       }
     });
@@ -901,7 +989,9 @@ function AdminPage() {
       // Validate JSON format first
       let parsedData;
       try {
-        parsedData = JSON.parse(markingSchemeForm.markingSchemeData);
+        // Auto-remove [cite] placeholders (e.g., [cite_start], [cite: 271])
+        const rawData = markingSchemeForm.markingSchemeData.replace(/\[cite[^\]]*\]/g, '');
+        parsedData = JSON.parse(rawData);
       } catch (e) {
         setError('Invalid JSON format. Please check your syntax.');
         setTimeout(() => setError(null), 5000);
@@ -1618,11 +1708,8 @@ function AdminPage() {
                           const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions ||
                             questionsList.reduce((total, q) => total + ((q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).length : 0), 0);
 
-                          // Calculate total marks and log if not 80 (debug)
-                          const totalMarks = questionsList.reduce((total, q) => {
-                            const questionMarks = parseInt(q.marks) || 0;
-                            return total + questionMarks;
-                          }, 0);
+                          // Calculate total marks using the smarter helper
+                          const totalMarks = calculateExamTotalMarks(questionsList);
 
 
                           // Check if marking scheme and grade boundary exist
@@ -1642,7 +1729,13 @@ function AdminPage() {
                                 <td className="admin-table__cell exam-paper-link">
                                   <div
                                     className="clickable-exam-paper"
-                                    onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
+                                    onClick={() => {
+                                      const newId = expandedJsonId === entry.id ? null : entry.id;
+                                      setExpandedJsonId(newId);
+                                      if (newId) {
+                                        extractAndCopyQuestionNumbers(entry);
+                                      }
+                                    }}
                                     title="Click to view exam paper content"
                                   >
                                     <span className="exam-paper-name">
@@ -1663,8 +1756,14 @@ function AdminPage() {
                                   {examData.questions ? (
                                     <span className="mark-count">
                                       <span style={{
-                                        color: (subject || '').toLowerCase().includes('math') && (qualification || '').includes('GCSE') && totalMarks !== 80 ? '#ef4444' : 'inherit',
-                                        fontWeight: (subject || '').toLowerCase().includes('math') && (qualification || '').includes('GCSE') && totalMarks !== 80 ? 'bold' : 'normal'
+                                        color: (subject || '').toLowerCase().includes('math') && (qualification || '').includes('GCSE') && (
+                                          (normalizeExamBoard(board) === 'OCR' && totalMarks !== 100) ||
+                                          (normalizeExamBoard(board) !== 'OCR' && totalMarks !== 80)
+                                        ) ? '#ef4444' : 'inherit',
+                                        fontWeight: (subject || '').toLowerCase().includes('math') && (qualification || '').includes('GCSE') && (
+                                          (normalizeExamBoard(board) === 'OCR' && totalMarks !== 100) ||
+                                          (normalizeExamBoard(board) !== 'OCR' && totalMarks !== 80)
+                                        ) ? 'bold' : 'normal'
                                       }}>
                                         {totalMarks} marks
                                       </span>
@@ -1768,7 +1867,13 @@ function AdminPage() {
                                 <td className="admin-table__cell actions-cell">
                                   <button
                                     className="admin-btn admin-btn--icon"
-                                    onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
+                                    onClick={() => {
+                                      const newId = expandedJsonId === entry.id ? null : entry.id;
+                                      setExpandedJsonId(newId);
+                                      if (newId) {
+                                        extractAndCopyQuestionNumbers(entry);
+                                      }
+                                    }}
                                     title="View"
                                   >
                                     <FileText size={16} />
@@ -1829,6 +1934,14 @@ function AdminPage() {
                                                   style={{ marginRight: '10px' }}
                                                 >
                                                   Edit
+                                                </button>
+                                                <button
+                                                  className="admin-btn admin-btn--secondary"
+                                                  onClick={() => extractAndCopyQuestionNumbers(entry)}
+                                                  style={{ marginRight: '10px' }}
+                                                  title="Copy all question numbers to clipboard"
+                                                >
+                                                  📋 Copy Numbers
                                                 </button>
                                                 <span className="admin-content-info__text">Questions are displayed in numerical order</span>
                                                 <button
@@ -1921,17 +2034,48 @@ function AdminPage() {
                                                     </span>
                                                     <span className="admin-summary-item">
                                                       <strong>Total Marks:</strong>
-                                                      {displayData.questions.reduce((total, q) => {
-                                                        const questionMarks = parseInt(q.marks) || 0;
-                                                        return total + questionMarks;
-                                                      }, 0)}
+                                                      {calculateExamTotalMarks(displayData.questions)}
                                                       {validationErrors.totalMismatch && (
-                                                        <span title="Total marks mismatch (expected 80) - check for errors" style={{ marginLeft: '8px', cursor: 'help', fontSize: '1.2em' }}>🛑</span>
+                                                        <span title={`Total marks mismatch (expected ${validationErrors.expectedMarks || 80}) - check for errors below. Found: ${calculateExamTotalMarks(displayData.questions)}`} style={{ marginLeft: '8px', cursor: 'help', fontSize: '1.2em' }}>🛑</span>
+                                                      )}
+                                                      {Object.keys(validationErrors.questionMismatches || {}).length > 0 && (
+                                                        <span title="Internal question mark conflicts detected (Parent vs Sub Sum). Check individual question items." style={{ marginLeft: '8px', cursor: 'help', fontSize: '1.2em' }}>⚠️</span>
                                                       )}
                                                     </span>
                                                   </>
                                                 )}
                                               </div>
+
+                                              {/* Audit Breakdown (Only shown if total 100/80 mismatch) */}
+                                              {validationErrors.totalMismatch && validationErrors.audit && (
+                                                <div className="admin-audit-section" style={{
+                                                  backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                                                  border: '1px dashed #ef4444',
+                                                  borderRadius: '8px',
+                                                  padding: '12px',
+                                                  marginBottom: '16px',
+                                                  fontSize: '11px'
+                                                }}>
+                                                  <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#ef4444', textTransform: 'uppercase' }}>
+                                                    🔍 Mark Audit (Paper Total: {calculateExamTotalMarks(displayData.questions)})
+                                                  </div>
+                                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    {Object.entries(validationErrors.audit).map(([q, m]) => (
+                                                      <span key={q} style={{
+                                                        padding: '2px 6px',
+                                                        backgroundColor: m === 0 ? '#7f1d1d' : '#374151',
+                                                        borderRadius: '6px',
+                                                        color: '#ffffff',
+                                                      }}>
+                                                        Q{q}: <strong>{m}</strong>
+                                                      </span>
+                                                    ))}
+                                                  </div>
+                                                  <div style={{ marginTop: '8px', fontStyle: 'italic', color: '#666' }}>
+                                                    Total = {Object.values(validationErrors.audit).join(' + ')} = {calculateExamTotalMarks(displayData.questions)}
+                                                  </div>
+                                                </div>
+                                              )}
 
                                               {/* Detailed Structure Mismatch Alert ... */}
                                               {/* [KEEP EXISTING MISMATCH ALERT LOGIC] */}
@@ -1967,7 +2111,7 @@ function AdminPage() {
                                                       {isEditing && editingId === entry.id ? (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                           {validationErrors.questionMismatches && validationErrors.questionMismatches[qIndex] && (
-                                                            <span title="Marks sum mismatch with sub-questions" style={{ cursor: 'help' }}>❌</span>
+                                                            <span title={`Marks sum mismatch: Parent (${validationErrors.questionMismatches[qIndex].parent}) vs Sub (${validationErrors.questionMismatches[qIndex].sub})`} style={{ cursor: 'help' }}>❌</span>
                                                           )}
                                                           <div className="mark-editor">
                                                             <label>Marks</label>
@@ -1990,7 +2134,7 @@ function AdminPage() {
                                                       ) : (
                                                         <div style={{ display: 'flex', alignItems: 'center' }}>
                                                           {validationErrors.questionMismatches && validationErrors.questionMismatches[qIndex] && (
-                                                            <span title="Marks sum mismatch with sub-questions" style={{ marginRight: '8px', cursor: 'help', fontSize: '16px' }}>❌</span>
+                                                            <span title={`Marks sum mismatch: Parent (${validationErrors.questionMismatches[qIndex].parent}) vs Sub (${validationErrors.questionMismatches[qIndex].sub})`} style={{ marginRight: '8px', cursor: 'help', fontSize: '16px' }}>❌</span>
                                                           )}
                                                           {question.marks && (
                                                             <span className="admin-question-marks">[{question.marks} marks]</span>
