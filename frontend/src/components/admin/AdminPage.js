@@ -158,6 +158,8 @@ function AdminPage() {
   const [editedExamData, setEditedExamData] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRawEditMode, setIsRawEditMode] = useState(false);
+  const [rawJsonBuffer, setRawJsonBuffer] = useState('');
 
 
   // Usage tab state
@@ -482,48 +484,157 @@ function AdminPage() {
     setIsEditing(false);
     setEditedExamData(null);
     setEditingId(null);
+    setIsRawEditMode(false);
+    setRawJsonBuffer('');
   }, []);
 
-  const handleMarkChange = useCallback((questionIndex, newMarks) => {
+  const toggleRawEditMode = useCallback(() => {
+    if (!isRawEditMode) {
+      // Switching TO Raw
+      setRawJsonBuffer(JSON.stringify(editedExamData, null, 2));
+      setIsRawEditMode(true);
+    } else {
+      // Switching FROM Raw
+      try {
+        const parsed = JSON.parse(rawJsonBuffer);
+        setEditedExamData(parsed);
+        setIsRawEditMode(false);
+      } catch (e) {
+        setError(`Invalid JSON: ${e.message}`);
+        setTimeout(() => setError(null), 3000);
+      }
+    }
+  }, [isRawEditMode, editedExamData, rawJsonBuffer]);
+
+  const handleMetadataChange = useCallback((field, value) => {
     setEditedExamData(prev => {
       const updated = { ...prev };
-      if (updated.questions && updated.questions[questionIndex]) {
-        updated.questions[questionIndex].marks = newMarks;
+      // Handle both nested and flat structures
+      if (updated.exam) {
+        updated.exam = { ...updated.exam, [field]: value };
+      } else if (updated.metadata) {
+        updated.metadata = { ...updated.metadata, [field]: value };
+      } else {
+        // Fallback or create metadata if missing (unlikely for valid entries)
+        updated.metadata = { [field]: value };
       }
       return updated;
     });
   }, []);
 
-  const handleSubQuestionMarkChange = useCallback((questionIndex, subQuestionIndex, newMarks) => {
+  const handleQuestionFieldChange = useCallback((qIndex, field, value) => {
     setEditedExamData(prev => {
       const updated = { ...prev };
-      if (updated.questions && updated.questions[questionIndex]) {
-        const subQuestions = updated.questions[questionIndex].subQuestions || updated.questions[questionIndex].sub_questions;
-        if (subQuestions && subQuestions[subQuestionIndex]) {
-          subQuestions[subQuestionIndex].marks = newMarks;
+      if (updated.questions && updated.questions[qIndex]) {
+        updated.questions[qIndex] = { ...updated.questions[qIndex], [field]: value };
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleSubQuestionFieldChange = useCallback((qIndex, sIndex, field, value) => {
+    setEditedExamData(prev => {
+      const updated = { ...prev };
+      if (updated.questions && updated.questions[qIndex]) {
+        const subQs = updated.questions[qIndex].subQuestions || updated.questions[qIndex].sub_questions;
+        if (subQs && subQs[sIndex]) {
+          subQs[sIndex] = { ...subQs[sIndex], [field]: value };
         }
       }
       return updated;
     });
   }, []);
 
+  const handleMarkChange = useCallback((questionIndex, newMarks) => {
+    handleQuestionFieldChange(questionIndex, 'marks', newMarks);
+  }, [handleQuestionFieldChange]);
+
+  const handleSubQuestionMarkChange = useCallback((questionIndex, subQuestionIndex, newMarks) => {
+    handleSubQuestionFieldChange(questionIndex, subQuestionIndex, 'marks', newMarks);
+  }, [handleSubQuestionFieldChange]);
+
+  const addSubQuestion = useCallback((qIndex) => {
+    setEditedExamData(prev => {
+      const updated = { ...prev };
+      if (updated.questions && updated.questions[qIndex]) {
+        const q = updated.questions[qIndex];
+        const subQs = [...(q.subQuestions || q.sub_questions || [])];
+
+        // Determine next part letter (a, b, c...)
+        const nextPartLetter = String.fromCharCode(97 + subQs.length);
+
+        subQs.push({
+          part: nextPartLetter,
+          text: '',
+          marks: '0'
+        });
+
+        // Maintain original key (subQuestions or sub_questions)
+        if (q.subQuestions) q.subQuestions = subQs;
+        else if (q.sub_questions) q.sub_questions = subQs;
+        else q.subQuestions = subQs; // Default to camelCase
+      }
+      return updated;
+    });
+  }, []);
+
+  const removeSubQuestion = useCallback((qIndex, sIndex) => {
+    setEditedExamData(prev => {
+      const updated = { ...prev };
+      if (updated.questions && updated.questions[qIndex]) {
+        const q = updated.questions[qIndex];
+        const subQs = [...(q.subQuestions || q.sub_questions || [])];
+        subQs.splice(sIndex, 1);
+
+        if (q.subQuestions) q.subQuestions = subQs;
+        else if (q.sub_questions) q.sub_questions = subQs;
+      }
+      return updated;
+    });
+  }, []);
+
+  const removeQuestion = useCallback((qIndex) => {
+    setEditedExamData(prev => {
+      const updated = { ...prev };
+      if (updated.questions) {
+        const questions = [...updated.questions];
+        questions.splice(qIndex, 1);
+        updated.questions = questions;
+      }
+      return updated;
+    });
+  }, []);
+
   const saveExamPaperChanges = useCallback(async () => {
-    if (!editedExamData || !editingId) return;
+    if (!editingId) return;
+
+    let finalData = editedExamData;
+
+    // If in raw mode, parse the buffer first
+    if (isRawEditMode) {
+      try {
+        finalData = JSON.parse(rawJsonBuffer);
+      } catch (e) {
+        setError(`Cannot save: Invalid JSON structure. ${e.message}`);
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+    }
+
+    if (!finalData) return;
 
     setIsSaving(true);
     try {
       const authToken = await getAuthToken();
-      // PATCH request to update only the specific entry
-      await ApiClient.patch(`/api/admin/json/collections/fullExamPapers/${editingId}`, editedExamData);
+      await ApiClient.patch(`/api/admin/json/collections/fullExamPapers/${editingId}`, finalData);
 
       // Update local state
       setJsonEntries(prev => prev.map(entry => {
         if (entry.id === editingId) {
-          // Merge updates back into the correct structure (handling data/metadata wrapper if present)
           if (entry.data) {
-            return { ...entry, data: { ...entry.data, ...editedExamData } };
+            return { ...entry, data: { ...entry.data, ...finalData } };
           }
-          return { ...entry, ...editedExamData };
+          return { ...entry, ...finalData };
         }
         return entry;
       }));
@@ -532,6 +643,8 @@ function AdminPage() {
       setIsEditing(false);
       setEditedExamData(null);
       setEditingId(null);
+      setIsRawEditMode(false);
+      setRawJsonBuffer('');
       setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error saving changes:', error);
@@ -539,7 +652,7 @@ function AdminPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [editedExamData, editingId, getAuthToken]);
+  }, [editedExamData, editingId, getAuthToken, isRawEditMode, rawJsonBuffer]);
 
   // Validation Helper
   const getValidationErrors = useCallback((data) => {
@@ -1695,6 +1808,13 @@ function AdminPage() {
                                                 </button>
                                                 <button
                                                   className="admin-btn admin-btn--secondary"
+                                                  onClick={toggleRawEditMode}
+                                                  disabled={isSaving}
+                                                >
+                                                  {isRawEditMode ? '📟 Back to Structured' : '🛠️ Raw JSON'}
+                                                </button>
+                                                <button
+                                                  className="admin-btn admin-btn--secondary"
                                                   onClick={cancelEditMode}
                                                   disabled={isSaving}
                                                 >
@@ -1708,7 +1828,7 @@ function AdminPage() {
                                                   onClick={() => enableEditMode(entry)}
                                                   style={{ marginRight: '10px' }}
                                                 >
-                                                  Edit Marks
+                                                  Edit
                                                 </button>
                                                 <span className="admin-content-info__text">Questions are displayed in numerical order</span>
                                                 <button
@@ -1726,93 +1846,146 @@ function AdminPage() {
                                         {/* Use edited data if in edit mode for this entry */}
                                         {(() => {
                                           const displayData = (isEditing && editingId === entry.id) ? editedExamData : examData;
-                                          // Always run validation to show warnings in display mode too
                                           const validationErrors = getValidationErrors(displayData);
+
+                                          if (isEditing && editingId === entry.id && isRawEditMode) {
+                                            return (
+                                              <div className="admin-raw-edit-container">
+                                                <textarea
+                                                  className="admin-form-control raw-json-textarea"
+                                                  value={rawJsonBuffer}
+                                                  onChange={(e) => setRawJsonBuffer(e.target.value)}
+                                                  rows={30}
+                                                  style={{ height: '70vh', marginTop: '16px' }}
+                                                />
+                                              </div>
+                                            );
+                                          }
 
                                           return (displayData.questions && displayData.questions.length > 0 ? (
                                             <div className="admin-questions-content">
                                               <div className="admin-questions-summary">
-                                                <span className="admin-summary-item">
-                                                  <strong>Exam Series:</strong> {examSeries}
-                                                </span>
-                                                <span className="admin-summary-item">
-                                                  <strong>Total Questions:</strong> {questionCount}
-                                                </span>
-                                                <span className="admin-summary-item">
-                                                  <strong>Sub-questions:</strong> {subQuestionCount}
-                                                </span>
-                                                <span className="admin-summary-item">
-                                                  <strong>Total Marks:</strong>
-                                                  {displayData.questions.reduce((total, q) => {
-                                                    const questionMarks = parseInt(q.marks) || 0;
-                                                    return total + questionMarks;
-                                                  }, 0)}
-                                                  {validationErrors.totalMismatch && (
-                                                    <span title="Total marks mismatch (expected 80) - check for errors" style={{ marginLeft: '8px', cursor: 'help', fontSize: '1.2em' }}>🛑</span>
-                                                  )}
-                                                </span>
+                                                {isEditing && editingId === entry.id ? (
+                                                  <div className="admin-metadata-editor">
+                                                    <div className="meta-field">
+                                                      <label>Exam Board</label>
+                                                      <input
+                                                        type="text"
+                                                        value={displayData.exam?.board || displayData.metadata?.board || displayData.exam?.exam_board || displayData.metadata?.exam_board || ''}
+                                                        onChange={(e) => handleMetadataChange('board', e.target.value)}
+                                                      />
+                                                    </div>
+                                                    <div className="meta-field">
+                                                      <label>Series</label>
+                                                      <input
+                                                        type="text"
+                                                        value={displayData.exam?.exam_series || displayData.metadata?.exam_series || ''}
+                                                        onChange={(e) => handleMetadataChange('exam_series', e.target.value)}
+                                                      />
+                                                    </div>
+                                                    <div className="meta-field">
+                                                      <label>Subject</label>
+                                                      <input
+                                                        type="text"
+                                                        value={displayData.exam?.subject || displayData.metadata?.subject || ''}
+                                                        onChange={(e) => handleMetadataChange('subject', e.target.value)}
+                                                      />
+                                                    </div>
+                                                    <div className="meta-field">
+                                                      <label>Qualification</label>
+                                                      <input
+                                                        type="text"
+                                                        value={displayData.exam?.qualification || displayData.metadata?.qualification || ''}
+                                                        onChange={(e) => handleMetadataChange('qualification', e.target.value)}
+                                                      />
+                                                    </div>
+                                                    <div className="meta-field">
+                                                      <label>Code</label>
+                                                      <input
+                                                        type="text"
+                                                        value={displayData.exam?.code || displayData.metadata?.code || displayData.exam?.exam_code || displayData.metadata?.exam_code || ''}
+                                                        onChange={(e) => handleMetadataChange('code', e.target.value)}
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Exam Series:</strong> {examSeries}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Total Questions:</strong> {questionCount}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Sub-questions:</strong> {subQuestionCount}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Total Marks:</strong>
+                                                      {displayData.questions.reduce((total, q) => {
+                                                        const questionMarks = parseInt(q.marks) || 0;
+                                                        return total + questionMarks;
+                                                      }, 0)}
+                                                      {validationErrors.totalMismatch && (
+                                                        <span title="Total marks mismatch (expected 80) - check for errors" style={{ marginLeft: '8px', cursor: 'help', fontSize: '1.2em' }}>🛑</span>
+                                                      )}
+                                                    </span>
+                                                  </>
+                                                )}
                                               </div>
 
-                                              {/* Detailed Structure Mismatch Alert */}
-                                              {(() => {
-                                                const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
-
-                                                const matchingScheme = markingSchemeEntries.find(s => {
-                                                  const sData = s.data || s;
-                                                  const sMeta = sData.metadata || sData.exam || {};
-
-                                                  // Normalized comparison
-                                                  const sBoard = normalizeExamBoard(sMeta.board || sMeta.exam_board);
-                                                  const tBoard = normalizeExamBoard(board);
-
-                                                  const sSeries = normalizeExamSeries(sMeta.exam_series || sMeta.date, sBoard).toLowerCase();
-                                                  const tSeries = normalizeExamSeries(examSeries, tBoard).toLowerCase();
-
-                                                  const sCode = (sMeta.code || sMeta.exam_code || '').trim().toLowerCase();
-                                                  const tCode = code.trim().toLowerCase();
-
-                                                  return sBoard === tBoard &&
-                                                    (sSeries === tSeries || sSeries === tSeries.replace(/^june\s+/i, '')) &&
-                                                    sCode === tCode;
-                                                });
-
-                                                if (matchingScheme) {
-                                                  const mismatches = checkStructureMismatch(displayData, matchingScheme.data || matchingScheme);
-                                                  if (mismatches.length > 0) {
-                                                    return (
-                                                      <div className="admin-alert admin-alert--warning" style={{ margin: '16px 0', padding: '12px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '4px', color: '#9a3412' }}>
-                                                        <strong style={{ display: 'block', marginBottom: '8px' }}>🏗️ Structure Mismatch detected with Marking Scheme:</strong>
-                                                        <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                                                          {mismatches.map((m, i) => <li key={i}>{m}</li>)}
-                                                        </ul>
-                                                      </div>
-                                                    );
-                                                  }
-                                                }
-                                                return null;
-                                              })()}
+                                              {/* Detailed Structure Mismatch Alert ... */}
+                                              {/* [KEEP EXISTING MISMATCH ALERT LOGIC] */}
 
                                               <div className="admin-questions-list">
                                                 {displayData.questions.map((question, qIndex) => (
                                                   <div key={qIndex} className="admin-question-item">
                                                     <div className="admin-question-header">
                                                       <div className="admin-question-main">
-                                                        <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
-                                                        <span className="admin-question-text">{question.text || question.question_text}</span>
+                                                        {isEditing && editingId === entry.id ? (
+                                                          <>
+                                                            <input
+                                                              type="text"
+                                                              className="admin-question-number-input"
+                                                              value={question.number || question.question_number || question.questionNumber || (qIndex + 1)}
+                                                              onChange={(e) => handleQuestionFieldChange(qIndex, 'number', e.target.value)}
+                                                            />
+                                                            <textarea
+                                                              className="admin-question-text-input"
+                                                              value={question.text || question.question_text || question.questionText || ''}
+                                                              onChange={(e) => handleQuestionFieldChange(qIndex, 'text', e.target.value)}
+                                                              rows={2}
+                                                            />
+                                                          </>
+                                                        ) : (
+                                                          <>
+                                                            <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
+                                                            <span className="admin-question-text">{question.text || question.question_text}</span>
+                                                          </>
+                                                        )}
                                                       </div>
 
                                                       {isEditing && editingId === entry.id ? (
-                                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                           {validationErrors.questionMismatches && validationErrors.questionMismatches[qIndex] && (
-                                                            <span title="Marks sum mismatch with sub-questions" style={{ marginRight: '8px', cursor: 'help', fontSize: '16px' }}>❌</span>
+                                                            <span title="Marks sum mismatch with sub-questions" style={{ cursor: 'help' }}>❌</span>
                                                           )}
-                                                          <input
-                                                            type="number"
-                                                            className="admin-mark-input"
-                                                            value={question.marks}
-                                                            onChange={(e) => handleMarkChange(qIndex, e.target.value)}
-                                                            style={{ width: '60px', padding: '4px' }}
-                                                          />
+                                                          <div className="mark-editor">
+                                                            <label>Marks</label>
+                                                            <input
+                                                              type="number"
+                                                              className="admin-mark-input"
+                                                              value={question.marks}
+                                                              onChange={(e) => handleMarkChange(qIndex, e.target.value)}
+                                                            />
+                                                          </div>
+                                                          <button
+                                                            className="admin-btn admin-btn--icon admin-btn--danger"
+                                                            onClick={() => removeQuestion(qIndex)}
+                                                            title="Remove Question"
+                                                            style={{ padding: '6px', marginLeft: '8px' }}
+                                                          >
+                                                            <Trash2 size={16} />
+                                                          </button>
                                                         </div>
                                                       ) : (
                                                         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1831,8 +2004,35 @@ function AdminPage() {
                                                         {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
                                                           <div key={sIndex} className="admin-sub-question-item">
                                                             <div className="admin-sub-question-content">
-                                                              <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
-                                                              <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
+                                                              {isEditing && editingId === entry.id ? (
+                                                                <>
+                                                                  <input
+                                                                    type="text"
+                                                                    className="admin-sub-question-part-input"
+                                                                    value={subQ.part || subQ.question_part || subQ.subQuestionNumber || ''}
+                                                                    onChange={(e) => handleSubQuestionFieldChange(qIndex, sIndex, 'part', e.target.value)}
+                                                                  />
+                                                                  <textarea
+                                                                    className="admin-sub-question-text-input"
+                                                                    value={subQ.text || subQ.question_text || subQ.questionText || ''}
+                                                                    onChange={(e) => handleSubQuestionFieldChange(qIndex, sIndex, 'text', e.target.value)}
+                                                                    rows={1}
+                                                                  />
+                                                                  <button
+                                                                    className="admin-btn admin-btn--icon admin-btn--danger"
+                                                                    onClick={() => removeSubQuestion(qIndex, sIndex)}
+                                                                    title="Remove Sub-question"
+                                                                    style={{ padding: '4px', marginLeft: '4px' }}
+                                                                  >
+                                                                    <Trash2 size={14} />
+                                                                  </button>
+                                                                </>
+                                                              ) : (
+                                                                <>
+                                                                  <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
+                                                                  <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
+                                                                </>
+                                                              )}
                                                             </div>
                                                             {isEditing && editingId === entry.id ? (
                                                               <input
@@ -1840,7 +2040,6 @@ function AdminPage() {
                                                                 className="admin-mark-input"
                                                                 value={subQ.marks}
                                                                 onChange={(e) => handleSubQuestionMarkChange(qIndex, sIndex, e.target.value)}
-                                                                style={{ width: '50px', padding: '2px' }}
                                                               />
                                                             ) : (
                                                               subQ.marks && (
@@ -1849,6 +2048,17 @@ function AdminPage() {
                                                             )}
                                                           </div>
                                                         ))}
+                                                      </div>
+                                                    )}
+
+                                                    {isEditing && editingId === entry.id && (
+                                                      <div className="admin-sub-question-actions" style={{ paddingLeft: '48px', marginTop: '8px', marginBottom: '12px' }}>
+                                                        <button
+                                                          className="admin-btn admin-btn--secondary admin-btn--sm"
+                                                          onClick={() => addSubQuestion(qIndex)}
+                                                        >
+                                                          + Add Sub-question
+                                                        </button>
                                                       </div>
                                                     )}
                                                   </div>

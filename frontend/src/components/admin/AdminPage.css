@@ -603,6 +603,130 @@
 }
 
 /* ==========================================================================
+   16. METADATA & RAW EDITORS
+   ========================================================================== */
+
+.admin-metadata-editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.meta-field input {
+  padding: 8px 12px;
+  background: var(--background-nav);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.admin-raw-edit-container {
+  width: 100%;
+}
+
+.raw-json-textarea {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-size: 13px !important;
+  background: #1a1a1a !important;
+  color: #dcdcdc !important;
+  border: 1px solid #333 !important;
+  padding: 20px !important;
+  border-radius: 8px !important;
+}
+
+/* ==========================================================================
+   17. QUESTION EDITOR INPUTS
+   ========================================================================== */
+
+.admin-question-number-input {
+  width: 60px;
+  background: var(--text-brand);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+  box-shadow: var(--shadow-S);
+}
+
+.admin-question-text-input,
+.admin-sub-question-text-input {
+  flex: 1;
+  background: var(--background-nav);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 40px;
+}
+
+.admin-btn--sm {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.admin-sub-question-actions {
+  display: flex;
+  align-items: center;
+  border-top: 1px dashed var(--border-main);
+}
+
+.admin-sub-question-part-input {
+  width: 40px;
+  background: var(--fill-gray);
+  border: 1px solid var(--border-main);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 4px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.mark-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.mark-editor label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.admin-mark-input {
+  width: 60px;
+  background: var(--background-nav);
+  border: 1px solid var(--border-main);
+  border-radius: 4px;
+  color: var(--text-brand);
+  font-weight: 700;
+  padding: 4px;
+  text-align: center;
+}
+
+/* ==========================================================================
    16. QUESTIONS CONTENT
    ========================================================================== */
 
