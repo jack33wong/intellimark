@@ -19,7 +19,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     const HISTORY_LENGTH = 5;
 
-    // CONFIG: Inflation (Only used for Inner Box)
+    // CONFIG: Inflation factors (Only applied if we detect "Inner Border")
     const PAD_TOP = 0.09;
     const PAD_BOTTOM = 0.18;
     const PAD_SIDE = 0.06;
@@ -75,7 +75,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     const scale = w / video.videoWidth;
                     const h = Math.floor(video.videoHeight * scale);
 
-                    // Context for Debug Drawing
+                    // Debug Canvas Setup
                     let debugCtx: CanvasRenderingContext2D | null = null;
                     if (debugCanvasRef.current) {
                         debugCanvasRef.current.width = w;
@@ -97,7 +97,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     }
                     src.data.set(imgData.data);
 
-                    // Blue Channel
+                    // Blue Channel (Best for Wood vs Paper)
                     cv.split(src, channels);
                     const bChannel = channels.get(2);
                     bChannel.copyTo(blue);
@@ -108,29 +108,25 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     cv.Canny(blurred, edges, 30, 100);
                     cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, kernel);
 
-                    // Find Contours
-                    cv.findContours(edges, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
-
-                    // --- DRAW RAW EDGES TO DEBUG CANVAS (Background) ---
+                    // Draw Raw Edges to Debug
                     if (debugCtx) {
-                        // We draw the OpenCV 'edges' matrix to the canvas for visualization
                         const imgDataEdges = new ImageData(new Uint8ClampedArray(w * h * 4), w, h);
-                        // Convert mono 8-bit to RGBA
                         for (let i = 0; i < w * h; i++) {
                             const val = edges.data[i];
-                            imgDataEdges.data[i * 4] = val;   // R
-                            imgDataEdges.data[i * 4 + 1] = val; // G
-                            imgDataEdges.data[i * 4 + 2] = val; // B
-                            imgDataEdges.data[i * 4 + 3] = 255; // A
+                            imgDataEdges.data[i * 4] = val;
+                            imgDataEdges.data[i * 4 + 1] = val;
+                            imgDataEdges.data[i * 4 + 2] = val;
+                            imgDataEdges.data[i * 4 + 3] = 255;
                         }
                         debugCtx.putImageData(imgDataEdges, 0, 0);
                     }
 
+                    // Contours
+                    cv.findContours(edges, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+
                     let bestCorners: NormalizedPoint[] | null = null;
                     let maxArea = 0;
                     const minArea = (w * h) * 0.10;
-                    const totalPixels = w * h;
-
                     const candidates = [];
 
                     for (let i = 0; i < contours.size(); ++i) {
@@ -168,63 +164,96 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         maxArea = winner.area;
                         const sorted = sortPointsClockwise(winner.pts);
 
-                        // --- DRAW RED BOX (RAW DETECTION) ---
+                        // --- RAW RED BOX (Visualization) ---
                         if (debugCtx) {
                             debugCtx.beginPath();
                             debugCtx.strokeStyle = 'red';
-                            debugCtx.lineWidth = 3;
+                            debugCtx.lineWidth = 2;
                             debugCtx.moveTo(sorted[0].x, sorted[0].y);
                             sorted.forEach(p => debugCtx!.lineTo(p.x, p.y));
                             debugCtx.closePath();
                             debugCtx.stroke();
                         }
 
-                        // --- SMART INFLATION ---
-                        // Problem: Top-down shots detect the OUTER edge. We shouldn't inflate that.
-                        // Logic: If area is > 65% of screen, assume it's the Outer Edge (No Inflation).
-                        // If area is < 65%, assume it's Inner Box (Apply Inflation).
+                        // --- SMART PROBE LOGIC ---
+                        // Check pixels 20px outside the detected box midpoints
+                        const center = { x: 0, y: 0 };
+                        sorted.forEach(p => { center.x += p.x; center.y += p.y; });
+                        center.x /= 4; center.y /= 4;
 
-                        const coverage = maxArea / totalPixels;
-                        const isInnerBox = coverage < 0.65;
+                        let brightnessSum = 0;
+                        let probes = 0;
+
+                        // Check midpoint of Top, Right, Bottom, Left
+                        for (let i = 0; i < 4; i++) {
+                            const p1 = sorted[i];
+                            const p2 = sorted[(i + 1) % 4];
+                            const midX = (p1.x + p2.x) / 2;
+                            const midY = (p1.y + p2.y) / 2;
+
+                            // Vector from center to mid
+                            const vecX = midX - center.x;
+                            const vecY = midY - center.y;
+
+                            // Normalize and extend by 20px
+                            const len = Math.hypot(vecX, vecY);
+                            const probeX = Math.round(midX + (vecX / len) * 20);
+                            const probeY = Math.round(midY + (vecY / len) * 20);
+
+                            if (probeX > 0 && probeX < w && probeY > 0 && probeY < h) {
+                                // Read Blue Channel Brightness
+                                const val = blue.ucharPtr(probeY, probeX)[0];
+                                brightnessSum += val;
+                                probes++;
+                                // Draw probe point
+                                if (debugCtx) {
+                                    debugCtx.fillStyle = val > 150 ? 'yellow' : 'blue';
+                                    debugCtx.fillRect(probeX - 2, probeY - 2, 4, 4);
+                                }
+                            }
+                        }
+
+                        const avgBrightness = probes > 0 ? brightnessSum / probes : 0;
+
+                        // DECISION:
+                        // High Brightness (>140) = White Paper outside = INNER BOX -> INFLATE
+                        // Low Brightness (<140) = Dark Wood outside = OUTER EDGE -> RAW
+                        const isInnerBox = avgBrightness > 140;
 
                         let finalPts = sorted;
 
                         if (isInnerBox) {
-                            // Apply Inflation logic
+                            // Apply Inflation
                             const widthX = Math.hypot(sorted[0].x - sorted[1].x, sorted[0].y - sorted[1].y);
                             const heightY = Math.hypot(sorted[0].x - sorted[3].x, sorted[0].y - sorted[3].y);
-
                             const shiftX = widthX * PAD_SIDE;
                             const shiftTop = heightY * PAD_TOP;
                             const shiftBot = heightY * PAD_BOTTOM;
 
-                            const cx = (sorted[0].x + sorted[1].x + sorted[2].x + sorted[3].x) / 4;
-                            const cy = (sorted[0].y + sorted[1].y + sorted[2].y + sorted[3].y) / 4;
-
                             finalPts = sorted.map((p) => {
-                                let dx = p.x - cx;
-                                let dy = p.y - cy;
+                                let dx = p.x - center.x;
+                                let dy = p.y - center.y;
                                 const nx = p.x + (dx > 0 ? shiftX : -shiftX);
                                 let ny = p.y;
                                 if (dy < 0) ny -= shiftTop; else ny += shiftBot;
                                 return { x: nx, y: ny };
                             });
 
-                            setDebugLog(`Type: INNER (${Math.round(coverage * 100)}%) -> INFLATED`);
+                            setDebugLog(`Type: INNER (Bright: ${Math.round(avgBrightness)}) -> INFLATED`);
                         } else {
-                            setDebugLog(`Type: OUTER (${Math.round(coverage * 100)}%) -> RAW`);
+                            setDebugLog(`Type: OUTER (Dark: ${Math.round(avgBrightness)}) -> RAW`);
                         }
 
+                        // --- GREEN BOX (Result) ---
                         // Clamp
                         const clamped = finalPts.map(p => ({
                             x: Math.max(0.001, Math.min(w - 1.001, p.x)),
                             y: Math.max(0.001, Math.min(h - 1.001, p.y))
                         }));
 
-                        // --- DRAW GREEN BOX (FINAL CROP) ---
                         if (debugCtx) {
                             debugCtx.beginPath();
-                            debugCtx.strokeStyle = '#00ff00'; // Green
+                            debugCtx.strokeStyle = '#00ff00';
                             debugCtx.lineWidth = 3;
                             debugCtx.moveTo(clamped[0].x, clamped[0].y);
                             clamped.forEach(p => debugCtx!.lineTo(p.x, p.y));
