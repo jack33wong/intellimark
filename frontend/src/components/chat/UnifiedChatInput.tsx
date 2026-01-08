@@ -582,18 +582,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   >
                     <Smartphone size={14} />
                   </button>
-                  {/* Development Only: Mobile Camera Test Shortcut (Safe for production) */}
-                  {window.location.hostname === 'localhost' && (
-                    <button
-                      className="followup-upload-button"
-                      onClick={() => navigate('/mobile-upload/test-dev-session')}
-                      disabled={isProcessing}
-                      title="Test Mobile Camera (Dev Only)"
-                      style={{ backgroundColor: '#e11d48', color: 'white', marginLeft: '4px' }}
-                    >
-                      <Smartphone size={14} /> M
-                    </button>
-                  )}
                 </div>
                 <div className="followup-right-buttons">
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
