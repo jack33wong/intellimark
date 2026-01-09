@@ -134,53 +134,68 @@ const MobileCameraPage: React.FC = () => {
         processNext();
     }, [queue]);
 
-    // 1. Unified Camera Initialization (V15 - Crucial for iOS)
+    // 1. Unified Camera Initialization (V43 - Safe Start)
     useEffect(() => {
         let isMounted = true;
+        let stream: MediaStream | null = null;
 
         const startCamera = async () => {
             if (isReviewOpen || selectedPageId) return;
 
             try {
-                // V22: FORCE 4:3 PHOTO MODE
-                const constraints = {
+                // ATTEMPT 1: High Res Photo Mode (4:3) - Ideal for Trapezoid Lock
+                console.log("[V43] Attempting High-Res Camera...");
+                stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
-                        // 1.333 Aspect Ratio = 4:3 = Full Sensor = WIDER VIEW
                         aspectRatio: { ideal: 1.333 },
                         width: { ideal: 2560 },
                         height: { ideal: 1920 }
                     },
                     audio: false
-                };
-
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-                if (!isMounted) {
-                    stream.getTracks().forEach(track => track.stop());
+                });
+            } catch (err) {
+                console.warn("[V43] High-Res failed, falling back to standard...", err);
+                try {
+                    // ATTEMPT 2: Standard Safe Mode (1080p)
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 }
+                        },
+                        audio: false
+                    });
+                } catch (err2: any) {
+                    console.error("[V43] Camera Fatal Error:", err2);
+                    if (isMounted) {
+                        setCameraError(`Camera Failed: ${err2.message || err2.name}`);
+                        setStreamStatus('denied');
+                    }
                     return;
                 }
+            }
 
-                // 2. IMMEDIATE ASSIGNMENT (Crucial for iOS)
-                activeStreamRef.current = stream;
+            if (!isMounted && stream) {
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
 
-                if (videoRef.current) {
-                    const video = videoRef.current;
-                    video.srcObject = stream;
-                    video.muted = true;
-                    video.playsInline = true;
+            // 2. IMMEDIATE ASSIGNMENT (Crucial for iOS)
+            activeStreamRef.current = stream;
 
-                    // Fire-and-forget play attempt in the same executive tick
+            if (videoRef.current && stream) {
+                const video = videoRef.current;
+                video.srcObject = stream;
+                video.muted = true;
+                video.playsInline = true;
+
+                // FORCE PLAY: Cures "State 0"
+                video.onloadedmetadata = () => {
                     video.play().catch(e => {
                         console.warn("[Camera] Autoplay initially blocked or pending:", e.name);
                     });
-                }
-            } catch (err) {
-                console.error('[Camera] Error:', err);
-                if (isMounted) {
-                    setCameraError(err instanceof Error ? err.message : String(err));
-                    setStreamStatus('denied');
-                }
+                };
             }
         };
 
@@ -427,7 +442,7 @@ const MobileCameraPage: React.FC = () => {
 
 
 
-                            {/* --- STATUS OVERLAY (V42) --- */}
+                            {/* --- STATUS OVERLAY (V43) --- */}
                             <div style={{
                                 position: 'absolute',
                                 top: 80,
@@ -451,6 +466,28 @@ const MobileCameraPage: React.FC = () => {
                             }}>
                                 {detectionStatus}
                             </div>
+
+                            {/* ERROR DISPLAY (V43 Robust Feedback) */}
+                            {cameraError && (
+                                <div style={{
+                                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                                    color: '#ff4444', background: 'rgba(0,0,0,0.8)', padding: '20px', borderRadius: '12px',
+                                    textAlign: 'center', zIndex: 999, width: '80%', maxWidth: '300px'
+                                }}>
+                                    <AlertCircle size={48} color="#ef4444" style={{ marginBottom: '12px' }} />
+                                    <h3 style={{ margin: '0 0 8px 0', color: 'white' }}>Camera Error</h3>
+                                    <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.4 }}>{cameraError}</p>
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        style={{
+                                            marginTop: '16px', background: '#333', color: 'white', border: 'none',
+                                            padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold'
+                                        }}
+                                    >
+                                        Reload Page
+                                    </button>
+                                </div>
+                            )}
 
                             {detectedCorners && videoRef.current && containerRef.current && (
                                 <div className="detection-overlay">
