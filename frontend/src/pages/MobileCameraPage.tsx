@@ -67,7 +67,7 @@ const MobileCameraPage: React.FC = () => {
     const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cameraError, setCameraError] = useState<string | null>(null);
-    const [showDebug, setShowDebug] = useState(false);
+    const [showDebug, setShowDebug] = useState(true);
     const [correctionMsg, setCorrectionMsg] = useState<string | null>(null);
     const activeStreamRef = useRef<MediaStream | null>(null);
     const allObjectUrls = useRef<Set<string>>(new Set());
@@ -351,20 +351,6 @@ const MobileCameraPage: React.FC = () => {
                         {queue.length > 0 ? `Enhancing (${queue.length})...` : 'Scan Document'}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <button
-                            onClick={() => setShowDebug(!showDebug)}
-                            style={{
-                                background: 'rgba(255,255,255,0.1)', border: 'none',
-                                color: showDebug ? '#42f587' : 'white',
-                                opacity: showDebug ? 1 : 0.6,
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                padding: '6px 10px', borderRadius: '12px', fontSize: '12px',
-                                fontWeight: 'bold'
-                            }}
-                        >
-                            <Bug size={20} />
-                            <span>Debug</span>
-                        </button>
                         {queue.length > 0 ? (
                             <Loader2 className="animate-spin" color="#42f587" size={24} />
                         ) : (
@@ -571,53 +557,68 @@ const MobileCameraPage: React.FC = () => {
             </div>
 
             {status !== 'success' && (
-                <div className="mobile-actions" style={{ padding: '40px 20px', background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
+                <div className="mobile-actions" style={{ padding: '20px', background: '#111' }}>
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto 1fr',
+                        alignItems: 'center',
+                        maxWidth: '400px',
+                        margin: '0 auto',
+                        width: '100%'
+                    }}>
+                        {/* LEFT: DISCARD */}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <button
+                                className="action-icon-btn discard-btn"
+                                onClick={() => {
+                                    if (window.confirm("Discard all scanned pages?")) {
+                                        scannedPages.forEach(p => URL.revokeObjectURL(p.preview));
+                                        setScannedPages([]);
+                                        setIsReviewOpen(false);
+                                    }
+                                }}
+                                disabled={scannedPages.length === 0}
+                                style={{ background: 'none', border: 'none', color: 'white', opacity: scannedPages.length === 0 ? 0.3 : 1 }}
+                            >
+                                <Undo2 size={28} />
+                            </button>
+                        </div>
 
-                    <div className="shutter-row" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
-                        <button
-                            className="action-icon-btn discard-btn"
-                            onClick={() => {
-                                if (window.confirm("Discard all scanned pages?")) {
-                                    scannedPages.forEach(p => URL.revokeObjectURL(p.preview));
-                                    setScannedPages([]);
-                                    setIsReviewOpen(false);
-                                }
-                            }}
-                            disabled={scannedPages.length === 0}
-                            style={{ background: 'none', border: 'none', color: 'white' }}
-                        >
-                            <Undo2 size={28} />
-                        </button>
+                        {/* CENTER: SHUTTER */}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <button
+                                className="shutter-btn"
+                                onClick={capturePhoto}
+                                disabled={streamStatus !== 'active' || queue.length > 5}
+                                style={{
+                                    width: '80px', height: '80px', borderRadius: '50%',
+                                    backgroundColor: queue.length > 5 ? '#555' : 'white',
+                                    border: '4px solid rgba(255,255,255,0.3)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.1s'
+                                }}
+                                onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
+                                onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                            >
+                                <div style={{
+                                    width: '68px', height: '68px', borderRadius: '50%',
+                                    border: '2px solid #111', backgroundColor: 'white'
+                                }} />
+                            </button>
+                        </div>
 
-                        <button
-                            className="shutter-btn"
-                            onClick={capturePhoto}
-                            disabled={streamStatus !== 'active' || queue.length > 5}
-                            style={{
-                                width: '80px', height: '80px', borderRadius: '50%',
-                                backgroundColor: queue.length > 5 ? '#555' : 'white',
-                                border: '4px solid rgba(255,255,255,0.3)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer',
-                                transition: 'transform 0.1s'
-                            }}
-                            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
-                            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            <div style={{
-                                width: '68px', height: '68px', borderRadius: '50%',
-                                border: '2px solid #111', backgroundColor: 'white'
-                            }} />
-                        </button>
-
-                        <button
-                            className={`done-status-btn ${scannedPages.length > 0 || queue.length > 0 ? 'active' : ''}`}
-                            onClick={handleUploadAll}
-                            disabled={(scannedPages.length === 0 && queue.length === 0) || status === 'uploading'}
-                            style={{ background: 'none', border: 'none', color: (scannedPages.length > 0 || queue.length > 0) ? '#42f587' : '#666', fontWeight: 'bold' }}
-                        >
-                            {status === 'uploading' ? <Loader2 className="spin" size={20} /> : "Done"}
-                        </button>
+                        {/* RIGHT: DONE */}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <button
+                                className={`done-status-btn ${scannedPages.length > 0 || queue.length > 0 ? 'active' : ''}`}
+                                onClick={handleUploadAll}
+                                disabled={(scannedPages.length === 0 && queue.length === 0) || status === 'uploading'}
+                                style={{ background: 'none', border: 'none', color: (scannedPages.length > 0 || queue.length > 0) ? '#42f587' : '#666', fontWeight: 'bold' }}
+                            >
+                                {status === 'uploading' ? <Loader2 className="spin" size={20} /> : "Done"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
