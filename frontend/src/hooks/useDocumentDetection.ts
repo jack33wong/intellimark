@@ -6,6 +6,8 @@ declare global { interface Window { cv: any; } }
 
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
+    const [cvStatus, setCvStatus] = useState<string>("Init...");
+    const [debugLog, setDebugLog] = useState<string>("v30 | init");
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
 
@@ -32,6 +34,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
         const startLoop = () => {
             const cv = window.cv;
+            setCvStatus("Ready");
             const src = new cv.Mat();
             const gray = new cv.Mat();
             const blur = new cv.Mat();
@@ -139,7 +142,13 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                             const smoothed = avg.map(p => ({ x: p.x / historyRef.current.length, y: p.y / historyRef.current.length }));
 
                             setDetectedCorners(smoothed);
+
+                            // Update Debug Log (V30)
+                            const stats = `v30 | Res: ${w}px | Area: ${Math.round(maxArea)} | LOCK`;
+                            setDebugLog(stats);
                         } else {
+                            // Update Debug Log (Searching)
+                            setDebugLog(`v30 | Res: ${w}px | SCANNING`);
                             // Decay: If detection lost, show last valid frame for a split second, then hide
                             if (historyRef.current.length > 0) {
                                 historyRef.current.shift();
@@ -172,5 +181,5 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
         return () => { clearInterval(checkCv); if (loopRef.current) cancelAnimationFrame(loopRef.current); };
     }, [isActive, videoRef]);
 
-    return { detectedCorners };
+    return { detectedCorners, cvStatus, debugLog };
 };
