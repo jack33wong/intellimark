@@ -369,7 +369,10 @@ const MobileCameraPage: React.FC = () => {
                                 <p>You can now return to your computer to see the results, or add more pages below.</p>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px' }}>
-                                <button className="add-more-success-btn" onClick={() => setStatus('idle')} style={{
+                                <button className="add-more-success-btn" onClick={() => {
+                                    setStatus('idle');
+                                    setStreamStatus('initializing');
+                                }} style={{
                                     backgroundColor: '#42f587', color: '#111', padding: '14px', borderRadius: '12px',
                                     fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex',
                                     alignItems: 'center', justifyContent: 'center', gap: '8px'

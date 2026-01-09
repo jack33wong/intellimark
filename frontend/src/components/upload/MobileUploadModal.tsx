@@ -155,13 +155,6 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                                     >
                                         {status === 'completed' ? 'Imported Successfully' : `Import ${receivedUrls.length} Pages`}
                                     </button>
-
-                                    <button
-                                        className="continue-scan-btn"
-                                        onClick={() => setStatus('waiting')}
-                                    >
-                                        Keep Scanning More...
-                                    </button>
                                 </div>
                             </div>
                         )}
