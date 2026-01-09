@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
 import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
 import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
-import { Camera, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft, Bug } from 'lucide-react';
+import { Camera, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
 
@@ -67,7 +67,6 @@ const MobileCameraPage: React.FC = () => {
     const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cameraError, setCameraError] = useState<string | null>(null);
-    const [showDebug, setShowDebug] = useState(false);
     const [correctionMsg, setCorrectionMsg] = useState<string | null>(null);
     const activeStreamRef = useRef<MediaStream | null>(null);
     const allObjectUrls = useRef<Set<string>>(new Set());
@@ -80,8 +79,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V28) -> Diagnostic Engine (V29)
-    const { detectedCorners, cvStatus, debugCanvasRef, debugLog } = useDocumentDetection(
+    // 1. Trapezoid Engine (V30)
+    const { detectedCorners } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -350,27 +349,6 @@ const MobileCameraPage: React.FC = () => {
                     <div style={{ color: 'white', fontWeight: 600 }}>
                         {queue.length > 0 ? `Enhancing (${queue.length})...` : 'Scan Document'}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <button
-                            onClick={() => setShowDebug(!showDebug)}
-                            style={{
-                                background: 'rgba(255,255,255,0.1)', border: 'none',
-                                color: showDebug ? '#42f587' : 'white',
-                                opacity: showDebug ? 1 : 0.6,
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                padding: '6px 10px', borderRadius: '12px', fontSize: '12px',
-                                fontWeight: 'bold'
-                            }}
-                        >
-                            <Bug size={20} />
-                            <span>Debug</span>
-                        </button>
-                        {queue.length > 0 ? (
-                            <Loader2 className="animate-spin" color="#42f587" size={24} />
-                        ) : (
-                            <div style={{ width: 24 }} />
-                        )}
-                    </div>
                 </div>
 
                 {status === 'success' ? (
@@ -438,43 +416,6 @@ const MobileCameraPage: React.FC = () => {
                                 }}
                             />
 
-                            {/* --- ENHANCED DIAGNOSTIC HUD (V25/V29) --- */}
-                            {showDebug && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '65px',
-                                    left: '15px',
-                                    width: '200px',
-                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    color: '#00ff00',
-                                    padding: '10px',
-                                    borderRadius: '12px',
-                                    fontSize: '10px',
-                                    fontFamily: 'monospace',
-                                    zIndex: 9999,
-                                    pointerEvents: 'none',
-                                    border: '1px solid rgba(0, 255, 0, 0.3)',
-                                    backdropFilter: 'blur(5px)'
-                                }}>
-                                    <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
-                                    <div style={{ marginBottom: '6px' }}><strong>ENGINE:</strong> {debugLog}</div>
-
-                                    {/* VISUAL X-RAY: See what the computer sees */}
-                                    <div style={{
-                                        border: '1px solid #00ff00',
-                                        marginTop: '8px',
-                                        borderRadius: '4px',
-                                        overflow: 'hidden',
-                                        backgroundColor: '#000'
-                                    }}>
-                                        <canvas
-                                            ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
-                                            style={{ width: '100%', height: 'auto', display: 'block' }}
-                                        />
-                                    </div>
-                                    <div style={{ textAlign: 'center', color: '#666', marginTop: '4px', fontSize: '9px' }}>CV BINARY MASK</div>
-                                </div>
-                            )}
 
                             {/* GREEN BOX OVERLAY */}
                             {detectedCorners && videoRef.current && containerRef.current && (
@@ -533,10 +474,7 @@ const MobileCameraPage: React.FC = () => {
 
                                             {cameraError && (
                                                 <div className="camera-error-inline">
-                                                    <p onClick={() => setShowDebug(!showDebug)} style={{ textDecoration: 'underline', cursor: 'pointer', marginBottom: '8px' }}>
-                                                        {showDebug ? 'Hide Technical Info' : 'Show Technical Info'}
-                                                    </p>
-                                                    {showDebug && <code className="debug-code">{cameraError}</code>}
+                                                    <code className="debug-code">{cameraError}</code>
                                                 </div>
                                             )}
                                         </>
