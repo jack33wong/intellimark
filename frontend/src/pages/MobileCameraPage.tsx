@@ -80,8 +80,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Pro CV Engine (V21/V23/V25)
-    const { detectedCorners, isSteady, isCvReady, cvStatus, debugLog, debugCanvasRef } = useDocumentDetection(
+    // 1. Trapezoid Engine (V28)
+    const { detectedCorners, cvStatus } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -454,11 +454,6 @@ const MobileCameraPage: React.FC = () => {
                                             strokeLinejoin="round"
                                         />
                                     </svg>
-                                    {isSteady && (
-                                        <div className="steady-indicator">
-                                            Hold Steady
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
