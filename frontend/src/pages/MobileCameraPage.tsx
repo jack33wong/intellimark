@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
 import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
 import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
-import { Camera, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Camera, Check, Share, Loader2, Wand2, X, Trash2, Undo2, RotateCw, AlertCircle, ArrowLeft, Bug } from 'lucide-react';
 import app from '../config/firebase';
 import './MobileCameraPage.css';
 
@@ -354,12 +354,16 @@ const MobileCameraPage: React.FC = () => {
                         <button
                             onClick={() => setShowDebug(!showDebug)}
                             style={{
-                                background: 'none', border: 'none',
+                                background: 'rgba(255,255,255,0.1)', border: 'none',
                                 color: showDebug ? '#42f587' : 'white',
-                                opacity: showDebug ? 1 : 0.4
+                                opacity: showDebug ? 1 : 0.6,
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                                padding: '6px 10px', borderRadius: '12px', fontSize: '12px',
+                                fontWeight: 'bold'
                             }}
                         >
-                            <AlertCircle size={24} />
+                            <Bug size={20} />
+                            <span>Debug</span>
                         </button>
                         {queue.length > 0 ? (
                             <Loader2 className="animate-spin" color="#42f587" size={24} />

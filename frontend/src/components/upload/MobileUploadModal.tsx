@@ -103,66 +103,50 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                     <h2>Scan to Upload</h2>
                     <p className="subtitle">Use your phone camera to snap & upload instantly</p>
 
-                    <div className={`qr-container ${receivedUrls.length > 0 ? 'has-content' : ''}`}>
-                        {(status === 'waiting' || status === 'uploading') && receivedUrls.length === 0 && (
-                            <div className="qr-wrapper">
+                    <div className="qr-container">
+                        <div className="qr-wrapper">
+                            {sessionId ? (
                                 <QRCode
                                     value={uploadUrl}
                                     size={200}
                                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                                     viewBox={`0 0 256 256`}
                                 />
-                                {status === 'uploading' && (
-                                    <div className="upload-spinner-overlay">
-                                        <Loader2 className="spin" size={32} />
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            ) : (
+                                <div className="qr-placeholder">
+                                    <Loader2 className="spin" size={32} />
+                                </div>
+                            )}
+                            {status === 'uploading' && (
+                                <div className="upload-spinner-overlay">
+                                    <Loader2 className="spin" size={32} />
+                                </div>
+                            )}
+                        </div>
 
                         {receivedUrls.length > 0 && (
-                            <div className="status-wrapper continuous">
-                                <div className="batch-status-header">
-                                    <div className="batch-icon">
-                                        {status === 'completed' ? <Check size={32} /> : <Loader2 className="spin" size={32} />}
-                                    </div>
-                                    <div className="batch-count">
-                                        <h3>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</h3>
-                                        <p>{status === 'uploading' ? 'Scanning in progress...' : 'Batch received'}</p>
-                                    </div>
-                                </div>
-
-                                <div className="batch-actions">
-                                    <button
-                                        className="import-batch-btn"
-                                        onClick={handleImport}
-                                        disabled={status === 'uploading' || status === 'completed'}
-                                    >
-                                        {status === 'completed' ? 'Imported Successfully' : `Import ${receivedUrls.length} Pages`}
-                                    </button>
-                                </div>
+                            <div className="batch-status-mini" style={{
+                                marginTop: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                color: '#42f587',
+                                fontWeight: 'bold'
+                            }}>
+                                <Check size={20} />
+                                <span>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</span>
                             </div>
                         )}
 
                         {status === 'error' && (
-                            <div className="status-wrapper error" style={{ color: '#ef4444' }}>
-                                <RefreshCw size={32} />
+                            <div className="status-wrapper error" style={{ color: '#ef4444', marginTop: '16px' }}>
+                                <RefreshCw size={24} />
                                 <p>Connection failed</p>
-                                <button onClick={() => setStatus('waiting')}>Try Again</button>
+                                <button onClick={() => setStatus('waiting')} style={{ background: 'none', border: 'none', color: 'white', textDecoration: 'underline' }}>Try Again</button>
                             </div>
                         )}
                     </div>
 
-                    {receivedUrls.length > 0 && (
-                        <div className="batch-footer">
-                            <button
-                                className="finalize-session-btn"
-                                onClick={handleFinalize}
-                            >
-                                Finished? Close Connection
-                            </button>
-                        </div>
-                    )}
 
                     {receivedUrls.length === 0 && (
                         <div className="instructions">

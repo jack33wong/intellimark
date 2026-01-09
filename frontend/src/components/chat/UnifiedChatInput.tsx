@@ -501,8 +501,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       if (session && session.status === 'completed' && session.imageUrls && session.imageUrls.length > 0) {
         console.log("[MobileSync] Batch detected in background!");
         handleMobileImages(session.imageUrls);
-        // Auto-close modal as requested
-        setIsMobileUploadOpen(false);
         // Reset immediately for the next batch
         mobileUploadService.resetSession(mobileSessionId);
       }
