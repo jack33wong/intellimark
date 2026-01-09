@@ -7,7 +7,7 @@ declare global { interface Window { cv: any; } }
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
     const [cvStatus, setCvStatus] = useState<string>("Init...");
-    const [debugLog, setDebugLog] = useState<string>("v30 | init");
+    const [debugLog, setDebugLog] = useState<string>("v31 | init");
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
 
@@ -39,9 +39,11 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             const gray = new cv.Mat();
             const blur = new cv.Mat();
             const edges = new cv.Mat();
+            // V31: Kernel for dilating edges (closing gaps)
+            const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
             const contours = new cv.MatVector();
-            const poly = new cv.Mat();
             const hierarchy = new cv.Mat();
+            const poly = new cv.Mat();
 
             const processFrame = () => {
                 const video = videoRef.current;
@@ -80,14 +82,21 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         // 3. Pre-process (Gray -> Blur -> Canny)
                         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                         cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
-                        cv.Canny(blur, edges, 50, 150);
+
+                        // V31: Lower Thresholds for Light Wood Tables
+                        cv.Canny(blur, edges, 30, 100);
+
+                        // V31: Dilate (Thicken) Edges
+                        cv.dilate(edges, edges, kernel);
 
                         // 4. Find Contours (External Only)
                         cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                         let maxArea = 0;
                         let bestPts: { x: number, y: number }[] | null = null;
-                        const minArea = (w * h) * 0.15; // Must fill 15% of view
+
+                        // V31: Relaxed Area (10%)
+                        const minArea = (w * h) * 0.10;
 
                         for (let i = 0; i < contours.size(); ++i) {
                             const cnt = contours.get(i);
@@ -104,23 +113,20 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                 }
                                 const pts = sortCorners(rawPts);
 
-                                // --- TRAPEZOID LOCK LOGIC ---
+                                // --- V31: RELAXED TRAPEZOID LOCK ---
 
-                                // Calculate dimensions
                                 const topDy = Math.abs(pts[0].y - pts[1].y);
                                 const topDx = Math.abs(pts[0].x - pts[1].x);
                                 const botDy = Math.abs(pts[3].y - pts[2].y);
                                 const botDx = Math.abs(pts[3].x - pts[2].x);
 
-                                // Calculate Angles (Deviation from horizontal)
-                                // If dy is small compared to dx, it's horizontal.
-                                // We allow ~20% deviation (approx 11 degrees)
-                                const isTopHorizontal = topDy < (topDx * 0.20);
-                                const isBotHorizontal = botDy < (botDx * 0.20);
+                                // Relaxed: Allow 35% deviation (~20 degrees tilt)
+                                const isTopHorizontal = topDy < (topDx * 0.35);
+                                const isBotHorizontal = botDy < (botDx * 0.35);
 
-                                // Aspect Ratio Safety (Prevent wide strips)
+                                // Relaxed Aspect Ratio
                                 const height = Math.abs(pts[0].y - pts[3].y);
-                                const isTall = height > (topDx * 0.5);
+                                const isTall = height > (topDx * 0.4);
 
                                 if (isTopHorizontal && isBotHorizontal && isTall && area > maxArea) {
                                     maxArea = area;
@@ -143,13 +149,13 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
                             setDetectedCorners(smoothed);
 
-                            // Update Debug Log (V30)
-                            const stats = `v30 | Res: ${w}px | Area: ${Math.round(maxArea)} | LOCK`;
-                            setDebugLog(stats);
+                            // Update Debug Log (V31)
+                            setDebugLog(`v31 | Res: ${w}px | Area: ${Math.round(maxArea)} | LOCK`);
                         } else {
-                            // Update Debug Log (Searching)
-                            setDebugLog(`v30 | Res: ${w}px | SCANNING`);
-                            // Decay: If detection lost, show last valid frame for a split second, then hide
+                            // Update Debug Log (Scanning)
+                            setDebugLog(`v31 | Res: ${w}px | SCANNING`);
+
+                            // Decay
                             if (historyRef.current.length > 0) {
                                 historyRef.current.shift();
                                 if (historyRef.current.length > 0) {
@@ -178,7 +184,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             if (window.cv && window.cv.Mat) { clearInterval(checkCv); startLoop(); }
         }, 100);
 
-        return () => { clearInterval(checkCv); if (loopRef.current) cancelAnimationFrame(loopRef.current); };
+        return () => {
+            clearInterval(checkCv);
+            if (loopRef.current) cancelAnimationFrame(loopRef.current);
+        };
     }, [isActive, videoRef]);
 
     return { detectedCorners, cvStatus, debugLog };

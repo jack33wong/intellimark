@@ -439,7 +439,7 @@ const MobileCameraPage: React.FC = () => {
                             />
 
 
-                            {/* --- ENHANCED DIAGNOSTIC HUD (V30) --- */}
+                            {/* --- ENHANCED DIAGNOSTIC HUD (V31) --- */}
                             {showDebug && (
                                 <div style={{
                                     position: 'absolute',
