@@ -80,8 +80,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V28)
-    const { detectedCorners, cvStatus } = useDocumentDetection(
+    // 1. Trapezoid Engine (V28) -> Diagnostic Engine (V29)
+    const { detectedCorners, cvStatus, debugCanvasRef } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -421,6 +421,16 @@ const MobileCameraPage: React.FC = () => {
                                     pointerEvents: streamStatus === 'active' ? 'auto' : 'none'
                                 }}
                             />
+
+                            {/* --- V29 DIAGNOSTIC WINDOW --- */}
+                            <div style={{
+                                position: 'absolute', top: 10, right: 10, width: '120px',
+                                border: '2px solid red', zIndex: 100, background: 'black',
+                                borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                            }}>
+                                <canvas ref={debugCanvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                                <div style={{ fontSize: '8px', color: 'red', textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>CV VISION</div>
+                            </div>
 
                             {/* GREEN BOX OVERLAY */}
                             {detectedCorners && videoRef.current && containerRef.current && (
