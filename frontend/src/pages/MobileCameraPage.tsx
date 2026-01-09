@@ -350,11 +350,23 @@ const MobileCameraPage: React.FC = () => {
                     <div style={{ color: 'white', fontWeight: 600 }}>
                         {queue.length > 0 ? `Enhancing (${queue.length})...` : 'Scan Document'}
                     </div>
-                    {queue.length > 0 ? (
-                        <Loader2 className="animate-spin" color="#42f587" size={24} />
-                    ) : (
-                        <div style={{ width: 28 }} />
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <button
+                            onClick={() => setShowDebug(!showDebug)}
+                            style={{
+                                background: 'none', border: 'none',
+                                color: showDebug ? '#42f587' : 'white',
+                                opacity: showDebug ? 1 : 0.4
+                            }}
+                        >
+                            <AlertCircle size={24} />
+                        </button>
+                        {queue.length > 0 ? (
+                            <Loader2 className="animate-spin" color="#42f587" size={24} />
+                        ) : (
+                            <div style={{ width: 24 }} />
+                        )}
+                    </div>
                 </div>
 
                 {status === 'success' ? (
@@ -423,14 +435,19 @@ const MobileCameraPage: React.FC = () => {
                             />
 
                             {/* --- V29 DIAGNOSTIC WINDOW --- */}
-                            <div style={{
-                                position: 'absolute', top: 10, right: 10, width: '120px',
-                                border: '2px solid red', zIndex: 100, background: 'black',
-                                borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
-                            }}>
-                                <canvas ref={debugCanvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                                <div style={{ fontSize: '8px', color: 'red', textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>CV VISION</div>
-                            </div>
+                            {showDebug && (
+                                <div style={{
+                                    position: 'absolute', top: 10, right: 10, width: '120px',
+                                    border: '2px solid red', zIndex: 100, background: 'black',
+                                    borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                    pointerEvents: 'none'
+                                }}>
+                                    <canvas ref={debugCanvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                                    <div style={{ fontSize: '8px', color: 'red', textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>
+                                        CV VISION ({cvStatus})
+                                    </div>
+                                </div>
+                            )}
 
                             {/* GREEN BOX OVERLAY */}
                             {detectedCorners && videoRef.current && containerRef.current && (
