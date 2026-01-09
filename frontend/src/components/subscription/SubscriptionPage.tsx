@@ -306,16 +306,36 @@ const SubscriptionPage: React.FC = () => {
     // CASE 1: Already on this plan
     // ============================================
     if (planId === currentSubscription?.planId) {
-      setConfirmationData({
-        isOpen: true,
-        title: 'Already Subscribed',
-        message: 'You are already on this plan!',
-        confirmText: 'OK',
-        variant: 'primary',
-        showCancel: false,
-        action: () => { }
-      });
-      return;
+      const remaining = currentSubscription?.credits?.remainingCredits ?? 100;
+      const isLowCredits = remaining < 5;
+
+      if (isLowCredits) {
+        // ALLOW EARLY RENEWAL
+        setConfirmationData({
+          isOpen: true,
+          title: 'Top Up Credits (Early Renewal)',
+          message: `Your current credits are low (${remaining.toFixed(2)} remaining). Renewing your plan early will start a new billing cycle immediately and grant you a fresh allocation of ${SubscriptionService.getPlanDisplayName(planId)} credits.\n\nYou will be charged the full plan amount now. Do you want to proceed?`,
+          confirmText: 'Renew Early & Top Up',
+          variant: 'success',
+          showCancel: true,
+          action: async () => {
+            // PROCEED TO CHECKOUT (Same logic as CASE 5)
+            await createCheckoutSession(planId);
+          }
+        });
+        return;
+      } else {
+        setConfirmationData({
+          isOpen: true,
+          title: 'Already Subscribed',
+          message: 'You are already on this plan with sufficient credits!',
+          confirmText: 'OK',
+          variant: 'primary',
+          showCancel: false,
+          action: () => { }
+        });
+        return;
+      }
     }
 
     // ============================================
@@ -545,9 +565,19 @@ const SubscriptionPage: React.FC = () => {
     }
 
     // ============================================
-    // CASE 5: New Subscription
-    // Only new subscriptions use Stripe Checkout
+    // CASE 5: New Subscription / Early Renewal
     // ============================================
+    await createCheckoutSession(planId);
+  };
+
+  /**
+   * Helper to create a Checkout Session (used for new subs and early renewal)
+   */
+  const createCheckoutSession = async (planId: Plan) => {
+    if (!user?.uid) {
+      navigate('/login');
+      return;
+    }
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-checkout-session`, {
         method: 'POST',
@@ -729,12 +759,12 @@ const SubscriptionPage: React.FC = () => {
               <button
                 onClick={() => handleSubscribe(plan.id)}
                 disabled={
-                  plan.id === currentSubscription?.planId ||
+                  (plan.id === currentSubscription?.planId && (currentSubscription?.credits?.remainingCredits ?? 100) >= 5) ||
                   (currentSubscription?.scheduledPlanId === plan.id) ||
                   (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
                 }
                 className={`upgrade-plan-subscribe-button ${plan.id === currentSubscription?.planId
-                  ? 'current'
+                  ? (currentSubscription?.credits?.remainingCredits ?? 100) < 5 ? 'early-renewal' : 'current'
                   : (currentSubscription?.scheduledPlanId === plan.id)
                     ? 'scheduled'
                     : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
@@ -743,7 +773,9 @@ const SubscriptionPage: React.FC = () => {
                   }`}
               >
                 {plan.id === currentSubscription?.planId
-                  ? 'Current Plan'
+                  ? (currentSubscription?.credits?.remainingCredits ?? 100) < 5
+                    ? 'Top Up Credits'
+                    : 'Current Plan'
                   : (currentSubscription?.scheduledPlanId === plan.id)
                     ? `Change Scheduled`
                     : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)

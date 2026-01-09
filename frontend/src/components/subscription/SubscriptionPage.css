@@ -558,6 +558,22 @@
   box-shadow: none;
 }
 
+/* Early Renewal Button (Vibrant & enabled) */
+.upgrade-plan-subscribe-button.early-renewal {
+  background: var(--text-brand);
+  color: var(--text-white);
+  border: none;
+  opacity: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.upgrade-plan-subscribe-button.early-renewal:hover {
+  background: var(--shadows-highlight-2);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+}
+
 /* Current Subscription Info Section */
 .current-subscription-info {
   max-width: 900px;

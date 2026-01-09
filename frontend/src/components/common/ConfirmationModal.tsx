@@ -115,7 +115,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                                 <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary, #111)' }}>
                                     {title}
                                 </h3>
-                                <p style={{ margin: '0', fontSize: '14px', lineHeight: '1.5', color: 'var(--text-secondary, #666)', textAlign: 'left' }}>
+                                <p style={{ margin: '0', fontSize: '14px', lineHeight: '1.5', color: 'var(--text-secondary, #666)', textAlign: 'left', whiteSpace: 'pre-wrap' }}>
                                     {message}
                                 </p>
                             </div>
