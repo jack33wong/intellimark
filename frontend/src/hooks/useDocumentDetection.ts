@@ -6,12 +6,13 @@ declare global { interface Window { cv: any; } }
 
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
+    const [detectionStatus, setDetectionStatus] = useState<string>("Initializing..."); // <--- DIAGNOSTIC TEXT
+
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
-
-    // Smoothing Buffer
     const historyRef = useRef<NormalizedPoint[][]>([]);
 
+    // Helper to order points: TL, TR, BR, BL
     const sortCorners = (pts: { x: number, y: number }[]) => {
         const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
         const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
@@ -26,9 +27,17 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
     };
 
     useEffect(() => {
-        if (!isActive) return;
+        if (!isActive) {
+            setDetectionStatus("Paused");
+            return;
+        }
 
         const startLoop = () => {
+            if (!window.cv || !window.cv.Mat) {
+                setDetectionStatus("Error: OpenCV Missing");
+                return;
+            }
+
             const cv = window.cv;
             const src = new cv.Mat();
             const gray = new cv.Mat();
@@ -41,9 +50,15 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             const processFrame = () => {
                 const video = videoRef.current;
 
-                // ROOT CAUSE FIX 1: Strict Ready State Check
-                // We prevent the code from running until the camera is 100% ready.
-                if (!video || video.readyState !== 4 || video.videoWidth === 0) {
+                // --- 1. SAFETY CHECK (Prevents Black Screen) ---
+                if (!video) {
+                    setDetectionStatus("Waiting: No Video Ref");
+                    loopRef.current = requestAnimationFrame(processFrame);
+                    return;
+                }
+                // readyState 4 = HAVE_ENOUGH_DATA. We strictly wait for this.
+                if (video.readyState !== 4 || video.videoWidth === 0) {
+                    setDetectionStatus(`Loading Camera... (State: ${video.readyState})`);
                     loopRef.current = requestAnimationFrame(processFrame);
                     return;
                 }
@@ -55,7 +70,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                 processingRef.current = true;
 
                 try {
-                    // Optimization: Downscale to 350px for detection speed
+                    // --- 2. CAPTURE ---
                     const w = 350;
                     const scale = w / video.videoWidth;
                     const h = Math.floor(video.videoHeight * scale);
@@ -73,17 +88,16 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         }
                         src.data.set(imgData.data);
 
-                        // Pipeline
+                        // --- 3. PROCESS ---
                         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                         cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
                         cv.Canny(blur, edges, 30, 100);
 
-                        // Find Contours
                         cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                         let maxArea = 0;
                         let bestPts: { x: number, y: number }[] | null = null;
-                        const minArea = (w * h) * 0.15;
+                        const minArea = (w * h) * 0.10;
 
                         for (let i = 0; i < contours.size(); ++i) {
                             const cnt = contours.get(i);
@@ -100,50 +114,55 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                 }
                                 const pts = sortCorners(rawPts);
 
-                                // ROOT CAUSE FIX 3: Relaxed Trapezoid Math
-                                // We check if Top/Bottom are "mostly" horizontal.
+                                // --- 4. TRAPEZOID LOCK LOGIC ---
                                 const topDy = Math.abs(pts[0].y - pts[1].y);
                                 const topDx = Math.abs(pts[0].x - pts[1].x);
                                 const botDy = Math.abs(pts[3].y - pts[2].y);
                                 const botDx = Math.abs(pts[3].x - pts[2].x);
 
-                                // Allow 20 degrees tilt (0.36 slope)
-                                const isTopHorizontal = topDy < (topDx * 0.36);
-                                const isBotHorizontal = botDy < (botDx * 0.36);
+                                // Check 1: Top & Bottom must be roughly horizontal
+                                // We allow 20% deviation. If it's tilted more, ignore it.
+                                const isTopFlat = topDy < (topDx * 0.20);
+                                const isBotFlat = botDy < (botDx * 0.20);
 
-                                // Must be tall (Portrait)
+                                // Check 2: Must be portrait orientation (Height > Width/2)
                                 const height = Math.abs(pts[0].y - pts[3].y);
                                 const isTall = height > (topDx * 0.5);
 
-                                if (isTopHorizontal && isBotHorizontal && isTall && area > maxArea) {
+                                if (isTopFlat && isBotFlat && isTall && area > maxArea) {
                                     maxArea = area;
                                     bestPts = pts;
                                 }
                             }
                         }
 
-                        // Update State
+                        // --- 5. RESULT & STATUS UPDATE ---
                         if (bestPts) {
                             const norm = bestPts.map(p => ({ x: p.x / w, y: p.y / h }));
 
+                            // History Smoothing
                             historyRef.current.push(norm);
                             if (historyRef.current.length > 5) historyRef.current.shift();
 
-                            // Average for stability
                             const avg = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
                             historyRef.current.forEach(f => f.forEach((p, i) => { avg[i].x += p.x; avg[i].y += p.y }));
                             const smoothed = avg.map(p => ({ x: p.x / historyRef.current.length, y: p.y / historyRef.current.length }));
 
                             setDetectedCorners(smoothed);
+                            setDetectionStatus("LOCKED"); // Green Box should appear
                         } else {
-                            // Instant Decay (No lingering ghost boxes)
                             if (historyRef.current.length > 0) {
                                 historyRef.current.shift();
                                 setDetectedCorners(null);
                             }
+                            // Feedback for you: Why no box?
+                            setDetectionStatus(`Scanning... (Contours: ${contours.size()})`);
                         }
                     }
-                } catch (e) { console.error(e); }
+                } catch (e: any) {
+                    setDetectionStatus(`CRASH: ${e.message}`);
+                    console.error(e);
+                }
                 finally {
                     processingRef.current = false;
                     loopRef.current = requestAnimationFrame(processFrame);
@@ -155,10 +174,12 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
         const checkCv = setInterval(() => {
             if (window.cv && window.cv.Mat) { clearInterval(checkCv); startLoop(); }
+            else setDetectionStatus("Loading OpenCV...");
         }, 100);
 
         return () => { clearInterval(checkCv); if (loopRef.current) cancelAnimationFrame(loopRef.current); };
     }, [isActive, videoRef]);
 
-    return { detectedCorners };
+    // Return the status string so we can see it in UI
+    return { detectedCorners, detectionStatus };
 };

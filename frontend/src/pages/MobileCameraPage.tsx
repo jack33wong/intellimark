@@ -80,8 +80,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V38)
-    const { detectedCorners } = useDocumentDetection(
+    // 1. Trapezoid Engine (V39)
+    const { detectedCorners, detectionStatus } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -425,6 +425,26 @@ const MobileCameraPage: React.FC = () => {
                             />
 
 
+
+
+                            {/* --- STATUS OVERLAY (V39) --- */}
+                            <div style={{
+                                position: 'absolute',
+                                top: 80,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                background: 'rgba(0,0,0,0.6)',
+                                padding: '8px 16px',
+                                borderRadius: '20px',
+                                color: detectionStatus === 'LOCKED' ? '#42f587' : 'white',
+                                fontWeight: 'bold',
+                                fontSize: '14px',
+                                zIndex: 100,
+                                pointerEvents: 'none',
+                                whiteSpace: 'nowrap'
+                            }}>
+                                {detectionStatus}
+                            </div>
 
                             {detectedCorners && videoRef.current && containerRef.current && (
                                 <div className="detection-overlay">
