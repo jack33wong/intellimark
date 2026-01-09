@@ -69,6 +69,7 @@ const MobileCameraPage: React.FC = () => {
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [showDebug, setShowDebug] = useState(true);
     const [correctionMsg, setCorrectionMsg] = useState<string | null>(null);
+    const [debugInfo, setDebugInfo] = useState<string>("Initializing..."); // V44 Deep Probe
     const activeStreamRef = useRef<MediaStream | null>(null);
     const allObjectUrls = useRef<Set<string>>(new Set());
     const carouselRef = useRef<HTMLDivElement>(null);
@@ -134,68 +135,88 @@ const MobileCameraPage: React.FC = () => {
         processNext();
     }, [queue]);
 
-    // 1. Unified Camera Initialization (V43 - Safe Start)
+    // 1. Unified Camera Initialization (V44 - Deep Probe)
     useEffect(() => {
         let isMounted = true;
         let stream: MediaStream | null = null;
 
         const startCamera = async () => {
             if (isReviewOpen || selectedPageId) return;
+            setDebugInfo("Requesting Camera...");
 
             try {
                 // ATTEMPT 1: High Res Photo Mode (4:3) - Ideal for Trapezoid Lock
-                console.log("[V43] Attempting High-Res Camera...");
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment',
-                        aspectRatio: { ideal: 1.333 },
-                        width: { ideal: 2560 },
-                        height: { ideal: 1920 }
-                    },
-                    audio: false
-                });
-            } catch (err) {
-                console.warn("[V43] High-Res failed, falling back to standard...", err);
+                console.log("[V44] Attempting High-Res Camera...");
                 try {
-                    // ATTEMPT 2: Standard Safe Mode (1080p)
                     stream = await navigator.mediaDevices.getUserMedia({
                         video: {
                             facingMode: 'environment',
-                            width: { ideal: 1920 },
-                            height: { ideal: 1080 }
+                            aspectRatio: { ideal: 1.333 },
+                            width: { ideal: 2560 },
+                            height: { ideal: 1920 }
                         },
                         audio: false
                     });
-                } catch (err2: any) {
-                    console.error("[V43] Camera Fatal Error:", err2);
-                    if (isMounted) {
-                        setCameraError(`Camera Failed: ${err2.message || err2.name}`);
-                        setStreamStatus('denied');
+                } catch (err1) {
+                    // ATTEMPT 2: Standard Safe Mode (1080p)
+                    console.warn("[V44] High-Res failed, falling back to 1080p...", err1);
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: {
+                                facingMode: 'environment',
+                                width: { ideal: 1920 },
+                                height: { ideal: 1080 }
+                            },
+                            audio: false
+                        });
+                    } catch (err2) {
+                        // ATTEMPT 3: Minimal Settings (V44 Tier)
+                        console.warn("[V44] 1080p failed, falling back to minimal...", err2);
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: 'environment' },
+                            audio: false
+                        });
                     }
+                }
+
+                if (!stream) throw new Error("Stream is null after all attempts");
+
+                // --- V44 DEEP PROBE ---
+                const track = stream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                setDebugInfo(`Stream: Active\nTrack: ${track.readyState}\nMuted: ${track.muted}\nRes: ${settings.width}x${settings.height}`);
+
+                if (!isMounted && stream) {
+                    stream.getTracks().forEach(track => track.stop());
                     return;
                 }
-            }
 
-            if (!isMounted && stream) {
-                stream.getTracks().forEach(track => track.stop());
-                return;
-            }
+                // Immediate assignment for iOS state logic
+                activeStreamRef.current = stream;
 
-            // 2. IMMEDIATE ASSIGNMENT (Crucial for iOS)
-            activeStreamRef.current = stream;
+                if (videoRef.current && stream) {
+                    const video = videoRef.current;
+                    video.srcObject = stream;
+                    video.muted = true;
+                    video.playsInline = true;
 
-            if (videoRef.current && stream) {
-                const video = videoRef.current;
-                video.srcObject = stream;
-                video.muted = true;
-                video.playsInline = true;
-
-                // FORCE PLAY: Cures "State 0"
-                video.onloadedmetadata = () => {
-                    video.play().catch(e => {
-                        console.warn("[Camera] Autoplay initially blocked or pending:", e.name);
-                    });
-                };
+                    // Force Play + Report (V44)
+                    video.onloadedmetadata = async () => {
+                        try {
+                            await video.play();
+                            setDebugInfo(prev => prev + "\nPlayback: Started");
+                        } catch (playErr: any) {
+                            setDebugInfo(prev => prev + `\nPlay Error: ${playErr.message}`);
+                        }
+                    };
+                }
+            } catch (err: any) {
+                console.error("[V44] Fatal Camera Error:", err);
+                if (isMounted) {
+                    setDebugInfo(`FATAL ERROR: ${err.message || err.name}`);
+                    setCameraError(`Camera Failed: ${err.message || err.name}`);
+                    setStreamStatus('denied');
+                }
             }
         };
 
@@ -435,29 +456,21 @@ const MobileCameraPage: React.FC = () => {
 
 
 
-                            {/* --- STATUS OVERLAY (V43) --- */}
+                            {/* --- STATUS OVERLAY (V44 Deep Probe) --- */}
                             <div style={{
-                                position: 'absolute',
-                                top: 80,
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                width: '80%',
-                                maxWidth: '400px',
-                                background: 'rgba(0,0,0,0.7)',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                color: detectionStatus.includes('LOCKED') ? '#42f587' : '#ffffff',
-                                border: detectionStatus.includes('ERROR') ? '1px solid #ff4444' : '1px solid rgba(255,255,255,0.2)',
-                                fontWeight: 'bold',
-                                fontSize: '13px',
-                                fontFamily: 'monospace',
-                                zIndex: 100,
-                                pointerEvents: 'none',
-                                textAlign: 'center',
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word'
+                                position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)',
+                                width: '85%', maxWidth: '400px',
+                                background: 'rgba(0,0,0,0.85)', padding: '12px', borderRadius: '12px',
+                                color: 'white', fontSize: '11px', fontFamily: 'monospace',
+                                zIndex: 100, pointerEvents: 'none', textAlign: 'left',
+                                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                border: '1px solid #444',
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
                             }}>
-                                {detectionStatus}
+                                <div style={{ color: '#aaa', marginBottom: 4, fontWeight: 'bold' }}>CAMERA DIAGNOSTICS:</div>
+                                <div style={{ color: '#42f587', marginBottom: 8, lineHeight: 1.4 }}>{debugInfo}</div>
+                                <div style={{ borderTop: '1px solid #444', paddingTop: 8, color: '#aaa', marginBottom: 4, fontWeight: 'bold' }}>OPENCV STATUS:</div>
+                                <div style={{ color: detectionStatus.includes('LOCKED') ? '#42f587' : 'white' }}>{detectionStatus}</div>
                             </div>
 
                             {/* ERROR DISPLAY (V43 Robust Feedback) */}
