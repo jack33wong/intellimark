@@ -425,49 +425,48 @@ const MobileCameraPage: React.FC = () => {
                             />
 
 
-                            {/* --- ENHANCED DIAGNOSTIC HUD (V32) --- */}
+                            {/* --- UNIFIED DEBUG TERMINAL (V33) --- */}
                             {showDebug && (
-                                <>
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: '65px',
-                                        left: '15px',
-                                        width: '180px',
-                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                        color: '#00ff00',
-                                        padding: '10px',
-                                        borderRadius: '12px',
-                                        fontSize: '10px',
-                                        fontFamily: 'monospace',
-                                        zIndex: 9999,
-                                        pointerEvents: 'none',
-                                        border: '1px solid rgba(0, 255, 0, 0.3)',
-                                        backdropFilter: 'blur(5px)'
-                                    }}>
-                                        <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
-                                        <div><strong>ENGINE:</strong> {debugLog}</div>
-                                    </div>
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 80,
+                                    right: 20,
+                                    width: '140px',
+                                    height: '200px',
+                                    zIndex: 100,
+                                    borderRadius: '8px',
+                                    overflow: 'hidden',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                    border: '2px solid rgba(66, 245, 135, 0.5)',
+                                    background: '#000'
+                                }}>
+                                    {/* 1. Canvas Layer */}
+                                    <canvas
+                                        ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
+                                        style={{
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: 'contain'
+                                        }}
+                                    />
 
-                                    {/* V32 VISUALIZER CANVAS */}
+                                    {/* 2. Text Overlay Layer */}
                                     <div style={{
                                         position: 'absolute',
-                                        top: 80,
-                                        right: 20,
-                                        width: '120px',
-                                        height: 'auto',
-                                        aspectRatio: '3/4',
-                                        border: '2px solid red',
-                                        zIndex: 100,
-                                        background: 'black',
-                                        borderRadius: '8px',
-                                        overflow: 'hidden'
+                                        bottom: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        padding: '6px',
+                                        background: 'rgba(0,0,0,0.7)',
+                                        color: '#00ff00',
+                                        fontFamily: 'monospace',
+                                        fontSize: '10px',
+                                        pointerEvents: 'none'
                                     }}>
-                                        <canvas
-                                            ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
-                                            style={{ width: '100%', height: '100%', display: 'block' }}
-                                        />
+                                        <div style={{ marginBottom: '2px' }}>STATUS: <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus === 'Ready' ? 'Active' : cvStatus}</span></div>
+                                        <div>ENGINE: {debugLog}</div>
                                     </div>
-                                </>
+                                </div>
                             )}
 
                             {/* GREEN BOX OVERLAY */}
