@@ -69,21 +69,6 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
         return () => unsubscribe();
     }, [sessionId, isOpen, receivedUrls.length]);
 
-    // V16.3: Auto-Import Logic
-    useEffect(() => {
-        if (isOpen && status === 'completed' && receivedUrls.length > 0) {
-            console.log("[MobileUpload] Auto-importing batch...");
-            onImageReceived(receivedUrls);
-            // Reset session state in DB for re-use before closing
-            if (sessionId) {
-                mobileUploadService.resetSession(sessionId);
-                setReceivedUrls([]); // Clear local state too
-                setStatus('waiting'); // Reset local status
-            }
-            onClose();
-        }
-    }, [status, receivedUrls, isOpen, onImageReceived, onClose, sessionId]);
-
     // V16.2: Manual Import Logic (kept for safety)
     const handleImport = async () => {
         if (receivedUrls.length > 0) {

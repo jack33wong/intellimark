@@ -194,7 +194,7 @@ const MobileCameraPage: React.FC = () => {
                 activeStreamRef.current = null;
             }
         };
-    }, [isReviewOpen, !!selectedPageId]);
+    }, [isReviewOpen, !!selectedPageId, status]);
 
     // 2. Unmount-Only Cleanup: Revoke all object URLs only when leaving the page entirely
     useEffect(() => {
