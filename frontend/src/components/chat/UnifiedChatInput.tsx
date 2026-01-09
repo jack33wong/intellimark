@@ -206,15 +206,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     );
   };
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFiles = Array.from(e.target.files || []);
+  const processFiles = useCallback((newFiles: File[]) => {
     if (newFiles.length === 0) return;
     // Block file selection while processing
-    if (isProcessing) {
-      e.target.value = '';
-      return;
-    }
-
+    if (isProcessing) return;
 
     // If we already have files and user selects more, add to existing
     if (imageFiles.length > 0 || imageFile) {
@@ -226,10 +221,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         )
       );
 
-      if (uniqueNewFiles.length === 0) {
-        e.target.value = ''; // Clear the file input
-        return;
-      }
+      if (uniqueNewFiles.length === 0) return;
 
       // Add only unique new files to existing ones
       const allFiles = [...existingFiles, ...uniqueNewFiles];
@@ -317,8 +309,38 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     }
 
     setIsExpanded(true);
-    // Don't reset the input value to allow multiple selections
   }, [imageFiles, imageFile, isMultiImage, isProcessing]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newFiles = Array.from(e.target.files || []);
+    processFiles(newFiles);
+    // Clear the input value so the same file can be selected again
+    if (e.target) e.target.value = '';
+  }, [processFiles]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (isProcessing) return;
+
+    const items = e.clipboardData.items;
+    const pastedFiles: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1 || item.type === 'application/pdf') {
+        const file = item.getAsFile();
+        if (file) pastedFiles.push(file);
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      // If we found images/PDFs, process them
+      processFiles(pastedFiles);
+
+      // Prevent the default paste behavior (which might insert filenames or text)
+      // to keep the chat input clean for the user's typing.
+      e.preventDefault();
+    }
+  }, [processFiles, isProcessing]);
 
   const handleUploadClick = useCallback(() => {
     document.getElementById('unified-file-input')?.click();
@@ -625,6 +647,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   value={chatInput}
                   onChange={handleInputChange}
                   onKeyPress={handleKeyPress}
+                  onPaste={handlePaste}
                   placeholder={
                     isProcessing
                       ? "AI is processing..."
