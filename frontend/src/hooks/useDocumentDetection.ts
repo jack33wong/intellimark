@@ -7,7 +7,7 @@ declare global { interface Window { cv: any; } }
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
     const [cvStatus, setCvStatus] = useState<string>("Init...");
-    const [debugLog, setDebugLog] = useState<string>("v33 | init");
+    const [debugLog, setDebugLog] = useState<string>("v34 | init");
     const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
@@ -43,6 +43,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             const processFrame = () => {
                 const video = videoRef.current;
 
+                // Strict Safety Check
                 if (!video || video.readyState < 2 || video.videoWidth === 0) {
                     loopRef.current = requestAnimationFrame(processFrame);
                     return;
@@ -55,7 +56,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                 processingRef.current = true;
 
                 try {
-                    // Resolution: 350px
                     const w = 350;
                     const scale = w / video.videoWidth;
                     const h = Math.floor(video.videoHeight * scale);
@@ -66,62 +66,65 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         debugCanvasRef.current.height = h;
                     }
 
-                    // 1. Draw Video to Internal Canvas (Source of Truth)
+                    // --- DIAGNOSTIC DRAWING START ---
                     const canvas = document.createElement('canvas');
                     canvas.width = w; canvas.height = h;
                     const ctx = canvas.getContext('2d', { willReadFrequently: true });
                     if (!ctx) throw new Error("No CTX");
-                    ctx.drawImage(video, 0, 0, w, h);
-                    const imgData = ctx.getImageData(0, 0, w, h);
 
-                    // 2. Load into OpenCV
+                    // 1. FILL BLUE (Test if canvas works)
+                    ctx.fillStyle = "blue";
+                    ctx.fillRect(0, 0, w, h);
+
+                    // 2. DRAW VIDEO (Should overwrite blue)
+                    ctx.drawImage(video, 0, 0, w, h);
+
+                    // 3. GET DATA
+                    const imgData = ctx.getImageData(0, 0, w, h);
+                    // --------------------------------
+
+                    // CV Load
                     if (src.cols !== w || src.rows !== h) {
                         src.delete(); src.create(h, w, cv.CV_8UC4);
                     }
                     src.data.set(imgData.data);
 
-                    // 3. Processing Pipeline
+                    // Pipeline
                     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-                    // V33 FIX: Auto-Contrast (Equalize Hist)
-                    // This forces the paper to stand out from the wood table
-                    cv.equalizeHist(gray, gray);
-
+                    cv.equalizeHist(gray, gray); // Contrast Boost
                     cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
                     cv.Canny(blur, edges, 50, 150);
 
-                    // V33 FIX: Fail-Safe Rendering
-                    // We simply draw the 'canvas' we just created. No complex conversions.
+                    // DEBUG VISUALIZATION (Direct Draw)
                     if (debugCanvasRef.current) {
                         const dCtx = debugCanvasRef.current.getContext('2d');
                         if (dCtx) {
-                            // A. Draw Background (Video)
+                            // Draw the video frame (or blue screen if video failed)
                             dCtx.drawImage(canvas, 0, 0);
 
-                            // B. Draw Edges (Neon Overlay)
-                            // We create a temp canvas for the edges
-                            const edgeCanvas = document.createElement('canvas');
-                            edgeCanvas.width = w; edgeCanvas.height = h;
-                            const eCtx = edgeCanvas.getContext('2d');
-                            if (eCtx) {
-                                const eData = eCtx.createImageData(w, h);
-                                for (let i = 0; i < w * h; i++) {
-                                    if (edges.data[i] > 0) {
-                                        eData.data[i * 4] = 0;     // R
-                                        eData.data[i * 4 + 1] = 255; // G (Green)
-                                        eData.data[i * 4 + 2] = 0;   // B
-                                        eData.data[i * 4 + 3] = 255; // Alpha
-                                    }
+                            // Overlay Green Edges
+                            const eData = dCtx.createImageData(w, h);
+                            // Simple manual copy to avoid alpha issues
+                            for (let i = 0; i < w * h; i++) {
+                                if (edges.data[i] > 0) {
+                                    eData.data[i * 4] = 0;     // R
+                                    eData.data[i * 4 + 1] = 255; // G
+                                    eData.data[i * 4 + 2] = 0;   // B
+                                    eData.data[i * 4 + 3] = 255; // A (Opaque)
+                                } else {
+                                    eData.data[i * 4 + 3] = 0;   // Transparent
                                 }
-                                eCtx.putImageData(eData, 0, 0);
-                                dCtx.globalAlpha = 0.6;
-                                dCtx.drawImage(edgeCanvas, 0, 0);
-                                dCtx.globalAlpha = 1.0;
                             }
+                            // Create temp canvas for overlay
+                            const tC = document.createElement('canvas');
+                            tC.width = w; tC.height = h;
+                            tC.getContext('2d')?.putImageData(eData, 0, 0);
+
+                            dCtx.drawImage(tC, 0, 0);
                         }
                     }
 
-                    // 4. Find Contours
+                    // Find Contours
                     cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                     let maxArea = 0;
@@ -143,7 +146,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                             }
                             const pts = sortCorners(rawPts);
 
-                            // Draw Candidate (Blue) on Debug
+                            // Draw Candidate (Blue)
                             if (debugCanvasRef.current) {
                                 const dCtx = debugCanvasRef.current.getContext('2d');
                                 if (dCtx) {
@@ -154,7 +157,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                 }
                             }
 
-                            // Trapezoid Logic
+                            // Trapezoid Check
                             const topDy = Math.abs(pts[0].y - pts[1].y);
                             const topDx = Math.abs(pts[0].x - pts[1].x);
                             const botDy = Math.abs(pts[3].y - pts[2].y);
@@ -172,10 +175,9 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         }
                     }
 
-                    // 5. Update State
+                    // Update State
                     if (bestPts) {
                         const norm = bestPts.map(p => ({ x: p.x / w, y: p.y / h }));
-
                         historyRef.current.push(norm);
                         if (historyRef.current.length > 5) historyRef.current.shift();
 
@@ -185,7 +187,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
                         setDetectedCorners(smoothed);
 
-                        // Draw Winner (Red) on Debug
+                        // Draw Winner (Red)
                         if (debugCanvasRef.current) {
                             const dCtx = debugCanvasRef.current.getContext('2d');
                             if (dCtx) {
@@ -195,9 +197,9 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                 dCtx.closePath(); dCtx.stroke();
                             }
                         }
-                        setDebugLog(`v33 | Res: ${w}px | Area: ${Math.round(maxArea)} | LOCK`);
+                        setDebugLog(`v34 | Res: ${w}px | Area: ${Math.round(maxArea)} | LOCK`);
                     } else {
-                        setDebugLog(`v33 | Res: ${w}px | SCANNING`);
+                        setDebugLog(`v34 | Res: ${w}px | BlueTest`);
                         // Decay
                         if (historyRef.current.length > 0) {
                             historyRef.current.shift();

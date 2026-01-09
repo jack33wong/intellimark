@@ -425,7 +425,7 @@ const MobileCameraPage: React.FC = () => {
                             />
 
 
-                            {/* --- UNIFIED DEBUG TERMINAL (V33) --- */}
+                            {/* --- UNIFIED DEBUG TERMINAL V34 --- */}
                             {showDebug && (
                                 <div style={{
                                     position: 'absolute',
@@ -438,32 +438,32 @@ const MobileCameraPage: React.FC = () => {
                                     overflow: 'hidden',
                                     boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                                     border: '2px solid rgba(66, 245, 135, 0.5)',
-                                    background: '#000'
+                                    background: '#111', // Dark grey background
+                                    display: 'flex',
+                                    flexDirection: 'column'
                                 }}>
-                                    {/* 1. Canvas Layer */}
-                                    <canvas
-                                        ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
-                                        style={{
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'contain'
-                                        }}
-                                    />
+                                    {/* 1. Canvas Layer (Fills space) */}
+                                    <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                                        <canvas
+                                            ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'contain'
+                                            }}
+                                        />
+                                    </div>
 
-                                    {/* 2. Text Overlay Layer */}
+                                    {/* 2. Text Overlay Layer (Pinned to bottom) */}
                                     <div style={{
-                                        position: 'absolute',
-                                        bottom: 0,
-                                        left: 0,
-                                        width: '100%',
                                         padding: '6px',
-                                        background: 'rgba(0,0,0,0.7)',
+                                        background: 'rgba(0,0,0,0.8)',
                                         color: '#00ff00',
                                         fontFamily: 'monospace',
                                         fontSize: '10px',
-                                        pointerEvents: 'none'
+                                        borderTop: '1px solid #333'
                                     }}>
-                                        <div style={{ marginBottom: '2px' }}>STATUS: <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus === 'Ready' ? 'Active' : cvStatus}</span></div>
+                                        <div>STATUS: <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus === 'Ready' ? 'Active' : cvStatus}</span></div>
                                         <div>ENGINE: {debugLog}</div>
                                     </div>
                                 </div>
