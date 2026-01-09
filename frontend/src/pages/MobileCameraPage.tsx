@@ -80,8 +80,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V30)
-    const { detectedCorners, cvStatus, debugLog } = useDocumentDetection(
+    // 1. Trapezoid Engine (V32)
+    const { detectedCorners, cvStatus, debugLog, debugCanvasRef } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -425,27 +425,49 @@ const MobileCameraPage: React.FC = () => {
                             />
 
 
-                            {/* --- ENHANCED DIAGNOSTIC HUD (V31) --- */}
+                            {/* --- ENHANCED DIAGNOSTIC HUD (V32) --- */}
                             {showDebug && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '65px',
-                                    left: '15px',
-                                    width: '180px',
-                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    color: '#00ff00',
-                                    padding: '10px',
-                                    borderRadius: '12px',
-                                    fontSize: '10px',
-                                    fontFamily: 'monospace',
-                                    zIndex: 9999,
-                                    pointerEvents: 'none',
-                                    border: '1px solid rgba(0, 255, 0, 0.3)',
-                                    backdropFilter: 'blur(5px)'
-                                }}>
-                                    <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
-                                    <div><strong>ENGINE:</strong> {debugLog}</div>
-                                </div>
+                                <>
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '65px',
+                                        left: '15px',
+                                        width: '180px',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        color: '#00ff00',
+                                        padding: '10px',
+                                        borderRadius: '12px',
+                                        fontSize: '10px',
+                                        fontFamily: 'monospace',
+                                        zIndex: 9999,
+                                        pointerEvents: 'none',
+                                        border: '1px solid rgba(0, 255, 0, 0.3)',
+                                        backdropFilter: 'blur(5px)'
+                                    }}>
+                                        <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
+                                        <div><strong>ENGINE:</strong> {debugLog}</div>
+                                    </div>
+
+                                    {/* V32 VISUALIZER CANVAS */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 80,
+                                        right: 20,
+                                        width: '120px',
+                                        height: 'auto',
+                                        aspectRatio: '3/4',
+                                        border: '2px solid red',
+                                        zIndex: 100,
+                                        background: 'black',
+                                        borderRadius: '8px',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <canvas
+                                            ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
+                                            style={{ width: '100%', height: '100%', display: 'block' }}
+                                        />
+                                    </div>
+                                </>
                             )}
 
                             {/* GREEN BOX OVERLAY */}
