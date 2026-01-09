@@ -81,7 +81,7 @@ const MobileCameraPage: React.FC = () => {
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
     // 1. Trapezoid Engine (V32)
-    const { detectedCorners, cvStatus, debugLog, debugCanvasRef } = useDocumentDetection(
+    const { detectedCorners } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -425,49 +425,7 @@ const MobileCameraPage: React.FC = () => {
                             />
 
 
-                            {/* --- UNIFIED DEBUG TERMINAL V34 --- */}
-                            {showDebug && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: 80,
-                                    right: 20,
-                                    width: '140px',
-                                    height: '200px',
-                                    zIndex: 100,
-                                    borderRadius: '8px',
-                                    overflow: 'hidden',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                    border: '2px solid rgba(66, 245, 135, 0.5)',
-                                    background: '#111', // Dark grey background
-                                    display: 'flex',
-                                    flexDirection: 'column'
-                                }}>
-                                    {/* 1. Canvas Layer (Fills space) */}
-                                    <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                                        <canvas
-                                            ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
-                                            style={{
-                                                width: '100%',
-                                                height: '100%',
-                                                objectFit: 'contain'
-                                            }}
-                                        />
-                                    </div>
 
-                                    {/* 2. Text Overlay Layer (Pinned to bottom) */}
-                                    <div style={{
-                                        padding: '6px',
-                                        background: 'rgba(0,0,0,0.8)',
-                                        color: '#00ff00',
-                                        fontFamily: 'monospace',
-                                        fontSize: '10px',
-                                        borderTop: '1px solid #333'
-                                    }}>
-                                        <div>STATUS: <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus === 'Ready' ? 'Active' : cvStatus}</span></div>
-                                        <div>ENGINE: {debugLog}</div>
-                                    </div>
-                                </div>
-                            )}
 
                             {/* GREEN BOX OVERLAY */}
                             {detectedCorners && videoRef.current && containerRef.current && (
