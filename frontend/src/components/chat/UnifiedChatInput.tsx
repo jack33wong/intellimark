@@ -667,33 +667,50 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         onClose={() => setIsMobileUploadOpen(false)}
         onImageReceived={useCallback(async (imageUrls: string[]) => {
           try {
-            const files: File[] = [];
+            const newFiles: File[] = [];
             for (let i = 0; i < imageUrls.length; i++) {
               const url = imageUrls[i];
               const response = await fetch(url);
               const blob = await response.blob();
               const filename = `mobile-scan-${Date.now()}-${i}.jpg`;
-              files.push(new File([blob], filename, { type: 'image/jpeg' }));
+              newFiles.push(new File([blob], filename, { type: 'image/jpeg' }));
             }
 
-            if (files.length === 1) {
-              setImageFile(files[0]);
+            // V16.4: APPEND Logic
+            // Collect existing files/previews
+            let currentFiles: File[] = [];
+            let currentPreviews: string[] = [];
+
+            // If we already had a single image, convert it to the array
+            if (imageFile) {
+              currentFiles = [imageFile];
+              currentPreviews = [previewImage!];
+            } else if (imageFiles.length > 0) {
+              currentFiles = [...imageFiles];
+              currentPreviews = [...previewImages];
+            }
+
+            const combinedFiles = [...currentFiles, ...newFiles];
+            const combinedPreviews = [...currentPreviews, ...imageUrls];
+
+            if (combinedFiles.length === 1) {
+              setImageFile(combinedFiles[0]);
               setImageFiles([]);
-              setPreviewImage(imageUrls[0]);
+              setPreviewImage(combinedPreviews[0]);
               setPreviewImages([]);
               setIsMultiImage(false);
             } else {
-              setImageFiles(files);
+              setImageFiles(combinedFiles);
               setImageFile(null);
               setPreviewImage(null);
-              setPreviewImages(imageUrls);
+              setPreviewImages(combinedPreviews);
               setIsMultiImage(true);
             }
             setIsExpanded(true);
           } catch (err) {
             console.error('Failed to process mobile images:', err);
           }
-        }, [setImageFile, setImageFiles, setPreviewImage, setPreviewImages, setIsMultiImage, setIsExpanded])}
+        }, [imageFile, imageFiles, previewImage, previewImages, setImageFile, setImageFiles, setPreviewImage, setPreviewImages, setIsMultiImage, setIsExpanded])}
       />
 
       {/* Enterprise Upgrade Modal */}

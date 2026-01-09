@@ -112,6 +112,22 @@ class MobileUploadService {
     }
 
     /**
+     * Resets the session status to waiting and clears images.
+     * Used by Desktop to allow QR re-use for the next batch.
+     */
+    async resetSession(sessionId: string): Promise<void> {
+        try {
+            const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
+            await updateDoc(sessionRef, {
+                status: 'waiting',
+                imageUrls: []
+            });
+        } catch (error) {
+            console.warn('Failed to reset session:', error);
+        }
+    }
+
+    /**
      * Clean up the session (Used by Desktop after successful receipt)
      */
     async cleanupSession(sessionId: string): Promise<void> {
