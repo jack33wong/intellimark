@@ -7,6 +7,7 @@ declare global { interface Window { cv: any; } }
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
     const [cvStatus, setCvStatus] = useState<string>("Init...");
+    const [debugLog, setDebugLog] = useState<string>("");
 
     // Debug Canvas Ref (To show what the computer sees)
     const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -182,6 +183,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         } else setDetectedCorners(null);
                     }
 
+                    // Update Debug Log (V29 Diagnostic)
+                    const stats = `V29 | Res: ${w}px | Area: ${Math.round(maxArea)} | Status: ${bestPts ? 'LOCKED' : 'SCANNING'}`;
+                    setDebugLog(stats);
+
                 } catch (e) { console.error(e); }
                 finally {
                     processingRef.current = false;
@@ -199,5 +204,5 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
         return () => { clearInterval(checkCv); if (loopRef.current) cancelAnimationFrame(loopRef.current); };
     }, [isActive, videoRef]);
 
-    return { detectedCorners, debugCanvasRef, cvStatus };
+    return { detectedCorners, debugCanvasRef, cvStatus, debugLog };
 };

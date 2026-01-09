@@ -81,7 +81,7 @@ const MobileCameraPage: React.FC = () => {
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
     // 1. Trapezoid Engine (V28) -> Diagnostic Engine (V29)
-    const { detectedCorners, cvStatus, debugCanvasRef } = useDocumentDetection(
+    const { detectedCorners, cvStatus, debugCanvasRef, debugLog } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -434,18 +434,41 @@ const MobileCameraPage: React.FC = () => {
                                 }}
                             />
 
-                            {/* --- V29 DIAGNOSTIC WINDOW --- */}
+                            {/* --- ENHANCED DIAGNOSTIC HUD (V25/V29) --- */}
                             {showDebug && (
                                 <div style={{
-                                    position: 'absolute', top: 10, right: 10, width: '120px',
-                                    border: '2px solid red', zIndex: 100, background: 'black',
-                                    borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                    pointerEvents: 'none'
+                                    position: 'absolute',
+                                    top: '65px',
+                                    left: '15px',
+                                    width: '200px',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    color: '#00ff00',
+                                    padding: '10px',
+                                    borderRadius: '12px',
+                                    fontSize: '10px',
+                                    fontFamily: 'monospace',
+                                    zIndex: 9999,
+                                    pointerEvents: 'none',
+                                    border: '1px solid rgba(0, 255, 0, 0.3)',
+                                    backdropFilter: 'blur(5px)'
                                 }}>
-                                    <canvas ref={debugCanvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                                    <div style={{ fontSize: '8px', color: 'red', textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>
-                                        CV VISION ({cvStatus})
+                                    <div style={{ marginBottom: '4px' }}><strong>STATUS:</strong> <span style={{ color: cvStatus === 'Ready' ? '#00ff00' : '#ff4444' }}>{cvStatus}</span></div>
+                                    <div style={{ marginBottom: '6px' }}><strong>ENGINE:</strong> {debugLog}</div>
+
+                                    {/* VISUAL X-RAY: See what the computer sees */}
+                                    <div style={{
+                                        border: '1px solid #00ff00',
+                                        marginTop: '8px',
+                                        borderRadius: '4px',
+                                        overflow: 'hidden',
+                                        backgroundColor: '#000'
+                                    }}>
+                                        <canvas
+                                            ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
+                                            style={{ width: '100%', height: 'auto', display: 'block' }}
+                                        />
                                     </div>
+                                    <div style={{ textAlign: 'center', color: '#666', marginTop: '4px', fontSize: '9px' }}>CV BINARY MASK</div>
                                 </div>
                             )}
 
