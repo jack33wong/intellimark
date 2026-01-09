@@ -80,7 +80,7 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V40)
+    // 1. Trapezoid Engine (V41)
     const { detectedCorners, status: detectionStatus } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
@@ -427,7 +427,7 @@ const MobileCameraPage: React.FC = () => {
 
 
 
-                            {/* --- STATUS OVERLAY (V40) --- */}
+                            {/* --- STATUS OVERLAY (V41) --- */}
                             <div style={{
                                 position: 'absolute',
                                 top: 80,
