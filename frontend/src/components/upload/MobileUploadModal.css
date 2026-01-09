@@ -76,17 +76,24 @@
 
 .qr-container {
     width: 260px;
-    min-height: 240px;
+    min-height: 260px;
     height: auto;
     background: white;
-    padding: 20px;
-    border-radius: 12px;
+    padding: 24px;
+    border-radius: 16px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     margin-bottom: 24px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.qr-container.has-content {
+    background: var(--fill-tsp-gray-main);
+    border: 1px solid var(--border-light);
+    box-shadow: none;
 }
 
 .qr-wrapper {
@@ -116,14 +123,14 @@
     gap: 16px;
     text-align: left;
     width: 100%;
-    background: var(--fill-tsp-gray-main);
-    padding: 16px;
-    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 20px;
+    border-radius: 14px;
     border: 1px solid var(--border-light);
 }
 
 .batch-icon {
-    color: var(--function-success);
+    color: #42f587;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -131,13 +138,15 @@
 
 .batch-count h3 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
+    font-weight: 700;
     color: var(--text-primary);
 }
 
 .batch-count p {
     margin: 4px 0 0 0;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 500;
     color: var(--text-secondary);
 }
 

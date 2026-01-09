@@ -9,14 +9,18 @@ interface MobileUploadModalProps {
     isOpen: boolean;
     onClose: () => void;
     onImageReceived: (imageUrls: string[]) => void;
+    sessionIdProp?: string;
+    onSessionCreated?: (id: string) => void;
 }
 
 const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
     isOpen,
     onClose,
-    onImageReceived
+    onImageReceived,
+    sessionIdProp,
+    onSessionCreated
 }) => {
-    const [sessionId, setSessionId] = useState<string>('');
+    const [sessionId, setSessionId] = useState<string>(sessionIdProp || '');
     const [status, setStatus] = useState<UploadSession['status']>('waiting');
     const [receivedUrls, setReceivedUrls] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
@@ -27,13 +31,19 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
 
         const initSession = async () => {
             try {
-                // Reset state for new session
-                setReceivedUrls([]);
+                // If we already have a persistent session ID, just use it
+                if (sessionIdProp) {
+                    setSessionId(sessionIdProp);
+                    return;
+                }
+
+                // Otherwise create a new one
                 setError('');
                 const newSessionId = mobileUploadService.generateSessionId();
                 setSessionId(newSessionId);
                 setStatus('waiting');
                 await mobileUploadService.createSession(newSessionId);
+                onSessionCreated?.(newSessionId);
             } catch (err) {
                 console.error('Failed to init session:', err);
                 setError('Failed to generate connection code');
@@ -41,7 +51,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
         };
 
         initSession();
-    }, [isOpen]);
+    }, [isOpen, sessionIdProp, onSessionCreated]);
 
     // Listen to session updates
     useEffect(() => {
@@ -59,12 +69,20 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
         return () => unsubscribe();
     }, [sessionId, isOpen, receivedUrls.length]);
 
-    // V16.2: Manual Import Logic
+    // V16.3: Auto-Import Logic
+    useEffect(() => {
+        if (isOpen && status === 'completed' && receivedUrls.length > 0) {
+            console.log("[MobileUpload] Auto-importing batch...");
+            onImageReceived(receivedUrls);
+            onClose();
+        }
+    }, [status, receivedUrls, isOpen, onImageReceived, onClose]);
+
+    // V16.2: Manual Import Logic (kept for safety)
     const handleImport = async () => {
         if (receivedUrls.length > 0) {
             onImageReceived(receivedUrls);
-            setStatus('completed');
-            // We don't close yet, let the user decide if they want more
+            onClose();
         }
     };
 
@@ -94,7 +112,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                     <h2>Scan to Upload</h2>
                     <p className="subtitle">Use your phone camera to snap & upload instantly</p>
 
-                    <div className="qr-container">
+                    <div className={`qr-container ${receivedUrls.length > 0 ? 'has-content' : ''}`}>
                         {(status === 'waiting' || status === 'uploading') && receivedUrls.length === 0 && (
                             <div className="qr-wrapper">
                                 <QRCode
@@ -119,7 +137,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                                     </div>
                                     <div className="batch-count">
                                         <h3>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</h3>
-                                        <p>{status === 'uploading' ? 'Scanning in progress...' : 'Ready to import'}</p>
+                                        <p>{status === 'uploading' ? 'Scanning in progress...' : 'Batch received'}</p>
                                     </div>
                                 </div>
 

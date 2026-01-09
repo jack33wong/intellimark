@@ -317,9 +317,8 @@ const MobileCameraPage: React.FC = () => {
                 setProcessingStep(`Sending Page ${count} of ${pageCount}...`);
                 await mobileUploadService.uploadBatchImage(sessionId, page.blob);
             }
-            // CONTINUOUS SESSION FIX: We no longer finalize here. 
-            // This allows the desktop modal to stay open if the user wants to scan more.
-            // await mobileUploadService.finalizeSession(sessionId);
+            // V16.3: Finalize here triggers auto-import on Desktop
+            await mobileUploadService.finalizeSession(sessionId);
 
             // Success UX
             setNotification({

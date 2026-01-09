@@ -61,6 +61,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
   const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
+  const [mobileSessionId, setMobileSessionId] = useState<string>('');
 
   // Metadata & Autocomplete State
   const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
@@ -410,6 +411,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       setIsMultiImage(false);
       setIsExpanded(false);
 
+      // Finalize Mobile Session if it exists
+      if (mobileSessionId) {
+        import('../../services/MobileUploadService').then(({ mobileUploadService }) => {
+          mobileUploadService.cleanupSession(mobileSessionId);
+          setMobileSessionId('');
+        });
+      }
+
       // Clear the file input element to prevent duplicate uploads
       const fileInput = document.getElementById('unified-file-input') as HTMLInputElement;
       if (fileInput) {
@@ -653,6 +662,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       <MobileUploadModal
         isOpen={isMobileUploadOpen}
+        sessionIdProp={mobileSessionId}
+        onSessionCreated={setMobileSessionId}
         onClose={() => setIsMobileUploadOpen(false)}
         onImageReceived={useCallback(async (imageUrls: string[]) => {
           try {
