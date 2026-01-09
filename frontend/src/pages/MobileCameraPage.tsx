@@ -95,26 +95,19 @@ const MobileCameraPage: React.FC = () => {
             if (isReviewOpen || selectedPageId) return;
 
             try {
-                console.log("[Camera] Requesting 4K...");
+                // V22: FORCE 4:3 PHOTO MODE
                 const constraints = {
                     video: {
                         facingMode: 'environment',
-                        // V21 FIX: Request 4:3 Aspect Ratio (Full Sensor)
-                        // This gives the widest possible vertical field of view.
-                        aspectRatio: { ideal: 1.333 }, // 4:3 (Full Sensor)
-                        width: { ideal: 2560 },        // High Res Photo Quality
-                        height: { ideal: 1920 },
-                        // Focus mode is critical for text
-                        advanced: [{ focusMode: 'continuous' }] as any
+                        // 1.333 Aspect Ratio = 4:3 = Full Sensor = WIDER VIEW
+                        aspectRatio: { ideal: 1.333 },
+                        width: { ideal: 2560 },
+                        height: { ideal: 1920 }
                     },
                     audio: false
                 };
 
-                const stream = await navigator.mediaDevices.getUserMedia(constraints)
-                    .catch(async () => {
-                        console.warn("[Camera] 4K constraints failed, falling back...");
-                        return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    });
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
                 if (!isMounted) {
                     stream.getTracks().forEach(track => track.stop());
@@ -223,8 +216,8 @@ const MobileCameraPage: React.FC = () => {
             let processedBlob: Blob;
 
             if (cornersToUse) {
-                // VISUAL FEEDBACK (V37)
-                setCorrectionMsg("⚡ Auto-Correcting Perspective...");
+                // V22: VISUAL FEEDBACK
+                setCorrectionMsg("⚡ Enhancing...");
                 setTimeout(() => setCorrectionMsg(null), 2000);
 
                 // FAST PATH: Use live detection results (V19)
@@ -516,17 +509,14 @@ const MobileCameraPage: React.FC = () => {
 
                             <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-                            {/* CONFIRMATION TOAST (V37) */}
                             {correctionMsg && (
                                 <div style={{
                                     position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                                    background: 'rgba(0,0,0,0.85)', color: '#42f587', padding: '15px 25px', borderRadius: '30px',
-                                    fontWeight: 'bold', zIndex: 10000, display: 'flex', alignItems: 'center', gap: '10px',
-                                    backdropFilter: 'blur(10px)', border: '1px solid rgba(66, 245, 135, 0.3)',
-                                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)', whiteSpace: 'nowrap'
+                                    background: 'rgba(0,0,0,0.85)', color: '#42f587', padding: '12px 24px',
+                                    borderRadius: '20px', fontWeight: 'bold', display: 'flex', gap: '8px', alignItems: 'center',
+                                    zIndex: 10000
                                 }}>
-                                    <Wand2 size={20} />
-                                    {correctionMsg}
+                                    <Wand2 size={18} /> {correctionMsg}
                                 </div>
                             )}
                         </div>
