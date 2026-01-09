@@ -6,7 +6,7 @@ declare global { interface Window { cv: any; } }
 
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
     const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
-    const [detectionStatus, setDetectionStatus] = useState<string>("Initializing...");
+    const [status, setStatus] = useState<string>("Initializing...");
 
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
@@ -28,13 +28,15 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     useEffect(() => {
         if (!isActive) {
-            setDetectionStatus("Paused");
+            setStatus("Paused");
             return;
         }
 
+        let cleanupMats: (() => void) | null = null;
+
         const startLoop = () => {
             if (!window.cv || !window.cv.Mat) {
-                setDetectionStatus("Error: OpenCV Missing");
+                setStatus("Error: OpenCV Missing");
                 return;
             }
 
@@ -48,6 +50,13 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             const hierarchy = new cv.Mat();
             const poly = new cv.Mat();
 
+            cleanupMats = () => {
+                try {
+                    src.delete(); gray.delete(); blur.delete();
+                    edges.delete(); contours.delete(); hierarchy.delete(); poly.delete();
+                } catch (e) { }
+            };
+
             const processFrame = () => {
                 const video = videoRef.current;
 
@@ -57,7 +66,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     return;
                 }
                 if (video.readyState !== 4 || video.videoWidth === 0) {
-                    setDetectionStatus(`Loading Camera... (State: ${video.readyState})`);
+                    setStatus(`Loading Camera... (State: ${video.readyState})`);
                     loopRef.current = requestAnimationFrame(processFrame);
                     return;
                 }
@@ -104,7 +113,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
                             try {
                                 const area = cv.contourArea(cnt);
-                                if (area < minArea) continue; // Will go to finally block
+                                if (area < minArea) continue;
 
                                 const peri = cv.arcLength(cnt, true);
                                 cv.approxPolyDP(cnt, poly, 0.02 * peri, true);
@@ -148,17 +157,17 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                             const smoothed = avg.map(p => ({ x: p.x / historyRef.current.length, y: p.y / historyRef.current.length }));
 
                             setDetectedCorners(smoothed);
-                            setDetectionStatus("LOCKED");
+                            setStatus("LOCKED");
                         } else {
                             if (historyRef.current.length > 0) {
                                 historyRef.current.shift();
                                 setDetectedCorners(null);
                             }
-                            setDetectionStatus(`Scanning... (Contours: ${contours.size()})`);
+                            setStatus(`Scanning... (Contours: ${contours.size()})`);
                         }
                     }
                 } catch (e: any) {
-                    setDetectionStatus(`ERROR: ${e.message}`);
+                    setStatus(`ERROR: ${e.message}`);
                     console.error(e);
                 }
                 finally {
@@ -168,23 +177,18 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             };
 
             loopRef.current = requestAnimationFrame(processFrame);
-
-            // CLEANUP FUNCTION (Runs on Unmount)
-            return () => {
-                if (loopRef.current) cancelAnimationFrame(loopRef.current);
-                try {
-                    src.delete(); gray.delete(); blur.delete();
-                    edges.delete(); contours.delete(); hierarchy.delete(); poly.delete();
-                } catch (e) { }
-            };
         };
 
         const checkCv = setInterval(() => {
             if (window.cv && window.cv.Mat) { clearInterval(checkCv); startLoop(); }
         }, 100);
 
-        return () => { clearInterval(checkCv); };
+        return () => {
+            clearInterval(checkCv);
+            if (loopRef.current) cancelAnimationFrame(loopRef.current);
+            if (cleanupMats) cleanupMats();
+        };
     }, [isActive, videoRef]);
 
-    return { detectedCorners, detectionStatus };
+    return { detectedCorners, status };
 };

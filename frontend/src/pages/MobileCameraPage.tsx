@@ -80,8 +80,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V39)
-    const { detectedCorners, detectionStatus } = useDocumentDetection(
+    // 1. Trapezoid Engine (V40)
+    const { detectedCorners, status: detectionStatus } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
