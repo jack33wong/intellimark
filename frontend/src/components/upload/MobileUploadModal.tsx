@@ -23,6 +23,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
     const [sessionId, setSessionId] = useState<string>(sessionIdProp || '');
     const [status, setStatus] = useState<UploadSession['status']>('waiting');
     const [receivedUrls, setReceivedUrls] = useState<string[]>([]);
+    const [lastReceivedTime, setLastReceivedTime] = useState<string | null>(null);
     const [error, setError] = useState<string>('');
 
     // Initialize session
@@ -62,6 +63,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                 setStatus(data.status);
                 if (data.imageUrls && data.imageUrls.length > receivedUrls.length) {
                     setReceivedUrls(data.imageUrls);
+                    setLastReceivedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
                 }
             }
         });
@@ -128,13 +130,20 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                             <div className="batch-status-mini" style={{
                                 marginTop: '16px',
                                 display: 'flex',
+                                flexDirection: 'column',
                                 alignItems: 'center',
-                                gap: '8px',
+                                gap: '4px',
                                 color: '#42f587',
-                                fontWeight: 'bold'
                             }}>
-                                <Check size={20} />
-                                <span>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                                    <Check size={20} />
+                                    <span>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</span>
+                                </div>
+                                {lastReceivedTime && (
+                                    <div style={{ fontSize: '12px', opacity: 0.8, fontWeight: 'normal' }}>
+                                        Latest batch received at {lastReceivedTime}
+                                    </div>
+                                )}
                             </div>
                         )}
 
