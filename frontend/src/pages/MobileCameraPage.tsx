@@ -385,21 +385,14 @@ const MobileCameraPage: React.FC = () => {
                             <div className="success-details">
                                 <p>You can now return to your computer to see the results, or add more pages below.</p>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px' }}>
+                            <div className="success-actions">
                                 <button className="add-more-success-btn" onClick={() => {
                                     setStatus('idle');
                                     setStreamStatus('initializing');
-                                }} style={{
-                                    backgroundColor: '#42f587', color: '#111', padding: '14px', borderRadius: '12px',
-                                    fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex',
-                                    alignItems: 'center', justifyContent: 'center', gap: '8px'
                                 }}>
                                     <Camera size={20} /> Add More Pages
                                 </button>
-                                <button className="done-close-btn" onClick={() => window.close()} style={{
-                                    backgroundColor: 'transparent', color: '#666', border: '1px solid #333',
-                                    padding: '12px', borderRadius: '12px', cursor: 'pointer'
-                                }}>
+                                <button className="done-close-btn" onClick={() => window.close()}>
                                     Close Scanner
                                 </button>
                             </div>
