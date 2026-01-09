@@ -102,16 +102,118 @@
     color: var(--text-secondary);
 }
 
-.status-wrapper.uploading {
-    color: var(--text-brand);
-}
-
-.status-wrapper.batch-success {
-    color: var(--text-primary);
+.status-wrapper.continuous {
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 20px;
+}
+
+.batch-status-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    width: 100%;
+    background: var(--fill-tsp-gray-main);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+}
+
+.batch-icon {
+    color: var(--function-success);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.batch-count h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.batch-count p {
+    margin: 4px 0 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.batch-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.import-batch-btn {
+    width: 100%;
+    background: #42f587;
+    /* Vibrant Green */
+    color: #111;
+    border: none;
+    padding: 14px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(66, 245, 135, 0.2);
+}
+
+.import-batch-btn:hover:not(:disabled) {
+    background: #3ee07c;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(66, 245, 135, 0.3);
+}
+
+.import-batch-btn:disabled {
+    background: var(--fill-tsp-gray-main);
+    color: var(--text-disable);
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.continue-scan-btn {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.continue-scan-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--text-brand);
+}
+
+.batch-footer {
+    width: 100%;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-light);
+}
+
+.finalize-session-btn {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 0.8rem;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.2s;
+    width: 100%;
+}
+
+.finalize-session-btn:hover {
+    color: var(--text-primary);
 }
 
 .thumbnail-grid {

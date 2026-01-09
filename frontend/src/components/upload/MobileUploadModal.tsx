@@ -59,24 +59,21 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
         return () => unsubscribe();
     }, [sessionId, isOpen, receivedUrls.length]);
 
-    // Auto-import when completed
-    useEffect(() => {
-        // V16.1 Fix: Only fire if modal is actually open. 
-        // Prevents re-importing when component re-renders while closed.
-        if (isOpen && status === 'completed' && receivedUrls.length > 0) {
-            const handleAutoImport = async () => {
-                onImageReceived(receivedUrls);
-                onClose();
-                if (sessionId) {
-                    await mobileUploadService.cleanupSession(sessionId);
-                    // Clear local state to prevent "Zombie" re-mounts
-                    setReceivedUrls([]);
-                    setStatus('waiting');
-                }
-            };
-            handleAutoImport();
+    // V16.2: Manual Import Logic
+    const handleImport = async () => {
+        if (receivedUrls.length > 0) {
+            onImageReceived(receivedUrls);
+            setStatus('completed');
+            // We don't close yet, let the user decide if they want more
         }
-    }, [status, receivedUrls, sessionId, onImageReceived, onClose, isOpen]);
+    };
+
+    const handleFinalize = async () => {
+        if (sessionId) {
+            await mobileUploadService.cleanupSession(sessionId);
+        }
+        onClose();
+    };
 
     if (!isOpen) return null;
 
@@ -115,16 +112,33 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                         )}
 
                         {receivedUrls.length > 0 && (
-                            <div className="status-wrapper success">
-                                <div className="success-icon">
-                                    {status === 'completed' ? <Check size={32} /> : <Loader2 className="spin" size={32} />}
+                            <div className="status-wrapper continuous">
+                                <div className="batch-status-header">
+                                    <div className="batch-icon">
+                                        {status === 'completed' ? <Check size={32} /> : <Loader2 className="spin" size={32} />}
+                                    </div>
+                                    <div className="batch-count">
+                                        <h3>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</h3>
+                                        <p>{status === 'uploading' ? 'Scanning in progress...' : 'Ready to import'}</p>
+                                    </div>
                                 </div>
-                                <p>
-                                    {status === 'completed'
-                                        ? `Importing ${receivedUrls.length} Page${receivedUrls.length !== 1 ? 's' : ''}...`
-                                        : `${receivedUrls.length} Page${receivedUrls.length !== 1 ? 's' : ''} Received`
-                                    }
-                                </p>
+
+                                <div className="batch-actions">
+                                    <button
+                                        className="import-batch-btn"
+                                        onClick={handleImport}
+                                        disabled={status === 'uploading' || status === 'completed'}
+                                    >
+                                        {status === 'completed' ? 'Imported Successfully' : `Import ${receivedUrls.length} Pages`}
+                                    </button>
+
+                                    <button
+                                        className="continue-scan-btn"
+                                        onClick={() => setStatus('waiting')}
+                                    >
+                                        Keep Scanning More...
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -136,6 +150,17 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {receivedUrls.length > 0 && (
+                        <div className="batch-footer">
+                            <button
+                                className="finalize-session-btn"
+                                onClick={handleFinalize}
+                            >
+                                Finished? Close Connection
+                            </button>
+                        </div>
+                    )}
 
                     {receivedUrls.length === 0 && (
                         <div className="instructions">

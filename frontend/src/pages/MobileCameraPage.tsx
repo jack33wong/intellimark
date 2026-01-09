@@ -311,20 +311,26 @@ const MobileCameraPage: React.FC = () => {
         const pageCount = scannedPages.length;
         try {
             setStatus('uploading');
+            let count = 0;
             for (const page of scannedPages) {
+                count++;
+                setProcessingStep(`Sending Page ${count} of ${pageCount}...`);
                 await mobileUploadService.uploadBatchImage(sessionId, page.blob);
             }
-            await mobileUploadService.finalizeSession(sessionId);
+            // CONTINUOUS SESSION FIX: We no longer finalize here. 
+            // This allows the desktop modal to stay open if the user wants to scan more.
+            // await mobileUploadService.finalizeSession(sessionId);
 
             // Success UX
             setNotification({
-                message: `All ${pageCount} pages sent!`,
+                message: `Sent ${pageCount} page${pageCount !== 1 ? 's' : ''}!`,
                 type: 'success'
             });
 
-            // Clear batch
+            // Clear batch but stay on page
             scannedPages.forEach(p => URL.revokeObjectURL(p.preview));
             setScannedPages([]);
+            setProcessingStep('');
             setStatus('success');
             setIsReviewOpen(false);
 
@@ -367,11 +373,23 @@ const MobileCameraPage: React.FC = () => {
                             <h2>All Set!</h2>
                             <p>Your work has been submitted successfully.</p>
                             <div className="success-details">
-                                <p>You can now close this tab and return to your computer to see the results.</p>
+                                <p>You can now return to your computer to see the results, or add more pages below.</p>
                             </div>
-                            <button className="done-close-btn" onClick={() => window.close()}>
-                                Close Scanner
-                            </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px' }}>
+                                <button className="add-more-success-btn" onClick={() => setStatus('idle')} style={{
+                                    backgroundColor: '#42f587', color: '#111', padding: '14px', borderRadius: '12px',
+                                    fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex',
+                                    alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    <Camera size={20} /> Add More Pages
+                                </button>
+                                <button className="done-close-btn" onClick={() => window.close()} style={{
+                                    backgroundColor: 'transparent', color: '#666', border: '1px solid #333',
+                                    padding: '12px', borderRadius: '12px', cursor: 'pointer'
+                                }}>
+                                    Close Scanner
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ) : (
