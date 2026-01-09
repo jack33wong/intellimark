@@ -427,18 +427,18 @@ const MobileCameraPage: React.FC = () => {
 
 
 
-                            {/* --- STATUS OVERLAY (V41) --- */}
+                            {/* --- STATUS OVERLAY (V42) --- */}
                             <div style={{
                                 position: 'absolute',
                                 top: 80,
                                 left: '50%',
                                 transform: 'translateX(-50%)',
-                                width: '80%', // Much wider
-                                maxWidth: '400px', // But not too wide on tablets
+                                width: '80%',
+                                maxWidth: '400px',
                                 background: 'rgba(0,0,0,0.7)',
                                 padding: '12px',
                                 borderRadius: '12px',
-                                color: detectionStatus === 'LOCKED' ? '#42f587' : '#ffffff',
+                                color: detectionStatus.includes('LOCKED') ? '#42f587' : '#ffffff',
                                 border: detectionStatus.includes('ERROR') ? '1px solid #ff4444' : '1px solid rgba(255,255,255,0.2)',
                                 fontWeight: 'bold',
                                 fontSize: '13px',
@@ -446,8 +446,8 @@ const MobileCameraPage: React.FC = () => {
                                 zIndex: 100,
                                 pointerEvents: 'none',
                                 textAlign: 'center',
-                                whiteSpace: 'pre-wrap', // Allows text to wrap
-                                wordBreak: 'break-word' // Breaks long error words
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
                             }}>
                                 {detectionStatus}
                             </div>

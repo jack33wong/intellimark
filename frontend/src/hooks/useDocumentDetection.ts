@@ -10,11 +10,11 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
-    // V41 FIX: A flag to instantly kill the loop before cleanup
     const stoppedRef = useRef(false);
     const historyRef = useRef<NormalizedPoint[][]>([]);
+    const frameCountRef = useRef(0); // Heartbeat counter
 
-    // Helper: Sort [TL, TR, BR, BL]
+    // Sort: TL, TR, BR, BL
     const sortCorners = (pts: { x: number, y: number }[]) => {
         const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
         const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
@@ -29,12 +29,9 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
     };
 
     useEffect(() => {
-        if (!isActive) {
-            setDetectionStatus("Paused");
-            return;
-        }
-
-        stoppedRef.current = false; // Reset stop flag
+        // V42 CHANGE: We DO NOT return early if !isActive.
+        // We force the loop to run so you can debug the Green Box.
+        stoppedRef.current = false;
 
         const startLoop = () => {
             if (!window.cv || !window.cv.Mat) {
@@ -43,7 +40,6 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             }
 
             const cv = window.cv;
-            // Persistent Memory
             const src = new cv.Mat();
             const gray = new cv.Mat();
             const blur = new cv.Mat();
@@ -53,8 +49,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             const poly = new cv.Mat();
 
             const processFrame = () => {
-                // V41 FIX: ZOMBIE CHECK
-                // If cleanup has run, STOP IMMEDIATELY. Do not touch 'src'.
+                // 1. ZOMBIE CHECK (Prevents Crash)
                 if (stoppedRef.current) return;
 
                 const video = videoRef.current;
@@ -63,8 +58,10 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     loopRef.current = requestAnimationFrame(processFrame);
                     return;
                 }
+
+                // 2. VIDEO CHECK
                 if (video.readyState !== 4 || video.videoWidth === 0) {
-                    setDetectionStatus(`Loading Camera... (State: ${video.readyState})`);
+                    setDetectionStatus(`Waiting for Camera... (State: ${video.readyState})`);
                     loopRef.current = requestAnimationFrame(processFrame);
                     return;
                 }
@@ -74,6 +71,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     return;
                 }
                 processingRef.current = true;
+                frameCountRef.current++; // Increment Heartbeat
 
                 try {
                     const w = 350;
@@ -88,7 +86,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         ctx.drawImage(video, 0, 0, w, h);
                         const imgData = ctx.getImageData(0, 0, w, h);
 
-                        // V41 FIX: Check stop flag again before memory access
+                        // DOUBLE ZOMBIE CHECK (Safety)
                         if (stoppedRef.current) { processingRef.current = false; return; }
 
                         if (src.cols !== w || src.rows !== h) {
@@ -96,7 +94,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         }
                         src.data.set(imgData.data);
 
-                        // Process
+                        // 3. PROCESS
                         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                         cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
                         cv.Canny(blur, edges, 30, 100);
@@ -108,7 +106,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         const minArea = (w * h) * 0.10;
 
                         for (let i = 0; i < contours.size(); ++i) {
-                            const cnt = contours.get(i); // Allocates
+                            const cnt = contours.get(i);
                             try {
                                 const area = cv.contourArea(cnt);
                                 if (area < minArea) continue;
@@ -123,6 +121,7 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                     }
                                     const pts = sortCorners(rawPts);
 
+                                    // TRAPEZOID LOCK
                                     const topDy = Math.abs(pts[0].y - pts[1].y);
                                     const topDx = Math.abs(pts[0].x - pts[1].x);
                                     const botDy = Math.abs(pts[3].y - pts[2].y);
@@ -139,9 +138,13 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                     }
                                 }
                             } finally {
-                                cnt.delete(); // Free individual contour
+                                cnt.delete(); // CRITICAL MEMORY RELEASE
                             }
                         }
+
+                        // 4. UPDATE STATUS
+                        // We check isActive here only for the status text, not to stop the loop.
+                        const activeLabel = isActive ? "" : "[INACTIVE]";
 
                         if (bestPts) {
                             const norm = bestPts.map(p => ({ x: p.x / w, y: p.y / h }));
@@ -153,20 +156,18 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                             const smoothed = avg.map(p => ({ x: p.x / historyRef.current.length, y: p.y / historyRef.current.length }));
 
                             setDetectedCorners(smoothed);
-                            setDetectionStatus("LOCKED");
+                            setDetectionStatus(`LOCKED ${activeLabel} (${frameCountRef.current})`);
                         } else {
                             if (historyRef.current.length > 0) {
                                 historyRef.current.shift();
                                 setDetectedCorners(null);
                             }
-                            setDetectionStatus(`Scanning... (Objects: ${contours.size()})`);
+                            setDetectionStatus(`Scanning... ${activeLabel} (${frameCountRef.current})`);
                         }
                     }
                 } catch (e: any) {
-                    // Suppress "deleted object" errors during shutdown
                     if (!e.message?.includes('deleted')) {
                         setDetectionStatus(`ERROR: ${e.message}`);
-                        console.error(e);
                     }
                 }
                 finally {
@@ -179,12 +180,9 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
 
             loopRef.current = requestAnimationFrame(processFrame);
 
-            // CLEANUP FUNCTION (The critical fix)
             return () => {
-                stoppedRef.current = true; // 1. Signal loop to die
-                if (loopRef.current) cancelAnimationFrame(loopRef.current); // 2. Kill pending frame
-
-                // 3. Delete memory (Now safe because loop won't run again)
+                stoppedRef.current = true; // Signal Stop
+                if (loopRef.current) cancelAnimationFrame(loopRef.current);
                 try {
                     src.delete(); gray.delete(); blur.delete();
                     edges.delete(); contours.delete(); hierarchy.delete(); poly.delete();
