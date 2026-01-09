@@ -80,8 +80,8 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V36)
-    const { detectedCorners, debugCanvasRef } = useDocumentDetection(
+    // 1. Trapezoid Engine (V38)
+    const { detectedCorners } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -426,50 +426,6 @@ const MobileCameraPage: React.FC = () => {
 
 
 
-                            {/* --- DEBUG TERMINAL (V36 RESTORED) --- */}
-                            <div style={{
-                                position: 'absolute',
-                                top: 80,
-                                right: 20,
-                                width: '140px',
-                                height: '200px',
-                                zIndex: 100,
-                                borderRadius: '8px',
-                                overflow: 'hidden',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                border: '2px solid rgba(66, 245, 135, 0.5)',
-                                background: '#222' // Dark grey, so we see if canvas is transparent
-                            }}>
-                                {/* 1. Canvas Layer */}
-                                <div style={{ width: '100%', height: '100%' }}>
-                                    <canvas
-                                        ref={debugCanvasRef as React.RefObject<HTMLCanvasElement>}
-                                        style={{
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'contain'
-                                        }}
-                                    />
-                                </div>
-
-                                {/* 2. Text Overlay */}
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    padding: '4px',
-                                    background: 'rgba(0,0,0,0.8)',
-                                    color: '#00ff00',
-                                    fontFamily: 'monospace',
-                                    fontSize: '10px',
-                                    borderTop: '1px solid #444',
-                                    pointerEvents: 'none'
-                                }}>
-                                    <div>STATUS: Active</div>
-                                    <div>ENGINE: v36 | Restore</div>
-                                </div>
-                            </div>
                             {detectedCorners && videoRef.current && containerRef.current && (
                                 <div className="detection-overlay">
                                     <svg
