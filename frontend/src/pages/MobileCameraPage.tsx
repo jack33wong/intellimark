@@ -73,6 +73,10 @@ const MobileCameraPage: React.FC = () => {
     const allObjectUrls = useRef<Set<string>>(new Set());
     const carouselRef = useRef<HTMLDivElement>(null);
 
+    // V27: BURST MODE QUEUE
+    const [queue, setQueue] = useState<{ id: number, blob: Blob, corners: NormalizedPoint[] | null }[]>([]);
+    const processingRef = useRef(false);
+
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
@@ -86,6 +90,49 @@ const MobileCameraPage: React.FC = () => {
     useEffect(() => {
         latestCornersRef.current = detectedCorners;
     }, [detectedCorners]);
+
+    // --- V27: BACKGROUND PROCESSOR ---
+    useEffect(() => {
+        if (processingRef.current || queue.length === 0) return;
+
+        const processNext = async () => {
+            processingRef.current = true;
+
+            const item = queue[0];
+
+            try {
+                let processedBlob: Blob;
+                if (item.corners) {
+                    processedBlob = await performInstantCrop(item.blob, item.corners);
+                } else {
+                    // Fallback to process scanner if no corners
+                    processedBlob = await processScannerImage(item.blob, { quality: 1.0 });
+                }
+
+                const newPage: ScannedPage = {
+                    blob: processedBlob,
+                    preview: URL.createObjectURL(processedBlob),
+                    id: Math.random().toString(36).substr(2, 9)
+                };
+                allObjectUrls.current.add(newPage.preview);
+                setScannedPages(prev => [...prev, newPage]);
+            } catch (err) {
+                console.error("[V27] Processing failed:", err);
+                const fallbackPage: ScannedPage = {
+                    blob: item.blob,
+                    preview: URL.createObjectURL(item.blob),
+                    id: Math.random().toString(36).substr(2, 9)
+                };
+                allObjectUrls.current.add(fallbackPage.preview);
+                setScannedPages(prev => [...prev, fallbackPage]);
+            } finally {
+                setQueue(prev => prev.slice(1));
+                processingRef.current = false;
+            }
+        };
+
+        processNext();
+    }, [queue]);
 
     // 1. Unified Camera Initialization (V15 - Crucial for iOS)
     useEffect(() => {
@@ -211,83 +258,24 @@ const MobileCameraPage: React.FC = () => {
         };
     }, [streamStatus]);
 
-    const addScannedPage = async (blob: Blob, cornersToUse?: NormalizedPoint[] | null) => {
-        try {
-            let processedBlob: Blob;
-
-            if (cornersToUse) {
-                // V22: VISUAL FEEDBACK
-                setCorrectionMsg("⚡ Enhancing...");
-                setTimeout(() => setCorrectionMsg(null), 2000);
-
-                // FAST PATH: Use live detection results (V19)
-                console.log("Capture: Using live detected corners for instant crop");
-                setProcessingStep('Cropping...');
-                processedBlob = await performInstantCrop(blob, cornersToUse);
-            } else {
-                // SLOW PATH: Fallback to full analysis (e.g. uploaded file)
-                console.log("Capture: Performing full analysis");
-                setProcessingStep('Analyzing...');
-                processedBlob = await processScannerImage(blob, {
-                    quality: 1.0,
-                    onStatusUpdate: setProcessingStep
-                });
-            }
-
-            const newPage: ScannedPage = {
-                blob: processedBlob,
-                preview: URL.createObjectURL(processedBlob),
-                id: Math.random().toString(36).substr(2, 9)
-            };
-            allObjectUrls.current.add(newPage.preview);
-
-            setScannedPages(prev => [...prev, newPage]);
-            setProcessingStep('');
-        } catch (err) {
-            console.error('Failed to process image:', err);
-            const originalPage: ScannedPage = {
-                blob: blob,
-                preview: URL.createObjectURL(blob),
-                id: Math.random().toString(36).substr(2, 9)
-            };
-            allObjectUrls.current.add(originalPage.preview);
-            setScannedPages(prev => [...prev, originalPage]);
-            setProcessingStep('');
-        }
-    };
+    // V27: addScannedPage is removed in favor of the background queue
 
 
     const capturePhoto = () => {
-        if (!videoRef.current || !canvasRef.current) return;
-
-        // 1. Get the detected corners
-        // IMPORTANT: We trust these corners now (V4 Aggressive Engine).
-        // If the green box is visible, we assume it's the valid boundary.
-        let cornersToUse = latestCornersRef.current;
+        if (!videoRef.current || !canvasRef.current || queue.length > 5) return;
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
+        const corners = latestCornersRef.current; // Grab instantly
 
-        // Match canvas size to video stream resolution
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-
         const ctx = canvas.getContext('2d');
         if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(async (blob) => {
+            ctx.drawImage(video, 0, 0);
+            canvas.toBlob((blob) => {
                 if (blob) {
-                    // 2. DEBUG LOG (V4)
-                    if (cornersToUse) {
-                        console.log("🚀 FORCE CROP TRIGGERED", cornersToUse);
-                        setCorrectionMsg("Auto-Cropping...");
-                        setTimeout(() => setCorrectionMsg(null), 1500);
-                    } else {
-                        console.log("⚠️ No box detected, capturing full image");
-                    }
-
-                    // 3. Execute
-                    await addScannedPage(blob, cornersToUse);
+                    setQueue(prev => [...prev, { id: Date.now(), blob, corners }]);
                 }
             }, 'image/jpeg', 0.95);
         }
@@ -359,8 +347,14 @@ const MobileCameraPage: React.FC = () => {
                     <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'white' }}>
                         <ArrowLeft size={28} />
                     </button>
-                    <div style={{ color: 'white', fontWeight: 600 }}>Scan Document</div>
-                    <div style={{ width: 28 }}></div>
+                    <div style={{ color: 'white', fontWeight: 600 }}>
+                        {queue.length > 0 ? `Enhancing (${queue.length})...` : 'Scan Document'}
+                    </div>
+                    {queue.length > 0 ? (
+                        <Loader2 className="animate-spin" color="#42f587" size={24} />
+                    ) : (
+                        <div style={{ width: 28 }} />
+                    )}
                 </div>
 
                 {status === 'success' ? (
@@ -563,13 +557,17 @@ const MobileCameraPage: React.FC = () => {
                         <button
                             className="shutter-btn"
                             onClick={capturePhoto}
-                            disabled={streamStatus !== 'active' || !!processingStep}
+                            disabled={streamStatus !== 'active' || queue.length > 5}
                             style={{
                                 width: '80px', height: '80px', borderRadius: '50%',
-                                backgroundColor: 'white', border: '4px solid rgba(255,255,255,0.3)',
+                                backgroundColor: queue.length > 5 ? '#555' : 'white',
+                                border: '4px solid rgba(255,255,255,0.3)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                transition: 'transform 0.1s'
                             }}
+                            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
+                            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
                         >
                             <div style={{
                                 width: '68px', height: '68px', borderRadius: '50%',
@@ -578,10 +576,10 @@ const MobileCameraPage: React.FC = () => {
                         </button>
 
                         <button
-                            className={`done-status-btn ${scannedPages.length > 0 ? 'active' : ''}`}
+                            className={`done-status-btn ${scannedPages.length > 0 || queue.length > 0 ? 'active' : ''}`}
                             onClick={handleUploadAll}
-                            disabled={scannedPages.length === 0 || status === 'uploading'}
-                            style={{ background: 'none', border: 'none', color: scannedPages.length > 0 ? '#42f587' : '#666', fontWeight: 'bold' }}
+                            disabled={(scannedPages.length === 0 && queue.length === 0) || status === 'uploading'}
+                            style={{ background: 'none', border: 'none', color: (scannedPages.length > 0 || queue.length > 0) ? '#42f587' : '#666', fontWeight: 'bold' }}
                         >
                             {status === 'uploading' ? <Loader2 className="spin" size={20} /> : "Done"}
                         </button>
