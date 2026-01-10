@@ -370,75 +370,82 @@ const AnalysisPage: React.FC = () => {
   useEffect(() => {
     // Wait for both marking results and available exam boards to be ready
     // Only set default if exam board is not already set (to avoid overriding user selection)
-    if (allMarkingResults.length > 0 && availableExamBoards.length > 0 && selectedQualification && selectedSubject) {
-      // Get all marking results for this qualification and subject, sorted by newest first
-      const relevantResults = allMarkingResults
-        .filter(mr =>
-          mr.examMetadata.qualification === selectedQualification &&
-          mr.examMetadata.examBoard
-        )
-        .sort((a, b) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    if (availableExamBoards.length > 0 && selectedQualification && selectedSubject) {
+      // 1. If no board is selected, try to default to Edexcel
+      if (!selectedExamBoard) {
+        const edexcelBoard = availableExamBoards.find(board =>
+          normalizeExamBoard(board) === 'Pearson Edexcel'
         );
+        if (edexcelBoard) {
+          setSelectedExamBoard(edexcelBoard);
+          return;
+        }
+      }
 
-      if (relevantResults.length > 0) {
-        // Get the exam board from the most recent marking result
-        const mostRecentResult = relevantResults[0];
-        const mostRecentBoard = mostRecentResult.examMetadata.examBoard;
-
-        // Check if we need to set or update the exam board
-        const shouldUpdate = !selectedExamBoard ||
-          (selectedExamBoard !== mostRecentBoard &&
-            normalizeExamBoard(selectedExamBoard) !== normalizeExamBoard(mostRecentBoard));
-
-        if (shouldUpdate) {
-          // Try exact match first
-          if (availableExamBoards.includes(mostRecentBoard)) {
-            setSelectedExamBoard(mostRecentBoard);
-            return;
-          }
-
-          // Try normalized match
-          const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
-            normalizeExamBoard(availableBoard) === normalizeExamBoard(mostRecentBoard)
+      // 2. Try to set default based on most recent marking result for this specific qualification/subject
+      if (allMarkingResults.length > 0) {
+        // Get all marking results for this qualification and subject, sorted by newest first
+        const relevantResults = allMarkingResults
+          .filter(mr =>
+            mr.examMetadata.qualification === selectedQualification &&
+            mr.examMetadata.examBoard
+          )
+          .sort((a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
 
-          if (matchingAvailableBoard) {
-            setSelectedExamBoard(matchingAvailableBoard);
-            return;
-          }
+        if (relevantResults.length > 0) {
+          // Get the exam board from the most recent marking result
+          const mostRecentResult = relevantResults[0];
+          const mostRecentBoard = mostRecentResult.examMetadata.examBoard;
 
-          // If no match, find which available exam board has the most results (with normalization)
-          const boardCounts = new Map<string, number>();
-          relevantResults.forEach(mr => {
-            const resultBoard = mr.examMetadata.examBoard;
-            const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
-              normalizeExamBoard(availableBoard) === normalizeExamBoard(resultBoard)
-            );
-            if (matchingAvailableBoard) {
-              boardCounts.set(matchingAvailableBoard, (boardCounts.get(matchingAvailableBoard) || 0) + 1);
+          // Only update if we don't have a selection yet
+          if (!selectedExamBoard) {
+            // Try exact match first
+            if (availableExamBoards.includes(mostRecentBoard)) {
+              setSelectedExamBoard(mostRecentBoard);
+              return;
             }
-          });
 
-          if (boardCounts.size > 0) {
-            // Get the exam board with most results
-            const bestBoard = Array.from(boardCounts.entries())
-              .sort((a, b) => b[1] - a[1])[0][0];
-            setSelectedExamBoard(bestBoard);
-          } else if (!selectedExamBoard) {
-            // No matching board found, use first available only if not set
-            setSelectedExamBoard(availableExamBoards[0]);
+            // Try normalized match
+            const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
+              normalizeExamBoard(availableBoard) === normalizeExamBoard(mostRecentBoard)
+            );
+
+            if (matchingAvailableBoard) {
+              setSelectedExamBoard(matchingAvailableBoard);
+              return;
+            }
+
+            // If no match based on most recent, find which available exam board has the most results (with normalization)
+            const boardCounts = new Map<string, number>();
+            relevantResults.forEach(mr => {
+              const resultBoard = mr.examMetadata.examBoard;
+              const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
+                normalizeExamBoard(availableBoard) === normalizeExamBoard(resultBoard)
+              );
+              if (matchingAvailableBoard) {
+                boardCounts.set(matchingAvailableBoard, (boardCounts.get(matchingAvailableBoard) || 0) + 1);
+              }
+            });
+
+            if (boardCounts.size > 0) {
+              // Get the exam board with most results
+              const bestBoard = Array.from(boardCounts.entries())
+                .sort((a, b) => b[1] - a[1])[0][0];
+              setSelectedExamBoard(bestBoard);
+              return;
+            }
           }
         }
-      } else if (!selectedExamBoard) {
-        // No results for this qualification/subject, use first available only if not set
+      }
+
+      // 3. Fallback: use first available only if no board is selected
+      if (!selectedExamBoard) {
         setSelectedExamBoard(availableExamBoards[0]);
       }
-    } else if (availableExamBoards.length > 0 && !selectedExamBoard) {
-      // Fallback: if no marking results yet, use first available
-      setSelectedExamBoard(availableExamBoards[0]);
     }
-  }, [availableExamBoards, allMarkingResults, selectedQualification, selectedSubject, selectedExamBoard]);
+  }, [availableExamBoards, allMarkingResults, selectedQualification, selectedSubject]);
 
   // Ensure paper code set is set when exam board is selected and paper code sets are available
   useEffect(() => {

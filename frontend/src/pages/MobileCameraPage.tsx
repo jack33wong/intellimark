@@ -405,7 +405,7 @@ const MobileCameraPage: React.FC = () => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         {queue.length > 0 ? (
-                            <Loader2 className="animate-spin" color="#42f587" size={24} />
+                            <Loader2 className="animate-spin" color="var(--text-brand)" size={24} />
                         ) : (
                             <div style={{ width: 24 }} />
                         )}
@@ -516,8 +516,8 @@ const MobileCameraPage: React.FC = () => {
                                                 );
                                                 return `${mapped.x},${mapped.y}`;
                                             }).join(' ')}
-                                            fill="rgba(66, 245, 135, 0.15)"
-                                            stroke="#42f587"
+                                            fill="rgba(127, 0, 255, 0.15)"
+                                            stroke="var(--text-brand)"
                                             strokeWidth="3"
                                             strokeLinejoin="round"
                                         />
@@ -530,7 +530,7 @@ const MobileCameraPage: React.FC = () => {
                                                 rect.width,
                                                 rect.height
                                             );
-                                            return <circle key={i} cx={mapped.x} cy={mapped.y} r={6} fill="#42f587" stroke="white" strokeWidth="2" />;
+                                            return <circle key={i} cx={mapped.x} cy={mapped.y} r={6} fill="var(--text-brand)" stroke="white" strokeWidth="2" />;
                                         })}
                                     </svg>
                                 </div>
@@ -597,7 +597,7 @@ const MobileCameraPage: React.FC = () => {
                             {correctionMsg && (
                                 <div style={{
                                     position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                                    background: 'rgba(0,0,0,0.85)', color: '#42f587', padding: '12px 24px',
+                                    background: 'rgba(0,0,0,0.85)', color: 'var(--text-brand)', padding: '12px 24px',
                                     borderRadius: '20px', fontWeight: 'bold', display: 'flex', gap: '8px', alignItems: 'center',
                                     zIndex: 10000
                                 }}>
@@ -667,7 +667,7 @@ const MobileCameraPage: React.FC = () => {
                                 className={`done-status-btn ${scannedPages.length > 0 || queue.length > 0 ? 'active' : ''}`}
                                 onClick={handleUploadAll}
                                 disabled={(scannedPages.length === 0 && queue.length === 0) || status === 'uploading'}
-                                style={{ background: 'none', border: 'none', color: (scannedPages.length > 0 || queue.length > 0) ? '#42f587' : '#666', fontWeight: 'bold' }}
+                                style={{ background: 'none', border: 'none', color: (scannedPages.length > 0 || queue.length > 0) ? 'var(--text-brand)' : '#666', fontWeight: 'bold' }}
                             >
                                 {status === 'uploading' ? <Loader2 className="spin" size={20} /> : "Done"}
                             </button>

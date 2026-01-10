@@ -27,20 +27,27 @@
 
 .landing-section-upload {
   padding-top: 100px;
-  padding-bottom: 60px;
+  padding-bottom: 100px;
 }
 
-.landing-section-hero {
-  padding-bottom: 80px;
+.landing-section-hero,
+.landing-section-performance,
+.landing-section-upload {
+  padding: 60px 20px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
-.landing-section-performance {
-  padding: 100px 20px;
+.landing-intro-image-container,
+.landing-section-performance>*,
+.landing-chat-input-placeholder {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .landing-chat-input-placeholder {
-  width: 100%;
-  max-width: 800px;
   z-index: 10;
 }
 
@@ -542,15 +549,15 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 
 .chat-messages {
   flex: 1;
-  padding-left: 60px;
-  padding-right: 60px;
+  padding-left: 32px;
+  padding-right: 32px;
   padding-bottom: 500px;
   /* Increased significantly to ensure plenty of scrollable space at the bottom */
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1000px;
-  width: 80vw;
+  max-width: 1100px;
+  width: 90vw;
   margin: 0 auto;
   background: transparent;
   border-radius: 0;
@@ -1379,7 +1386,7 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 
 .landing-intro-image {
   max-width: 100%;
-  width: 900px;
+  width: 600px;
   /* Optimal width for readability */
   height: auto;
   border-radius: 12px;

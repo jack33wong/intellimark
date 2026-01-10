@@ -7,7 +7,7 @@ const TrustSignals: React.FC = () => {
             <div className="success-story-card">
                 <div className="sketch-container">
                     <img
-                        src="/images/performance_visual.png"
+                        src="/images/performance.png"
                         alt="Performance Visualization"
                         className="examiner-sketch"
                     />

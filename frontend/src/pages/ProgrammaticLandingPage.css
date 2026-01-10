@@ -15,7 +15,7 @@
 }
 
 .hero-content {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
 }
 
@@ -142,7 +142,7 @@
 
 /* UPLOAD WIDGET STYLES */
 .landing-upload-container {
-    max-width: 600px;
+    max-width: 900px;
     margin: 40px auto;
     padding: 0 20px;
 }

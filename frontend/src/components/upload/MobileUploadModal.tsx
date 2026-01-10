@@ -127,20 +127,13 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                         </div>
 
                         {receivedUrls.length > 0 && (
-                            <div className="batch-status-mini" style={{
-                                marginTop: '16px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '4px',
-                                color: '#42f587',
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                            <div className="batch-status-mini">
+                                <div className="status-main">
                                     <Check size={20} />
                                     <span>{receivedUrls.length} Page{receivedUrls.length !== 1 ? 's' : ''} Received</span>
                                 </div>
                                 {lastReceivedTime && (
-                                    <div style={{ fontSize: '12px', opacity: 0.8, fontWeight: 'normal' }}>
+                                    <div className="status-time">
                                         Latest batch received at {lastReceivedTime}
                                     </div>
                                 )}
@@ -148,7 +141,7 @@ const MobileUploadModal: React.FC<MobileUploadModalProps> = ({
                         )}
 
                         {status === 'error' && (
-                            <div className="status-wrapper error" style={{ color: '#ef4444', marginTop: '16px' }}>
+                            <div className="status-wrapper error">
                                 <RefreshCw size={24} />
                                 <p>Connection failed</p>
                                 <button onClick={() => setStatus('waiting')} style={{ background: 'none', border: 'none', color: 'white', textDecoration: 'underline' }}>Try Again</button>

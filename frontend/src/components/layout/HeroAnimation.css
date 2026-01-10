@@ -1,7 +1,7 @@
 .hero-animation-container {
     padding: 0;
     width: 100%;
-    max-width: 900px;
+    max-width: 800px;
     margin: 20px auto 0;
     display: flex;
     flex-direction: column;

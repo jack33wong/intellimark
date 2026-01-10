@@ -75,7 +75,7 @@
     bottom: 25%;
     width: 100%;
     text-align: center;
-    color: #42f587;
+    color: var(--text-brand);
     font-weight: bold;
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
     font-size: 18px;
@@ -207,7 +207,7 @@
 }
 
 .modify-label {
-    background: #00bf9a;
+    background: var(--text-brand);
     color: white;
     font-size: 10px;
     font-weight: bold;
@@ -237,8 +237,8 @@
 }
 
 .toast-notification.success {
-    border-color: rgba(0, 191, 154, 0.3);
-    color: #00bf9a;
+    border-color: rgba(127, 0, 255, 0.3);
+    color: var(--text-brand);
 }
 
 .toast-notification.error {
@@ -260,7 +260,7 @@
 
 /* Scan Mode Label (V20/V21) */
 .scan-mode-label {
-    color: #42f587;
+    color: var(--text-brand);
     font-weight: bold;
     font-size: 13px;
     text-transform: uppercase;
@@ -280,7 +280,7 @@
     transform: translateX(-50%);
     width: 24px;
     height: 3px;
-    background: #42f587;
+    background: var(--text-brand);
     border-radius: 2px;
 }
 
@@ -358,7 +358,7 @@
 }
 
 .done-status-btn {
-    background: #00bf9a;
+    background: var(--text-brand);
     color: white;
     border: none;
     padding: 10px 24px;
@@ -371,7 +371,7 @@
 
 .done-status-btn.active {
     opacity: 1;
-    box-shadow: 0 4px 15px rgba(0, 191, 154, 0.4);
+    box-shadow: 0 4px 15px rgba(127, 0, 255, 0.4);
 }
 
 .done-status-btn:active {
@@ -502,7 +502,7 @@
 
 .spin-pulse {
     animation: spin 2s linear infinite;
-    color: #00bf9a;
+    color: var(--text-brand);
 }
 
 @keyframes spin {
@@ -533,9 +533,9 @@
 .success-checkmark {
     width: 100px;
     height: 100px;
-    background: rgba(0, 191, 154, 0.15);
-    border: 2px solid #00bf9a;
-    color: #00bf9a;
+    background: rgba(127, 0, 255, 0.15);
+    border: 2px solid var(--text-brand);
+    color: var(--text-brand);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -577,8 +577,8 @@
 
 .add-more-success-btn {
     width: 100%;
-    background-color: #42f587;
-    color: #111;
+    background-color: var(--text-brand);
+    color: white;
     padding: 16px;
     border-radius: 16px;
     font-weight: bold;

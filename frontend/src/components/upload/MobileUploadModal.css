@@ -109,6 +109,11 @@
     color: var(--text-secondary);
 }
 
+.status-wrapper.error {
+    color: #ef4444 !important;
+    margin-top: 16px;
+}
+
 .status-wrapper.continuous {
     width: 100%;
     display: flex;
@@ -130,7 +135,7 @@
 }
 
 .batch-icon {
-    color: #42f587;
+    color: var(--text-brand);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -159,9 +164,9 @@
 
 .import-batch-btn {
     width: 100%;
-    background: #42f587;
-    /* Vibrant Green */
-    color: #111;
+    background: var(--text-brand);
+    /* Brand Purple */
+    color: white;
     border: none;
     padding: 14px;
     border-radius: 12px;
@@ -169,13 +174,13 @@
     font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 4px 12px rgba(66, 245, 135, 0.2);
+    box-shadow: 0 4px 12px rgba(127, 0, 255, 0.2);
 }
 
 .import-batch-btn:hover:not(:disabled) {
-    background: #3ee07c;
+    background: #6d00db;
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(66, 245, 135, 0.3);
+    box-shadow: 0 6px 16px rgba(127, 0, 255, 0.3);
 }
 
 .import-batch-btn:disabled {
@@ -278,6 +283,28 @@
     color: var(--function-success);
     font-weight: 600;
     font-size: 0.9rem;
+}
+
+.batch-status-mini {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-brand);
+}
+
+.batch-status-mini .status-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: bold;
+}
+
+.batch-status-mini .status-time {
+    font-size: 12px;
+    opacity: 0.8;
+    font-weight: normal;
 }
 
 .import-batch-btn {
