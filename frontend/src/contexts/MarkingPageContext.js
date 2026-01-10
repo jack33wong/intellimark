@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useCallback, useReducer, useMemo, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useApiProcessor } from '../hooks/useApiProcessor';
@@ -620,6 +621,24 @@ export const MarkingPageProvider = ({
       return false;
     }
   }, [user, isNegative, selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
+
+  // Handle files passed from Landing Pages (SEO Phase 2)
+  const location = useLocation();
+  const handoverProcessedRef = useRef(false);
+
+  useEffect(() => {
+    if (location.state?.pendingFiles && location.state.pendingFiles.length > 0 && !handoverProcessedRef.current) {
+      handoverProcessedRef.current = true;
+      const files = location.state.pendingFiles;
+
+      // Small delay to ensure everything is initialized
+      setTimeout(() => {
+        handleMultiImageAnalysis(files);
+        // Clear location state
+        window.history.replaceState({}, document.title);
+      }, 100);
+    }
+  }, [location.state, handleMultiImageAnalysis]);
 
   const getImageSrc = useCallback((message) => {
     if (message?.imageData) return message.imageData;

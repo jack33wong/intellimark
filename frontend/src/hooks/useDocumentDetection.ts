@@ -4,17 +4,43 @@ export interface NormalizedPoint { x: number; y: number; }
 
 declare global { interface Window { cv: any; } }
 
+// --- GLOBAL MEMORY FOR PERSISTENCE ---
+// This survives unmounts/remounts (e.g. Re-Scan)
+let GLOBAL_LAST_CORNERS: NormalizedPoint[] | null = null;
+let GLOBAL_LAST_UPDATE = 0;
+
 export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>, isActive: boolean) => {
-    const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(null);
-    const [detectionStatus, setDetectionStatus] = useState<string>("Initializing...");
+    // 1. Initialize with Global Memory (Instant Box)
+    const [detectedCorners, setDetectedCorners] = useState<NormalizedPoint[] | null>(() => {
+        // Only use memory if it's recent (< 10 seconds old)
+        if (Date.now() - GLOBAL_LAST_UPDATE < 10000) {
+            return GLOBAL_LAST_CORNERS;
+        }
+        return null;
+    });
+
+    const [debugState, setDebugState] = useState({
+        step: detectedCorners ? "LOCKED (MEM)" : "Init",
+        status: "Starting"
+    });
+
+    // We store the "Anchor" in ref for smooth tracking
+    const anchorCornersRef = useRef<NormalizedPoint[] | null>(detectedCorners);
+    const missedFrameCount = useRef(0);
 
     const loopRef = useRef<number>();
     const processingRef = useRef(false);
     const stoppedRef = useRef(false);
-    const historyRef = useRef<NormalizedPoint[][]>([]);
-    const frameCountRef = useRef(0); // Heartbeat counter
 
-    // Sort: TL, TR, BR, BL
+    // Helper: Calculate total movement (Manhattan Distance) between two shapes
+    const calculateDrift = (oldPts: NormalizedPoint[], newPts: NormalizedPoint[]) => {
+        let drift = 0;
+        for (let i = 0; i < 4; i++) {
+            drift += Math.abs(oldPts[i].x - newPts[i].x) + Math.abs(oldPts[i].y - newPts[i].y);
+        }
+        return drift;
+    };
+
     const sortCorners = (pts: { x: number, y: number }[]) => {
         const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
         const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
@@ -29,13 +55,11 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
     };
 
     useEffect(() => {
-        // V42 CHANGE: We DO NOT return early if !isActive.
-        // We force the loop to run so you can debug the Green Box.
         stoppedRef.current = false;
 
         const startLoop = () => {
             if (!window.cv || !window.cv.Mat) {
-                setDetectionStatus("Error: OpenCV Missing");
+                setDebugState(s => ({ ...s, step: "Error: No OpenCV" }));
                 return;
             }
 
@@ -45,23 +69,13 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
             const blur = new cv.Mat();
             const edges = new cv.Mat();
             const contours = new cv.MatVector();
-            const hierarchy = new cv.Mat();
             const poly = new cv.Mat();
 
             const processFrame = () => {
-                // 1. ZOMBIE CHECK (Prevents Crash)
                 if (stoppedRef.current) return;
 
                 const video = videoRef.current;
-
                 if (!video) {
-                    loopRef.current = requestAnimationFrame(processFrame);
-                    return;
-                }
-
-                // 2. VIDEO CHECK
-                if (video.readyState !== 4 || video.videoWidth === 0) {
-                    setDetectionStatus(`Waiting for Camera... (State: ${video.readyState})`);
                     loopRef.current = requestAnimationFrame(processFrame);
                     return;
                 }
@@ -71,12 +85,13 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                     return;
                 }
                 processingRef.current = true;
-                frameCountRef.current++; // Increment Heartbeat
 
                 try {
                     const w = 350;
-                    const scale = w / video.videoWidth;
-                    const h = Math.floor(video.videoHeight * scale);
+                    const vW = video.videoWidth || 1;
+                    const vH = video.videoHeight || 1;
+                    const scale = w / vW;
+                    const h = Math.floor(vH * scale);
 
                     const canvas = document.createElement('canvas');
                     canvas.width = w; canvas.height = h;
@@ -86,23 +101,20 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                         ctx.drawImage(video, 0, 0, w, h);
                         const imgData = ctx.getImageData(0, 0, w, h);
 
-                        // DOUBLE ZOMBIE CHECK (Safety)
                         if (stoppedRef.current) { processingRef.current = false; return; }
 
-                        if (src.cols !== w || src.rows !== h) {
-                            src.delete(); src.create(h, w, cv.CV_8UC4);
-                        }
+                        if (src.cols !== w || src.rows !== h) src.create(h, w, cv.CV_8UC4);
                         src.data.set(imgData.data);
 
-                        // 3. PROCESS
+                        // Processing
                         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                         cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
                         cv.Canny(blur, edges, 30, 100);
 
-                        cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                        cv.findContours(edges, contours, new cv.Mat(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                         let maxArea = 0;
-                        let bestPts: { x: number, y: number }[] | null = null;
+                        let rawCandidate: { x: number, y: number }[] | null = null;
                         const minArea = (w * h) * 0.10;
 
                         for (let i = 0; i < contours.size(); ++i) {
@@ -121,71 +133,85 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
                                     }
                                     const pts = sortCorners(rawPts);
 
-                                    // TRAPEZOID LOCK
-                                    const topDy = Math.abs(pts[0].y - pts[1].y);
+                                    // Shape Check
                                     const topDx = Math.abs(pts[0].x - pts[1].x);
-                                    const botDy = Math.abs(pts[3].y - pts[2].y);
-                                    const botDx = Math.abs(pts[3].x - pts[2].x);
-
-                                    const isTopFlat = topDy < (topDx * 0.20);
-                                    const isBotFlat = botDy < (botDx * 0.20);
                                     const height = Math.abs(pts[0].y - pts[3].y);
-                                    const isTall = height > (topDx * 0.5);
-
-                                    if (isTopFlat && isBotFlat && isTall && area > maxArea) {
+                                    if (height > (topDx * 0.4) && area > maxArea) {
                                         maxArea = area;
-                                        bestPts = pts;
+                                        rawCandidate = pts;
                                     }
                                 }
                             } finally {
-                                cnt.delete(); // CRITICAL MEMORY RELEASE
+                                cnt.delete();
                             }
                         }
 
-                        // 4. UPDATE STATUS
-                        // We check isActive here only for the status text, not to stop the loop.
-                        const activeLabel = isActive ? "" : "[INACTIVE]";
+                        // --- V57 LOGIC: PERSISTENT TRACKING ---
+                        if (rawCandidate) {
+                            const newNorm = rawCandidate.map(p => ({ x: p.x / w, y: p.y / h }));
 
-                        if (bestPts) {
-                            const norm = bestPts.map(p => ({ x: p.x / w, y: p.y / h }));
-                            historyRef.current.push(norm);
-                            if (historyRef.current.length > 5) historyRef.current.shift();
+                            // CALCULATE STEEPNESS
+                            const wTop = Math.abs(newNorm[0].x - newNorm[1].x);
+                            const wBot = Math.abs(newNorm[3].x - newNorm[2].x);
+                            const steepness = Math.abs(wTop - wBot);
 
-                            const avg = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
-                            historyRef.current.forEach(f => f.forEach((p, i) => { avg[i].x += p.x; avg[i].y += p.y }));
-                            const smoothed = avg.map(p => ({ x: p.x / historyRef.current.length, y: p.y / historyRef.current.length }));
+                            // Dynamic Smoothing: Angled = Heavy (0.85), Flat = Fast (0.6)
+                            const smoothFactor = steepness > 0.15 ? 0.85 : 0.6;
 
-                            setDetectedCorners(smoothed);
-                            setDetectionStatus(`LOCKED ${activeLabel} (${frameCountRef.current})`);
-                        } else {
-                            if (historyRef.current.length > 0) {
-                                historyRef.current.shift();
-                                setDetectedCorners(null);
+                            if (anchorCornersRef.current) {
+                                const smoothed = newNorm.map((p, i) => ({
+                                    x: anchorCornersRef.current![i].x * smoothFactor + p.x * (1 - smoothFactor),
+                                    y: anchorCornersRef.current![i].y * smoothFactor + p.y * (1 - smoothFactor)
+                                }));
+
+                                anchorCornersRef.current = smoothed;
+                                setDetectedCorners(smoothed);
+
+                                // UPDATE GLOBAL MEMORY
+                                GLOBAL_LAST_CORNERS = smoothed;
+                                GLOBAL_LAST_UPDATE = Date.now();
+
+                                missedFrameCount.current = 0;
+                                setDebugState(s => ({ ...s, step: "LOCKED" }));
+                            } else {
+                                anchorCornersRef.current = newNorm;
+                                setDetectedCorners(newNorm);
+                                GLOBAL_LAST_CORNERS = newNorm;
+                                GLOBAL_LAST_UPDATE = Date.now();
+                                missedFrameCount.current = 0;
+                                setDebugState(s => ({ ...s, step: "LOCKED" }));
                             }
-                            setDetectionStatus(`Scanning... ${activeLabel} (${frameCountRef.current})`);
+                        } else {
+                            missedFrameCount.current++;
+
+                            // IF WE HAVE GLOBAL MEMORY, HOLD IT LONGER (40 frames ~ 1.5s)
+                            // This ensures if you look away for a sec, the box is waiting for you.
+                            if (anchorCornersRef.current && missedFrameCount.current < 40) {
+                                setDebugState(s => ({ ...s, step: "HOLDING" }));
+                            } else {
+                                anchorCornersRef.current = null;
+                                setDetectedCorners(null);
+                                setDebugState(s => ({ ...s, step: "SCANNING" }));
+                            }
                         }
                     }
                 } catch (e: any) {
-                    if (!e.message?.includes('deleted')) {
-                        setDetectionStatus(`ERROR: ${e.message}`);
-                    }
+                    setDebugState(s => ({ ...s, step: "Error" }));
                 }
                 finally {
                     processingRef.current = false;
-                    if (!stoppedRef.current) {
-                        loopRef.current = requestAnimationFrame(processFrame);
-                    }
+                    if (!stoppedRef.current) loopRef.current = requestAnimationFrame(processFrame);
                 }
             };
 
             loopRef.current = requestAnimationFrame(processFrame);
 
             return () => {
-                stoppedRef.current = true; // Signal Stop
+                stoppedRef.current = true;
                 if (loopRef.current) cancelAnimationFrame(loopRef.current);
                 try {
                     src.delete(); gray.delete(); blur.delete();
-                    edges.delete(); contours.delete(); hierarchy.delete(); poly.delete();
+                    edges.delete(); contours.delete(); poly.delete();
                 } catch (e) { }
             };
         };
@@ -197,5 +223,5 @@ export const useDocumentDetection = (videoRef: React.RefObject<HTMLVideoElement>
         return () => { clearInterval(checkCv); };
     }, [isActive, videoRef]);
 
-    return { detectedCorners, status: detectionStatus };
+    return { detectedCorners, debugState };
 };

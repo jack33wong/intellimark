@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
 import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
 import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
@@ -53,6 +53,7 @@ const isValidQuad = (corners: NormalizedPoint[]) => {
 
 const MobileCameraPage: React.FC = () => {
     const { sessionId } = useParams<{ sessionId: string }>();
+    const navigate = useNavigate();
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,7 @@ const MobileCameraPage: React.FC = () => {
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
     // 1. Trapezoid Engine (V41)
-    const { detectedCorners, status: detectionStatus } = useDocumentDetection(
+    const { detectedCorners, debugState } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );
@@ -203,7 +204,10 @@ const MobileCameraPage: React.FC = () => {
                     // Force Play + Report (V44)
                     video.onloadedmetadata = async () => {
                         try {
+                            // Standard Play command
                             await video.play();
+                            setStreamStatus('active');
+                            setCameraError(null);
                             setDebugInfo(prev => prev + "\nPlayback: Started");
                         } catch (playErr: any) {
                             setDebugInfo(prev => prev + `\nPlay Error: ${playErr.message}`);
@@ -380,11 +384,24 @@ const MobileCameraPage: React.FC = () => {
                     alignItems: 'center', zIndex: 20,
                     background: 'rgba(0,0,0,0.4)'
                 }}>
-                    <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'white' }}>
+                    <button
+                        onClick={() => navigate(-1)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'white',
+                            padding: '12px',
+                            margin: '-12px', // Invisible hit-area expansion
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        aria-label="Back"
+                    >
                         <ArrowLeft size={28} />
                     </button>
                     <div style={{ color: 'white', fontWeight: 600 }}>
-                        {queue.length > 0 ? `Enhancing (${queue.length})...` : 'Scan Document'}
+                        Scanner
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         {queue.length > 0 ? (
@@ -439,11 +456,6 @@ const MobileCameraPage: React.FC = () => {
                                 playsInline
                                 muted
                                 className="live-camera"
-                                onLoadedData={() => {
-                                    console.log("[Camera] Data loaded, switching to active");
-                                    setStreamStatus('active');
-                                    setCameraError(null);
-                                }}
                                 style={{
                                     width: '100%',
                                     height: '100%',
@@ -456,22 +468,6 @@ const MobileCameraPage: React.FC = () => {
 
 
 
-                            {/* --- STATUS OVERLAY (V44 Deep Probe) --- */}
-                            <div style={{
-                                position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)',
-                                width: '85%', maxWidth: '400px',
-                                background: 'rgba(0,0,0,0.85)', padding: '12px', borderRadius: '12px',
-                                color: 'white', fontSize: '11px', fontFamily: 'monospace',
-                                zIndex: 100, pointerEvents: 'none', textAlign: 'left',
-                                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                border: '1px solid #444',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-                            }}>
-                                <div style={{ color: '#aaa', marginBottom: 4, fontWeight: 'bold' }}>CAMERA DIAGNOSTICS:</div>
-                                <div style={{ color: '#42f587', marginBottom: 8, lineHeight: 1.4 }}>{debugInfo}</div>
-                                <div style={{ borderTop: '1px solid #444', paddingTop: 8, color: '#aaa', marginBottom: 4, fontWeight: 'bold' }}>OPENCV STATUS:</div>
-                                <div style={{ color: detectionStatus.includes('LOCKED') ? '#42f587' : 'white' }}>{detectionStatus}</div>
-                            </div>
 
                             {/* ERROR DISPLAY (V43 Robust Feedback) */}
                             {cameraError && (
@@ -520,11 +516,22 @@ const MobileCameraPage: React.FC = () => {
                                                 );
                                                 return `${mapped.x},${mapped.y}`;
                                             }).join(' ')}
-                                            fill="rgba(66, 245, 135, 0.2)"
+                                            fill="rgba(66, 245, 135, 0.15)"
                                             stroke="#42f587"
-                                            strokeWidth="2"
+                                            strokeWidth="3"
                                             strokeLinejoin="round"
                                         />
+                                        {detectedCorners.map((p, i) => {
+                                            const rect = containerRef.current!.getBoundingClientRect();
+                                            const mapped = mapPointToScreen(
+                                                p,
+                                                videoRef.current!.videoWidth,
+                                                videoRef.current!.videoHeight,
+                                                rect.width,
+                                                rect.height
+                                            );
+                                            return <circle key={i} cx={mapped.x} cy={mapped.y} r={6} fill="#42f587" stroke="white" strokeWidth="2" />;
+                                        })}
                                     </svg>
                                 </div>
                             )}

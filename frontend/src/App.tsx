@@ -15,6 +15,9 @@ import MobileCameraPage from './pages/MobileCameraPage';
 import UnifiedProfileModal from './components/profile/UnifiedProfileModal';
 import GuestLimitModal from './components/common/GuestLimitModal';
 import AnalyticsTracker from './components/common/AnalyticsTracker';
+import AccuracyPage from './pages/AccuracyPage';
+import ProgrammaticLandingPage from './pages/ProgrammaticLandingPage';
+import SeoHeader from './components/common/SeoHeader';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import useTheme from './hooks/useTheme';
 import HeroAnimation from './components/layout/HeroAnimation';
@@ -239,9 +242,21 @@ function AppContent() {
           </OptionalAuthRoute>
         } />
 
+
+        <Route path="/accuracy" element={<AccuracyPage />} />
+
+        {/* NEW Keyword-Rich SEO Routes */}
+        <Route path="/mark-:examBoard-gcse-maths-past-papers" element={<ProgrammaticLandingPage />} />
+        <Route path="/mark-:examBoard-gcse-maths-past-papers/:year" element={<ProgrammaticLandingPage />} />
+
+        {/* Legacy SEO Routes (Keep for compatibility) */}
+        <Route path="/gcse-maths-marking/:examBoard" element={<ProgrammaticLandingPage />} />
+        <Route path="/gcse-maths-marking/:examBoard/:year" element={<ProgrammaticLandingPage />} />
+
         <Route path="/" element={
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps} rightSideClass={isChatMode ? 'chat-mode' : ''}>
+              <SeoHeader isHome={true} />
               <div className="mark-homework-main-content">
                 <MarkingPageProvider
                   key={markHomeworkResetKey}

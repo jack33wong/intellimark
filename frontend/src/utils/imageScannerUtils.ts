@@ -1,6 +1,6 @@
 import { NormalizedPoint } from '../hooks/useDocumentDetection';
 
-// V38: PURE NATIVE OPENCV PIPELINE (No JS Loops = No Glitches)
+// V59: LANCZOS4 + UNSHARP MASK + GAMMA (Focus on Top-Clarity)
 
 export const performInstantCrop = async (
     imageBlob: Blob,
@@ -14,29 +14,46 @@ export const performInstantCrop = async (
 
         img.onload = () => {
             URL.revokeObjectURL(url);
-            const w = img.width;
-            const h = img.height;
 
-            const realCorners = normalizedCorners.map(p => ({
-                x: Math.round(p.x * w),
-                y: Math.round(p.y * h)
-            }));
+            // 1. NATIVE RESOLUTION (3800px)
+            // We need every single pixel for the top part of the angled document.
+            const MAX_DIM = 3800;
+            let w = img.width;
+            let h = img.height;
+            let scale = 1;
 
-            // Detect Angle
-            const topW = Math.hypot(realCorners[0].x - realCorners[1].x, realCorners[0].y - realCorners[1].y);
-            const botW = Math.hypot(realCorners[2].x - realCorners[3].x, realCorners[2].y - realCorners[3].y);
-            const isSteepAngle = (botW / (topW || 1)) > 1.35;
-
-            const TARGET_WIDTH = 2480;
-            const TARGET_HEIGHT = 3508;
+            if (w > MAX_DIM || h > MAX_DIM) {
+                scale = Math.min(MAX_DIM / w, MAX_DIM / h);
+                w = Math.floor(w * scale);
+                h = Math.floor(h * scale);
+            }
 
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             if (!ctx) { reject("ctx error"); return; }
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, 0, 0, w, h);
 
-            // 1. Warp
+            // 2. Map Corners
+            const realCorners = normalizedCorners.map(p => ({
+                x: p.x * w,
+                y: p.y * h
+            }));
+
+            // 3. Dimensions (Max-Logic)
+            const dist = (p1: any, p2: any) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            const maxWidth = Math.max(
+                dist(realCorners[0], realCorners[1]),
+                dist(realCorners[2], realCorners[3])
+            );
+
+            // Force A4 Ratio
+            const finalWidth = Math.floor(maxWidth);
+            const finalHeight = Math.floor(maxWidth * 1.414);
+
+            // 4. WARP with LANCZOS4 (The "Anti-Blur" Resampler)
+            // Lanczos is slower but MUCH better at reconstructing details 
+            // from the "far away" (top) part of the image.
             let src = cv.matFromImageData(ctx.getImageData(0, 0, w, h));
             let dst = new cv.Mat();
 
@@ -47,69 +64,71 @@ export const performInstantCrop = async (
                 realCorners[3].x, realCorners[3].y
             ]);
 
-            // Pinch Correction
-            const pinch = isSteepAngle ? TARGET_WIDTH * 0.05 : TARGET_WIDTH * 0.01;
-
             let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                pinch, 0,
-                TARGET_WIDTH - pinch, 0,
-                TARGET_WIDTH, TARGET_HEIGHT,
-                0, TARGET_HEIGHT
+                0, 0, finalWidth, 0, finalWidth, finalHeight, 0, finalHeight
             ]);
 
             let M = cv.getPerspectiveTransform(srcTri, dstTri);
-            cv.warpPerspective(src, dst, M, new cv.Size(TARGET_WIDTH, TARGET_HEIGHT), cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
 
-            src.delete(); srcTri.delete(); dstTri.delete(); M.delete();
+            // V59 CHANGE: INTER_LANCZOS4
+            cv.warpPerspective(src, dst, M, new cv.Size(finalWidth, finalHeight), cv.INTER_LANCZOS4, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
 
-            // 2. Native Enhancement (No JS Loops)
+            // 5. ENHANCEMENT PIPELINE
             let gray = new cv.Mat();
             cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY);
             dst.delete();
 
-            // Estimate Background (Shadows)
+            // A. Shadow Removal (Background Division)
+            // Use a large kernel to avoid treating text as shadow
             let bg = new cv.Mat();
-            let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(20, 20));
-            cv.dilate(gray, bg, kernel); // Remove text
-            cv.GaussianBlur(bg, bg, new cv.Size(45, 45), 0, 0, cv.BORDER_DEFAULT); // Blur shadows
-            kernel.delete();
+            let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(50, 50));
+            cv.dilate(gray, bg, kernel);
+            cv.GaussianBlur(bg, bg, new cv.Size(91, 91), 0, 0);
+            let clean = new cv.Mat();
+            cv.divide(gray, bg, clean, 255);
 
-            // Remove Shadows (Division)
-            let result = new cv.Mat();
-            cv.divide(gray, bg, result, 255);
-            gray.delete(); bg.delete();
+            // B. UNSHARP MASKING (Professional Sharpening)
+            // Formula: Sharp = Original + Amount * (Original - Blurred)
+            let blurred = new cv.Mat();
+            cv.GaussianBlur(clean, blurred, new cv.Size(0, 0), 5.0); // Sigma 5.0 for structural sharpness
+            let sharp = new cv.Mat();
+            cv.addWeighted(clean, 1.8, blurred, -0.8, 0, sharp); // 1.8 weight = Strong pop
 
-            // Sharpen
-            let blur = new cv.Mat();
-            cv.GaussianBlur(result, blur, new cv.Size(0, 0), 3);
-            let sharpened = new cv.Mat();
-            const alpha = isSteepAngle ? 2.5 : 1.5;
-            const beta = 1.0 - alpha;
-            cv.addWeighted(result, alpha, blur, beta, 0, sharpened);
+            // C. CLAHE (Local Contrast)
+            let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+            clahe.apply(sharp, sharp);
 
-            // Threshold Clean
-            cv.threshold(sharpened, result, 240, 255, cv.THRESH_TRUNC);
-            cv.normalize(result, result, 0, 255, cv.NORM_MINMAX);
+            // D. GAMMA CORRECTION (Darken Faint Text)
+            // Look Up Table (LUT) method for speed.
+            let lut = new cv.Mat(1, 256, cv.CV_8U);
+            const gamma = 0.7; // Strong darkening
+            for (let i = 0; i < 256; i++) {
+                lut.data[i] = Math.pow(i / 255, gamma) * 255;
+            }
+            let final = new cv.Mat();
+            cv.LUT(sharp, lut, final);
 
-            // Cleanup
-            blur.delete(); sharpened.delete();
-
-            // 3. Export
+            // 6. Export
             let finalRGBA = new cv.Mat();
-            cv.cvtColor(result, finalRGBA, cv.COLOR_GRAY2RGBA);
+            cv.cvtColor(final, finalRGBA, cv.COLOR_GRAY2RGBA);
 
             const imgData = new ImageData(
                 new Uint8ClampedArray(finalRGBA.data),
-                TARGET_WIDTH,
-                TARGET_HEIGHT
+                finalWidth,
+                finalHeight
             );
 
-            result.delete(); finalRGBA.delete();
+            // Cleanup (Critical for large images)
+            src.delete(); srcTri.delete(); dstTri.delete(); M.delete();
+            gray.delete(); bg.delete(); clean.delete(); blurred.delete();
+            sharp.delete(); lut.delete(); final.delete(); finalRGBA.delete();
+            kernel.delete(); clahe.delete();
 
             const fCanvas = document.createElement('canvas');
-            fCanvas.width = TARGET_WIDTH; fCanvas.height = TARGET_HEIGHT;
+            fCanvas.width = finalWidth; fCanvas.height = finalHeight;
             fCanvas.getContext('2d')?.putImageData(imgData, 0, 0);
 
+            // High Quality JPEG
             fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
         };
         img.onerror = reject;
