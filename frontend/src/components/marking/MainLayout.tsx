@@ -21,6 +21,7 @@ import QuestionNavigator from './QuestionNavigator';
 import SEO from '../common/SEO';
 import ImageViewer from '../common/ImageViewer';
 import HeroAnimation from '../layout/HeroAnimation';
+import TrustSignals from '../common/TrustSignals';
 import { analyticsService } from '../../services/AnalyticsService';
 
 const productSchema = {
@@ -445,7 +446,40 @@ const MainLayout: React.FC = () => {
         <div className="chat-container" ref={setChatContainerRef}>
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
-            null
+            <div className="landing-intro-container">
+              <section className="landing-section landing-section-upload">
+                <div className="landing-chat-input-placeholder">
+                  <FollowUpChatInput
+                    selectedModel={selectedModel}
+                    onModelChange={onModelChange}
+                    isProcessing={isProcessing}
+                    onAnalyzeImage={handleImageAnalysis}
+                    onFollowUpImage={handleImageAnalysis}
+                    onAnalyzeMultiImage={onAnalyzeMultiImage}
+                    onFollowUpMultiImage={onFollowUpMultiImage}
+                    onSendMessage={onSendMessage}
+                    mode="first-time"
+                    currentSession={currentSession}
+                    contextQuestionId={activeQuestionId}
+                    setContextQuestionId={setActiveQuestionId}
+                    isNegative={isNegative}
+                  />
+                </div>
+              </section>
+
+              <section className="landing-section landing-section-hero">
+                <div className="landing-intro-image-container">
+                  <HeroAnimation />
+                </div>
+              </section>
+
+              <section className="landing-section landing-section-performance">
+                <TrustSignals />
+              </section>
+
+              {/* Bottom spacer for landing page */}
+              <div style={{ height: '100px', flexShrink: 0 }} />
+            </div>
           ) : (
             <div className="chat-messages" key={currentSession?.id || 'empty'}>
               {displayedMessages.map((msg: any) => (
@@ -455,8 +489,6 @@ const MainLayout: React.FC = () => {
                   onImageLoad={() => {
                     const lastUserMsg = [...(chatMessages || [])].reverse().find(m => m.role === 'user');
                     if (msg.id === lastUserMsg?.id) {
-                      // We used to scrollToBottom() here, but it causes "jumpy" behavior when AI images load.
-                      // Now we rely on the scroll manager to maintain position, or only scroll if it's the USER's own message.
                       if (msg.role === 'user') {
                         scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
                       }
@@ -476,7 +508,6 @@ const MainLayout: React.FC = () => {
                 />
               ))}
               {/* Bottom spacer with dynamic height */}
-              {/* When thinking, expand to push user question to top (85vh). Otherwise standard spacer (250px). */}
               <div
                 className="chat-bottom-spacer"
                 style={{
@@ -488,7 +519,7 @@ const MainLayout: React.FC = () => {
           )}
         </div>
 
-        <div className={`scroll-to-bottom-container ${(showScrollButton || hasNewResponse) ? 'show' : 'hidden'}`}>
+        <div className={`scroll-to-bottom-container ${(showScrollButton || hasNewResponse) && hasMessages ? 'show' : 'hidden'}`}>
           <button
             className={`scroll-to-bottom-btn ${hasNewResponse ? 'new-response-btn' : ''}`}
             onClick={hasNewResponse ? scrollToNewResponse : scrollToBottom}
@@ -501,29 +532,25 @@ const MainLayout: React.FC = () => {
           </button>
         </div>
 
-        <div className={`follow-up-chat-input-container ${isFollowUp ? 'follow-up-bottom' : 'follow-up-center'}`}>
-          <FollowUpChatInput
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
-            isProcessing={isProcessing}
-            onAnalyzeImage={handleImageAnalysis}
-            onFollowUpImage={handleImageAnalysis}
-            onAnalyzeMultiImage={onAnalyzeMultiImage}
-            onFollowUpMultiImage={onFollowUpMultiImage}
-            onSendMessage={onSendMessage}
-            mode={isFollowUp ? 'follow-up' : 'first-time'}
-            currentSession={currentSession}
-            contextQuestionId={activeQuestionId}
-            setContextQuestionId={setActiveQuestionId}
-            isNegative={isNegative}
-          />
-
-          {!isFollowUp && (
-            <div className="landing-intro-image-container">
-              <HeroAnimation />
-            </div>
-          )}
-        </div>
+        {isFollowUp && (
+          <div className="follow-up-chat-input-container follow-up-bottom">
+            <FollowUpChatInput
+              selectedModel={selectedModel}
+              onModelChange={onModelChange}
+              isProcessing={isProcessing}
+              onAnalyzeImage={handleImageAnalysis}
+              onFollowUpImage={handleImageAnalysis}
+              onAnalyzeMultiImage={onAnalyzeMultiImage}
+              onFollowUpMultiImage={onFollowUpMultiImage}
+              onSendMessage={onSendMessage}
+              mode="follow-up"
+              currentSession={currentSession}
+              contextQuestionId={activeQuestionId}
+              setContextQuestionId={setActiveQuestionId}
+              isNegative={isNegative}
+            />
+          </div>
+        )}
       </div>
     );
   };

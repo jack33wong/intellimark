@@ -9,27 +9,49 @@
 }
 
 
-/* Follow-up Chat Input Container - Center position (initial) */
-/* Follow-up Chat Input Container - Center position (initial) */
-.follow-up-chat-input-container.follow-up-center {
-  position: absolute;
-  top: 48%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+/* Landing Intro Container - Scrollable Flow */
+.landing-intro-container {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 800px;
-  z-index: 1000;
-  padding: 0 20px;
-  /* Add some padding for small screens */
 }
 
+.landing-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80px 20px;
+  background-color: var(--background-gray-main);
+}
 
-/* Mobile responsive - when sidebar is collapsed */
+.landing-section-upload {
+  padding-top: 100px;
+  padding-bottom: 60px;
+}
+
+.landing-section-hero {
+  padding-bottom: 80px;
+}
+
+.landing-section-performance {
+  padding: 100px 20px;
+}
+
+.landing-chat-input-placeholder {
+  width: 100%;
+  max-width: 800px;
+  z-index: 10;
+}
+
+/* Mobile adjustments for landing intro */
 @media (max-width: 768px) {
-  .follow-up-chat-input-container.follow-up-center {
-    left: 50%;
-    width: 100vw;
-    /* Full width on mobile */
+  .landing-section {
+    padding: 60px 16px;
+  }
+
+  .landing-section-upload {
+    padding-top: 80px;
   }
 }
 

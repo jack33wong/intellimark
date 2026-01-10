@@ -83,7 +83,7 @@ const MobileCameraPage: React.FC = () => {
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
     // 1. Trapezoid Engine (V41)
-    const { detectedCorners, debugState } = useDocumentDetection(
+    const { detectedCorners } = useDocumentDetection(
         videoRef,
         streamStatus === 'active' && !isReviewOpen && !processingStep
     );

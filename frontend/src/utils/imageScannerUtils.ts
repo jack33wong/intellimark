@@ -1,6 +1,6 @@
 import { NormalizedPoint } from '../hooks/useDocumentDetection';
 
-// V59: LANCZOS4 + UNSHARP MASK + GAMMA (Focus on Top-Clarity)
+// V60: LANCZOS4 + UNSHARP MASK + GAMMA (Focus on Top-Clarity)
 
 export const performInstantCrop = async (
     imageBlob: Blob,
@@ -48,8 +48,8 @@ export const performInstantCrop = async (
             );
 
             // Force A4 Ratio
-            const finalWidth = Math.floor(maxWidth);
-            const finalHeight = Math.floor(maxWidth * 1.414);
+            const finalWidth = maxWidth;
+            const finalHeight = maxWidth * 1.414;
 
             // 4. WARP with LANCZOS4 (The "Anti-Blur" Resampler)
             // Lanczos is slower but MUCH better at reconstructing details 
@@ -70,7 +70,7 @@ export const performInstantCrop = async (
 
             let M = cv.getPerspectiveTransform(srcTri, dstTri);
 
-            // V59 CHANGE: INTER_LANCZOS4
+            // V60 CHANGE: INTER_LANCZOS4
             cv.warpPerspective(src, dst, M, new cv.Size(finalWidth, finalHeight), cv.INTER_LANCZOS4, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
 
             // 5. ENHANCEMENT PIPELINE
@@ -87,18 +87,21 @@ export const performInstantCrop = async (
             let clean = new cv.Mat();
             cv.divide(gray, bg, clean, 255);
 
-            // B. UNSHARP MASKING (Professional Sharpening)
+            // B. UNSHARP MASK (Professional Sharpening)
             // Formula: Sharp = Original + Amount * (Original - Blurred)
+            // This pops edges without the "static noise" of simple filters.
+            // Sigma 1.5 targets the structure of letters.
             let blurred = new cv.Mat();
-            cv.GaussianBlur(clean, blurred, new cv.Size(0, 0), 5.0); // Sigma 5.0 for structural sharpness
+            cv.GaussianBlur(clean, blurred, new cv.Size(0, 0), 1.5);
             let sharp = new cv.Mat();
-            cv.addWeighted(clean, 1.8, blurred, -0.8, 0, sharp); // 1.8 weight = Strong pop
+            cv.addWeighted(clean, 2.5, blurred, -1.5, 0, sharp); // 2.5 weight = Strong pop
 
             // C. CLAHE (Local Contrast)
             let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
             clahe.apply(sharp, sharp);
 
             // D. GAMMA CORRECTION (Darken Faint Text)
+            // The top of the page is often washed out. Gamma < 1.0 forces grays to black.
             // Look Up Table (LUT) method for speed.
             let lut = new cv.Mat(1, 256, cv.CV_8U);
             const gamma = 0.7; // Strong darkening
@@ -136,18 +139,94 @@ export const performInstantCrop = async (
     });
 };
 
-export interface ScanOptions {
-    contrast?: number;
-    brightness?: number;
-    blackPoint?: number;
-    padding?: number;
-    quality?: number;
-    onStatusUpdate?: (status: string) => void;
-}
-
+/**
+ * Fallback processor for images without detected corners.
+ * Applies the V60 enhancement pipeline (Shadow Removal, Unsharp Mask, CLAHE, Gamma)
+ * to the entire image while maintaining quality.
+ */
 export const processScannerImage = async (
-    file: File | Blob,
-    options: ScanOptions = {}
+    imageBlob: Blob,
+    options: { quality?: number } = {}
 ): Promise<Blob> => {
-    return file as Blob;
+    return new Promise((resolve, reject) => {
+        if (!window.cv || !window.cv.Mat) { reject("OpenCV missing"); return; }
+        const cv = window.cv;
+        const img = new Image();
+        const url = URL.createObjectURL(imageBlob);
+
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+
+            const MAX_DIM = 2400; // Slightly lower for full-page fallback to save memory
+            let w = img.width;
+            let h = img.height;
+            let scale = 1;
+
+            if (w > MAX_DIM || h > MAX_DIM) {
+                scale = Math.min(MAX_DIM / w, MAX_DIM / h);
+                w = Math.floor(w * scale);
+                h = Math.floor(h * scale);
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (!ctx) { reject("ctx error"); return; }
+            ctx.drawImage(img, 0, 0, w, h);
+
+            let src = cv.matFromImageData(ctx.getImageData(0, 0, w, h));
+            let gray = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+            // A. Shadow Removal (Background Division)
+            let bg = new cv.Mat();
+            let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(50, 50));
+            cv.dilate(gray, bg, kernel);
+            cv.GaussianBlur(bg, bg, new cv.Size(91, 91), 0, 0);
+            let clean = new cv.Mat();
+            cv.divide(gray, bg, clean, 255);
+
+            // B. UNSHARP MASK (Professional Sharpening)
+            let blurred = new cv.Mat();
+            cv.GaussianBlur(clean, blurred, new cv.Size(0, 0), 1.5);
+            let sharp = new cv.Mat();
+            cv.addWeighted(clean, 2.5, blurred, -1.5, 0, sharp);
+
+            // C. CLAHE (Local Contrast)
+            let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+            clahe.apply(sharp, sharp);
+
+            // D. GAMMA CORRECTION (0.7)
+            let lut = new cv.Mat(1, 256, cv.CV_8U);
+            const gamma = 0.7;
+            for (let i = 0; i < 256; i++) {
+                lut.data[i] = Math.pow(i / 255, gamma) * 255;
+            }
+            let final = new cv.Mat();
+            cv.LUT(sharp, lut, final);
+
+            // Export
+            let finalRGBA = new cv.Mat();
+            cv.cvtColor(final, finalRGBA, cv.COLOR_GRAY2RGBA);
+
+            const imgData = new ImageData(
+                new Uint8ClampedArray(finalRGBA.data),
+                w,
+                h
+            );
+
+            // Cleanup
+            src.delete(); gray.delete(); bg.delete(); clean.delete();
+            blurred.delete(); sharp.delete(); lut.delete(); final.delete();
+            finalRGBA.delete(); kernel.delete(); clahe.delete();
+
+            const fCanvas = document.createElement('canvas');
+            fCanvas.width = w; fCanvas.height = h;
+            fCanvas.getContext('2d')?.putImageData(imgData, 0, 0);
+
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', options.quality || 0.90);
+        };
+        img.onerror = reject;
+        img.src = url;
+    });
 };
