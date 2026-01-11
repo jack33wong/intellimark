@@ -225,7 +225,7 @@ const SupportedPapers: React.FC = () => {
     return (
         <section className="supported-papers">
             <div className="papers-container">
-                <div className="badge-container">
+                <div className="badge-container center">
                     <span className="performance-badge">Syllabus Coverage</span>
                 </div>
                 <h2>Extensive Past Paper Support</h2>
