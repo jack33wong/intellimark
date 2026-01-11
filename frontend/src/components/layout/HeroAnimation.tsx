@@ -6,7 +6,7 @@ import step1Img from '../../assets/images/hero-step-1.png';
 import step2Img from '../../assets/images/hero-step-2.png';
 import step3Img from '../../assets/images/hero-step-3.png';
 import step4Img from '../../assets/images/hero-step-4.png';
-import redPenImg from '/images/red_pen_marking.png';
+import redPenImg from '../../assets/images/red_pen_marking.png';
 
 interface AnimationStep {
     headline: string;
