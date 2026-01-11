@@ -77,7 +77,7 @@ const ProgrammaticLandingPage: React.FC = () => {
             </section>
 
             <footer className="landing-footer">
-                <p>© 2026 Marking.ai • AI-Powered Education</p>
+                <p>© 2026 AI Marking • AI-Powered Education</p>
             </footer>
         </div>
     );

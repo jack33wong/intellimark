@@ -109,7 +109,7 @@ const FeaturesPage: React.FC = () => {
 
             {/* Comparison Section */}
             <section className="features-comparison">
-                <h2 className="features-h1">How Marking.ai compares</h2>
+                <h2 className="features-h1">How AI Marking compares</h2>
                 <p className="comparison-subtitle">See how we stack up against traditional marking methods.</p>
 
                 <div className="comparison-card">
@@ -118,7 +118,7 @@ const FeaturesPage: React.FC = () => {
                             <tr>
                                 <th className="feature-col"></th>
                                 <th className="traditional-col">Traditional AI tools</th>
-                                <th className="ai-col">Marking.ai</th>
+                                <th className="ai-col">AI Marking</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -155,7 +155,7 @@ const FeaturesPage: React.FC = () => {
             {/* Showcase Section */}
             <section className="features-showcase">
                 <div className="showcase-header">
-                    <h2 className="features-h1">See what Marking.ai can create</h2>
+                    <h2 className="features-h1">See what AI Marking can create</h2>
                     <p className="showcase-subtitle">Real marking results with precision AI.</p>
                 </div>
 
@@ -187,7 +187,7 @@ const FeaturesPage: React.FC = () => {
             <section className="features-audience">
                 <h2 className="features-h1">Who is it for?</h2>
                 <p className="audience-subtitle">
-                    Marking.ai is the ideal AI exam marker for students, teachers, and tutors who need to achieve exceptional results with speed and precision.
+                    AI Marking is the ideal AI exam marker for students, teachers, and tutors who need to achieve exceptional results with speed and precision.
                 </p>
 
                 <div className="audience-grid">
@@ -215,13 +215,13 @@ const FeaturesPage: React.FC = () => {
 
             {/* FAQ Section */}
             <section className="features-faq">
-                <h2 className="features-h1">Frequently asked questions about Marking.ai</h2>
+                <h2 className="features-h1">Frequently asked questions about AI Marking</h2>
 
                 <div className="faq-list">
                     {[
                         {
                             q: "How is this different from other AI tools?",
-                            a: "Unlike general AI, Marking.ai is specifically trained on GCSE/A-Level mathematical marking schemes and messy human handwriting. It doesn't just 'read' text—it understands mathematical steps and extracts marks exactly like an official examiner."
+                            a: "Unlike general AI, AI Marking is specifically trained on GCSE/A-Level mathematical marking schemes and messy human handwriting. It doesn't just 'read' text—it understands mathematical steps and extracts marks exactly like an official examiner."
                         },
                         {
                             q: "What exam boards do you support?",

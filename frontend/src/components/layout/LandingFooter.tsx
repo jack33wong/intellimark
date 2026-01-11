@@ -7,7 +7,7 @@ const LandingFooter: React.FC = () => {
         <footer className="landing-footer-main">
             <div className="footer-container horizontal">
                 <div className="footer-brand-side">
-                    <span className="footer-logo">Marking.ai</span>
+                    <span className="footer-logo">AI Marking</span>
                     <span className="footer-copyright">© 2026 • The Ultimate AI Study Partner</span>
                 </div>
 

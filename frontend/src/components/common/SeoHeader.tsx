@@ -34,7 +34,7 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
     const schema = {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Marking.ai",
+        "name": "AI Marking",
         "operatingSystem": "Web",
         "applicationCategory": "EducationApplication",
         "offers": {

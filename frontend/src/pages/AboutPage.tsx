@@ -27,7 +27,7 @@ const AboutPage: React.FC = () => {
                             We believe that every student deserves immediate, expert-level feedback. Not hours later, and not just a final grade.
                         </p>
                         <p>
-                            Marking.ai was built to bridge the gap between human expertise and machine precision, giving everyone the tools to leverage their academic potential.
+                            AI Marking was built to bridge the gap between human expertise and machine precision, giving everyone the tools to leverage their academic potential.
                         </p>
                     </div>
                 </section>
@@ -57,7 +57,7 @@ const AboutPage: React.FC = () => {
                             This is the future of assessment. Hands on AI.
                         </p>
                         <div className="about-signature">
-                            Marking.ai — Empowering Accuracy.
+                            AI Marking — Empowering Accuracy.
                         </div>
                     </div>
                 </section>

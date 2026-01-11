@@ -5,7 +5,7 @@ import './Testimonials.css';
 const Testimonials: React.FC = () => {
     const testimonials = [
         {
-            quote: "Marking.ai has completely transformed how I review student past papers. The speed and accuracy are unmatched.",
+            quote: "AI Marking has completely transformed how I review student past papers. The speed and accuracy are unmatched.",
             author: "Former AQA Senior Examiner",
             name: "Verified User"
         },

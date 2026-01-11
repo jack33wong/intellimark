@@ -16,15 +16,15 @@ const CompareChatGPTPage: React.FC = () => {
 
             <main className="compare-container">
                 <section className="compare-hero">
-                    <h1 className="features-h1">Is Marking.ai better than ChatGPT?</h1>
+                    <h1 className="features-h1">Is AI Marking better than ChatGPT?</h1>
                     <p>
-                        ChatGPT is a brilliant conversationalist. Marking.ai is a professional exam marker.
+                        ChatGPT is a brilliant conversationalist. AI Marking is a professional exam marker.
                         Understand the difference between general AI and specialized assessment technology.
                     </p>
                     <div className="compare-hero-visual-wrapper" style={{ marginTop: '60px', display: 'flex', justifyContent: 'center' }}>
                         <img
                             src="/images/compare/vs_sketch.png"
-                            alt="Marking.ai vs ChatGPT sketch"
+                            alt="AI Marking vs ChatGPT sketch"
                             style={{
                                 width: '100%',
                                 maxWidth: '800px',
@@ -44,7 +44,7 @@ const CompareChatGPTPage: React.FC = () => {
                             <h2 className="features-h2">Handwriting vs. Text</h2>
                             <p>
                                 ChatGPT struggles with the nuances of messy student handwriting and complex mathematical notation on paper.
-                                Empowered by Mathpix—the industry gold standard for mathematical OCR—Marking.ai achieves 100% recognition accuracy,
+                                Empowered by Mathpix—the industry gold standard for mathematical OCR—AI Marking achieves 100% recognition accuracy,
                                 identifying every strike-through and formula with professional examiner-grade precision.
                             </p>
                         </div>
@@ -62,7 +62,7 @@ const CompareChatGPTPage: React.FC = () => {
                             <h2 className="features-h2">Logic vs. Hallucination</h2>
                             <p>
                                 General AI can often "hallucinate" mathematical steps or apply incorrect marking criteria.
-                                Marking.ai executes using a deterministic engine cross-referenced with official Edexcel, AQA, and OCR marking schemes.
+                                AI Marking executes using a deterministic engine cross-referenced with official Edexcel, AQA, and OCR marking schemes.
                                 We don't guess—we calculate.
                             </p>
                         </div>
@@ -84,7 +84,7 @@ const CompareChatGPTPage: React.FC = () => {
                                 <tr>
                                     <th>Feature</th>
                                     <th>ChatGPT-4o</th>
-                                    <th>Marking.ai</th>
+                                    <th>AI Marking</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -123,8 +123,8 @@ const CompareChatGPTPage: React.FC = () => {
                             <li><Check size={20} /> Explaining concepts simply</li>
                         </ul>
                     </div>
-                    <div className="use-case-card markingai">
-                        <h3 className="features-h3">Use Marking.ai for</h3>
+                    <div className="use-case-card aimarking">
+                        <h3 className="features-h3">Use AI Marking for</h3>
                         <ul>
                             <li><Check size={20} /> Marking real past papers</li>
                             <li><Check size={20} /> Getting exact mark predictions</li>
@@ -136,7 +136,7 @@ const CompareChatGPTPage: React.FC = () => {
 
                 <div style={{ textAlign: 'center', marginTop: '120px' }}>
                     <Link to="/app" className="feature-pill-btn">
-                        Try Marking.ai for free <ArrowRight size={18} style={{ marginLeft: '8px' }} />
+                        Try AI Marking for free <ArrowRight size={18} style={{ marginLeft: '8px' }} />
                     </Link>
                 </div>
             </main>

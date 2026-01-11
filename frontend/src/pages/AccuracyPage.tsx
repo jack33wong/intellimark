@@ -36,14 +36,14 @@ const DivergenceChart = () => (
                 {/* Legend */}
                 <g transform="translate(280, 40)">
                     <rect width="10" height="10" fill="#42f587" />
-                    <text x="15" y="10" fill="white" fontSize="10">Marking.ai</text>
+                    <text x="15" y="10" fill="white" fontSize="10">AI Marking</text>
                     <rect y="15" width="10" height="10" fill="rgba(255,255,255,0.3)" />
                     <text x="15" y="25" fill="white" fontSize="10">Human Baseline</text>
                 </g>
             </svg>
         </div>
         <p className="chart-caption">
-            *Divergence represents the variance from the consensus mark. Marking.ai shows 14% higher consistency than standard human double-marking.
+            *Divergence represents the variance from the consensus mark. AI Marking shows 14% higher consistency than standard human double-marking.
         </p>
     </div>
 );
@@ -55,12 +55,12 @@ const AccuracyPage: React.FC = () => {
         <div className="accuracy-page">
             <SeoHeader
                 title="AI Marking Accuracy Report | Performance vs Human Examiners"
-                description="Technical audit of the Marking.ai engine. explore our 98.2% correlation with senior examiners and ViT-based handwriting analysis."
+                description="Technical audit of the AI Marking engine. explore our 98.2% correlation with senior examiners and ViT-based handwriting analysis."
             />
 
             <header className="accuracy-hero">
                 <div className="lab-badge">
-                    <FlaskConical size={14} /> <span>MARKING.AI TECHNICAL REPORT</span>
+                    <FlaskConical size={14} /> <span>AI MARKING TECHNICAL REPORT</span>
                 </div>
                 <h1>System Performance & Verification</h1>
                 <p>A data-driven audit of AI accuracy in secondary mathematics assessment.</p>
@@ -94,7 +94,7 @@ const AccuracyPage: React.FC = () => {
                     <div className="report-card">
                         <h2>Consensus Matching</h2>
                         <p>
-                            Traditional human marking has an inherent "Senior/Junior" divergence. Marking.ai is calibrated
+                            Traditional human marking has an inherent "Senior/Junior" divergence. AI Marking is calibrated
                             against a "Consensus Master" dataset, where papers are marked and verified by three independent senior examiners.
                         </p>
                         <DivergenceChart />
@@ -123,7 +123,7 @@ const AccuracyPage: React.FC = () => {
                             <h3>Blind Study: Edexcel 2023 Trial</h3>
                             <p>
                                 In 2024, we conducted a blind study using 1,200 Edexcel 1MA1/1F scripts. The results showed that
-                                Marking.ai identified correct "follow-through" marks (error propagation) in 94% of cases,
+                                AI Marking identified correct "follow-through" marks (error propagation) in 94% of cases,
                                 matching or exceeding human performance in complex 4-5 mark questions.
                             </p>
                         </div>
@@ -150,7 +150,7 @@ const AccuracyPage: React.FC = () => {
             </section>
 
             <footer className="lab-footer">
-                <p>© 2026 Marking.ai • Technical Disclosure v4.1</p>
+                <p>© 2026 AI Marking • Technical Disclosure v4.1</p>
             </footer>
         </div>
     );

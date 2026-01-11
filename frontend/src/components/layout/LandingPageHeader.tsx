@@ -10,8 +10,8 @@ const LandingPageHeader: React.FC = () => {
             <div className="landing-header-container">
                 <div className="landing-header-left">
                     <Link to="/" className="landing-header-logo">
-                        <img src="/images/logo.png" alt="Marking.ai" className="logo-img" />
-                        <span className="logo-text">Marking.ai</span>
+                        <img src="/images/logo.png" alt="AI Marking" className="logo-img" />
+                        <span className="logo-text">AI Marking</span>
                     </Link>
                 </div>
 

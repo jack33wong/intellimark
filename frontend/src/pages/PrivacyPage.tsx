@@ -20,7 +20,7 @@ const PrivacyPage: React.FC = () => {
                 <span className="last-updated">Last Updated: January 11, 2026</span>
 
                 <div className="legal-content">
-                    <p>At Marking.ai, we take your privacy seriously. This Privacy Policy explains how we collect, use, and protect your personal information when you use our automated marking services.</p>
+                    <p>At AI Marking, we take your privacy seriously. This Privacy Policy explains how we collect, use, and protect your personal information when you use our automated marking services.</p>
 
                     <h2>1. Information We Collect</h2>
                     <p>We collect information that you provide directly to us, including:</p>
