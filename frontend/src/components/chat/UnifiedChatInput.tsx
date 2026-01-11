@@ -13,6 +13,7 @@ import { useSubscription } from '../../hooks/useSubscription';
 import ApiClient from '../../services/apiClient';
 import ConfirmationModal from '../common/ConfirmationModal';
 import { mobileUploadService } from '../../services/MobileUploadService';
+import { FileHandoff } from './FileHandoff';
 import './UnifiedChatInput.css';
 
 // Define the type for the props this component receives
@@ -107,6 +108,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showHandoff, setShowHandoff] = useState<boolean>(false);
   const handoverProcessedRef = useRef(false);
 
   // Check model selection permission once subscribe hook is available
@@ -352,33 +354,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     fileInputRef.current?.click();
   }, []);
 
-  // Handle Action deep links (from Landing Page)
+  // Handle Action deep links (from Landing Page) via FileHandoff Bridge
   useEffect(() => {
     if (mode !== 'first-time') return;
 
-    // 1. Handle URL Query Parameters (Actions like scan)
     const params = new URLSearchParams(location.search);
     const action = params.get('action');
 
-    if (action === 'scan') {
-      setIsMobileUploadOpen(true);
-      window.history.replaceState({}, '', '/app');
+    if (action === 'scan' || action === 'select' || action === 'upload') {
+      setShowHandoff(true);
     }
-
-    // 2. Handle Location State Handover (Files passed from Landing Page)
-    if (location.state?.pendingFiles && location.state.pendingFiles.length > 0 && !handoverProcessedRef.current) {
-      handoverProcessedRef.current = true;
-      const files = location.state.pendingFiles as File[];
-
-      // Use a small delay to ensure the component is settled
-      const timer = setTimeout(() => {
-        processFiles(files);
-        // Clear the state so it doesn't re-trigger on back/forward
-        window.history.replaceState({}, '', '/app');
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [location.search, location.state, mode, processFiles]);
+  }, [location.search, mode]);
 
   const removePreview = useCallback(() => {
     setPreviewImage(null);
@@ -801,11 +787,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       <MobileUploadModal
         isOpen={isMobileUploadOpen}
-        sessionIdProp={mobileSessionId}
-        onSessionCreated={setMobileSessionId}
         onClose={() => setIsMobileUploadOpen(false)}
         onImageReceived={handleMobileImages}
+        sessionIdProp={mobileSessionId}
+        onSessionCreated={setMobileSessionId}
       />
+
+      {showHandoff && (
+        <FileHandoff
+          onFilesSelected={(files) => processFiles(files)}
+          onClose={() => setShowHandoff(false)}
+        />
+      )}
 
       {/* Enterprise Upgrade Modal */}
       <ConfirmationModal

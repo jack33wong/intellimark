@@ -1,0 +1,117 @@
+.handoff-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.handoff-card {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    margin: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.handoff-icon-wrapper {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.handoff-icon-wrapper.upload {
+    background-color: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+}
+
+.handoff-icon-wrapper.scan {
+    background-color: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+}
+
+.handoff-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.75rem;
+    font-family: inherit;
+}
+
+.handoff-subtitle {
+    color: #64748b;
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.handoff-trigger-button {
+    display: block;
+    width: 100%;
+    background-color: #2563eb;
+    color: white;
+    font-weight: 700;
+    padding: 1.25rem 1.5rem;
+    border-radius: 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+    border: none;
+    text-align: center;
+}
+
+.handoff-trigger-button:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.handoff-trigger-button:active {
+    transform: scale(0.98);
+}
+
+.hidden-input {
+    display: none;
+}
+
+.handoff-cancel-btn {
+    margin-top: 1.5rem;
+    font-size: 0.875rem;
+    color: #94a3b8;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.handoff-cancel-btn:hover {
+    color: #475569;
+}
+
+@keyframes handoff-zoom {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.animate-handoff {
+    animation: handoff-zoom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}

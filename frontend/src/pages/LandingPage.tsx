@@ -36,14 +36,6 @@ const LandingPage: React.FC = () => {
         navigate(`/app?role=${userSegment}`);
     };
 
-    const handleDirectFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (files.length > 0) {
-            // Pass files through location state (AppContent handles this via useEffect)
-            navigate('/app', { state: { pendingFiles: files } });
-        }
-    };
-
     return (
         <div className="light-mode-forced">
             <SeoHeader isHome={true} />
@@ -112,19 +104,11 @@ const LandingPage: React.FC = () => {
                                 Scan Handwritten Work
                             </button>
 
-                            <button className="btn-file" onClick={() => document.getElementById('landing-direct-upload')?.click()}>
+                            <button className="btn-file" onClick={() => navigate('/app?action=select')}>
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
                                 Select Paper (PDF/JPG)
-                                <input
-                                    id="landing-direct-upload"
-                                    type="file"
-                                    accept="image/*,.pdf"
-                                    multiple
-                                    style={{ display: 'none' }}
-                                    onChange={handleDirectFileSelect}
-                                />
                             </button>
                         </div>
 
