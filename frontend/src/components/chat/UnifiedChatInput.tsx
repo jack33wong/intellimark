@@ -107,6 +107,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const handoverProcessedRef = useRef(false);
 
   // Check model selection permission once subscribe hook is available
   useEffect(() => {
@@ -355,23 +356,29 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   useEffect(() => {
     if (mode !== 'first-time') return;
 
+    // 1. Handle URL Query Parameters (Actions like scan)
     const params = new URLSearchParams(location.search);
     const action = params.get('action');
 
     if (action === 'scan') {
       setIsMobileUploadOpen(true);
-      // Clean up the URL
       window.history.replaceState({}, '', '/app');
-    } else if (action === 'select') {
-      // Small delay to ensure the component and ref are ready
+    }
+
+    // 2. Handle Location State Handover (Files passed from Landing Page)
+    if (location.state?.pendingFiles && location.state.pendingFiles.length > 0 && !handoverProcessedRef.current) {
+      handoverProcessedRef.current = true;
+      const files = location.state.pendingFiles as File[];
+
+      // Use a small delay to ensure the component is settled
       const timer = setTimeout(() => {
-        handleUploadClick();
-      }, 800);
-      // Clean up the URL
-      window.history.replaceState({}, '', '/app');
+        processFiles(files);
+        // Clear the state so it doesn't re-trigger on back/forward
+        window.history.replaceState({}, '', '/app');
+      }, 100);
       return () => clearTimeout(timer);
     }
-  }, [location.search, mode, handleUploadClick]);
+  }, [location.search, location.state, mode, processFiles]);
 
   const removePreview = useCallback(() => {
     setPreviewImage(null);
