@@ -37,7 +37,7 @@ const FeaturesPage: React.FC = () => {
         {
             title: "Precision OCR Annotation",
             description: "Empowered by Mathpix, the industry standard for mathematical OCR, our system achieves 100% recognition accuracy. This allows us to map precise digital annotations—including checkmarks, boxes, and examiner comments—directly onto your original handwritten pages with professional precision.",
-            image: "/images/features/mathpix_sketch.jpg",
+            image: "/images/features/red_pen_tick_hero.png",
             reversed: true,
             linkText: "See annotation tech"
         },
