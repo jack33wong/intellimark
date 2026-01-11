@@ -24,6 +24,12 @@ const TrustSignals: React.FC = () => {
                             </thead>
                             <tbody>
                                 <tr>
+                                    <td>Spatial Accuracy</td>
+                                    <td className="highlight">100% (Mathpix Powered)</td>
+                                    <td>0%</td>
+                                    <td className="outcome">Critical Edge</td>
+                                </tr>
+                                <tr>
                                     <td>Spatial Annotation</td>
                                     <td className="highlight">Pixel-Perfect</td>
                                     <td>Manual</td>

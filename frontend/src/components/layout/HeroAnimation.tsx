@@ -6,6 +6,7 @@ import step1Img from '../../assets/images/hero-step-1.png';
 import step2Img from '../../assets/images/hero-step-2.png';
 import step3Img from '../../assets/images/hero-step-3.png';
 import step4Img from '../../assets/images/hero-step-4.png';
+import redPenImg from '/images/red_pen_marking.png';
 
 interface AnimationStep {
     headline: string;
@@ -16,22 +17,22 @@ interface AnimationStep {
 const STEPS: AnimationStep[] = [
     {
         headline: "1. Spatial Mapping",
-        subheadline: "We track every stroke on the X/Y axis for pixel-perfect handwriting recognition.",
+        subheadline: "We don't just read math; we map your journey. Every pen stroke is tracked on the X/Y axis.",
         image: step1Img
     },
     {
-        headline: "2. Logic Analysis",
-        subheadline: "Deterministic engine verifies multi-step logic against official exam board schemas.",
+        headline: "2. Logic Verification",
+        subheadline: "Our AI analyzes step-by-step working, not just the final answer, catching exactly where you went wrong.",
         image: step2Img
     },
     {
-        headline: "3. Examiner Results",
-        subheadline: "Digital annotations applied directly to your work, just like a Senior Examiner.",
-        image: step3Img
+        headline: "3. Digital Red Pen",
+        subheadline: "See examiner-grade feedback annotated directly on your specific equations in real-time.",
+        image: redPenImg
     },
     {
-        headline: "4. Board Insights",
-        subheadline: "Get exact mark predictions and identify weak spots for Edexcel, AQA & OCR.",
+        headline: "4. Grade Prediction",
+        subheadline: "Instant mark predictions for Edexcel, AQA, and OCR based on official 2026 schemas.",
         image: step4Img
     }
 ];

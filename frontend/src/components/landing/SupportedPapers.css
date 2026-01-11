@@ -16,9 +16,47 @@
     font-size: 2.5rem;
     font-weight: 800;
     color: var(--text-primary);
-    margin: 24px 0 60px;
+    margin: 24px 0 24px;
+    /* Reduced bottom margin */
     letter-spacing: -0.02em;
     text-align: center;
+}
+
+.status-freshness {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 60px;
+}
+
+.live-dot {
+    width: 10px;
+    height: 10px;
+    background-color: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+.status-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
 

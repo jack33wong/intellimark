@@ -24,6 +24,10 @@ const LandingPage: React.FC = () => {
                         Stop guessing your grade. Our spatial AI reads your handwriting, analyzes your multi-step logic, and annotates your work exactly like a Senior Examiner—with 99.2% accuracy.
                     </p>
                     <div className="hero-cta-group">
+                        <div className="segmented-cta-tabs">
+                            <button className="cta-tab active">I am a Student</button>
+                            <button className="cta-tab">I am a Tutor</button>
+                        </div>
                         <button className="hero-primary-cta" onClick={() => (window.location.href = '/app')}>
                             Get My Instant Grade (Free)
                         </button>
@@ -43,7 +47,7 @@ const LandingPage: React.FC = () => {
                         <span className="spatial-badge">Spatial Handwriting Intelligence</span>
                         <h2 className="spatial-title">We Don't Just 'Read' Math. We Map It.</h2>
                         <p className="spatial-description">
-                            Unlike generic AI that transcribes your work into flat text, <strong>AI Marking</strong> uses coordinate-accurate mapping.
+                            Unlike generic AI that transcribes your work into flat text, <strong>AI Marking</strong> uses coordinate-accurate mapping. <strong>We don't just read your answer; we map your journey.</strong>
                             We track every stroke of your pen on the X/Y axis. This allows our AI to 'pick up the red pen' and provide feedback directly on your specific equations,
                             identifying exactly where a 'Method Mark' was lost or an 'Error Carried Forward' occurred.
                         </p>
@@ -61,6 +65,25 @@ const LandingPage: React.FC = () => {
             <UserSegmentation />
             <Testimonials />
             <SupportedPapers />
+
+            {/* Final CTA Section */}
+            <section className="landing-section final-cta-section">
+                <div className="final-cta-container">
+                    <h2 className="final-cta-title">Ready to master your GCSE Maths?</h2>
+                    <p className="final-cta-subtitle">Join 15,000+ students and tutors using AI Marking to perfect their exam technique.</p>
+
+                    <div className="hero-cta-group">
+                        <div className="segmented-cta-tabs">
+                            <button className="cta-tab active">I am a Student</button>
+                            <button className="cta-tab">I am a Tutor</button>
+                        </div>
+                        <button className="hero-primary-cta" onClick={() => (window.location.href = '/app')}>
+                            Get My Instant Grade (Free)
+                        </button>
+                    </div>
+                </div>
+            </section>
+
             <LandingFooter />
         </div>
     );

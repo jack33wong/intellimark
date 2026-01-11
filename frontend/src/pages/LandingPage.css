@@ -47,8 +47,35 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 24px;
+    /* Increased gap */
     margin-bottom: 60px;
+}
+
+.segmented-cta-tabs {
+    display: flex;
+    background-color: #f3f3f1;
+    padding: 6px;
+    border-radius: 100px;
+    gap: 4px;
+}
+
+.cta-tab {
+    padding: 8px 20px;
+    border-radius: 100px;
+    border: none;
+    background: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cta-tab.active {
+    background: white;
+    color: var(--text-brand);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .hero-primary-cta {
@@ -169,4 +196,42 @@
 .badge-container.center {
     display: flex;
     justify-content: center;
+}
+/* Final CTA Section */
+.final-cta-section {
+    padding: 120px 24px;
+    background-color: #fafafa;
+    text-align: center;
+    border-top: 1px solid #eeeeed;
+}
+
+.final-cta-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.final-cta-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 3.5rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--text-primary);
+    margin-bottom: 24px;
+}
+
+.final-cta-subtitle {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    margin-bottom: 48px;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .final-cta-title {
+        font-size: 2.5rem;
+    }
+    
+    .final-cta-section {
+        padding: 80px 24px;
+    }
 }
