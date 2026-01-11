@@ -4,7 +4,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Plus, Brain, X, Check, Sparkles, Smartphone, UploadCloud } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import LandingPageUploadWidget from '../common/LandingPageUploadWidget';
 import MobileUploadModal from '../upload/MobileUploadModal';
 import { ModelSelector, SendButton } from '../focused';
@@ -48,6 +48,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   setContextQuestionId,
   isNegative = false,
 }) => {
+  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
@@ -65,6 +66,26 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
   const [mobileSessionId, setMobileSessionId] = useState<string>('');
   const [isDragDropActive, setIsDragDropActive] = useState<boolean>(false);
+
+  // Handle Action deep links (from Landing Page)
+  useEffect(() => {
+    if (mode !== 'first-time') return;
+
+    const params = new URLSearchParams(location.search);
+    const action = params.get('action');
+
+    if (action === 'scan') {
+      setIsMobileUploadOpen(true);
+      // Clean up the URL
+      window.history.replaceState({}, '', '/app');
+    } else if (action === 'select') {
+      setTimeout(() => {
+        handleUploadClick();
+      }, 500);
+      // Clean up the URL
+      window.history.replaceState({}, '', '/app');
+    }
+  }, [location.search, mode]);
 
   // Metadata & Autocomplete State
   const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
