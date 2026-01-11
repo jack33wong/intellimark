@@ -308,7 +308,6 @@ code {
 /* Global Typography Classes */
 .features-h1 {
   font-family: 'Instrument Serif', serif;
-  width: 100%;
   font-size: 32px;
   font-weight: 600;
   line-height: 1.2;
@@ -324,7 +323,6 @@ code {
 
 .features-h2 {
   font-family: 'Instrument Serif', serif;
-  width: 100%;
   font-size: 28px;
   font-weight: 600;
   line-height: 1.2;
@@ -339,7 +337,6 @@ code {
 }
 
 .features-h3 {
-  width: 100%;
   font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
