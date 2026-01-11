@@ -42,8 +42,16 @@
 }
 
 .segment-icon {
-    font-size: 2.5rem;
     margin-bottom: 24px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+}
+
+.segment-icon img {
+    height: 100%;
+    width: auto;
+    object-fit: contain;
 }
 
 .segmentation-card h3 {

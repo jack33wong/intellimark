@@ -12,7 +12,9 @@ const UserSegmentation: React.FC = () => {
 
                 <div className="segmentation-grid">
                     <div className="segmentation-card student-card">
-                        <div className="segment-icon">🎓</div>
+                        <div className="segment-icon">
+                            <img src="/images/features/segment_student.png" alt="Student Icon" />
+                        </div>
                         <h3>For Students</h3>
                         <p className="segment-outcome">"See the 'Red Pen' on your own work. Learn exactly why you missed that Grade 7 boundary."</p>
                         <ul className="segment-features">
@@ -23,7 +25,9 @@ const UserSegmentation: React.FC = () => {
                     </div>
 
                     <div className="segmentation-card tutor-card">
-                        <div className="segment-icon">💼</div>
+                        <div className="segment-icon">
+                            <img src="/images/features/segment_tutor.png" alt="Tutor Icon" />
+                        </div>
                         <h3>For Tutors</h3>
                         <p className="segment-outcome">"Mark an entire mock series in seconds. Spend your sessions teaching, not grading."</p>
                         <ul className="segment-features">
@@ -34,7 +38,9 @@ const UserSegmentation: React.FC = () => {
                     </div>
 
                     <div className="segmentation-card parent-card">
-                        <div className="segment-icon">🏠</div>
+                        <div className="segment-icon">
+                            <img src="/images/features/segment_parent.png" alt="Parent Icon" />
+                        </div>
                         <h3>For Parents</h3>
                         <p className="segment-outcome">"Give your child 24/7 access to an examiner-grade marking assistant at 1% of the cost of a private tutor."</p>
                         <ul className="segment-features">
