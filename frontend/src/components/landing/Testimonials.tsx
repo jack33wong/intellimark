@@ -25,7 +25,7 @@ const Testimonials: React.FC = () => {
         <section className="testimonials-section">
             <div className="testimonials-container">
                 <div className="badge-container">
-                    <span className="performance-badge">EEAT Certified</span>
+                    <span className="performance-badge">Examiner Validated</span>
                 </div>
                 <h2 className="section-title">Trusted by Examiners & Educators</h2>
 

@@ -4,6 +4,7 @@ import LandingPageHeader from '../components/layout/LandingPageHeader';
 import HeroAnimation from '../components/layout/HeroAnimation';
 import TrustSignals from '../components/common/TrustSignals';
 import Testimonials from '../components/landing/Testimonials';
+import UserSegmentation from '../components/landing/UserSegmentation';
 import SupportedPapers from '../components/landing/SupportedPapers';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
@@ -57,6 +58,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             <TrustSignals />
+            <UserSegmentation />
             <Testimonials />
             <SupportedPapers />
             <LandingFooter />
