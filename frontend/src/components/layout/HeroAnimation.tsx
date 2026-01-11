@@ -15,23 +15,23 @@ interface AnimationStep {
 
 const STEPS: AnimationStep[] = [
     {
-        headline: "1. Upload Work",
-        subheadline: "Scan or upload handwritten exam papers instantly for precise AI marking.",
+        headline: "1. Spatial Mapping",
+        subheadline: "We track every stroke on the X/Y axis for pixel-perfect handwriting recognition.",
         image: step1Img
     },
     {
-        headline: "2. AI Analysis",
-        subheadline: "Intelligent OCR and marking engine processes every step of student logic.",
+        headline: "2. Logic Analysis",
+        subheadline: "Deterministic engine verifies multi-step logic against official exam board schemas.",
         image: step2Img
     },
     {
-        headline: "3. Detailed Grades",
-        subheadline: "Get instant scores, grade boundaries, and comprehensive marking summaries.",
+        headline: "3. Examiner Results",
+        subheadline: "Digital annotations applied directly to your work, just like a Senior Examiner.",
         image: step3Img
     },
     {
-        headline: "4. Insightful Chat",
-        subheadline: "Deep dive into results with context-aware AI chat for personalized feedback.",
+        headline: "4. Board Insights",
+        subheadline: "Get exact mark predictions and identify weak spots for Edexcel, AQA & OCR.",
         image: step4Img
     }
 ];

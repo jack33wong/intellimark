@@ -84,9 +84,9 @@ const FeaturesPage: React.FC = () => {
             <LandingPageHeader />
 
             <section className="features-hero">
-                <h1 className="features-h1">Beyond Automated Marking.</h1>
+                <h1 className="features-h1">Pixel-Perfect AI Marking.</h1>
                 <p>
-                    Experience a smarter way to master GCSE Maths. Built for examiners, designed for high-achieving students.
+                    Stop guessing your grade. Experience examiner-level precision that maps every coordinate of your handwriting to official board criteria.
                 </p>
             </section>
 
@@ -193,18 +193,18 @@ const FeaturesPage: React.FC = () => {
                 <div className="audience-grid">
                     <div className="audience-item">
                         <img src="/images/features/icon_students.png" alt="Students" className="audience-icon" />
-                        <h3>High-achieving students</h3>
-                        <p>Perfect for self-study. Get instant, expert-level feedback on your past papers and watch your grade predictions rise.</p>
-                    </div>
-                    <div className="audience-item">
-                        <img src="/images/features/icon_teachers.png" alt="Teachers" className="audience-icon" />
-                        <h3>Subject teachers</h3>
-                        <p>Save hundreds of hours every year. Automate the marking of whole-class mock exams without losing any precision.</p>
+                        <h3>For Students</h3>
+                        <p>"See the 'Red Pen' on your own work. Learn exactly why you missed that Grade 7 boundary."</p>
                     </div>
                     <div className="audience-item">
                         <img src="/images/features/icon_tutors.png" alt="Tutors" className="audience-icon" />
-                        <h3>Private tutors</h3>
-                        <p>Provide your students with professional examiner-grade marking and actionable hints, even between your direct sessions.</p>
+                        <h3>For Tutors</h3>
+                        <p>"Mark an entire mock series in seconds. Spend your sessions teaching, not grading."</p>
+                    </div>
+                    <div className="audience-item">
+                        <img src="/images/features/icon_parents.png" alt="Parents" className="audience-icon" />
+                        <h3>For Parents</h3>
+                        <p>"Give your child 24/7 access to an examiner-grade marking assistant at 1% of the cost of a private tutor."</p>
                     </div>
                 </div>
 

@@ -21,6 +21,39 @@
     text-align: center;
 }
 
+.boards-logo-grid {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 80px;
+    flex-wrap: wrap;
+}
+
+.board-logo-item {
+    padding: 24px 40px;
+    border: 1px solid #eeeeed;
+    border-radius: 20px;
+    background-color: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.board-logo-item:hover {
+    border-color: var(--text-brand);
+    transform: translateY(-4px);
+    background-color: white;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.board-logo-text {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
 .papers-display {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

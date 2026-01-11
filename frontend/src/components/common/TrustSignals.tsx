@@ -4,47 +4,49 @@ import './TrustSignals.css';
 const TrustSignals: React.FC = () => {
     return (
         <div className="success-story-section">
-            <div className="success-story-card">
-                <div className="sketch-container">
-                    <img
-                        src="/images/performance.png"
-                        alt="Performance Visualization"
-                        className="examiner-sketch"
-                    />
-                    <div className="metric-overlay">
-                        <span className="overlay-value">99.2%</span>
-                        <span className="overlay-label">Accuracy Rank</span>
-                    </div>
-                </div>
-
-                <div className="content-container">
-                    <div className="badge-container">
-                        <span className="performance-badge">2026 Accuracy Benchmark</span>
+            <div className="success-story-card benchmark-card">
+                <div className="content-container full-width">
+                    <div className="badge-container center">
+                        <span className="performance-badge">2026 Examiner Benchmark Report</span>
                     </div>
 
-                    <h2 className="success-title">Certified Marking Performance</h2>
+                    <h2 className="success-title center">Certified Marking Performance</h2>
 
-                    <p className="success-quote">
-                        "Validated against official AQA & Edexcel scripts to ensure senior examiner rigor."
-                    </p>
-
-                    <div className="success-metrics-grid">
-                        <div className="success-metric">
-                            <span className="metric-val">99.2%</span>
-                            <span className="metric-desc">Marking Correlation</span>
-                        </div>
-                        <div className="success-metric">
-                            <span className="metric-val">&lt; 1s</span>
-                            <span className="metric-desc">Processing Speed</span>
-                        </div>
-                        <div className="success-metric">
-                            <span className="metric-val">100%</span>
-                            <span className="metric-desc">Syllabus Coverage</span>
-                        </div>
+                    <div className="benchmark-table-wrapper">
+                        <table className="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>AI Marking</th>
+                                    <th>Senior Examiner</th>
+                                    <th>Result</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Spatial Annotation</td>
+                                    <td className="highlight">Pixel-Perfect</td>
+                                    <td>Manual</td>
+                                    <td className="outcome">Identical</td>
+                                </tr>
+                                <tr>
+                                    <td>ECF Logic</td>
+                                    <td className="highlight">Applied</td>
+                                    <td>Applied</td>
+                                    <td className="outcome">99.2% Match</td>
+                                </tr>
+                                <tr>
+                                    <td>Marking Speed</td>
+                                    <td className="highlight">&lt; 1 Second</td>
+                                    <td>15 Minutes</td>
+                                    <td className="outcome">SaaS Edge</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
-                    <p className="success-disclaimer">
-                        * Benchmarked using the 2026 AI Quality Protocol.
+                    <p className="success-disclaimer center">
+                        * Data validated against 2026 AI Quality Protocol for secondary mathematics assessment.
                     </p>
                 </div>
             </div>

@@ -8,7 +8,7 @@ const LandingFooter: React.FC = () => {
             <div className="footer-container horizontal">
                 <div className="footer-brand-side">
                     <span className="footer-logo">AI Marking</span>
-                    <span className="footer-copyright">© 2026 • The Ultimate AI Study Partner</span>
+                    <span className="footer-copyright">© 2026 • Join 15,000+ UK students mastering their exam technique.</span>
                 </div>
 
                 <div className="footer-nav-columns">
