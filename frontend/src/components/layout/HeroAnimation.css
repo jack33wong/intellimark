@@ -17,6 +17,7 @@
     justify-content: center;
     gap: 40px;
     width: 100%;
+    overflow: visible;
 }
 
 .hero-text-side {
@@ -60,7 +61,8 @@
 
 /* Step-specific colors to replace inline styles */
 .hero-headline.step-0 {
-    color: var(--function-primary);
+    color: #eab308;
+    /* Yellow/Gold for Spatial Mapping */
 }
 
 .hero-headline.step-1 {
@@ -77,19 +79,19 @@
 
 /* Base circle colors mapping to steps */
 .hero-circle-bg.step-0 {
-    background-color: color-mix(in srgb, var(--function-primary), transparent 90%);
+    background-color: color-mix(in srgb, #eab308, transparent 70%);
 }
 
 .hero-circle-bg.step-1 {
-    background-color: color-mix(in srgb, var(--function-error), transparent 90%);
+    background-color: color-mix(in srgb, var(--function-error), transparent 70%);
 }
 
 .hero-circle-bg.step-2 {
-    background-color: color-mix(in srgb, var(--function-warning), transparent 90%);
+    background-color: color-mix(in srgb, var(--function-warning), transparent 70%);
 }
 
 .hero-circle-bg.step-3 {
-    background-color: color-mix(in srgb, var(--text-brand), transparent 90%);
+    background-color: color-mix(in srgb, var(--text-brand), transparent 70%);
 }
 
 .hero-static-description {
@@ -116,6 +118,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: visible;
 }
 
 /* The colored circle from Google Ads reference */
@@ -125,7 +128,7 @@
     height: 550px;
     border-radius: 50%;
     z-index: 0;
-    transition: background 0.8s ease;
+    transition: background-color 0.8s ease;
 }
 
 .hero-floating-frame {
