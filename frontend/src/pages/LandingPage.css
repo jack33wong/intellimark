@@ -249,15 +249,19 @@
 
 /* Dual-Action Entry Section */
 .dual-action-section {
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
     padding: 100px 24px;
+    display: flex;
+    justify-content: center;
 }
 
 .dual-action-card {
+    width: 100%;
+    max-width: var(--landing-max-width, 1200px);
     background: #f4f4f2;
     /* Light grey/off-white from image */
-    border-radius: 32px;
+    border-radius: 40px;
+    /* Match benchmark card */
     padding: 100px 40px;
     text-align: center;
     position: relative;

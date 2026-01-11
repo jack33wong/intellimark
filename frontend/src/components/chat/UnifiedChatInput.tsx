@@ -67,25 +67,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [mobileSessionId, setMobileSessionId] = useState<string>('');
   const [isDragDropActive, setIsDragDropActive] = useState<boolean>(false);
 
-  // Handle Action deep links (from Landing Page)
-  useEffect(() => {
-    if (mode !== 'first-time') return;
-
-    const params = new URLSearchParams(location.search);
-    const action = params.get('action');
-
-    if (action === 'scan') {
-      setIsMobileUploadOpen(true);
-      // Clean up the URL
-      window.history.replaceState({}, '', '/app');
-    } else if (action === 'select') {
-      setTimeout(() => {
-        handleUploadClick();
-      }, 500);
-      // Clean up the URL
-      window.history.replaceState({}, '', '/app');
-    }
-  }, [location.search, mode]);
 
   // Metadata & Autocomplete State
   const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
@@ -125,6 +106,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [metadata.papers, selectedTags, chatInput, mode]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check model selection permission once subscribe hook is available
   useEffect(() => {
@@ -366,8 +348,30 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [processFiles, isProcessing]);
 
   const handleUploadClick = useCallback(() => {
-    document.getElementById('unified-file-input')?.click();
+    fileInputRef.current?.click();
   }, []);
+
+  // Handle Action deep links (from Landing Page)
+  useEffect(() => {
+    if (mode !== 'first-time') return;
+
+    const params = new URLSearchParams(location.search);
+    const action = params.get('action');
+
+    if (action === 'scan') {
+      setIsMobileUploadOpen(true);
+      // Clean up the URL
+      window.history.replaceState({}, '', '/app');
+    } else if (action === 'select') {
+      // Small delay to ensure the component and ref are ready
+      const timer = setTimeout(() => {
+        handleUploadClick();
+      }, 800);
+      // Clean up the URL
+      window.history.replaceState({}, '', '/app');
+      return () => clearTimeout(timer);
+    }
+  }, [location.search, mode, handleUploadClick]);
 
   const removePreview = useCallback(() => {
     setPreviewImage(null);
@@ -786,7 +790,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         </div>
       </div>
 
-      <input id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
+      <input ref={fileInputRef} id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
 
       <MobileUploadModal
         isOpen={isMobileUploadOpen}
