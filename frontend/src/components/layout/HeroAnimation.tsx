@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './HeroAnimation.css';
 
 // Import images
-import step1Img from '../../assets/images/hero-step-1.png';
+import step1Img from '../../assets/images/spatial_mapping_hero.png';
 import step2Img from '../../assets/images/hero-step-2.png';
 import step3Img from '../../assets/images/hero-step-3.png';
 import step4Img from '../../assets/images/hero-step-4.png';
