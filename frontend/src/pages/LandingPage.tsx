@@ -73,9 +73,8 @@ const LandingPage: React.FC = () => {
                         </p>
                     </div>
                     <div className="spatial-visual">
-                        {/* High-impact graphic showing coordinate mapping to AI chip */}
                         <div className="mapping-demo">
-                            <img src="/images/spatial_mapping_hero.png" alt="Spatial Mapping Illustration" />
+                            <img src="/images/spatial_mapping_demo.jpg" alt="Spatial Mapping Illustration" />
                         </div>
                     </div>
                 </div>
