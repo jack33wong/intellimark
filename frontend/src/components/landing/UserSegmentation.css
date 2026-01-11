@@ -1,6 +1,6 @@
 .segmentation-section {
-    padding: 120px 24px;
-    background-color: #fafafa;
+    padding: 120px 24px 40px;
+    background-color: #ffffff;
     display: flex;
     justify-content: center;
 }
@@ -87,7 +87,7 @@
 
 @media (max-width: 900px) {
     .segmentation-section {
-        padding: 80px 24px;
+        padding: 60px 24px 20px;
     }
 
     .segmentation-grid {

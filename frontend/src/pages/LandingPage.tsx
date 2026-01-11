@@ -51,7 +51,7 @@ const LandingPage: React.FC = () => {
                     <div className="spatial-visual">
                         {/* Placeholder for a graphic showing coordinate mapping */}
                         <div className="mapping-demo">
-                            <img src="/images/spatial_mapping_demo.png" alt="Spatial Mapping Illustration" />
+                            <img src="/images/spatial_mapping_demo.jpg" alt="Spatial Mapping Illustration" />
                         </div>
                     </div>
                 </div>

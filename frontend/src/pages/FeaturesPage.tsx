@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
+import UserSegmentation from '../components/landing/UserSegmentation';
 import './FeaturesPage.css';
 
 const FaqItem: React.FC<{ q: string; a: string }> = ({ q, a }) => {
@@ -183,35 +184,7 @@ const FeaturesPage: React.FC = () => {
                 </div>
             </section>
 
-            {/* Who is it for Section */}
-            <section className="features-audience">
-                <h2 className="features-h1">Who is it for?</h2>
-                <p className="audience-subtitle">
-                    AI Marking is the ideal AI exam marker for students, teachers, and tutors who need to achieve exceptional results with speed and precision.
-                </p>
-
-                <div className="audience-grid">
-                    <div className="audience-item">
-                        <img src="/images/features/icon_students.png" alt="Students" className="audience-icon" />
-                        <h3>For Students</h3>
-                        <p>"See the 'Red Pen' on your own work. Learn exactly why you missed that Grade 7 boundary."</p>
-                    </div>
-                    <div className="audience-item">
-                        <img src="/images/features/icon_tutors.png" alt="Tutors" className="audience-icon" />
-                        <h3>For Tutors</h3>
-                        <p>"Mark an entire mock series in seconds. Spend your sessions teaching, not grading."</p>
-                    </div>
-                    <div className="audience-item">
-                        <img src="/images/features/icon_parents.png" alt="Parents" className="audience-icon" />
-                        <h3>For Parents</h3>
-                        <p>"Give your child 24/7 access to an examiner-grade marking assistant at 1% of the cost of a private tutor."</p>
-                    </div>
-                </div>
-
-                <Link to="/app" className="feature-pill-btn">
-                    Get started free
-                </Link>
-            </section>
+            <UserSegmentation />
 
             {/* FAQ Section */}
             <section className="features-faq">

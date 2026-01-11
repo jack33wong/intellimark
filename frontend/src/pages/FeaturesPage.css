@@ -286,51 +286,7 @@
 }
 
 /* Who is it for Section */
-.features-audience {
-    max-width: 1100px;
-    margin: 0 auto 160px;
-    padding: 0 24px;
-    text-align: center;
-}
 
-.audience-subtitle {
-    color: #5e5e5b;
-    font-size: 1.15rem;
-    max-width: 700px;
-    margin: -16px auto 60px;
-}
-
-.audience-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 40px;
-    margin-bottom: 60px;
-}
-
-.audience-item {
-    padding: 24px;
-}
-
-.audience-icon {
-    width: 120px;
-    height: 120px;
-    margin: 0 auto 24px;
-    object-fit: contain;
-    mix-blend-mode: multiply;
-}
-
-.audience-item h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #1a1a19;
-    margin-bottom: 16px;
-}
-
-.audience-item p {
-    color: #8c8c87;
-    font-size: 0.95rem;
-    line-height: 1.6;
-}
 
 /* FAQ Section */
 .features-faq {

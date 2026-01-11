@@ -1,6 +1,6 @@
 .testimonials-section {
-    padding: 100px 24px;
-    background-color: #fafafa;
+    padding: 40px 24px 100px;
+    background-color: #ffffff;
     width: 100%;
     display: flex;
     justify-content: center;
@@ -82,6 +82,7 @@
 
     .section-title {
         font-size: 2rem;
+        margin-bottom: 32px;
     }
 }
 
