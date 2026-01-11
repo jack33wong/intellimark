@@ -8,6 +8,7 @@ interface SEOProps {
     ogType?: string;
     keywords?: string;
     schemaData?: object;
+    noIndex?: boolean;
 }
 
 const SEO: React.FC<SEOProps> = ({
@@ -16,7 +17,8 @@ const SEO: React.FC<SEOProps> = ({
     canonical,
     ogType = 'website',
     keywords,
-    schemaData
+    schemaData,
+    noIndex = false
 }) => {
     const siteTitle = "AI Marking | GCSE Maths Past Paper Grading";
     const fullTitle = title ? `${title} | AI Marking` : siteTitle;
@@ -31,6 +33,7 @@ const SEO: React.FC<SEOProps> = ({
             <meta name="description" content={metaDescription} />
             {keywords && <meta name="keywords" content={keywords} />}
             <link rel="canonical" href={url} />
+            {noIndex && <meta name="robots" content="noindex, nofollow" />}
 
             {/* Open Graph */}
             <meta property="og:title" content={fullTitle} />

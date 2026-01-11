@@ -17,6 +17,36 @@
   /* Stabilize geometry */
 }
 
+/* Force Light Mode for Marketing/Landing Pages */
+.light-mode-forced {
+  background-color: white !important;
+  --text-primary: #34322d !important;
+  --text-secondary: #5e5e5b !important;
+  --text-tertiary: #858481 !important;
+  --background-white-main: #ffffff !important;
+  --background-gray-main: #f8f8f7 !important;
+  --background-card: #fafafa !important;
+  --border-main: #0000000f !important;
+  --border-light: #0000000a !important;
+  --border-btn-main: #0000001f !important;
+  --fill-blue: #0081f214 !important;
+  --fill-gray: #f8f8f7 !important;
+  --text-brand: #7f00ff !important;
+  --shadow-S: #00000014 !important;
+  --shadow-M: #0000001f !important;
+  --background-nav: #ebebeb !important;
+  color: var(--text-primary) !important;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.light-mode-forced) .app-container {
+  overflow-y: auto !important;
+  height: auto !important;
+}
+
 .app-body {
   flex: 1;
   display: flex;

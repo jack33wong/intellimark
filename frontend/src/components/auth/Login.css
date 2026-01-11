@@ -188,6 +188,7 @@ body.login-page .auth-container {
   vertical-align: middle;
   display: inline-block;
   margin-top: -1px;
+  margin-right: 5px;
 }
 
 .form-input {

@@ -436,9 +436,9 @@
 /* Buttons */
 .upgrade-plan-subscribe-button {
   width: 100%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--icon-primary);
   color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-main);
   padding: 12px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -450,8 +450,8 @@
 }
 
 .upgrade-plan-subscribe-button:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--fill-tsp-white-dark);
+  border-color: var(--border-btn-main);
 }
 
 /* Special Button for Popular/Pro Plans */

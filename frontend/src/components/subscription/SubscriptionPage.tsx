@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
@@ -57,6 +57,7 @@ const SubscriptionPage: React.FC = () => {
   });
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   // Fetch configuration and pricing
@@ -627,11 +628,19 @@ const SubscriptionPage: React.FC = () => {
 
 
   return (
-    <div className="upgrade-page">
+    <div className="upgrade-page light-mode-forced">
       {/* Close Button - Top Right */}
       <button
         className="upgrade-page-close-button"
-        onClick={() => navigate('/app')}
+        onClick={() => {
+          if (location.state?.fromLanding) {
+            navigate('/');
+          } else if (user) {
+            navigate('/app');
+          } else {
+            navigate('/');
+          }
+        }}
       >
         <X size={24} />
       </button>

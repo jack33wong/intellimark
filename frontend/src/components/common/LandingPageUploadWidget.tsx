@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, ChevronRight, Loader2 } from 'lucide-react';
+import './LandingPageUploadWidget.css';
 
 interface LandingPageUploadWidgetProps {
     onUpload: (files: FileList | File[]) => void;
@@ -49,7 +50,7 @@ const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpl
                     className="cta-button-secondary"
                     onClick={() => fileInputRef.current?.click()}
                 >
-                    <Upload size={20} /> Upload Your {examBoard} Paper
+                    <Upload size={20} /> Upload Paper
                 </button>
             </div>
         );
@@ -78,7 +79,12 @@ const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpl
                     <FileText className="file-icon" size={48} />
                 </div>
                 <h3>Drop your {examBoard} Paper here</h3>
-                <p>PDF or Photos (Handwriting supported)</p>
+
+                <div className="file-support-labels">
+                    <span className="file-badge">PDF</span>
+                    <span className="file-badge">JPG</span>
+                    <span className="file-badge">PNG</span>
+                </div>
 
                 <div className="widget-footer">
                     <span>Or browse files</span>

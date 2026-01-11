@@ -3,7 +3,7 @@
  * Handles user authentication with Firebase
  */
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AlertCircle, Chrome, Facebook, Mail, Lock, Eye, EyeOff, X } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
@@ -15,6 +15,10 @@ import { analyticsService } from '../../services/AnalyticsService';
 import SEO from '../common/SEO';
 
 const Login = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const emailInputRef = React.useRef(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [firebaseError, setFirebaseError] = useState(null);
   const [currentPage, setCurrentPage] = useState('main'); // 'main', 'email-signin', 'email-signup'
@@ -23,22 +27,33 @@ const Login = () => {
     email: '',
     password: ''
   });
-  const navigate = useNavigate();
-  const emailInputRef = React.useRef(null);
+
+  const fromLanding = location.state?.fromLanding;
 
   // 👇 FIX 1: Removed the obsolete `socialLogin` function from the destructuring.
   const { user, emailPasswordSignup, emailPasswordSignin, error: authError } = useAuth();
 
   useEffect(() => {
     document.body.classList.add('login-page');
+
+    // Force light mode if coming from landing page
+    const wasDark = document.documentElement.classList.contains('dark');
+    if (fromLanding) {
+      document.documentElement.classList.remove('dark');
+    }
+
     if (!auth || !googleProvider || !facebookProvider) {
       console.error('Firebase not properly configured.');
       setFirebaseError('Firebase configuration issue detected.');
     }
     return () => {
       document.body.classList.remove('login-page');
+      // Restore theme if it was forced
+      if (fromLanding && wasDark) {
+        document.documentElement.classList.add('dark');
+      }
     };
-  }, []);
+  }, [fromLanding]);
 
   useEffect(() => {
     if (user) {

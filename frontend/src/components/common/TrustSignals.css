@@ -1,26 +1,29 @@
 .success-story-section {
     width: 100%;
-    max-width: 900px;
-    margin: 0 auto;
+    padding: 100px 24px;
+    background-color: var(--background-white-main);
+    display: flex;
+    justify-content: center;
 }
 
 .success-story-card {
     display: flex;
-    background-color: var(--background-white-main);
-    border: 1px solid var(--border-main);
+    width: 100%;
+    max-width: var(--landing-max-width, 1200px);
+    background-color: #ffffff;
+    border: 1px solid var(--border-light);
     border-radius: 32px;
     overflow: hidden;
-    box-shadow: 0 20px 40px var(--shadow-S);
-    min-height: 480px;
+    min-height: 520px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
 }
 
 .sketch-container {
     flex: 1;
     position: relative;
-    min-width: 40%;
-    background-color: #0c0e14;
-    /* Dark for abstract performance visual */
-    border-right: 1px solid rgba(127, 0, 255, 0.1);
+    min-width: 45%;
+    background-color: #f0f2f5;
+    border-right: 1px solid var(--border-light);
 }
 
 .examiner-sketch {
@@ -38,7 +41,7 @@ html.dark .examiner-sketch {
 .metric-overlay {
     position: absolute;
     top: 24px;
-    right: 24px;
+    left: 24px;
     background: var(--text-brand);
     color: white;
     padding: 12px 20px;

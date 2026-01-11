@@ -1,14 +1,14 @@
 .hero-animation-container {
-    padding: 0;
+    padding: 80px var(--landing-padding-x, 24px);
     width: 100%;
-    max-width: 800px;
-    margin: 20px auto 0;
+    max-width: var(--landing-max-width, 1200px);
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
     position: relative;
     overflow: visible;
-    background: transparent;
+    background: white !important;
 }
 
 .hero-main-row {
@@ -121,8 +121,8 @@
 /* The colored circle from Google Ads reference */
 .hero-circle-bg {
     position: absolute;
-    width: 400px;
-    height: 400px;
+    width: 550px;
+    height: 550px;
     border-radius: 50%;
     z-index: 0;
     transition: background 0.8s ease;
@@ -130,14 +130,14 @@
 
 .hero-floating-frame {
     position: relative;
-    width: 280px;
+    width: 450px;
     aspect-ratio: 1;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    overflow: visible;
+    background: white;
+    border-radius: 32px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
     z-index: 1;
-    border: none;
+    border: 1px solid var(--border-light);
     animation: hero-float-mini 4s ease-in-out infinite;
 }
 

@@ -57,6 +57,7 @@ html {
   --fill-black: #28282973;
   --fill-gray: #f8f8f7;
   --fill-input-chat: #ffffff;
+  --fill-brand: rgba(127, 0, 255, 0.08);
 
   --Button-primary-black: #1a1a19;
   --Button-primary-white: #ffffff;
@@ -302,4 +303,52 @@ code {
   display: flex;
   min-height: 100vh;
   background-color: var(--background-white-main);
+}
+
+/* Global Typography Classes */
+.features-h1 {
+  font-family: 'Instrument Serif', serif;
+  width: 100%;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0 0 24px;
+}
+
+@media (min-width: 640px) {
+  .features-h1 {
+    font-size: 48px;
+  }
+}
+
+.features-h2 {
+  font-family: 'Instrument Serif', serif;
+  width: 100%;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0 0 24px;
+}
+
+@media (min-width: 768px) {
+  .features-h2 {
+    font-size: 40px;
+  }
+}
+
+.features-h3 {
+  width: 100%;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0 0 16px;
+}
+
+@media (min-width: 640px) {
+  .features-h3 {
+    font-size: 32px;
+  }
 }

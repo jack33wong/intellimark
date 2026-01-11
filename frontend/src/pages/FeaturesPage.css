@@ -1,0 +1,439 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
+
+.features-page-wrapper {
+    background-color: #fcfcfc;
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Hero Section */
+.features-hero {
+    padding: 120px 24px 80px;
+    text-align: center;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.features-hero p {
+    font-size: clamp(1.1rem, 3vw, 1.35rem);
+    color: #5e5e5b;
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* Feature Sections */
+.features-content {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 160px;
+}
+
+.feature-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 80px;
+    width: 100%;
+}
+
+.feature-row.reversed {
+    flex-direction: row-reverse;
+}
+
+.feature-text {
+    flex: 1;
+    max-width: 460px;
+    /* Strict constraint */
+    text-align: left;
+}
+
+.feature-image-container {
+    flex: 1.2;
+    max-width: 560px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.feature-image-container img {
+    width: 80%;
+    height: auto;
+    max-height: 420px;
+    object-fit: contain;
+    display: block;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.feature-text p {
+    font-size: 1.15rem;
+    color: #5e5e5b;
+    line-height: 1.7;
+    margin: 0 0 40px;
+    max-width: 100%;
+    /* Relative to the 460px parent */
+    word-wrap: break-word;
+    word-break: normal;
+    white-space: normal;
+    /* Force wrap */
+}
+
+.feature-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #1a1a19;
+    color: white;
+    padding: 14px 28px;
+    border-radius: 100px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.feature-pill-btn:hover {
+    transform: translateY(-2px);
+    background-color: #333;
+}
+
+/* Comparison Section */
+.features-comparison {
+    max-width: 1100px;
+    margin: 0 auto 160px;
+    padding: 0 24px;
+    text-align: center;
+}
+
+.comparison-subtitle {
+    color: #5e5e5b;
+    font-size: 1.15rem;
+    margin-top: -16px;
+    margin-bottom: 60px;
+}
+
+.comparison-card {
+    background: #fcfcfc;
+    border-radius: 32px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.03);
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.comparison-table th,
+.comparison-table td {
+    padding: 32px 40px;
+    text-align: left;
+    border-bottom: 1px solid #eeeeed;
+    line-height: 1.5;
+}
+
+.comparison-table th {
+    background: #fcfcfc;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1a1a19;
+}
+
+.comparison-table .feature-col {
+    width: 25%;
+}
+
+.comparison-table .traditional-col {
+    width: 37.5%;
+    color: #8c8c87;
+    font-size: 0.95rem;
+}
+
+.comparison-table .ai-col {
+    width: 37.5%;
+    background: #fcfcfc;
+    color: #1a1a19;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.comparison-table tr:last-child td {
+    border-bottom: none;
+}
+
+.comparison-label {
+    font-weight: 600;
+    color: #1a1a19;
+    font-size: 1rem;
+}
+
+@media (max-width: 850px) {
+
+    .comparison-table th,
+    .comparison-table td {
+        padding: 20px;
+    }
+
+    .comparison-table .feature-col {
+        width: 30%;
+    }
+
+    .comparison-table .traditional-col {
+        display: none;
+    }
+
+    /* Hide traditional on mobile to save space */
+    .comparison-table .ai-col {
+        width: 70%;
+    }
+}
+
+/* Showcase Section */
+.features-showcase {
+    max-width: 1100px;
+    margin: 0 auto 160px;
+    padding: 0 24px;
+    text-align: center;
+}
+
+.showcase-header {
+    margin-bottom: 48px;
+}
+
+.showcase-subtitle {
+    color: #5e5e5b;
+    font-size: 1.15rem;
+    margin-top: -16px;
+}
+
+.showcase-tabs {
+    display: inline-flex;
+    background: #f3f3f1;
+    padding: 6px;
+    border-radius: 100px;
+    gap: 4px;
+    margin-bottom: 60px;
+}
+
+.showcase-tab {
+    padding: 10px 24px;
+    border: none;
+    background: transparent;
+    border-radius: 100px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #5e5e5b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.showcase-tab.active {
+    background: #ffffff;
+    color: #1a1a19;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.showcase-display {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.showcase-image-wrapper {
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.showcase-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 32px;
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.fade-in {
+    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Who is it for Section */
+.features-audience {
+    max-width: 1100px;
+    margin: 0 auto 160px;
+    padding: 0 24px;
+    text-align: center;
+}
+
+.audience-subtitle {
+    color: #5e5e5b;
+    font-size: 1.15rem;
+    max-width: 700px;
+    margin: -16px auto 60px;
+}
+
+.audience-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-bottom: 60px;
+}
+
+.audience-item {
+    padding: 24px;
+}
+
+.audience-icon {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 24px;
+    object-fit: contain;
+    mix-blend-mode: multiply;
+}
+
+.audience-item h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1a1a19;
+    margin-bottom: 16px;
+}
+
+.audience-item p {
+    color: #8c8c87;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+/* FAQ Section */
+.features-faq {
+    max-width: 900px;
+    margin: 0 auto 160px;
+    padding: 0 24px;
+    text-align: center;
+}
+
+.faq-list {
+    margin-top: 60px;
+    text-align: left;
+}
+
+.faq-item {
+    border-bottom: 1px solid #eeeeed;
+}
+
+.faq-question {
+    width: 100%;
+    padding: 24px 0;
+    background: none;
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #1a1a19;
+    transition: color 0.2s ease;
+}
+
+.faq-question:hover {
+    color: #000;
+}
+
+.faq-answer {
+    padding: 0 0 24px;
+    color: #5e5e5b;
+    line-height: 1.6;
+    font-size: 1rem;
+    display: none;
+}
+
+.faq-item.active .faq-answer {
+    display: block;
+}
+
+.faq-icon {
+    font-size: 1.25rem;
+    color: #8c8c87;
+    transition: transform 0.3s ease;
+}
+
+.faq-item.active .faq-icon {
+    transform: rotate(45deg);
+}
+
+/* Responsive */
+@media (max-width: 850px) {
+    .features-hero {
+        padding: 80px 20px 40px;
+    }
+
+    .features-content {
+        gap: 100px;
+        padding-bottom: 80px;
+    }
+
+    .feature-row,
+    .feature-row.reversed {
+        flex-direction: column !important;
+        gap: 40px;
+        text-align: center;
+    }
+
+    .feature-text {
+        max-width: 100%;
+    }
+
+    .feature-text p {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .feature-image-container {
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    .audience-grid {
+        grid-template-columns: 1fr;
+        gap: 48px;
+    }
+
+    .showcase-tabs {
+        flex-wrap: wrap;
+        justify-content: center;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 320px;
+        margin: 0 auto 40px;
+    }
+}

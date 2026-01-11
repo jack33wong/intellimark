@@ -21,7 +21,13 @@ import SeoHeader from './components/common/SeoHeader';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import useTheme from './hooks/useTheme';
 import HeroAnimation from './components/layout/HeroAnimation';
+import LandingPage from './pages/LandingPage';
 import { HelmetProvider } from 'react-helmet-async';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import FeaturesPage from './pages/FeaturesPage';
+import AboutPage from './pages/AboutPage';
+import CompareChatGPTPage from './pages/CompareChatGPTPage';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -129,8 +135,9 @@ function AppContent() {
       [EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL]: () => {
         setIsGuestLimitModalOpen(true);
       },
-      [EVENT_TYPES.OPEN_AUTH_MODAL]: () => {
-        navigate('/login');
+      [EVENT_TYPES.OPEN_AUTH_MODAL]: (event: any) => {
+        const mode = event?.detail?.mode;
+        navigate('/login', { state: { mode } });
       }
     });
 
@@ -235,7 +242,7 @@ function AppContent() {
                   autoSplit={autoSplit}
                   initialImageIndex={initialImageIndex}
                 >
-                  <MarkingPage />
+                  <MarkingPage noIndex={true} />
                 </MarkingPageProvider>
               </div>
             </MainLayoutWrapper>
@@ -253,28 +260,14 @@ function AppContent() {
         <Route path="/gcse-maths-marking/:examBoard" element={<ProgrammaticLandingPage />} />
         <Route path="/gcse-maths-marking/:examBoard/:year" element={<ProgrammaticLandingPage />} />
 
-        <Route path="/" element={
-          <OptionalAuthRoute>
-            <MainLayoutWrapper {...layoutProps} rightSideClass={isChatMode ? 'chat-mode' : ''}>
-              <SeoHeader isHome={true} />
-              <div className="mark-homework-main-content">
-                <MarkingPageProvider
-                  key={markHomeworkResetKey}
-                  selectedMarkingResult={selectedMarkingResult}
-                  onPageModeChange={setIsChatMode}
-                  onProcessingChange={setIsProcessing}
-                  setSidebarOpen={setIsSidebarOpen}
-                  autoSplit={autoSplit}
-                  initialImageIndex={initialImageIndex}
-                >
-                  <MarkingPage />
-                </MarkingPageProvider>
-              </div>
-            </MainLayoutWrapper>
-          </OptionalAuthRoute>
-        } />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/mobile-upload/:sessionId" element={<MobileCameraPage />} />
 
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/compare/vs-chatgpt" element={<CompareChatGPTPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <GuestLimitModal

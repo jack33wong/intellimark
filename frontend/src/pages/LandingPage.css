@@ -1,0 +1,18 @@
+/* Landing Page specific styles */
+.light-mode-forced {
+    --landing-max-width: 1200px;
+    --landing-padding-x: 24px;
+}
+
+.landing-trust-wrapper {
+    background-color: var(--background-gray-main);
+    padding: 80px 20px;
+    display: flex;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .landing-trust-wrapper {
+        padding: 40px 10px;
+    }
+}

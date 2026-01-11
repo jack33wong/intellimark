@@ -560,6 +560,13 @@
   font-weight: 800;
 }
 
+.followup-upload-button.active {
+  background: var(--text-brand) !important;
+  color: white !important;
+  border-color: var(--text-brand) !important;
+  box-shadow: 0 0 10px rgba(127, 0, 255, 0.4);
+}
+
 .followup-chat-input-bar .followup-upload-button:disabled {
   background: #374151;
   color: #6b7280;

@@ -20,8 +20,6 @@ import './css/ImageUploadInterface.css';
 import QuestionNavigator from './QuestionNavigator';
 import SEO from '../common/SEO';
 import ImageViewer from '../common/ImageViewer';
-import HeroAnimation from '../layout/HeroAnimation';
-import TrustSignals from '../common/TrustSignals';
 import { analyticsService } from '../../services/AnalyticsService';
 
 const productSchema = {
@@ -41,7 +39,11 @@ const productSchema = {
   }
 };
 
-const MainLayout: React.FC = () => {
+interface MainLayoutProps {
+  noIndex?: boolean;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   const {
     isProcessing,
     selectedModel,
@@ -446,39 +448,24 @@ const MainLayout: React.FC = () => {
         <div className="chat-container" ref={setChatContainerRef}>
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
-            <div className="landing-intro-container">
-              <section className="landing-section landing-section-upload">
-                <div className="landing-chat-input-placeholder">
-                  <FollowUpChatInput
-                    selectedModel={selectedModel}
-                    onModelChange={onModelChange}
-                    isProcessing={isProcessing}
-                    onAnalyzeImage={handleImageAnalysis}
-                    onFollowUpImage={handleImageAnalysis}
-                    onAnalyzeMultiImage={onAnalyzeMultiImage}
-                    onFollowUpMultiImage={onFollowUpMultiImage}
-                    onSendMessage={onSendMessage}
-                    mode="first-time"
-                    currentSession={currentSession}
-                    contextQuestionId={activeQuestionId}
-                    setContextQuestionId={setActiveQuestionId}
-                    isNegative={isNegative}
-                  />
-                </div>
-              </section>
-
-              <section className="landing-section landing-section-hero">
-                <div className="landing-intro-image-container">
-                  <HeroAnimation />
-                </div>
-              </section>
-
-              <section className="landing-section landing-section-performance">
-                <TrustSignals />
-              </section>
-
-              {/* Bottom spacer for landing page */}
-              <div style={{ height: '100px', flexShrink: 0 }} />
+            <div className="focused-app-entry">
+              <div className="landing-chat-input-placeholder">
+                <FollowUpChatInput
+                  selectedModel={selectedModel}
+                  onModelChange={onModelChange}
+                  isProcessing={isProcessing}
+                  onAnalyzeImage={handleImageAnalysis}
+                  onFollowUpImage={handleImageAnalysis}
+                  onAnalyzeMultiImage={onAnalyzeMultiImage}
+                  onFollowUpMultiImage={onFollowUpMultiImage}
+                  onSendMessage={onSendMessage}
+                  mode="first-time"
+                  currentSession={currentSession}
+                  contextQuestionId={activeQuestionId}
+                  setContextQuestionId={setActiveQuestionId}
+                  isNegative={isNegative}
+                />
+              </div>
             </div>
           ) : (
             <div className="chat-messages" key={currentSession?.id || 'empty'}>
@@ -563,6 +550,7 @@ const MainLayout: React.FC = () => {
       <SEO
         title={!isFollowUp ? "Instant GCSE Maths Marking" : currentSession?.title || "Session"}
         schemaData={!isFollowUp ? productSchema : undefined}
+        noIndex={noIndex}
       />
       {splitModeImages ? (
         <div className="split-view-container">

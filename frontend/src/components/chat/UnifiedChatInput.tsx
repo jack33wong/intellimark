@@ -3,8 +3,9 @@
  * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Plus, Brain, X, Check, Sparkles, Smartphone } from 'lucide-react';
+import { Plus, Brain, X, Check, Sparkles, Smartphone, UploadCloud } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import LandingPageUploadWidget from '../common/LandingPageUploadWidget';
 import MobileUploadModal from '../upload/MobileUploadModal';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
@@ -63,6 +64,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
   const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
   const [mobileSessionId, setMobileSessionId] = useState<string>('');
+  const [isDragDropActive, setIsDragDropActive] = useState<boolean>(false);
 
   // Metadata & Autocomplete State
   const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
@@ -586,6 +588,19 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                 </button>
               </div>
             )}
+
+            {isDragDropActive && !isProcessing && (
+              <div className="app-drag-drop-zone">
+                <LandingPageUploadWidget
+                  onUpload={(files) => {
+                    processFiles(Array.from(files));
+                    setIsDragDropActive(false);
+                  }}
+                  examBoard="GCSE"
+                />
+              </div>
+            )}
+
             {isExpanded && ((previewImage || previewImages.length > 0) || (imageFile && isPDF(imageFile)) || (imageFiles.length > 0 && imageFiles.some(file => isPDF(file)))) && (
               <div className="followup-preview-section">
                 {isMultiImage ? (
@@ -668,6 +683,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                 <div className="followup-left-buttons">
                   <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
                     <Plus size={14} />
+                  </button>
+                  <button
+                    className={`followup-upload-button ${isDragDropActive ? 'active' : ''}`}
+                    onClick={() => setIsDragDropActive(!isDragDropActive)}
+                    disabled={isProcessing}
+                    title="Toggle Drag & Drop Zone"
+                  >
+                    <UploadCloud size={14} />
                   </button>
                   <button
                     className="followup-upload-button mobile-scan-btn"
