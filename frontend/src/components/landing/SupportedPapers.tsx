@@ -230,24 +230,11 @@ const SupportedPapers: React.FC = () => {
                 </div>
                 <h2>Extensive Past Paper Support</h2>
 
-                <div className="boards-logo-grid">
-                    <div className="board-logo-item">
-                        <span className="board-logo-text">AQA (8300)</span>
-                    </div>
-                    <div className="board-logo-item">
-                        <span className="board-logo-text">Edexcel (1MA1)</span>
-                    </div>
-                    <div className="board-logo-item">
-                        <span className="board-logo-text">OCR (J560)</span>
-                    </div>
-                </div>
-
                 <div className="papers-display">
                     {boards.map((board, i) => (
                         <div key={i} className="board-section">
                             <div className="board-main-header">
-                                <BookOpen size={20} />
-                                <h3>{board.name}</h3>
+                                <span className="board-logo-pill">{board.name} ({board.code})</span>
                             </div>
 
                             <div className="board-content-scroll">
