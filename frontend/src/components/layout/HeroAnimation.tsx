@@ -16,7 +16,7 @@ interface AnimationStep {
 
 const STEPS: AnimationStep[] = [
     {
-        headline: "1. Spatial Precision",
+        headline: "1. Spatial Mapping",
         subheadline: "0.1mm accuracy. We map every ink stroke to its exact X/Y coordinate for flawlessly precise marking.",
         image: step1Img
     },
