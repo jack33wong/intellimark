@@ -200,17 +200,21 @@
 
 /* Final CTA Section */
 .final-cta-section {
+    width: 100%;
     padding: 120px 24px;
     background-color: #ffffff;
-    text-align: center;
+    display: flex;
+    justify-content: center;
 }
 
 .final-cta-container {
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    max-width: var(--landing-max-width, 1200px);
     background: #f4f4f2;
     padding: 100px 40px;
-    border-radius: 32px;
+    border-radius: 40px;
+    /* Match other cards */
+    text-align: center;
 }
 
 .final-cta-title {
