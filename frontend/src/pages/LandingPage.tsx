@@ -66,11 +66,10 @@ const LandingPage: React.FC = () => {
                 <div className="spatial-container">
                     <div className="spatial-text">
                         <span className="spatial-badge">Spatial Handwriting Intelligence</span>
-                        <h2 className="spatial-title">We Don't Just 'Read' Math. We Map It.</h2>
+                        <h2 className="spatial-title">The AI Sees What You Wrote, Where You Wrote It.</h2>
                         <p className="spatial-description">
-                            Unlike generic AI that transcribes your work into flat text, <strong>AI Marking</strong> uses coordinate-accurate mapping. <strong>We don't just read your answer; we map your journey.</strong>
-                            We track every stroke of your pen on the X/Y axis. This allows our AI to 'pick up the red pen' and provide feedback directly on your specific equations,
-                            identifying exactly where a 'Method Mark' was lost or an 'Error Carried Forward' occurred.
+                            Unlike generic AI that just transcribes your work into flat text, <strong>AI Marking</strong> uses coordinate-accurate mapping. <strong>We don't just read your answer; we map your journey.</strong>
+                            By tracking every stroke of your pen on the X/Y axis with 0.1mm precision, our AI identifies exactly where a 'Method Mark' was lost or an 'Error Carried Forward' occurred—annotating directly on your handwritten equations just like a human examiner.
                         </p>
                     </div>
                     <div className="spatial-visual">

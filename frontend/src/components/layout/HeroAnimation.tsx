@@ -16,23 +16,23 @@ interface AnimationStep {
 
 const STEPS: AnimationStep[] = [
     {
-        headline: "1. Spatial Mapping",
-        subheadline: "We don't just read math; we map your journey. Every pen stroke is tracked on the X/Y axis.",
+        headline: "1. Spatial Precision",
+        subheadline: "0.1mm accuracy. We map every ink stroke to its exact X/Y coordinate for flawlessly precise marking.",
         image: step1Img
     },
     {
-        headline: "2. Logic Verification",
-        subheadline: "Our AI analyzes step-by-step working, not just the final answer, catching exactly where you went wrong.",
+        headline: "2. Logic Chain Analysis",
+        subheadline: "Our AI traces your multi-step logic chain in real-time, identifying the exact point of error.",
         image: step2Img
     },
     {
-        headline: "3. Digital Red Pen",
-        subheadline: "See examiner-grade feedback annotated directly on your specific equations in real-time.",
+        headline: "3. The 'Red Pen' Edge",
+        subheadline: "Visual proof. See examiner annotations appear directly on your specific handwritten equations.",
         image: redPenImg
     },
     {
-        headline: "4. Grade Prediction",
-        subheadline: "Instant mark predictions for Edexcel, AQA, and OCR based on official 2026 schemas.",
+        headline: "4. Official Protocol",
+        subheadline: "Marks awarded based on 2026 Exam Board schemas for Edexcel, AQA, and OCR.",
         image: step4Img
     }
 ];

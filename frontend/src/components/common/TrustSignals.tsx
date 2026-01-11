@@ -36,6 +36,12 @@ const TrustSignals: React.FC = () => {
                                     <td className="outcome">Identical</td>
                                 </tr>
                                 <tr>
+                                    <td>Spatial Precision</td>
+                                    <td className="highlight">0.1mm Accuracy</td>
+                                    <td>0mm (Blind)</td>
+                                    <td className="outcome">Critical Edge</td>
+                                </tr>
+                                <tr>
                                     <td>ECF Logic</td>
                                     <td className="highlight">Applied</td>
                                     <td>Applied</td>
