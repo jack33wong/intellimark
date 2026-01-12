@@ -64,6 +64,9 @@ const MainLayoutWrapper = ({
   isProcessing
 }: MainLayoutWrapperProps) => (
   <div className="app-body">
+    {isSidebarOpen && window.innerWidth <= 768 && (
+      <div className="mobile-sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />
+    )}
     {!isSpecialRoute && (
       <Sidebar
         isOpen={isSidebarOpen}
@@ -86,7 +89,7 @@ const MainLayoutWrapper = ({
 
 function AppContent() {
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(window.innerWidth > 768);
   const [selectedMarkingResult, setSelectedMarkingResult] = useState<MarkingResult | null>(null);
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState<number>(0);
   const [isChatMode, setIsChatMode] = useState<boolean>(false);

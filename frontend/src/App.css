@@ -17,6 +17,30 @@
   /* Stabilize geometry */
 }
 
+@media (max-width: 768px) {
+  .mobile-sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
 /* Force Light Mode for Marketing/Landing Pages */
 .light-mode-forced {
   background-color: white !important;

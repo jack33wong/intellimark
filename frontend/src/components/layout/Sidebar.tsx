@@ -63,8 +63,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
 
-
-
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
@@ -174,8 +172,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       const input = editInputRef.current;
       input.focus();
       input.select();
-      // 👇 FIX: Manually set the horizontal scroll position to the beginning.
-      // This overrides the browser's default behavior and fixes the bug.
       input.scrollLeft = 0;
     }
   }, [editingSessionId]);
@@ -195,16 +191,24 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownSessionId, isFilterDropdownOpen]);
 
+  // Helper to close sidebar on mobile navigation
+  const closeSidebarIfMobile = () => {
+    if (window.innerWidth <= 768) {
+      onMenuToggle();
+    }
+  };
 
   const handleGoToMarkHomework = () => {
     setSelectedSessionId(null);
     onMarkHomeworkClick();
     navigate('/app');
+    closeSidebarIfMobile();
   };
 
   const handleSessionClick = (session: UnifiedSession) => {
     setSelectedSessionId(session.id);
     onMarkingHistoryClick(session);
+    closeSidebarIfMobile();
   };
 
   const handleDeleteSession = async (sessionId: string, event: React.MouseEvent) => {
@@ -237,7 +241,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     setEditingTitle(fullTitle);
     setDropdownSessionId(null);
   };
-
 
   const handleSaveTitle = async (sessionId: string) => {
     if (editingTitle.trim() === '') return;
@@ -291,43 +294,23 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const getSessionTitle = (session: UnifiedSession) => {
     let title = session.title || 'Chat Session';
-
-    // CLEANUP: Remove AI-generated markers and markdown (e.g. :::your-work, **Question 6**)
     title = title.replace(/:::[^\s\n]+/g, '');
     title = title.replace(/\*\*/g, '').replace(/###/g, '').trim();
-
     const maxLength = 50;
     return title.length > maxLength ? title.substring(0, maxLength) + '...' : title;
-  };
-  const getMessageTypeIcon = (messageType?: string) => {
-    switch (messageType) {
-      case 'Marking': return <BookOpen size={16} />;
-      case 'Question': return <Clock size={16} />;
-      case 'Chat': return <MessageSquare size={16} />;
-      case 'Mixed': return <FileText size={16} />;
-      default: return <BookOpen size={16} />;
-    }
   };
 
   const getLastMessage = (session: any) => {
     const cleanContent = (content: string) => {
       if (!content) return '';
-
       let clean = content;
-
-      // 1. Strip triple-colon blocks and markers (even if no closing colons)
       clean = clean.replace(/:::[^\s\n]+/g, '');
-
-      // 2. Strip common labels often found inside blocks
       const labels = ['YOUR WORK:', 'REASONING:', 'SUMMARY:', 'CONTEXT:', 'STUDENT WORK:'];
       labels.forEach(label => {
         const regex = new RegExp(label, 'gi');
         clean = clean.replace(regex, '');
       });
-
-      // 3. Strip markdown bolding and trim
       clean = clean.replace(/\*\*/g, '').replace(/###/g, '').trim();
-
       return clean;
     };
 
@@ -349,7 +332,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         }
       }
     }
-
     return 'No messages yet';
   };
 
@@ -375,7 +357,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             <img src="/images/logo.png" alt="AI Marking Logo" className="sidebar-logo-img" />
             <div>
               <h1 className="sidebar-logo-text">AI Marking</h1>
-              {/* <p className="sidebar-logo-subtitle">powered by AI</p> */}
             </div>
           </div>
           <button className="sidebar-menu-toggle" onClick={onMenuToggle} aria-label="Toggle menu">
@@ -392,7 +373,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
           <button
             className="mark-homework-main-btn"
-            onClick={() => navigate('/library')}
+            onClick={() => {
+              navigate('/library');
+              closeSidebarIfMobile();
+            }}
             style={{ marginTop: '8px' }}
           >
             <Library size={20} />
@@ -403,6 +387,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => {
               if (user && canAccessAnalysis) {
                 navigate('/analysis');
+                closeSidebarIfMobile();
               } else {
                 setIsUpgradeModalOpen(true);
               }
@@ -413,8 +398,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             {(user && canAccessAnalysis) ? <BarChart3 size={20} /> : <Lock size={20} />}
             <span>Analysis</span>
           </button>
-
-
         </div>
 
         <ConfirmationModal
@@ -424,7 +407,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             setIsUpgradeModalOpen(false);
             if (!user) {
               navigate('/login');
-              // Also dispatch for any other listeners that might need it
               EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
             } else {
               navigate('/upgrade', { state: { fromApp: true } });
@@ -542,11 +524,12 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
-      </div >
+      </div>
       <div className="admin-section">
         <div className="admin-link" onClick={() => {
           if (user) {
             EventManager.dispatch('OPEN_PROFILE_MODAL', { tab: 'account' });
+            closeSidebarIfMobile();
           } else {
             EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'login' });
           }
@@ -556,14 +539,16 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {isAdmin() && (
-          <div className="admin-link" onClick={() => navigate('/admin')}>
+          <div className="admin-link" onClick={() => {
+            navigate('/admin');
+            closeSidebarIfMobile();
+          }}>
             <Settings size={16} />
             <span>Admin</span>
           </div>
         )}
       </div>
-
-    </div >
+    </div>
   );
 };
 

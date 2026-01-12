@@ -27,7 +27,7 @@
   min-width: 72px;
   max-width: 72px;
   transform: none;
-  /* Don't hide it, just shrink it */
+  /* Desktop behavior: don't hide, just shrink */
   padding: 0;
   align-items: center;
   /* Center items horizontally */
@@ -113,20 +113,40 @@
   .sidebar {
     position: fixed;
     top: 0;
-    /* Full height from top */
     left: 0;
     height: 100vh;
-    /* Full viewport height */
-    transform: translateX(-100%);
-    z-index: 1000;
-  }
-
-  .sidebar.mobile-open {
+    width: 280px;
+    max-width: 280px;
     transform: translateX(0);
+    /* Visible state (isOpen = true, no 'collapsed' class) */
+    z-index: 1000;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
   }
 
-  .sidebar.open {
-    left: 0;
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    /* Hidden state (isOpen = false, has 'collapsed' class) */
+    width: 280px;
+    /* Keep full width so toggle animation feels right */
+    max-width: 280px;
+    min-width: 280px;
+  }
+
+  /* Reset collapsed display overrides on mobile */
+  .sidebar.collapsed .sidebar-logo-text,
+  .sidebar.collapsed .sidebar-logo-subtitle,
+  .sidebar.collapsed .mark-homework-main-btn svg+span,
+  .sidebar.collapsed .mark-history-tabs,
+  .sidebar.collapsed .mark-history-content,
+  .sidebar.collapsed .mark-history-actions,
+  .sidebar.collapsed .sidebar-section,
+  .sidebar.collapsed .admin-link svg+span,
+  .sidebar.collapsed .mark-history-scrollable {
+    display: flex !important;
+    opacity: 1;
+    width: auto;
+    height: auto;
+    overflow: visible;
   }
 }
 
