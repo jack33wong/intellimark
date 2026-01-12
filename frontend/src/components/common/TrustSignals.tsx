@@ -55,6 +55,9 @@ const TrustSignals: React.FC = () => {
                                 </tr>
                             </tbody>
                         </table>
+                        <div className="citation-note">
+                            Data based on internal 2026 benchmarks against anonymized Edexcel (1MA1) and AQA (8300) past paper scripts.
+                        </div>
                     </div>
 
                     <p className="success-disclaimer center">
