@@ -853,4 +853,32 @@
     max-width: 280px;
     padding: 4px;
   }
+
+  .trust-anchor-content {
+    gap: 16px;
+  }
+}
+
+/* Trust Anchor Footer Styles (Shared with About Page) */
+.trust-anchor-footer {
+  text-align: center;
+  padding: 40px 20px;
+  border-top: 1px solid #eeeeed;
+  margin-top: 60px;
+}
+
+.trust-anchor-content {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  align-items: center;
+  color: #8c8c87;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.trust-anchor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
