@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
+import SEO from '../components/common/SEO';
 import './AboutPage.css';
 
 const AboutPage: React.FC = () => {
@@ -8,8 +9,26 @@ const AboutPage: React.FC = () => {
         window.scrollTo(0, 0);
     }, []);
 
+    const orgSchema = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "AI Marking",
+        "url": "https://www.aimarking.ai",
+        "logo": "https://www.aimarking.ai/logo.png",
+        "description": "AI Marking provides spatial logic assessment for GCSE and A-Level mathematics, using 0.1mm precision coordinate mapping to award method marks.",
+        "sameAs": [
+            "https://twitter.com/aimarking",
+            "https://github.com/aimarking"
+        ]
+    };
+
     return (
         <div className="about-page-wrapper light-mode-forced">
+            <SEO
+                title="About Us"
+                description="Learn about our mission to combine mathematical precision with automated examiner-grade marking logic."
+                schemaData={orgSchema}
+            />
             <LandingPageHeader />
 
             <main className="about-content-container">

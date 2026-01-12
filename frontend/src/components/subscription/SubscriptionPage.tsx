@@ -183,6 +183,46 @@ const SubscriptionPage: React.FC = () => {
     }
   };
 
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "Product",
+        "name": "AI Marking - Free Plan",
+        "description": "Basic AI marking with 10 credits per month.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0.00",
+          "priceCurrency": "GBP",
+          "availability": "https://schema.org/InStock"
+        }
+      },
+      {
+        "@type": "Product",
+        "name": "AI Marking - Pro Plan",
+        "description": "Pro examiner-tuned marking with 200 credits per month.",
+        "offers": {
+          "@type": "Offer",
+          "price": "9.90",
+          "priceCurrency": "GBP",
+          "availability": "https://schema.org/InStock"
+        }
+      },
+      {
+        "@type": "Product",
+        "name": "AI Marking - Ultra Plan",
+        "description": "Ultimate academic support with 600 credits per month.",
+        "offers": {
+          "@type": "Offer",
+          "price": "19.90",
+          "priceCurrency": "GBP",
+          "availability": "https://schema.org/InStock"
+        }
+      }
+    ]
+  };
+
   // Don't render plans if credits haven't loaded
   if (!planCredits) {
     return (
@@ -190,6 +230,7 @@ const SubscriptionPage: React.FC = () => {
         <SEO
           title="Pricing & Plans"
           description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading."
+          schemaData={productSchema}
         />
         <div className="upgrade-page-container">
           <div className="upgrade-page-header">
@@ -642,6 +683,11 @@ const SubscriptionPage: React.FC = () => {
 
   return (
     <div className={`upgrade-page ${!isFromApp ? 'light-mode-forced' : ''}`}>
+      <SEO
+        title="Pricing & Plans"
+        description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading."
+        schemaData={productSchema}
+      />
       {/* Close Button - Top Right */}
       <button
         className="upgrade-page-close-button"

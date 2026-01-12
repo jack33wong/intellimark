@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
 import UserSegmentation from '../components/landing/UserSegmentation';
+import SEO from '../components/common/SEO';
 import './FeaturesPage.css';
 
 const FaqItem: React.FC<{ q: string; a: string }> = ({ q, a }) => {
@@ -80,8 +81,49 @@ const FeaturesPage: React.FC = () => {
 
     const [activeShowcase, setActiveShowcase] = React.useState(showcases[0]);
 
+    const faqData = [
+        {
+            q: "How is this different from other AI tools?",
+            a: "Unlike general AI, AI Marking is specifically trained on GCSE/A-Level mathematical marking schemes and messy human handwriting. It doesn't just 'read' text—it understands mathematical steps and extracts marks exactly like an official examiner."
+        },
+        {
+            q: "What exam boards do you support?",
+            a: "We currently offer comprehensive support for Edexcel, AQA, and OCR past papers (2022-2024 series). We are constantly expanding our database to include all major international boards."
+        },
+        {
+            q: "Can I use it for other subjects besides Maths?",
+            a: "While our core strength is mathematical sciences, we are currently beta testing support for Physics, Chemistry, and Biology where step-by-step marking is critical."
+        },
+        {
+            q: "How accurate is the handwriting recognition?",
+            a: "Extremely. Our neural networks are trained on thousands of real student papers, allowing us to accurately interpret messy handwriting, crossed-out work, and complex mathematical notations."
+        },
+        {
+            q: "How long does it take to mark a full paper?",
+            a: "Once uploaded, a full 80-mark past paper is processed, marked, and summarized in under 30 seconds."
+        }
+    ];
+
+    const faqSchema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": faqData.map(item => ({
+            "@type": "Question",
+            "name": item.q,
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": item.a
+            }
+        }))
+    };
+
     return (
         <div className="features-page-wrapper light-mode-forced">
+            <SEO
+                title="Advanced Features"
+                description="Explore our Spatial AI technology, OCR precision, and automated marking logic built for GCSE and A-Level standards."
+                schemaData={faqSchema}
+            />
             <LandingPageHeader />
 
             <section className="features-hero">
@@ -191,28 +233,7 @@ const FeaturesPage: React.FC = () => {
                 <h2 className="features-h1">Frequently asked questions about AI Marking</h2>
 
                 <div className="faq-list">
-                    {[
-                        {
-                            q: "How is this different from other AI tools?",
-                            a: "Unlike general AI, AI Marking is specifically trained on GCSE/A-Level mathematical marking schemes and messy human handwriting. It doesn't just 'read' text—it understands mathematical steps and extracts marks exactly like an official examiner."
-                        },
-                        {
-                            q: "What exam boards do you support?",
-                            a: "We currently offer comprehensive support for Edexcel, AQA, and OCR past papers (2022-2024 series). We are constantly expanding our database to include all major international boards."
-                        },
-                        {
-                            q: "Can I use it for other subjects besides Maths?",
-                            a: "While our core strength is mathematical sciences, we are currently beta testing support for Physics, Chemistry, and Biology where step-by-step marking is critical."
-                        },
-                        {
-                            q: "How accurate is the handwriting recognition?",
-                            a: "Extremely. Our neural networks are trained on thousands of real student papers, allowing us to accurately interpret messy handwriting, crossed-out work, and complex mathematical notations."
-                        },
-                        {
-                            q: "How long does it take to mark a full paper?",
-                            a: "Once uploaded, a full 80-mark past paper is processed, marked, and summarized in under 30 seconds."
-                        }
-                    ].map((item, index) => (
+                    {faqData.map((item, index) => (
                         <FaqItem key={index} q={item.q} a={item.a} />
                     ))}
                 </div>

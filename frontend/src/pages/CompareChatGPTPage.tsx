@@ -3,7 +3,7 @@ import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
 import { Check, X, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import SEO from '../components/common/SEO';
 import './CompareChatGPTPage.css';
 
 const CompareChatGPTPage: React.FC = () => {
@@ -11,42 +11,44 @@ const CompareChatGPTPage: React.FC = () => {
         window.scrollTo(0, 0);
     }, []);
 
+    const faqSchema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "Why is aimarking.ai better than ChatGPT for GCSE Maths marking?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Unlike ChatGPT, which is a text-based language model that often 'hallucinates' math steps, aimarking.ai uses spatial coordinate mapping to identify exactly where you earned marks on your handwritten paper. It provides 0.1mm precision and is 100% Mathpix powered for industry-leading accuracy."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Does ChatGPT award Method Marks (M1) for handwritten maths?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "No. ChatGPT typically provides text-only, binary (Right/Wrong) feedback and often fails to recognize partial logic in handwriting. Our Spatial AI identifies specific steps—such as correct prime factorisation—to award M1 Method Marks even if the final answer is incorrect."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How accurate is aimarking.ai compared to generic AI tools?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "aimarking.ai achieves a 99.2% match with senior human examiners by applying Error Carried Forward (ECF) logic that generic AI cannot replicate. While ChatGPT is 0.1mm 'Blind' to spatial data, our platform provides pixel-perfect annotations directly on your working."
+                }
+            }
+        ]
+    };
+
     return (
         <div className="compare-page-wrapper light-mode-forced">
-            <Helmet>
-                <script type="application/ld+json">
-                    {JSON.stringify({
-                        "@context": "https://schema.org",
-                        "@type": "FAQPage",
-                        "mainEntity": [
-                            {
-                                "@type": "Question",
-                                "name": "Why is aimarking.ai better than ChatGPT for GCSE Maths marking?",
-                                "acceptedAnswer": {
-                                    "@type": "Answer",
-                                    "text": "Unlike ChatGPT, which is a text-based language model that often 'hallucinates' math steps, aimarking.ai uses spatial coordinate mapping to identify exactly where you earned marks on your handwritten paper. It provides 0.1mm precision and is 100% Mathpix powered for industry-leading accuracy."
-                                }
-                            },
-                            {
-                                "@type": "Question",
-                                "name": "Does ChatGPT award Method Marks (M1) for handwritten maths?",
-                                "acceptedAnswer": {
-                                    "@type": "Answer",
-                                    "text": "No. ChatGPT typically provides text-only, binary (Right/Wrong) feedback and often fails to recognize partial logic in handwriting. Our Spatial AI identifies specific steps—such as correct prime factorisation—to award M1 Method Marks even if the final answer is incorrect."
-                                }
-                            },
-                            {
-                                "@type": "Question",
-                                "name": "How accurate is aimarking.ai compared to generic AI tools?",
-                                "acceptedAnswer": {
-                                    "@type": "Answer",
-                                    "text": "aimarking.ai achieves a 99.2% match with senior human examiners by applying Error Carried Forward (ECF) logic that generic AI cannot replicate. While ChatGPT is 0.1mm 'Blind' to spatial data, our platform provides pixel-perfect annotations directly on your working."
-                                }
-                            }
-                        ]
-                    })}
-                </script>
-            </Helmet>
+            <SEO
+                title="AI Marking vs ChatGPT: GCSE Maths"
+                description="Discover why spatial AI outperforms LLMs like ChatGPT for accurate GCSE maths marking. 0.1mm precision vs logic hallucinations."
+                schemaData={faqSchema}
+            />
             <LandingPageHeader />
 
             <main className="compare-container">
