@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Lock } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import HeroAnimation from '../components/layout/HeroAnimation';
 import TrustSignals from '../components/common/TrustSignals';
@@ -125,6 +126,11 @@ const LandingPage: React.FC = () => {
                                 <span className="board-tag">EDEXCEL</span>
                                 <span className="board-tag">OCR</span>
                             </div>
+                        </div>
+
+                        <div className="privacy-anchor">
+                            <Lock size={12} className="lock-icon" />
+                            <span>GDPR Compliant | Files are processed privately and not used for training.</span>
                         </div>
                     </div>
                 </div>

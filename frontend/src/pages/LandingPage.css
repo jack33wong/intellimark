@@ -405,8 +405,30 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    border-left: 1px solid #1e293b;
+    border-left: 1px solid #e2e8f0;
     padding-left: 24px;
+}
+
+.privacy-anchor {
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.lock-icon {
+    color: #94a3b8;
+}
+
+.board-tag {
+    color: var(--text-brand);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
 }
 
 @media (max-width: 640px) {
