@@ -9,25 +9,7 @@ interface LandingPageUploadWidgetProps {
 }
 
 const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpload, examBoard, compact }) => {
-    const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = () => {
-        setIsDragging(false);
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            onUpload(e.dataTransfer.files);
-        }
-    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -58,10 +40,7 @@ const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpl
 
     return (
         <div
-            className={`landing-upload-widget ${isDragging ? 'dragging' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            className="landing-upload-widget"
             onClick={() => fileInputRef.current?.click()}
         >
             <input
@@ -78,7 +57,7 @@ const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpl
                     <Upload className="upload-icon" size={32} />
                     <FileText className="file-icon" size={48} />
                 </div>
-                <h3>Drop your {examBoard} Paper here</h3>
+                <h3>Upload your {examBoard} Paper</h3>
 
                 <div className="file-support-labels">
                     <span className="file-badge">PDF</span>
@@ -87,7 +66,7 @@ const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpl
                 </div>
 
                 <div className="widget-footer">
-                    <span>Or browse files</span>
+                    <span>Click to browse files</span>
                     <ChevronRight size={16} />
                 </div>
             </div>

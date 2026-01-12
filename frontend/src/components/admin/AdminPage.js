@@ -1680,6 +1680,7 @@ function AdminPage() {
                         <th className="admin-table__header">Exam Series</th>
                         <th className="admin-table__header">Qualification</th>
                         <th className="admin-table__header">Subject</th>
+                        <th className="admin-table__header">Tier</th>
                         <th className="admin-table__header">Total Marks</th>
                         <th className="admin-table__header">Has Marking Scheme</th>
                         <th className="admin-table__header">Has Grade Boundary</th>
@@ -1703,6 +1704,7 @@ function AdminPage() {
                           const subject = examMeta.subject || 'N/A';
                           const session = examMeta.session || examMeta.time_allowed || 'N/A';
                           const code = examMeta.code || examMeta.exam_code || 'N/A';
+                          const tier = examMeta.tier || 'N/A';
 
                           // Use database fields for question counts
                           const questionsList = Array.isArray(examData.questions) ? examData.questions : [];
@@ -1754,6 +1756,7 @@ function AdminPage() {
                                 <td className="admin-table__cell">{examSeries}</td>
                                 <td className="admin-table__cell">{qualification}</td>
                                 <td className="admin-table__cell">{subject}</td>
+                                <td className="admin-table__cell">{tier}</td>
                                 <td className="admin-table__cell">
                                   {examData.questions ? (
                                     <span className="mark-count">
@@ -2004,6 +2007,14 @@ function AdminPage() {
                                                         type="text"
                                                         value={displayData.exam?.subject || displayData.metadata?.subject || ''}
                                                         onChange={(e) => handleMetadataChange('subject', e.target.value)}
+                                                      />
+                                                    </div>
+                                                    <div className="meta-field">
+                                                      <label>Tier</label>
+                                                      <input
+                                                        type="text"
+                                                        value={displayData.exam?.tier || displayData.metadata?.tier || ''}
+                                                        onChange={(e) => handleMetadataChange('tier', e.target.value)}
                                                       />
                                                     </div>
                                                     <div className="meta-field">

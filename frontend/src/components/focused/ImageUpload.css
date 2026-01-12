@@ -23,12 +23,6 @@
   box-shadow: var(--shadow-lg);
 }
 
-.image-upload.drag-over {
-  border-color: var(--text-brand);
-  background: var(--background-menu-gray);
-  transform: scale(1.02);
-  box-shadow: var(--shadow-lg);
-}
 
 .image-upload.disabled {
   opacity: 0.5;

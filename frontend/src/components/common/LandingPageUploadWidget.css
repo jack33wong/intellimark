@@ -23,11 +23,6 @@
     /* Added purple glow */
 }
 
-.landing-upload-widget.dragging {
-    background: rgba(127, 0, 255, 0.15);
-    border-color: #7f00ff;
-    transform: scale(1.03);
-}
 
 .widget-content {
     display: flex;

@@ -66,7 +66,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
   const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
   const [mobileSessionId, setMobileSessionId] = useState<string>('');
-  const [isDragDropActive, setIsDragDropActive] = useState<boolean>(false);
 
 
   // Metadata & Autocomplete State
@@ -612,10 +611,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
           </div>
           <p className="chat-title-greeting">
-            Grade Your Maths Work Instantly
+            Precision Spatial AI Marking
           </p>
           <p className="chat-title-description">
-            Your powerful AI assistant for precise marking and feedback.
+            Unlock method marks (M1) and board-aligned feedback with every scan.
           </p>
         </div>
       )}
@@ -655,17 +654,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
             )}
 
-            {isDragDropActive && !isProcessing && (
-              <div className="app-drag-drop-zone">
-                <LandingPageUploadWidget
-                  onUpload={(files) => {
-                    processFiles(Array.from(files));
-                    setIsDragDropActive(false);
-                  }}
-                  examBoard="GCSE"
-                />
-              </div>
-            )}
 
             {isExpanded && ((previewImage || previewImages.length > 0) || (imageFile && isPDF(imageFile)) || (imageFiles.length > 0 && imageFiles.some(file => isPDF(file)))) && (
               <div className="followup-preview-section">
@@ -734,7 +722,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       ? "AI is processing..."
                       : mode === 'follow-up'
                         ? "Ask a follow-up question about your marks..."
-                        : "Type exam code (e.g., Edexcel June 2024 1H) for precise marking..."
+                        : "Search exam code (e.g., Edexcel June 2024 3H) to start your marking session..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"
@@ -749,14 +737,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                 <div className="followup-left-buttons">
                   <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
                     <Plus size={14} />
-                  </button>
-                  <button
-                    className={`followup-upload-button ${isDragDropActive ? 'active' : ''}`}
-                    onClick={() => setIsDragDropActive(!isDragDropActive)}
-                    disabled={isProcessing}
-                    title="Toggle Drag & Drop Zone"
-                  >
-                    <UploadCloud size={14} />
                   </button>
                   <button
                     className="followup-upload-button mobile-scan-btn"

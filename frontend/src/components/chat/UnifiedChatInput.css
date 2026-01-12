@@ -233,7 +233,7 @@
   }
 
   .chat-title-greeting {
-    font-size: 28px;
+    font-size: 22px;
   }
 
   .chat-title-subtitle {
@@ -243,6 +243,23 @@
   .chat-mode .main-upload-input-bar {
     left: 0;
     /* Full width on mobile */
+  }
+
+  .chat-title-description {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .followup-text-input {
+    font-size: 13px !important;
+  }
+
+  .followup-text-input::placeholder {
+    font-size: 12px !important;
+    opacity: 0.6 !important;
+    /* Make it dimmer */
+    font-weight: 300;
+    /* Thinner */
   }
 }
 
