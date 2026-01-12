@@ -77,7 +77,8 @@
 
 .compare-feature-visual {
     flex: 1.2;
-    aspect-ratio: 16 / 10;
+    min-height: 450px;
+    aspect-ratio: auto;
     background: #ffffff;
     border: 1px solid #eeeeed;
     border-radius: 32px;
