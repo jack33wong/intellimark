@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { mobileUploadService } from '../services/MobileUploadService';
 import { processScannerImage, performInstantCrop } from '../utils/imageScannerUtils';
 import { useDocumentDetection, NormalizedPoint } from '../hooks/useDocumentDetection';
@@ -54,7 +54,12 @@ const isValidQuad = (corners: NormalizedPoint[]) => {
 const MobileCameraPage: React.FC = () => {
     const { sessionId } = useParams<{ sessionId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const videoRef = useRef<HTMLVideoElement>(null);
+
+    // Check for returnUrl (Mobile-to-Mobile Loop)
+    const queryParams = new URLSearchParams(location.search);
+    const returnUrl = queryParams.get('returnUrl');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -348,7 +353,14 @@ const MobileCameraPage: React.FC = () => {
             // V16.3: Finalize here triggers auto-import on Desktop
             await mobileUploadService.finalizeSession(sessionId);
 
-            // Success UX
+            // V16.5: Mobile-to-Mobile Redirect Loop
+            if (returnUrl) {
+                // Skip success screen and return immediately to the app
+                navigate(returnUrl);
+                return;
+            }
+
+            // Success UX (Desktop/QR Mode)
             setNotification({
                 message: `Sent ${pageCount} page${pageCount !== 1 ? 's' : ''}!`,
                 type: 'success'
@@ -378,14 +390,13 @@ const MobileCameraPage: React.FC = () => {
     return (
         <div className="mobile-page">
             <div className="mobile-content" style={{ backgroundColor: '#111' }}>
-                {/* V21 TOP BAR */}
                 <div style={{
                     padding: '20px', display: 'flex', justifyContent: 'space-between',
                     alignItems: 'center', zIndex: 20,
                     background: 'rgba(0,0,0,0.4)'
                 }}>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => returnUrl ? navigate(returnUrl) : navigate(-1)}
                         style={{
                             background: 'none',
                             border: 'none',

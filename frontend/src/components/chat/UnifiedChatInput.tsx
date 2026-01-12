@@ -366,14 +366,26 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       }
     }
 
+    // Save session ID for return flow
+    localStorage.setItem('active_mobile_session_id', sessionId);
+
     // Clean Handoff and redirect
     setShowHandoff(false);
     // Clean URL
     window.history.replaceState({}, '', '/app');
 
-    // Redirect to mobile camera page
-    window.location.href = `/mobile-upload/${sessionId}`;
+    // Redirect to mobile camera page with return URL
+    window.location.href = `/mobile-upload/${sessionId}?returnUrl=${encodeURIComponent('/app')}`;
   }, [mobileSessionId]);
+
+  // V16.5: Restore session on return from camera
+  useEffect(() => {
+    const savedSessionId = localStorage.getItem('active_mobile_session_id');
+    if (savedSessionId) {
+      console.log('[MobileSync] Restoring active session:', savedSessionId);
+      setMobileSessionId(savedSessionId);
+    }
+  }, []);
 
   // Handle Action deep links (from Landing Page) via FileHandoff Bridge
   useEffect(() => {
@@ -562,6 +574,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         setIsMultiImage(true);
       }
       setIsExpanded(true);
+
+      // Cleanup session persistence after successful receipt
+      localStorage.removeItem('active_mobile_session_id');
     } catch (err) {
       console.error('Failed to process mobile images:', err);
     }
