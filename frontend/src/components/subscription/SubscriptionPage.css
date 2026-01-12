@@ -285,6 +285,65 @@
 
 .feature-text {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feature-tooltip-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.feature-info-icon {
+  color: var(--text-tertiary);
+  cursor: help;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.feature-info-icon:hover {
+  opacity: 1;
+}
+
+.feature-tooltip-content {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: #1a1a19;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 240px;
+  line-height: 1.4;
+  font-weight: 400;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 100;
+  pointer-events: none;
+  text-align: left;
+}
+
+.feature-tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #1a1a19 transparent transparent transparent;
+}
+
+.feature-tooltip-container:hover .feature-tooltip-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-12px);
 }
 
 .upgrade-plan-features li:last-child {

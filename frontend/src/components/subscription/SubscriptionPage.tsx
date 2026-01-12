@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow, Info } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
@@ -215,7 +215,8 @@ const SubscriptionPage: React.FC = () => {
       features: [
         {
           icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
-          text: `${planCredits.free} credits per month`
+          text: `${planCredits.free} credits per month`,
+          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
           icon: <FileText size={16} />,
@@ -237,7 +238,8 @@ const SubscriptionPage: React.FC = () => {
       features: [
         {
           icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
-          text: `${planCredits.pro} credits per month`
+          text: `${planCredits.pro} credits per month`,
+          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
           icon: <FileText size={16} />,
@@ -267,7 +269,8 @@ const SubscriptionPage: React.FC = () => {
       features: [
         {
           icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
-          text: `${planCredits.ultra} credits per month`
+          text: `${planCredits.ultra} credits per month`,
+          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
           icon: <Layers size={16} />,
@@ -807,7 +810,17 @@ const SubscriptionPage: React.FC = () => {
                 {plan.features.map((feature, index) => (
                   <li key={index}>
                     {feature.icon || <Check size={16} />}
-                    <span className="feature-text">{feature.text}</span>
+                    <span className="feature-text">
+                      {feature.text}
+                      {(feature as any).tooltip && (
+                        <div className="feature-tooltip-container">
+                          <Info size={14} className="feature-info-icon" />
+                          <div className="feature-tooltip-content">
+                            {(feature as any).tooltip}
+                          </div>
+                        </div>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
