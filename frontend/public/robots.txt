@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /app
+Disallow: /library
+Disallow: /analysis
+Disallow: /admin
+Disallow: /api/
+Disallow: /mobile-upload/
+
+Sitemap: https://aimarking.ai/sitemap.xml
