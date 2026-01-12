@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow, Info } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow, Info, Award, RotateCcw, Crosshair } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
@@ -219,23 +219,19 @@ const SubscriptionPage: React.FC = () => {
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
-          icon: <FileText size={16} />,
-          text: 'Limited marking submissions'
-        },
-        {
           icon: <Database size={16} />,
           text: 'Limited marking result storage'
         },
         {
-          icon: <Check size={16} />,
+          icon: <Award size={16} />,
           text: 'Full Method Mark (M1) Awarding'
         },
         {
-          icon: <Check size={16} />,
+          icon: <RotateCcw size={16} />,
           text: 'Applied Error Carried Forward (ECF) logic'
         },
         {
-          icon: <Check size={16} />,
+          icon: <Crosshair size={16} />,
           text: 'Full Spatial AI Analysis (0.1mm Accuracy)'
         }
       ],
