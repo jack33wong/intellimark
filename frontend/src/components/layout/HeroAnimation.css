@@ -200,6 +200,10 @@
 }
 
 @media (max-width: 768px) {
+    .hero-animation-container {
+        padding: 40px 16px;
+    }
+
     .hero-main-row {
         flex-direction: column;
         text-align: center;
@@ -208,17 +212,21 @@
 
     .hero-text-side {
         align-items: center;
+        width: 100%;
     }
 
     .hero-headlines-wrapper {
         width: 100%;
         text-align: center;
+        height: 42px;
+        /* Adjusted for smaller mobile font */
     }
 
     .hero-headline {
         left: 50%;
         transform: translate(-50%, 100%);
-        font-size: 2rem;
+        font-size: 1.8rem;
+        width: 100%;
     }
 
     .hero-headline.active {
@@ -229,17 +237,29 @@
         transform: translate(-50%, -100%);
     }
 
+    .hero-static-description {
+        font-size: 1.1rem;
+        max-width: 100%;
+        padding: 0 10px;
+    }
+
     .hero-image-side {
-        width: 180px;
-        height: 180px;
+        width: 100%;
+        max-width: 340px;
+        height: 340px;
+        margin: 20px auto 0;
     }
 
     .hero-circle-bg {
-        width: 160px;
-        height: 160px;
+        width: 90vw;
+        max-width: 400px;
+        height: 90vw;
+        max-height: 400px;
     }
 
     .hero-floating-frame {
-        width: 130px;
+        width: 80vw;
+        max-width: 320px;
+        border-radius: 20px;
     }
 }
