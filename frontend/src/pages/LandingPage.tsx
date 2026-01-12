@@ -1,6 +1,15 @@
 import React, { useState, useRef, MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
+import LandingPageHeader from '../components/layout/LandingPageHeader';
+import HeroAnimation from '../components/layout/HeroAnimation';
+import TrustSignals from '../components/common/TrustSignals';
+import Testimonials from '../components/landing/Testimonials';
+import UserSegmentation from '../components/landing/UserSegmentation';
+import SupportedPapers from '../components/landing/SupportedPapers';
+import LandingFooter from '../components/layout/LandingFooter';
+import SeoHeader from '../components/common/SeoHeader';
+import './LandingPage.css';
 
 const ImageMagnifier = ({
     src,
@@ -82,15 +91,6 @@ const ImageMagnifier = ({
         </div>
     );
 };
-import LandingPageHeader from '../components/layout/LandingPageHeader';
-import HeroAnimation from '../components/layout/HeroAnimation';
-import TrustSignals from '../components/common/TrustSignals';
-import Testimonials from '../components/landing/Testimonials';
-import UserSegmentation from '../components/landing/UserSegmentation';
-import SupportedPapers from '../components/landing/SupportedPapers';
-import LandingFooter from '../components/layout/LandingFooter';
-import SeoHeader from '../components/common/SeoHeader';
-import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
