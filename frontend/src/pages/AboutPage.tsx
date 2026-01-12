@@ -27,7 +27,7 @@ const AboutPage: React.FC = () => {
                             We believe that every student deserves immediate, expert-level feedback. Not hours later, and not just a final grade.
                         </p>
                         <p>
-                            AI Marking was built to bridge the gap between human expertise and machine precision, giving everyone the tools to leverage their academic potential.
+                            AI Marking was built to bridge the gap between human expertise and machine precision, using Spatial Handwriting Intelligence to give everyone the tools to leverage their academic potential.
                         </p>
                     </div>
                 </section>
