@@ -2,37 +2,37 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- Core Pages -->
   <url>
-    <loc>https://aimarking.ai/</loc>
+    <loc>https://www.aimarking.ai/</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/features</loc>
+    <loc>https://www.aimarking.ai/features</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/upgrade</loc>
+    <loc>https://www.aimarking.ai/upgrade</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/about</loc>
+    <loc>https://www.aimarking.ai/about</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/accuracy</loc>
+    <loc>https://www.aimarking.ai/accuracy</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/compare/vs-chatgpt</loc>
+    <loc>https://www.aimarking.ai/compare/vs-chatgpt</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -40,19 +40,19 @@
 
   <!-- Programmatic SEO Landing Pages -->
   <url>
-    <loc>https://aimarking.ai/mark-edexcel-gcse-maths-past-papers</loc>
+    <loc>https://www.aimarking.ai/mark-edexcel-gcse-maths-past-papers</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/mark-aqa-gcse-maths-past-papers</loc>
+    <loc>https://www.aimarking.ai/mark-aqa-gcse-maths-past-papers</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/mark-ocr-gcse-maths-past-papers</loc>
+    <loc>https://www.aimarking.ai/mark-ocr-gcse-maths-past-papers</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -60,19 +60,19 @@
 
   <!-- Legal & Login -->
   <url>
-    <loc>https://aimarking.ai/login</loc>
+    <loc>https://www.aimarking.ai/login</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/privacy</loc>
+    <loc>https://www.aimarking.ai/privacy</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://aimarking.ai/terms</loc>
+    <loc>https://www.aimarking.ai/terms</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

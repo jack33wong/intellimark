@@ -6,4 +6,4 @@ Disallow: /admin
 Disallow: /api/
 Disallow: /mobile-upload/
 
-Sitemap: https://aimarking.ai/sitemap.xml
+Sitemap: https://www.aimarking.ai/sitemap.xml
