@@ -16,7 +16,7 @@ const CompareChatGPTPage: React.FC = () => {
 
             <main className="compare-container">
                 <section className="compare-hero">
-                    <h1 className="features-h1">Is AI Marking better than ChatGPT?</h1>
+                    <h1 className="features-h1">Why ChatGPT Fails at GCSE Maths (And Why Spatial AI Wins)</h1>
                     <p>
                         ChatGPT is a brilliant conversationalist. AI Marking is a professional exam marker.
                         Understand the difference between general AI and specialized assessment technology.
@@ -90,8 +90,8 @@ const CompareChatGPTPage: React.FC = () => {
                             <tbody>
                                 <tr>
                                     <td>Handwritten Math Recognition</td>
-                                    <td className="cross-col">Limited / Prone to errors</td>
-                                    <td className="check-col">100% precision (Mathpix OCR)</td>
+                                    <td className="cross-col">0.1mm Blind</td>
+                                    <td className="check-col">100% (0.1mm Precision)</td>
                                 </tr>
                                 <tr>
                                     <td>Official Exam Board Logic</td>
@@ -100,8 +100,8 @@ const CompareChatGPTPage: React.FC = () => {
                                 </tr>
                                 <tr>
                                     <td>Step-by-step mark extraction</td>
-                                    <td className="cross-col">Inconsistent</td>
-                                    <td className="check-col">Calculated per sub-question</td>
+                                    <td className="cross-col">Logic Hallucination</td>
+                                    <td className="check-col">99.2% Logic Match</td>
                                 </tr>
                                 <tr>
                                     <td>Feedback Depth</td>
