@@ -225,6 +225,18 @@ const SubscriptionPage: React.FC = () => {
         {
           icon: <Database size={16} />,
           text: 'Limited marking result storage'
+        },
+        {
+          icon: <Check size={16} />,
+          text: 'Full Method Mark (M1) Awarding'
+        },
+        {
+          icon: <Check size={16} />,
+          text: 'Applied Error Carried Forward (ECF) logic'
+        },
+        {
+          icon: <Check size={16} />,
+          text: 'Full Spatial AI Analysis (0.1mm Accuracy)'
         }
       ],
       popular: false
@@ -240,6 +252,10 @@ const SubscriptionPage: React.FC = () => {
           icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
           text: `${planCredits.pro} credits per month`,
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
+        },
+        {
+          icon: <Zap size={16} />,
+          text: 'All Free Features Included'
         },
         {
           icon: <FileText size={16} />,
