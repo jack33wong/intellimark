@@ -253,7 +253,7 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <Workflow size={16} />,
-          text: 'AI Model selection (Gemini, OpenAI)'
+          text: 'Examiner-Tuned Marking (OpenAI/Gemini)'
         }
       ],
       popular: true
