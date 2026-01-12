@@ -36,7 +36,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Product</div>
                     <div className="about-manifesto">
                         <p>
-                            Traditional AI thinks. Our AI marks.
+                            Traditional AI transcribes. Our Spatial AI maps your journey.
                         </p>
                         <p>
                             By training our neural networks specifically on mathematical notations and messy human handwriting, we've created a tool that understands the "why" behind every step, not just the "what".
