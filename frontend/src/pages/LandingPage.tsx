@@ -125,7 +125,7 @@ const LandingPage: React.FC = () => {
 
             <section className="landing-section landing-section-hero">
                 <div className="landing-hero-content">
-                    <h1 className="hero-main-title">Pixel-Perfect AI Marking for GCSE Maths Past Papers</h1>
+                    <h1 className="hero-main-title">Spatial AI Marking for Handwritten GCSE Maths</h1>
                     <p className="hero-main-subtitle">
                         Stop guessing your grade. Our spatial AI reads your handwriting, analyzes your multi-step logic, and annotates your work exactly like a Senior Examiner—with 99.2% accuracy.
                     </p>
