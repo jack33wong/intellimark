@@ -254,10 +254,6 @@ const SubscriptionPage: React.FC = () => {
           text: 'All Free Features Included'
         },
         {
-          icon: <FileText size={16} />,
-          text: 'Extended marking submissions'
-        },
-        {
           icon: <Database size={16} />,
           text: 'Extended marking result storage'
         },
