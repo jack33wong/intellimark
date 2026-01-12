@@ -9,7 +9,7 @@ const AboutPage: React.FC = () => {
     }, []);
 
     return (
-        <div className="about-page-wrapper">
+        <div className="about-page-wrapper light-mode-forced">
             <LandingPageHeader />
 
             <main className="about-content-container">

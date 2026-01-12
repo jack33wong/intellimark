@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
 
 .about-page-wrapper {
-    background-color: var(--background-white-main);
+    background-color: #fcfcfc;
     min-height: 100vh;
     width: 100%;
     overflow-x: hidden;
@@ -78,7 +78,7 @@
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--text-tertiary);
+    color: #8c8c87;
     margin-top: 12px;
 }
 
@@ -86,7 +86,7 @@
     font-family: 'Inter', sans-serif;
     font-size: 1.15rem;
     line-height: 1.7;
-    color: var(--text-secondary);
+    color: #5e5e5b;
     font-weight: 400;
 }
 
@@ -101,7 +101,7 @@
 .about-signature {
     margin-top: 60px;
     font-size: 1.15rem;
-    color: var(--text-primary);
+    color: #1a1a19;
     font-weight: 600;
 }
 
@@ -165,7 +165,7 @@
 .trust-anchor-footer {
     text-align: center;
     padding: 40px 20px;
-    border-top: 1px solid var(--border-main);
+    border-top: 1px solid #eeeeed;
     margin-top: 60px;
 }
 
@@ -174,7 +174,7 @@
     justify-content: center;
     gap: 30px;
     align-items: center;
-    color: var(--text-tertiary);
+    color: #8c8c87;
     font-size: 0.9rem;
     flex-wrap: wrap;
 }
