@@ -354,6 +354,27 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     fileInputRef.current?.click();
   }, []);
 
+  const handleOpenCameraHandoff = useCallback(async () => {
+    let sessionId = mobileSessionId;
+    if (!sessionId) {
+      sessionId = mobileUploadService.generateSessionId();
+      setMobileSessionId(sessionId);
+      try {
+        await mobileUploadService.createSession(sessionId);
+      } catch (err) {
+        console.error('Failed to create session:', err);
+      }
+    }
+
+    // Clean Handoff and redirect
+    setShowHandoff(false);
+    // Clean URL
+    window.history.replaceState({}, '', '/app');
+
+    // Redirect to mobile camera page
+    window.location.href = `/mobile-upload/${sessionId}`;
+  }, [mobileSessionId]);
+
   // Handle Action deep links (from Landing Page) via FileHandoff Bridge
   useEffect(() => {
     if (mode !== 'first-time') return;
@@ -361,8 +382,20 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const params = new URLSearchParams(location.search);
     const action = params.get('action');
 
-    if (action === 'scan' || action === 'select' || action === 'upload') {
+    if (action === 'select' || action === 'upload') {
       setShowHandoff(true);
+    } else if (action === 'scan') {
+      // Direct detection of mobile to skip bridge on desktop
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        setShowHandoff(true);
+      } else {
+        // Desktop: Show QR code modal immediately
+        setIsMobileUploadOpen(true);
+        // Clean URL to prevent re-opening on refresh
+        window.history.replaceState({}, '', '/app');
+      }
     }
   }, [location.search, mode]);
 
@@ -797,6 +830,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         <FileHandoff
           onFilesSelected={(files) => processFiles(files)}
           onClose={() => setShowHandoff(false)}
+          onOpenCamera={handleOpenCameraHandoff}
         />
       )}
 

@@ -5,9 +5,10 @@ import './FileHandoff.css';
 interface FileHandoffProps {
     onFilesSelected: (files: File[]) => void;
     onClose: () => void;
+    onOpenCamera?: () => void;
 }
 
-export const FileHandoff: React.FC<FileHandoffProps> = ({ onFilesSelected, onClose }) => {
+export const FileHandoff: React.FC<FileHandoffProps> = ({ onFilesSelected, onClose, onOpenCamera }) => {
     const [handoffType, setHandoffType] = useState<'upload' | 'scan' | null>(null);
 
     useEffect(() => {
@@ -35,6 +36,13 @@ export const FileHandoff: React.FC<FileHandoffProps> = ({ onFilesSelected, onClo
         }
     };
 
+    const handleTriggerClick = (e: React.MouseEvent) => {
+        if (handoffType === 'scan' && onOpenCamera) {
+            e.preventDefault();
+            onOpenCamera();
+        }
+    };
+
     return (
         <div className="handoff-overlay">
             <div className="handoff-card animate-handoff">
@@ -53,16 +61,18 @@ export const FileHandoff: React.FC<FileHandoffProps> = ({ onFilesSelected, onClo
                     Click below to provide your {handoffType === 'upload' ? 'PDF/JPG paper' : 'handwritten work'}.
                 </p>
 
-                <label className="handoff-trigger-button">
+                <label className="handoff-trigger-button" onClick={handleTriggerClick}>
                     {handoffType === 'upload' ? 'Open File Explorer' : 'Open Camera'}
-                    <input
-                        type="file"
-                        className="hidden-input"
-                        accept={handoffType === 'upload' ? ".pdf,.jpg,.jpeg,.png,image/*" : "image/*"}
-                        capture={handoffType === 'scan' ? "environment" : undefined}
-                        multiple={handoffType === 'upload'}
-                        onChange={handleFileChange}
-                    />
+                    {!(handoffType === 'scan' && onOpenCamera) && (
+                        <input
+                            type="file"
+                            className="hidden-input"
+                            accept={handoffType === 'upload' ? ".pdf,.jpg,.jpeg,.png,image/*" : "image/*"}
+                            capture={handoffType === 'scan' ? "environment" : undefined}
+                            multiple={handoffType === 'upload'}
+                            onChange={handleFileChange}
+                        />
+                    )}
                 </label>
 
                 <button
