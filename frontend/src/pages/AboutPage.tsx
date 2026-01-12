@@ -16,7 +16,7 @@ const AboutPage: React.FC = () => {
                 <section className="about-hero">
                     <h1 className="features-h1">About Us</h1>
                     <div className="about-hero-image-container">
-                        <img src="/images/about/hero_v6.png" alt="AI Marking Logo with circuit connections illustration" />
+                        <img src="/images/about/hero_v7.png" alt="Spatial AI marking illustration with paper connections" />
                     </div>
                 </section>
 
