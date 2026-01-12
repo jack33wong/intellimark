@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import CreditIcon from '../common/CreditIcon';
@@ -15,7 +15,8 @@ import {
   Coins,
   BarChart3,
   AlertCircle,
-  LayoutDashboard
+  LayoutDashboard,
+  Menu
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
@@ -283,6 +284,20 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   return (
     <header className="header">
       <div className="header-content">
+        {/* Left - Menu Toggle (Mobile) */}
+        <div className="header-left">
+          <button
+            className="menu-toggle"
+            onClick={onMenuToggle}
+            aria-label="Toggle menu"
+          >
+            <Menu size={20} />
+          </button>
+          <Link to="/" className="header-logo">
+            <img src="/images/logo.png" alt="AI Marking" className="header-logo-img" />
+            <span className="header-logo-text">AI Marking</span>
+          </Link>
+        </div>
 
         {/* Center - Navigation */}
         {/* Center - Navigation - Removed Admin link from here */}

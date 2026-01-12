@@ -20,8 +20,55 @@
   width: 100%;
 }
 
-/* 👇 FIX: Add this rule to hide the central navigation when in chat mode. */
-.chat-mode .header {
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 36px;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-toggle:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: #111827;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  font-family: 'Inter', sans-serif;
+  flex-shrink: 0;
+}
+
+.header-logo-img {
+  height: 28px;
+  width: auto;
+}
+
+.header-logo-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* 👇 FIX: Hide only the central navigation when in chat mode, keeping the header itself visible for menu/profile. */
+.chat-mode .header-nav {
   display: none;
 }
 
@@ -689,7 +736,11 @@
   }
 
   .menu-toggle {
-    display: block;
+    display: flex;
+  }
+
+  .header-logo-text {
+    display: none;
   }
 
   .action-buttons {
