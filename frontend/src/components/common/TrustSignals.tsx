@@ -10,7 +10,7 @@ const TrustSignals: React.FC = () => {
                         <span className="performance-badge">2026 Examiner Benchmark Report</span>
                     </div>
 
-                    <h2 className="success-title center">Certified Marking Performance</h2>
+                    <h2 className="success-title center">Validated Marking Performance</h2>
 
                     <div className="benchmark-table-wrapper">
                         <table className="benchmark-table">
