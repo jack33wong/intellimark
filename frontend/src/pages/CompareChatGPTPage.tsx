@@ -85,8 +85,8 @@ const CompareChatGPTPage: React.FC = () => {
                         </div>
                         <div className="compare-feature-visual">
                             <img
-                                src="/images/spatial_mapping_v3.png"
-                                alt="HCF Marking Screenshot"
+                                src="/images/compare/circle_proof_v1.png"
+                                alt="Circle Proof Spatial Marking Screenshot"
                                 style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#fcfcfc', padding: '12px' }}
                             />
                         </div>
