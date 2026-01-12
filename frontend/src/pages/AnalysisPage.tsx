@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { Search, Filter, Loader2, Menu } from 'lucide-react';
 import SEO from '../components/common/SEO';
 import {
   AnalysisReport,
@@ -62,7 +63,11 @@ interface PaperCodeStat {
   averageGrade: string;
 }
 
-const AnalysisPage: React.FC = () => {
+interface AnalysisPageProps {
+  setSidebarOpen?: (open: boolean) => void;
+}
+
+const AnalysisPage: React.FC<AnalysisPageProps> = ({ setSidebarOpen }) => {
   const { user, getAuthToken } = useAuth();
 
   // Level 1: Qualification
@@ -490,7 +495,18 @@ const AnalysisPage: React.FC = () => {
       <div className="analysis-max-container">
         <div className="analysis-page-header">
           <div className="header-titles">
-            <h1>Performance Analysis</h1>
+            <div className="analysis-title-row">
+              {setSidebarOpen && (
+                <button
+                  className="mobile-sidebar-toggle"
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open sidebar"
+                >
+                  <Menu size={20} />
+                </button>
+              )}
+              <h1>Performance Analysis</h1>
+            </div>
           </div>
         </div>
 

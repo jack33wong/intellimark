@@ -288,9 +288,19 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 /* Mobile responsive - when sidebar is collapsed */
 @media (max-width: 768px) {
   .follow-up-chat-input-container.follow-up-bottom {
-    left: 50%;
+    left: 0;
     width: 100vw;
     /* Full width on mobile */
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Handle iPhone home bar */
+  }
+
+  .follow-up-chat-input-container.follow-up-bottom .followup-chat-input-bar {
+    width: 95% !important;
+    /* Wider on mobile */
+    margin-bottom: 10px !important;
+    /* Slightly less margin */
   }
 }
 
@@ -1449,8 +1459,45 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 }
 
 /* Mobile responsive */
+
+/* Mobile responsive adjustments for Split Mode and Chat */
 @media (max-width: 768px) {
   .landing-intro-image {
     width: 95%;
+  }
+
+  /* Full Screen Image Mode on Mobile */
+  .split-view-container {
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+  }
+
+  .split-chat-panel {
+    display: none;
+    /* Hide chat when in split/image mode */
+  }
+
+  .split-canvas-panel {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    border: none;
+    z-index: 1000;
+    /* Ensure on top */
+  }
+
+  /* Chat Container Width Fix */
+  .chat-messages {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .chat-header {
+    width: 100% !important;
+    padding: 0 16px !important;
   }
 }

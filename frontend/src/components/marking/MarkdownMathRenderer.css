@@ -29,11 +29,33 @@ ul {
 }
 
 /* --- List Styling --- */
+/* --- List Styling --- */
 .markdown-math-renderer .markdown-ol,
 .markdown-math-renderer ul {
   list-style-position: outside;
   padding-left: 1.5em;
 }
+
+/* Mobile: Reduce indentation */
+@media (max-width: 768px) {
+
+  .markdown-math-renderer h3~.markdown-p,
+  .markdown-math-renderer h3~.markdown-ol,
+  .markdown-math-renderer h3~ul {
+    margin-left: 0.5em !important;
+  }
+
+  .markdown-math-renderer .markdown-ol,
+  .markdown-math-renderer ul {
+    padding-left: 1em !important;
+  }
+
+  .markdown-math-renderer {
+    padding: 0 16px;
+    /* slightly reduce container padding too */
+  }
+}
+
 
 /* --- Math and Variable Styling --- */
 

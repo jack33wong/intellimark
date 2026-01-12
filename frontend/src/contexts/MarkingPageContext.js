@@ -711,7 +711,9 @@ export const MarkingPageProvider = ({
     isContextFilterActive, setContextFilterActive,
     visibleTableIds: state.visibleTableIds,
     isNegative,
+    isNegative,
     setShowCreditsModal,
+    setSidebarOpen,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
@@ -723,8 +725,10 @@ export const MarkingPageProvider = ({
     isContextFilterActive, setContextFilterActive,
     state.visibleTableIds,
     isNegative,
-    setShowCreditsModal
+    setShowCreditsModal,
+    setSidebarOpen
   ]);
+
 
   return (
     <MarkingPageContext.Provider value={value}>

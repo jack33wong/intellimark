@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Star, Grid } from 'lucide-react';
+import { Search, Star, Grid, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
@@ -34,6 +34,10 @@ export interface LibraryItem {
   };
 }
 
+interface LibraryPageProps {
+  setSidebarOpen?: (open: boolean) => void;
+}
+
 interface GroupedLibrary {
   [examBoard: string]: {
     [subject: string]: {
@@ -42,7 +46,7 @@ interface GroupedLibrary {
   };
 }
 
-const LibraryPage: React.FC = () => {
+const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
   const navigate = useNavigate();
   const { user, getAuthToken } = useAuth();
   const [sessions, setSessions] = useState<UnifiedSession[]>([]);
@@ -279,7 +283,18 @@ const LibraryPage: React.FC = () => {
       />
       {/* Header */}
       <div className="library-header">
-        <h1 className="library-title">Library</h1>
+        <div className="library-title-row">
+          {setSidebarOpen && (
+            <button
+              className="mobile-sidebar-toggle"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
+            >
+              <Menu size={20} />
+            </button>
+          )}
+          <h1 className="library-title">Library</h1>
+        </div>
 
         <div className="library-controls">
           {/* Filter controls */}

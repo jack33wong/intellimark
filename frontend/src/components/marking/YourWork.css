@@ -30,14 +30,21 @@
     letter-spacing: 0.5px;
 }
 
-/* Grid Layout*/
+/* Grid Layout -> Row Layout */
 .your-work-grid-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* Tight vertical spacing */
+}
+
+.your-work-row {
     display: grid;
     /* Columns: QNum (2ch), Sublabel (4ch), Bullet (min), Work (auto), Annotation (auto) */
     grid-template-columns: 2ch 4ch min-content auto auto;
     column-gap: 8px;
-    row-gap: 8px;
-    align-items: center;
+    align-items: baseline;
+    width: 100%;
 }
 
 /* 1. Question Number (e.g. 2) */
@@ -106,12 +113,95 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
-    .your-work-grid-container {
-        display: block;
+    .your-work-section {
+        padding: 10px;
+        /* Reduced padding */
     }
 
     .your-work-grid-container {
-        column-gap: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    /* Force exact single line that scrolls horizontally */
+    .your-work-grid-container {
+        /* Ensure the container grows to fit long rows so sticky scroll works */
+        width: 100%;
+        overflow-x: unset;
+        /* Let parent handle scroll or handle here */
+    }
+
+    .your-work-row {
+        display: flex;
+        /* Back to flex */
+        flex-direction: row;
+        flex-wrap: nowrap;
+        /* NO WRAPPING */
+        align-items: center;
+        width: max-content;
+        /* Grow as needed */
+        min-width: 100%;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 4px;
+        margin-bottom: 4px;
+    }
+
+    .your-work-row:last-child {
+        border-bottom: none;
+    }
+
+    /* Reset inline styles */
+    .yw-col-qnum,
+    .yw-col-sublabel,
+    .yw-col-bullet,
+    .yw-col-work,
+    .yw-col-annotation {
+        display: block;
+        /* Back to block/flex-item */
+        width: auto;
+        flex-shrink: 0;
+        /* Never shrink, force scroll */
+        white-space: nowrap;
+    }
+
+    .yw-col-qnum {
+        font-size: 13px;
+        margin-right: 4px;
+    }
+
+    .yw-col-sublabel {
+        font-size: 13px;
+        margin-right: 2px;
+    }
+
+    .yw-col-bullet {
+        font-size: 10px;
+        margin: 0 4px;
+    }
+
+    /* Work */
+    .yw-col-work {
+        font-size: 13px;
+        margin-right: 8px;
+        padding-right: 0;
+        font-style: italic;
+        /* Restore italics */
+    }
+
+    .yw-col-annotation {
+        font-size: 12px;
+        margin-left: auto;
+        /* Push slightly if space, but usually tight */
+    }
+
+    /* Hide empty placeholders on mobile to save space */
+    .yw-col-qnum:empty,
+    .yw-col-sublabel:empty,
+    .yw-col-bullet.empty {
+        display: none;
+        margin: 0;
+        padding: 0;
     }
 }
 
@@ -136,6 +226,28 @@
 .yw-math-renderer .katex {
     color: var(--text-onblack) !important;
     margin: 0 !important;
+}
+
+/* Mobile: Reduce indentation aggressively */
+@media (max-width: 768px) {
+
+    .markdown-math-renderer h3~.markdown-p,
+    .markdown-math-renderer h3~.markdown-ol,
+    .markdown-math-renderer h3~ul {
+        margin-left: 0 !important;
+        /* Remove margin completely */
+    }
+
+    .markdown-math-renderer .markdown-ol,
+    .markdown-math-renderer ul {
+        padding-left: 14px !important;
+        /* Minimal padding for bullets */
+        margin-left: 0 !important;
+    }
+
+    .markdown-math-renderer {
+        padding: 0 12px;
+    }
 }
 
 /* Drawing UI Styles */

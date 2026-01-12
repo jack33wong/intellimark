@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { Menu } from 'lucide-react';
 import './css/SessionManagement.css';
 
 const SessionHeader: React.FC = () => {
@@ -22,6 +23,7 @@ const SessionHeader: React.FC = () => {
     onToggleInfoDropdown,
     currentSession,
     isProcessing,
+    setSidebarOpen,
   } = useMarkingPage();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -314,6 +316,15 @@ const SessionHeader: React.FC = () => {
   return (
     <div className="session-header">
       <div className="session-title-section">
+        {setSidebarOpen && (
+          <button
+            className="mobile-sidebar-toggle"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open sidebar"
+          >
+            <Menu size={20} />
+          </button>
+        )}
         <h1 className="session-title">
           {renderFormattedTitle()}
         </h1>

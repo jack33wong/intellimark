@@ -47,6 +47,31 @@ html.dark {
   padding-bottom: 8px;
 }
 
+.analysis-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-sidebar-toggle {
+  display: none;
+  /* Hidden on desktop */
+  background: none;
+  border: none;
+  padding: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  margin-left: -8px;
+  /* Negative margin to align with edge */
+}
+
+.mobile-sidebar-toggle:hover {
+  background-color: var(--background-menu-gray);
+  /* Match hover as Library Page */
+  color: var(--text-primary);
+}
+
 .header-titles h1 {
   font-size: 22px;
   /* Smaller title */
@@ -202,5 +227,18 @@ html.dark {
 
   .header-titles h1 {
     font-size: 24px;
+    margin-bottom: 4px;
+  }
+
+  .analysis-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .mobile-sidebar-toggle {
+    display: flex;
+    /* Visible on mobile */
   }
 }

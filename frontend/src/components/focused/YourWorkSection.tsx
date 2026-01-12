@@ -287,11 +287,14 @@ export default function YourWorkSection({ content, MarkdownMathRenderer }: YourW
             <div className="your-work-section">
                 <div className="your-work-grid-container">
                     {processedRows.map((row, i) => (
-                        <React.Fragment key={i}>
+                        <div className="your-work-row" key={i}>
                             <div className="yw-col-qnum">{row.qNum}</div>
                             <div className="yw-col-sublabel">{row.subLabel}</div>
-                            {row.showBullet && (
+                            {row.showBullet ? (
                                 <div className="yw-col-bullet">•</div>
+                            ) : (
+                                /* Spacer if no bullet, to maintain grid structure on desktop if needed, or handle via CSS */
+                                <div className="yw-col-bullet empty"></div>
                             )}
                             <WorkContent
                                 content={row.studentWork}
@@ -302,10 +305,11 @@ export default function YourWorkSection({ content, MarkdownMathRenderer }: YourW
                                 {row.annotationMarks && <span className="yw-marks">{row.annotationMarks}</span>}
                                 {row.annotationReason && <span className="yw-reason">{row.annotationReason}</span>}
                             </div>
-                        </React.Fragment>
+                        </div>
                     ))}
                 </div>
             </div>
         </div>
+
     );
 }

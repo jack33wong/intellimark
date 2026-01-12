@@ -210,7 +210,7 @@ function AppContent() {
         <Route path="/library" element={
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps} hideHeader={true}>
-              <LibraryPage />
+              <LibraryPage setSidebarOpen={setIsSidebarOpen} />
             </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
@@ -218,7 +218,7 @@ function AppContent() {
         <Route path="/analysis" element={
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps} hideHeader={true}>
-              <AnalysisPage />
+              <AnalysisPage setSidebarOpen={setIsSidebarOpen} />
             </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
