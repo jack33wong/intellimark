@@ -66,6 +66,7 @@
     font-size: 0.95rem;
     font-weight: 500;
     transition: color 0.2s ease;
+    white-space: nowrap;
     display: flex;
     align-items: center;
     height: 40px;
@@ -89,6 +90,7 @@
     justify-content: center;
     transition: transform 0.2s ease, opacity 0.2s ease;
     border: 1px solid transparent;
+    white-space: nowrap;
 }
 
 .nav-btn-black:hover {
@@ -117,21 +119,46 @@
     background-color: #f8f8f7;
 }
 
-@media (max-width: 600px) {
-    .landing-header-nav {
-        gap: 16px;
+@media (max-width: 850px) {
+    .landing-header-container {
+        padding: 0 16px;
     }
 
+    .landing-header-center {
+        display: none;
+    }
+
+    .landing-header-right {
+        gap: 12px;
+    }
+
+    .nav-link {
+        font-size: 0.9rem;
+    }
+
+    .logo-text {
+        font-size: 1.1rem;
+    }
+
+    .nav-btn-black,
+    .nav-btn-outline {
+        padding: 0 16px;
+        height: 36px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
     .logo-text {
         display: none;
     }
 
-    .nav-link {
-        font-size: 0.85rem;
+    .landing-header-right .nav-link {
+        display: none;
     }
 
-    .nav-btn-primary {
-        padding: 8px 16px;
-        font-size: 0.85rem;
+    .landing-header-right {
+        flex: initial;
+        gap: 8px;
     }
 }

@@ -139,6 +139,28 @@
     }
 }
 
+@media (max-width: 480px) {
+    .about-content-container {
+        padding: 60px 16px 80px;
+    }
+
+    .about-hero h1 {
+        font-size: 2.2rem;
+    }
+
+    .about-label {
+        font-size: 0.75rem;
+    }
+
+    .about-manifesto {
+        font-size: 1rem;
+    }
+
+    .trust-anchor-content {
+        gap: 16px;
+    }
+}
+
 .trust-anchor-footer {
     text-align: center;
     padding: 40px 20px;
