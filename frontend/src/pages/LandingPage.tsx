@@ -74,8 +74,11 @@ const LandingPage: React.FC = () => {
                         </p>
                     </div>
                     <div className="spatial-visual">
-                        <div className="mapping-demo">
-                            <img src="/images/spatial_mapping_demo.jpg" alt="Spatial Mapping Illustration" />
+                        <div className="mapping-demo-container">
+                            <div className="mapping-demo-zoom-wrapper">
+                                <img src="/images/spatial_mapping_demo.jpg" alt="Spatial Mapping Illustration" />
+                            </div>
+                            <p className="mapping-caption">Actual AI marking sample: Identifying Method Marks (M1) and identifying specific prime factorisation errors.</p>
                         </div>
                     </div>
                 </div>

@@ -171,11 +171,38 @@
     flex: 1.2;
 }
 
-.mapping-demo img {
+.mapping-demo-container {
     width: 100%;
-    height: auto;
+}
+
+.mapping-demo-zoom-wrapper {
+    position: relative;
+    overflow: hidden;
     border-radius: 32px;
     box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.1);
+    background: #f8f8f7;
+}
+
+.mapping-demo-zoom-wrapper img {
+    width: 100%;
+    height: auto;
+    display: block;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: zoom-in;
+}
+
+.mapping-demo-zoom-wrapper:hover img {
+    transform: scale(1.15);
+}
+
+.mapping-caption {
+    margin-top: 16px;
+    font-size: 0.9rem;
+    color: var(--text-tertiary);
+    text-align: center;
+    font-style: italic;
+    font-weight: 500;
+    line-height: 1.4;
 }
 
 @media (max-width: 900px) {
