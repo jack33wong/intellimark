@@ -745,7 +745,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   </button>
                   <button
                     className="followup-upload-button mobile-scan-btn"
-                    onClick={() => setIsMobileUploadOpen(true)}
+                    onClick={() => {
+                      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                      if (isMobile) {
+                        handleOpenCameraHandoff();
+                      } else {
+                        setIsMobileUploadOpen(true);
+                      }
+                    }}
                     disabled={isProcessing}
                     title="Scan from Mobile"
                   >
