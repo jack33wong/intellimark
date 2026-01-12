@@ -39,7 +39,7 @@ const AboutPage: React.FC = () => {
                             Traditional AI transcribes. Our Spatial AI maps your journey.
                         </p>
                         <p>
-                            By training our neural networks specifically on mathematical notations and messy human handwriting, we've created a tool that understands the "why" behind every step, not just the "what".
+                            By powering our neural networks with Mathpix Spatial OCR, we've created a tool with 0.1mm accuracy that understands the "why" behind every step, not just the "what".
                         </p>
                     </div>
                 </section>
