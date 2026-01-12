@@ -427,7 +427,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               // Also dispatch for any other listeners that might need it
               EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
             } else {
-              navigate('/upgrade');
+              navigate('/upgrade', { state: { fromApp: true } });
             }
           }}
           title={!user ? "Authentication Required" : "Upgrade Required"}

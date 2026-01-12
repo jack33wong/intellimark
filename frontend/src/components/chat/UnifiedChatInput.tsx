@@ -632,7 +632,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    navigate('/upgrade');
+                    navigate('/upgrade', { state: { fromApp: true } });
                   }}
                 >
                   Top Up
@@ -840,7 +840,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         onClose={() => setShowUpgradeModal(false)}
         onConfirm={() => {
           setShowUpgradeModal(false);
-          navigate('/upgrade');
+          navigate('/upgrade', { state: { fromApp: true } });
         }}
         title="Upgrade to Enterprise"
         message="Custom model selection is available on the Enterprise plan. Would you like to upgrade now and unlock all powerful AI models?"

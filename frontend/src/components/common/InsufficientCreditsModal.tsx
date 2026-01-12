@@ -19,7 +19,7 @@ const InsufficientCreditsModal: React.FC<InsufficientCreditsModalProps> = ({
     if (!isOpen) return null;
 
     const handleUpgrade = () => {
-        navigate('/upgrade');
+        navigate('/upgrade', { state: { fromApp: true } });
         onClose();
     };
 

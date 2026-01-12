@@ -214,7 +214,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       setIsSubscriptionDetailsClosing(false);
     } else {
       // Navigate to upgrade page for non-subscribed users
-      navigate('/upgrade');
+      navigate('/upgrade', { state: { fromApp: true } });
     }
   };
 
@@ -339,7 +339,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                         <button
                           className="upgrade-btn-small"
                           onClick={() => {
-                            navigate('/upgrade');
+                            navigate('/upgrade', { state: { fromApp: true } });
                             setIsSubscriptionDetailsOpen(false);
                           }}
                         >
@@ -498,7 +498,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             <div className="guest-header-actions">
               <button
                 className="header-nav-link"
-                onClick={() => navigate('/upgrade')}
+                onClick={() => navigate('/upgrade', { state: { fromApp: true } })}
               >
                 Pricing
               </button>

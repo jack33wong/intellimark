@@ -630,8 +630,10 @@ const SubscriptionPage: React.FC = () => {
   };
 
 
+  const isFromApp = location.state?.fromApp;
+
   return (
-    <div className="upgrade-page">
+    <div className={`upgrade-page ${!isFromApp ? 'light-mode-forced' : ''}`}>
       {/* Close Button - Top Right */}
       <button
         className="upgrade-page-close-button"
