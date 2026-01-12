@@ -273,27 +273,36 @@
 
 .upgrade-plan-features li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 10px 0;
+  padding: 12px 0;
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.5;
-  font-weight: 600;
+  font-weight: 500;
   min-width: 0;
+}
+
+.upgrade-plan-features li svg:not(.feature-info-icon) {
+  flex-shrink: 0;
+  margin-top: 3.5px;
+  color: var(--text-brand);
 }
 
 .feature-text {
   flex: 1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  text-align: left;
 }
 
 .feature-tooltip-container {
   position: relative;
   display: inline-flex;
   align-items: center;
+  vertical-align: middle;
 }
 
 .feature-info-icon {
