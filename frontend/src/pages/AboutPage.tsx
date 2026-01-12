@@ -68,13 +68,13 @@ const AboutPage: React.FC = () => {
                 <section className="about-section">
                     <div className="about-label">Our Standards</div>
                     <div className="about-manifesto">
-                        <p style={{ fontSize: '1.25rem', fontFamily: 'Inter, sans-serif' }}>
+                        <p>
                             <strong>99.2% Match:</strong> Our AI matches senior human examiners on Method Mark (M1) and Accuracy Mark (A0) awarding.
                         </p>
-                        <p style={{ fontSize: '1.25rem', fontFamily: 'Inter, sans-serif' }}>
+                        <p>
                             <strong>Quality Protocol:</strong> Validated against the 2026 AI Quality Protocol for secondary education.
                         </p>
-                        <p style={{ fontSize: '1.25rem', fontFamily: 'Inter, sans-serif' }}>
+                        <p>
                             <strong>Data Privacy:</strong> Fully GDPR compliant. Student papers are processed privately and never used for public model training.
                         </p>
                     </div>

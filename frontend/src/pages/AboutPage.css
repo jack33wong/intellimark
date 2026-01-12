@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
 
 .about-page-wrapper {
-    background-color: #f2f2f2;
+    background-color: #fcfcfc;
     min-height: 100vh;
     width: 100%;
     overflow-x: hidden;
@@ -83,16 +83,15 @@
 }
 
 .about-manifesto {
-    font-family: 'Instrument Serif', serif;
-    font-size: clamp(1rem, 4vw, 2rem);
-    line-height: 1.15;
-    color: #1a1a19;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: #5e5e5b;
     font-weight: 400;
-    letter-spacing: -0.01em;
 }
 
 .about-manifesto p {
-    margin-bottom: 40px;
+    margin-bottom: 24px;
 }
 
 .about-manifesto p:last-child {
@@ -100,11 +99,10 @@
 }
 
 .about-signature {
-    margin-top: 80px;
-    font-family: 'Instrument Serif', serif;
-    font-size: 2rem;
+    margin-top: 60px;
+    font-size: 1.15rem;
     color: #1a1a19;
-    font-style: italic;
+    font-weight: 600;
 }
 
 /* Responsive */
@@ -134,10 +132,10 @@
     }
 
     .about-hero h1 {
-        font-size: 4rem;
+        font-size: 3rem;
     }
 
     .about-manifesto {
-        font-size: 2.25rem;
+        font-size: 1.1rem;
     }
 }
