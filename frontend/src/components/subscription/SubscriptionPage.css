@@ -266,14 +266,16 @@
 .upgrade-plan-features {
   list-style: none;
   padding: 0;
-  margin: 0 0 32px 0;
+  margin: 32px 10px;
   text-align: left;
   flex-grow: 1;
+  width: calc(100% - 20px);
 }
 
 .upgrade-plan-features li {
   display: flex;
   align-items: flex-start;
+  justify-content: flex-start;
   gap: 12px;
   padding: 12px 0;
   color: var(--text-primary);
@@ -281,6 +283,7 @@
   line-height: 1.5;
   font-weight: 500;
   min-width: 0;
+  width: 100%;
 }
 
 .upgrade-plan-features li svg:not(.feature-info-icon) {
