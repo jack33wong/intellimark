@@ -39,7 +39,7 @@ const AboutPage: React.FC = () => {
                             Traditional AI transcribes. Our Spatial AI maps your journey.
                         </p>
                         <p>
-                            By training our Spatial AI on 0.1mm coordinate data, we've created a tool that understands the "why" behind every step, not just the "what".
+                            By training our Spatial AI with 0.1mm accuracy, we've created a tool that understands the "why" behind every step, not just the "what".
                         </p>
                     </div>
                 </section>
