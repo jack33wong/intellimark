@@ -9,7 +9,7 @@ const AboutPage: React.FC = () => {
     }, []);
 
     return (
-        <div className="about-page-wrapper light-mode-forced">
+        <div className="about-page-wrapper">
             <LandingPageHeader />
 
             <main className="about-content-container">
@@ -39,7 +39,7 @@ const AboutPage: React.FC = () => {
                             Traditional AI transcribes. Our Spatial AI maps your journey.
                         </p>
                         <p>
-                            By powering our neural networks with Mathpix Spatial OCR, we've created a tool with 0.1mm accuracy that understands the "why" behind every step, not just the "what".
+                            By training our Spatial AI on 0.1mm coordinate data, we've created a tool that understands the "why" behind every step, not just the "what".
                         </p>
                     </div>
                 </section>
@@ -79,6 +79,10 @@ const AboutPage: React.FC = () => {
                         </p>
                     </div>
                 </section>
+
+                <div className="about-safety-anchor">
+                    Fully GDPR Compliant. Validated against the 2026 AI Quality Protocol for secondary mathematics assessment.
+                </div>
             </main>
 
             <LandingFooter />
