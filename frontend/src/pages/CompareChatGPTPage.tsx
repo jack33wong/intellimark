@@ -87,7 +87,7 @@ const CompareChatGPTPage: React.FC = () => {
                             <img
                                 src="/images/spatial_mapping_v3.png"
                                 alt="HCF Marking Screenshot"
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#fcfcfc', padding: '24px' }}
                             />
                         </div>
                     </div>
@@ -105,7 +105,7 @@ const CompareChatGPTPage: React.FC = () => {
                             <img
                                 src="/images/compare/validated_marking_table.png"
                                 alt="Validated Marking Performance Table"
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#fcfcfc', padding: '24px' }}
                             />
                         </div>
                     </div>
