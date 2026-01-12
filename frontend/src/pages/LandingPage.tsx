@@ -158,7 +158,7 @@ const LandingPage: React.FC = () => {
                         <div className="mapping-demo-container">
                             <div className="mapping-demo-zoom-wrapper">
                                 <ImageMagnifier
-                                    src="/images/spatial_mapping_v2.png"
+                                    src="/images/spatial_mapping_v3.png"
                                     width="100%"
                                 />
                             </div>
