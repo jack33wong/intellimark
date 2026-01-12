@@ -297,6 +297,7 @@
 .upgrade-plan-features li svg {
   color: var(--function-success);
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .upgrade-header {
@@ -401,47 +402,48 @@
   padding: 0;
 }
 
+/* Card Overhaul */
 .upgrade-plan-card {
   max-width: 100%;
   min-width: 0;
   margin: 0;
-  background: var(--background-card);
+  background: var(--background-white-main);
   border: 1px solid var(--border-main);
-  border-radius: 16px;
-  padding: 24px 16px;
+  border-radius: 20px;
+  padding: 32px 24px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  box-shadow: var(--shadow-S);
+  box-shadow: 0 4px 12px var(--shadow-XS);
 }
 
 .upgrade-plan-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-M);
-  border-color: var(--border-hover);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px var(--shadow-S);
+  border-color: var(--text-brand);
 }
 
 /* Popular/Featured Card Style */
 .upgrade-plan-card.popular {
-  background: var(--background-card);
   border-color: var(--text-brand);
-  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15);
-  /* Subtle purple shadow */
+  border-width: 2px;
+  background: var(--background-white-main);
 }
 
 /* Buttons */
+/* Specific button styles */
 .upgrade-plan-subscribe-button {
   width: 100%;
-  background: var(--icon-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-main);
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 14px;
+  background: var(--text-primary);
+  color: var(--background-white-main);
+  border: 1px solid transparent;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -450,37 +452,38 @@
 }
 
 .upgrade-plan-subscribe-button:hover {
-  background: var(--fill-tsp-white-dark);
-  border-color: var(--border-btn-main);
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
-/* Special Button for Popular/Pro Plans */
+.upgrade-plan-subscribe-button.downgrade {
+  background: transparent;
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
+}
 
+.upgrade-plan-subscribe-button.downgrade:hover {
+  background: var(--background-gray-main);
+  border-color: var(--text-secondary);
+}
 
-/* Current Plan Glowing Effect - Always On */
+.upgrade-plan-subscribe-button.current {
+  background: var(--background-gray-main);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-main);
+  cursor: default;
+}
+
+.upgrade-plan-subscribe-button.current:hover {
+  filter: none;
+  transform: none;
+}
+
+/* Current Plan Border & Style */
 .upgrade-plan-card.current-plan {
-  position: relative;
-  border: 2px solid transparent;
-  border-radius: 16px;
-  background: var(--background-card);
-  background-clip: padding-box;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5),
-    0 0 40px rgba(255, 165, 0, 0.3);
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
-.upgrade-plan-card.current-plan::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 16px;
-  padding: 2px;
-  background: linear-gradient(135deg, #FFD700, #FFA500, #FF6B6B, #9B59B6, #3498DB, #2ECC71, #FFD700);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  z-index: -1;
-  pointer-events: none;
+  border: 2px solid var(--text-brand) !important;
+  background: var(--background-white-main);
+  box-shadow: 0 0 0 4px var(--fill-brand);
 }
 
 /* Glowing animation */
@@ -514,27 +517,29 @@
 }
 
 .upgrade-info {
-  background: var(--background-success);
+  background: var(--function-success-tsp);
   color: var(--function-success);
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--function-success-tsp);
   text-align: left;
+  font-weight: 500;
 }
 
 .downgrade-info {
-  background: var(--background-warning);
+  background: var(--function-warning-tsp);
   color: var(--function-warning);
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--function-warning-tsp);
   text-align: left;
+  font-weight: 500;
 }
 
 .upgrade-info svg,

@@ -628,7 +628,7 @@ const SubscriptionPage: React.FC = () => {
 
 
   return (
-    <div className="upgrade-page light-mode-forced">
+    <div className="upgrade-page">
       {/* Close Button - Top Right */}
       <button
         className="upgrade-page-close-button"
@@ -776,9 +776,11 @@ const SubscriptionPage: React.FC = () => {
                   ? (currentSubscription?.credits?.remainingCredits ?? 100) < 5 ? 'early-renewal' : 'current'
                   : (currentSubscription?.scheduledPlanId === plan.id)
                     ? 'scheduled'
-                    : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
-                      ? 'disabled'
-                      : ''
+                    : (currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId))
+                      ? 'downgrade'
+                      : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
+                        ? 'disabled'
+                        : ''
                   }`}
               >
                 {plan.id === currentSubscription?.planId
