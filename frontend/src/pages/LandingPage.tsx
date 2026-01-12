@@ -1,6 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
+
+const ImageMagnifier = ({
+    src,
+    width,
+    height,
+    magnifierHeight = 150,
+    magnifierWidth = 150,
+    zoomLevel = 2.5
+}: {
+    src: string;
+    width?: string;
+    height?: string;
+    magnifierHeight?: number;
+    magnifierWidth?: number;
+    zoomLevel?: number;
+}) => {
+    const [showMagnifier, setShowMagnifier] = useState(false);
+    const [[x, y], setXY] = useState([0, 0]);
+    const [[imgWidth, imgHeight], setSize] = useState([0, 0]);
+
+    return (
+        <div
+            className="magnifier-container"
+            style={{
+                position: "relative",
+                height: height,
+                width: width
+            }}
+        >
+            <img
+                src={src}
+                className="magnifier-image"
+                onMouseEnter={(e) => {
+                    // Disable for touch devices
+                    if (window.matchMedia("(pointer: coarse)").matches) return;
+
+                    const elem = e.currentTarget;
+                    const { width, height } = elem.getBoundingClientRect();
+                    setSize([width, height]);
+                    setShowMagnifier(true);
+                }}
+                onMouseMove={(e) => {
+                    if (!showMagnifier) return;
+                    const elem = e.currentTarget;
+                    const { top, left } = elem.getBoundingClientRect();
+
+                    // Calculate relative position within the element
+                    const x = e.clientX - left;
+                    const y = e.clientY - top;
+                    setXY([x, y]);
+                }}
+                onMouseLeave={() => {
+                    setShowMagnifier(false);
+                }}
+                alt={"magnifier"}
+            />
+
+            <div
+                style={{
+                    display: showMagnifier ? "" : "none",
+                    position: "absolute",
+                    pointerEvents: "none",
+                    height: `${magnifierHeight}px`,
+                    width: `${magnifierWidth}px`,
+                    top: `${y - magnifierHeight / 2}px`,
+                    left: `${x - magnifierWidth / 2}px`,
+                    borderRadius: "50%",
+                    border: "3px solid #fff",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05)",
+                    backgroundColor: "white",
+                    backgroundImage: `url('${src}')`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: `${imgWidth * zoomLevel}px ${imgHeight * zoomLevel}px`,
+                    backgroundPositionX: `${-x * zoomLevel + magnifierWidth / 2}px`,
+                    backgroundPositionY: `${-y * zoomLevel + magnifierHeight / 2}px`,
+                    zIndex: 20
+                }}
+            />
+        </div>
+    );
+};
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import HeroAnimation from '../components/layout/HeroAnimation';
 import TrustSignals from '../components/common/TrustSignals';
@@ -76,7 +157,10 @@ const LandingPage: React.FC = () => {
                     <div className="spatial-visual">
                         <div className="mapping-demo-container">
                             <div className="mapping-demo-zoom-wrapper">
-                                <img src="/images/spatial_mapping_demo.jpg" alt="Spatial Mapping Illustration" />
+                                <ImageMagnifier
+                                    src="/images/spatial_mapping_demo.jpg"
+                                    width="100%"
+                                />
                             </div>
                             <p className="mapping-caption">Actual AI marking sample: Identifying Method Marks (M1) and identifying specific prime factorisation errors.</p>
                         </div>
