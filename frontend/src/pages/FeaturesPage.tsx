@@ -93,15 +93,15 @@ const FeaturesPage: React.FC = () => {
 
             <main className="features-content">
                 {features.map((f, i) => (
-                    <div key={i} className={`feature-row ${f.reversed ? 'reversed' : ''}`}>
-                        <div className="feature-text">
+                    <div key={i} className={`fp-row ${f.reversed ? 'reversed' : ''}`}>
+                        <div className="fp-text">
                             <h2 className="features-h2">{f.title}</h2>
                             <p>{f.description}</p>
                             <Link to="/app" className="feature-pill-btn">
                                 {f.linkText} <ArrowRight size={18} />
                             </Link>
                         </div>
-                        <div className="feature-image-container">
+                        <div className="fp-image-container">
                             <img src={f.image} alt={f.title} />
                         </div>
                     </div>

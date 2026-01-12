@@ -214,7 +214,7 @@ const SubscriptionPage: React.FC = () => {
       icon: <Zap size={24} />,
       features: [
         {
-          icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
+          icon: <CreditsIcon size={16} />,
           text: `${planCredits.free} credits per month`,
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
@@ -245,7 +245,7 @@ const SubscriptionPage: React.FC = () => {
       icon: <Users size={24} />,
       features: [
         {
-          icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
+          icon: <CreditsIcon size={16} />,
           text: `${planCredits.pro} credits per month`,
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
@@ -820,7 +820,7 @@ const SubscriptionPage: React.FC = () => {
                 {plan.features.map((feature, index) => (
                   <li key={index}>
                     {feature.icon || <Check size={16} />}
-                    <span className="feature-text">
+                    <span className="plan-feature-text">
                       {feature.text}
                       {(feature as any).tooltip && (
                         <div className="feature-tooltip-container">
