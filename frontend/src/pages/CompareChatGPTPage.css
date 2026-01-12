@@ -164,6 +164,67 @@
     gap: 12px;
 }
 
+/* FAQ and QR Footer */
+.compare-faq-section {
+    margin-top: 160px;
+    max-width: 800px;
+    margin-inline: auto;
+    text-align: center;
+}
+
+.faq-q-card {
+    background: #ffffff;
+    padding: 60px;
+    border-radius: 40px;
+    border: 1px solid #eeeeed;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+}
+
+.faq-q-card h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.5rem;
+    color: #1a1a19;
+    margin-bottom: 24px;
+}
+
+.faq-q-card p {
+    font-size: 1.25rem;
+    color: #5e5e5b;
+    line-height: 1.8;
+}
+
+.compare-footer-cta {
+    margin-top: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+}
+
+.qr-code-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px;
+    background: white;
+    border-radius: 32px;
+    border: 1px solid #eeeeed;
+}
+
+.qr-code-wrapper img {
+    width: 160px;
+    height: 160px;
+}
+
+.qr-caption {
+    font-size: 0.95rem;
+    color: #8c8c87;
+    max-width: 240px;
+    line-height: 1.5;
+    text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 850px) {
 

@@ -41,7 +41,7 @@ const CompareChatGPTPage: React.FC = () => {
                 <section className="compare-features">
                     <div className="compare-feature-row">
                         <div className="compare-feature-text">
-                            <h2 className="features-h2">Handwriting vs. Text</h2>
+                            <h2 className="features-h2">ChatGPT predicts the next word. aimarking.ai maps the next coordinate.</h2>
                             <p>
                                 ChatGPT struggles with the nuances of messy student handwriting and complex mathematical notation on paper.
                                 Empowered by Mathpix—the industry gold standard for mathematical OCR—AI Marking achieves 100% recognition accuracy,
@@ -50,9 +50,9 @@ const CompareChatGPTPage: React.FC = () => {
                         </div>
                         <div className="compare-feature-visual">
                             <img
-                                src="/images/compare/handwriting_vs_text_v2.png"
-                                alt="Handwriting vs Text sketch"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
+                                src="/images/spatial_mapping_v3.png"
+                                alt="HCF Marking Screenshot"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
                         </div>
                     </div>
@@ -68,9 +68,9 @@ const CompareChatGPTPage: React.FC = () => {
                         </div>
                         <div className="compare-feature-visual">
                             <img
-                                src="/images/compare/logic_vs_hallucination.jpg"
-                                alt="Deterministic marking vs AI hallucination"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
+                                src="/images/compare/validated_marking_table.png"
+                                alt="Validated Marking Performance Table"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
                         </div>
                     </div>
@@ -91,7 +91,7 @@ const CompareChatGPTPage: React.FC = () => {
                                 <tr>
                                     <td>Handwritten Math Recognition</td>
                                     <td className="cross-col">0.1mm Blind</td>
-                                    <td className="check-col">100% (0.1mm Precision)</td>
+                                    <td className="check-col">0.1mm Precision (Mathpix DCR)</td>
                                 </tr>
                                 <tr>
                                     <td>Official Exam Board Logic</td>
@@ -101,7 +101,7 @@ const CompareChatGPTPage: React.FC = () => {
                                 <tr>
                                     <td>Step-by-step mark extraction</td>
                                     <td className="cross-col">Logic Hallucination</td>
-                                    <td className="check-col">99.2% Logic Match</td>
+                                    <td className="check-col">Applied ECF Logic (99.2% Match)</td>
                                 </tr>
                                 <tr>
                                     <td>Feedback Depth</td>
@@ -134,10 +134,26 @@ const CompareChatGPTPage: React.FC = () => {
                     </div>
                 </section>
 
-                <div style={{ textAlign: 'center', marginTop: '120px' }}>
+                <section className="compare-faq-section">
+                    <div className="faq-q-card">
+                        <h3>Why is ChatGPT bad at maths?</h3>
+                        <p>
+                            ChatGPT is a language model that lacks spatial awareness. It cannot identify the X/Y coordinates of your handwriting to award Method Marks (M1) or follow Error Carried Forward (ECF) logic.
+                        </p>
+                    </div>
+                </section>
+
+                <div className="compare-footer-cta">
                     <Link to="/app" className="feature-pill-btn">
                         Try AI Marking for free <ArrowRight size={18} style={{ marginLeft: '8px' }} />
                     </Link>
+
+                    <div className="qr-code-wrapper">
+                        <img src="/images/qr-demo.png" alt="Scan to try" />
+                        <p className="qr-caption">
+                            Reading on Desktop? Scan to see how we mark your handwriting instantly.
+                        </p>
+                    </div>
                 </div>
             </main>
 
