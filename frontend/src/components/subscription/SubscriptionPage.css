@@ -408,7 +408,7 @@
   min-width: 0;
   margin: 0;
   background: var(--background-white-main);
-  border: 1px solid var(--border-main);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 20px;
   padding: 32px 24px;
   text-align: center;
@@ -479,11 +479,12 @@
   transform: none;
 }
 
-/* Current Plan Border & Style */
+/* Current Plan Status - Reverting to status-centric indicator */
 .upgrade-plan-card.current-plan {
-  border: 2px solid var(--text-brand) !important;
+  border: 2px solid #FFD700 !important;
   background: var(--background-white-main);
-  box-shadow: 0 0 0 4px var(--fill-brand);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.2);
+  animation: glow-pulse 2s ease-in-out infinite;
 }
 
 /* Glowing animation */
