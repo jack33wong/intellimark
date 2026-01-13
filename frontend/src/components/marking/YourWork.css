@@ -40,8 +40,8 @@
 
 .your-work-row {
     display: grid;
-    /* Columns: QNum (2ch), Sublabel (4ch), Bullet (min), Work (auto), Annotation (auto) */
-    grid-template-columns: 2ch 4ch min-content auto auto;
+    /* Columns: QNum (2ch), Sublabel (4ch), Bullet (min), Work (auto), Annotation (max-content) */
+    grid-template-columns: 2ch 4ch min-content auto max-content;
     column-gap: 8px;
     align-items: baseline;
     width: 100%;
