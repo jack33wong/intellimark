@@ -50,6 +50,20 @@ const FeaturesPage: React.FC = () => {
             linkText: "See marking flow"
         },
         {
+            title: "Question Mode: The Full Mark Blueprint",
+            description: "Stop guessing what examiners want. Upload any past paper question, and our AI generates a precise model answer perfectly aligned with official AQA, Edexcel, and OCR marking schemes.",
+            image: "/images/features/question-mode-demo.png",
+            reversed: true,
+            linkText: "Try Question Mode"
+        },
+        {
+            title: "Context Chat: Targeted Feedback",
+            description: "Don't just see your score—understand it. Our context-aware chat allows you to follow up on every scan. Ask why a specific step was flagged or how to secure that missing Method Mark (M1).",
+            image: "/images/features/context-chat-demo.png",
+            reversed: false,
+            linkText: "Chat with AI"
+        },
+        {
             title: "Growth & Analytics Dashboard",
             description: "Track performance across different topics and exam boards. Identify weak spots in Algebra or Geometry early, and watch your grade predictions rise as you complete more past papers.",
             image: "/images/features/analytics_sketch_v3.png",
