@@ -48,7 +48,7 @@
 }
 
 .header-logo {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 8px;
   text-decoration: none;
@@ -736,6 +736,10 @@
   }
 
   .menu-toggle {
+    display: flex;
+  }
+
+  .header-logo {
     display: flex;
   }
 
