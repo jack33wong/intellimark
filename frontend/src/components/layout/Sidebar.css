@@ -393,10 +393,9 @@
   right: 0;
   margin-top: 4px;
   background: var(--background-card);
-  /* Opaque Dark Gray */
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-main);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-M);
   min-width: 120px;
   z-index: 200;
   overflow: hidden;
@@ -851,12 +850,10 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: #1f2937;
-  /* Hardcoded Opaque Dark Gray */
-  border: 1px solid var(--border-subtle);
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  /* Standard shadow */
+  box-shadow: var(--shadow-M);
   min-width: 160px;
   z-index: 10000 !important;
   overflow: hidden;
@@ -890,21 +887,20 @@
 }
 
 .mark-history-dropdown .dropdown-item:hover {
-  background: #2a2a2b;
-  /* Darker background for hover like task details */
-  color: #ffffff;
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   transform: translateX(2px);
   transition: all 0.2s ease;
 }
 
 .mark-history-dropdown .dropdown-item.danger {
-  color: #ef4444;
+  color: var(--function-error);
   /* Red color for delete action */
 }
 
 .mark-history-dropdown .dropdown-item.danger:hover {
-  background: #2a2a2b;
-  color: #ffffff;
+  background: var(--function-error-tsp);
+  color: var(--function-error);
   transform: translateX(2px);
   transition: all 0.2s ease;
 }

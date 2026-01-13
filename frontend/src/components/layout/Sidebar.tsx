@@ -70,6 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const { checkPermission, loading: subLoading } = useSubscription();
   const canAccessAnalysis = checkPermission('analysis');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
@@ -211,18 +212,25 @@ const Sidebar: React.FC<SidebarProps> = ({
     closeSidebarIfMobile();
   };
 
-  const handleDeleteSession = async (sessionId: string, event: React.MouseEvent) => {
+  const handleDeleteSession = (sessionId: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this session?')) {
-      try {
-        const authToken = await getAuthToken();
-        if (!authToken) return;
-        await MarkingHistoryService.deleteSession(sessionId, authToken);
-        EventManager.dispatch(EVENT_TYPES.SESSION_DELETED, { sessionId });
-        handleGoToMarkHomework();
-      } catch (error) {
-        console.error('Error deleting session:', error);
-      }
+    setSessionToDelete(sessionId);
+    setDropdownSessionId(null);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) return;
+      await MarkingHistoryService.deleteSession(sessionToDelete, authToken);
+      const deletedId = sessionToDelete;
+      setSessionToDelete(null);
+      EventManager.dispatch(EVENT_TYPES.SESSION_DELETED, { sessionId: deletedId });
+      handleGoToMarkHomework();
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      setSessionToDelete(null);
     }
   };
 
@@ -420,6 +428,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           cancelText="Maybe later"
           variant="primary"
           icon={<BarChart3 size={24} />}
+        />
+
+        <ConfirmationModal
+          isOpen={!!sessionToDelete}
+          onClose={() => setSessionToDelete(null)}
+          onConfirm={confirmDeleteSession}
+          title="Delete Session"
+          message="Are you sure you want to delete this session? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+          icon={<Trash2 size={24} />}
         />
         <div className="sidebar-section">
           {user ? (

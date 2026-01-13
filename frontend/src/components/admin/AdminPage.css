@@ -915,7 +915,7 @@
 }
 
 .admin-question-text {
-  color: var(--text-white);
+  color: var(--text-primary);
   font-weight: 500;
   font-size: 14px;
   line-height: 1.5;
@@ -970,7 +970,7 @@
 }
 
 .admin-sub-question-text {
-  color: var(--text-white);
+  color: var(--text-primary);
   font-weight: 400;
   font-size: 13px;
   line-height: 1.4;
@@ -1905,10 +1905,11 @@
 .admin-filter-tab--active {
   background: var(--primary-color);
   border-color: var(--primary-color);
-  color: white;
+  color: var(--text-primary);
+  font-weight: 800;
 }
 
 .admin-filter-tab--active:hover {
   background: var(--primary-hover);
-  color: white;
+  color: var(--text-primary);
 }
