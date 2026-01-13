@@ -177,6 +177,11 @@ const CompareChatGPTPage: React.FC = () => {
                         <p>
                             ChatGPT is a language model that lacks spatial awareness. It cannot identify the X/Y coordinates of your handwriting to award Method Marks (M1) or follow Error Carried Forward (ECF) logic.
                         </p>
+                        <ul style={{ marginTop: '12px', paddingLeft: '20px' }}>
+                            <li style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                                ChatGPT gives general advice; our Context Chat knows the exact coordinate of your mistake and references the official marking scheme.
+                            </li>
+                        </ul>
                     </div>
                 </section>
 
