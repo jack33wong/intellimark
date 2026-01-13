@@ -444,6 +444,7 @@ export class QuestionModeHandlerService {
     const aiMessage = createAIMessage({
       content: aiResponse.response,
       imageDataArray: undefined, // No annotation means question mode - no image data returned to frontend
+      category: 'questionOnly', // Ensure message type is set to question_response
       progressData: {
         currentStepDescription: 'Question analysis complete',
         allSteps: MULTI_IMAGE_STEPS,
