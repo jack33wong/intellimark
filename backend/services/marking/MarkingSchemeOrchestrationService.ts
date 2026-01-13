@@ -312,8 +312,9 @@ export class MarkingSchemeOrchestrationService {
     // Group detection results by base question number and exam paper
     for (const { question, detectionResult } of detectionResults) {
       if (!detectionResult.match) {
-        // Handle non-detected questions: Treat as independent generic questions
-        const fallbackId = question.questionNumber || `Q${Math.random().toString(36).substring(2, 7)}`;
+        // Handle non-detected questions: Group by base number to preserve context
+        const baseId = getBaseQuestionNumber(question.questionNumber || '');
+        const fallbackId = baseId || question.questionNumber || `Q${Math.random().toString(36).substring(2, 7)}`;
         const groupKey = `GENERIC_${fallbackId}`;
 
         if (!groupedResults.has(groupKey)) {
@@ -361,13 +362,25 @@ export class MarkingSchemeOrchestrationService {
         const item = group[0];
         const uniqueKey = groupKey; // Use the generated generic key
 
+        // Merge texts if multiple sub-questions fell into this generic group
+        // Use parentText (lead-in) as the foundation
+        let mergedText = (item.question as any).parentText || '';
+
+        // Group sub-parts with labels
+        const subTexts = group.map(i => {
+          const label = i.originalQuestionNumber || i.actualQuestionNumber || '?';
+          return i.question.text ? `(${label}) ${i.question.text}` : '';
+        }).filter(t => t.trim() !== '').join('\n\n');
+
+        const finalQuestionText = mergedText ? `${mergedText}\n\n${subTexts}` : subTexts;
+
         markingSchemesMap.set(uniqueKey, {
           questionMarks: null, // No marking scheme
           totalMarks: 0,
           parentQuestionMarks: 0,
           questionNumber: item.originalQuestionNumber || item.actualQuestionNumber,
           questionDetection: item.detectionResult,
-          questionText: item.question.text,
+          questionText: finalQuestionText,
           databaseQuestionText: '',
           isGeneric: true // Use as flag for the generator to know this is a first-principles task
         });

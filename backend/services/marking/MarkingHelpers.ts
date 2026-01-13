@@ -514,10 +514,10 @@ export function buildMarkingResponse({
 export function extractQuestionsFromClassification(
   classification: any,
   fileName?: string
-): Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }> {
+): Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string }> {
   // Handle hierarchical questions array structure
   if (classification?.questions && Array.isArray(classification.questions)) {
-    const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }> = [];
+    const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string }> = [];
 
     for (const q of classification.questions) {
       const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
@@ -542,7 +542,8 @@ export function extractQuestionsFromClassification(
             extractedQuestions.push({
               questionNumber: combinedQuestionNumber,
               text: subQ.text || '', // Use empty string if no text (detection will use question number only)
-              sourceImageIndex
+              sourceImageIndex,
+              parentText: q.text // Preserving the lead-in text (e.g. "Sophie drives...")
             });
           }
         }
