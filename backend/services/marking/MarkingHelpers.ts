@@ -523,6 +523,10 @@ export function extractQuestionsFromClassification(
       const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
       const sourceImageIndex = q.sourceImageIndex;
 
+      if (q.text && q.subQuestions?.length > 0) {
+        console.log(`[EXTRACTION DEBUG] Main Question Q${mainQuestionNumber} has lead-in text: "${q.text.substring(0, 50)}..."`);
+      }
+
       // If question has sub-questions, extract each sub-question separately
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
         // Debug logging for Q2

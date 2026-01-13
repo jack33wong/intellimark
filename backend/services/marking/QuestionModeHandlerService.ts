@@ -274,14 +274,28 @@ export class QuestionModeHandlerService {
         const isGrouped = subQuestions.length > 1;
 
         // Combine question texts and marking schemes for grouped questions
-        const combinedQuestionText = isGrouped
+        const subTexts = isGrouped
           ? subQuestions.map((sq, idx) => {
             // Extract sub-part label (e.g., "9i" → "i", "19ai" → "ai")
             const subPart = sq.questionNumber.toString().replace(baseNumber, '');
             const label = subPart ? `(${subPart})` : '';
+
+            // DEBUG: Check for parentText
+            if (idx === 0) {
+              console.log(`[GENERATOR DEBUG] Question ${baseNumber} grouping start. ParentText detected: ${sq.parentText ? 'YES' : 'NO'}`);
+            }
+
             return `${label ? label + ' ' : ''}${sq.questionText}`;
           }).join('\n\n')
           : subQuestions[0].questionText;
+
+        // Prepend parentText (lead-in) if available
+        const mainLeadIn = subQuestions[0].parentText || '';
+        const combinedQuestionText = mainLeadIn
+          ? `${mainLeadIn}\n\n${subTexts}`
+          : subTexts;
+
+        console.log(`[GENERATOR DEBUG] Final Prompt Text for Q${baseNumber} (preview): "${combinedQuestionText.substring(0, 100)}..."`);
 
         const combinedMarkingScheme = isGrouped
           ? subQuestions.map(sq => sq.markingScheme).filter(ms => ms).join('\n\n')

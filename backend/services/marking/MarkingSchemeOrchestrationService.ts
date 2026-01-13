@@ -374,6 +374,10 @@ export class MarkingSchemeOrchestrationService {
 
         const finalQuestionText = mergedText ? `${mergedText}\n\n${subTexts}` : subTexts;
 
+        console.log(`[ORCHESTRATION DEBUG] Merged Generic Group ${uniqueKey}:`);
+        console.log(`  - Parent Text (Lead-in): ${mergedText ? 'YES' : 'NO'}`);
+        console.log(`  - Combined Text Length: ${finalQuestionText.length}`);
+
         markingSchemesMap.set(uniqueKey, {
           questionMarks: null, // No marking scheme
           totalMarks: 0,
