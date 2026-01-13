@@ -259,16 +259,15 @@ export class QuestionDetectionService {
 
             // RELAXED THRESHOLD: If searching a specific hinted pool, be more lenient
             // (0.50 -> 0.40 for main questions, 0.40 -> 0.35 for sub-questions)
-            const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
-            const threshold = isSpecificSearch
-              ? (match.subQuestionNumber ? 0.35 : 0.40)
-              : (match.subQuestionNumber ? 0.70 : 0.80); // STRENGHTENED: High threshold for global search to avoid false positives on non-past papers
+            // Centralized Threshold Logic
+            const isSpecificSearch = !!(hintMetadata && hintMetadata.matchedPapersCount > 0);
+            const threshold = this.getSimilarityThreshold(!!match.subQuestionNumber, isSpecificSearch);
 
             if (match.confidence >= threshold) {
               bestMatch = match;
 
-              // Mark as threshold relaxed if it wouldn't have passed the strict check
-              const strictThreshold = match.subQuestionNumber ? 0.40 : 0.50;
+              // Mark as threshold relaxed if it wouldn't have passed a strict check (0.60)
+              const strictThreshold = match.subQuestionNumber ? 0.60 : 0.70;
               if (isSpecificSearch && match.confidence < strictThreshold && hintMetadata) {
                 hintMetadata.thresholdRelaxed = true;
               }
@@ -303,10 +302,8 @@ export class QuestionDetectionService {
                   classificationPrefix.startsWith(bestDbPrefix.substring(0, 20)));
             }
 
-            const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
-            const threshold = isSpecificSearch
-              ? (match.subQuestionNumber ? 0.35 : 0.40)
-              : (match.subQuestionNumber ? 0.40 : 0.50);
+            const isSpecificSearch = !!(hintMetadata && hintMetadata.matchedPapersCount > 0);
+            const threshold = this.getSimilarityThreshold(!!match.subQuestionNumber, isSpecificSearch);
 
             if (match.confidence >= threshold && (!bestMatch || !bestTextMatch ||
               (startsMatch && !bestStartsMatch) ||
@@ -315,7 +312,7 @@ export class QuestionDetectionService {
               bestTextMatch = { match, textSimilarity };
 
               // Mark as threshold relaxed
-              const strictThreshold = match.subQuestionNumber ? 0.40 : 0.50;
+              const strictThreshold = match.subQuestionNumber ? 0.60 : 0.70;
               if (isSpecificSearch && match.confidence < strictThreshold && hintMetadata) {
                 hintMetadata.thresholdRelaxed = true;
               }
@@ -338,16 +335,14 @@ export class QuestionDetectionService {
             if (match && match.confidence) {
               if (match.confidence > bestScore) {
                 bestScore = match.confidence;
-                const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
-                const threshold = isSpecificSearch
-                  ? (match.subQuestionNumber ? 0.35 : 0.40)
-                  : (match.subQuestionNumber ? 0.40 : 0.50);
+                const isSpecificSearch = !!(hintMetadata && hintMetadata.matchedPapersCount > 0);
+                const threshold = this.getSimilarityThreshold(!!match.subQuestionNumber, isSpecificSearch);
 
                 if (match.confidence >= threshold) {
                   bestMatch = match;
 
                   // Mark as threshold relaxed
-                  const strictThreshold = match.subQuestionNumber ? 0.40 : 0.50;
+                  const strictThreshold = match.subQuestionNumber ? 0.60 : 0.70;
                   if (isSpecificSearch && match.confidence < strictThreshold && hintMetadata) {
                     hintMetadata.thresholdRelaxed = true;
                   }
@@ -413,6 +408,18 @@ export class QuestionDetectionService {
         message: `Detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
+  }
+
+  /**
+   * Get the similarity threshold based on search context
+   */
+  private getSimilarityThreshold(hasSubQuestionNumber: boolean, isSpecificSearch: boolean): number {
+    if (isSpecificSearch) {
+      // Lenient threshold for specifically hinted papers (Consensus Paper Rescue)
+      return hasSubQuestionNumber ? 0.35 : 0.40;
+    }
+    // Strict threshold for global searches (Non-past papers)
+    return hasSubQuestionNumber ? 0.70 : 0.80;
   }
 
   /**
@@ -796,11 +803,9 @@ export class QuestionDetectionService {
       }
 
       // If we found a good match, return the exam paper info
-      // For sub-questions, use lower threshold (0.4) since they're shorter and more sensitive to small differences
-      // For main questions, use higher threshold (0.50) to prevent false positive matches for non-past papers
-      // The previous 0.35 threshold was too low and allowed non-past papers to match past papers incorrectly
-      // 0.50 is still lenient enough for OCR/classification variations but strict enough to reject false positives
-      const threshold = bestSubQuestionNumber ? 0.4 : 0.50;
+      // Standard gating threshold (safety minimum)
+      // The caller (detectQuestion) will apply more strict contextual thresholds (0.7/0.8)
+      const threshold = 0.2;
 
       // Get paper code for debug logging
       const paperCode = metadata?.exam_code || 'unknown';
