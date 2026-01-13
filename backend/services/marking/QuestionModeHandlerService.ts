@@ -289,13 +289,6 @@ export class QuestionModeHandlerService {
           }).join('\n\n')
           : subQuestions[0].questionText;
 
-        // Prepend parentText (lead-in) if available
-        const mainLeadIn = subQuestions[0].parentText || '';
-        const combinedQuestionText = mainLeadIn
-          ? `${mainLeadIn}\n\n${subTexts}`
-          : subTexts;
-
-        console.log(`[GENERATOR DEBUG] Final Prompt Text for Q${baseNumber} (preview): "${combinedQuestionText.substring(0, 100)}..."`);
 
         const combinedMarkingScheme = isGrouped
           ? subQuestions.map(sq => sq.markingScheme).filter(ms => ms).join('\n\n')
@@ -307,10 +300,6 @@ export class QuestionModeHandlerService {
         // INSTRUCTION: Explicitly state this is the ceiling/limit
         const marksDisplay = totalMarks > 0 ? `MAXIMUM MARKS: ${totalMarks}` : `MAXIMUM MARKS: Not specified`;
         const ceilingDisplay = totalMarks > 0 ? `(Ceiling limit: Do not award more than ${totalMarks} marks)` : `(Solve and provide full justification as appropriate)`;
-        const finalMarkingScheme = combinedMarkingScheme
-          ? `[${marksDisplay}] ${ceilingDisplay}\n\n${combinedMarkingScheme}`
-          : `[${marksDisplay}] ${ceilingDisplay} No marking scheme available. Please solve from first principles as an expert examiner.`;
-
         // Determine display question number
         // - If grouped (Q9i, Q9ii, Q9iii), show as "9(i, ii, iii)"
         // - If single question with suffix (Q1a alone), strip suffix to show "1" (mapper error)
@@ -319,47 +308,26 @@ export class QuestionModeHandlerService {
           ? `${baseNumber}(${subQuestions.map(sq => sq.questionNumber.toString().replace(baseNumber, '')).join(', ')})`
           : baseNumber; // Use base number without suffix for single questions
 
-        // Create a structured list of questions for the AI to interleave
-        const structuredQuestions = subQuestions.map(sq => {
-          const subPart = sq.questionNumber.toString().replace(baseNumber, '');
-          const label = subPart ? `(${subPart})` : 'Main';
-          return `${label}: ${sq.questionText}`;
-        }).join('\n');
+        // Determine if there's a lead-in text to repeat once
+        const mainLeadIn = subQuestions[0].parentText || '';
 
-        // Explicitly instruct AI to output the header with marks AND apply HTML styling
-        const questionTextWithInstruction = `You are an expert examiner. 
-Provide an interleaved response where each sub-question part is followed immediately by its solution.
+        // Simplify: Instructions are now completely centralized in the 'marking.questionOnly.user' prompt.
+        const questionTextWithInstruction = `Lead-in Context:
+${mainLeadIn}
 
-STRUCTURE:
-1. LEAD-IN: Repeat the main question lead-in text exactly (if provided).
-2. INTERLEAVED PARTS: For each part (a, b, c, etc.):
-   - Use <span class="model_question">(part) Question Text</span>
-   - Follow immediately with <div class="model_answer">...solution...</div>
+Sub-Questions to Solve:
+${subTexts}`;
 
-STYLING RULES:
-1. Wrap the REPEATED question text in <span class="model_question"> ... </span>
-2. Wrap your step-by-step solution in <div class="model_answer"> ... </div>
-3. Inside <div class="model_answer">, wrap every line or calculation step in a <p> tag.
-4. MATH: Use LaTeX for ALL mathematical expressions, including variables like $x$ or $p$.
-5. PRECISION: Use scientific notation (e.g., $3.5 \times 10^{-6}$) for probabilities smaller than 0.0001. DO NOT output long strings of zeros.
-6. MARKING CODES: Wrap marking codes (e.g. [M1], [A1]) in <span class="marking-code">...</span>. Keep them on the same line as the answer step, inside the <p> tag.
-
-QUESTIONS TO SOLVE:
-Lead-in Text: ${mainLeadIn || 'None'}
-Parts:
-${structuredQuestions}`;
+        // Ensure we tell the AI to solve from first principles AND apply mark codes if missing
+        const finalMarkingScheme = combinedMarkingScheme
+          ? `[${marksDisplay}] ${ceilingDisplay}\n\n${combinedMarkingScheme}`
+          : `[${marksDisplay}] ${ceilingDisplay} No marking scheme available. You MUST solve from first principles as an expert examiner AND apply your own standard mark codes ([M1], [A1], [B1]).`;
 
 
-
-        const combinedParentText = isGrouped
-          ? subQuestions[0].parentText // Use parent text from first sub-question (usually same for all)
-          : null;
-
-
-        console.log('\n[AI PROMPT DEBUG]');
+        console.log('\n[AI PROMPT DEBUG] (FULL CONTENT)');
         console.log(`Question: ${mainQuestionNumber} (Marks: ${totalMarks})`);
-        console.log(`Prompt Text: "${questionTextWithInstruction.substring(0, 100).replace(/\n/g, ' ')}..."`);
-        console.log(`Marking Scheme: "${(finalMarkingScheme || 'No marking scheme').substring(0, 100).replace(/\n/g, ' ')}..."`);
+        console.log(`Prompt Text:\n${questionTextWithInstruction}`);
+        console.log(`Marking Scheme:\n${finalMarkingScheme || 'No marking scheme'}`);
         console.log('----------------------------\n');
 
         const response = await MarkingServiceLocator.generateChatResponse(

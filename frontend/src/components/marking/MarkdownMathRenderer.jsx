@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
+import renderMathInElement from 'katex/dist/contrib/auto-render';
 import './MarkdownMathRenderer.css';
 
 /**
@@ -21,6 +22,8 @@ const preprocessLatexDelimiters = (content) => {
     .replace(/\\\\\\\]/g, '$$')
     .replace(/\^\(([^)]+)\)/g, '^{$1}')
     .replace(/<div class=["']step-explanation["']>([\s\S]*?)<\/div>/g, '$1')
+    .replace(/&dollar;/g, '$')
+    .replace(/&#36;/g, '$')
     .replace(/\\n\\n/g, '\n\n')
     .replace(/\\n/g, '\n');
 };
@@ -152,6 +155,38 @@ const reorderAssistantContent = (content) => {
   return finalParts.join('\n\n');
 };
 
+// Stable component for rendering HTML with embedded LaTeX
+// Bypasses ReactMarkdown to prevent reconciliation conflicts with auto-render
+const StableHtmlRenderer = ({ content, className }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      try {
+        renderMathInElement(containerRef.current, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      } catch (e) {
+        console.error('[StableHtmlRenderer] Math render error:', e);
+      }
+    }
+  }, [content]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`markdown-math-renderer ${className}`}
+      dangerouslySetInnerHTML={{ __html: content }}
+    />
+  );
+};
+
 export default function MarkdownMathRenderer({
   content,
   className = '',
@@ -165,6 +200,13 @@ export default function MarkdownMathRenderer({
     strict: false,
     trust: true,
     ...options
+  };
+
+  // Helper to parse :::your-work blocks
+  const parseYourWorkBlocks = (text) => {
+    return text.replace(/:::your-work\n([\s\S]*?):::/g, (match, content) => {
+      return `<div class="your-work-section">${content}</div>`;
+    });
   };
 
   if (!content || typeof content !== 'string') {
@@ -188,6 +230,17 @@ export default function MarkdownMathRenderer({
 
   const contentWithMath = detectAndWrapMath(contentWithBlockMarkers);
   const preprocessedContent = preprocessLatexDelimiters(contentWithMath);
+  const processedText = parseYourWorkBlocks(preprocessedContent);
+
+  // DETECT MODE: If content is explicitly HTML structure (from new prompt), use StableHtmlRenderer
+  // This avoids ReactMarkdown parsing conflicts with matching tags
+  const isExplicitHtml = processedText.includes('<div class="model_answer">') ||
+    processedText.includes('<span class="model_question">') ||
+    processedText.includes('<div class="ai-explanation-section">');
+
+  if (isExplicitHtml) {
+    return <StableHtmlRenderer content={processedText} className={className} />;
+  }
 
   return (
     <div className={`markdown-math-renderer ${className}`}>

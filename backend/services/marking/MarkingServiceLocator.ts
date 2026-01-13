@@ -327,6 +327,12 @@ export class MarkingServiceLocator {
       const isQuestionOnly = category === "questionOnly";
       const phase = isQuestionOnly ? 'questionMode' : 'marking';
 
+      // [DEBUG] Log raw input prompt for Text/Question Mode validation
+      console.log(`\n🔍 [TEXT RESPONSE PROMPT] (${phase})`);
+      console.log(`SYSTEM: ${systemPrompt}`);
+      console.log(`USER: ${userPrompt}`);
+      console.log('----------------------------------------\n');
+
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, phase);
 
       const { getModelInfo } = await import('../../config/aiModels.js');

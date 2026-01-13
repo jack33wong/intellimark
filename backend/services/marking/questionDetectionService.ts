@@ -822,10 +822,24 @@ export function buildExamPaperStructure(detectionResults: any[]): { examPapers: 
   return { examPapers: Array.from(examPaperGroups.values()), multipleExamPapers: examPaperGroups.size > 1, totalMarks };
 }
 
+import { generateNonPastPaperTitle } from './MarkingHelpers.js';
+
 export function generateSessionTitleFromDetectionResults(detectionResults: any[]): string {
-  if (!detectionResults || detectionResults.length === 0) return 'Question - No exam paper detected';
+  // Check if any result is actually a "found" past paper match
+  const hasActualMatch = detectionResults && detectionResults.some(dr => dr.detectionResult?.found || dr.detection?.found);
+
+  // If no actual past paper matches, use the generic title generator using the first result's text
+  if (!hasActualMatch) {
+    const firstText = detectionResults?.[0]?.questionText || detectionResults?.[0]?.question?.text;
+    return generateNonPastPaperTitle(firstText, 'Question');
+  }
+
   const { examPapers, totalMarks } = buildExamPaperStructure(detectionResults);
-  if (examPapers.length === 0) return 'Question - No exam paper detected';
+
+  if (examPapers.length === 0) {
+    const firstText = detectionResults?.[0]?.questionText || detectionResults?.[0]?.question?.text;
+    return generateNonPastPaperTitle(firstText, 'Question');
+  }
   if (examPapers.length > 1) {
     const allQs = examPapers.flatMap(ep => ep.questions.map(q => q.questionNumber));
     return `Past paper - ${allQs.map(q => `Q${q}`).join(', ')}`;

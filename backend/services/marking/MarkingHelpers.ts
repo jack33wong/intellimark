@@ -67,6 +67,9 @@ export function getShortSubjectName(qualification: string): string {
 
 // Common function to generate session titles for non-past-paper images
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
+  console.log('[TITLE DEBUG] generateNonPastPaperTitle called. Input text length:', extractedQuestionText?.length, 'Mode:', mode);
+  console.log('[TITLE DEBUG] Raw input text:', extractedQuestionText ? extractedQuestionText.substring(0, 100) + '...' : 'undefined');
+
   if (extractedQuestionText && extractedQuestionText.trim()) {
     let questionText = extractedQuestionText.trim();
 
@@ -83,9 +86,11 @@ export function generateNonPastPaperTitle(extractedQuestionText: string | undefi
     }
 
     // Use the truncated question text directly
-    const truncatedText = questionText.length > 30
-      ? questionText.substring(0, 30) + '...'
-      : questionText;
+    // Ensure newlines are replaced with spaces for clean title
+    const cleanText = questionText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    const truncatedText = cleanText.length > 30
+      ? cleanText.substring(0, 30) + '...'
+      : cleanText;
     const result = `${mode} - ${truncatedText}`;
     return result;
   } else {
@@ -525,6 +530,11 @@ export function extractQuestionsFromClassification(
 
       if (q.text && q.subQuestions?.length > 0) {
         console.log(`[EXTRACTION DEBUG] Main Question Q${mainQuestionNumber} has lead-in text: "${q.text.substring(0, 50)}..."`);
+      }
+
+      // DEBUG: Log specific question structure for analysis
+      if (mainQuestionNumber === '5' || (q.text && q.text.includes('doctor believes'))) {
+        console.log(`[EXTRACTION DEBUG] Target Question Found:`, JSON.stringify(q, null, 2));
       }
 
       // If question has sub-questions, extract each sub-question separately

@@ -165,10 +165,20 @@
   padding: 0px 20px;
   border-radius: 18px;
   border-bottom-left-radius: 4px;
-  background: transparent;
   color: var(--text-primary);
   transition: all 0.2s ease;
   font-size: 1.0em;
+}
+
+.chat-message.assistant .markdown-math-renderer.has-your-work {
+  background: var(--background-nav);
+  border-radius: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--border-main);
+  /* Ensure it fills the container if needed */
+  display: block;
+  margin-top: 8px;
+  /* Initial separation */
 }
 
 .chat-message.assistant .chat-message-bubble:hover {

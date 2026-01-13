@@ -339,13 +339,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
-  if (!shouldRenderMessage(message)) return null;
+  const hasYourWork = typeof content === 'string' && content.includes(':::your-work');
 
   return (
     <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.type === 'question_response' ? 'question-mode-response' : ''}`} data-message-id={message.id}>
       <div className="chat-message-content">
 
-        <div className="chat-message-bubble">
+        <div className={`chat-message-bubble ${hasYourWork ? 'has-your-work' : ''}`}>
           {!isUser && (
             <div className="assistant-header">
               <Brain size={20} className="assistant-brain-icon" />
@@ -493,8 +493,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 {/* Render main assistant content (Unified) */}
                 <MarkdownMathRenderer
                   content={processedContent}
-                  className="chat-message-renderer"
+                  className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
+                  options={{
+                    throwOnError: false,
+                    errorColor: '#cc0000',
+                  }}
                   YourWorkSection={YourWorkSection}
+                  isYourWork={hasYourWork}
                 />
               </div>
             );

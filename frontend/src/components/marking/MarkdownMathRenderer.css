@@ -177,3 +177,19 @@ ul {
   font-size: 1.0em;
   margin-left: 0.5em;
 }
+
+/* --- Mark Code Styling --- */
+.markdown-math-renderer .mark-code {
+  float: right;
+  color: #ef4444;
+  /* Red-500 */
+  font-weight: 700;
+  margin-left: 1em;
+}
+
+/* Ensure marks don't overlap if line is full */
+.markdown-math-renderer p::after {
+  content: "";
+  display: block;
+  clear: both;
+}

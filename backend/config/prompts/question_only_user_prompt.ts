@@ -1,44 +1,37 @@
-export default `Question: {{QUESTION_TEXT}}
+export default `Expert Examiner Task: Generate a model answer for the following mathematics question.
 
-Marking Scheme:
+### INPUT DATA
+Question Data (may include lead-in context and sub-questions):
+{{QUESTION_TEXT}}
+
+Marking Scheme (Rules to follow):
 {{MARKING_SCHEME}}
 
-Provide a concise model answer following this strict format:
+### FORMATTING RULES (STRICT ADHERENCE REQUIRED)
+You MUST output valid HTML using the following structure for each part. Do NOT output plain Markdown.
 
-1. **Question Text:**
-   - Wrap the ENTIRE question text (including labels like a), i)) in a span with class "model_question".
-   - Format: <span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
+1. **Lead-in Context**: If present, repeat it once at the top (plain text).
+2. **Structure**: For each sub-question, you MUST use this HTML template:
+   <span class="model_question">(part label) Question text...</span>
+   <div class="model_answer">
+   <p>Detailed step... <span class="mark-code">[M1]</span></p>
+   <p>Final answer... <span class="mark-code">[A1]</span></p>
+   </div>
 
-2. **Model Answer:**
-   - Provide the answer immediately after the span (on a new line).
-   - For complex questions, show working steps.
-   - **CRITICAL FORMATTING:** Put a BLANK LINE between each step with a marking code
-   - Use LaTeX math notation: $...$ for inline math, $$...$$ for display math
-   - Each marking code [B1], [M1], [A1] should be on its own line with blank lines around it
+3. **Mark Codes**: ALL mark codes (e.g., [M1], [A1]) must be wrapped in: <span class="mark-code">[Code]</span>.
+4. **LaTeX**: Use LaTeX ($...$) for math.
+5. **Scientific Notation**: Use scientific notation (e.g., $1.23 \times 10^{-7}$) for prob < 0.0001.
 
 **Example Output:**
-<span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
-53000 [B1]
+Lead-in text here.
 
-<span class="model_question">b) Work out the value of x.</span>
-3x = 12
+<span class="model_question">(a) Find x.</span>
+<div class="model_answer">
+<p>$2x = 10$ <span class="mark-code">[M1]</span></p>
+<p>$x = 5$ <span class="mark-code">[A1]</span></p>
+</div>
 
-x = 4 [A1]
-
-<span class="model_question">c) Calculate the minimum annual interest rate.</span>
-560 ÷ 500 = 1.12 [M1]
-
-$\sqrt[3]{1.12} = 1.03849...$ [M1dep]
-
-$1.03849... - 1 = 0.03849...$
-
-$0.03849... 	imes 100 = 3.849...$
-
-3.9% [A1]
-
-**CRITICAL INSTRUCTIONS:**
-- You MUST use the <span class="model_question">...</span> tags for the question text.
-- Do NOT add your own "Question" headers (the system handles that).
-- Use the exact question numbering/labeling from the input question text.
-- Use BLANK LINES between steps to create visual separation
-- Use LaTeX $...$ syntax for math expressions`;
+### CRITICAL INSTRUCTIONS
+- Do NOT use Markdown headers (###). Use the HTML tags provided.
+- **NO CODE GENERATION**: You are a mathematician, not a programmer. Do NOT generate Python code.
+- **NO EXPLANATORY TEXT**: Do not include text like "We need more information...". if needed, make standard assumptions.`
