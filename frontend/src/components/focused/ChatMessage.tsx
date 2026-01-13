@@ -342,7 +342,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   if (!shouldRenderMessage(message)) return null;
 
   return (
-    <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.detectedQuestion ? 'question-mode-response' : ''}`} data-message-id={message.id}>
+    <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.type === 'question_response' ? 'question-mode-response' : ''}`} data-message-id={message.id}>
       <div className="chat-message-content">
 
         <div className="chat-message-bubble">
