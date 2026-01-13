@@ -32,19 +32,19 @@
 
 /* Grid Layout -> Row Layout */
 .your-work-grid-container {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    /* Tight vertical spacing */
-}
-
-.your-work-row {
     display: grid;
     /* Columns: QNum (2ch), Sublabel (4ch), Bullet (min), Work (auto), Annotation (max-content) */
     grid-template-columns: 2ch 4ch min-content auto max-content;
     column-gap: 8px;
+    row-gap: 4px;
+    /* Tight vertical spacing */
     align-items: baseline;
     width: 100%;
+}
+
+.your-work-row {
+    display: contents;
+    /* Removes row wrapper to let children participate in parent grid */
 }
 
 /* 1. Question Number (e.g. 2) */
