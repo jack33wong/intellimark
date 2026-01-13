@@ -1,6 +1,6 @@
 /**
  * Focused SendButton Component Styles
- * Matches existing design system colors and styles
+ * Shared component for first-time and follow-up inputs.
  */
 
 .send-button {
@@ -11,22 +11,12 @@
   height: 40px;
   border: none;
   border-radius: 50%;
-  /* Circular hover area */
   background: transparent;
   color: #e3e3e3;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
   flex-shrink: 0;
-}
-
-.send-button:hover:not(:disabled) {
-  background: #3c4043;
-  /* Subtle circular background on hover */
-}
-
-.send-button:active:not(:disabled) {
-  background: #4f5255;
 }
 
 .send-button:disabled {
@@ -38,13 +28,19 @@
   cursor: not-allowed;
 }
 
-/* Variant styles - override if needed, but we want consistent icon style */
+/* Variant styles */
 .send-button.primary {
   color: var(--color-text);
 }
 
+.send-button.success {
+  background: var(--fill-tsp-white-main);
+  color: var(--color-text);
+  opacity: 1;
+}
+
 .send-button:focus-visible {
-  outline: 2px solid #8ab4f8;
+  outline: 2px solid var(--border-main);
   outline-offset: 2px;
 }
 
@@ -59,14 +55,26 @@
   height: 32px;
 }
 
-/* Success color - Gemini blue */
-.send-button.success {
-  color: #8ab4f8;
-}
-
 /* Spinner adjustment */
 .send-button .spinner {
   width: 18px;
   height: 18px;
   border-width: 2px;
+}
+
+/* 
+ * Interaction States
+ * Defined at the bottom so they override base/variant backgrounds 
+ * naturally via the CSS cascade without needing !important.
+ */
+.send-button:hover:not(:disabled) {
+  /* Using the user's preferred variable */
+  background: var(--icon-tertiary);
+
+
+}
+
+.send-button:active:not(:disabled) {
+  background: var(--background-tsp-menu-dark);
+
 }

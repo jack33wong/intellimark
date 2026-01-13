@@ -789,7 +789,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   />
                   {/* 👇 FIX 2: Added the required `onError` prop. */}
                   {/* 👇 SendButton disabled logic updated to check combinedInput */}
-                  <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !imageFiles.length && !combinedInput.trim())} loading={isProcessing} variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
+                  <SendButton
+                    onClick={handleSendClick}
+                    disabled={isProcessing || (!imageFile && !imageFiles.length && !combinedInput.trim())}
+                    loading={isProcessing}
+                    variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'}
+                    size={mode === 'first-time' ? 'main' : 'small'}
+                    onError={handleError}
+                  />
                 </div>
               </div>
             </div>

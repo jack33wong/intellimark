@@ -13,7 +13,8 @@ interface SendButtonProps {
   loading?: boolean;
   size?: 'main' | 'small';
   variant?: 'primary' | 'success';
-  onError?: (error: Error) => void; // Add the optional onError prop
+  onError?: (error: Error) => void;
+  className?: string; // Correctly added className
 }
 
 const SendButton: React.FC<SendButtonProps> = ({
@@ -22,13 +23,14 @@ const SendButton: React.FC<SendButtonProps> = ({
   loading = false,
   size = 'main',
   variant = 'primary',
+  className = '', // Destructured with default
 }) => {
   const buttonText = loading ? '...' : size === 'main' ? 'Send' : '';
 
   return (
     <button
       type="button"
-      className={`send-button ${size} ${variant} ${disabled || loading ? 'disabled' : ''}`}
+      className={`send-button ${size} ${variant} ${disabled || loading ? 'disabled' : ''} ${className}`}
       onClick={onClick}
       disabled={disabled || loading}
       aria-label="Send"

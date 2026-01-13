@@ -294,10 +294,8 @@
   height: 32px;
   width: 32px;
   padding: 0;
-  background: #8b5cf6;
   border: none;
   border-radius: 50%;
-  color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
@@ -305,8 +303,6 @@
 }
 
 .followup-chat-input-bar .followup-send-button:hover:not(:disabled) {
-  background: #9ca3af !important;
-  color: #111827 !important;
   transform: translateY(-1px);
 }
 
@@ -316,12 +312,9 @@
   transform: none;
 }
 
-.followup-chat-input-bar .followup-send-button.analyze-mode {
-  background: #8b5cf6;
-}
+
 
 .followup-chat-input-bar .followup-send-button.analyze-mode:hover:not(:disabled) {
-  background: #9ca3af !important;
   color: #111827 !important;
 }
 
