@@ -1503,16 +1503,24 @@ export function logDetectionAudit(detectionResults: any[]): void {
         status = '\x1b[33m⚠️  RESCUED\x1b[0m';
       } else if (match.confidence >= 0.8) {
         status = '\x1b[32m✅ SUCCESS\x1b[0m';
-      } else if (match.confidence >= 0.4) {
+      } else if (match.confidence >= 0.7) {
+        status = '\x1b[32m✅ MATCH\x1b[0m';
+      } else {
         status = '\x1b[33m⚠️  WEAK MATCH\x1b[0m';
       }
     } else {
       // Failure Reason
-      const reason = result.reason || (question.text ? 'Low Similarity' : 'No Text Detected');
-      status = `\x1b[31m❌ FAILED (${reason})\x1b[0m`;
+      let failureReason = (question.text || '').trim().length === 0 ? 'No Text' : 'Low Similarity';
+
+      // Check top audit trail entry for semantic failure if available
+      if (result.hintMetadata?.auditTrail?.[0]?.reason === 'Semantic Fail') {
+        failureReason = 'Semantic Fail';
+      }
+
+      status = `\x1b[31m❌ FAILED (${failureReason})\x1b[0m`;
     }
 
-    console.log(`| ${qNum} | ${paddedInput} | ${matchTitle.padEnd(50)} | ${scoreStr} | ${status.padEnd(22)} |`);
+    console.log(`| ${qNum} | ${paddedInput} | ${matchTitle.padEnd(50)} | ${scoreStr} | ${status.padEnd(23)} |`);
   });
 
   console.log('------------------------------------------------------------------------------------------------------------------------------------\n');
