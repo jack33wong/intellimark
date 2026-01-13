@@ -54,6 +54,7 @@
 
 .landing-chat-input-placeholder {
   z-index: 10;
+  margin-top: 50px;
 }
 
 /* Focused App Entry (Centered Greeting + Input) */

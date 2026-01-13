@@ -97,11 +97,19 @@
 /* Chat Title Section */
 .chat-title-section {
   text-align: left;
-  margin: 0 auto 24px auto;
+  margin: 0 auto 30px auto;
+  /* Increased margin to push input down */
   max-width: 1000px;
   width: 100%;
   padding-left: 0;
+  position: relative;
+  z-index: 50;
   /* Remove padding as star is gone */
+  transition: transform 0.3s ease;
+}
+
+.chat-title-section.shift-up {
+  transform: translateY(-80px);
 }
 
 /* Removed chat-title-greeting-container and greeting-star-icon */
@@ -219,7 +227,8 @@
 @media (max-width: 768px) {
   .chat-title-section {
     width: 90%;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
+    /* Mobile specific margin */
   }
 
   .chat-title-followup {
@@ -230,6 +239,12 @@
     /* Adjust for mobile */
     padding: 0 20px;
     /* More padding on mobile */
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  .chat-title-section.shift-up {
+    transform: translateY(-80px);
+    /* Push up when expanded */
   }
 
   .chat-title-greeting {
@@ -298,6 +313,15 @@
 }
 
 /* Main Chat Input Styles */
+.followup-preview-image.clickable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.followup-preview-image.clickable:hover {
+  opacity: 0.9;
+}
+
 .main-chat-input {
   width: 100%;
   min-height: 60px;
@@ -469,8 +493,8 @@
 }
 
 .followup-preview-image {
-  max-width: 200px;
-  max-height: 150px;
+  width: 100px;
+  height: 100px;
   border-radius: 8px;
   object-fit: cover;
   border: 2px solid var(--text-brand);
@@ -645,7 +669,7 @@
   gap: 12px;
   overflow-x: auto;
   overflow-y: scroll;
-  max-height: 400px;
+  max-height: 360px;
   padding: 16px 16px 8px 0;
   /* Add right padding to prevent button clipping */
   scrollbar-width: thin;
@@ -677,8 +701,8 @@
 }
 
 .multi-image-item .followup-preview-image {
-  max-width: 200px;
-  max-height: 150px;
+  width: 100px;
+  height: 100px;
   object-fit: cover;
   border-radius: 8px;
   border: 2px solid var(--text-brand);
@@ -726,8 +750,19 @@
   }
 
   .multi-image-item .followup-preview-image {
-    max-width: 150px;
-    max-height: 120px;
+    width: 80px;
+    height: 80px;
+    max-width: 80px;
+    max-height: 80px;
+  }
+
+  /* Also reduce single image on mobile */
+  .followup-preview-image {
+    width: 80px !important;
+    height: 80px !important;
+    max-width: 80px !important;
+    max-height: 80px !important;
+    object-fit: cover;
   }
 }
 

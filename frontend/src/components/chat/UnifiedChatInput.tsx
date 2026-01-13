@@ -7,6 +7,7 @@ import { Plus, Brain, X, Check, Sparkles, Smartphone, UploadCloud } from 'lucide
 import { useNavigate, useLocation } from 'react-router-dom';
 import LandingPageUploadWidget from '../common/LandingPageUploadWidget';
 import MobileUploadModal from '../upload/MobileUploadModal';
+import ImageModeModal from '../common/ImageModeModal';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -66,6 +67,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
   const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
   const [mobileSessionId, setMobileSessionId] = useState<string>('');
+
+
+  const [showImageMode, setShowImageMode] = useState<boolean>(false);
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
 
 
   // Metadata & Autocomplete State
@@ -605,7 +610,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   return (
     <>
       {mode === 'first-time' && (
-        <div className="chat-title-section">
+        <div className={`chat-title-section ${isExpanded ? 'shift-up' : ''}`}>
           <div className="user-greeting">
             <Sparkles size={18} className="greeting-sparkle" />
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
@@ -676,7 +681,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                           const preview = previewImages[imageIndex];
                           return (
                             <div key={index} className="multi-image-item">
-                              <img src={preview} alt={`Preview ${index + 1}`} className="followup-preview-image" />
+                              <img
+                                src={preview}
+                                alt={`Preview ${index + 1}`}
+                                className="followup-preview-image clickable"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveImageIndex(imageIndex);
+                                  setShowImageMode(true);
+                                }}
+                              />
                               <button
                                 className="multi-image-remove"
                                 onClick={(e) => {
@@ -701,7 +715,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       <PDFPreview file={imageFile} onRemove={removePreview} />
                     ) : (
                       <>
-                        <img src={previewImage || ''} alt="Preview" className="followup-preview-image" />
+                        <img
+                          src={previewImage || ''}
+                          alt="Preview"
+                          className="followup-preview-image clickable"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex(0);
+                            setShowImageMode(true);
+                          }}
+                        />
                         <button className="followup-remove-preview" onClick={(e) => { e.stopPropagation(); removePreview(); }} type="button">×</button>
                       </>
                     )}
@@ -850,6 +873,24 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         cancelText="Maybe Later"
         variant="primary"
       />
+
+      {/* Render Image Mode Modal */}
+      {showImageMode && (
+        <ImageModeModal
+          isOpen={showImageMode}
+          images={(isMultiImage ? previewImages : (previewImage ? [previewImage] : [])).map((src, idx) => ({
+            id: `preview-${idx}`,
+            src,
+            filename: `preview-${idx}.jpg`,
+            messageId: 'preview',
+            messageRole: 'user',
+            messageType: 'preview',
+            alt: 'Preview Image'
+          }))}
+          initialImageIndex={activeImageIndex}
+          onClose={() => setShowImageMode(false)}
+        />
+      )}
     </>
   );
 };

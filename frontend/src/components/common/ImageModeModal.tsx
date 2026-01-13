@@ -1,4 +1,5 @@
 // Simplified ImageModeModal now uses the shared ImageViewer component
+import ReactDOM from 'react-dom';
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { SessionImage } from '../../utils/imageCollectionUtils';
 import ImageViewer from './ImageViewer';
@@ -23,7 +24,11 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       scrollPositionRef.current = window.scrollY;
+      document.body.style.overflow = 'hidden'; // Prevent background scroll
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen]);
 
   const handleClose = useCallback(() => {
@@ -35,14 +40,15 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
     return null;
   }
 
-  return (
+  return ReactDOM.createPortal(
     <div className="image-mode-modal" role="dialog" aria-label="Image viewer">
       <ImageViewer
         images={images}
         initialImageIndex={initialImageIndex}
         onClose={handleClose}
       />
-    </div>
+    </div>,
+    document.body
   );
 };
 
