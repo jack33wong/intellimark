@@ -91,7 +91,7 @@ export class QuestionModeHandlerService {
     const { detectionStats, detectionResults } = orchestrationResult;
 
     // Log detection statistics
-    MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
+    MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
 
     // === DB TRUTH vs CALCULATED COMPARISON (User Requested) ===
     // Group by base question number to compare DB marks vs calculated marks

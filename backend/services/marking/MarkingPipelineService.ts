@@ -1016,7 +1016,7 @@ export class MarkingPipelineService {
             logQuestionDetectionComplete();
 
             // Log detection statistics
-            MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
+            MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
 
             // Warn if suspected missing paper in database
             const detectionRate = detectionStats.totalQuestions > 0

@@ -1449,3 +1449,68 @@ export function mergeQuestionsFromPages(
   return allQuestions;
 }
 
+
+/**
+ * Log a clean audit report for question detection
+ * Provides mapping from AI Mapper Input -> Detection Result
+ */
+export function logDetectionAudit(detectionResults: any[]): void {
+  if (!detectionResults || detectionResults.length === 0) return;
+
+  console.log('\n📋 [DETECTION AUDIT REPORT]');
+  console.log('------------------------------------------------------------------------------------------------------------------------------------');
+  console.log('| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |');
+  console.log('------------------------------------------------------------------------------------------------------------------------------------');
+
+  detectionResults.forEach(item => {
+    const question = item.question;
+    const result = item.detectionResult;
+    const match = result.match;
+
+    // 1. Q#
+    const qNum = String(question.questionNumber || '?').padEnd(4);
+
+    // 2. Input Text Fragment (WIDER: 45 chars)
+    let inputText = (question.text || '').replace(/\n/g, ' ').trim();
+    if (inputText.length > 45) {
+      inputText = inputText.substring(0, 42) + '...';
+    }
+    const paddedInput = inputText.padEnd(45);
+
+    // 3. Match Result / Paper Title (WIDER: 50 chars)
+    let matchTitle = 'N/A';
+    let scoreStr = '0.000';
+    let status = '\x1b[31m❌ FAILED\x1b[0m';
+
+    if (result.found && match) {
+      // Construct Paper Title correctly (Handling "undefined" fix)
+      const board = match.board === 'Pearson Edexcel' ? 'Edexcel' : (match.board || '');
+      const subject = match.qualification || '';
+      matchTitle = `${board} ${subject} ${match.paperCode} (${match.examSeries}) Q${match.questionNumber}`;
+
+      if (matchTitle.length > 50) {
+        matchTitle = matchTitle.substring(0, 47) + '...';
+      }
+
+      scoreStr = (match.confidence || 0).toFixed(3);
+
+      // Determine Status
+      const isRescued = match.isRescued || (match.confidence < 0.7 && match.confidence >= 0.05);
+      if (match.confidence >= 0.9) {
+        status = '\x1b[32m✅ SUCCESS\x1b[0m';
+      } else if (isRescued) {
+        status = '\x1b[33m⚠️  RESCUED\x1b[0m';
+      } else if (match.confidence >= 0.4) {
+        status = '\x1b[33m⚠️  WEAK MATCH\x1b[0m';
+      }
+    } else {
+      // Failure Reason
+      const reason = result.reason || (question.text ? 'Low Similarity' : 'No Text Detected');
+      status = `\x1b[31m❌ FAILED (${reason})\x1b[0m`;
+    }
+
+    console.log(`| ${qNum} | ${paddedInput} | ${matchTitle.padEnd(50)} | ${scoreStr} | ${status.padEnd(22)} |`);
+  });
+
+  console.log('------------------------------------------------------------------------------------------------------------------------------------\n');
+}

@@ -10,6 +10,7 @@
  * 5. Updating classification result with detected question numbers
  */
 
+import { logDetectionAudit } from './MarkingHelpers.js';
 import { questionDetectionService } from './questionDetectionService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart, formatFullQuestionText } from '../../utils/TextNormalizationUtils.js';
 import * as stringSimilarity from 'string-similarity';
@@ -723,7 +724,12 @@ export class MarkingSchemeOrchestrationService {
   /**
    * Log detection statistics
    */
-  static logDetectionStatistics(detectionStats: DetectionStatistics): void {
+  static logDetectionStatistics(detectionStats: DetectionStatistics, detectionResults?: any[]): void {
+    // 1. Log New Audit Table
+    if (detectionResults) {
+      logDetectionAudit(detectionResults);
+    }
+
     const detectionRate = detectionStats.totalQuestions > 0
       ? ((detectionStats.detected / detectionStats.totalQuestions) * 100).toFixed(0)
       : '0';
