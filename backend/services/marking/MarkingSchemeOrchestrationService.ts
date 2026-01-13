@@ -395,9 +395,17 @@ export class MarkingSchemeOrchestrationService {
         // Create a map of existing group items for easy lookup
         const itemsBySubPart = new Map<string, typeof group[0]>();
         group.forEach(item => {
-          const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
-          const subLabelMatch = displayQNum.match(/([a-z]+|[ivx]+)$/i);
-          const subLabel = subLabelMatch ? subLabelMatch[1].toLowerCase() : displayQNum.toLowerCase();
+          // ROBUSTNESS: Prefer explicit subQuestionNumber from match, then fallback to parsing displayQNum
+          const matchSubQ = item.detectionResult.match?.subQuestionNumber;
+          let subLabel = '';
+
+          if (matchSubQ) {
+            subLabel = matchSubQ.toLowerCase();
+          } else {
+            const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+            const subLabelMatch = displayQNum.match(/([a-z]+|[ivx]+)$/i);
+            subLabel = subLabelMatch ? subLabelMatch[1].toLowerCase() : displayQNum.toLowerCase();
+          }
           const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
           itemsBySubPart.set(normalizedSubLabel, item);
         });
@@ -413,7 +421,9 @@ export class MarkingSchemeOrchestrationService {
           if (questionData && (questionData.sub_questions || questionData.subQuestions)) {
             const dbSubQs = questionData.sub_questions || questionData.subQuestions || [];
             dbSubQs.forEach((sq: any) => {
-              const part = normalizeSubQuestionPart(sq.question_part || '');
+              // ROBUSTNESS FIX: Check multiple possible fields
+              const partId = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
+              const part = normalizeSubQuestionPart(partId || '');
               if (part) dbSubParts.add(part);
             });
           }
@@ -481,7 +491,11 @@ export class MarkingSchemeOrchestrationService {
                 ? questionsSchema.find((q: any) => String(q.question_number || q.number) === baseQuestionNumber)
                 : (questionsSchema ? (questionsSchema as any)[baseQuestionNumber] : null);
               const dbSubQs = questionData?.sub_questions || questionData?.subQuestions || [];
-              const dbSubQ = dbSubQs.find((sq: any) => normalizeSubQuestionPart(sq.question_part || '') === normalizedSubLabel);
+              // ROBUSTNESS FIX: Check multiple possible fields
+              const dbSubQ = dbSubQs.find((sq: any) => {
+                const partId = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
+                return normalizeSubQuestionPart(partId || '') === normalizedSubLabel;
+              });
               if (dbSubQ && typeof dbSubQ.marks === 'number') {
                 subQMaxScore = dbSubQ.marks;
               } else {
@@ -518,7 +532,11 @@ export class MarkingSchemeOrchestrationService {
                     ? questionsSchema.find((q: any) => String(q.question_number || q.number) === baseQuestionNumber)
                     : (questionsSchema ? (questionsSchema as any)[baseQuestionNumber] : null);
                   const dbSubQs = questionData?.sub_questions || questionData?.subQuestions || [];
-                  const dbSubQ = dbSubQs.find((sq: any) => normalizeSubQuestionPart(sq.question_part || '') === normalizedSubLabel);
+                  // ROBUSTNESS FIX: Check multiple possible fields
+                  const dbSubQ = dbSubQs.find((sq: any) => {
+                    const partId = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
+                    return normalizeSubQuestionPart(partId || '') === normalizedSubLabel;
+                  });
                   if (dbSubQ) {
                     subQQuestionText = dbSubQ.text || dbSubQ.question || dbSubQ.question_text || '';
                     subQMaxScore = typeof dbSubQ.marks === 'number' ? dbSubQ.marks : 0;

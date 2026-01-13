@@ -366,6 +366,7 @@ export class QuestionDetectionService {
       if (bestMatch) {
         // Log top 3 matches for debugging
         allMatches.sort((a, b) => b.confidence - a.confidence);
+        /*
         console.log('\n[QUESTION DETECTION DEBUG]');
         console.log(`Input Text: "${extractedQuestionText.substring(0, 100).replace(/\n/g, ' ')}..."`);
         console.log('Top 3 Matches:');
@@ -373,6 +374,7 @@ export class QuestionDetectionService {
           console.log(`  ${i + 1}. [${m.confidence.toFixed(3)}] ${m.paper} Q${m.qNum} (${m.marks} marks) - "${m.text}"`);
         });
         console.log('----------------------------\n');
+        */
 
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
@@ -495,7 +497,8 @@ export class QuestionDetectionService {
   public async matchQuestionWithExamPaper(
     questionText: string,
     examPaper: any,
-    questionNumberHint?: string | null
+    questionNumberHint?: string | null,
+    examPaperHint?: string | null
   ): Promise<ExamPaperMatch | null> {
     try {
       // Debug entry point for Q2 - REMOVED
@@ -568,20 +571,25 @@ export class QuestionDetectionService {
               // Match against the specific sub-question part
               for (const subQ of subQuestions) {
                 const subQuestionText = subQ.text || subQ.question || subQ.question_text || subQ.sub_question || '';
-                // Use ONLY question_part - fail fast if missing
-                if (!subQ.question_part) {
-                  console.error(`[QUESTION DETECTION] ❌ Sub-question missing question_part field. Expected structure: sub_questions[].question_part`);
-                  continue; // Skip this sub-question - invalid structure
-                }
-                const subQuestionPart = String(subQ.question_part).toLowerCase();
 
+                // ROBUSTNESS FIX: Check multiple possible fields for the part identifier
+                // Database schema might have variations (question_part, part, label, etc.)
+                const partIdentifier = subQ.question_part || subQ.part || subQ.label || subQ.sub_question_number || subQ.number;
+
+                if (!partIdentifier) {
+                  // Only fail if ALL potential fields are missing
+                  // console.error(`[QUESTION DETECTION] ❌ Sub-question missing part identifier. Checked: question_part, part, label, number`);
+                  continue; // Skip this sub-question - truly invalid structure
+                }
+
+                const subQuestionPart = String(partIdentifier).toLowerCase();
 
                 // Normalize both sides to handle format differences: "a(i)" vs "ai"
                 // Remove parentheses and spaces: "a(i)" -> "ai", "a (i)" -> "ai", "ai" -> "ai"
                 const normalizedSubPart = normalizeSubQuestionPart(subQuestionPart);
                 const normalizedHint = normalizeSubQuestionPart(hintSubPart);
 
-                // MATCHING LOGIC WITH FALLBACKS (Fixes Q12ai dropped issue)
+                // MATCHING LOGIC WITH FALLBACKS
                 let isMatch = normalizedSubPart === normalizedHint;
 
                 // Fallback 1: Hint "ai" -> Match DB "a" (Strip trailing Roman Numeral)
@@ -622,15 +630,29 @@ export class QuestionDetectionService {
                   bestQuestionMatch = questionNumber;
                   bestMatchedQuestion = question;
                   bestSubQuestionNumber = subQuestionPart; // Use DB version
-                } else if ((normalizedSubPart === normalizedHint || isMatch) && subSimilarity >= 0.2) {
                   // Fallback: Sub-question part matches but text similarity is low
                   // Use lower confidence (0.5) but still accept the match
                   // This handles cases where classification text format differs but sub-question part is correct
-                  if (bestScore < 0.5) {
-                    bestScore = 0.5;
-                    bestQuestionMatch = questionNumber;
-                    bestMatchedQuestion = question;
-                    bestSubQuestionNumber = subQuestionPart;
+
+                  // RELAXED MATCHING FOR FORCED HINTS:
+                  // If we are strictly checking a specific paper (examPaperHint provided and matches),
+                  // be much more lenient with text overlap (0.1 threshold or substring match).
+                  const isPaperMatch = examPaperHint &&
+                    (metadata.exam_board + ' ' + metadata.exam_code + ' ' + metadata.exam_series + ' ' + metadata.tier).toLowerCase().includes(examPaperHint.toLowerCase().split(' ').slice(0, 2).join(' ')); // Simple heuristic check
+
+                  const isSubstringInit = questionText.length > 10 && (subQuestionText.includes(questionText) || questionText.includes(subQuestionText));
+                  const threshold = isPaperMatch ? 0.05 : 0.2; // Ultra-low threshold for hints
+
+                  if (bestScore < 0.5 && ((normalizedSubPart === normalizedHint || isMatch))) {
+                    if (subSimilarity >= threshold || isSubstringInit) {
+                      bestScore = 0.5;
+                      bestQuestionMatch = questionNumber;
+                      bestMatchedQuestion = question;
+                      bestSubQuestionNumber = subQuestionPart;
+                      if (isPaperMatch) {
+                        // console.log(`[MATCH DEBUG] Forced Hint Match for Q${questionNumber}${subQuestionPart} (Sim: ${subSimilarity})`);
+                      }
+                    }
                   }
                 }
               }
@@ -796,10 +818,13 @@ export class QuestionDetectionService {
         if (bestSubQuestionNumber && hasSubQuestions) {
           // Use ONLY question_part - fail fast if missing
           const matchedSubQ = matchedSubQuestions.find((sq: any) => {
-            if (!sq.question_part) {
+            // ROBUSTNESS FIX: Check multiple possible fields for the part identifier
+            const partIdentifier = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
+
+            if (!partIdentifier) {
               return false; // Skip - invalid structure
             }
-            return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
+            return String(partIdentifier).toLowerCase() === bestSubQuestionNumber.toLowerCase();
           });
 
           if (matchedSubQ && matchedSubQ.marks !== undefined) {
@@ -814,9 +839,13 @@ export class QuestionDetectionService {
         let databaseQuestionText = '';
         if (bestSubQuestionNumber && hasSubQuestions) {
           // Get sub-question text from database
+          // Get sub-question text from database
           const matchedSubQ = matchedSubQuestions.find((sq: any) => {
-            if (!sq.question_part) return false;
-            return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
+            // ROBUSTNESS FIX: Check multiple possible fields for the part identifier
+            const partIdentifier = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
+
+            if (!partIdentifier) return false;
+            return String(partIdentifier).toLowerCase() === bestSubQuestionNumber.toLowerCase();
           });
           if (matchedSubQ) {
             databaseQuestionText = matchedSubQ.text || matchedSubQ.question || matchedSubQ.question_text || '';
