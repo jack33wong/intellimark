@@ -1483,10 +1483,14 @@ export function logDetectionAudit(detectionResults: any[]): void {
     let status = '\x1b[31m❌ FAILED\x1b[0m';
 
     if (result.found && match) {
-      // Construct Paper Title correctly (Handling "undefined" fix)
-      const board = match.board === 'Pearson Edexcel' ? 'Edexcel' : (match.board || '');
-      const subject = match.qualification || '';
-      matchTitle = `${board} ${subject} ${match.paperCode} (${match.examSeries}) Q${match.questionNumber}`;
+      // Construct Paper Title robustly (Fixing "undefined" issue)
+      const b = match.board === 'Pearson Edexcel' ? 'Edexcel' : (match.board && match.board !== 'undefined' ? match.board : '');
+      const q = match.qualification && match.qualification !== 'undefined' ? match.qualification : '';
+      const c = match.paperCode && match.paperCode !== 'undefined' ? match.paperCode : '';
+      const s = match.examSeries && match.examSeries !== 'undefined' ? match.examSeries : '';
+
+      const parts = [b, q, c, s].filter(Boolean);
+      matchTitle = parts.length > 0 ? `${parts.join(' ')} Q${match.questionNumber || ''}` : `Q${match.questionNumber || ''}`;
 
       if (matchTitle.length > 50) {
         matchTitle = matchTitle.substring(0, 47) + '...';
@@ -1494,12 +1498,11 @@ export function logDetectionAudit(detectionResults: any[]): void {
 
       scoreStr = (match.confidence || 0).toFixed(3);
 
-      // Determine Status
-      const isRescued = match.isRescued || (match.confidence < 0.7 && match.confidence >= 0.05);
-      if (match.confidence >= 0.9) {
-        status = '\x1b[32m✅ SUCCESS\x1b[0m';
-      } else if (isRescued) {
+      // Determine Status (Simplified & More Accurate)
+      if (match.isRescued) {
         status = '\x1b[33m⚠️  RESCUED\x1b[0m';
+      } else if (match.confidence >= 0.8) {
+        status = '\x1b[32m✅ SUCCESS\x1b[0m';
       } else if (match.confidence >= 0.4) {
         status = '\x1b[33m⚠️  WEAK MATCH\x1b[0m';
       }

@@ -55,6 +55,7 @@ export interface ExamPaperMatch {
   examPaper?: any;
   markingScheme?: MarkingSchemeMatch;
   databaseQuestionText?: string;  // Database question text for filtering OCR blocks
+  isRescued?: boolean; // Flag to indicate if the match was rescued via Consensus Paper logic
 }
 
 export interface MarkingSchemeMatch {
@@ -261,7 +262,7 @@ export class QuestionDetectionService {
             const isSpecificSearch = hintMetadata && hintMetadata.matchedPapersCount > 0;
             const threshold = isSpecificSearch
               ? (match.subQuestionNumber ? 0.35 : 0.40)
-              : (match.subQuestionNumber ? 0.40 : 0.50);
+              : (match.subQuestionNumber ? 0.70 : 0.80); // STRENGHTENED: High threshold for global search to avoid false positives on non-past papers
 
             if (match.confidence >= threshold) {
               bestMatch = match;
@@ -500,8 +501,9 @@ export class QuestionDetectionService {
     questionNumberHint?: string | null,
     examPaperHint?: string | null
   ): Promise<ExamPaperMatch | null> {
+    let wasRescued = false; // Track if the match was forced/rescued
     try {
-      // Debug entry point for Q2 - REMOVED
+      const metadata = examPaper.metadata || {};
 
       const questions = examPaper.questions || {};
       let bestQuestionMatch: string | null = null;
@@ -634,24 +636,22 @@ export class QuestionDetectionService {
                   // Use lower confidence (0.5) but still accept the match
                   // This handles cases where classification text format differs but sub-question part is correct
 
-                  // RELAXED MATCHING FOR FORCED HINTS:
-                  // If we are strictly checking a specific paper (examPaperHint provided and matches),
-                  // be much more lenient with text overlap (0.1 threshold or substring match).
                   const isPaperMatch = examPaperHint &&
                     (metadata.exam_board + ' ' + metadata.exam_code + ' ' + metadata.exam_series + ' ' + metadata.tier).toLowerCase().includes(examPaperHint.toLowerCase().split(' ').slice(0, 2).join(' ')); // Simple heuristic check
 
-                  const isSubstringInit = questionText.length > 10 && (subQuestionText.includes(questionText) || questionText.includes(subQuestionText));
-                  const threshold = isPaperMatch ? 0.05 : 0.2; // Ultra-low threshold for hints
+                  // RELAXED MATCHING FOR FORCED HINTS (Rescue Logic):
+                  // Only apply the 0.5 confidence "Rescue" boost if we have a confirmed paper match (Consensus paper found).
+                  // This prevents non-past papers from matching random questions during global searches.
+                  if (isPaperMatch && bestScore < 0.5 && (normalizedSubPart === normalizedHint || isMatch)) {
+                    const isSubstringInit = questionText.length > 10 && (subQuestionText.includes(questionText) || questionText.includes(subQuestionText));
+                    const threshold = 0.05; // Ultra-low threshold for confirmed paper matches
 
-                  if (bestScore < 0.5 && ((normalizedSubPart === normalizedHint || isMatch))) {
                     if (subSimilarity >= threshold || isSubstringInit) {
                       bestScore = 0.5;
                       bestQuestionMatch = questionNumber;
                       bestMatchedQuestion = question;
                       bestSubQuestionNumber = subQuestionPart;
-                      if (isPaperMatch) {
-                        // console.log(`[MATCH DEBUG] Forced Hint Match for Q${questionNumber}${subQuestionPart} (Sim: ${subSimilarity})`);
-                      }
+                      wasRescued = true; // Mark as rescued
                     }
                   }
                 }
@@ -773,7 +773,6 @@ export class QuestionDetectionService {
       const threshold = bestSubQuestionNumber ? 0.4 : 0.50;
 
       // Get paper code for debug logging
-      const metadata = examPaper.metadata;
       const paperCode = metadata?.exam_code || 'unknown';
 
 
@@ -869,7 +868,8 @@ export class QuestionDetectionService {
           confidence: bestScore,
           paperTitle: `${board} - ${paperCode} - ${examSeries}${tier ? `, ${tier}` : ''}`,
           examPaper: examPaper,
-          databaseQuestionText: databaseQuestionText // Store database question text for filtering
+          databaseQuestionText: databaseQuestionText, // Store database question text for filtering
+          isRescued: wasRescued // Set explicit rescue flag
         };
 
         // Only return if above threshold, but we've already logged it above
