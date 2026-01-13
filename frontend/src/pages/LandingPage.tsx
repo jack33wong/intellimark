@@ -152,6 +152,8 @@ const LandingPage: React.FC = () => {
                         <p className="spatial-description">
                             Unlike generic AI that just transcribes your work into flat text, <strong>AI Marking</strong> uses coordinate-accurate mapping. <strong>We don't just read your answer; we map your journey.</strong>
                             By tracking every stroke of your pen on the X/Y axis with 0.1mm precision, our AI identifies exactly where a 'Method Mark' was lost or an 'Error Carried Forward' occurred—annotating directly on your handwritten equations just like a human examiner.
+                            <br /><br />
+                            <strong>Beyond marking: Use Question Mode for examiner-perfect model answers and Context Chat for personalized feedback on every step.</strong>
                         </p>
                     </div>
                     <div className="spatial-visual">
