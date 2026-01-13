@@ -25,7 +25,7 @@ ul {
 .markdown-math-renderer h3~.markdown-p,
 .markdown-math-renderer h3~.markdown-ol,
 .markdown-math-renderer h3~ul {
-  margin-left: 1.5em;
+  margin-left: 0em;
 }
 
 /* --- List Styling --- */

@@ -121,7 +121,8 @@ export class QuestionModeHandlerService {
       questionText: dr.question.text,
       classificationQuestionNumber: dr.question.questionNumber, // Preserve original classification Q# (e.g., "9i", "9ii", "19ai")
       detection: dr.detectionResult,
-      sourceImageIndex: dr.question.sourceImageIndex ?? index
+      sourceImageIndex: dr.question.sourceImageIndex ?? index,
+      parentText: (dr.question as any).parentText // Pass parent text through
     }));
 
     // Build exam paper structure using common function (ensures consistency with Marking Mode)
@@ -213,10 +214,21 @@ export class QuestionModeHandlerService {
         }
 
         const metadata = extractExamMetadata(qd.detection.match); // ✅ Use utility function
+        // Use database match question number if available (e.g. "21") + sub-part (e.g. "a")
+        // fallback to classification number (e.g. "1")
+        let effectiveQuestionNumber = qd.classificationQuestionNumber || metadata.questionNumber || `${qd.questionIndex + 1}`;
+
+        if (qd.detection.match?.questionNumber) {
+          effectiveQuestionNumber = qd.detection.match.questionNumber;
+          // Append sub-question number if matched (e.g. "a")
+          if (qd.detection.match.subQuestionNumber) {
+            effectiveQuestionNumber += qd.detection.match.subQuestionNumber;
+          }
+        }
+
         return {
-          // Use CLASSIFICATION question number (e.g., "9i", "9ii") instead of database match (e.g., "9")
-          // This preserves the sub-question structure in the AI response
-          questionNumber: qd.classificationQuestionNumber || metadata.questionNumber || `${qd.questionIndex + 1}`,
+          // Use determined effective question number
+          questionNumber: effectiveQuestionNumber,
           questionText: questionText,
           marks: metadata.marks || 0,
           markingScheme: markingSchemePlainText,
@@ -226,7 +238,8 @@ export class QuestionModeHandlerService {
           subject: metadata.subject, // ✅ From utility (always match.subject)
           tier: metadata.tier,
           examSeries: metadata.examSeries,
-          sourceImageIndex: qd.sourceImageIndex
+          sourceImageIndex: qd.sourceImageIndex,
+          parentText: (qd as any).parentText // Pass parent text for AI prompt
         };
       })
     };
@@ -274,6 +287,14 @@ export class QuestionModeHandlerService {
           ? subQuestions.map(sq => sq.markingScheme).filter(ms => ms).join('\n\n')
           : subQuestions[0].markingScheme;
 
+        const totalMarks = subQuestions.reduce((sum, sq) => sum + (sq.marks || 0), 0);
+
+        // Prepend explicit total marks to guide AI (prevents hallucination/miscalculation)
+        // INSTRUCTION: Explicitly state this is the ceiling/limit
+        const finalMarkingScheme = combinedMarkingScheme
+          ? `[MAXIMUM MARKS: ${totalMarks}] (Ceiling limit: Do not award more than ${totalMarks} marks)\n\n${combinedMarkingScheme}`
+          : `[MAXIMUM MARKS: ${totalMarks}] (Ceiling limit: Do not award more than ${totalMarks} marks) No marking scheme available.`;
+
         // Determine display question number
         // - If grouped (Q9i, Q9ii, Q9iii), show as "9(i, ii, iii)"
         // - If single question with suffix (Q1a alone), strip suffix to show "1" (mapper error)
@@ -282,18 +303,39 @@ export class QuestionModeHandlerService {
           ? `${baseNumber}(${subQuestions.map(sq => sq.questionNumber.toString().replace(baseNumber, '')).join(', ')})`
           : baseNumber; // Use base number without suffix for single questions
 
+        // Explicitly instruct AI to output the header with marks AND apply HTML styling
+        const questionTextWithInstruction = `IMPORTANT:
+        1. DO NOT output a header like "**Question X**" (it is already displayed).
+        2. Wrap the REPEATED question text in <span class="model_question"> ... </span>
+        3. Wrap your step-by-step solution in <div class="model_answer"> ... </div>
+        4. Inside <div class="model_answer">, ensure every step or line is wrapped in a <p> tag for proper spacing.
+        5. CRITICAL: Wrap marking scheme codes (e.g. [M1], [A1]) in <span class="marking-code">...</span>. Keep them ON THE SAME LINE as the answer step, inside the <p> tag.
+        
+        ${combinedQuestionText}`;
 
+
+
+        const combinedParentText = isGrouped
+          ? subQuestions[0].parentText // Use parent text from first sub-question (usually same for all)
+          : null;
+
+
+        console.log('\n[AI PROMPT DEBUG]');
+        console.log(`Question: ${mainQuestionNumber} (Marks: ${totalMarks})`);
+        console.log(`Prompt Text: "${questionTextWithInstruction.substring(0, 100).replace(/\n/g, ' ')}..."`);
+        console.log(`Marking Scheme: "${(finalMarkingScheme || 'No marking scheme').substring(0, 100).replace(/\n/g, ' ')}..."`);
+        console.log('----------------------------\n');
 
         const response = await MarkingServiceLocator.generateChatResponse(
-          combinedQuestionText,
-          combinedQuestionText,
+          questionTextWithInstruction, // Use instructed text
+          questionTextWithInstruction,
           actualModel as ModelType,
           "questionOnly",
           false, // debug
           undefined, // onProgress
           false, // useOcrText
           usageTracker,
-          combinedMarkingScheme
+          finalMarkingScheme // ✅ Use final scheme with total marks
         );
 
         // Reuse parent marks from comparison table (already calculated correctly)

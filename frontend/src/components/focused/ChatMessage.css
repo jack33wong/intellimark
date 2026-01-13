@@ -548,3 +548,39 @@
     background-position: 200% 0;
   }
 }
+
+/* AI Response Styling for Question text and Answer body */
+.markdown-math-renderer .model_question {
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 0.5em;
+  font-weight: 500;
+}
+
+.markdown-math-renderer .model_answer {
+  color: var(--text-primary);
+  display: block;
+  margin-top: 0.5em;
+  margin-left: 15px;
+}
+
+/* Question Mode Response Styling */
+/* Question Mode Response Styling */
+.question-mode-response .chat-message-renderer {
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+  padding: 16px;
+  background-color: white;
+  /* Ensure visibility */
+  /* Ensure it stands out slightly */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Marking Code Styling: Red and Right-Aligned */
+.marking-code {
+  float: right;
+  color: #dc2626;
+  /* Red-600 */
+  font-weight: 500;
+  margin-left: 12px;
+}

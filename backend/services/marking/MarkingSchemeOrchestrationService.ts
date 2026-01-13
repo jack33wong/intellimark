@@ -130,8 +130,17 @@ export class MarkingSchemeOrchestrationService {
           detectionStats.bySimilarityRange.low++;
         }
 
+        // Determine best supported question number for logs
+        let logQuestionNumber = question.questionNumber;
+        if (detectionResult.match?.questionNumber) {
+          logQuestionNumber = detectionResult.match.questionNumber;
+          if (detectionResult.match.subQuestionNumber) {
+            logQuestionNumber += detectionResult.match.subQuestionNumber;
+          }
+        }
+
         detectionStats.questionDetails.push({
-          questionNumber: question.questionNumber,
+          questionNumber: logQuestionNumber,
           detected: true,
           similarity,
           hasMarkingScheme,

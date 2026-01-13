@@ -235,10 +235,22 @@ export class QuestionDetectionService {
       let bestTextMatch: { match: ExamPaperMatch; textSimilarity: number } | null = null;
       let bestFailedMatch: ExamPaperMatch | null = null; // Track best match even if below threshold
 
+      // Debug: Track all matches to show top 3
+      const allMatches: { paper: string; confidence: number; text: string; qNum: string; marks?: number }[] = [];
+
       for (const examPaper of examPapers) {
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
 
         if (match && match.confidence) {
+          // Collect debug info
+          allMatches.push({
+            paper: `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})`,
+            confidence: match.confidence,
+            text: (match.databaseQuestionText || '').substring(0, 50) + '...',
+            qNum: match.subQuestionNumber ? `${match.questionNumber}${match.subQuestionNumber}` : match.questionNumber || '?',
+            marks: match.marks
+          });
+
           // Track best match even if below threshold (for failure logging)
           if (match.confidence > bestScore) {
             bestFailedMatch = match;
@@ -352,6 +364,16 @@ export class QuestionDetectionService {
 
       // Final processing of the best match
       if (bestMatch) {
+        // Log top 3 matches for debugging
+        allMatches.sort((a, b) => b.confidence - a.confidence);
+        console.log('\n[QUESTION DETECTION DEBUG]');
+        console.log(`Input Text: "${extractedQuestionText.substring(0, 100).replace(/\n/g, ' ')}..."`);
+        console.log('Top 3 Matches:');
+        allMatches.slice(0, 3).forEach((m, i) => {
+          console.log(`  ${i + 1}. [${m.confidence.toFixed(3)}] ${m.paper} Q${m.qNum} (${m.marks} marks) - "${m.text}"`);
+        });
+        console.log('----------------------------\n');
+
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
@@ -1267,9 +1289,24 @@ export function buildExamPaperStructure(detectionResults: any[]): {
       });
     }
 
+    // Determine the best question number to display
+    // PRIORITY 1: Database Match Question Number (if found) - ensures "Q21" is shown even if "Q1" was written
+    // PRIORITY 2: Classification Question Number (fallback)
+    let displayQuestionNumber = '';
+
+    if (match?.questionNumber) {
+      // Construct full Q number from match (e.g. "21" + "a" = "21a")
+      displayQuestionNumber = match.questionNumber;
+      if (match.subQuestionNumber) {
+        displayQuestionNumber += match.subQuestionNumber;
+      }
+    } else {
+      displayQuestionNumber = qd.classificationQuestionNumber || qd.question?.questionNumber || match.questionNumber || '';
+    }
+
     const examPaper = examPaperGroups.get(examPaperKey)!;
     examPaper.questions.push({
-      questionNumber: qd.classificationQuestionNumber || qd.question?.questionNumber || match.questionNumber || '',
+      questionNumber: displayQuestionNumber,
       questionText: match.databaseQuestionText || qd.questionText,
       marks: match.marks || 0,
       markingScheme: extractStructuredMarks(match.markingScheme), // ✅ Use helper to extract structured array

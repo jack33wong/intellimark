@@ -342,7 +342,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   if (!shouldRenderMessage(message)) return null;
 
   return (
-    <div className={`chat-message ${isUser ? 'user' : 'assistant'}`} data-message-id={message.id}>
+    <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.detectedQuestion ? 'question-mode-response' : ''}`} data-message-id={message.id}>
       <div className="chat-message-content">
 
         <div className="chat-message-bubble">
@@ -398,10 +398,35 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               const questionContent = questionSections[i + 1] || '';
               const markMatches = questionContent.match(/\[([A-Z])(\d+)\]/g) || [];
               let totalMarks = 0;
-              markMatches.forEach(tag => {
-                const match = tag.match(/\[([A-Z])(\d+)\]/);
-                if (match) totalMarks += parseInt(match[2], 10);
-              });
+
+              // PRIORITY: Use metadata from backend if available (most accurate)
+              if (message.detectedQuestion) {
+                // Try individual question marks first, then total marks
+                // Check if this specific question matches one in the detectedQuestion list
+                const qNumMatch = header.match(/Question\s+(\d+[a-z]*)/i);
+                if (qNumMatch && message.detectedQuestion.examPapers) { // Check examPapers instead of questions
+                  // Flatten questions from all exam papers to find the match
+                  const allQuestions = message.detectedQuestion.examPapers.flatMap((ep: any) => ep.questions || []);
+                  const matchedQ = allQuestions.find((q: any) => q.questionNumber === qNumMatch[1]);
+                  if (matchedQ) {
+                    totalMarks = matchedQ.marks;
+                  }
+                }
+
+                // Fallback to totalMarks if 0 or not found
+                if (totalMarks === 0 && message.detectedQuestion.totalMarks) {
+                  totalMarks = message.detectedQuestion.totalMarks;
+                }
+              }
+
+              // Fallback: Calculate from regex tags [M1], [A1] only if metadata missing
+              if (totalMarks === 0) {
+                markMatches.forEach(tag => {
+                  const match = tag.match(/\[([A-Z])(\d+)\]/);
+                  if (match) totalMarks += parseInt(match[2], 10);
+                });
+              }
+
               let cleanedHeader = header.replace(/\s*\([^)]+\)/, '');
               if (totalMarks > 0) {
                 cleanedHeader += ` <span class="question-marks">(${totalMarks} ${totalMarks === 1 ? 'mark' : 'marks'})</span>`;
