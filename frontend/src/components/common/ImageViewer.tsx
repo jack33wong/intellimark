@@ -197,7 +197,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }
 
     return (
-        <div className="image-mode-modal" role="region" aria-label="Image viewer" style={{ position: 'relative', height: '100%', zIndex: 1, inset: 0 }}>
+        <div className="image-viewer-root" role="region" aria-label="Image viewer">
             <div className="image-mode-header">
                 <div className="image-mode-controls">
                     <div className="zoom-controls">
