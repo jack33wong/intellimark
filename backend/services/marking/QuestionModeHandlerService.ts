@@ -319,15 +319,35 @@ export class QuestionModeHandlerService {
           ? `${baseNumber}(${subQuestions.map(sq => sq.questionNumber.toString().replace(baseNumber, '')).join(', ')})`
           : baseNumber; // Use base number without suffix for single questions
 
+        // Create a structured list of questions for the AI to interleave
+        const structuredQuestions = subQuestions.map(sq => {
+          const subPart = sq.questionNumber.toString().replace(baseNumber, '');
+          const label = subPart ? `(${subPart})` : 'Main';
+          return `${label}: ${sq.questionText}`;
+        }).join('\n');
+
         // Explicitly instruct AI to output the header with marks AND apply HTML styling
-        const questionTextWithInstruction = `IMPORTANT:
-        1. DO NOT output a header like "**Question X**" (it is already displayed).
-        2. Wrap the REPEATED question text in <span class="model_question"> ... </span>
-        3. Wrap your step-by-step solution in <div class="model_answer"> ... </div>
-        4. Inside <div class="model_answer">, ensure every step or line is wrapped in a <p> tag for proper spacing.
-        5. CRITICAL: Wrap marking scheme codes (e.g. [M1], [A1]) in <span class="marking-code">...</span>. Keep them ON THE SAME LINE as the answer step, inside the <p> tag.
-        
-        ${combinedQuestionText}`;
+        const questionTextWithInstruction = `You are an expert examiner. 
+Provide an interleaved response where each sub-question part is followed immediately by its solution.
+
+STRUCTURE:
+1. LEAD-IN: Repeat the main question lead-in text exactly (if provided).
+2. INTERLEAVED PARTS: For each part (a, b, c, etc.):
+   - Use <span class="model_question">(part) Question Text</span>
+   - Follow immediately with <div class="model_answer">...solution...</div>
+
+STYLING RULES:
+1. Wrap the REPEATED question text in <span class="model_question"> ... </span>
+2. Wrap your step-by-step solution in <div class="model_answer"> ... </div>
+3. Inside <div class="model_answer">, wrap every line or calculation step in a <p> tag.
+4. MATH: Use LaTeX for ALL mathematical expressions, including variables like $x$ or $p$.
+5. PRECISION: Use scientific notation (e.g., $3.5 \times 10^{-6}$) for probabilities smaller than 0.0001. DO NOT output long strings of zeros.
+6. MARKING CODES: Wrap marking codes (e.g. [M1], [A1]) in <span class="marking-code">...</span>. Keep them on the same line as the answer step, inside the <p> tag.
+
+QUESTIONS TO SOLVE:
+Lead-in Text: ${mainLeadIn || 'None'}
+Parts:
+${structuredQuestions}`;
 
 
 
