@@ -145,10 +145,9 @@ export class MarkingSchemeOrchestrationService {
           detected: true,
           similarity,
           hasMarkingScheme,
-          matchedPaperTitle: detectionResult.match?.paperTitle // ✅ Use unified title
+          matchedPaperTitle: detectionResult.match?.paperTitle
         });
 
-        detectionResults.push({ question, detectionResult });
       } else {
         detectionStats.notDetected++;
         detectionStats.questionDetails.push({
@@ -157,6 +156,9 @@ export class MarkingSchemeOrchestrationService {
           hasMarkingScheme: false
         });
       }
+
+      // --- CRITICAL FIX: Ensure all questions reach the pipeline ---
+      detectionResults.push({ question, detectionResult });
 
       // Track failures for the 50% rule
       if (detectionResult.hintMetadata?.isWeakMatch || detectionResult.hintMetadata?.deepSearchActive) {
@@ -310,6 +312,22 @@ export class MarkingSchemeOrchestrationService {
     // Group detection results by base question number and exam paper
     for (const { question, detectionResult } of detectionResults) {
       if (!detectionResult.match) {
+        // Handle non-detected questions: Treat as independent generic questions
+        const fallbackId = question.questionNumber || `Q${Math.random().toString(36).substring(2, 7)}`;
+        const groupKey = `GENERIC_${fallbackId}`;
+
+        if (!groupedResults.has(groupKey)) {
+          groupedResults.set(groupKey, []);
+        }
+
+        groupedResults.get(groupKey)!.push({
+          question,
+          detectionResult,
+          actualQuestionNumber: question.questionNumber || '',
+          originalQuestionNumber: question.questionNumber,
+          examBoard: 'Unknown',
+          paperCode: 'Unknown'
+        });
         continue;
       }
 
@@ -338,6 +356,24 @@ export class MarkingSchemeOrchestrationService {
 
     // Third pass: Merge grouped sub-questions or store single questions
     for (const [groupKey, group] of groupedResults.entries()) {
+      // HANDLE GENERIC QUESTIONS (Detection Failed)
+      if (groupKey.startsWith('GENERIC_')) {
+        const item = group[0];
+        const uniqueKey = groupKey; // Use the generated generic key
+
+        markingSchemesMap.set(uniqueKey, {
+          questionMarks: null, // No marking scheme
+          totalMarks: 0,
+          parentQuestionMarks: 0,
+          questionNumber: item.originalQuestionNumber || item.actualQuestionNumber,
+          questionDetection: item.detectionResult,
+          questionText: item.question.text,
+          databaseQuestionText: '',
+          isGeneric: true // Use as flag for the generator to know this is a first-principles task
+        });
+        continue;
+      }
+
       const baseQuestionNumber = groupKey.split('_')[0];
       const examBoard = group[0].examBoard;
       const paperCode = group[0].paperCode;
