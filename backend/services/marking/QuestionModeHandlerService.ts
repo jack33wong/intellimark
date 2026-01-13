@@ -305,9 +305,11 @@ export class QuestionModeHandlerService {
 
         // Prepend explicit total marks to guide AI (prevents hallucination/miscalculation)
         // INSTRUCTION: Explicitly state this is the ceiling/limit
+        const marksDisplay = totalMarks > 0 ? `MAXIMUM MARKS: ${totalMarks}` : `MAXIMUM MARKS: Not specified`;
+        const ceilingDisplay = totalMarks > 0 ? `(Ceiling limit: Do not award more than ${totalMarks} marks)` : `(Solve and provide full justification as appropriate)`;
         const finalMarkingScheme = combinedMarkingScheme
-          ? `[MAXIMUM MARKS: ${totalMarks}] (Ceiling limit: Do not award more than ${totalMarks} marks)\n\n${combinedMarkingScheme}`
-          : `[MAXIMUM MARKS: ${totalMarks}] (Ceiling limit: Do not award more than ${totalMarks} marks) No marking scheme available.`;
+          ? `[${marksDisplay}] ${ceilingDisplay}\n\n${combinedMarkingScheme}`
+          : `[${marksDisplay}] ${ceilingDisplay} No marking scheme available. Please solve from first principles as an expert examiner.`;
 
         // Determine display question number
         // - If grouped (Q9i, Q9ii, Q9iii), show as "9(i, ii, iii)"
@@ -365,12 +367,15 @@ export class QuestionModeHandlerService {
         formattedResponse = formattedResponse.replace(/^Question\s+\d+\s*\n*/i, '');
 
         // Step 2: Prepend markdown header with parent marks
-        const marksText = parentMarks > 0 ? ` (${parentMarks} ${parentMarks === 1 ? 'mark' : 'marks'})` : '';
+        // For generic questions (marks = 0), show "Marks: Not specified" to avoid confusing AI/User
+        const marksText = parentMarks > 0 ? ` (${parentMarks} ${parentMarks === 1 ? 'mark' : 'marks'})` : ' (Marks: Not specified)';
         const header = `### Question ${baseNumber}${marksText}\n\n`;
 
         // CRITICAL: Save raw response BEFORE adding header (for Mixed Mode)
         const rawResponseWithoutHeader = formattedResponse;
         formattedResponse = header + formattedResponse;
+
+        console.log(`[GENERATOR DEBUG] Q${baseNumber} Raw Response Start: "${rawResponseWithoutHeader.substring(0, 100)}..."`);
 
         // Step 3: Insert blank lines after marking codes for visual separation
         formattedResponse = formattedResponse
@@ -452,7 +457,8 @@ export class QuestionModeHandlerService {
       multipleExamPapers: questionDetection.multipleExamPapers,
       multipleQuestions: questionDetection.multipleQuestions,
       totalMarks: questionDetection.totalMarks,
-      examPapers: questionDetection.examPapers
+      examPapers: questionDetection.examPapers,
+      questions: questionDetection.questions // Ensure all individual questions are passed to frontend
     } : undefined;
 
     const aiMessage = createAIMessage({
