@@ -748,11 +748,12 @@ export class MarkingSchemeOrchestrationService {
 
       console.log(`   ${blue}[HINT] Initial Match: ${matchedPapersCount} paper(s) found for hint "${hintUsed}"${reset}`);
 
-      if (deepSearchActive) {
-        const rescuedList = rescuedQuestions && rescuedQuestions.length > 0 ? `: ${rescuedQuestions.join(', ')}` : '';
-        console.log(`   ${yellow}[HINT] Rescue Mode: Required for ${rescuedQuestions?.length || 0} question(s)${rescuedList}${reset}`);
+      if (deepSearchActive && rescuedQuestions && rescuedQuestions.length > 0) {
+        console.log(`   ${yellow}[HINT] Rescue Mode: Required for ${rescuedQuestions.length} question(s): ${rescuedQuestions.join(', ')}${reset}`);
         console.log(`   ${green}[HINT] Impact: Automated Rescue! Found via Deep Search across all ${poolSize} questions [+]${reset}`);
-      } else {
+      } else if (deepSearchActive) {
+        console.log(`   ${blue}[HINT] Search Pool: Global (Full Database) with ${poolSize} questions${reset}`);
+      } else if (thresholdRelaxed) {
         if (poolSize !== undefined) {
           console.log(`   ${blue}[HINT] Search Pool: ${poolSize} questions within matched paper(s)${reset}`);
         }

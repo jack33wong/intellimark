@@ -240,7 +240,7 @@ export class QuestionDetectionService {
       const allMatches: { paper: string; confidence: number; text: string; qNum: string; marks?: number }[] = [];
 
       for (const examPaper of examPapers) {
-        const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
+        const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint, examPaperHint);
 
         if (match && match.confidence) {
           // Collect debug info
@@ -732,20 +732,50 @@ export class QuestionDetectionService {
                   const subQuestionPart = String(subQ.question_part).toLowerCase();
                   const normalizedSubPart = normalizeSubQuestionPart(subQuestionPart);
                   const normalizedHint = normalizeSubQuestionPart(hintSubPart);
+                  let isMatch = normalizedSubPart === normalizedHint;
+
+                  // Fallback 1: Hint "ai" -> Match DB "a" (Strip trailing Roman Numeral)
+                  // Useful when DB stores "a" but Classification sees "ai"
+                  if (!isMatch) {
+                    const hintWithoutRoman = normalizedHint.replace(/[ivx]+$/i, '');
+                    if (hintWithoutRoman.length > 0 && hintWithoutRoman === normalizedSubPart) {
+                      isMatch = true;
+                    }
+                  }
+
+                  // Fallback 2: Hint "ai" -> Match DB "i" (Strip leading Letter)
+                  // Useful when DB stores "i" but Classification sees "ai"
+                  if (!isMatch) {
+                    const hintRomanOnly = normalizedHint.replace(/^[a-z]/i, '');
+                    if (hintRomanOnly.length > 0 && hintRomanOnly === normalizedSubPart) {
+                      isMatch = true;
+                    }
+                  }
 
                   const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
+
                   if (subSimilarity > bestScore) {
                     bestScore = subSimilarity;
                     bestQuestionMatch = actualQuestionNumber;
                     bestMatchedQuestion = questionData;
                     bestSubQuestionNumber = subQuestionPart;
-                  } else if (normalizedSubPart === normalizedHint && subSimilarity >= 0.2) {
-                    // Forced match for sub-questions
-                    if (bestScore < 0.5) {
+                  }
+
+                  const isPaperMatch = examPaperHint &&
+                    (metadata.exam_board + ' ' + metadata.exam_code + ' ' + metadata.exam_series + ' ' + metadata.tier).toLowerCase().includes(examPaperHint.toLowerCase().split(' ').slice(0, 2).join(' '));
+
+                  // RELAXED MATCHING FOR FORCED HINTS (Rescue Logic):
+                  // Only apply the 0.5 confidence "Rescue" boost if we have a confirmed paper match.
+                  if (isPaperMatch && bestScore < 0.5 && isMatch) {
+                    const isSubstringInit = questionText.length > 10 && (subQuestionText.includes(questionText) || questionText.includes(subQuestionText));
+                    const threshold = 0.05;
+
+                    if (subSimilarity >= threshold || isSubstringInit) {
                       bestScore = 0.5;
                       bestQuestionMatch = actualQuestionNumber;
                       bestMatchedQuestion = questionData;
                       bestSubQuestionNumber = subQuestionPart;
+                      wasRescued = true;
                     }
                   }
                 }
