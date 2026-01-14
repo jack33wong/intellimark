@@ -226,8 +226,13 @@ export class MarkingInstructionService {
    * Format general marking guidance into structured Markdown
    */
   private static formatGeneralMarkingGuidance(guidance: any): string {
-    if (!guidance || typeof guidance !== 'object') {
+    if (!guidance) {
       return '';
+    }
+
+    // Handle string input (e.g., GENERIC_EXAMINER_INSTRUCTION)
+    if (typeof guidance === 'string') {
+      return guidance;
     }
 
     let formatted = '## GENERAL MARKING GUIDANCE\n';
@@ -845,7 +850,8 @@ export class MarkingInstructionService {
           classificationStudentWork || 'No student work provided',
           rawOcrBlocks,
           questionText,
-          subQuestionPageMap as any // NEW: Pass the hint map
+          subQuestionPageMap as any, // Pass the hint map
+          formattedGeneralGuidance // NEW: Pass the formatted guidance
         );
 
       } else {
@@ -887,7 +893,7 @@ export class MarkingInstructionService {
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
     // AI MARKING USER PROMPT DEBUG LOG
-    const shouldLogPrompt = false; // DISABLED
+    const shouldLogPrompt = true; // ENABLED for debugging
     if (shouldLogPrompt) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';

@@ -112,12 +112,18 @@ export const AI_PROMPTS = {
         classificationStudentWork: string,
         rawOcrBlocks?: any[],
         questionText?: string | null,
-        subQuestionPageMap?: Record<string, number>
+        subQuestionPageMap?: Record<string, number>,
+        generalMarkingGuidance?: string
       ) => `
 # MARKING TASK: Question ${questionNumber}
 
 ${questionText ? `## QUESTION TEXT
 ${questionText}
+` : ''}
+
+${generalMarkingGuidance ? `## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
+${generalMarkingGuidance}
+
 ` : ''}
 
 ## MARKING SCHEME

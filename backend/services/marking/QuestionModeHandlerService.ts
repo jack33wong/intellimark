@@ -239,7 +239,8 @@ export class QuestionModeHandlerService {
           tier: metadata.tier,
           examSeries: metadata.examSeries,
           sourceImageIndex: qd.sourceImageIndex,
-          parentText: (qd as any).parentText // Pass parent text for AI prompt
+          parentText: (qd as any).parentText, // Pass parent text for AI prompt
+          detection: qd.detection // ✅ Pass full detection result for guidance extraction
         };
       })
     };
@@ -291,9 +292,36 @@ export class QuestionModeHandlerService {
           : subQuestions[0].questionText;
 
 
-        const combinedMarkingScheme = isGrouped
-          ? subQuestions.map(sq => sq.markingScheme).filter(ms => ms).join('\n\n')
-          : subQuestions[0].markingScheme;
+        let combinedMarkingScheme = '';
+
+        // Smart Deduplication for "Buffet Rubric"
+        // 1. Collect all schemes
+        const allSchemes = subQuestions.map(sq => sq.markingScheme).filter(ms => ms);
+
+        // 2. Check if they are virtually identical (Generic Rubric case)
+        // If the first scheme is large (>100 chars) and virtually matches the others (ignoring whitespace), use ONLY the first one.
+        const firstScheme = allSchemes[0] || '';
+        const isGenericRubricReuse = allSchemes.length > 1 &&
+          firstScheme.length > 100 &&
+          allSchemes.every(s => s.replace(/\s/g, '') === firstScheme.replace(/\s/g, ''));
+
+        if (isGenericRubricReuse) {
+          // DEDUPLICATED: Use the first instance only
+          combinedMarkingScheme = firstScheme;
+        } else {
+          // STANDARD: Join distinct schemes
+          combinedMarkingScheme = Array.from(new Set(allSchemes)).join('\n\n');
+        }
+        // Extract general marking guidance (Chief Examiner Instruction)
+        // Since it's usually the same for the whole paper/question, taking the first one is sufficient
+        // or join unique ones if they differ.
+        const guidanceSet = new Set<string>();
+        subQuestions.forEach(sq => {
+          if (sq.detection.match?.markingScheme?.generalMarkingGuidance) {
+            guidanceSet.add(sq.detection.match.markingScheme.generalMarkingGuidance);
+          }
+        });
+        const combinedGuidance = Array.from(guidanceSet).join('\n\n');
 
         const totalMarks = subQuestions.reduce((sum, sq) => sum + (sq.marks || 0), 0);
 
@@ -312,13 +340,16 @@ export class QuestionModeHandlerService {
         // Determine if there's a lead-in text to repeat once
         const mainLeadIn = subQuestions[0].parentText || '';
 
+        // Inject Guidance if available
+        const guidanceSection = combinedGuidance ? `\n\n## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)\n${combinedGuidance}\n` : '';
+
         // Simplify: Instructions are now completely centralized in the 'marking.questionOnly.user' prompt.
         const questionTextWithInstruction = `Lead-in Context:
 ${mainLeadIn}
 
 Sub-Questions to Solve:
 ${subTexts}
-
+${guidanceSection}
 INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide excessive details or tutorials. Go straight to the point.`;
 
         // Ensure we tell the AI to solve from first principles AND apply mark codes if missing
@@ -327,18 +358,21 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
           : `[${marksDisplay}] ${ceilingDisplay} No marking scheme available. You MUST solve from first principles as an expert examiner AND apply your own standard mark codes ([M1], [A1], [B1]).`;
 
 
+        // REMOVED DUPLICATE LOGGING: Logs are now handled by MarkingServiceLocator only ("actual" prompt)
+        /*
         console.log('\n[AI PROMPT DEBUG] (FULL CONTENT)');
         console.log(`Question: ${mainQuestionNumber} (Marks: ${totalMarks})`);
         console.log(`Prompt Text:\n${questionTextWithInstruction}`);
         console.log(`Marking Scheme:\n${finalMarkingScheme || 'No marking scheme'}`);
         console.log('----------------------------\n');
+        */
 
         const response = await MarkingServiceLocator.generateChatResponse(
           questionTextWithInstruction, // Use instructed text
           questionTextWithInstruction,
           actualModel as ModelType,
           "questionOnly",
-          false, // debug
+          false, // debug DISABLED (Restore Real AI)
           undefined, // onProgress
           false, // useOcrText
           usageTracker,

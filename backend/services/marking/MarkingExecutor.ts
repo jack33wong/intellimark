@@ -780,7 +780,8 @@ export async function executeMarkingForQuestion(
       questionNumber: String(questionId),
       allPagesOcrData: allPagesOcrData,
       sourceImageIndices: task.sourcePages,
-      tracker: tracker
+      tracker: tracker,
+      generalMarkingGuidance: task.markingScheme?.generalMarkingGuidance // NEW: Pass injected guidance
     });
 
 
