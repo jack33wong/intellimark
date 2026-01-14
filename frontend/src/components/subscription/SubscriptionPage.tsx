@@ -184,40 +184,67 @@ const SubscriptionPage: React.FC = () => {
   };
 
   const productSchema = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "itemListElement": [
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": "AI Marking Subscription",
+    "image": "https://www.aimarking.ai/logo-social-share.jpg",
+    "description": "Spatial AI-powered marking for GCSE Maths papers. Get instant grades, method marks (M1), and ECF logic analysis.",
+    "brand": {
+      "@type": "Brand",
+      "name": "AI Marking"
+    },
+    "offers": [
       {
-        "@type": "Product",
-        "name": "AI Marking - Free Plan",
-        "description": "Basic AI marking with 10 credits per month.",
-        "offers": {
-          "@type": "Offer",
-          "price": "0.00",
-          "priceCurrency": "GBP",
-          "availability": "https://schema.org/InStock"
+        "@type": "Offer",
+        "name": "Pro Plan",
+        "url": "https://aimarking.ai/pricing",
+        "price": "9.90",
+        "priceCurrency": "GBP",
+        "priceValidUntil": "2027-01-01",
+        "availability": "https://schema.org/InStock",
+        "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": {
+            "@type": "MonetaryAmount",
+            "value": "0",
+            "currency": "GBP"
+          },
+          "deliveryTime": {
+            "@type": "ShippingDeliveryTime",
+            "handlingTime": {
+              "@type": "QuantitativeValue",
+              "minValue": 0,
+              "maxValue": 0,
+              "unitCode": "DAY"
+            }
+          }
+        },
+        "hasMerchantReturnPolicy": {
+          "@type": "MerchantReturnPolicy",
+          "applicableCountry": "GB",
+          "returnPolicyCategory": "https://schema.org/NoReturns"
         }
       },
       {
-        "@type": "Product",
-        "name": "AI Marking - Pro Plan",
-        "description": "Pro examiner-tuned marking with 200 credits per month.",
-        "offers": {
-          "@type": "Offer",
-          "price": "9.90",
-          "priceCurrency": "GBP",
-          "availability": "https://schema.org/InStock"
-        }
-      },
-      {
-        "@type": "Product",
-        "name": "AI Marking - Ultra Plan",
-        "description": "Ultimate academic support with 600 credits per month.",
-        "offers": {
-          "@type": "Offer",
-          "price": "19.90",
-          "priceCurrency": "GBP",
-          "availability": "https://schema.org/InStock"
+        "@type": "Offer",
+        "name": "Ultra Plan",
+        "url": "https://aimarking.ai/pricing",
+        "price": "19.90",
+        "priceCurrency": "GBP",
+        "priceValidUntil": "2027-01-01",
+        "availability": "https://schema.org/InStock",
+        "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": {
+            "@type": "MonetaryAmount",
+            "value": "0",
+            "currency": "GBP"
+          }
+        },
+        "hasMerchantReturnPolicy": {
+          "@type": "MerchantReturnPolicy",
+          "applicableCountry": "GB",
+          "returnPolicyCategory": "https://schema.org/NoReturns"
         }
       }
     ]
