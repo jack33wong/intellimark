@@ -316,7 +316,9 @@ export class QuestionModeHandlerService {
 ${mainLeadIn}
 
 Sub-Questions to Solve:
-${subTexts}`;
+${subTexts}
+
+INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide excessive details or tutorials. Go straight to the point.`;
 
         // Ensure we tell the AI to solve from first principles AND apply mark codes if missing
         const finalMarkingScheme = combinedMarkingScheme
@@ -356,8 +358,16 @@ ${subTexts}`;
 
         // Step 2: Prepend markdown header with parent marks
         // For generic questions (marks = 0), show "Marks: Not specified" to avoid confusing AI/User
-        const marksText = parentMarks > 0 ? ` (${parentMarks} ${parentMarks === 1 ? 'mark' : 'marks'})` : ' (Marks: Not specified)';
-        const header = `### Question ${baseNumber}${marksText}\n\n`;
+        // FALLBACK: If database parent marks are missing, use sum of sub-question marks
+        const effectiveMarks = parentMarks > 0 ? parentMarks : totalMarks;
+        const marksText = effectiveMarks > 0 ? `(${effectiveMarks} ${effectiveMarks === 1 ? 'mark' : 'marks'})` : '(Marks: Not specified)';
+
+        // Use HTML Flexbox for alignment: Question Number (Left) - Marks (Right)
+        // Add padding-bottom to separate from content
+        const header = `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; font-size: 1.1em;">
+  <span>Question ${baseNumber}</span>
+  <span class="question-marks">${marksText}</span>
+</div>\n\n`;
 
         // CRITICAL: Save raw response BEFORE adding header (for Mixed Mode)
         const rawResponseWithoutHeader = formattedResponse;
