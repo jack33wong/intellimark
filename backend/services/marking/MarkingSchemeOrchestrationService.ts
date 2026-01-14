@@ -276,7 +276,16 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    if (dominantPaper && paperCounts.size > 1) {
+    // Check if we need to apply the consensus rule
+    // Trigger if:
+    // 1. We have a dominant paper (consensus)
+    // 2. AND there are questions that either failed detection OR matched a different paper
+    const hasUnmatchedOrDifferent = detectionResults.some(dr =>
+      !dr.detectionResult.found ||
+      dr.detectionResult.match?.paperTitle !== dominantPaper
+    );
+
+    if (dominantPaper && hasUnmatchedOrDifferent) {
       console.log(`\x1b[32m[HINT] 🏛️ Consensus Reached! Forcing all questions to "${dominantPaper}" for consistency.\x1b[0m`);
       const dominantMatchBase = paperToMatch.get(dominantPaper);
 
