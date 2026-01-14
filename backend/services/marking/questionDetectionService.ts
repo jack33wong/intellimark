@@ -2,7 +2,7 @@
  * Question Detection Service
  * Matches extracted question text with exam papers in the database
  * Refactored for:
- * 1. High-Precision Global Search (Semantic Anchoring + Gated Scoring)
+ * 1. Question-Level Detection (Block Matching)
  * 2. Performance (Singleton Caching)
  * 3. Robustness (Math-aware Keywords)
  */
@@ -21,20 +21,12 @@ const COMMON_STOP_WORDS = new Set([
 
 // Semantic mapping for LaTeX commands to English keywords
 const LATEX_SEMANTIC_MAP: { [key: string]: string } = {
-  'frac': 'fraction',
-  'sqrt': 'root',
-  'approx': 'estimate',
-  'pi': 'circle',
-  'angle': 'angle',
-  'triangle': 'triangle',
-  'int': 'integral',
-  'sum': 'sum',
-  'lim': 'limit',
-  'vec': 'vector'
+  'frac': 'fraction', 'sqrt': 'root', 'approx': 'estimate', 'pi': 'circle',
+  'angle': 'angle', 'triangle': 'triangle', 'int': 'integral', 'sum': 'sum',
+  'lim': 'limit', 'vec': 'vector', 'sin': 'sine', 'cos': 'cosine', 'tan': 'tangent'
 };
 
 // --- Type Definitions ---
-
 export interface ExamPaperMatch {
   board: string;
   qualification: string;
@@ -113,7 +105,6 @@ interface MatchCandidate {
 }
 
 // --- Utilities ---
-
 function getShortSubjectName(qualification: string): string {
   const subjectMap: { [key: string]: string } = {
     'MATHEMATICS': 'MATHS', 'PHYSICS': 'PHYSICS', 'CHEMISTRY': 'CHEMISTRY', 'BIOLOGY': 'BIOLOGY',
@@ -142,7 +133,6 @@ export function extractExamMetadata(match: ExamPaperMatch | null | undefined) {
 }
 
 // --- Main Service ---
-
 export class QuestionDetectionService {
   private static instance: QuestionDetectionService;
   private db: any;
@@ -163,9 +153,6 @@ export class QuestionDetectionService {
     return QuestionDetectionService.instance;
   }
 
-  /**
-   * Main Entry Point
-   */
   public async detectQuestion(
     extractedQuestionText: string,
     questionNumberHint?: string | null,
@@ -219,6 +206,7 @@ export class QuestionDetectionService {
       let candidates: MatchCandidate[] = [];
 
       for (const paper of searchPool) {
+        // Pass rescue mode to scoring logic
         const paperCandidates = this.findCandidatesInPaper(cleanText, paper, cleanQHint, isRescueMode);
         candidates = candidates.concat(paperCandidates);
       }
@@ -229,7 +217,7 @@ export class QuestionDetectionService {
       // Populate Audit Trail (Top 5)
       hintMetadata.auditTrail = candidates.slice(0, 5).map((c, idx) => ({
         rank: idx + 1,
-        candidateId: `${c.paper.metadata.exam_code} Q${c.questionNumber}${c.subQuestionNumber}`,
+        candidateId: `${c.paper.metadata.exam_code} Q${c.questionNumber}`,
         score: parseFloat(c.score.toFixed(3)),
         scoreBreakdown: `Txt:${c.scoreDetails.text.toFixed(2)} Num:${c.scoreDetails.numeric.toFixed(2)} Str:${c.scoreDetails.structure.toFixed(2)} Sem:${c.scoreDetails.semanticCheck ? 'PASS' : 'FAIL'}`,
         reason: c.scoreDetails.semanticCheck ? 'Valid' : 'Semantic Fail'
@@ -239,20 +227,11 @@ export class QuestionDetectionService {
       if (candidates.length > 0) {
         const winner = candidates[0];
 
-        // --- DYNAMIC THRESHOLD LOGIC ---
-        const isSubQ = !!winner.subQuestionNumber;
+        // Strict Global Thresholds for "Full Question" blocks
+        const strictThreshold = 0.80;
+        const rescueThreshold = 0.35;
 
-        // STRICT GLOBAL THRESHOLDS (Requested: 0.80 Main, 0.70 Sub)
-        // These ensure non-past papers return "No Match" rather than hallucinations
-        const strictThresholds = [0.80, 0.70];
-
-        // Rescue Thresholds (Consensus Mode)
-        const rescueThresholds = [0.40, 0.35];
-
-        const [mainThresh, subThresh] = isRescueMode ? rescueThresholds : strictThresholds;
-        const requiredThreshold = isSubQ ? subThresh : mainThresh;
-
-        // Additional Safety for Global Search
+        const requiredThreshold = isRescueMode ? rescueThreshold : strictThreshold;
         const minimumTextScore = isRescueMode ? 0.15 : 0.30;
 
         if (winner.score >= requiredThreshold && winner.scoreDetails.text >= minimumTextScore) {
@@ -272,7 +251,7 @@ export class QuestionDetectionService {
           return {
             found: true,
             match: matchResult,
-            message: `Matched ${matchResult.paperCode} Q${matchResult.questionNumber}${matchResult.subQuestionNumber || ''}`,
+            message: `Matched ${matchResult.paperCode} Q${matchResult.questionNumber}`,
             hintMetadata
           };
         }
@@ -292,9 +271,7 @@ export class QuestionDetectionService {
     }
   }
 
-  /**
-   * Scans a single paper for all potential question matches
-   */
+  // --- BLOCK MATCHING LOGIC (No Sub-Question Loops) ---
   private findCandidatesInPaper(
     inputQueryText: string,
     paper: any,
@@ -304,15 +281,14 @@ export class QuestionDetectionService {
     const candidates: MatchCandidate[] = [];
     const questions = paper.questions || {};
 
+    // Normalize to array
     const questionIterator = Array.isArray(questions)
       ? questions.map(q => ({ num: String(q.question_number || q.number), data: q }))
       : Object.entries(questions).map(([k, v]) => ({ num: String((v as any).question_number || k), data: v }));
 
     for (const { num: qNum, data: qData } of questionIterator) {
-      const qText = (qData.question_text || qData.text || qData.question || '');
-      const subQuestions = qData.sub_questions || qData.subQuestions || [];
-
-      // A. Hierarchical Filtering (Base Number Check)
+      // 1. Base Number Check (Fast Filter)
+      // Since input is grouped by "1", we only look at "1".
       const hintBase = hintQNum ? hintQNum.match(/^\d+/)?.[0] : null;
       const currentBase = qNum.match(/^\d+/)?.[0];
 
@@ -320,78 +296,58 @@ export class QuestionDetectionService {
         continue;
       }
 
-      // B. Sub-Question Matching
-      if (subQuestions.length > 0) {
-        for (const subQ of subQuestions) {
-          const partIdentifier = subQ.question_part || subQ.part || subQ.label || subQ.sub_question_number || subQ.number;
-          if (!partIdentifier) continue;
+      // 2. CONSTRUCT AGGREGATE DB TEXT (The "Anchor")
+      // We combine Main Text + All Sub-question Texts into one block.
+      // This creates a "Full Question Context" matching the input group.
+      let fullDbText = (qData.question_text || qData.text || qData.question || '') + ' ';
 
-          const subPart = String(partIdentifier);
-          const subText = subQ.text || subQ.question || subQ.question_text || subQ.sub_question || '';
-
-          const scoreDetails = this.calculateHybridScore(inputQueryText, subText, hintQNum, qNum, subPart, isRescueMode);
-
-          if (scoreDetails.total > 0.15) {
-            candidates.push({
-              paper,
-              questionData: qData,
-              questionNumber: qNum,
-              subQuestionNumber: subPart,
-              databaseText: subText,
-              score: scoreDetails.total,
-              scoreDetails
-            });
-          }
-        }
+      const subQuestions = qData.sub_questions || qData.subQuestions || [];
+      if (Array.isArray(subQuestions)) {
+        fullDbText += subQuestions.map((sq: any) =>
+          (sq.text || sq.question || sq.question_text || sq.sub_question || '')
+        ).join(' ');
       }
 
-      // C. Main Question Matching
-      if (qText) {
-        const scoreDetails = this.calculateHybridScore(inputQueryText, qText, hintQNum, qNum, null, isRescueMode);
+      // 3. COMPARE BLOCKS
+      const scoreDetails = this.calculateHybridScore(inputQueryText, fullDbText, hintQNum, qNum, null, isRescueMode);
 
-        if (scoreDetails.total > 0.15) {
-          candidates.push({
-            paper,
-            questionData: qData,
-            questionNumber: qNum,
-            subQuestionNumber: '',
-            databaseText: qText,
-            score: scoreDetails.total,
-            scoreDetails
-          });
-        }
+      // 4. THRESHOLD
+      if (scoreDetails.total > 0.15) {
+        candidates.push({
+          paper,
+          questionData: qData,
+          questionNumber: qNum,
+          subQuestionNumber: '', // Parent match
+          databaseText: fullDbText.trim(),
+          score: scoreDetails.total,
+          scoreDetails
+        });
       }
     }
 
     return candidates;
   }
 
-  /**
-   * Advanced Weighted Scoring Engine with Semantic Anchoring
-   */
   private calculateHybridScore(
     inputText: string,
     dbText: string,
     hint: string | null,
     dbQNum: string,
-    dbSubPart: string | null,
+    dbSubPart: string | null, // Unused in Block Match but kept for interface
     isRescueMode: boolean
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
-    // 1. Text Similarity (Dice + N-Grams)
+    // 1. Text Similarity
     const textScore = this.calculateSimilarity(inputText, dbText);
 
-    // 2. Semantic Anchoring (Keyword Overlap)
-    // Enhanced with Math-aware keyword extraction
+    // 2. Semantic Anchoring (Math-Aware)
     const inputKeywords = this.getKeywords(inputText);
     const dbKeywords = this.getKeywords(dbText);
 
     let semanticCheck = false;
-    // Neutral pass for very short text
     if (inputKeywords.size < 2 || dbKeywords.size < 2) {
       semanticCheck = true;
     } else {
-      // Check for at least ONE significant shared word
       for (const w of inputKeywords) {
         if (dbKeywords.has(w)) {
           semanticCheck = true;
@@ -403,7 +359,6 @@ export class QuestionDetectionService {
     // 3. Numeric Fingerprinting
     const inputNums = (inputText.match(/\d+(\.\d+)?/g) || []);
     const dbNums = (dbText.match(/\d+(\.\d+)?/g) || []);
-
     let numericScore = 0;
     if (dbNums.length > 0 && inputNums.length > 0) {
       const setDb = new Set(dbNums);
@@ -413,49 +368,25 @@ export class QuestionDetectionService {
       numericScore = 0.5;
     }
 
-    // 4. Structural Match (Hint Validation)
-    let structureScore = 0;
+    // 4. Structural Match (Only Check Base Number)
+    let structureScore = 0.5;
     if (hint) {
       const hintBase = hint.match(/^\d+/)?.[0];
-      const hintPart = normalizeSubQuestionPart(hint.replace(/^\d+/, ''));
       const dbBase = dbQNum.match(/^\d+/)?.[0];
-      const dbPart = normalizeSubQuestionPart(dbSubPart);
-
-      if (hintBase === dbBase) {
-        structureScore += 0.5;
-        if (hintPart && dbPart) {
-          if (hintPart === dbPart) structureScore += 0.5;
-          else {
-            // Soft match for roman/alpha confusion
-            const hintNoRoman = hintPart.replace(/[ivx]+$/i, '');
-            const hintRomanOnly = hintPart.replace(/^[a-z]/i, '');
-            if (hintNoRoman === dbPart || hintRomanOnly === dbPart) structureScore += 0.4;
-          }
-        } else if (!hintPart && !dbPart) {
-          structureScore += 0.5;
-        }
-      }
-    } else {
-      structureScore = 0.5;
+      if (hintBase === dbBase) structureScore = 1.0;
     }
 
-    // --- WEIGHTING STRATEGY ---
+    // Weighting
     let total = 0;
-
-    // Gated Structure: Structure score is IGNORED if text is garbage (unless in Rescue Mode)
     const textFloor = isRescueMode ? 0.15 : 0.25;
     const effectiveStructureScore = (textScore < textFloor && numericScore < 0.5) ? 0 : structureScore;
 
     if (effectiveStructureScore >= 0.9) {
-      // High Structure Confidence
       total = (textScore * 0.45) + (numericScore * 0.25) + (effectiveStructureScore * 0.30);
     } else {
-      // Content-Heavy Weighting
       total = (textScore * 0.60) + (numericScore * 0.30) + (effectiveStructureScore * 0.10);
     }
 
-    // Semantic Penalty
-    // If not in Rescue Mode, and keywords don't match, reduce score by 60%
     if (!isRescueMode && !semanticCheck) {
       total = total * 0.4;
     }
@@ -463,43 +394,23 @@ export class QuestionDetectionService {
     return { total, text: textScore, numeric: numericScore, structure: effectiveStructureScore, semanticCheck };
   }
 
-  // Math-Aware Keyword Extraction
   private getKeywords(text: string): Set<string> {
     if (!text) return new Set();
-
-    // Pre-processing to convert LaTeX logic to semantic English words
     let clean = text.toLowerCase();
 
-    // Replace common LaTeX math commands with english anchors
     Object.entries(LATEX_SEMANTIC_MAP).forEach(([cmd, replacement]) => {
-      // Matches \frac, \sqrt, etc.
       const regex = new RegExp(`\\\\${cmd}`, 'g');
       clean = clean.replace(regex, ` ${replacement} `);
     });
 
-    clean = clean
-      .replace(/\\[a-z]+/g, ' ') // Remove remaining latex commands
-      .replace(/[^a-z0-9\s]/g, '') // Remove punctuation
-      .trim();
-
+    clean = clean.replace(/\\[a-z]+/g, ' ').replace(/[^a-z0-9\s]/g, '').trim();
     return new Set(clean.split(/\s+/).filter(w => w.length > 3 && !COMMON_STOP_WORDS.has(w)));
   }
 
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
-    const { paper, questionData, questionNumber, subQuestionNumber, databaseText, score } = candidate;
+    const { paper, questionData, questionNumber, databaseText, score } = candidate;
     const meta = paper.metadata;
-
     const parentMarks = questionData.marks || 0;
-    let specificMarks = subQuestionNumber ? 0 : parentMarks;
-
-    if (subQuestionNumber) {
-      const subs = questionData.sub_questions || questionData.subQuestions || [];
-      const subQ = subs.find((s: any) => {
-        const p = s.question_part || s.part || s.label || s.sub_question_number || s.number;
-        return String(p) === subQuestionNumber;
-      });
-      if (subQ && subQ.marks !== undefined) specificMarks = subQ.marks;
-    }
 
     return {
       board: meta.exam_board,
@@ -509,27 +420,26 @@ export class QuestionDetectionService {
       tier: meta.tier,
       subject: meta.subject,
       questionNumber: questionNumber,
-      subQuestionNumber: subQuestionNumber || undefined,
-      marks: specificMarks,
+      subQuestionNumber: undefined, // Block match is always parent
+      marks: parentMarks,
       parentQuestionMarks: parentMarks,
       confidence: score,
       paperTitle: `${meta.exam_board} - ${meta.exam_code} - ${meta.exam_series}${meta.tier ? `, ${meta.tier}` : ''}`,
       examPaper: paper,
       databaseQuestionText: databaseText,
-      isRescued: isRescueMode && score < 0.8 // Flag if it was a sub-threshold rescue
+      isRescued: isRescueMode && score < 0.8
     };
   }
 
   private sanitizeQuestionHint(hint: string | undefined | null): string | null {
     if (!hint) return null;
     if (hint === '1') return null;
-
     let clean = hint.toLowerCase().trim();
     if (clean === 'l') clean = '1';
     return clean;
   }
 
-  // --- Public wrapper for legacy support / Orchestrator calls ---
+  // --- Legacy Wrapper ---
   public async matchQuestionWithExamPaper(
     questionText: string,
     examPaper: any,
@@ -545,7 +455,7 @@ export class QuestionDetectionService {
     if (candidates.length > 0) {
       candidates.sort((a, b) => b.score - a.score);
       const winner = candidates[0];
-      const threshold = isRescueMode ? 0.35 : 0.80; // Apply strict threshold here too
+      const threshold = isRescueMode ? 0.35 : 0.80;
       if (winner.score >= threshold) {
         return this.constructMatchResult(winner, isRescueMode);
       }
@@ -554,18 +464,13 @@ export class QuestionDetectionService {
     return null;
   }
 
-  // --- Existing Helper Methods (Preserved) ---
-
+  // --- Helper Methods ---
   private filterPapersByHint(papers: any[], hint: string): any[] {
     const normalizedHint = hint.toLowerCase().trim();
     if (!normalizedHint) return papers;
-
     let processedHint = normalizedHint;
-    if (processedHint.includes('edexcel') && processedHint.includes('may')) {
-      processedHint = processedHint.replace(/\bmay\b/gi, 'june');
-    } else if (processedHint.includes('may')) {
-      processedHint = processedHint.replace(/\bmay\b/gi, 'june');
-    }
+    if (processedHint.includes('edexcel') && processedHint.includes('may')) processedHint = processedHint.replace(/\bmay\b/gi, 'june');
+    else if (processedHint.includes('may')) processedHint = processedHint.replace(/\bmay\b/gi, 'june');
 
     const keywords = processedHint.replace(/[-,]/g, ' ').split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
     if (keywords.length === 0) return papers;
@@ -581,22 +486,17 @@ export class QuestionDetectionService {
   private async getAllExamPapers(): Promise<any[]> {
     if (!this.db) return [];
 
-    // Check Cache
     const now = Date.now();
     if (QuestionDetectionService.cachedPapers && (now - QuestionDetectionService.lastCacheTime < QuestionDetectionService.CACHE_TTL)) {
       return QuestionDetectionService.cachedPapers;
     }
 
     try {
-      // console.log('[QuestionDetectionService] 🔄 Fetching papers from Firestore (Cache Miss/Expired)...');
       const snapshot = await this.db.collection('fullExamPapers').get();
       const papers: any[] = [];
       snapshot.forEach((doc: any) => papers.push({ id: doc.id, ...doc.data() }));
-
-      // Update Cache
       QuestionDetectionService.cachedPapers = papers;
       QuestionDetectionService.lastCacheTime = now;
-
       return papers;
     } catch (e) {
       console.error('Error fetching papers', e);
@@ -609,7 +509,6 @@ export class QuestionDetectionService {
     const norm1 = normalizeTextForComparison(str1);
     const norm2 = normalizeTextForComparison(str2);
     if (norm1 === norm2) return 1.0;
-
     if (norm1.length < 50 || norm2.length < 50) {
       if (norm1.includes(norm2) || norm2.includes(norm1)) {
         const shorter = norm1.length < norm2.length ? norm1 : norm2;
@@ -646,10 +545,8 @@ export class QuestionDetectionService {
       const snapshot = await this.db.collection('markingSchemes').get();
       const schemes: any[] = [];
       snapshot.forEach((doc: any) => schemes.push({ id: doc.id, ...doc.data() }));
-
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
-
       for (const scheme of schemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, scheme);
         if (match) {
@@ -672,72 +569,35 @@ export class QuestionDetectionService {
     try {
       const examDetails = markingScheme.examDetails;
       if (!examDetails) return null;
-
       if (examPaperMatch.paperCode !== examDetails.paperCode) return null;
-
       const boardMatch = this.calculateSimilarity(examPaperMatch.board, examDetails.board || '');
       const seriesMatch = this.calculateSimilarity(examPaperMatch.examSeries, examDetails.exam_series || '');
       const overallScore = (boardMatch + 1.0 + seriesMatch) / 3;
-
       if (overallScore > 0.7) {
         let questionMarks = null;
         if (!examPaperMatch.questionNumber || !markingScheme.questions) return null;
-
         const qNum = String(examPaperMatch.questionNumber).trim().replace(/^0+/, '');
-        let flatKey = qNum;
-        if (examPaperMatch.subQuestionNumber) {
-          const sub = normalizeSubQuestionPart(examPaperMatch.subQuestionNumber);
-          flatKey = `${qNum}${sub}`;
-        }
 
+        // Block Match logic: We assume the match is at parent level "1"
+        // so we fetch Q1 from scheme.
         const questions = markingScheme.questions;
-        const mainQ = questions[flatKey];
-        const altQ = questions[`${flatKey}alt`];
+        const mainQ = questions[qNum];
 
-        if (mainQ && altQ) {
-          questionMarks = { main: mainQ, alt: altQ, hasAlternatives: true };
-        } else if (mainQ) {
+        if (mainQ) {
           questionMarks = mainQ;
-        } else if (altQ) {
-          questionMarks = altQ;
         } else {
-          if (!examPaperMatch.subQuestionNumber) {
-            const subKeys = Object.keys(questions).filter(k => {
-              const m = k.match(/^(\d+)([a-z]+)$/i);
-              return m && m[1] === qNum;
-            }).sort();
+          // Fallback: If DB scheme only has "1a", "1b" but no "1"
+          const subKeys = Object.keys(questions).filter(k => {
+            const m = k.match(/^(\d+)([a-z]+)$/i);
+            return m && m[1] === qNum;
+          }).sort();
 
-            if (subKeys.length > 0) {
-              const compAnswers: string[] = [];
-              const compMarks: any[] = [];
-              const compGuidance: any[] = [];
-
-              subKeys.forEach(k => {
-                const s = questions[k];
-                const lbl = k.replace(qNum, '');
-                compAnswers.push(`(${lbl}) ${s.answer}`);
-                if (s.marks) s.marks.forEach((m: any) => compMarks.push({ ...m, mark: `[${lbl}] ${m.mark}` }));
-                if (s.guidance) compGuidance.push(...s.guidance);
-              });
-
-              questionMarks = {
-                answer: compAnswers.join('\n'),
-                marks: compMarks,
-                guidance: compGuidance,
-                isComposite: true
-              };
-              return {
-                id: markingScheme.id,
-                examDetails: markingScheme.examDetails,
-                questionMarks,
-                totalQuestions: Object.keys(questions).length,
-                totalMarks: 0,
-                confidence: 1.0,
-                generalMarkingGuidance: markingScheme.generalMarkingGuidance
-              };
-            }
+          if (subKeys.length > 0) {
+            // Return a dummy object so Orchestrator can parse the sub-keys itself
+            questionMarks = { isComposite: true, marks: [] };
+          } else {
+            return null;
           }
-          return null;
         }
 
         return {
@@ -755,114 +615,120 @@ export class QuestionDetectionService {
   }
 }
 
-// --- Utils Exports (Preserved) ---
+export const questionDetectionService = QuestionDetectionService.getInstance();
 
-export function calculateTotalMarks(detectionResults: any[]): number {
-  const marksMap = new Map<string, number>();
+/**
+ * UTILITY: Build Exam Paper Structure for Frontend "Exam Tab"
+ * Groups individual detection results by their parent paper.
+ */
+export function buildExamPaperStructure(detectionResults: any[]) {
+  const paperGroups = new Map<string, any>();
+  let totalMarks = 0;
+
   detectionResults.forEach(dr => {
-    const baseNum = String(dr.question.questionNumber).replace(/[a-z()]+$/i, '');
-    if (!marksMap.has(baseNum)) {
-      const parentMarks = dr.detectionResult.match?.parentQuestionMarks || 0;
-      marksMap.set(baseNum, parentMarks);
-    }
-  });
-  return Array.from(marksMap.values()).reduce((sum, marks) => sum + marks, 0);
-}
+    const match = dr.detectionResult.match;
+    if (!match) return;
 
-export function extractStructuredMarks(scheme: any): Array<{ mark: string; answer: string; comments?: string }> {
-  if (!scheme) return [];
-  let marksArray: any[] = [];
-  if (scheme.questionMarks) {
-    if (Array.isArray(scheme.questionMarks.marks)) marksArray = scheme.questionMarks.marks;
-    else if (Array.isArray(scheme.questionMarks)) marksArray = scheme.questionMarks;
-    else if (scheme.questionMarks.isComposite && Array.isArray(scheme.questionMarks.marks)) marksArray = scheme.questionMarks.marks;
-  } else if (Array.isArray(scheme.marks)) marksArray = scheme.marks;
-  else if (Array.isArray(scheme)) marksArray = scheme;
-
-  return marksArray.map((m: any) => ({
-    mark: m.mark || '',
-    answer: m.answer || '',
-    comments: m.comments || m.guidance || undefined
-  }));
-}
-
-export function buildExamPaperStructure(detectionResults: any[]): { examPapers: any[]; multipleExamPapers: boolean; totalMarks: number; } {
-  const examPaperGroups = new Map<string, any>();
-  detectionResults.forEach((qd) => {
-    const detectionObj = qd.detection || qd.detectionResult;
-    if (!detectionObj || !detectionObj.match) return;
-    const match = detectionObj.match;
-    const key = `${match.board}_${match.paperCode}_${match.examSeries}_${match.tier}`;
-
-    if (!examPaperGroups.has(key)) {
-      const metadata = extractExamMetadata(match);
-      examPaperGroups.set(key, {
-        examBoard: metadata.examBoard,
-        examCode: metadata.examCode,
-        examSeries: metadata.examSeries,
-        tier: metadata.tier,
-        subject: metadata.subject,
-        paperTitle: `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})`,
+    const paperKey = `${match.board}_${match.paperCode}_${match.examSeries}`;
+    if (!paperGroups.has(paperKey)) {
+      paperGroups.set(paperKey, {
+        examBoard: match.board,
+        examCode: match.paperCode,
+        examSeries: match.examSeries,
+        tier: match.tier || '',
+        subject: match.subject || '',
+        paperTitle: match.paperTitle,
         questions: [],
         totalMarks: 0
       });
     }
-    const examPaper = examPaperGroups.get(key)!;
-    examPaper.questions.push({
-      questionNumber: qd.classificationQuestionNumber || qd.question?.questionNumber || match.questionNumber || '',
-      questionText: match.databaseQuestionText || qd.questionText,
-      marks: match.marks || 0,
-      markingScheme: extractStructuredMarks(match.markingScheme),
-      questionIndex: qd.questionIndex,
-      sourceImageIndex: qd.sourceImageIndex
-    });
+
+    const group = paperGroups.get(paperKey);
+    // Add question if not already in this paper group
+    const existingQ = group.questions.find((q: any) => q.questionNumber === match.questionNumber);
+    if (!existingQ) {
+      group.questions.push({
+        questionNumber: match.questionNumber,
+        questionText: match.databaseQuestionText || dr.question.text,
+        marks: match.marks || 0,
+        markingScheme: match.markingScheme?.questionMarks?.marks || []
+      });
+      group.totalMarks += (match.marks || 0);
+      totalMarks += (match.marks || 0);
+    }
   });
-  const totalMarks = calculateTotalMarks(detectionResults);
-  examPaperGroups.forEach(ep => ep.totalMarks = totalMarks);
-  return { examPapers: Array.from(examPaperGroups.values()), multipleExamPapers: examPaperGroups.size > 1, totalMarks };
+
+  const examPapers = Array.from(paperGroups.values());
+  return {
+    examPapers,
+    multipleExamPapers: examPapers.length > 1,
+    totalMarks
+  };
 }
 
-import { generateNonPastPaperTitle } from './MarkingHelpers.js';
-
+/**
+ * UTILITY: Generate Session Title from Detection Results
+ * Creates a descriptive title like "Edexcel 1MA1/1F Nov 2023 Q1 to Q5"
+ */
 export function generateSessionTitleFromDetectionResults(detectionResults: any[]): string {
-  // Check if any result is actually a "found" past paper match
-  const hasActualMatch = detectionResults && detectionResults.some(dr => dr.detectionResult?.found || dr.detection?.found);
+  if (!detectionResults || detectionResults.length === 0) return 'New Session';
 
-  // If no actual past paper matches, use the generic title generator using the first result's text
-  if (!hasActualMatch) {
-    const firstText = detectionResults?.[0]?.questionText || detectionResults?.[0]?.question?.text;
-    return generateNonPastPaperTitle(firstText, 'Question');
+  const validMatches = detectionResults.filter(dr => dr.detectionResult.found && dr.detectionResult.match);
+  if (validMatches.length === 0) {
+    // Fallback to non-past paper title logic if no matches found
+    const firstText = detectionResults[0].question.text;
+    const cleanText = (firstText || '').trim().substring(0, 30).replace(/\n/g, ' ');
+    return cleanText ? `Marking - ${cleanText}...` : 'New Marking Session';
   }
 
-  const { examPapers, totalMarks } = buildExamPaperStructure(detectionResults);
+  // Find dominant paper
+  const paperCounts = new Map<string, number>();
+  validMatches.forEach(dr => {
+    const title = dr.detectionResult.match.paperTitle;
+    paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
+  });
 
-  if (examPapers.length === 0) {
-    const firstText = detectionResults?.[0]?.questionText || detectionResults?.[0]?.question?.text;
-    return generateNonPastPaperTitle(firstText, 'Question');
+  const topPaper = Array.from(paperCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+  const firstMatch = validMatches.find(dr => dr.detectionResult.match.paperTitle === topPaper).detectionResult.match;
+
+  // Get question range
+  const qNums = validMatches
+    .filter(dr => dr.detectionResult.match.paperTitle === topPaper)
+    .map(dr => {
+      const base = getBaseQuestionNumber(dr.question.questionNumber);
+      return parseInt(base, 10);
+    })
+    .filter(n => !isNaN(n))
+    .sort((a, b) => a - b);
+
+  let qRange = '';
+  if (qNums.length === 1) {
+    qRange = `Q${qNums[0]}`;
+  } else if (qNums.length > 1) {
+    const min = qNums[0];
+    const max = qNums[qNums.length - 1];
+    qRange = min === max ? `Q${min}` : `Q${min} to Q${max}`;
   }
-  if (examPapers.length > 1) {
-    const allQs = examPapers.flatMap(ep => ep.questions.map(q => q.questionNumber));
-    return `Past paper - ${allQs.map(q => `Q${q}`).join(', ')}`;
-  }
-  const examPaper = examPapers[0];
-  if (examPaper.questions.length === 0) return 'Question - No questions detected';
 
-  const qNums = examPaper.questions.map(q => parseInt(String(q.questionNumber).replace(/[a-z()]+$/i, ''), 10)).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b);
-  const uniq = Array.from(new Set(qNums));
-  let display: string;
-  if (uniq.length === 0) display = 'Unknown';
-  else if (uniq.length === 1) display = `Q${uniq[0]}`;
-  else {
-    const isSeq = uniq.every((n, i) => i === 0 || n === (uniq[i - 1] as number) + 1);
-    display = isSeq ? `Q${uniq[0]} to Q${uniq[uniq.length - 1]}` : uniq.map(n => `Q${n}`).join(', ');
-  }
+  let board = firstMatch.board;
+  if (board === 'Pearson Edexcel') board = 'Edexcel';
 
-  let { examBoard, subject, examCode, examSeries } = examPaper;
-  if (examBoard === 'Pearson Edexcel') examBoard = 'Edexcel';
-  if (subject && subject.toLowerCase() === 'mathematics') subject = 'Maths';
-
-  if (examBoard && examCode && examSeries) return `${examSeries} ${examCode} ${examBoard} ${display} ${totalMarks} marks`;
-  return `Past paper ${display} ${totalMarks} marks`;
+  return `${firstMatch.examSeries} ${firstMatch.paperCode} ${board} ${qRange}`.trim();
 }
 
-export const questionDetectionService = QuestionDetectionService.getInstance();
+/**
+ * UTILITY: Calculate total marks for a paper match
+ */
+export function calculateTotalMarks(match: any): number {
+  if (!match) return 0;
+  return match.marks || match.parentQuestionMarks || 0;
+}
+
+/**
+ * Helper to get base question number for sorting/titling without importing utils to avoid cycles
+ */
+function getBaseQuestionNumber(qNum: string | null | undefined): string {
+  if (!qNum) return '';
+  const match = String(qNum).match(/^\d+/);
+  return match ? match[0] : '';
+}

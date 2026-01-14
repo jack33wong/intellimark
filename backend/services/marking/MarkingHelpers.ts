@@ -336,10 +336,14 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         let subTotal = 0;
 
         // Calc awarded
-        subs.get(key)!.forEach(m => {
-          const match = m.match(/(\d+)$/);
-          if (match) subAwarded += parseInt(match[1]);
-          else subAwarded += 1;
+        subs.get(key)!.forEach(text => {
+          const normalized = (text || '').trim();
+          const firstPart = normalized.split(/[^a-zA-Z0-9]/)[0];
+          // Only count if it's a valid mark code prefix (M, A, B, P, C) and not 0-value
+          if (/^[MABPC][0-9]?/.test(firstPart) && !firstPart.endsWith('0')) {
+            const match = firstPart.match(/(\d+)$/);
+            subAwarded += match ? parseInt(match[1], 10) : 1;
+          }
         });
 
         // Calc total from scheme
@@ -533,8 +537,8 @@ export function extractQuestionsFromClassification(
       }
 
       // DEBUG: Log specific question structure for analysis
-      if (mainQuestionNumber === '5' || (q.text && q.text.includes('doctor believes'))) {
-        console.log(`[EXTRACTION DEBUG] Target Question Found:`, JSON.stringify(q, null, 2));
+      if (mainQuestionNumber === '3' || mainQuestionNumber === '5' || (q.text && q.text.includes('doctor believes'))) {
+        console.log(`[EXTRACTION DEBUG] Target Question Q${mainQuestionNumber} Found:`, JSON.stringify(q, null, 2));
       }
 
       // If question has sub-questions, extract each sub-question separately

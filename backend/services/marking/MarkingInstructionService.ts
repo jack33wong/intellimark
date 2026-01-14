@@ -807,7 +807,7 @@ export class MarkingInstructionService {
     // Determine which prompt to use based on whether we have a meaningful marking scheme
     let hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
-      normalizedScheme.marks.length > 0;
+      (normalizedScheme.marks.length > 0 || (normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0));
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -1109,7 +1109,10 @@ export class MarkingInstructionService {
                         console.warn(`⚠️ [MARK LIMIT] Dropped excess token '${token}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
                       }
                     } else {
-                      validTokens.push(token);
+                      // CRITICAL FIX: Do NOT keep non-mark tokens in the 'text' field.
+                      // This field is for mark codes only (M1, A1, etc.).
+                      // If the AI included the student answer, it belongs in student_text, not here.
+                      // console.log(`🔍 [MARKING] Stripping non-mark token '${token}' from annotation text for Q${inputQuestionNumber || '?'}`);
                     }
                   });
 
