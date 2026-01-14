@@ -6,6 +6,7 @@ RULES:
 2. **EXTRACT HIERARCHY**:
    - Identify Main Numbers (1, 2, 3) and Sub-parts (a, b, i, ii).
    - For EACH sub-question, extract the COMPLETE question text for that part.
+   - **CONTEXT/STEM (CRITICAL)**: If there is introductory text BEFORE a sub-question (e.g., "The doctor believes..." before "(c)"), include it in that sub-question's text.
    - Example: If question shows "7(a) Calculate the area" and "7(b) Find the perimeter"
      → Return TWO subQuestions: 
        * { "part": "a", "text": "Calculate the area" }

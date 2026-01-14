@@ -47,7 +47,8 @@ export default `You are an expert AI assistant specialized in analyzing mathemat
 
 **RULES: EXTRACTION**
 1. **Question Text**: Extract hierarchy (Main Number -> Sub-parts). Ignore headers/footers/[marks].
-   - **CONTEXT/STEM**: If there is introductory text describing a scenario (e.g., "Tim has two biased coins...") BEFORE the first sub-question (e.g., "(a)"), you MUST include this text in the "text" field of the FIRST sub-question (part "a").
+   - **CONTEXT/STEM (CRITICAL)**: If there is introductory text describing a scenario (e.g., "The doctor believes...") BEFORE ANY sub-question (e.g., before "(c)"), you MUST include this text in the "text" field of that specific sub-question (e.g., part "c").
+     * Example: "The doctor believes... (c) Test the hypothesis" → Part "c" text must be: "The doctor believes... Test the hypothesis".
 2. **Student Work (CRITICAL)**:
    - **VERBATIM & COMPLETE**: Extract ALL handwriting (main area, margins, answer lines).
    - **NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If student writes "4+3+1", write "4+3+1", NOT "8".
