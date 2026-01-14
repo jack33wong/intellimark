@@ -172,13 +172,22 @@
 
 .chat-message.assistant .markdown-math-renderer.has-your-work {
   background: var(--background-nav);
-  border-radius: 16px;
-  padding: 16px 20px;
+  border-radius: 10px;
+  padding: 16px 30px;
   border: 1px solid var(--border-main);
   /* Ensure it fills the container if needed */
   display: block;
+  margin-top: 0px;
+  /* Reset margin inside container */
+}
+
+.has-your-work-outer-container {
+  border: 1px solid var(--border-main);
+  border-radius: 10px;
+  padding: 50px 50px 80px;
+  background: var(--background-nav);
   margin-top: 8px;
-  /* Initial separation */
+  position: relative;
 }
 
 .chat-message.assistant .chat-message-bubble:hover {

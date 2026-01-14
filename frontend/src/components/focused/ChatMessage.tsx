@@ -339,7 +339,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
-  const hasYourWork = typeof content === 'string' && content.includes(':::your-work');
+  const hasYourWork = (typeof content === 'string' && content.includes(':::your-work')) ||
+    message.type === 'question_response' ||
+    !!(message as any).contextQuestionId;
 
   return (
     <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.type === 'question_response' ? 'question-mode-response' : ''}`} data-message-id={message.id}>
@@ -491,16 +493,31 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   </div>
                 )}
                 {/* Render main assistant content (Unified) */}
-                <MarkdownMathRenderer
-                  content={processedContent}
-                  className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
-                  options={{
-                    throwOnError: false,
-                    errorColor: '#cc0000',
-                  }}
-                  YourWorkSection={YourWorkSection}
-                  isYourWork={hasYourWork}
-                />
+                {hasYourWork ? (
+                  <div className="has-your-work-outer-container">
+                    <MarkdownMathRenderer
+                      content={processedContent}
+                      className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
+                      options={{
+                        throwOnError: false,
+                        errorColor: '#cc0000',
+                      }}
+                      YourWorkSection={YourWorkSection}
+                      isYourWork={hasYourWork}
+                    />
+                  </div>
+                ) : (
+                  <MarkdownMathRenderer
+                    content={processedContent}
+                    className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
+                    options={{
+                      throwOnError: false,
+                      errorColor: '#cc0000',
+                    }}
+                    YourWorkSection={YourWorkSection}
+                    isYourWork={hasYourWork}
+                  />
+                )}
               </div>
             );
           })()}
