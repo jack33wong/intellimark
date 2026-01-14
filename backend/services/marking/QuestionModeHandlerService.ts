@@ -250,6 +250,7 @@ export class QuestionModeHandlerService {
     sendSseUpdate(res, createProgressData(6, 'Generating responses...', MULTI_IMAGE_STEPS));
     const logAiResponseComplete = logStep('AI Response Generation', actualModel);
     const { MarkingServiceLocator } = await import('./MarkingServiceLocator.js');
+    const { ChatContextBuilder } = await import('./ChatContextBuilder.js'); // Import Builder
 
     // GROUP SUB-QUESTIONS by main question before AI generation
     // This preserves nested structure and reduces API calls
@@ -473,6 +474,20 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
       processingStats: realProcessingStats,
       detectedQuestion: transformedDetectedQuestion // FIXED: Include transformed detected question for exam paper tab display
     });
+
+    // === NEW: Build and Attach Marking Context for Question Mode ===
+    // This enables "Right-Side Context" in follow-up chat
+    try {
+      const questionModeContext = await ChatContextBuilder.buildQuestionModeContext({
+        questionDetection: questionDetection,
+        examPaperHint: examPaperHint
+      });
+      console.log('📝 [QUESTION MODE] Built MarkingContext for Chat:', questionModeContext.totalQuestionsMarked, 'questions');
+      aiMessage.markingContext = questionModeContext;
+    } catch (ctxError) {
+      console.error('❌ [QUESTION MODE] Failed to build chat context:', ctxError);
+      // Continue without context - non-fatal
+    }
 
     // ========================= DATABASE PERSISTENCE FOR QUESTION MODE =========================
     let persistenceResult: any = null;

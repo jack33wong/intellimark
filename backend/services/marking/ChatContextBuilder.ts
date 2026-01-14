@@ -201,6 +201,57 @@ export class ChatContextBuilder {
     }
 
     /**
+     * Builds MarkingContext for Question Mode (Reference Only).
+     * No student work, just Question Text + Marking Scheme/Solution.
+     */
+    static async buildQuestionModeContext(data: {
+        questionDetection: any,
+        examPaperHint?: string | null
+    }): Promise<MarkingContext> {
+        // 1. Build Question Results (Text + Scheme Only)
+        const questions = data.questionDetection?.questions || [];
+
+        const questionResults: MarkingContextQuestionResult[] = questions.map((q: any) => ({
+            number: String(q.questionNumber),
+            text: (q.databaseQuestionText || q.questionText || '').substring(0, 2000), // Allow longer text for context
+            scheme: q.markingScheme || '',
+            totalMarks: q.marks || 0,
+            earnedMarks: 0, // Not applicable
+            hasScheme: !!q.markingScheme,
+            pageIndex: 0,
+            parts: [] // No student parts in Question Mode
+        }));
+
+        // 2. Build Exam Info
+        let examInfo = undefined;
+        if (data.questionDetection?.match) {
+            const m = data.questionDetection.match;
+            examInfo = {
+                examBoard: m.board || 'Unknown',
+                subject: 'Mathematics',
+                examCode: m.paperCode || 'Unknown',
+                examSeries: m.year || 'Unknown',
+                tier: m.tier || 'Unknown',
+                totalMarks: questions.reduce((sum: number, q: any) => sum + (q.marks || 0), 0)
+            };
+        }
+
+        return {
+            sessionType: 'Question',
+            totalQuestionsMarked: questions.length,
+            overallScore: {
+                awarded: 0,
+                total: 0,
+                percentage: 0,
+                scoreText: 'N/A'
+            },
+            examInfo,
+            questionResults,
+            followUpHistory: []
+        };
+    }
+
+    /**
      * Formats the stored MarkingContext into a prompt string for the AI.
      * This is called for every text-based follow-up message.
      * Now uses clean nested parts[] structure - no parsing needed!
@@ -247,39 +298,48 @@ export class ChatContextBuilder {
         for (const q of questionsToInclude) {
             prompt += `### Question ${q.number}: ${q.text} \n`;
 
-            // Show student work and marks for each part
-            prompt += `** Your Answer **:\n`;
-            q.parts.forEach(part => {
-                // Display each mark's work
-                part.marks.forEach(mark => {
-                    if (mark.work) {
-                        if (part.part) {
-                            prompt += `[${q.number}${part.part}] ${mark.work}\n`;
-                        } else {
-                            prompt += `${mark.work}\n`;
-                        }
-                    }
-                });
-            });
-
-            prompt += `** Your Marks ** (Total: ${q.earnedMarks}/${q.totalMarks}):\n`;
-
-            // Show marks grouped by part
-            q.parts.forEach(part => {
-                if (part.part) {
-                    // Sub-question marks
-                    prompt += `[${q.number}${part.part}]\n`;
+            if (markingContext.sessionType === 'Question') {
+                // QUESTION MODE: Show Scheme/Solution only
+                if (q.scheme) {
+                    prompt += `** Reference Solution / Marking Scheme **: \n${q.scheme} \n`;
+                } else {
+                    prompt += `(No specific marking scheme available)\n`;
                 }
-                part.marks.forEach(m => {
-                    const cleanReasoning = m.reasoning ? m.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
-                    prompt += `  - [${m.icon}] ${m.code} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
+            } else {
+                // MARKING MODE: Show Student Work + Marks + Scheme
+                prompt += `** Your Answer **:\n`;
+                q.parts.forEach(part => {
+                    // Display each mark's work
+                    part.marks.forEach(mark => {
+                        if (mark.work) {
+                            if (part.part) {
+                                prompt += `[${q.number}${part.part}] ${mark.work}\n`;
+                            } else {
+                                prompt += `${mark.work}\n`;
+                            }
+                        }
+                    });
                 });
-            });
 
-            // Show marking scheme
-            if (q.scheme) {
-                prompt += `** Marking criteria **: \n${q.scheme} \n`;
-                prompt += `> [!IMPORTANT]\n> STRICTLY follow the provided marking criteria above. Do not deviate. \n`;
+                prompt += `** Your Marks ** (Total: ${q.earnedMarks}/${q.totalMarks}):\n`;
+
+                // Show marks grouped by part
+                q.parts.forEach(part => {
+                    if (part.part) {
+                        // Sub-question marks
+                        prompt += `[${q.number}${part.part}]\n`;
+                    }
+                    part.marks.forEach(m => {
+                        const cleanReasoning = m.reasoning ? m.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
+                        prompt += `  - [${m.icon}] ${m.code} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
+                    });
+                });
+
+                // Show marking scheme
+                if (q.scheme) {
+                    prompt += `** Marking criteria **: \n${q.scheme} \n`;
+                    prompt += `> [!IMPORTANT]\n> STRICTLY follow the provided marking criteria above. Do not deviate. \n`;
+                }
             }
 
             prompt += `\n`;
