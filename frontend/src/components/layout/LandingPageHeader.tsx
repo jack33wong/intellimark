@@ -18,7 +18,7 @@ const LandingPageHeader: React.FC = () => {
                 <nav className="landing-header-center">
                     <Link to="/features" className="nav-link">Features</Link>
                     <Link to="/about" className="nav-link">About</Link>
-                    <Link to="/upgrade" state={{ fromLanding: true }} className="nav-link">Pricing</Link>
+                    <Link to="/pricing" state={{ fromLanding: true }} className="nav-link">Pricing</Link>
                 </nav>
 
                 <div className="landing-header-right">

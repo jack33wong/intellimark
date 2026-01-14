@@ -182,7 +182,7 @@ function AppContent() {
   const location = useLocation();
 
   // Determine if we should hide the Sidebar/Header for certain routes
-  const isSpecialRoute = ['/login', '/upgrade'].includes(location.pathname);
+  const isSpecialRoute = ['/login', '/pricing'].includes(location.pathname);
 
   // Common props for the layout wrapper
   const layoutProps = {
@@ -201,11 +201,12 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        <Route path="/upgrade" element={
-          <MainLayoutWrapper {...layoutProps}>
+        <Route path="/pricing" element={
+          <OptionalAuthRoute>
             <SubscriptionPage />
-          </MainLayoutWrapper>
+          </OptionalAuthRoute>
         } />
+        <Route path="/upgrade" element={<Navigate to="/pricing" replace />} />
 
         <Route path="/library" element={
           <OptionalAuthRoute>

@@ -603,3 +603,16 @@
   font-weight: 500;
   margin-left: 12px;
 }
+
+/* Mobile Friendly Padding Adjustments */
+@media (max-width: 640px) {
+  .chat-message.assistant .markdown-math-renderer.has-your-work {
+    padding: 8px 15px;
+    /* Reduced by half from 16px 30px */
+  }
+
+  .has-your-work-outer-container {
+    padding: 25px 25px 40px;
+    /* Reduced by half from 50px 50px 80px */
+  }
+}

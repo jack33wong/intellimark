@@ -189,10 +189,7 @@ const SubscriptionPage: React.FC = () => {
     "name": "AI Marking Subscription",
     "image": "https://www.aimarking.ai/logo-social-share.jpg",
     "description": "Spatial AI-powered marking for GCSE Maths papers. Get instant grades, method marks (M1), and ECF logic analysis.",
-    "brand": {
-      "@type": "Brand",
-      "name": "AI Marking"
-    },
+    "brand": { "@type": "Brand", "name": "AI Marking" },
     "offers": [
       {
         "@type": "Offer",
@@ -204,19 +201,10 @@ const SubscriptionPage: React.FC = () => {
         "availability": "https://schema.org/InStock",
         "shippingDetails": {
           "@type": "OfferShippingDetails",
-          "shippingRate": {
-            "@type": "MonetaryAmount",
-            "value": "0",
-            "currency": "GBP"
-          },
+          "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "GBP" },
           "deliveryTime": {
             "@type": "ShippingDeliveryTime",
-            "handlingTime": {
-              "@type": "QuantitativeValue",
-              "minValue": 0,
-              "maxValue": 0,
-              "unitCode": "DAY"
-            }
+            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
           }
         },
         "hasMerchantReturnPolicy": {
@@ -235,11 +223,7 @@ const SubscriptionPage: React.FC = () => {
         "availability": "https://schema.org/InStock",
         "shippingDetails": {
           "@type": "OfferShippingDetails",
-          "shippingRate": {
-            "@type": "MonetaryAmount",
-            "value": "0",
-            "currency": "GBP"
-          }
+          "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "GBP" }
         },
         "hasMerchantReturnPolicy": {
           "@type": "MerchantReturnPolicy",
@@ -256,8 +240,11 @@ const SubscriptionPage: React.FC = () => {
       <div className="upgrade-page">
         <SEO
           title="Pricing & Plans"
-          description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading."
+          description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading. Get instant grades, method marks (M1), and ECF logic analysis."
           schemaData={productSchema}
+          canonical="https://www.aimarking.ai/pricing"
+          image="https://www.aimarking.ai/logo-social-share.jpg"
+          themeColor="#1a93fe"
         />
         <div className="upgrade-page-container">
           <div className="upgrade-page-header">
@@ -667,7 +654,7 @@ const SubscriptionPage: React.FC = () => {
           billingCycle,
           userId: user.uid,
           successUrl: `${window.location.origin}/app?subscription=success`,
-          cancelUrl: `${window.location.origin}/upgrade?canceled=true`,
+          cancelUrl: `${window.location.origin}/pricing?canceled=true`,
         }),
       });
 
@@ -712,8 +699,11 @@ const SubscriptionPage: React.FC = () => {
     <div className={`upgrade-page ${!isFromApp ? 'light-mode-forced' : ''}`}>
       <SEO
         title="Pricing & Plans"
-        description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading."
+        description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading. Get instant grades, method marks (M1), and ECF logic analysis."
         schemaData={productSchema}
+        canonical="https://www.aimarking.ai/pricing"
+        image="https://www.aimarking.ai/logo-social-share.jpg"
+        themeColor="#1a93fe"
       />
       {/* Close Button - Top Right */}
       <button

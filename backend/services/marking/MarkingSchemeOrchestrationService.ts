@@ -1,7 +1,10 @@
 /**
  * Marking Scheme Orchestration Service
  * Handles question detection, grouping, and marking scheme lookup/merging
- * * FIX APPLIED: Trigger Consensus Rescue even if only 1 paper is found but gaps exist.
+ * * * CRITICAL FIXES INCLUDED:
+ * 1. Frontend Crash Fix: Injects dummy metadata for 'Generic' questions so frontend doesn't break.
+ * 2. Annotation Fix: Manually merges and labels sub-question rubrics.
+ * 3. Page Index Fix: Propagates sourceImageIndex to ensure correct page ordering.
  */
 
 import { logDetectionAudit } from './MarkingHelpers.js';
@@ -69,7 +72,7 @@ export class MarkingSchemeOrchestrationService {
       return false;
     };
 
-    // --- STEP 1: GROUP QUESTIONS ---
+    // --- STEP 1: GROUP QUESTIONS (Anchor Strategy) ---
     const questionGroups = new Map<string, typeof individualQuestions>();
 
     for (const q of individualQuestions) {
@@ -94,14 +97,7 @@ export class MarkingSchemeOrchestrationService {
     };
 
     for (const [baseNum, group] of questionGroups.entries()) {
-      const leadIn = (group[0] as any).parentText || '';
-      const anchorText = (leadIn + '\n\n' + group.map(q => q.text).join('\n\n')).trim();
-
-      // 🔍 DEBUG LOG: Check what we are actually searching for
-      if (['3', '6', '9'].includes(baseNum)) {
-        console.log(`\n[ANCHOR DEBUG] Q${baseNum} Input Length: ${anchorText.length} chars`);
-        console.log(`[ANCHOR DEBUG] Text Preview: ${anchorText.substring(0, 100).replace(/\n/g, ' ')}...`);
-      }
+      const anchorText = group.map(q => q.text).join('\n\n');
 
       const groupDetectionResult = await questionDetectionService.detectQuestion(
         anchorText,
@@ -142,7 +138,7 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 3: RECOVERY LOGIC (Restart if Hint Failed) ---
+    // --- STEP 3: RECOVERY LOGIC ---
     const hintInfo = detectionStats.hintInfo;
     if (hintInfo) {
       const hintUsed = hintInfo.hintUsed || '';
@@ -178,22 +174,15 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 4: CONSENSUS RULE (THE FIX) ---
-    const uniquePaperVotes = new Set<string>();
+    // --- STEP 4: CONSENSUS RULE ---
     const paperCounts = new Map<string, number>();
     const paperToMatch = new Map<string, any>();
 
     detectionResults.forEach(dr => {
       if (dr.detectionResult.match?.paperTitle) {
-        const baseNum = getBaseQuestionNumber(dr.question.questionNumber);
-        const voteKey = `${baseNum}-${dr.detectionResult.match.paperTitle}`;
-
-        if (!uniquePaperVotes.has(voteKey)) {
-          uniquePaperVotes.add(voteKey);
-          const title = dr.detectionResult.match.paperTitle;
-          paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
-          if (!paperToMatch.has(title)) paperToMatch.set(title, dr.detectionResult.match);
-        }
+        const title = dr.detectionResult.match.paperTitle;
+        paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
+        if (!paperToMatch.has(title)) paperToMatch.set(title, dr.detectionResult.match);
       }
     });
 
@@ -207,8 +196,6 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // FIX: Trigger rescue if Dominant Paper exists AND (Conflicts Exist OR Gaps Exist)
-    // Previously: only checked (paperCounts.size > 1) which missed the "Perfect Paper with Gaps" case.
     const hasConflicts = paperCounts.size > 1;
     const hasGaps = detectionStats.notDetected > 0;
 
@@ -220,9 +207,6 @@ export class MarkingSchemeOrchestrationService {
       for (const dr of detectionResults) {
         const baseNum = getBaseQuestionNumber(dr.question.questionNumber);
 
-        // Re-detect if:
-        // 1. It matched the WRONG paper (Conflict)
-        // 2. OR it matched NOTHING (Gap) - This catches Q3
         const isWrongPaper = dr.detectionResult.match?.paperTitle !== dominantPaper;
         const isGap = !dr.detectionResult.found;
 
@@ -243,7 +227,8 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 5: MERGE & FORMAT OUTPUT (ROBUST PARENT FALLBACK) ---
+    // --- STEP 5: MERGE & FORMAT OUTPUT (GENERIC KEY MISMATCH FIX) ---
+
     const groupedResults = new Map<string, Array<{
       question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
       detectionResult: any;
@@ -253,30 +238,62 @@ export class MarkingSchemeOrchestrationService {
       paperCode: string;
     }>>();
 
+    // 0. Pre-processing: Convert "Not Found" to "Mock Match"
+    for (const item of detectionResults) {
+      if (!item.detectionResult.match) {
+        // [CRITICAL FIX] Use the ACTUAL question number (e.g. "12") instead of default "1"
+        // This ensures the AI Prompt Generator finds the rubric using the correct key.
+        const qNum = item.question.questionNumber || 'General';
+
+        // Standard Generic Rubric
+        const genericRubric = [
+          { mark: 'M1', guidance: 'Method mark: Correct approach or substitution.' },
+          { mark: 'A1', guidance: 'Accuracy mark: Correct final answer.' },
+          { mark: 'B1', guidance: 'Independent mark: Correct statement or property.' }
+        ];
+
+        // Populate sub-marks with the CORRECT key
+        const subQMarks = { [qNum]: genericRubric };
+
+        item.detectionResult.match = {
+          board: 'Unknown',
+          qualification: 'General',
+          paperCode: 'Generic Question',
+          examSeries: 'N/A',
+          tier: 'N/A',
+          subject: 'General',
+          paperTitle: 'General Question (No Past Paper Match)',
+          questionNumber: qNum,
+          confidence: 0,
+          markingScheme: {
+            questionMarks: {
+              marks: genericRubric,
+              subQuestionMarks: subQMarks // Now keyed correctly as {"12": [...]}
+            },
+            generalMarkingGuidance: "Standard generic marking applies."
+          }
+        };
+        item.detectionResult.found = true;
+      }
+    }
+
     // 1. Grouping Loop
     for (const { question, detectionResult } of detectionResults) {
-      if (!detectionResult.match) {
-        const key = `GENERIC_${question.questionNumber || Math.random().toString(36).substr(2, 9)}`;
-        markingSchemesMap.set(key, {
-          questionMarks: null, totalMarks: 0, parentQuestionMarks: 0,
-          questionNumber: question.questionNumber, questionDetection: detectionResult,
-          questionText: question.text, databaseQuestionText: '', isGeneric: true
-        });
-        continue;
-      }
-
       const actualQuestionNumber = detectionResult.match.questionNumber;
       const questionNumberForGrouping = question.questionNumber || actualQuestionNumber;
       const baseQuestionNumber = getBaseQuestionNumber(questionNumberForGrouping);
-      const groupKey = `${baseQuestionNumber}_${detectionResult.match.board}_${detectionResult.match.paperCode}`;
+
+      const board = detectionResult.match.board || 'Unknown';
+      const code = detectionResult.match.paperCode || 'Unknown';
+      const groupKey = `${baseQuestionNumber}_${board}_${code}`;
 
       if (!groupedResults.has(groupKey)) groupedResults.set(groupKey, []);
 
       groupedResults.get(groupKey)!.push({
         question, detectionResult, actualQuestionNumber,
         originalQuestionNumber: question.questionNumber,
-        examBoard: detectionResult.match.board || 'Unknown',
-        paperCode: detectionResult.match.paperCode || 'Unknown'
+        examBoard: board,
+        paperCode: code
       });
     }
 
@@ -286,22 +303,68 @@ export class MarkingSchemeOrchestrationService {
       const examBoard = group[0].examBoard;
       const paperCode = group[0].paperCode;
 
+      // Get page index from first item (fixes "Page null")
+      const groupSourceImageIndex = group[0].question.sourceImageIndex ?? 0;
+
       const masterMatch = group[0].detectionResult.match;
-      // The detector returns the specific question data in 'questionMarks'
       const parentScheme = masterMatch?.markingScheme?.questionMarks;
 
       const hasSubQuestions = group.some(item => isSubQuestion(item.originalQuestionNumber));
 
-      // Check if we need to merge sub-questions
-      // We removed the 'isComposite' shortcut to force the labeling loop below
+      // CASE A: COMPOSITE SCHEME (Includes our Mocked Generics)
+      // Since our Mock Match has 'subQuestionMarks' populated, it enters here.
+      if (parentScheme && (parentScheme.isComposite || parentScheme.subQuestionMarks)) {
+
+        const questionNumbers = group.map(item => item.originalQuestionNumber || item.actualQuestionNumber);
+
+        const subQMarksMap: any = parentScheme.subQuestionMarks || {};
+
+        // Safety: If subQMarks is empty but marks exists, fill it (Catch-all)
+        if (parentScheme.marks && Object.keys(subQMarksMap).length === 0) {
+          questionNumbers.forEach(qNum => {
+            if (qNum) subQMarksMap[qNum] = parentScheme.marks;
+          });
+        }
+
+        // Force-fill if keys mismatch (e.g. input "12a" vs rubric "12")
+        // This handles cases where our Generic Mock used "12" but the input was "12a"
+        if (paperCode === 'Generic Question') {
+          questionNumbers.forEach(qNum => {
+            if (qNum && !subQMarksMap[qNum]) {
+              subQMarksMap[qNum] = parentScheme.marks;
+            }
+          });
+        }
+
+        const rawAns = parentScheme.answer || '';
+        const subAns = rawAns.includes('\n') ? rawAns.split('\n') : [rawAns];
+
+        const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
+        markingSchemesMap.set(uniqueKey, {
+          questionMarks: {
+            marks: parentScheme.marks,
+            subQuestionMarks: subQMarksMap
+          },
+          totalMarks: masterMatch.marks || 5,
+          parentQuestionMarks: masterMatch.parentQuestionMarks || 5,
+          questionNumber: baseQuestionNumber,
+          questionDetection: group[0].detectionResult,
+          databaseQuestionText: masterMatch.databaseQuestionText || '',
+          subQuestionNumbers: questionNumbers,
+          subQuestionAnswers: subAns,
+          isGeneric: (paperCode === 'Generic Question'),
+          sourceImageIndex: groupSourceImageIndex
+        });
+        continue;
+      }
+
+      // CASE B: STANDARD MERGE
       if (hasSubQuestions && parentScheme && !Array.isArray(parentScheme)) {
         const questionNumbers: string[] = [];
         const subQuestionMarksMap = new Map<string, any[]>();
         const subQuestionAnswers: string[] = [];
         const mergedMarks: any[] = [];
 
-        // Normalize structure: Find where the sub-parts are hidden
-        // If it's a composite object (no sub_questions array), we treat the object itself as the source
         let subPartsSource: any = parentScheme;
         if (parentScheme.sub_questions) subPartsSource = parentScheme.sub_questions;
         else if (parentScheme.subQuestions) subPartsSource = parentScheme.subQuestions;
@@ -315,30 +378,22 @@ export class MarkingSchemeOrchestrationService {
           let targetScheme = null;
 
           if (Array.isArray(subPartsSource)) {
-            // Search array for part matching "a", "b", "i", etc.
             targetScheme = subPartsSource.find((s: any) => {
               const p = s.question_part || s.part || s.label || s.sub_question_number || s.number;
               return normalizeSubQuestionPart(String(p)) === normalizedSubLabel;
             });
           } else {
-            // Search object keys for "3a", "a", "3(a)"
             const key = Object.keys(subPartsSource).find(k =>
               k === fullQNum || k === normalizedSubLabel || k.toLowerCase().endsWith(normalizedSubLabel)
             );
             if (key) targetScheme = subPartsSource[key];
           }
 
-          // CRITICAL FALLBACK: If "3a" isn't found, use Parent Scheme
-          // This is what makes the "Composite" questions work: they fall back here,
-          // and then we label them below.
-          if (!targetScheme && parentScheme.marks) {
-            targetScheme = parentScheme;
-          }
+          if (!targetScheme && parentScheme.marks) targetScheme = parentScheme;
 
           if (targetScheme) {
             questionNumbers.push(fullQNum);
 
-            // Extract Marks
             let partMarks: any[] = [];
             if (Array.isArray(targetScheme)) partMarks = targetScheme;
             else if (Array.isArray(targetScheme.marks)) partMarks = targetScheme.marks;
@@ -346,12 +401,9 @@ export class MarkingSchemeOrchestrationService {
 
             subQuestionMarksMap.set(fullQNum, partMarks);
 
-            // Extract Answer
             const ans = targetScheme.answer || (targetScheme.questionMarks && targetScheme.questionMarks.answer);
             if (ans) subQuestionAnswers.push(`(${normalizedSubLabel}) ${ans}`);
 
-            // [CRITICAL] Add Contextual Labels
-            // This tells the AI: "This rubric line applies to Part A"
             const labelledMarks = partMarks.map((m: any) => ({
               ...m,
               mark: m.mark,
@@ -365,7 +417,7 @@ export class MarkingSchemeOrchestrationService {
           const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
           markingSchemesMap.set(uniqueKey, {
             questionMarks: {
-              marks: mergedMarks, // Contains labeled [Part a], [Part b] rubric
+              marks: mergedMarks,
               subQuestionMarks: Object.fromEntries(subQuestionMarksMap)
             },
             totalMarks: masterMatch.marks || 0,
@@ -375,27 +427,30 @@ export class MarkingSchemeOrchestrationService {
             databaseQuestionText: masterMatch.databaseQuestionText,
             subQuestionNumbers: questionNumbers,
             subQuestionAnswers: subQuestionAnswers,
-            isGeneric: false
+            isGeneric: false,
+            sourceImageIndex: groupSourceImageIndex
           });
           continue;
         }
       }
 
-      // Fallback: Single Question
+      // CASE C: SINGLE QUESTION
       const item = group[0];
       const uniqueKey = `${item.actualQuestionNumber}_${examBoard}_${paperCode}`;
       markingSchemesMap.set(uniqueKey, {
         questionMarks: item.detectionResult.match.markingScheme?.questionMarks || item.detectionResult.match.markingScheme,
-        totalMarks: item.detectionResult.match.marks,
-        parentQuestionMarks: item.detectionResult.match.marks,
+        totalMarks: item.detectionResult.match.marks || 5, // Default for generic
+        parentQuestionMarks: item.detectionResult.match.marks || 5,
         questionNumber: item.actualQuestionNumber,
         questionDetection: item.detectionResult,
         questionText: item.question.text,
         databaseQuestionText: item.detectionResult.match?.databaseQuestionText || '',
-        generalMarkingGuidance: item.detectionResult.match?.markingScheme?.generalMarkingGuidance
+        generalMarkingGuidance: item.detectionResult.match?.markingScheme?.generalMarkingGuidance,
+        sourceImageIndex: groupSourceImageIndex
       });
     }
 
+    // Update classification result
     for (const { question, detectionResult } of detectionResults) {
       if (detectionResult.found && detectionResult.match?.questionNumber) {
         const detectedQuestionNumber = detectionResult.match.questionNumber;

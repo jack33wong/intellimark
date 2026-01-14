@@ -74,7 +74,7 @@ const PlanSection = () => {
                     <Crown size={48} className="plan-icon-large" />
                     <h3>No Active Plan</h3>
                     <p>Upgrade to Pro to unlock advanced features.</p>
-                    <button className="action-btn primary" onClick={() => window.location.href = '/upgrade'}>
+                    <button className="action-btn primary" onClick={() => window.location.href = '/pricing'}>
                         Upgrade Now
                     </button>
                 </div>
@@ -169,7 +169,7 @@ const PlanSection = () => {
             {/* Manage Button */}
             <button
                 className="manage-subscription-btn"
-                onClick={() => window.location.href = '/upgrade'} // Or open stripe portal if available
+                onClick={() => window.location.href = '/pricing'} // Or open stripe portal if available
             >
                 Manage Subscription
             </button>

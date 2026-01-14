@@ -14,7 +14,7 @@ const LandingFooter: React.FC = () => {
                 <div className="footer-nav-columns">
                     <div className="footer-column">
                         <span className="footer-label">Product</span>
-                        <Link to="/upgrade" state={{ fromLanding: true }} className="footer-link">Pricing</Link>
+                        <Link to="/pricing" state={{ fromLanding: true }} className="footer-link">Pricing</Link>
                         <Link to="/features" className="footer-link">AI Marking</Link>
                     </div>
 

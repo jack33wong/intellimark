@@ -741,7 +741,7 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
       mode: 'subscription',
       line_items: [{ price: testPrice.id, quantity: 1 }],
       success_url: 'http://localhost:3000/?subscription=success&session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'http://localhost:3000/upgrade?canceled=true',
+      cancel_url: 'http://localhost:3000/pricing?canceled=true',
       customer: testCustomer.id,
       metadata: {
         planId: 'pro',
