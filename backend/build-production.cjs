@@ -85,7 +85,7 @@ const functionsPackageJson = {
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "firebase-admin": "^12.0.0",
-    "firebase-functions": "^6.0.0",
+    "firebase-functions": "latest",
     "google-gax": "^5.0.3",
     "helmet": "^7.1.0",
     "sharp": "^0.34.3",

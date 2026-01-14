@@ -28,8 +28,15 @@ const SEO: React.FC<SEOProps> = ({
     const fullTitle = title ? `${title} | AI Marking` : siteTitle;
     const defaultDescription = "Instantly mark GCSE Maths past papers with AI. Get accurate grades, step-by-step logic analysis, and personalized feedback.";
     const metaDescription = description || defaultDescription;
-    const url = canonical || "https://aimarking.ai";
-    const ogImage = image || "https://www.aimarking.ai/og-image.png";
+
+    // ENFORCE NON-WWW CANONICAL
+    // If canonical is provided, strip 'www.'. If not, default to aimarking.ai
+    let url = canonical || "https://aimarking.ai";
+    url = url.replace('https://www.aimarking.ai', 'https://aimarking.ai');
+
+    // ENFORCE NON-WWW IMAGE
+    let ogImage = image || "https://aimarking.ai/og-image.png";
+    ogImage = ogImage.replace('https://www.aimarking.ai', 'https://aimarking.ai');
 
     return (
         <Helmet>
