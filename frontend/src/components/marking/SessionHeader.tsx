@@ -270,6 +270,12 @@ const SessionHeader: React.FC = () => {
         tier = detectedQuestion.tier;
       }
 
+      // FIX: If this is a generic question (mock match), do NOT use the detailed title logic.
+      // Instead, fall back to the pre-generated sessionTitle (which handles non-past paper titles nicely).
+      if (examCode === 'Generic Question' || examBoard === 'Unknown') {
+        return sessionTitle;
+      }
+
       const mainTitle = (examBoard && subject && examCode)
         ? `${examBoard} ${subject} ${examCode}`
         : sessionTitle;

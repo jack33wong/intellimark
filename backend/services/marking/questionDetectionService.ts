@@ -674,15 +674,20 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
   if (!detectionResults || detectionResults.length === 0) return 'New Session';
 
   const validMatches = detectionResults.filter(dr => dr.detectionResult.found && dr.detectionResult.match);
-  if (validMatches.length === 0) {
-    // Fallback to non-past paper title logic if no matches found
+
+  // Check if matches are just "Generic Question" mocks (not real past papers)
+  const isGenericMatch = validMatches.some(dr => dr.detectionResult.match?.paperCode === 'Generic Question');
+
+  if (validMatches.length === 0 || isGenericMatch) {
+    // Fallback to non-past paper title logic if no matches found or if generic
     // Use parentText (main question) if available, else fallback to sub-question text
-    const firstQ = detectionResults[0].question;
-    const firstText = (firstQ as any).parentText || firstQ.text;
+    const firstQ = detectionResults[0]?.question;
+    const firstText = (firstQ as any)?.parentText || firstQ?.text;
     const cleanText = (firstText || '').trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
     const truncatedText = cleanText.length > 30 ? cleanText.substring(0, 30) + '...' : cleanText;
     return truncatedText ? `${mode} - ${truncatedText}` : `${mode} - New Session`;
   }
+
 
   // Find dominant paper
   const paperCounts = new Map<string, number>();
