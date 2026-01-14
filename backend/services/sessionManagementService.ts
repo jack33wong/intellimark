@@ -85,7 +85,7 @@ export class SessionManagementService {
     // Generate session title
     // Generate session title using common function (if detectionResults available)
     const sessionTitle = context.detectionResults && context.detectionResults.length > 0
-      ? generateSessionTitleFromDetectionResults(context.detectionResults)
+      ? generateSessionTitleFromDetectionResults(context.detectionResults, 'Marking')
       : this.generateMarkingSessionTitle(context);  // Fallback to old method
 
     // FIXED: Create separate database and response objects
@@ -138,7 +138,7 @@ export class SessionManagementService {
 
     // Generate session title using common function
     const sessionTitle = context.detectionResults && context.detectionResults.length > 0
-      ? generateSessionTitleFromDetectionResults(context.detectionResults)
+      ? generateSessionTitleFromDetectionResults(context.detectionResults, 'Question')
       : generateSessionTitle(context.questionDetection, context.globalQuestionText || '', 'Question');  // Fallback
 
     // Persist to database for authenticated users

@@ -670,15 +670,18 @@ export function buildExamPaperStructure(detectionResults: any[]) {
  * UTILITY: Generate Session Title from Detection Results
  * Creates a descriptive title like "Edexcel 1MA1/1F Nov 2023 Q1 to Q5"
  */
-export function generateSessionTitleFromDetectionResults(detectionResults: any[]): string {
+export function generateSessionTitleFromDetectionResults(detectionResults: any[], mode: 'Question' | 'Marking' = 'Marking'): string {
   if (!detectionResults || detectionResults.length === 0) return 'New Session';
 
   const validMatches = detectionResults.filter(dr => dr.detectionResult.found && dr.detectionResult.match);
   if (validMatches.length === 0) {
     // Fallback to non-past paper title logic if no matches found
-    const firstText = detectionResults[0].question.text;
-    const cleanText = (firstText || '').trim().substring(0, 30).replace(/\n/g, ' ');
-    return cleanText ? `Marking - ${cleanText}...` : 'New Marking Session';
+    // Use parentText (main question) if available, else fallback to sub-question text
+    const firstQ = detectionResults[0].question;
+    const firstText = (firstQ as any).parentText || firstQ.text;
+    const cleanText = (firstText || '').trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
+    const truncatedText = cleanText.length > 30 ? cleanText.substring(0, 30) + '...' : cleanText;
+    return truncatedText ? `${mode} - ${truncatedText}` : `${mode} - New Session`;
   }
 
   // Find dominant paper
