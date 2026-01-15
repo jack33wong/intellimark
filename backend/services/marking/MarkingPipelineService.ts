@@ -961,6 +961,23 @@ export class MarkingPipelineService {
 
             allPagesOcrData = await Promise.all(pageProcessingPromises);
 
+            // [DEBUG] Verify Data Integrity immediately after OCR
+            if (allPagesOcrData.length > 1) {
+                const page1Data = allPagesOcrData[1]?.ocrData;
+                if (page1Data?.mathBlocks?.length) {
+                    const sample = page1Data.mathBlocks.find(b => (b as any).isHandwritten || !b.isPrinted) || page1Data.mathBlocks[0];
+                    console.log(`[PIPELINE DEBUG] Page 1 OCR Data Check:`);
+                    console.log(`   - Total Blocks: ${page1Data.mathBlocks.length}`);
+                    console.log(`   - Sample HW Block Check:`, JSON.stringify({
+                        text: (sample.mathpixLatex || sample.googleVisionText || '').substring(0, 20),
+                        hasCoords: !!sample.coordinates,
+                        coords: sample.coordinates
+                    }));
+                } else {
+                    console.log(`[PIPELINE DEBUG] Page 1 OCR Data has NO mathBlocks!`);
+                }
+            }
+
             // Aggregate Mathpix calls from OCR results
             // Mathpix calls are now automatically tracked by UsageTracker via recordMathpix()
             // No need to manually sum totalMathpixCalls

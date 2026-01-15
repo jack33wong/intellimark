@@ -533,13 +533,11 @@ export function extractQuestionsFromClassification(
       const sourceImageIndex = q.sourceImageIndex;
 
       if (q.text && q.subQuestions?.length > 0) {
-        console.log(`[EXTRACTION DEBUG] Main Question Q${mainQuestionNumber} has lead-in text: "${q.text.substring(0, 50)}..."`);
+
       }
 
       // DEBUG: Log specific question structure for analysis
-      if (mainQuestionNumber === '3' || mainQuestionNumber === '5' || (q.text && q.text.includes('doctor believes'))) {
-        console.log(`[EXTRACTION DEBUG] Target Question Q${mainQuestionNumber} Found:`, JSON.stringify(q, null, 2));
-      }
+
 
       // If question has sub-questions, extract each sub-question separately
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {

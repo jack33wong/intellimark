@@ -308,9 +308,9 @@ export class SVGOverlayService {
         debugBorderColor = 'grey'; // Unknown
       }
 
-      // INCREASED STROKE WIDTH TO 5
+      // INCREASED STROKE WIDTH TO 10 (Double thickness)
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
-                fill="none" stroke="${debugBorderColor}" stroke-width="5" stroke-dasharray="10,5" opacity="0.8" />`;
+                fill="none" stroke="${debugBorderColor}" stroke-width="10" stroke-dasharray="15,10" opacity="0.8" />`;
     }
 
     if (action === 'tick' || action === 'cross' || action === 'write') {
@@ -379,20 +379,21 @@ export class SVGOverlayService {
 
     const rightEdgeOfStudentWork = x + width;
     const pageRightLimit = actualWidth - safeMargin;
-    const pageLeftLimit = safeMargin;
 
     const spaceOnRight = pageRightLimit - rightEdgeOfStudentWork;
-    const spaceOnLeft = x - pageLeftLimit;
+    const spaceOnLeft = x - safeMargin;
 
     let isFlipped = false;
     let symbolAnchorX = 0;
     let symbolTextAnchor = 'start';
     let drawSymbolBackground = false;
 
-    // Logic: Prefer Right > Left > Footer > Overlay
+    // Logic: Prefer Right Gutter (Close) > Left Gutter > Overlay
     if (spaceOnRight >= symbolContentWidth + padding) {
-      // Option 1: Right Gutter
+      // Option 1: Right Gutter (Preferred)
       isFlipped = false;
+      // 🔥 FIX: Use "Smart Gutter" (Close to box), not "Far Right" (Page Edge)
+      // Since we fixed the "Tiny Box" bug upstream, we can trust the box width now.
       symbolAnchorX = rightEdgeOfStudentWork + padding;
       symbolTextAnchor = 'start';
     } else if (spaceOnLeft >= symbolContentWidth + padding) {
@@ -401,8 +402,9 @@ export class SVGOverlayService {
       symbolAnchorX = x - padding;
       symbolTextAnchor = 'end';
     } else {
-      // Option 3: Forced Overlay
+      // Option 3: Forced Overlay (Sticker)
       isFlipped = false;
+      // For overlay, we DO push to the far right to keep the text readable over ink
       symbolAnchorX = pageRightLimit - symbolContentWidth;
       symbolTextAnchor = 'start';
       drawSymbolBackground = true;
@@ -417,57 +419,69 @@ export class SVGOverlayService {
       const lineHeight = reasoningSize + 4;
 
       // -- Strategy A: HEADER (Priority 1) --
+      // Try to place ABOVE the student work
       const estimatedCharsPerLine = Math.floor(width / (reasoningSize * 0.5));
-      const headerLines = this.breakTextIntoMultiLines(cleanReasoning, Math.max(20, estimatedCharsPerLine));
+      const headerLines = this.breakTextIntoMultiLines(cleanReasoning, Math.max(40, estimatedCharsPerLine));
       const headerBlockHeight = (headerLines.length * lineHeight) + padding;
 
-      const canFitAbove = (y - headerBlockHeight) > 20;
+      // Strict check: Must fit above WITHOUT hitting top of page or previous q
+      const canFitAbove = (y - headerBlockHeight) > 30;
 
       if (canFitAbove) {
+        // PLACEMENT: HEADER
         const startY = y - headerBlockHeight + padding;
-        reasoningBlockSVG += `<rect x="${x - 5}" y="${startY - reasoningSize}" width="${width + 10}" height="${headerBlockHeight + 5}" 
+
+        // Align with Student Box Left by default
+        let reasonX = x;
+        if (isFlipped) reasonX = x - (headerLines[0].length * (reasoningSize * 0.6)); // Approx pull back
+
+        // Background Box
+        const maxLineWidth = Math.max(...headerLines.map(l => l.length * (reasoningSize * 0.6)));
+        reasoningBlockSVG += `<rect x="${reasonX - 5}" y="${startY - reasoningSize}" width="${maxLineWidth + 10}" height="${headerBlockHeight + 5}" 
                                   fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
+
         headerLines.forEach((line, i) => {
-          reasoningBlockSVG += `<text x="${x}" y="${startY + (i * lineHeight)}" text-anchor="start" 
+          reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="start" 
                                       fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
         });
 
       } else {
-        // -- Strategy B: FOOTER (Priority 2) --
-        const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, 40);
-        const fallbackHeight = fallbackLines.length * lineHeight;
-        const fallbackY = y + effectiveHeight + 10 + padding;
+        // -- Strategy B: MARGIN CALLOUT (Fallback) --
+        // 🔥 FIX: Place SIDE-BY-SIDE with Symbol, not below it.
+        // This prevents "Dropping" into the next question space.
 
-        if (fallbackY + fallbackHeight < maxBottomY) {
-          const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.6)));
-          reasoningBlockSVG += `<rect x="${x}" y="${fallbackY - reasoningSize}" width="${maxLineWidth + 10}" height="${fallbackHeight + 10}" 
-                                      fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
-          fallbackLines.forEach((line, i) => {
-            reasoningBlockSVG += `<text x="${x}" y="${fallbackY + (i * lineHeight)}" text-anchor="start" 
-                                          fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
-          });
+        const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, 25);
+
+        // Align the first line of text roughly with the center of the symbol
+        // Adjust Y upwards by half the block height to center it vertically relative to symbol
+        const blockHeight = fallbackLines.length * lineHeight;
+        const startY = symbolY - (symbolSize / 2) + (lineHeight / 2);
+
+        let reasonX = symbolAnchorX;
+        let anchor = symbolTextAnchor;
+
+        // Shift X to avoid overlapping the symbol itself
+        // If Symbol is Start (Right Gutter) -> Text goes to Right of Symbol
+        // If Symbol is End (Left Gutter) -> Text goes to Left of Symbol
+        if (anchor === 'start') {
+          reasonX += (symbolSize + 10); // Push right
         } else {
-          // -- Strategy C: OVERLAY (Last Resort) --
-          const overlayX = pageRightLimit - (40 * (reasoningSize * 0.6));
-          const overlayY = y + (height / 2);
-          const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.6)));
-          reasoningBlockSVG += `<rect x="${overlayX}" y="${overlayY}" width="${maxLineWidth + 10}" height="${fallbackHeight + 10}" 
-                                      fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
-          fallbackLines.forEach((line, i) => {
-            reasoningBlockSVG += `<text x="${overlayX + 5}" y="${overlayY + lineHeight + (i * lineHeight)}" text-anchor="start" 
-                                          fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
-          });
+          reasonX -= (symbolSize + 10); // Push left
         }
+
+        fallbackLines.forEach((line, i) => {
+          reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="${anchor}" 
+                                      fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
+        });
       }
     }
 
-    // --- STEP 3: RENDER SYMBOL (Updated with Green Tick) ---
+    // --- STEP 3: RENDER SYMBOL ---
     const renderSymbol = (startX: number) => {
       let currentX = startX;
       let svgParts = '';
 
-      // Define colors: Green for tick, Red for cross
-      const mainColor = symbol === '✓' ? '#008000' : '#ff0000'; // Green or Red
+      const mainColor = symbol === '✓' ? '#008000' : '#ff0000';
 
       if (drawSymbolBackground) {
         const bgPadding = 5;
@@ -485,7 +499,6 @@ export class SVGOverlayService {
         currentX += symbolSize + 5;
 
         if (text && text.trim()) {
-          // Keep the text color matching the symbol color (Green for tick text too)
           svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX += markingCodeWidth + 10;

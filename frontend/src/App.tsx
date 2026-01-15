@@ -28,6 +28,9 @@ import TermsPage from './pages/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
 import AboutPage from './pages/AboutPage';
 import CompareChatGPTPage from './pages/CompareChatGPTPage';
+import AqaLandingPage from './pages/AqaLandingPage';
+import EdexcelLandingPage from './pages/EdexcelLandingPage';
+import OcrLandingPage from './pages/OcrLandingPage';
 import './App.css';
 
 // Define the type for the marking result prop
@@ -257,6 +260,10 @@ function AppContent() {
         <Route path="/accuracy" element={<AccuracyPage />} />
 
         {/* NEW Keyword-Rich SEO Routes */}
+        <Route path="/mark-aqa-gcse-maths-past-papers" element={<AqaLandingPage />} />
+        <Route path="/mark-edexcel-gcse-maths-past-papers" element={<EdexcelLandingPage />} />
+        <Route path="/mark-ocr-gcse-maths-past-papers" element={<OcrLandingPage />} />
+
         <Route path="/mark-:examBoard-gcse-maths-past-papers" element={<ProgrammaticLandingPage />} />
         <Route path="/mark-:examBoard-gcse-maths-past-papers/:year" element={<ProgrammaticLandingPage />} />
 

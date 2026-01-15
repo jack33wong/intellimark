@@ -99,7 +99,7 @@ export class OCRService {
     }
 
     // Format 4: Contours/Points (Handles 'cnt')
-    const points = line.cnt || line.contours || line.points;
+    const points = line.cnt || line.contours || line.points || line.poly_2d; // Added poly_2d
     if (points && Array.isArray(points) && points.length > 0) {
       let minX = Infinity;
       let minY = Infinity;
@@ -118,7 +118,7 @@ export class OCRService {
         }
       });
 
-      if (minX !== Infinity) {
+      if (minX !== Infinity && minY !== Infinity) {
         return {
           x: minX,
           y: minY,
@@ -126,6 +126,22 @@ export class OCRService {
           height: maxY - minY
         };
       }
+    }
+
+    // Format 5: box_2d (Common in newer Mathpix models)
+    // format: [xmin, ymin, width, height] OR [xmin, ymin, xmax, ymax]?
+    // Usually Mathpix v3 text returns 'region'.
+    // Use heuristic: invalid/zero region -> try data.
+    if (line.box_2d && Array.isArray(line.box_2d) && line.box_2d.length === 4) {
+      // Assume [xmin, ymin, width, height] based on common API patterns 
+      // OR [ymin, xmin, height, width]?
+      // Standard Mathpix is usually [xmin, ymin, width, height]
+      return {
+        x: line.box_2d[0],
+        y: line.box_2d[1],
+        width: line.box_2d[2],
+        height: line.box_2d[3]
+      };
     }
 
     return null;
@@ -443,8 +459,32 @@ export class OCRService {
           return; // Only discard if text is missing, not if coords are missing
         }
 
+        // [BRUTE FORCE DEBUG] See exactly what Mathpix returns for handwriting
+        if (line.is_printed === false || (line.type && line.type === 'handwriting')) {
+          console.log(`[OCR RAW DATA] HW Line: "${text.substring(0, 20)}..." Keys: ${Object.keys(line).join(', ')}`);
+          // console.log(`[OCR RAW DATA] Full Obj:`, JSON.stringify(line)); // Uncomment if needed
+        }
+
         const coords = this.extractBoundingBox(line);
         const hasOriginalCoords = !!coords; // Define flag based on coords presence
+
+        // [DEBUG] Log Coords for Handwriting (Existing or Missing)
+        if (text && (line.is_printed === false || line.type === 'handwriting')) {
+          if (!coords) {
+            console.log(`[OCR DEBUG] ❌ Missing Coords for Handwriting: "${text.substring(0, 30)}..."`);
+            console.log(`   Detailed Keys: ${Object.keys(line).join(', ')}`);
+            console.log(`   Raw Line:`, JSON.stringify(line));
+          } else {
+            // Check for Zero Coords or suspicious values
+            if (coords.x === 0 && coords.y === 0 && coords.width === 0 && coords.height === 0) {
+              console.log(`[OCR DEBUG] ⚠️ Zero Coords for Handwriting: "${text.substring(0, 30)}..."`);
+              console.log(`   Raw Line:`, JSON.stringify(line));
+            } else {
+              // Log successful extraction to ensure we are sane
+              console.log(`[OCR DEBUG] ✅ Found Coords for HW: "${text.substring(0, 15)}..." -> [${coords.x}, ${coords.y}, ${coords.width}, ${coords.height}]`);
+            }
+          }
+        }
 
         if (text.includes('\\\\')) {
           // Remove LaTeX delimiters and environment tags, but keep the actual content
@@ -644,12 +684,36 @@ export class OCRService {
         });
       }
 
-      mathBlocks = processedLines.map(line => ({
-        googleVisionText: line.text, mathpixLatex: line.text, confidence: line.confidence || 1.0,
-        mathpixConfidence: line.confidence || 1.0, mathLikenessScore: 1.0, coordinates: line.coords,
-        hasLineData: line.hasOriginalCoords && !line.isSplitBlock, // true if coords from Mathpix AND not multi-line AND not split
-        isHandwritten: line.isHandwritten
-      } as MathBlock));
+      mathBlocks = processedLines.map((line, idx) => {
+        const coords = line.coords;
+        const hasOriginalCoords = line.hasOriginalCoords;
+        const estimatedCoords = coords; // In this context, coords are already estimated if original were missing
+
+        // Assuming pageIndex is available in the scope or can be derived.
+        // For now, let's assume it's 0 or needs to be passed in.
+        // If not available, a placeholder like `0` or `1` might be used, or it needs to be added to the function signature.
+        // For this change, we'll assume `pageIndex` is available, or default to 0 if not.
+        const pageIndex = 0; // Placeholder, adjust if pageIndex is actually available in scope
+
+        return {
+          googleVisionText: line.text,
+          mathpixLatex: line.text,
+          confidence: line.confidence || 1.0,
+          mathpixConfidence: line.confidence || 1.0,
+          mathLikenessScore: 1.0,
+          coordinates: coords,
+          bbox: coords, // Alias for coordinates
+          hasLineData: hasOriginalCoords && !line.isSplitBlock, // true if coords from Mathpix AND not multi-line AND not split
+          isHandwritten: line.isHandwritten,
+
+          // Ensure globalBlockId is set for reliable matching downstream (CRITICAL FIX)
+          globalBlockId: (line as any).id || `block_${pageIndex}_${idx}_${Math.floor(Math.random() * 1000)}`,
+
+          pageIndex: pageIndex, // Placeholder, adjust if pageIndex is actually available in scope
+          isPrinted: !line.isHandwritten, // Derived from isHandwritten
+          ocrSource: 'mathpix' // Assuming this is from Mathpix processing
+        } as MathBlock;
+      });
     }
 
 

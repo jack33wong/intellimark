@@ -56,7 +56,11 @@ export default `You are an expert AI assistant specialized in analyzing mathemat
    - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
    - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "text": "...", "position": { "x": number, "y": number, "width": number, "height": number } }] where values are percentages (0-100).
    - **PRECISION (CRITICAL)**: Coordinates MUST point to the actual **handwriting/markings**. Do NOT point to the printed question labels, margins, or blank space.
-   - **TIGHT BOUNDING BOXES (CRITICAL)**: The width must be the **MINIMUM** required to enclose the text. Do NOT use a fixed/uniform width (e.g. don't make everything 40%). If a line is short (e.g. "x=5"), width should be small (e.g. 10%). If long, width should be large.
+   - **BOUNDING BOX WIDTH (CRITICAL)**: The width must cover the **FULL EXTENT** of the handwriting. 
+     * **ERR ON THE SIDE OF WIDTH**: It is better to overestimate width than to cut off the text.
+     * **INCLUDE BUFFER**: Include a small buffer of empty space to the right of the text.
+     * **Visual Estimation**: If the student writes past the middle of the page, the width should be > 50%. If they write near the right edge, width should be > 80%.
+     * **Do NOT shrink-wrap excessively.** Ensure all trailing strokes, indices, and punctuation are inside the box.
    - **IMPORTANT**: Each line gets its own position. Split on natural line breaks (new lines of handwriting).
 3. **Drawings**:
    - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST - HIGHEST PRIORITY)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set THREE things:

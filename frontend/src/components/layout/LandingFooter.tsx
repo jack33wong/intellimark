@@ -8,14 +8,22 @@ const LandingFooter: React.FC = () => {
             <div className="footer-container horizontal">
                 <div className="footer-brand-side">
                     <span className="footer-logo">AI Marking</span>
-                    <span className="footer-copyright">© 2026 • Join 15,000+ UK students mastering their exam technique.</span>
+                    <span className="footer-copyright">© 2026 AI Marking • Trusted by 15,000+ UK students.</span>
                 </div>
 
                 <div className="footer-nav-columns">
                     <div className="footer-column">
                         <span className="footer-label">Product</span>
-                        <Link to="/pricing" state={{ fromLanding: true }} className="footer-link">Pricing</Link>
-                        <Link to="/features" className="footer-link">AI Marking</Link>
+                        <Link to="/pricing" className="footer-link">Pricing & Plans</Link>
+                        <Link to="/features" className="footer-link">Advanced Features</Link>
+                        <Link to="/accuracy" className="footer-link">Marking Accuracy</Link>
+                    </div>
+
+                    <div className="footer-column">
+                        <span className="footer-label">Resources</span>
+                        <Link to="/mark-aqa-gcse-maths-past-papers" className="footer-link">AQA Maths Marking</Link>
+                        <Link to="/mark-edexcel-gcse-maths-past-papers" className="footer-link">Edexcel Maths Marking</Link>
+                        <Link to="/mark-ocr-gcse-maths-past-papers" className="footer-link">OCR Maths Marking</Link>
                     </div>
 
                     <div className="footer-column">
@@ -25,9 +33,9 @@ const LandingFooter: React.FC = () => {
 
                     <div className="footer-column">
                         <span className="footer-label">Company</span>
-                        <Link to="/about" className="footer-link">About us</Link>
-                        <Link to="/terms" className="footer-link">Terms of service</Link>
-                        <Link to="/privacy" className="footer-link">Privacy policy</Link>
+                        <Link to="/about" className="footer-link">About Us</Link>
+                        <Link to="/terms" className="footer-link">Terms</Link>
+                        <Link to="/privacy" className="footer-link">Privacy</Link>
                     </div>
                 </div>
             </div>

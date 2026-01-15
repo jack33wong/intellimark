@@ -1,0 +1,157 @@
+import { Helmet } from 'react-helmet-async';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import LandingPageHeader from '../components/layout/LandingPageHeader';
+import LandingFooter from '../components/layout/LandingFooter';
+import SeoHeader from '../components/common/SeoHeader';
+import './EdexcelLandingPage.css';
+
+const EdexcelLandingPage: React.FC = () => {
+    const navigate = useNavigate();
+
+    const productSchema = {
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": "Edexcel GCSE Maths AI Marking Service",
+        "image": "https://aimarking.ai/og-image.png",
+        "description": "Board-specific AI marking for Pearson Edexcel GCSE Maths (1MA1) papers. Includes method marks (M), process marks (P), and step-by-step logic analysis.",
+        "brand": {
+            "@type": "Brand",
+            "name": "AI Marking"
+        },
+        "offers": {
+            "@type": "Offer",
+            "url": "https://aimarking.ai/mark-edexcel-gcse-maths-past-papers",
+            "priceCurrency": "GBP",
+            "price": "0.00",
+            "priceValidUntil": "2027-01-01",
+            "availability": "https://schema.org/InStock"
+        }
+    };
+
+    const handleUploadClick = () => {
+        navigate('/app?action=select');
+    };
+
+    return (
+        <div className="light-mode-forced edexcel-landing-page">
+            <Helmet>
+                <script type="application/ld+json">
+                    {JSON.stringify(productSchema)}
+                </script>
+            </Helmet>
+
+            <SeoHeader
+                title="Edexcel GCSE Maths AI Marking | Grade Your Past Papers (1MA1)"
+                description="Instantly mark your Edexcel GCSE Maths past papers with AI. Get board-specific feedback, method marks (M), process marks (P), and instant grades for Foundation and Higher tiers."
+                canonicalUrl="https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"
+                ogTitle="Edexcel GCSE Maths AI Marking | Grade Your Past Papers Instantly"
+                ogDescription="Stop waiting for a tutor. Upload your handwritten Edexcel 1MA1 papers and get an examiner-grade score in 30 seconds."
+                ogUrl="https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"
+            />
+
+            <LandingPageHeader />
+
+            {/* 1. Hero Section: The Edexcel 1MA1 Standard */}
+            <section className="landing-section edexcel-hero-section">
+                <div className="edexcel-hero-content">
+                    <h1 className="edexcel-hero-title">Instant AI Marking for <br /><span className="edexcel-highlight-navy">Edexcel GCSE Maths</span></h1>
+                    <p className="edexcel-hero-subtitle">
+                        Specifically engineered for the <strong>Pearson Edexcel 1MA1 specification</strong>. Get instant grades and logic-based feedback for both Foundation (Grades 1-5) and Higher (Grades 4-9) tiers.
+                    </p>
+                    <div className="edexcel-hero-cta-box">
+                        <button className="edexcel-btn-file" onClick={handleUploadClick}>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Select Paper (PDF/JPG)
+                        </button>
+                        <p className="edexcel-microcopy">
+                            ✓ Our Spatial AI understands the specific "AO" (Assessment Objective) markers used by Edexcel examiners.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            {/* 2. Feature Focus: "Method vs. Process" Marking */}
+            <section className="landing-section edexcel-feature-row">
+                <div className="edexcel-feature-container">
+                    <div className="edexcel-feature-visual">
+                        <div className="edexcel-mockup-frame">
+                            <img src="/images/spatial_mapping_v3.png" alt="Edexcel Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
+                            <div className="edexcel-badge-overlay">Edexcel 1MA1 Logic Check</div>
+                        </div>
+                    </div>
+                    <div className="edexcel-feature-text">
+                        <h2 className="edexcel-section-title">Decoding the Edexcel Mark Scheme Logic</h2>
+                        <p className="edexcel-section-body">
+                            Edexcel rewards "Process" marks (P) for multi-step problem solving even if your final answer is wrong. Our AI identifies these P-marks, M-marks (Method), and A-marks (Accuracy) in your handwritten work, ensuring you get full credit for your mathematical reasoning on every paper.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            {/* 3. The Three-Paper Strategy Hub */}
+            <section className="landing-section edexcel-feature-row">
+                <div className="edexcel-feature-container">
+                    <div className="edexcel-feature-text">
+                        <h2 className="edexcel-section-title">The Three-Paper Strategy Hub</h2>
+                        <p className="edexcel-section-body">
+                            Because Edexcel uses one non-calculator and two calculator papers, our AI provides specialized support for each:
+                        </p>
+                        <ul className="edexcel-strategy-list">
+                            <li><strong>Paper 1 (Non-Calculator):</strong> Focus on "Method Mark Recovery"—recovering points through clear working when mental arithmetic fails.</li>
+                            <li><strong>Papers 2 & 3 (Calculator Allowed):</strong> Focus on "Accuracy Standards"—checking for correct rounding to significant figures and precise multi-step calculator execution.</li>
+                        </ul>
+                    </div>
+                    <div className="edexcel-feature-visual">
+                        <div className="edexcel-mobile-frame">
+                            <div className="edexcel-mobile-screen">
+                                <img src="/images/aqa_question_mode_mockup.png" alt="Edexcel Strategy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* 4. Edexcel Resource Library */}
+            <section className="landing-section edexcel-resources-section">
+                <div className="edexcel-resources-content">
+                    <h2 className="edexcel-section-title">Edexcel Resource Library</h2>
+                    <p className="edexcel-section-body">To resolve the "Discovered - currently not indexed" status, we list the specific paper series covered.</p>
+
+                    <div className="edexcel-resources-grid">
+                        <div className="edexcel-resource-card">
+                            <h3>Edexcel GCSE Maths 2024</h3>
+                            <ul>
+                                <li>Summer Series (Paper 1, 2, 3)</li>
+                                <li>Autumn Series (Paper 1, 2, 3)</li>
+                            </ul>
+                            <span className="edexcel-pill edexcel-pill-new">New</span>
+                        </div>
+                        <div className="edexcel-resource-card">
+                            <h3>Edexcel GCSE Maths 2023</h3>
+                            <ul>
+                                <li>Full coverage of 1MA1 Series</li>
+                                <li>Foundation & Higher Tiers</li>
+                            </ul>
+                            <span className="edexcel-pill">Indexed</span>
+                        </div>
+                        <div className="edexcel-resource-card">
+                            <h3>Edexcel GCSE Maths 2022</h3>
+                            <ul>
+                                <li>Optimized for post-pandemic guidance</li>
+                                <li>Method & Process Mark Logic</li>
+                            </ul>
+                            <span className="edexcel-pill">Indexed</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <LandingFooter />
+        </div>
+    );
+};
+
+export default EdexcelLandingPage;

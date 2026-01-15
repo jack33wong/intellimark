@@ -101,10 +101,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       }
     }
 
-    // Only log if no answers found (to reduce noise)
-    if (!marksWithAnswers && (input.subQuestionAnswers || questionMarksData?.subQuestionAnswers)) {
-      console.log(`[MARKING INSTRUCTION] Q${questionNumber}: No valid sub-question answers found (filtered out empty/cao values)`);
-    }
+
 
     // Extract sub-question numbers if available (for grouped sub-questions)
     // Check multiple possible locations where sub-question numbers might be stored
@@ -1112,7 +1109,7 @@ export class MarkingInstructionService {
                         validTokens.push(token);
                         usageMap.set(code, currentUsage + 1);
                       } else {
-                        console.warn(`⚠️ [MARK LIMIT] Dropped excess token '${token}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
+
                       }
                     } else {
                       // CRITICAL FIX: Do NOT keep non-mark tokens in the 'text' field.

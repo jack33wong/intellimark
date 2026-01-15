@@ -45,14 +45,13 @@
 
 @media (min-width: 640px) {
     .hero-main-title {
-        font-size: 48px;
-        /* Match user reference sm:text-[48px] */
+        font-size: 3.5rem
     }
 }
 
 .hero-main-subtitle {
     width: 100%;
-    font-size: 16px;
+    font-size: 1.25rem;
     /* Match user reference text-base */
     font-weight: 400;
     color: var(--text-secondary);

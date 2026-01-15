@@ -6,9 +6,10 @@ interface LandingPageUploadWidgetProps {
     onUpload: (files: FileList | File[]) => void;
     examBoard: string;
     compact?: boolean;
+    buttonText?: string;
 }
 
-const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpload, examBoard, compact }) => {
+const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpload, examBoard, compact, buttonText }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,7 +33,7 @@ const LandingPageUploadWidget: React.FC<LandingPageUploadWidgetProps> = ({ onUpl
                     className="cta-button-secondary"
                     onClick={() => fileInputRef.current?.click()}
                 >
-                    <Upload size={20} /> Upload Paper
+                    <Upload size={20} /> {buttonText || 'Upload Paper'}
                 </button>
             </div>
         );

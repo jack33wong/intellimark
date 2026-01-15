@@ -7,6 +7,10 @@ interface SeoHeaderProps {
     examBoard?: string;
     year?: string;
     isHome?: boolean;
+    canonicalUrl?: string; // NEW
+    ogTitle?: string;      // NEW
+    ogDescription?: string;// NEW
+    ogUrl?: string;        // NEW
 }
 
 export const SeoHeader: React.FC<SeoHeaderProps> = ({
@@ -14,7 +18,11 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
     description,
     examBoard,
     year,
-    isHome = false
+    isHome = false,
+    canonicalUrl,
+    ogTitle,
+    ogDescription,
+    ogUrl
 }) => {
     // Generate optimized title
     const finalTitle = title || (examBoard
@@ -51,15 +59,18 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
             <meta name="description" content={finalDescription} />
             <meta name="keywords" content={keywords} />
 
+            {canonicalUrl && <link rel="canonical" href={canonicalUrl} data-rh="true" />}
+
             {/* Open Graph / Facebook */}
             <meta property="og:type" content="website" />
-            <meta property="og:title" content={finalTitle} />
-            <meta property="og:description" content={finalDescription} />
+            <meta property="og:title" content={ogTitle || finalTitle} />
+            <meta property="og:description" content={ogDescription || finalDescription} />
+            {ogUrl && <meta property="og:url" content={ogUrl} />}
 
             {/* Twitter */}
             <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:title" content={finalTitle} />
-            <meta name="twitter:description" content={finalDescription} />
+            <meta name="twitter:title" content={ogTitle || finalTitle} />
+            <meta name="twitter:description" content={ogDescription || finalDescription} />
 
             {/* JSON-LD SoftwareApplication Schema */}
             <script type="application/ld+json">

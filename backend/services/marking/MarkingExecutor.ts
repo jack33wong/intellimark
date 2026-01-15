@@ -95,6 +95,12 @@ export async function executeMarkingForQuestion(
       ocrSource?: string;
     }>;
 
+
+
+    // CRITICAL FIX: In Pure Marking Mode, we want to use the RAW OCR blocks (task.mathBlocks) because they contain the accurate BBOXes.
+    // The aiSegmentationResults come from Classification/Gemini which has NO spatial awareness (bbox=0).
+    // If we use aiSegmentationResults, we lose the coordinates.
+    // So, if we have valid mathBlocks, prioritize them over aiSegmentationResults unless aiSegmentationResults have explicit coordinates.
     if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
       // Use AI segmentation results - map back to original blocks for coordinates
       stepsDataForMapping = task.aiSegmentationResults.map((result, stepIndex) => {
@@ -104,16 +110,22 @@ export async function executeMarkingForQuestion(
 
         const lineData = (result as any).lineData;
         const coords = lineData?.coordinates || lineData?.position;
+        const resultText = result.content || '';
+
+        // [DEBUG] Trace matching attempt
+        // console.log(`[MATCH DEBUG] Trying to match SEGMENT: "${resultText.substring(0, 20)}..." (ID: ${result.blockId})`);
 
         if (coords?.x != null && coords?.y != null) {
           bbox = [coords.x, coords.y, coords.width, coords.height];
           pageIdx = lineData?.pageIndex != null ? lineData.pageIndex : (task.sourcePages[0] || 0);
         } else {
           // Find the corresponding block by blockId
-          const matchingBlock = task.mathBlocks.find(block => {
+          let matchingBlock = task.mathBlocks.find(block => {
             const blockId = (block as any).globalBlockId || `${(block as any).pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
             return blockId === result.blockId;
           });
+
+
 
           if (matchingBlock?.coordinates &&
             matchingBlock.coordinates.x != null && matchingBlock.coordinates.y != null) {
@@ -303,6 +315,17 @@ export async function executeMarkingForQuestion(
       // Enhanced marking mode: Use OCR blocks directly (no matching logic)
       // AI will handle mapping classification to OCR blocks
       // We just provide OCR block coordinates for annotation enrichment
+
+      // [DEBUG] Inspect what MarkingExecutor actually sees in task.mathBlocks
+      if (task.mathBlocks.length > 0) {
+        const firstB = task.mathBlocks[0];
+        console.log(`[MARKING EXECUTOR DEBUG] First Block Coords Check:`, JSON.stringify({
+          hasCoords: !!firstB.coordinates,
+          coords: firstB.coordinates,
+          text: (firstB.mathpixLatex || firstB.googleVisionText || '').substring(0, 20)
+        }));
+      }
+
       stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
         const blockId = (block as any).globalBlockId || `block_${task.sourcePages[0] || 0}_${stepIndex}`;
 
@@ -1013,8 +1036,22 @@ export function createMarkingTasksFromClassification(
       group.classificationBlocks.push(block as any);
 
       // LINE-LEVEL SEGMENTATION: Push individual lines instead of block
-      if (q.studentWorkLines && q.studentWorkLines.length > 0) {
-        q.studentWorkLines.forEach((line: any) => {
+
+
+      // Gather ALL lines (Main + SubQuestions)
+      let allWorkLines = [...(q.studentWorkLines || [])];
+
+      // FIX: Also collect lines from sub-questions (where the data actually lives for Q20)
+      if (q.subQuestions && Array.isArray(q.subQuestions)) {
+        q.subQuestions.forEach((sq: any) => {
+          if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines)) {
+            allWorkLines.push(...sq.studentWorkLines);
+          }
+        });
+      }
+
+      if (allWorkLines.length > 0) {
+        allWorkLines.forEach((line: any) => {
           (group.aiSegmentationResults as any[]).push({
             content: line.text,
             source: 'classification',
@@ -1027,6 +1064,20 @@ export function createMarkingTasksFromClassification(
           content: studentWorkText,
           source: 'classification',
           blockId: `classification_${groupingKey}_main`
+        });
+      }
+
+      // [DEBUG EVIDENCE] Log the raw classification lines to prove/disprove 0-0 coordinates
+      if (baseQNum === '20' || groupingKey.includes('20')) {
+        console.log(`\n🔍 [EVIDENCE LOG] Q${baseQNum} Classification Lines:`);
+        group.aiSegmentationResults.forEach((seg: any, i: number) => {
+          const ld = seg.lineData;
+          if (ld) {
+            console.log(`   [Line ${i}] Text: "${seg.content.substring(0, 20)}..."`);
+            console.log(`   [Line ${i}] POS: ${JSON.stringify(ld.position)} | COORDS: ${JSON.stringify(ld.coordinates)}`);
+          } else {
+            console.log(`   [Line ${i}] Text: "${seg.content.substring(0, 20)}..." (NO lineData)`);
+          }
         });
       }
     }

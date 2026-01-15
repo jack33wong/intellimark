@@ -1,0 +1,275 @@
+/* OCR Landing Page - Namespaced Styles to prevent side effects */
+
+.ocr-landing-page {
+    background-color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    display: block;
+}
+
+/* 1. Hero Section */
+.ocr-hero-section {
+    padding: 120px 24px 80px;
+    text-align: center;
+    background: #ffffff;
+}
+
+.ocr-hero-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.ocr-hero-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    line-height: 1.1;
+    color: #1a1a1a;
+    margin-bottom: 24px;
+}
+
+.ocr-hero-subtitle {
+    font-size: 1.25rem;
+    color: #4a5568;
+    line-height: 1.6;
+    margin-bottom: 40px;
+    max-width: 650px;
+    margin-inline: auto;
+}
+
+.ocr-highlight-green {
+    color: #007a33;
+    /* OCR Green */
+}
+
+.ocr-hero-cta-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.ocr-btn-file {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 18px 40px;
+    border-radius: 100px;
+    background-color: #ffffff;
+    color: #1a1a1a;
+    border: 1px solid #e5e5e5;
+    font-weight: 600;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.ocr-btn-file:hover {
+    background-color: #fafafa;
+    border-color: #1a1a1a;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.ocr-microcopy {
+    font-size: 0.9rem;
+    color: #718096;
+}
+
+/* 2. Feature Sections */
+.ocr-feature-row {
+    padding: 100px 24px;
+    background: #f8fafc;
+}
+
+.ocr-feature-row:nth-child(even) {
+    background: #ffffff;
+}
+
+.ocr-feature-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 80px;
+    flex-wrap: wrap;
+}
+
+.ocr-feature-text {
+    flex: 1.2;
+    min-width: 320px;
+}
+
+.ocr-feature-visual {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    min-width: 320px;
+}
+
+.ocr-section-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    color: #1a1a1a;
+    margin-bottom: 24px;
+    line-height: 1.2;
+}
+
+.ocr-section-body {
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: #4a5568;
+    margin-bottom: 24px;
+}
+
+.ocr-strategy-list {
+    list-style: none;
+    padding: 0;
+    margin: 24px 0;
+}
+
+.ocr-strategy-list li {
+    font-size: 1.1rem;
+    color: #2d3748;
+    margin-bottom: 16px;
+    padding-left: 28px;
+    position: relative;
+    line-height: 1.6;
+}
+
+.ocr-strategy-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #007a33;
+    font-weight: bold;
+}
+
+/* Mockup Frames */
+.ocr-mockup-frame {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    position: relative;
+    width: 100%;
+}
+
+.ocr-badge-overlay {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    background: #007a33;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.ocr-mobile-frame {
+    width: 320px;
+    height: 640px;
+    background: #1a1a1a;
+    border-radius: 44px;
+    padding: 10px;
+    border: 8px solid #333;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+.ocr-mobile-screen {
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    border-radius: 34px;
+    overflow: hidden;
+}
+
+/* 4. Resources Section */
+.ocr-resources-section {
+    padding: 100px 24px;
+    background: #ffffff;
+    text-align: center;
+}
+
+.ocr-resources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 32px;
+    max-width: 1200px;
+    margin: 48px auto 0;
+}
+
+.ocr-resource-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 40px;
+    text-align: left;
+    transition: all 0.3s ease;
+}
+
+.ocr-resource-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+    border-color: #007a33;
+}
+
+.ocr-resource-card h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #1a1a1a;
+}
+
+.ocr-resource-card ul {
+    list-style: none;
+    padding: 0;
+}
+
+.ocr-resource-card li {
+    font-size: 1rem;
+    color: #4a5568;
+    margin-bottom: 12px;
+    padding-left: 20px;
+    position: relative;
+}
+
+.ocr-resource-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #007a33;
+}
+
+.ocr-pill {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #edf2f7;
+    color: #4a5568;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-top: 20px;
+}
+
+.ocr-pill-new {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+/* Responsive Overrides */
+@media (max-width: 900px) {
+    .ocr-feature-container {
+        flex-direction: column;
+        text-align: center;
+        gap: 48px;
+    }
+
+    .ocr-feature-visual {
+        order: 2;
+    }
+}
