@@ -5,7 +5,7 @@
 
 import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
-import type { MarkingInstructions, Annotation, ModelType, MarkingTask, EnrichedAnnotation } from '../../types/index.js';
+import type { MarkingInstructions, Annotation, ModelType, MarkingTask, EnrichedAnnotation, MathBlock } from '../../types/index.js';
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
 // Stale import removed (MathBlock is now in types/index.js)
 import type { PageOcrResult } from '../../types/markingRouter.js';

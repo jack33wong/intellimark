@@ -863,7 +863,68 @@ export const enrichAnnotationsWithPositions = (
                     ];
                 }
             } else if (originalStep?.bbox) {
+                // Default: Use Mathpix OCR BBox
                 pixelBbox = originalStep.bbox;
+
+                // [WIDTH ACCURACY FIX]
+                // Compare Mathpix Width vs. Classification (AI) Width
+                // If Mathpix is excessively wide (often due to capturing full line width instead of just the math formula),
+                // we clamp it to the Classification estimate which requested "TIGHT BOUNDING BOXES".
+
+                try {
+                    if (task?.classificationBlocks && pixelBbox && pixelBbox[2] > 0) {
+                        // 1. Find corresponding Classification Line
+                        // We reuse the flattening logic to map lineIndex to the specific Classification Line
+                        const lineIndex = ((anno as any).lineIndex || (anno as any).line_index || 1) - 1;
+
+                        // Flatten all lines to find the standard index match
+                        // (This matches how we prompt the AI: "Line 1, Line 2...")
+                        const allLines: Array<{ text: string; position: any; pageIndex: number }> = [];
+                        task.classificationBlocks.forEach(block => {
+                            if (block.studentWorkLines) block.studentWorkLines.forEach((l: any) =>
+                                allLines.push({ text: l.text, position: l.position, pageIndex: block.pageIndex ?? defaultPageIndex })
+                            );
+                            if (block.subQuestions) block.subQuestions.forEach((sq: any) => {
+                                if (sq.studentWorkLines) sq.studentWorkLines.forEach((l: any) =>
+                                    allLines.push({ text: l.text, position: l.position, pageIndex: block.pageIndex ?? defaultPageIndex })
+                                );
+                            });
+                        });
+
+                        const clsLine = allLines[lineIndex];
+
+                        if (clsLine && clsLine.position) {
+                            const pDims = pageDimensions?.get(clsLine.pageIndex || pageIndex);
+                            if (pDims) {
+                                // Convert Classification Width (%) to Pixels
+                                const clsWidthPx = (parseFloat(clsLine.position.width) / 100) * pDims.width;
+                                const ocrWidthPx = pixelBbox[2];
+
+                                // Thresholds: 
+                                // 1. Mathpix is at least 50% wider than Classification
+                                // 2. Mathpix is wider than 300px (avoids clamping small items)
+                                if (ocrWidthPx > (clsWidthPx * 1.5) && ocrWidthPx > 300) {
+                                    const oldWidth = pixelBbox[2];
+
+                                    // Clamp Width
+                                    const newWidth = Math.max(clsWidthPx, 50); // Ensure min width
+
+                                    // Re-center logic:
+                                    // original center = x + w/2
+                                    // new x = center - newW/2
+                                    const centerX = pixelBbox[0] + (ocrWidthPx / 2);
+                                    const newX = centerX - (newWidth / 2);
+
+                                    pixelBbox = [newX, pixelBbox[1], newWidth, pixelBbox[3]];
+
+                                    console.log(`[WIDTH FIX] Q${questionId} Line ${lineIndex + 1}: Clamped OCR Width ${Math.round(oldWidth)}px -> ${Math.round(newWidth)}px (Ref: AI Width ${Math.round(clsWidthPx)}px)`);
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[WIDTH FIX ERROR] Failed to clamp width for Q${questionId}:`, err);
+                }
             }
 
             const enriched: EnrichedAnnotation = {
