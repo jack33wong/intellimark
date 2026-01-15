@@ -890,7 +890,7 @@ export class MarkingInstructionService {
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
     // AI MARKING USER PROMPT DEBUG LOG
-    const shouldLogPrompt = false; // DISABLED for production
+    const shouldLogPrompt = true; // ENABLED for diagnostics
     if (shouldLogPrompt) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
@@ -907,22 +907,22 @@ export class MarkingInstructionService {
       console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
 
       // Split userPrompt into sections for cleaner logging
-      const sections = userPrompt.split(/\n(?=# )/);
-      sections.forEach(section => {
+      const userPromptSections = userPrompt.split(/\n(?=# )/);
+      userPromptSections.forEach(section => {
         if (section.trim().startsWith('# MARKING TASK')) {
           console.log(`${BOLD}${CYAN}${section.trim()}${RESET}`);
         } else if (section.trim().startsWith('## MARKING SCHEME')) {
           const lines = section.trim().split('\n');
           console.log(`${BOLD}${CYAN}${lines[0]}${RESET}`);
-          console.log(lines.slice(1, 5).join('\n') + (lines.length > 5 ? '\n...' : ''));
+          console.log(lines.slice(1, 10).join('\n') + (lines.length > 10 ? '\n...' : ''));
         } else if (section.trim().startsWith('## STUDENT WORK')) {
           console.log(`${BOLD}${CYAN}${section.trim()}${RESET}`);
         } else if (section.trim().startsWith('## RAW OCR BLOCKS') || section.trim().startsWith('## NO RAW OCR BLOCKS')) {
           const lines = section.trim().split('\n');
           console.log(`${BOLD}${CYAN}${lines[0]}${RESET}`);
-          console.log(lines.slice(1, 10).join('\n') + (lines.length > 10 ? '\n...' : ''));
+          console.log(lines.slice(1, 15).join('\n') + (lines.length > 15 ? '\n...' : ''));
         } else {
-          console.log(section.trim());
+          console.log(section.trim().substring(0, 1000));
         }
       });
 
@@ -1292,22 +1292,18 @@ export class MarkingInstructionService {
         */
       }
 
-      // console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
-      // console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
-      // console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
-      // console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
+      console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
+      console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
+      console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
+      console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
 
-      // Log visual observation if present (diagnostic for drawing questions)
-      // Log visual observation if present (diagnostic for drawing questions)
       if (parsedResponse.visualObservation && parsedResponse.visualObservation.trim()) {
-        // console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
-      } else {
+        console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
       }
 
       // Log individual annotations for debugging (especially for answers like 18.6)
-      // Log individual annotations for debugging (especially for answers like 18.6)
       if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
-        // console.log('  - Annotations:');
+        console.log('  - Annotations:');
         parsedResponse.annotations.forEach((ann: any, idx: number) => {
           const action = ann.action || 'unknown';
           const text = ann.text || '';
@@ -1352,12 +1348,6 @@ export class MarkingInstructionService {
           // Always show detailed debug info
           logMessage += `\n      ↳ Reason: ${reasoning || 'No reasoning provided'}`;
 
-          // console.log(logMessage);
-          // console.log(`      ↳ Reason: ${reasoning}`);
-          // console.log(`      ↳ OCR Value: "${ann.student_text || ''}"`);
-          // if (ann.classification_text) console.log(`      ↳ Classification Value: "${ann.classification_text}"`);
-          // console.log(`      ↳ Match Status: "${ann.ocr_match_status || 'UNKNOWN'}"`);
-
           if (studentAnswer) {
             logMessage += `\n      ↳ OCR Value: ${MAGENTA}"${studentAnswer}"${RESET}`;
 
@@ -1371,7 +1361,7 @@ export class MarkingInstructionService {
             logMessage += `\n      ↳ Match Status: ${statusColor}"${ann.ocr_match_status}"${RESET}`;
           }
 
-          // console.log(logMessage);
+          console.log(logMessage);
         });
         // Log line_id summary
         const stepIds = parsedResponse.annotations.map((a: any) => a.line_id || 'MISSING');
