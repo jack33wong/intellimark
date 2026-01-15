@@ -308,8 +308,9 @@ export class SVGOverlayService {
         debugBorderColor = 'grey'; // Unknown
       }
 
+      // INCREASED STROKE WIDTH TO 5
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
-                fill="none" stroke="${debugBorderColor}" stroke-width="2" stroke-dasharray="5,5" opacity="0.8" />`;
+                fill="none" stroke="${debugBorderColor}" stroke-width="5" stroke-dasharray="10,5" opacity="0.8" />`;
     }
 
     if (action === 'tick' || action === 'cross' || action === 'write') {

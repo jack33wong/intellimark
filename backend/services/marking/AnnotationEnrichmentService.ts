@@ -473,24 +473,95 @@ export const enrichAnnotationsWithPositions = (
                 }
             }
 
-            // If we found a classification position, use it
+            // If we found a classification position, use it BUT SHRINK-WRAP IT
             if (classificationPosition) {
-                // COORDINATE CONVERSION: AI provides percentages (0-100), convert to pixels if dimensions available
-                const pageDims = pageDimensions?.get(classificationPosition.pageIndex);
+                const pageIdx = classificationPosition.pageIndex;
+                const pageDims = pageDimensions?.get(pageIdx);
+
                 let finalX = classificationPosition.x;
                 let finalY = classificationPosition.y;
                 let finalW = classificationPosition.width || 100;
                 let finalH = classificationPosition.height || 20;
+
+                // 1. Convert Classification Percentages to Pixels (Search Zone)
+                let pixelY = finalY;
+                let pixelH = finalH;
 
                 if (pageDims) {
                     finalX = (finalX / 100) * pageDims.width;
                     finalY = (finalY / 100) * pageDims.height;
                     finalW = (finalW / 100) * pageDims.width;
                     finalH = (finalH / 100) * pageDims.height;
+
+                    pixelY = finalY;
+                    pixelH = finalH;
                 }
 
-                // FIX: Ensure minimum visibility for fallback boxes (Q6 fix)
-                // If box is microscopic (e.g. < 10px), scale it up to at least 50x30
+                // ==================================================================================
+                // 🔥 NEW: INK DENSITY SCAN (HYBRID SHRINK-WRAP)
+                // Use the Classification Y-Zone to find ACTUAL ink blocks and calculate real width
+                // ==================================================================================
+
+                // Identify source blocks: Prefer task.mathBlocks (likely contains everything), fallback to stepsDataForMapping
+                const sourceBlocks = (task?.mathBlocks && task.mathBlocks.length > 0)
+                    ? task.mathBlocks
+                    : stepsDataForMapping;
+
+                if (sourceBlocks && sourceBlocks.length > 0) {
+                    // Filter blocks that:
+                    // 1. Are on the same page
+                    // 2. Are HANDWRITTEN (Ignore printed questions!)
+                    // 3. Intersect the Classification Y-Zone vertically
+
+                    const intersectingBlocks = sourceBlocks.filter(b => {
+                        const bPage = (b as any).pageIndex !== undefined ? (b as any).pageIndex : defaultPageIndex;
+                        if (bPage !== pageIdx) return false;
+
+                        // Handwritten Check (Critical for ignoring Question Text)
+                        // If isHandwritten is explicitly false, skip it. If undefined, assume true/unknown (safe to include).
+                        if ((b as any).isHandwritten === false) return false;
+
+                        // Vertical Intersection Check
+                        const bbox = (b as any).bbox; // [x, y, w, h]
+                        if (!bbox || bbox.length < 4) return false;
+
+                        const bTop = bbox[1];
+                        const bBottom = bbox[1] + bbox[3];
+                        const searchTop = pixelY - 10; // 10px buffer
+                        const searchBottom = pixelY + pixelH + 10;
+
+                        // Check if block overlaps the search zone
+                        return (bBottom > searchTop && bTop < searchBottom);
+                    });
+
+                    // If we found intersecting ink, calculate the UNION BBOX
+                    if (intersectingBlocks.length > 0) {
+                        let minX = Infinity;
+                        let minY = Infinity;
+                        let maxRight = -Infinity;
+                        let maxBottom = -Infinity;
+
+                        intersectingBlocks.forEach(b => {
+                            const [bx, by, bw, bh] = (b as any).bbox;
+                            if (bx < minX) minX = bx;
+                            if (by < minY) minY = by;
+                            if (bx + bw > maxRight) maxRight = bx + bw;
+                            if (by + bh > maxBottom) maxBottom = by + bh;
+                        });
+
+                        // 🎯 REPLACEMENT: Use the SHRINK-WRAPPED dimensions!
+                        // This ignores the wide Classification Box and uses the tight Ink Box.
+                        finalX = minX;
+                        finalY = minY; // Optionally adjust Y too, but X/Width is the main goal
+                        finalW = maxRight - minX;
+                        finalH = maxBottom - minY;
+
+                        // Console Log for Debugging
+                        console.log(`[SHRINK-WRAP] Q${questionId}: Replaced AI Width (${Math.round((classificationPosition.width / 100) * pageDims?.width || 0)}px) with Ink Width (${Math.round(finalW)}px) from ${intersectingBlocks.length} blocks.`);
+                    }
+                }
+
+                // Safety: Ensure minimum visibility
                 if (finalW < 10 || finalH < 10) {
                     if (finalW < 50) finalW = 50;
                     if (finalH < 30) finalH = 30;
@@ -499,11 +570,10 @@ export const enrichAnnotationsWithPositions = (
                 return {
                     ...anno,
                     bbox: [finalX, finalY, finalW, finalH] as [number, number, number, number],
-                    pageIndex: classificationPosition.pageIndex,
+                    pageIndex: pageIdx,
                     line_id: (anno as any).line_id || `unmatched_${idx}`,
-                    ocr_match_status: 'UNMATCHED', // Preserve status for red border
-                    subQuestion: targetSubQ || anno.subQuestion, // FIX: Ensure subQuestion is propagated
-                    // STRIP zeroed visual positions to prevent svgOverlayService from prioritizing them at 0,0
+                    ocr_match_status: 'UNMATCHED',
+                    subQuestion: targetSubQ || anno.subQuestion,
                     aiPosition: undefined,
                     visual_position: undefined,
                     visualPosition: undefined

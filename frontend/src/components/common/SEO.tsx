@@ -29,9 +29,18 @@ const SEO: React.FC<SEOProps> = ({
     const defaultDescription = "Instantly mark GCSE Maths past papers with AI. Get accurate grades, step-by-step logic analysis, and personalized feedback.";
     const metaDescription = description || defaultDescription;
 
-    // ENFORCE NON-WWW CANONICAL
-    // If canonical is provided, strip 'www.'. If not, default to aimarking.ai
-    let url = canonical || "https://aimarking.ai";
+    // ENFORCE NON-WWW CANONICAL & UNIQUE PER PAGE
+    // If canonical is provided, use it.
+    // If NOT provided, use the current window location (strip query params to avoid duplicates).
+    let url = canonical;
+
+    if (!url && typeof window !== 'undefined') {
+        url = window.location.origin + window.location.pathname;
+    }
+
+    url = url || "https://aimarking.ai";
+
+    // Strip 'www.' to enforce non-www domain
     url = url.replace('https://www.aimarking.ai', 'https://aimarking.ai');
 
     // ENFORCE NON-WWW IMAGE
