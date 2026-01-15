@@ -3,23 +3,10 @@
  * Handles mathematical expression detection and scoring
  */
 
-import type { ProcessedVisionResult } from '../../types/index.js';
+import type { ProcessedVisionResult, MathBlock } from '../../types/index.js';
 
 // Inline MathBlock interface from MathDetectionService
-export interface MathBlock {
-  googleVisionText: string;
-  mathpixLatex?: string;
-  confidence: number;              // Google Vision confidence (NEVER modified)
-  mathpixConfidence?: number;      // NEW: Mathpix confidence (only set after Mathpix)
-  mathLikenessScore: number;
-  coordinates: { x: number; y: number; width: number; height: number };
-  suspicious?: boolean;
-  lines?: any[];                   // NEW: Sub-line data from Mathpix
-  sourceType?: string;             // NEW: Source type (e.g., 'hybrid')
-  ocrSource?: string;              // NEW: OCR source (primary/fallback)
-  hasLineData?: boolean;           // NEW: Line-level data flag
-  isHandwritten?: boolean;         // NEW: Authentic Mathpix handwriting flag
-}
+// MathBlock type imported from types/index.js
 
 // Inline MathDetectionService functionality
 export function scoreMathLikeness(text: string): number {

@@ -642,3 +642,78 @@ export interface ProcessingOptions {
   compressionQuality?: number;
   enableAnnotations?: boolean;
 }
+
+// MathBlock type (migrated from MathDetectionService)
+export interface MathBlock {
+  googleVisionText: string;
+  mathpixLatex?: string;
+  confidence: number;              // Google Vision confidence (NEVER modified)
+  mathpixConfidence?: number;      // NEW: Mathpix confidence (only set after Mathpix)
+  mathLikenessScore: number;
+  coordinates: { x: number; y: number; width: number; height: number };
+  suspicious?: boolean;
+  lines?: any[];                   // NEW: Sub-line data from Mathpix
+  sourceType?: string;             // NEW: Source type (e.g., 'hybrid')
+  ocrSource?: string;              // NEW: OCR source (primary/fallback)
+  hasLineData?: boolean;           // NEW: Line-level data flag
+  isHandwritten?: boolean;         // NEW: Authentic Mathpix handwriting flag
+  // Legacy support for globalBlockId and id used in MarkingExecutor
+  globalBlockId?: string;
+  id?: string;
+  pageIndex?: number;
+  text?: string;        // Compatibility alias for googleVisionText/mathpixLatex
+  bbox?: [number, number, number, number]; // Compatibility for stepsDataForMapping
+  cleanedText?: string;
+  unified_line_id?: string;
+}
+
+// Marking Task type (migrated from MarkingExecutor)
+export interface MarkingTask {
+  questionNumber: number | string;
+  mathBlocks: MathBlock[]; // Raw OCR blocks for this question
+  markingScheme: any;
+  sourcePages: number[];
+  classificationStudentWork?: string | null; // Raw classification student work (may include [DRAWING])
+  formattedOcrText?: string; // Formatted OCR text for context
+  questionText?: string; // Detected question text
+  databaseQuestionText?: string; // Text from database match
+  classificationBlocks?: Array<{  // Original classification blocks with position data (for Q18-style accumulated questions)
+    text: string;
+    pageIndex: number;
+    studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
+    subQuestions?: any[]; // Allow access to sub-questions for page lookup
+    hasStudentDrawing?: boolean; // Propagate drawing flag
+    studentWorkLines?: any[]; // Allow access to lines
+  }>;
+  pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  questionsOnPage?: Map<number, string[]>; // Map of pageIndex -> sorted unique question numbers on that page
+  imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
+  images?: string[]; // Array of base64 images for multi-page questions
+  // Sub-question metadata for grouped sub-questions
+  subQuestionMetadata?: {
+    hasSubQuestions: boolean;
+    subQuestions: Array<{
+      part: string;        // "a", "b", "i", "ii", etc.
+      text?: string;       // Sub-question text (optional)
+    }>;
+    subQuestionNumbers?: string[];  // ["22a", "22b"] for reference
+  };
+  subQuestionPageMap?: Record<string, number[]>; // NEW: Explicit mapping of sub-question part -> pageIndex(es)
+  allowedPageUnion?: number[]; // NEW: Union of all pages for the main question (for fallback routing)
+  // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
+  aiSegmentationResults?: Array<{ content: string; source?: string; blockId?: string; studentWorkLines?: any[] }>;
+  blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
+}
+
+// Enriched Annotation type (migrated from MarkingExecutor)
+export interface EnrichedAnnotation extends Annotation {
+  bbox: [number, number, number, number];
+  pageIndex: number;
+  line_id?: string; // Optional, for tracking which step this annotation maps to
+  aiPosition?: { x: number; y: number; width: number; height: number }; // AI-estimated position for verification
+  hasLineData?: boolean; // Flag indicating if annotation uses actual line data (OCR) or fallback
+  isDrawing?: boolean; // Flag indicating if the annotation is for a drawing
+  ocr_match_status?: 'MATCHED' | 'UNMATCHED' | 'VISUAL' | 'FALLBACK';
+  visualObservation?: string; // AI's description of the visual content
+  visualPosition?: { x: number; y: number; width: number; height: number }; // Explicit visual position for drawings
+}
