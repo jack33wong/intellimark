@@ -97,13 +97,13 @@ const AqaLandingPage: React.FC = () => {
                     <div className="aqa-feature-text">
                         <h2 className="aqa-section-title">Question Mode: AQA Model Answers</h2>
                         <p className="aqa-section-body">
-                            Stuck on a 5-mark AQA simultaneous equation? Use Question Mode to generate a perfect model answer. Unlike generic AI, our solutions use the exact terminology and layout expected by AQA examiners.
+                            Stuck on a 3-mark AQA simultaneous equation? Use Question Mode to generate a perfect model answer. Unlike generic AI, our solutions use the exact terminology and layout expected by AQA examiners.
                         </p>
                     </div>
                     <div className="aqa-feature-visual">
                         <div className="aqa-mobile-frame">
                             <div className="aqa-mobile-screen">
-                                <img src="/images/aqa_question_mode_mockup.png" alt="AQA Question Mode" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img src="/images/aqa_question_mode_v2.png" alt="AQA Question Mode" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             </div>
                         </div>
                     </div>

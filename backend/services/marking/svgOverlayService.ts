@@ -376,10 +376,8 @@ export class SVGOverlayService {
     const symbolY = y + effectiveHeight + baseYOffsetPixels;
 
     // --- STEP 1: PLACE THE SYMBOL (ANCHOR) ---
-
     const rightEdgeOfStudentWork = x + width;
     const pageRightLimit = actualWidth - safeMargin;
-
     const spaceOnRight = pageRightLimit - rightEdgeOfStudentWork;
     const spaceOnLeft = x - safeMargin;
 
@@ -388,29 +386,29 @@ export class SVGOverlayService {
     let symbolTextAnchor = 'start';
     let drawSymbolBackground = false;
 
-    // Logic: Prefer Right Gutter (Close) > Left Gutter > Overlay
+    // PREFER RIGHT GUTTER
     if (spaceOnRight >= symbolContentWidth + padding) {
-      // Option 1: Right Gutter (Preferred)
       isFlipped = false;
-      // 🔥 FIX: Use "Smart Gutter" (Close to box), not "Far Right" (Page Edge)
-      // Since we fixed the "Tiny Box" bug upstream, we can trust the box width now.
       symbolAnchorX = rightEdgeOfStudentWork + padding;
       symbolTextAnchor = 'start';
-    } else if (spaceOnLeft >= symbolContentWidth + padding) {
-      // Option 2: Left Gutter (Flip)
+    }
+    // FLIP LEFT IF NECESSARY
+    else if (spaceOnLeft >= symbolContentWidth + padding) {
       isFlipped = true;
       symbolAnchorX = x - padding;
       symbolTextAnchor = 'end';
-    } else {
-      // Option 3: Forced Overlay (Sticker)
+    }
+    // OVERLAY IF TRAPPED
+    else {
       isFlipped = false;
-      // For overlay, we DO push to the far right to keep the text readable over ink
       symbolAnchorX = pageRightLimit - symbolContentWidth;
       symbolTextAnchor = 'start';
       drawSymbolBackground = true;
     }
 
-    // --- STEP 2: PLACE THE REASONING (IF EXISTS) ---
+    // --- STEP 2: PLACE THE REASONING (SIDE-BY-SIDE) ---
+    // We removed the "Header" strategy because it overlaps previous lines.
+    // Now we force text to flow AWAY from the student work.
     let svg = '';
     let reasoningBlockSVG = '';
 
@@ -418,69 +416,46 @@ export class SVGOverlayService {
       const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
       const lineHeight = reasoningSize + 4;
 
-      // -- Strategy A: HEADER (Priority 1) --
-      // Try to place ABOVE the student work
-      const estimatedCharsPerLine = Math.floor(width / (reasoningSize * 0.5));
-      const headerLines = this.breakTextIntoMultiLines(cleanReasoning, Math.max(40, estimatedCharsPerLine));
-      const headerBlockHeight = (headerLines.length * lineHeight) + padding;
+      // Break text into lines (Narrower if on Left to fit margin)
+      const lineCharLimit = isFlipped ? 20 : 30;
+      const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, lineCharLimit);
 
-      // Strict check: Must fit above WITHOUT hitting top of page or previous q
-      const canFitAbove = (y - headerBlockHeight) > 30;
+      // Center text block vertically relative to the Symbol
+      const totalBlockHeight = fallbackLines.length * lineHeight;
+      const startY = symbolY - (symbolSize / 2) + (lineHeight / 2) - ((totalBlockHeight - lineHeight) / 2);
 
-      if (canFitAbove) {
-        // PLACEMENT: HEADER
-        const startY = y - headerBlockHeight + padding;
+      let reasonX = symbolAnchorX;
+      let anchor = isFlipped ? 'end' : 'start';
 
-        // Align with Student Box Left by default
-        let reasonX = x;
-        if (isFlipped) reasonX = x - (headerLines[0].length * (reasoningSize * 0.6)); // Approx pull back
+      // 🔥 KEY FIX: Push Text AWAY from Symbol
+      // If Right Side (start) -> Push further Right
+      // If Left Side (end)   -> Push further Left
+      const separation = symbolSize + 15;
 
-        // Background Box
-        const maxLineWidth = Math.max(...headerLines.map(l => l.length * (reasoningSize * 0.6)));
-        reasoningBlockSVG += `<rect x="${reasonX - 5}" y="${startY - reasoningSize}" width="${maxLineWidth + 10}" height="${headerBlockHeight + 5}" 
-                                  fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
-
-        headerLines.forEach((line, i) => {
-          reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="start" 
-                                      fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
-        });
-
+      if (anchor === 'start') {
+        reasonX += separation;
       } else {
-        // -- Strategy B: MARGIN CALLOUT (Fallback) --
-        // 🔥 FIX: Place SIDE-BY-SIDE with Symbol, not below it.
-        // This prevents "Dropping" into the next question space.
-
-        const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, 25);
-
-        // Align the first line of text roughly with the center of the symbol
-        // Adjust Y upwards by half the block height to center it vertically relative to symbol
-        const blockHeight = fallbackLines.length * lineHeight;
-        const startY = symbolY - (symbolSize / 2) + (lineHeight / 2);
-
-        let reasonX = symbolAnchorX;
-        let anchor = symbolTextAnchor;
-
-        // Shift X to avoid overlapping the symbol itself
-        // If Symbol is Start (Right Gutter) -> Text goes to Right of Symbol
-        // If Symbol is End (Left Gutter) -> Text goes to Left of Symbol
-        if (anchor === 'start') {
-          reasonX += (symbolSize + 10); // Push right
-        } else {
-          reasonX -= (symbolSize + 10); // Push left
-        }
-
-        fallbackLines.forEach((line, i) => {
-          reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="${anchor}" 
-                                      fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
-        });
+        reasonX -= separation;
       }
+
+      // Draw Background Box for readability
+      const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.55)));
+      const boxX = (anchor === 'start') ? reasonX - 5 : reasonX - maxLineWidth - 5;
+      const boxY = startY - reasoningSize;
+
+      reasoningBlockSVG += `<rect x="${boxX}" y="${boxY}" width="${maxLineWidth + 10}" height="${totalBlockHeight + 5}" 
+                              fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
+
+      fallbackLines.forEach((line, i) => {
+        reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="${anchor}" 
+                                  fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
+      });
     }
 
     // --- STEP 3: RENDER SYMBOL ---
     const renderSymbol = (startX: number) => {
       let currentX = startX;
       let svgParts = '';
-
       const mainColor = symbol === '✓' ? '#008000' : '#ff0000';
 
       if (drawSymbolBackground) {
@@ -488,7 +463,6 @@ export class SVGOverlayService {
         const bgHeight = Math.max(symbolSize, textSize) + 10;
         const bgY = symbolY - bgHeight + 5;
         const bgX = (symbolTextAnchor === 'start') ? startX - bgPadding : startX - symbolContentWidth - bgPadding;
-
         svgParts += `<rect x="${bgX}" y="${bgY}" width="${symbolContentWidth + (bgPadding * 2)}" height="${bgHeight}" 
                           fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
       }
