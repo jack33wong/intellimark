@@ -172,6 +172,13 @@ export const MarkingPageProvider = ({
       const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
 
       if (sessionChanged) {
+        // If we are in a focused split mode (!isGlobalSplit), try to preserve it
+        // Do NOT auto-upgrade to global split mode just because ID changed
+        if (!isGlobalSplit) {
+          lastSyncedSessionId.current = currentSession.id;
+          return;
+        }
+
         if (newImages && newImages.length > 0) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',

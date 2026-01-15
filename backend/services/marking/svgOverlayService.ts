@@ -1,6 +1,6 @@
 /**
  * SVG Overlay Service for burning SVG annotations into images
- * Refactored for "Header-First" Reasoning and "No-Ghosting" Protection
+ * Refactored: Green Ticks + Color-Coded Debug Borders + Smart Positioning
  */
 
 import sharp from 'sharp';
@@ -174,7 +174,6 @@ export class SVGOverlayService {
             if (aiPos) {
               const originalWidth = actualWidth / scaleX;
               const originalHeight = actualHeight / scaleY;
-
               const aiX_px = (aiPos.x / 100) * originalWidth;
               const aiY_px = (aiPos.y / 100) * originalHeight - ((aiPos.height / 100) * originalHeight / 2);
               const ocrCenterX = x + w / 2;
@@ -292,6 +291,27 @@ export class SVGOverlayService {
 
     let svg = '';
 
+    // --- DEBUG BORDER (Development Env Only) ---
+    // If running in development mode, draw a color-coded dashed box around the student work.
+    if (process.env.NODE_ENV === 'development') {
+      let debugBorderColor = 'blue'; // Default MATCHED
+
+      if (isDrawing) {
+        debugBorderColor = 'magenta'; // Drawing
+      } else if (ocrStatus === 'FALLBACK') {
+        debugBorderColor = 'orange'; // Fallback
+      } else if (ocrStatus === 'UNMATCHED') {
+        debugBorderColor = 'red'; // Unmatched
+      } else if (ocrStatus === 'MATCHED') {
+        debugBorderColor = 'blue'; // Precise Match
+      } else {
+        debugBorderColor = 'grey'; // Unknown
+      }
+
+      svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
+                fill="none" stroke="${debugBorderColor}" stroke-width="2" stroke-dasharray="5,5" opacity="0.8" />`;
+    }
+
     if (action === 'tick' || action === 'cross' || action === 'write') {
       let symbol = action === 'tick' ? '✓' : (action === 'cross' ? '✗' : (text && text.length < 5 ? text : '✎'));
       const reasoning = (annotation as any).reasoning;
@@ -306,7 +326,7 @@ export class SVGOverlayService {
   }
 
   // =========================================================================
-  // SMART SYMBOL ANNOTATION (REFACTORED FOR NO GHOSTING)
+  // SMART SYMBOL ANNOTATION
   // =========================================================================
 
   private static createSymbolAnnotation(
@@ -355,8 +375,6 @@ export class SVGOverlayService {
     const symbolY = y + effectiveHeight + baseYOffsetPixels;
 
     // --- STEP 1: PLACE THE SYMBOL (ANCHOR) ---
-    // Rules: Right Gutter -> Left Gutter -> Footer (Below) -> Right Overlay
-    // We try to avoid overlaying the bbox directly.
 
     const rightEdgeOfStudentWork = x + width;
     const pageRightLimit = actualWidth - safeMargin;
@@ -370,8 +388,9 @@ export class SVGOverlayService {
     let symbolTextAnchor = 'start';
     let drawSymbolBackground = false;
 
+    // Logic: Prefer Right > Left > Footer > Overlay
     if (spaceOnRight >= symbolContentWidth + padding) {
-      // Option 1: Right Gutter (Preferred)
+      // Option 1: Right Gutter
       isFlipped = false;
       symbolAnchorX = rightEdgeOfStudentWork + padding;
       symbolTextAnchor = 'start';
@@ -381,8 +400,7 @@ export class SVGOverlayService {
       symbolAnchorX = x - padding;
       symbolTextAnchor = 'end';
     } else {
-      // Option 3: Forced Overlay (Sticker)
-      // We must overlay. We choose Right Overlay as it's usually safer for math.
+      // Option 3: Forced Overlay
       isFlipped = false;
       symbolAnchorX = pageRightLimit - symbolContentWidth;
       symbolTextAnchor = 'start';
@@ -397,62 +415,43 @@ export class SVGOverlayService {
       const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
       const lineHeight = reasoningSize + 4;
 
-      // -- Strategy A: HEADER (Priority 1 - Above the Error) --
+      // -- Strategy A: HEADER (Priority 1) --
       const estimatedCharsPerLine = Math.floor(width / (reasoningSize * 0.5));
       const headerLines = this.breakTextIntoMultiLines(cleanReasoning, Math.max(20, estimatedCharsPerLine));
       const headerBlockHeight = (headerLines.length * lineHeight) + padding;
 
-      // Check availability: Is there space above?
       const canFitAbove = (y - headerBlockHeight) > 20;
 
       if (canFitAbove) {
-        // PLACEMENT: HEADER (Above BBox)
         const startY = y - headerBlockHeight + padding;
-
-        // Draw Background "Sticker" for Header
-        // We still use the sticker for the text itself to ensure it reads well against paper noise
         reasoningBlockSVG += `<rect x="${x - 5}" y="${startY - reasoningSize}" width="${width + 10}" height="${headerBlockHeight + 5}" 
                                   fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
-
         headerLines.forEach((line, i) => {
           reasoningBlockSVG += `<text x="${x}" y="${startY + (i * lineHeight)}" text-anchor="start" 
                                       fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
         });
 
       } else {
-        // -- Strategy B: FOOTER (Priority 2 - Below the Error) --
-        // If we can't fit above, we try to put it under the student work (Vertical Whitespace).
-        // This is better than overlaying the work itself.
-
+        // -- Strategy B: FOOTER (Priority 2) --
         const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, 40);
         const fallbackHeight = fallbackLines.length * lineHeight;
+        const fallbackY = y + effectiveHeight + 10 + padding;
 
-        const fallbackY = y + effectiveHeight + 10 + padding; // Below text
-
-        // Ensure we don't go off page bottom
         if (fallbackY + fallbackHeight < maxBottomY) {
-          // Draw Background
           const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.6)));
           reasoningBlockSVG += `<rect x="${x}" y="${fallbackY - reasoningSize}" width="${maxLineWidth + 10}" height="${fallbackHeight + 10}" 
                                       fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
-
           fallbackLines.forEach((line, i) => {
             reasoningBlockSVG += `<text x="${x}" y="${fallbackY + (i * lineHeight)}" text-anchor="start" 
                                           fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
           });
         } else {
           // -- Strategy C: OVERLAY (Last Resort) --
-          // Page is full top and bottom. We must overlay.
-          // We shift to the far right to try and avoid the "Subject" of the math (usually on left).
-
-          const overlayX = pageRightLimit - (40 * (reasoningSize * 0.6)); // approximate width
-          const overlayY = y + (height / 2); // Center vertical
-
+          const overlayX = pageRightLimit - (40 * (reasoningSize * 0.6));
+          const overlayY = y + (height / 2);
           const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.6)));
-
           reasoningBlockSVG += `<rect x="${overlayX}" y="${overlayY}" width="${maxLineWidth + 10}" height="${fallbackHeight + 10}" 
                                       fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
-
           fallbackLines.forEach((line, i) => {
             reasoningBlockSVG += `<text x="${overlayX + 5}" y="${overlayY + lineHeight + (i * lineHeight)}" text-anchor="start" 
                                           fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
@@ -461,10 +460,13 @@ export class SVGOverlayService {
       }
     }
 
-    // --- STEP 3: RENDER SYMBOL ---
+    // --- STEP 3: RENDER SYMBOL (Updated with Green Tick) ---
     const renderSymbol = (startX: number) => {
       let currentX = startX;
       let svgParts = '';
+
+      // Define colors: Green for tick, Red for cross
+      const mainColor = symbol === '✓' ? '#008000' : '#ff0000'; // Green or Red
 
       if (drawSymbolBackground) {
         const bgPadding = 5;
@@ -477,12 +479,13 @@ export class SVGOverlayService {
       }
 
       if (!isFlipped) {
-        svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="#ff0000" 
+        svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
                     font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
         currentX += symbolSize + 5;
 
         if (text && text.trim()) {
-          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="#ff0000" 
+          // Keep the text color matching the symbol color (Green for tick text too)
+          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX += markingCodeWidth + 10;
         }
@@ -491,12 +494,12 @@ export class SVGOverlayService {
                         font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
         }
       } else {
-        svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="#ff0000" 
+        svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" 
                     font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
         currentX -= (symbolSize + 5);
 
         if (text && text.trim()) {
-          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="#ff0000" 
+          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX -= (markingCodeWidth + 10);
         }

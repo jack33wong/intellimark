@@ -893,7 +893,7 @@ export class MarkingInstructionService {
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
     // AI MARKING USER PROMPT DEBUG LOG
-    const shouldLogPrompt = true; // ENABLED for debugging
+    const shouldLogPrompt = false; // DISABLED for production
     if (shouldLogPrompt) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';

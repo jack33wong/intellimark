@@ -244,19 +244,23 @@ export class MarkingServiceLocator {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const accessToken = ModelProvider.getGeminiApiKey();
 
+      /*
       // [DEBUG] Log raw input prompt for Question Mode validation
       console.log(`\n🔍 [QUESTION MODE PROMPT]`);
       console.log(`SYSTEM: ${systemPrompt}`);
       console.log(`USER: ${userPrompt}`);
       console.log('----------------------------------------\n');
+      */
 
       const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
 
+      /*
       // [DEBUG] Log raw JSON response for Question Mode validation
       console.log(`\n🔍 [QUESTION MODE RAW RESPONSE]`);
       console.log(JSON.stringify(result, null, 2));
       console.log('----------------------------------------\n');
+      */
 
       const content = this.extractGeminiChatContent(result);
 
@@ -327,11 +331,13 @@ export class MarkingServiceLocator {
       const isQuestionOnly = category === "questionOnly";
       const phase = isQuestionOnly ? 'questionMode' : 'marking';
 
+      /*
       // [DEBUG] Log raw input prompt for Text/Question Mode validation
       console.log(`\n🔍 [TEXT RESPONSE PROMPT] (${phase})`);
       console.log(`SYSTEM: ${systemPrompt}`);
       console.log(`USER: ${userPrompt}`);
       console.log('----------------------------------------\n');
+      */
 
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, phase);
 
