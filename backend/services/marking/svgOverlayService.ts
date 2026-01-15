@@ -407,8 +407,7 @@ export class SVGOverlayService {
     }
 
     // --- STEP 2: PLACE THE REASONING (SIDE-BY-SIDE) ---
-    // We removed the "Header" strategy because it overlaps previous lines.
-    // Now we force text to flow AWAY from the student work.
+    // Fixed: Ensure we jump over the ENTIRE symbol (Mark + Code), not just the icon.
     let svg = '';
     let reasoningBlockSVG = '';
 
@@ -416,7 +415,7 @@ export class SVGOverlayService {
       const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
       const lineHeight = reasoningSize + 4;
 
-      // Break text into lines (Narrower if on Left to fit margin)
+      // Break text into lines
       const lineCharLimit = isFlipped ? 20 : 30;
       const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, lineCharLimit);
 
@@ -427,10 +426,8 @@ export class SVGOverlayService {
       let reasonX = symbolAnchorX;
       let anchor = isFlipped ? 'end' : 'start';
 
-      // 🔥 KEY FIX: Push Text AWAY from Symbol
-      // If Right Side (start) -> Push further Right
-      // If Left Side (end)   -> Push further Left
-      const separation = symbolSize + 15;
+      // 🔥 CRITICAL FIX: Use symbolContentWidth to jump over "X A0", not just "X"
+      const separation = symbolContentWidth + 10;
 
       if (anchor === 'start') {
         reasonX += separation;
@@ -438,7 +435,7 @@ export class SVGOverlayService {
         reasonX -= separation;
       }
 
-      // Draw Background Box for readability
+      // Draw Background Box
       const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.55)));
       const boxX = (anchor === 'start') ? reasonX - 5 : reasonX - maxLineWidth - 5;
       const boxY = startY - reasoningSize;
