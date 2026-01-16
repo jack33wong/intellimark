@@ -62,6 +62,22 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     }
   }
 
+  // ========================= DB RECORD FORMAT (Direct from DB) =========================
+  if ((input.marks || input.question_marks) && (input.question_text || input.questionText)) {
+    // Detected raw DB record format
+    // "marks": 4  <-- This is a number, not an array!
+    const totalMarks = typeof input.marks === 'number' ? input.marks : (typeof input.question_marks === 'number' ? input.question_marks : 0);
+
+    const normalized = {
+      marks: [], // No detailed breakdown available in this format
+      totalMarks: totalMarks,
+      questionNumber: input.question_number || input.questionNumber || '1',
+      questionLevelAnswer: undefined,
+      parentQuestionMarks: totalMarks
+    };
+    return normalized;
+  }
+
   // ========================= UNIFIED PIPELINE FORMAT =========================
   if (input.questionMarks && input.totalMarks !== undefined) {
 
@@ -666,7 +682,19 @@ export class MarkingInstructionService {
       Object.keys(normalizedScheme.subQuestionMarks).forEach(subQ => {
         // subQ is "11a", subLabel is "a"
         const subLabel = subQ.replace(/^\d+/, '');
-        const marks = normalizedScheme.subQuestionMarks![subQ];
+        let marks = normalizedScheme.subQuestionMarks![subQ];
+
+        // SAFE GUARD: Ensure 'marks' is an array.
+        if (!Array.isArray(marks)) {
+          if ((marks as any).marks && Array.isArray((marks as any).marks)) {
+            marks = (marks as any).marks;
+          } else if ((marks as any).questionMarks && Array.isArray((marks as any).questionMarks)) {
+            marks = (marks as any).questionMarks;
+          } else {
+            marks = [];
+          }
+        }
+
         marks.forEach((m: any) => {
           if (m.answer) {
             m.answer = this.replaceCaoWithAnswer(m.answer, normalizedScheme, subLabel);
@@ -698,7 +726,18 @@ export class MarkingInstructionService {
       const subQuestions = Object.keys(normalizedScheme.subQuestionMarks!).sort();
 
       for (const subQ of subQuestions) {
-        const marks = normalizedScheme.subQuestionMarks![subQ];
+        let marks = normalizedScheme.subQuestionMarks![subQ];
+
+        // SAFE GUARD: Ensure 'marks' is an array.
+        if (!Array.isArray(marks)) {
+          if ((marks as any).marks && Array.isArray((marks as any).marks)) {
+            marks = (marks as any).marks;
+          } else if ((marks as any).questionMarks && Array.isArray((marks as any).questionMarks)) {
+            marks = (marks as any).questionMarks;
+          } else {
+            marks = [];
+          }
+        }
         // Extract max score from subQuestionMaxScores map if available
         // subQ is like "11a", we need "a"
         const subLabel = subQ.replace(/^\d+/, '');
@@ -1078,7 +1117,23 @@ export class MarkingInstructionService {
           try {
             let marksList: any[] = [];
             if (normalizedScheme.marks && Array.isArray(normalizedScheme.marks)) {
-              marksList = normalizedScheme.marks;
+              marksList = [...normalizedScheme.marks];
+            }
+
+            // Aggregate marks from sub-questions for composite questions
+            if (normalizedScheme.subQuestionMarks) {
+              Object.values(normalizedScheme.subQuestionMarks).forEach((subMarks: any) => {
+                if (Array.isArray(subMarks)) {
+                  marksList.push(...subMarks);
+                } else if (subMarks && typeof subMarks === 'object') {
+                  // Handle composite object marks
+                  if (Array.isArray(subMarks.marks)) {
+                    marksList.push(...subMarks.marks);
+                  } else if (Array.isArray(subMarks.questionMarks)) {
+                    marksList.push(...subMarks.questionMarks);
+                  }
+                }
+              });
             }
 
             if (marksList.length > 0) {
@@ -1141,16 +1196,19 @@ export class MarkingInstructionService {
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
                         // Check if it's a valid mark code (M, A, B, P, C) and not 0-value
+                        // CRITICAL: Suffix number is NOT a value. M1=1pt, A1=1pt, B2=1pt.
                         if (code && !code.endsWith('0') && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
-                          // Extract value from code (e.g. M1 -> 1, B2 -> 2)
-                          const match = code.match(/(\d+)$/);
-                          const value = match ? parseInt(match[1], 10) : 1;
-                          totalAwarded += value;
+                          totalAwarded += 1;
                         }
                       });
                     }
                   });
 
+                  // STRICT CEILING: Never exceed totalMarks from scheme
+                  const maxMarks = normalizedScheme.totalMarks || 0;
+                  if (maxMarks > 0) {
+                    totalAwarded = Math.min(totalAwarded, maxMarks);
+                  }
 
                   parsedResponse.studentScore.awardedMarks = totalAwarded;
                   if (parsedResponse.studentScore.totalMarks) {

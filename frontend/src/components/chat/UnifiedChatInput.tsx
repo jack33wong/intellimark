@@ -874,8 +874,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
           setShowUpgradeModal(false);
           navigate('/upgrade', { state: { fromApp: true } });
         }}
-        title="Upgrade to Enterprise"
-        message="Custom model selection is available on the Enterprise plan. Would you like to upgrade now and unlock all powerful AI models?"
+        title="Upgrade Plan"
+        message="Custom model selection is available on Pro and Ultra plans. Would you like to upgrade now and unlock all powerful AI models?"
         confirmText="View Plans"
         cancelText="Maybe Later"
         variant="primary"

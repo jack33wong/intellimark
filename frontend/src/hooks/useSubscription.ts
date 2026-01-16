@@ -96,8 +96,8 @@ export const useSubscription = (): UseSubscriptionResult => {
             return isPro || isUltra;
         }
         if (feature === 'model_selection') {
-            // Only Ultra (or Keyword) allowed
-            return isUltra;
+            // Pro and Ultra allowed
+            return isPro || isUltra;
         }
         return false;
     }, [planId]);

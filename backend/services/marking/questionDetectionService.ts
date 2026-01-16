@@ -409,22 +409,31 @@ export class QuestionDetectionService {
 
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
     const { paper, questionData, questionNumber, databaseText, score } = candidate;
-    const meta = paper.metadata;
+    const meta = paper.metadata || {}; // Ensure meta is not null
     const parentMarks = questionData.marks || 0;
 
+    // Robust extraction with fallbacks based on user feedback
+    // DB uses 'exam_code' and 'code'
+    const board = meta.exam_board || meta.board;
+    const code = meta.exam_code || meta.code;
+    const series = meta.exam_series || meta.series;
+    const tier = meta.tier; // usually just 'tier'
+    const subject = meta.subject;
+    const qualification = meta.qualification || meta.subject;
+
     return {
-      board: meta.exam_board,
-      qualification: meta.qualification || meta.subject,
-      paperCode: meta.exam_code,
-      examSeries: meta.exam_series,
-      tier: meta.tier,
-      subject: meta.subject,
+      board: board,
+      qualification: qualification,
+      paperCode: code,
+      examSeries: series,
+      tier: tier,
+      subject: subject,
       questionNumber: questionNumber,
       subQuestionNumber: undefined, // Block match is always parent
       marks: parentMarks,
       parentQuestionMarks: parentMarks,
       confidence: score,
-      paperTitle: `${meta.exam_board} - ${meta.exam_code} - ${meta.exam_series}${meta.tier ? `, ${meta.tier}` : ''}`,
+      paperTitle: `${board} - ${code} - ${series}${tier ? `, ${tier}` : ''}`,
       examPaper: paper,
       databaseQuestionText: databaseText,
       isRescued: isRescueMode && score < 0.8
@@ -581,20 +590,36 @@ export class QuestionDetectionService {
         // Block Match logic: We assume the match is at parent level "1"
         // so we fetch Q1 from scheme.
         const questions = markingScheme.questions;
+        const baseNum = qNum.match(/^\d+/)?.[0] || qNum;
         const mainQ = questions[qNum];
 
-        if (mainQ) {
+        if (mainQ && (mainQ.sub_questions || mainQ.subQuestions || mainQ.parts)) {
+          // It's a parent that already has children inside it - use as is
           questionMarks = mainQ;
         } else {
-          // Fallback: If DB scheme only has "1a", "1b" but no "1"
+          // Check for sibling keys (e.g. "20a", "20b" when we only have "20")
           const subKeys = Object.keys(questions).filter(k => {
-            const m = k.match(/^(\d+)([a-z]+)$/i);
-            return m && m[1] === qNum;
+            const m = k.match(/^(\d+)([a-z]+|\(?[ivx]+\)?)$/i);
+            return m && m[1] === baseNum;
           }).sort();
 
           if (subKeys.length > 0) {
-            // Return a dummy object so Orchestrator can parse the sub-keys itself
-            questionMarks = { isComposite: true, marks: [] };
+            // We found siblings or parts for this base number
+            // If mainQ exists but has no children, and siblings exist, it's better to return a composite
+            if (subKeys.length > 1 || (subKeys.length === 1 && subKeys[0] !== qNum)) {
+              questionMarks = {
+                isComposite: true,
+                marks: [],
+                subQuestionMarks: Object.fromEntries(
+                  subKeys.map(k => [k, questions[k]])
+                )
+              };
+            } else {
+              // Only one key and it's either qNum or the only variant - use it
+              questionMarks = mainQ || questions[subKeys[0]];
+            }
+          } else if (mainQ) {
+            questionMarks = mainQ;
           } else {
             return null;
           }
