@@ -141,6 +141,7 @@ ${!isGeneric ? `
 > - Discover the actual total marks from the student paper (e.g. "Total 4 marks").
 > - ONLY return annotations for the marks actually identified/needed.
 > - Do NOT generate filler annotations to "coverage" the entire M1-M8 pool.
+> - **CRITICAL:** Do NOT consolidate marks. Return "M1" and "A1" as TWO separate annotations, never "M1 A1" together.
 `}
 
 ## STUDENT WORK (STRUCTURED)
