@@ -294,23 +294,32 @@ export class SVGOverlayService {
     // --- DEBUG BORDER (Development Env Only) ---
     // If running in development mode, draw a color-coded dashed box around the student work.
     if (process.env.NODE_ENV === 'development') {
-      let debugBorderColor = 'blue'; // Default MATCHED
-
+      let statusLabel = 'm';
+      let debugBorderColor = 'blue';
       if (isDrawing) {
-        debugBorderColor = 'magenta'; // Drawing
+        debugBorderColor = 'magenta';
+        statusLabel = 'v';
       } else if (ocrStatus === 'FALLBACK') {
-        debugBorderColor = 'orange'; // Fallback
+        debugBorderColor = 'orange';
+        statusLabel = 's';
       } else if (ocrStatus === 'UNMATCHED') {
-        debugBorderColor = 'red'; // Unmatched
+        debugBorderColor = 'red';
+        statusLabel = 'u';
       } else if (ocrStatus === 'MATCHED') {
-        debugBorderColor = 'blue'; // Precise Match
+        debugBorderColor = 'blue';
+        statusLabel = 'm';
       } else {
-        debugBorderColor = 'grey'; // Unknown
+        debugBorderColor = 'grey';
+        statusLabel = '?';
       }
 
-      // REDUCED STROKE WIDTH TO 5 (Half thickness)
+      // THINNER BORDER (2px) + Status Label (m, u, v, s)
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
-                fill="none" stroke="${debugBorderColor}" stroke-width="5" stroke-dasharray="15,10" opacity="0.8" />`;
+                fill="none" stroke="${debugBorderColor}" stroke-width="2" stroke-dasharray="8,4" opacity="0.6" />`;
+
+      // Small status label tag (BIGGER)
+      svg += `<rect x="${scaledX}" y="${scaledY - 18}" width="22" height="18" fill="${debugBorderColor}" />
+              <text x="${scaledX + 5}" y="${scaledY - 4}" font-family="Arial" font-size="14" font-weight="bold" fill="white">${statusLabel}</text>`;
     }
 
     if (action === 'tick' || action === 'cross' || action === 'write') {

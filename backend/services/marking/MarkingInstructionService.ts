@@ -901,7 +901,9 @@ export class MarkingInstructionService {
     if (hasMarkingScheme && normalizedScheme) {
       // Use the withMarkingScheme prompt
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
-      systemPrompt = prompt.system;
+      systemPrompt = typeof prompt.system === 'function'
+        ? prompt.system(normalizedScheme.isGeneric === true)
+        : prompt.system;
 
       // Format marking scheme for the prompt using normalized data
       // CRITICAL: Verify this scheme belongs to the current question before passing to AI
@@ -926,13 +928,14 @@ export class MarkingInstructionService {
         }
 
         userPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.user(
-          inputQuestionNumber || 'Unknown',
-          schemeText || '',
+          currentQuestionNumber,
+          schemeText!,
           classificationStudentWork || 'No student work provided',
           rawOcrBlocks,
           questionText,
-          subQuestionPageMap as any, // Pass the hint map
-          formattedGeneralGuidance // NEW: Pass the formatted guidance
+          subQuestionPageMap as any,
+          formattedGeneralGuidance,
+          normalizedScheme.isGeneric === true
         );
 
       } else {

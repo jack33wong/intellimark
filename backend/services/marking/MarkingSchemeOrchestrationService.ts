@@ -88,8 +88,8 @@ export class MarkingSchemeOrchestrationService {
   private static generateSequentialRubric(detectedMax: number): any[] {
     const rubric = [];
     // Ensure we have enough tokens even for large questions.
-    // If detectedMax is 4, we give ~6 slots. If 0, we give 8.
-    const count = detectedMax > 0 ? detectedMax + 2 : 8;
+    // REDUCED BUFFER: If detectedMax is 4, we give exactly 4 slots. If 0, we give 4.
+    const count = detectedMax > 0 ? detectedMax : 4;
 
     // Sequential Method Marks
     for (let i = 1; i <= count; i++) {
