@@ -752,6 +752,28 @@ export class MarkingInstructionService {
   }
 
   private static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
+    // ------------------------------------------------------------------
+    // GENERIC MODE INJECTION (UNIVERSAL BUDGET MODE)
+    // ------------------------------------------------------------------
+    if (normalizedScheme.isGeneric) {
+      return `
+[GENERIC_GCSE_LOGIC]
+> [INSTRUCTION]: You are the CHIEF EXAMINER. You must grade this under strict "MARK BUDGET" rules.
+> 1. ESTABLISH BUDGET: Scan the RAW OCR BLOCKS for the text "(Total X marks)". Set your Mark Budget = X. (If not found, default to 3).
+> 2. SOLVE & MATCH: Solve the question yourself. Match student steps to your solution.
+> 3. SPEND THE BUDGET: Allocate marks from the pool below.
+>    - CRITICAL RULE: You MUST NOT award more marks than the Budget. (e.g., If Budget=4, you can only output 4 "tick" annotations).
+>    - CRITICAL RULE: NO DUPLICATES. Do not award multiple marks for the exact same equation or number. (e.g., Do not give M1 and A1 for the same intermediate line).
+>    - If the student work exceeds the budget (e.g., they did extra unnecessary steps), IGNORE the extra steps.
+
+[MARK POOL (Select up to Budget Limit)]
+- M1, M2, M3, M4, M5: [METHOD] Valid steps (rationalising, substituting, rearranging).
+- A1, A2, A3: [ACCURACY] Correct intermediate values or Final Answer.
+- B1, B2: [INDEPENDENT] Correct independent statement/reason.
+- M0, A0: [ERROR] Explicitly marks a mistake (does not count towards Positive Budget, but counts as an Annotation).
+`;
+    }
+
     let output = '';
 
     // Check if we have sub-questions
