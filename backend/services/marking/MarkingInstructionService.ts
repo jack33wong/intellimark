@@ -1156,15 +1156,17 @@ export class MarkingInstructionService {
 
                   allTokens.forEach((token: string) => {
                     const code = token.split(/[^a-zA-Z0-9]/)[0];
-                    if (limitMap.has(code)) {
+                    const isZeroMark = code.endsWith('0');
+
+                    if (limitMap.has(code) || isZeroMark) {
                       const currentUsage = usageMap.get(code) || 0;
-                      const limit = limitMap.get(code)!;
+                      const limit = limitMap.get(code) || 99; // No limit for 0-value marks
 
                       if (currentUsage < limit) {
                         validTokens.push(token);
                         usageMap.set(code, currentUsage + 1);
                       } else {
-
+                        console.warn(`⚠️ [MARK LIMIT] Dropped excess token '${token}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
                       }
                     } else {
                       // CRITICAL FIX: Do NOT keep non-mark tokens in the 'text' field.
@@ -1195,20 +1197,17 @@ export class MarkingInstructionService {
                       const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
-                        // Check if it's a valid mark code (M, A, B, P, C) and not 0-value
-                        // CRITICAL: Suffix number is NOT a value. M1=1pt, A1=1pt, B2=1pt.
+                        // Extract value from code (e.g. M1 -> 1, B2 -> 2)
+                        // Note: Some schemes use B2 to mean "2 points", others use it as a label.
+                        // Based on user feedback, we extract the number.
                         if (code && !code.endsWith('0') && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
-                          totalAwarded += 1;
+                          const match = code.match(/(\d+)$/);
+                          const value = match ? parseInt(match[1], 10) : 1;
+                          totalAwarded += value;
                         }
                       });
                     }
                   });
-
-                  // STRICT CEILING: Never exceed totalMarks from scheme
-                  const maxMarks = normalizedScheme.totalMarks || 0;
-                  if (maxMarks > 0) {
-                    totalAwarded = Math.min(totalAwarded, maxMarks);
-                  }
 
                   parsedResponse.studentScore.awardedMarks = totalAwarded;
                   if (parsedResponse.studentScore.totalMarks) {
