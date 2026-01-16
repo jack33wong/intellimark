@@ -306,6 +306,10 @@ ${pageHints}
           tracker.recordClassification(inputTokens, outputTokens);  // Classification Marking Pass
         }
         const cleanContent = this.cleanGeminiResponse(content);
+        // [DEBUG] Log the classification response per task
+        console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
+        console.log(cleanContent.substring(0, 500) + (cleanContent.length > 500 ? '...' : ''));
+
         parsed = this.parseJsonWithSanitization(cleanContent);
 
 
@@ -327,50 +331,7 @@ ${pageHints}
 
             let processedQuestions = this.parseQuestionsFromResponse({ questions: pageResult.questions }, 0.9);
 
-            // ROOT CAUSE FIX: Filter out student work lines that are actually just printed question text
-            if (processedQuestions && Array.isArray(processedQuestions)) {
-              processedQuestions = processedQuestions.map((q: any) => {
-                const questionText = (q.text || '').toLowerCase().trim();
-                if (!questionText) return q;
-
-                const filterLines = (lines: any[]) => {
-                  if (!lines || !Array.isArray(lines)) return lines;
-                  return lines.filter(line => {
-                    const lineText = (line.text || '').toLowerCase().trim();
-                    if (!lineText) return true;
-
-                    // Layer A: Substring match (already exists)
-                    const isPrintedMatch = questionText.includes(lineText) && lineText.length > 8;
-
-                    // Layer B: Question Number Match (Prevent Q15 being matched by "15")
-                    // If the line is JUST the question number or "Question 15", reject it.
-                    const qNumStr = String(q.questionNumber);
-                    const qNumPattern = new RegExp(`^(\\()?q(uestion)?\\s*${qNumStr}(\\))?[:.]?\\s*$`, 'i');
-                    const isQuestionNumberHeader = qNumPattern.test(lineText) || (lineText === qNumStr);
-
-                    // Layer C: Fuzzy Match (Normalize and check overlap)
-                    const normalizedLine = lineText.replace(/[^a-z0-9]/g, '');
-                    const normalizedQuestion = questionText.replace(/[^a-z0-9]/g, '');
-                    const isFuzzyPrintedMatch = normalizedLine.length > 10 && normalizedQuestion.includes(normalizedLine);
-
-                    if (isPrintedMatch || isQuestionNumberHeader || isFuzzyPrintedMatch) {
-                      // console.log(`[🛡️ TEXT SHIELD] 🚫 Filtering printed text: "${lineText.substring(0, 30)}..." (Reason: ${isQuestionNumberHeader ? 'QHeader' : 'Match'})`);
-                      return false;
-                    }
-                    return true;
-                  });
-                };
-
-                return {
-                  ...q,
-                  studentWorkLines: filterLines(q.studentWorkLines),
-                  subQuestions: q.subQuestions?.map((sq: any) => ({
-                    ...sq,
-                    studentWorkLines: filterLines(sq.studentWorkLines)
-                  }))
-                };
-              });
-            }
+            // NOTE: Text Shield (printed text filtering) removed to prevent stripping of typed model answers.
 
             // ✅ CRITICAL FIX: Inject pageIndex into studentWorkLines position objects
             if (processedQuestions && Array.isArray(processedQuestions)) {

@@ -1038,17 +1038,8 @@ export function createMarkingTasksFromClassification(
       // LINE-LEVEL SEGMENTATION: Push individual lines instead of block
 
 
-      // Gather ALL lines (Main + SubQuestions)
+      // Gather Main lines (Main only)
       let allWorkLines = [...(q.studentWorkLines || [])];
-
-      // FIX: Also collect lines from sub-questions (where the data actually lives for Q20)
-      if (q.subQuestions && Array.isArray(q.subQuestions)) {
-        q.subQuestions.forEach((sq: any) => {
-          if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines)) {
-            allWorkLines.push(...sq.studentWorkLines);
-          }
-        });
-      }
 
       if (allWorkLines.length > 0) {
         allWorkLines.forEach((line: any) => {
@@ -1204,53 +1195,13 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // 2. Geometric Overlap Filter: Discard student work that physically overlays printed landmarks
-    // This creates a physical barrier that prevents AI from match-annotating question text
-    const allLandmarks = allMathBlocks.filter(b => (b as any).isHandwritten === false);
-    // Log removed
+    // [DEBUG] Log student work before re-indexing
+    const rawWork = group.aiSegmentationResults.map(r => r.content).join('\n');
+    console.log(`\n\x1b[36m[MARKING DEBUG] Q${baseQNum} Student Work (Before Re-indexing):\x1b[0m`);
+    console.log(rawWork.substring(0, 300) + (rawWork.length > 300 ? '...' : ''));
 
-    group.aiSegmentationResults = group.aiSegmentationResults.filter(seg => {
-      const segPos = (seg as any).lineData?.position;
-      if (!segPos) return true;
-
-      const segPage = (seg as any).lineData?.position?.pageIndex ?? (seg as any).lineData?.pageIndex;
-      const landmarksOnPage = allLandmarks.filter(l => (l as any).pageIndex === segPage);
-
-      for (const landmark of landmarksOnPage) {
-        const lPosRaw = (landmark as any).position || (landmark as any).bbox;
-        if (!lPosRaw) continue;
-
-        // Get page dimensions to normalize from pixels to 0-100
-        const page = standardizedPages.find(p => p.pageIndex === segPage);
-        const pW = page?.width || 1;
-        const pH = page?.height || 1;
-
-        // Normalize lPos to 0-100 scale
-        const l = Array.isArray(lPosRaw)
-          ? { x: (lPosRaw[0] / pW) * 100, y: (lPosRaw[1] / pH) * 100, w: (lPosRaw[2] / pW) * 100, h: (lPosRaw[3] / pH) * 100 }
-          : {
-            x: ((lPosRaw.x || 0) / pW) * 100,
-            y: ((lPosRaw.y || 0) / pH) * 100,
-            w: ((lPosRaw.width || lPosRaw.w || 0) / pW) * 100,
-            h: ((lPosRaw.height || lPosRaw.h || 0) / pH) * 100
-          };
-
-        const s = { x: segPos.x, y: segPos.y, w: segPos.width, h: segPos.height };
-
-        const x_overlap = Math.max(0, Math.min(l.x + l.w, s.x + s.w) - Math.max(l.x, s.x));
-        const y_overlap = Math.max(0, Math.min(l.y + l.h, s.y + s.h) - Math.max(l.y, s.y));
-        const overlap_area = x_overlap * y_overlap;
-        const seg_area = s.w * s.h;
-
-        // If >= 95% of the student work line is inside a printed landmark, discard it
-        // This is a "Safety-First" design to prevent AI from latching onto printed question text
-        if (seg_area > 0 && (overlap_area / seg_area) > 0.95) {
-          console.log(`[🛡️ SPATIAL SHIELD] 🚫 Stripping student work line overlapping question text: "${seg.content.substring(0, 30)}..." (Overlap: ${(overlap_area / seg_area * 100).toFixed(0)}%)`);
-          return false;
-        }
-      }
-      return true;
-    });
+    // NOTE: Spatial Shield (overlap filtering) removed to prevent stripping of typed work.
+    // We now trust the AI to distinguish landmarks from work using the landmark reference section.
 
     // 3. Deduplicate aiSegmentationResults based on content to prevent repeated student work in prompt
     const uniqueContent = new Set<string>();

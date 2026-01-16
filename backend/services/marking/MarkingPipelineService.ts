@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';
-import type { ModelType } from '../../types/index.js';
+import type { ModelType, MarkingTask, EnrichedAnnotation, MathBlock } from '../../types/index.js';
 import PdfProcessingService from '../pdf/PdfProcessingService.js';
 import sharp from 'sharp';
 import { ImageUtils } from '../../utils/ImageUtils.js';
@@ -32,11 +32,11 @@ function getRealApiName(modelName: string): string {
     return 'Unknown API';
 }
 
-import type { StandardizedPage, PageOcrResult, MathBlock } from '../../types/markingRouter.js';
-import type { MarkingTask } from './MarkingExecutor.js';
+import type { StandardizedPage, PageOcrResult } from '../../types/markingRouter.js';
+
 import { OCRService } from '../ocr/OCRService.js';
 import { ClassificationService } from './ClassificationService.js';
-import { executeMarkingForQuestion, QuestionResult, EnrichedAnnotation, createMarkingTasksFromClassification } from './MarkingExecutor.js';
+import { executeMarkingForQuestion, QuestionResult, createMarkingTasksFromClassification } from './MarkingExecutor.js';
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { QuestionModeHandlerService } from './QuestionModeHandlerService.js';
 import { ModeSplitService } from './ModeSplitService.js';
@@ -1143,13 +1143,68 @@ export class MarkingPipelineService {
                     });
                 }
 
+                // ========================= OCR HANDWRITTEN RE-TAGGING =========================
+                // If an OCR block matches high-confidence student work from classification,
+                // re-tag it as 'isHandwritten = true' even if technically printed.
+                // This allows printed model answers to bypass landmark filters.
+                if (allPagesOcrData && classificationResult?.questions) {
+                    console.log('🛡️ [PIPELINE] Running OCR handwritten re-tagging check...');
+                    const { findBestMatch } = await import('string-similarity');
+
+                    allPagesOcrData.forEach((page, pIdx) => {
+                        if (!page.ocrData?.mathBlocks) return;
+
+                        // NEW: Context-Aware - Only match work Gemini found on THIS specific page
+                        const studentWorkOnThisPage = classificationResult.questions.flatMap((q: any) => {
+                            const sourceIndices = q.sourceImageIndices || [q.sourceImageIndex];
+                            const isOnThisPage = sourceIndices.includes(pIdx);
+
+                            if (!isOnThisPage) return [];
+
+                            const mainLines = q.studentWorkLines?.map((l: any) => l.text) || [];
+                            const subLines = q.subQuestions?.flatMap((sq: any) => {
+                                const sqIndices = sq.sourceImageIndices || sourceIndices;
+                                return sqIndices.includes(pIdx) ? (sq.studentWorkLines?.map((l: any) => l.text) || []) : [];
+                            }) || [];
+
+                            return [...mainLines, ...subLines];
+                        }).filter(Boolean);
+
+                        if (studentWorkOnThisPage.length === 0) return;
+
+                        let reTaggedCount = 0;
+                        page.ocrData.mathBlocks.forEach(block => {
+                            if (block.isPrinted || !block.isHandwritten) {
+                                const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
+                                if (!blockText || blockText.length < 2) return;
+
+                                const normBlock = blockText.replace(/[^a-z0-9]/g, '').toLowerCase();
+                                if (!normBlock) return;
+
+                                const match = findBestMatch(normBlock, studentWorkOnThisPage.map(sw =>
+                                    sw.replace(/[^a-z0-9]/g, '').toLowerCase()
+                                ));
+
+                                if (match.bestMatch.rating > 0.85) {
+                                    block.isHandwritten = true;
+                                    block.isPrinted = false;
+                                    reTaggedCount++;
+                                }
+                            }
+                        });
+                        if (reTaggedCount > 0) {
+                            console.log(`✅ [PIPELINE] Re-tagged ${reTaggedCount} printed blocks as handwritten on Page ${pIdx}`);
+                        }
+                    });
+                }
+
                 markingTasks = createMarkingTasksFromClassification(
                     classificationResult,
                     allPagesOcrData,
                     markingSchemesMap,
                     pageDimensionsMap,
                     standardizedPages,
-                    allClassificationResults // NEW: Pass authoritative mapper results
+                    allClassificationResults
                 );
                 console.log(`✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
             } catch (error) {

@@ -715,6 +715,40 @@ export class MarkingInstructionService {
     }
   }
 
+  /**
+   * EXTRACTOR: Decouples "Blob" comments into atomic criteria (B3, M2, A1, etc.)
+   * Used for OCR/AQA-style marking schemes where criteria are buried in strings.
+   */
+  private static extractAtomicMarks(markObj: any): any[] {
+    const mark = String(markObj.mark || '');
+    const isNumeric = /^\d+$/.test(mark);
+    const comments = String(markObj.comments || '');
+
+    // TRIGGER: Only decouple if the mark code is numeric and comments contain B/M/A codes
+    const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s+for/i.test(comments);
+
+    if (!isNumeric || !hasAtomicCodes) {
+      return [markObj];
+    }
+
+    const results: any[] = [];
+    // Robust Regex to find "Code for Description" segments
+    // Stops at "or", "Listing:", "Ratios:", "Alternative", or another "Code for"
+    const regex = /([BMA][1-9]|SC[1-9])\s*for\s*((?:(?!or\s+|[BMA][1-9]\s*for|SC[1-9]\s*for|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
+
+    let match;
+    while ((match = regex.exec(comments)) !== null) {
+      results.push({
+        mark: match[1].toUpperCase(),
+        answer: match[2].trim().replace(/\n+/g, ' '),
+        comments: `[OCR Decoupled from original ${mark}-mark blob]`
+      });
+    }
+
+    // Special Case: If extraction fails but it's a numeric blob, keep the original
+    return results.length > 0 ? results : [markObj];
+  }
+
   private static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
     let output = '';
 
@@ -738,6 +772,13 @@ export class MarkingInstructionService {
             marks = [];
           }
         }
+
+        // DECOUPLING: Expand numeric blobs into atomic marks
+        const expandedMarks: any[] = [];
+        marks.forEach((m: any) => {
+          expandedMarks.push(...this.extractAtomicMarks(m));
+        });
+
         // Extract max score from subQuestionMaxScores map if available
         // subQ is like "11a", we need "a"
         const subLabel = subQ.replace(/^\d+/, '');
@@ -749,12 +790,8 @@ export class MarkingInstructionService {
         }
         output += '\n';
 
-        marks.forEach((m: any) => {
-          // m.answer is already replaced by replaceCaoInScheme if called before
-          // But we call replaceCaoWithAnswer again just in case (it's idempotent)
+        expandedMarks.forEach((m: any) => {
           let answer = m.answer;
-          // answer = this.replaceCaoWithAnswer(answer, normalizedScheme, subLabel);
-
           output += `- ${m.mark}: ${answer}`;
           if (m.comments) output += ` (${m.comments})`;
           output += '\n';
@@ -767,7 +804,13 @@ export class MarkingInstructionService {
         output += `[MAX SCORE: ${normalizedScheme.totalMarks}]\n`;
       }
 
+      // DECOUPLING: Expand numeric blobs into atomic marks
+      const expandedMarks: any[] = [];
       normalizedScheme.marks.forEach((m: any) => {
+        expandedMarks.push(...this.extractAtomicMarks(m));
+      });
+
+      expandedMarks.forEach((m: any) => {
         let markText = m.answer;
 
         // FIX: Replace "cao" with actual answer if available
@@ -1138,10 +1181,16 @@ export class MarkingInstructionService {
 
             if (marksList.length > 0) {
               const limitMap = new Map<string, number>();
+              let floatingCapacity = 0;
+
               marksList.forEach((m: any) => {
                 const code = (m.mark || '').trim();
                 if (code) {
                   limitMap.set(code, (limitMap.get(code) || 0) + 1);
+                  // NEW: If code is numeric (OCR "blob"), add to floating capacity pool
+                  if (/^\d+$/.test(code)) {
+                    floatingCapacity += parseInt(code, 10);
+                  }
                 }
               });
 
@@ -1157,6 +1206,7 @@ export class MarkingInstructionService {
                   allTokens.forEach((token: string) => {
                     const code = token.split(/[^a-zA-Z0-9]/)[0];
                     const isZeroMark = code.endsWith('0');
+                    const isStandardMarkPart = /^[BMAPC][1-9]$/i.test(code);
 
                     if (limitMap.has(code) || isZeroMark) {
                       const currentUsage = usageMap.get(code) || 0;
@@ -1168,11 +1218,20 @@ export class MarkingInstructionService {
                       } else {
                         console.warn(`⚠️ [MARK LIMIT] Dropped excess token '${token}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
                       }
+                    } else if (isStandardMarkPart && floatingCapacity > 0) {
+                      // HYBRID MODE: Check floating capacity pool for B/M/A/P codes
+                      const match = code.match(/(\d+)$/);
+                      const value = match ? parseInt(match[1], 10) : 1;
+
+                      if (floatingCapacity >= value) {
+                        validTokens.push(token);
+                        floatingCapacity -= value;
+                        // console.log(`🔍 [HYBRID LIMIT] Allowed '${token}' using floating pool (Remaining: ${floatingCapacity})`);
+                      } else {
+                        console.warn(`⚠️ [HYBRID LIMIT] Dropped '${token}' - capacity pool drained (${floatingCapacity} < ${value})`);
+                      }
                     } else {
-                      // CRITICAL FIX: Do NOT keep non-mark tokens in the 'text' field.
-                      // This field is for mark codes only (M1, A1, etc.).
-                      // If the AI included the student answer, it belongs in student_text, not here.
-                      // console.log(`🔍 [MARKING] Stripping non-mark token '${token}' from annotation text for Q${inputQuestionNumber || '?'}`);
+                      // Non-mark token or capacity pool exhausted
                     }
                   });
 
@@ -1198,8 +1257,6 @@ export class MarkingInstructionService {
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
                         // Extract value from code (e.g. M1 -> 1, B2 -> 2)
-                        // Note: Some schemes use B2 to mean "2 points", others use it as a label.
-                        // Based on user feedback, we extract the number.
                         if (code && !code.endsWith('0') && (code.startsWith('M') || code.startsWith('A') || code.startsWith('B') || code.startsWith('P') || code.startsWith('C'))) {
                           const match = code.match(/(\d+)$/);
                           const value = match ? parseInt(match[1], 10) : 1;
@@ -1208,6 +1265,13 @@ export class MarkingInstructionService {
                       });
                     }
                   });
+
+                  // HARD CEILING: Capping score at question/part max
+                  const maxMarks = normalizedScheme.totalMarks || 0;
+                  if (maxMarks > 0 && totalAwarded > maxMarks) {
+                    // console.log(`🛡️ [HARD CEILING] Q${inputQuestionNumber}: Capping score ${totalAwarded} -> ${maxMarks}`);
+                    totalAwarded = maxMarks;
+                  }
 
                   parsedResponse.studentScore.awardedMarks = totalAwarded;
                   if (parsedResponse.studentScore.totalMarks) {
@@ -1370,6 +1434,10 @@ export class MarkingInstructionService {
           const blueColor = '\x1b[34m';
           const resetColor = '\x1b[0m';
           const MAGENTA = '\x1b[35m';
+          const RED = '\x1b[31m';
+          const GREEN = '\x1b[32m';
+          const YELLOW = '\x1b[33m';
+          const RESET = '\x1b[0m';
 
           // Find student answer from step_id
           let studentAnswer = ann.student_text || '';
@@ -1399,23 +1467,31 @@ export class MarkingInstructionService {
 
           const studentAnswerDisplay = displayAnswer ? `${blueColor}"${displayAnswer}"${resetColor}` : '""';
 
-          // Enhanced logging for incorrect answers
-          let logMessage = `    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${studentAnswerDisplay}`;
+          // Enhanced logging for annotations
+          const isOcrMatch = (ann.line_id || '').startsWith('block_');
+          const sourceLabel = isOcrMatch ? 'OCR' : 'Line';
+          const lineIdDisplay = ann.line_id ? `${blueColor}[${ann.line_id}]${resetColor} ` : '';
 
-          // Always show detailed debug info
+          let logMessage = `    ${idx + 1}. ${actionColor}${action}${resetColor} ${lineIdDisplay}${text ? `[${text}]` : ''} ${studentAnswerDisplay}`;
+
+          // Always show reasoning
           logMessage += `\n      ↳ Reason: ${reasoning || 'No reasoning provided'}`;
 
           if (studentAnswer) {
-            logMessage += `\n      ↳ OCR Value: ${MAGENTA}"${studentAnswer}"${RESET}`;
+            const label = isOcrMatch ? 'OCR Match' : 'Transcription';
+            logMessage += `\n      ↳ ${label}: ${MAGENTA}"${studentAnswer}"${RESET}`;
 
-            if (ann.classification_text) {
-              logMessage += `\n      ↳ Classification Value: ${MAGENTA}"${ann.classification_text}"${RESET}`;
+            if (ann.classification_text && ann.classification_text !== 'N/A') {
+              logMessage += `\n      ↳ Classification: ${MAGENTA}"${ann.classification_text}"${RESET}`;
             }
           }
 
           if (ann.ocr_match_status) {
-            const statusColor = ann.ocr_match_status === 'FALLBACK' ? RED : GREEN;
-            logMessage += `\n      ↳ Match Status: ${statusColor}"${ann.ocr_match_status}"${RESET}`;
+            const statusColor = ann.ocr_match_status === 'UNMATCHED' ? RED : (ann.ocr_match_status === 'FALLBACK' ? YELLOW : GREEN);
+            let displayStatus = ann.ocr_match_status;
+            if (ann.ocr_match_status === 'UNMATCHED') displayStatus = 'UNMATCHED (Fallback to Classification)';
+            if (ann.ocr_match_status === 'FALLBACK') displayStatus = 'FALLBACK (Heuristic Match)';
+            logMessage += `\n      ↳ Status: ${statusColor}"${displayStatus}"${RESET}`;
           }
 
           console.log(logMessage);

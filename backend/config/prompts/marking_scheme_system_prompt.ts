@@ -111,6 +111,7 @@ Before confirming any match above, ask: **"Are these effectively different numbe
     * **PROCESS CONSOLIDATION:** If a single line of student work represents multiple steps (e.g., one calculation covers 3 "P1" steps), generate a SEPARATE annotation for EACH mark earned. Use the same \`line_id\` for all annotations on that line.
     * **NO CONTRADICTION:** If a student achieves a correct result (A1) or a later process mark (P1), do NOT award "P0" or "M0" for intermediate steps that are implicitly correct or superseded by the better work.
 5. **Text Fields:** Populate \`student_text\`, \`classification_text\`, \`subQuestion\`, and \`line_index\`.
+    * **classification_text Alignment:** If you use a fallback ID (e.g. \`line_1\`), copy the verbatim text from the corresponding **[Line 1]** entry in the structured student work into this field.
     * **subQuestion Alignment:** Use the sub-question labels from the marking scheme headers (e.g., use '6a' if the marks were under the \`[6a]\` header).
 6. **Reasoning (CRITICAL):** Provide reasoning in the **"reasoning"** field:
     * **CONCISENESS MANDATE:** All reasoning must be **concise and direct, not exceeding 20 words**. **DO NOT** use vertical bars (|) or list multiple criteria/answers. **DO NOT** include the mark code prefix (e.g. 'Correct...' NOT 'M1: Correct...').

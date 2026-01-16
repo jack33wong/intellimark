@@ -194,6 +194,13 @@ function AdminPage() {
   const [isRawEditMode, setIsRawEditMode] = useState(false);
   const [rawJsonBuffer, setRawJsonBuffer] = useState('');
 
+  // Edit Mode State for Marking Schemes
+  const [isMarkingSchemeEditing, setIsMarkingSchemeEditing] = useState(false);
+  const [editingMarkingSchemeId, setEditingMarkingSchemeId] = useState(null);
+  const [isMarkingSchemeRawEditMode, setIsMarkingSchemeRawEditMode] = useState(false);
+  const [markingSchemeRawJsonBuffer, setMarkingSchemeRawJsonBuffer] = useState('');
+  const [editedMarkingSchemeData, setEditedMarkingSchemeData] = useState(null);
+
 
   // Usage tab state
   const [usageData, setUsageData] = useState([]);
@@ -521,6 +528,39 @@ function AdminPage() {
     setRawJsonBuffer('');
   }, []);
 
+  // Marking Scheme Edit Helpers
+  const enableMarkingSchemeEditMode = useCallback((entry) => {
+    const schemeData = entry.markingSchemeData || entry;
+    setEditedMarkingSchemeData(JSON.parse(JSON.stringify(schemeData)));
+    setEditingMarkingSchemeId(entry.id);
+    setIsMarkingSchemeEditing(true);
+    setExpandedMarkingSchemeId(entry.id);
+  }, []);
+
+  const cancelMarkingSchemeEditMode = useCallback(() => {
+    setIsMarkingSchemeEditing(false);
+    setEditedMarkingSchemeData(null);
+    setEditingMarkingSchemeId(null);
+    setIsMarkingSchemeRawEditMode(false);
+    setMarkingSchemeRawJsonBuffer('');
+  }, []);
+
+  const toggleMarkingSchemeRawEditMode = useCallback(() => {
+    if (!isMarkingSchemeRawEditMode) {
+      setMarkingSchemeRawJsonBuffer(JSON.stringify(editedMarkingSchemeData, null, 2));
+      setIsMarkingSchemeRawEditMode(true);
+    } else {
+      try {
+        const parsed = JSON.parse(markingSchemeRawJsonBuffer);
+        setEditedMarkingSchemeData(parsed);
+        setIsMarkingSchemeRawEditMode(false);
+      } catch (e) {
+        setError(`Invalid JSON: ${e.message}`);
+        setTimeout(() => setError(null), 3000);
+      }
+    }
+  }, [isMarkingSchemeRawEditMode, editedMarkingSchemeData, markingSchemeRawJsonBuffer]);
+
   const toggleRawEditMode = useCallback(() => {
     if (!isRawEditMode) {
       // Switching TO Raw
@@ -728,6 +768,52 @@ function AdminPage() {
       setIsSaving(false);
     }
   }, [editedExamData, editingId, getAuthToken, isRawEditMode, rawJsonBuffer]);
+
+  const saveMarkingSchemeChanges = useCallback(async () => {
+    if (!editingMarkingSchemeId) return;
+
+    let finalData = editedMarkingSchemeData;
+
+    if (isMarkingSchemeRawEditMode) {
+      try {
+        finalData = JSON.parse(markingSchemeRawJsonBuffer);
+      } catch (e) {
+        setError(`Cannot save: Invalid JSON structure. ${e.message}`);
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+    }
+
+    if (!finalData) return;
+
+    setIsSaving(true);
+    try {
+      const authToken = await getAuthToken();
+      await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${editingMarkingSchemeId}`, finalData);
+
+      // Update local state
+      setMarkingSchemeEntries(prev => prev.map(entry => {
+        if (entry.id === editingMarkingSchemeId) {
+          // Flatten if needed or keep structure
+          return { ...entry, ...finalData, markingSchemeData: finalData };
+        }
+        return entry;
+      }));
+
+      setError('✅ Marking scheme saved successfully');
+      setIsMarkingSchemeEditing(false);
+      setEditedMarkingSchemeData(null);
+      setEditingMarkingSchemeId(null);
+      setIsMarkingSchemeRawEditMode(false);
+      setMarkingSchemeRawJsonBuffer('');
+      setTimeout(() => setError(null), 3000);
+    } catch (error) {
+      console.error('Error saving marking scheme:', error);
+      setError(`Failed to save marking scheme: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editedMarkingSchemeData, editingMarkingSchemeId, getAuthToken, isMarkingSchemeRawEditMode, markingSchemeRawJsonBuffer]);
 
   // Validation Helper
   const getValidationErrors = useCallback((data) => {
@@ -2398,6 +2484,13 @@ function AdminPage() {
                                     <ClipboardList size={16} />
                                   </button>
                                   <button
+                                    className="admin-btn admin-btn--icon"
+                                    onClick={() => enableMarkingSchemeEditMode(entry)}
+                                    title="Edit"
+                                  >
+                                    <FileText size={16} />
+                                  </button>
+                                  <button
                                     className="admin-btn admin-btn--icon btn-danger"
                                     onClick={() => deleteMarkingSchemeEntry(entry.id)}
                                     title="Delete"
@@ -2413,166 +2506,213 @@ function AdminPage() {
                                   <td colSpan="8" className="admin-expanded-cell">
                                     <div className="admin-expanded-content">
                                       <div className="admin-content-header">
-                                        <h4 className="admin-content-header__title">Marking Scheme Details: {
-                                          board !== 'N/A' ?
-                                            `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
-                                            `Marking Scheme ${entry.id}`
-                                        }</h4>
+                                        <h4 className="admin-content-header__title">
+                                          {isMarkingSchemeEditing && editingMarkingSchemeId === entry.id ? 'Editing: ' : 'Marking Scheme Details: '}
+                                          {
+                                            board !== 'N/A' ?
+                                              `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
+                                              `Marking Scheme ${entry.id}`
+                                          }</h4>
                                         <div className="admin-content-info">
-                                          <span className="admin-content-info__text">Questions are displayed in numerical order</span>
-                                          <button
-                                            className="admin-close-btn"
-                                            onClick={() => setExpandedMarkingSchemeId(null)}
-                                            title="Close"
-                                          >
-                                            ×
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {/* Exam Details */}
-                                      {(entry.examDetails || (entry.markingSchemeData && entry.markingSchemeData.examDetails)) && (
-                                        <div className="admin-questions-content">
-                                          <h6 className="admin-questions-summary__title">Exam Information</h6>
-                                          <div className="admin-questions-summary">
-                                            <span className="admin-summary-item">
-                                              <strong>Board:</strong> {entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || 'Unknown'}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Qualification:</strong> {entry.examDetails?.qualification || entry.markingSchemeData?.examDetails?.qualification || 'Unknown'}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Paper Code:</strong> {entry.examDetails?.paperCode || entry.markingSchemeData?.examDetails?.paperCode || 'Unknown'}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Paper:</strong> {entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}
-                                            </span>
-                                            <span className="admin-summary-item">
-                                              <strong>Exam Series:</strong> {entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || 'Unknown'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Summary Stats */}
-                                      <div className="admin-questions-content">
-                                        <h6 className="admin-questions-summary__title">Summary Statistics</h6>
-                                        <div className="admin-questions-summary">
-                                          <span className="admin-summary-item">
-                                            <strong>Total Questions:</strong> {entry.totalQuestions ||
-                                              ((entry.questions || entry.markingSchemeData?.questions) ?
-                                                Object.keys(entry.questions || entry.markingSchemeData.questions).sort((a, b) => {
-                                                  const numA = parseInt(a);
-                                                  const numB = parseInt(b);
-                                                  if (!isNaN(numA) && !isNaN(numB)) {
-                                                    return numA - numB;
-                                                  }
-                                                  return a.localeCompare(b);
-                                                }).length : 'N/A')}
-                                          </span>
-                                          <span className="admin-summary-item">
-                                            <strong>Total Marks:</strong> {entry.totalMarks ||
-                                              ((entry.questions || entry.markingSchemeData?.questions) ?
-                                                Object.values(entry.questions || entry.markingSchemeData.questions).reduce((total, question) => {
-                                                  return total + (question.marks ? question.marks.length : 0);
-                                                }, 0) : 'N/A')}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {/* Questions List */}
-                                      {(entry.questions || (entry.markingSchemeData && entry.markingSchemeData.questions)) && (
-                                        <div className="admin-questions-content">
-                                          <h6 className="admin-questions-summary__title">Questions ({Object.keys(entry.questions || entry.markingSchemeData.questions).length})</h6>
-                                          <div className="admin-questions-list">
-                                            {Object.entries(entry.questions || entry.markingSchemeData.questions)
-                                              .sort(([a], [b]) => {
-                                                // Sort numerically if both are numbers, otherwise alphabetically
-                                                const numA = parseInt(a);
-                                                const numB = parseInt(b);
-                                                if (!isNaN(numA) && !isNaN(numB)) {
-                                                  return numA - numB;
-                                                }
-                                                return a.localeCompare(b);
-                                              })
-                                              .map(([questionNum, question]) => (
-                                                <div key={questionNum} className="admin-question-item">
-                                                  <div className="admin-question-main">
-                                                    <span className="admin-question-number">{questionNum}</span>
-                                                    <span className="admin-question-text">
-                                                      {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
-                                                    </span>
-                                                  </div>
-
-                                                  {/* Marks */}
-                                                  {question.marks && question.marks.length > 0 && (
-                                                    <div className="admin-sub-questions">
-                                                      <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
-                                                      <div className="markdown-marking-scheme">
-                                                        {question.marks.map((mark, index) => {
-                                                          const markCode = mark.mark || `M${index + 1}`;
-                                                          let answer = mark.answer || '';
-
-                                                          // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
-                                                          answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
-                                                          answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
-                                                          answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
-                                                          answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
-                                                            const before = answer.substring(0, answer.indexOf(match));
-                                                            const after = answer.substring(answer.indexOf(match) + match.length);
-                                                            const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
-                                                            return mathContext ? `\\(${number}\\)` : number;
-                                                          });
-
-                                                          const comments = mark.comments ? ` (${mark.comments})` : '';
-
-                                                          return (
-                                                            <div key={index} className="marking-scheme-item">
-                                                              <MarkdownMathRenderer
-                                                                content={`**${markCode}** ${answer}${comments}`}
-                                                                className="admin-markdown-content"
-                                                              />
-                                                            </div>
-                                                          );
-                                                        })}
-                                                      </div>
-                                                    </div>
-                                                  )}
-
-                                                  {/* Guidance */}
-                                                  {question.guidance && question.guidance.length > 0 && (
-                                                    <div className="admin-sub-questions">
-                                                      <h6 className="admin-questions-summary__title">Guidance ({question.guidance.length})</h6>
-                                                      {question.guidance.map((guidance, guidanceIndex) => (
-                                                        <div key={guidanceIndex} className="admin-sub-question-item">
-                                                          <div className="admin-sub-question-content">
-                                                            <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
-                                                            <span className="admin-sub-question-text">
-                                                              <strong>Scenario:</strong> {guidance.scenario}
-                                                              {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
-                                                            </span>
-                                                          </div>
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              ))}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Metadata */}
-                                      <div className="admin-metadata-section">
-                                        <h6>Metadata</h6>
-                                        <div className="metadata-info">
-                                          <p><strong>ID:</strong> {entry.id}</p>
-                                          <p><strong>Uploaded:</strong> {formatDate(entry.createdAt || entry.uploadedAt)}</p>
-                                          {entry.updatedAt && (
-                                            <p><strong>Last Updated:</strong> {formatDate(entry.updatedAt)}</p>
+                                          {isMarkingSchemeEditing && editingMarkingSchemeId === entry.id ? (
+                                            <div className="admin-edit-actions">
+                                              <button
+                                                className="admin-btn admin-btn--primary"
+                                                onClick={saveMarkingSchemeChanges}
+                                                disabled={isSaving}
+                                              >
+                                                {isSaving ? 'Saving...' : 'Save Changes'}
+                                              </button>
+                                              <button
+                                                className="admin-btn admin-btn--secondary"
+                                                onClick={toggleMarkingSchemeRawEditMode}
+                                                disabled={isSaving}
+                                              >
+                                                {isMarkingSchemeRawEditMode ? '📟 Back to View' : '🛠️ Raw JSON'}
+                                              </button>
+                                              <button
+                                                className="admin-btn admin-btn--secondary"
+                                                onClick={cancelMarkingSchemeEditMode}
+                                                disabled={isSaving}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <button
+                                                className="admin-btn admin-btn--secondary"
+                                                onClick={() => enableMarkingSchemeEditMode(entry)}
+                                                style={{ marginRight: '10px' }}
+                                              >
+                                                Edit
+                                              </button>
+                                              <span className="admin-content-info__text">Questions are displayed in numerical order</span>
+                                              <button
+                                                className="admin-close-btn"
+                                                onClick={() => setExpandedMarkingSchemeId(null)}
+                                                title="Close"
+                                              >
+                                                ×
+                                              </button>
+                                            </>
                                           )}
                                         </div>
                                       </div>
+
+                                      {/* Content Rendering based on Edit Mode */}
+                                      {(() => {
+                                        const displayData = (isMarkingSchemeEditing && editingMarkingSchemeId === entry.id) ? editedMarkingSchemeData : (entry.markingSchemeData || entry);
+
+                                        if (isMarkingSchemeEditing && editingMarkingSchemeId === entry.id && isMarkingSchemeRawEditMode) {
+                                          return (
+                                            <div className="admin-raw-edit-container">
+                                              <textarea
+                                                className="admin-form-control raw-json-textarea"
+                                                value={markingSchemeRawJsonBuffer}
+                                                onChange={(e) => setMarkingSchemeRawJsonBuffer(e.target.value)}
+                                                rows={30}
+                                                style={{ height: '70vh', marginTop: '16px', fontFamily: 'monospace' }}
+                                              />
+                                            </div>
+                                          );
+                                        }
+
+                                        return (
+                                          <>
+                                            {/* Exam Details */}
+                                            {(displayData.examDetails || displayData.exam) && (
+                                              <div className="admin-questions-content">
+                                                <h6 className="admin-questions-summary__title">Exam Information</h6>
+                                                <div className="admin-questions-summary">
+                                                  <span className="admin-summary-item">
+                                                    <strong>Board:</strong> {displayData.examDetails?.board || displayData.exam?.board || 'Unknown'}
+                                                  </span>
+                                                  <span className="admin-summary-item">
+                                                    <strong>Qualification:</strong> {displayData.examDetails?.qualification || displayData.exam?.qualification || 'Unknown'}
+                                                  </span>
+                                                  <span className="admin-summary-item">
+                                                    <strong>Paper Code:</strong> {displayData.examDetails?.paperCode || displayData.exam?.paperCode || displayData.exam?.code || 'Unknown'}
+                                                  </span>
+                                                  <span className="admin-summary-item">
+                                                    <strong>Paper:</strong> {displayData.examDetails?.paper || displayData.exam?.paper || 'Unknown'}
+                                                  </span>
+                                                  <span className="admin-summary-item">
+                                                    <strong>Exam Series:</strong> {displayData.examDetails?.exam_series || displayData.exam?.exam_series || 'Unknown'}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Summary Stats */}
+                                            <div className="admin-questions-content">
+                                              <h6 className="admin-questions-summary__title">Summary Statistics</h6>
+                                              <div className="admin-questions-summary">
+                                                <span className="admin-summary-item">
+                                                  <strong>Total Questions:</strong> {displayData.questions ? Object.keys(displayData.questions).length : 'N/A'}
+                                                </span>
+                                                <span className="admin-summary-item">
+                                                  <strong>Total Marks:</strong> {displayData.questions ?
+                                                    Object.values(displayData.questions).reduce((total, question) => {
+                                                      return total + (question.marks ? question.marks.length : 0);
+                                                    }, 0) : 'N/A'}
+                                                </span>
+                                              </div>
+                                            </div>
+
+                                            {/* Questions List */}
+                                            {displayData.questions && (
+                                              <div className="admin-questions-content">
+                                                <h6 className="admin-questions-summary__title">Questions ({Object.keys(displayData.questions).length})</h6>
+                                                <div className="admin-questions-list">
+                                                  {Object.entries(displayData.questions)
+                                                    .sort(([a], [b]) => {
+                                                      const numA = parseInt(a);
+                                                      const numB = parseInt(b);
+                                                      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                                                      return a.localeCompare(b);
+                                                    })
+                                                    .map(([questionNum, question]) => (
+                                                      <div key={questionNum} className="admin-question-item">
+                                                        <div className="admin-question-main">
+                                                          <span className="admin-question-number">{questionNum}</span>
+                                                          <span className="admin-question-text">
+                                                            {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
+                                                          </span>
+                                                        </div>
+
+                                                        {/* Marks */}
+                                                        {question.marks && question.marks.length > 0 && (
+                                                          <div className="admin-sub-questions">
+                                                            <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
+                                                            <div className="markdown-marking-scheme">
+                                                              {question.marks.map((mark, index) => {
+                                                                const markCode = mark.mark || `M${index + 1}`;
+                                                                let answer = mark.answer || '';
+
+                                                                // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
+                                                                answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
+                                                                answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
+                                                                answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
+                                                                answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
+                                                                  const before = answer.substring(0, answer.indexOf(match));
+                                                                  const after = answer.substring(answer.indexOf(match) + match.length);
+                                                                  const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
+                                                                  return mathContext ? `\\(${number}\\)` : number;
+                                                                });
+
+                                                                const comments = mark.comments ? ` (${mark.comments})` : '';
+
+                                                                return (
+                                                                  <div key={index} className="marking-scheme-item">
+                                                                    <MarkdownMathRenderer
+                                                                      content={`**${markCode}** ${answer}${comments}`}
+                                                                      className="admin-markdown-content"
+                                                                    />
+                                                                  </div>
+                                                                );
+                                                              })}
+                                                            </div>
+                                                          </div>
+                                                        )}
+
+                                                        {/* Guidance */}
+                                                        {question.guidance && question.guidance.length > 0 && (
+                                                          <div className="admin-sub-questions">
+                                                            <h6 className="admin-questions-summary__title">Guidance ({question.guidance.length})</h6>
+                                                            {question.guidance.map((guidance, guidanceIndex) => (
+                                                              <div key={guidanceIndex} className="admin-sub-question-item">
+                                                                <div className="admin-sub-question-content">
+                                                                  <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
+                                                                  <span className="admin-sub-question-text">
+                                                                    <strong>Scenario:</strong> {guidance.scenario}
+                                                                    {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
+                                                                  </span>
+                                                                </div>
+                                                              </div>
+                                                            ))}
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    ))}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Metadata */}
+                                            <div className="admin-metadata-section">
+                                              <h6>Metadata</h6>
+                                              <div className="metadata-info">
+                                                <p><strong>ID:</strong> {entry.id}</p>
+                                                <p><strong>Uploaded:</strong> {formatDate(entry.createdAt || entry.uploadedAt)}</p>
+                                                {entry.updatedAt && (
+                                                  <p><strong>Last Updated:</strong> {formatDate(entry.updatedAt)}</p>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
 
                                       <details style={{ marginTop: '16px' }}>
                                         <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Marking Scheme Data</summary>
