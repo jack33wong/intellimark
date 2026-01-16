@@ -113,7 +113,8 @@ export const AI_PROMPTS = {
         rawOcrBlocks?: any[],
         questionText?: string | null,
         subQuestionPageMap?: Record<string, number>,
-        generalMarkingGuidance?: string
+        generalMarkingGuidance?: string,
+        isGeneric: boolean = false
       ) => `
 # MARKING TASK: Question ${questionNumber}
 
@@ -129,10 +130,18 @@ ${generalMarkingGuidance}
 ## MARKING SCHEME
 ${markingScheme}
 
+${!isGeneric ? `
 > [!IMPORTANT]
 > The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
 > - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
 > - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+` : `
+> [!IMPORTANT]
+> This is a GENERIC marking pool. 
+> - Discover the actual total marks from the student paper (e.g. "Total 4 marks").
+> - ONLY return annotations for the marks actually identified/needed.
+> - Do NOT generate filler annotations to "coverage" the entire M1-M8 pool.
+`}
 
 ## STUDENT WORK (STRUCTURED)
 ${classificationStudentWork}
