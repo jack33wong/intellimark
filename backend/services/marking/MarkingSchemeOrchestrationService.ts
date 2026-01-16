@@ -289,9 +289,9 @@ export class MarkingSchemeOrchestrationService {
         const subQMarks = { [qNum]: sequentialRubric };
 
         // 3. Set a SAFE CEILING for Total Marks (e.g., 20)
-        // If we use detectedMarks (e.g. 3) and AI awards 4, the system caps it at 3.
-        // By using 20, we allow the AI full freedom. The frontend will show "Score: 4 / 20".
-        const safeCeiling = 20;
+        // If we found a mark total in the text (e.g. "Total 4 marks"), use it!
+        // Otherwise, use 20 to allow the AI full freedom.
+        const safeCeiling = detectedMarks > 0 ? detectedMarks : 20;
 
         item.detectionResult.match = {
           board: 'Unknown',

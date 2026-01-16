@@ -32,6 +32,7 @@ interface NormalizedMarkingScheme {
   hasAlternatives?: boolean; // Flag indicating if alternative method exists
   alternativeMethod?: any; // Alternative method details
   parentQuestionMarks?: number; // Total marks for the parent question (from database)
+  isGeneric?: boolean;         // Flag indicating if this is a generic marking scheme
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -53,7 +54,8 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
         totalMarks: input.match?.marks || 0,
         questionNumber: input.match?.questionNumber || '1',
         questionLevelAnswer: questionLevelAnswer,
-        parentQuestionMarks: input.match?.parentQuestionMarks || input.match?.marks // Fallback to marks if parentMarks missing
+        parentQuestionMarks: input.match?.parentQuestionMarks || input.match?.marks, // Fallback to marks if parentMarks missing
+        isGeneric: input.isGeneric === true
       };
 
       return normalized;
@@ -1568,9 +1570,12 @@ export class MarkingInstructionService {
       // Return the correct MarkingInstructions structure
 
       // CRITICAL: Override totalMarks with actual value from marking scheme
-      // We should NEVER trust AI to calculate this - we have the accurate data
+      // We should NEVER trust AI to calculate this for OFFICIAL papers - we have the accurate data.
+      // EXCEPTION: In Generic Mode, if totalMarks is just the "Safe Ceiling" (20) and AI found a specific total, trust the AI!
       const studentScore = parsedResponse.studentScore || {};
-      if (normalizedScheme && normalizedScheme.totalMarks > 0) {
+      const isGenericFallback = normalizedScheme?.isGeneric && normalizedScheme?.totalMarks === 20;
+
+      if (normalizedScheme && normalizedScheme.totalMarks > 0 && !isGenericFallback) {
         studentScore.totalMarks = normalizedScheme.totalMarks;
         // Update scoreText to reflect correct total
         if (studentScore.awardedMarks !== undefined) {

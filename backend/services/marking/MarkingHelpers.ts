@@ -994,8 +994,13 @@ export function calculateOverallScore(
     // Only set if not already set (first occurrence wins)
     if (!baseQuestionToTotalMarks.has(baseQNum)) {
       // Use detected total marks from marking scheme instead of parent marks
-      // Priority: scheme.totalMarks (sum of detected parts) > scheme.parentQuestionMarks (whole question) > score.totalMarks (AI)
-      const qTotalMarks = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0;
+      // EXCEPTION: In Generic Mode with the 20-mark fallback, trust the AI's discovered total (qr.score) if available!
+      const isGenericFallback = qr.markingScheme?.isGeneric && (qr.markingScheme?.totalMarks === 20 || qr.markingScheme?.parentQuestionMarks === 20);
+
+      const qTotalMarks = isGenericFallback
+        ? (qr.score?.totalMarks || qr.markingScheme?.totalMarks || 20)
+        : (qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0);
+
       baseQuestionToTotalMarks.set(baseQNum, qTotalMarks);
     }
   });
