@@ -308,9 +308,9 @@ export class SVGOverlayService {
         debugBorderColor = 'grey'; // Unknown
       }
 
-      // INCREASED STROKE WIDTH TO 10 (Double thickness)
+      // REDUCED STROKE WIDTH TO 5 (Half thickness)
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
-                fill="none" stroke="${debugBorderColor}" stroke-width="10" stroke-dasharray="15,10" opacity="0.8" />`;
+                fill="none" stroke="${debugBorderColor}" stroke-width="5" stroke-dasharray="15,10" opacity="0.8" />`;
     }
 
     if (action === 'tick' || action === 'cross' || action === 'write') {
