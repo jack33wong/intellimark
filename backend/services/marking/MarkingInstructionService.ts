@@ -752,6 +752,7 @@ export class MarkingInstructionService {
   }
 
   private static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
+    console.log(`[DEBUG] formatMarkingSchemeForPrompt: isGeneric=${normalizedScheme.isGeneric}, Marks count=${normalizedScheme.marks.length}`);
     // ------------------------------------------------------------------
     // GENERIC MODE INJECTION (UNIVERSAL BUDGET MODE)
     // ------------------------------------------------------------------

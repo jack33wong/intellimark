@@ -466,7 +466,8 @@ export class MarkingSchemeOrchestrationService {
         questionText: item.question.text,
         databaseQuestionText: item.detectionResult.match?.databaseQuestionText || '',
         generalMarkingGuidance: item.detectionResult.match?.markingScheme?.generalMarkingGuidance,
-        sourceImageIndex: groupSourceImageIndex
+        sourceImageIndex: groupSourceImageIndex,
+        isGeneric: (paperCode === 'Generic Question')
       });
     }
 
