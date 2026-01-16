@@ -1119,61 +1119,7 @@ export function createMarkingTasksFromClassification(
     }
   }
 
-  // PASS 1.5: Sync subQuestions with marking scheme to include recovered siblings
-  // This ensures that siblings missed by classification (like 11b) are included in the page union calculation
-  for (const [baseQNum, group] of questionGroups.entries()) {
-    let hasRecoveredSibling = false;
-    if (group.markingScheme?.questionMarks?.subQuestionMarks) {
-      const msParts = Object.keys(group.markingScheme.questionMarks.subQuestionMarks);
-      msParts.forEach(msPart => {
-        // msPart is e.g. "11b" or "11 (b)"
-        const partLabelMatch = msPart.match(/([a-z]+|[ivx]+)$/i);
-        const partLabel = partLabelMatch ? partLabelMatch[1].toLowerCase() : msPart.toLowerCase();
-
-        if (!group.subQuestions.find(sq => sq.part.toLowerCase() === partLabel)) {
-          hasRecoveredSibling = true;
-          group.subQuestions.push({
-            part: partLabel,
-            studentWork: "[Sibling recovered from marking scheme - check image]",
-            studentWorkLines: []
-          } as any);
-        }
-      });
-    }
-
-    // BROADEN PAGE SCOPE: If we recovered a sibling, it means the Mapper missed it.
-    // We should broaden the physical page range to ensure the AI sees the "gap" where it might be.
-    if (hasRecoveredSibling && group.sourceImageIndices.length > 0) {
-      const minPage = Math.min(...group.sourceImageIndices);
-      const maxPage = Math.max(...group.sourceImageIndices);
-
-      // Expand to include any pages in the contiguous range [min, max]
-      // PLUS: Include any page categorized as 'questionAnswer' that is NOT mapped to ANY other question
-      // (This handles cases where a page was identified but classification found nothing)
-      const expandedIndices = new Set(group.sourceImageIndices);
-
-      // 1. Contiguous range expansion (e.g. Q11a on P23, Q11c on P0 -> include all P0-P23)
-      for (let i = minPage; i <= maxPage; i++) {
-        expandedIndices.add(i);
-      }
-
-      // 2. Unmapped 'questionAnswer' pages (high probability candidates for missing sub-questions)
-      standardizedPages.forEach((p, idx) => {
-        const isQuestionPage = p.category === 'questionAnswer';
-        const isUnmapped = !Object.values(globalMapperPageMap).some(indices => indices.includes(idx));
-
-        if (isQuestionPage && isUnmapped) {
-          expandedIndices.add(idx);
-        }
-      });
-
-      const finalIndices = Array.from(expandedIndices).sort((a, b) => a - b);
-      if (finalIndices.length > group.sourceImageIndices.length) {
-        // Log removed
-        group.sourceImageIndices = finalIndices;
-      }
-    }
-  }
+  // Pass 1.5: Sibling recovery logic removed as it was error-prone for non-sub-question tasks.
 
   // Second pass: Create one task per main question (with all sub-questions grouped)
   for (const [baseQNum, group] of questionGroups.entries()) {
