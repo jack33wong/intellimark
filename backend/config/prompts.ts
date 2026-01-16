@@ -104,7 +104,7 @@ export const AI_PROMPTS = {
     },
 
     withMarkingScheme: {
-      system: marking_scheme_system_prompt,
+      system: (isGeneric: boolean = false) => marking_scheme_system_prompt(isGeneric),
 
       user: (
         questionNumber: string,
