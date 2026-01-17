@@ -105,10 +105,9 @@ const EdexcelLandingPage: React.FC = () => {
                         </ul>
                     </div>
                     <div className="edexcel-feature-visual">
-                        <div className="edexcel-mobile-frame">
-                            <div className="edexcel-mobile-screen">
-                                <img src="/images/aqa_question_mode_mockup.png" alt="Edexcel Strategy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
+                        <div className="edexcel-mockup-frame">
+                            <img src="/images/edexcel_strategy_hub.png" alt="Edexcel Strategy" style={{ width: '100%', borderRadius: '8px' }} />
+                            <div className="edexcel-badge-overlay">Examiner-Level Marking</div>
                         </div>
                     </div>
                 </div>
