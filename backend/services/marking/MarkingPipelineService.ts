@@ -996,11 +996,15 @@ export class MarkingPipelineService {
             // Call question detection for each individual question
             const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
 
+            // Collect full OCR text for reliable metadata extraction (e.g. Total Marks)
+            const extractedOcrText = allPagesOcrData.map((p: any) => p.ocrData.text).join('\n\n');
+
             // Orchestrate marking scheme lookup (detection, grouping, merging)
             const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
                 classificationResult,
-                options.customText
+                options.customText,
+                extractedOcrText
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;
@@ -1144,59 +1148,9 @@ export class MarkingPipelineService {
                 }
 
                 // ========================= OCR HANDWRITTEN RE-TAGGING =========================
-                // If an OCR block matches high-confidence student work from classification,
-                // re-tag it as 'isHandwritten = true' even if technically printed.
-                // This allows printed model answers to bypass landmark filters.
-                if (allPagesOcrData && classificationResult?.questions) {
-                    console.log('🛡️ [PIPELINE] Running OCR handwritten re-tagging check...');
-                    const { findBestMatch } = await import('string-similarity');
-
-                    allPagesOcrData.forEach((page, pIdx) => {
-                        if (!page.ocrData?.mathBlocks) return;
-
-                        // NEW: Context-Aware - Only match work Gemini found on THIS specific page
-                        const studentWorkOnThisPage = classificationResult.questions.flatMap((q: any) => {
-                            const sourceIndices = q.sourceImageIndices || [q.sourceImageIndex];
-                            const isOnThisPage = sourceIndices.includes(pIdx);
-
-                            if (!isOnThisPage) return [];
-
-                            const mainLines = q.studentWorkLines?.map((l: any) => l.text) || [];
-                            const subLines = q.subQuestions?.flatMap((sq: any) => {
-                                const sqIndices = sq.sourceImageIndices || sourceIndices;
-                                return sqIndices.includes(pIdx) ? (sq.studentWorkLines?.map((l: any) => l.text) || []) : [];
-                            }) || [];
-
-                            return [...mainLines, ...subLines];
-                        }).filter(Boolean);
-
-                        if (studentWorkOnThisPage.length === 0) return;
-
-                        let reTaggedCount = 0;
-                        page.ocrData.mathBlocks.forEach(block => {
-                            if (block.isPrinted || !block.isHandwritten) {
-                                const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-                                if (!blockText || blockText.length < 2) return;
-
-                                const normBlock = blockText.replace(/[^a-z0-9]/g, '').toLowerCase();
-                                if (!normBlock) return;
-
-                                const match = findBestMatch(normBlock, studentWorkOnThisPage.map(sw =>
-                                    sw.replace(/[^a-z0-9]/g, '').toLowerCase()
-                                ));
-
-                                if (match.bestMatch.rating > 0.85) {
-                                    block.isHandwritten = true;
-                                    block.isPrinted = false;
-                                    reTaggedCount++;
-                                }
-                            }
-                        });
-                        if (reTaggedCount > 0) {
-                            console.log(`✅ [PIPELINE] Re-tagged ${reTaggedCount} printed blocks as handwritten on Page ${pIdx}`);
-                        }
-                    });
-                }
+                // [REMOVED] Superseded by SpatialShieldService's Semantic Tagging
+                // The pipeline no longer eagerly re-tags blocks here.
+                // ==============================================================================
 
                 markingTasks = createMarkingTasksFromClassification(
                     classificationResult,
@@ -1313,6 +1267,54 @@ export class MarkingPipelineService {
 
                                     executeMarkingForQuestion(task, mockRes, submissionId, actualModel as ModelType, allPagesOcrData, usageTracker)
                                         .then(result => {
+                                            // [DIAGNOSTIC] Guillotine Trigger Check
+                                            const scheme = task.markingScheme;
+                                            console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, totalMarks=${scheme?.totalMarks}`);
+
+                                            // [GUILLOTINE] Hard-Coded Post-Processing for Generic Questions
+                                            // Ensure we strictly respect the budget, even if AI hallucinates more marks.
+                                            if (task.markingScheme && task.markingScheme.isGeneric && result.annotations && result.score) {
+                                                const budget = task.markingScheme.totalMarks || 3; // Default to 3 if missing
+                                                // Cast to any[] to avoid 'Property mark does not exist' errors
+                                                const anyAnnotations = result.annotations as any[];
+
+                                                const validAnnotations = anyAnnotations.filter((a: any) => a.action === 'tick' || a.action === 'mark' || (a.mark && a.mark.length > 0));
+
+                                                if (validAnnotations.length > budget) {
+                                                    console.log(`[GUILLOTINE] Q${task.questionNumber} exceeded budget! Found ${validAnnotations.length}, Budget ${budget}. Executing cut...`);
+
+                                                    // SORT PRIORITY: A (High) > B (Medium) > M (Low)
+                                                    // We want to KEEP the top 'budget' items.
+                                                    // So we sort DESCENDING by priority.
+                                                    const priorityMap: Record<string, number> = { 'A': 3, 'B': 2, 'M': 1 };
+
+                                                    // Sort annotations to put high priority at the start
+                                                    anyAnnotations.sort((a: any, b: any) => {
+                                                        const pA = priorityMap[(a.mark || '').charAt(0)] || 0;
+                                                        const pB = priorityMap[(b.mark || '').charAt(0)] || 0;
+                                                        return pB - pA; // Descending
+                                                    });
+
+                                                    // Trace what we are keeping/cutting
+                                                    const kept = anyAnnotations.slice(0, budget);
+                                                    const cut = anyAnnotations.slice(budget);
+
+                                                    console.log(`[GUILLOTINE] Kept: ${kept.map((a: any) => a.mark).join(',')}`);
+                                                    console.log(`[GUILLOTINE] Cut: ${cut.map((a: any) => a.mark).join(',')}`);
+
+                                                    // Apply the cut (cast back to original type if needed, but array reference is usually compatible)
+                                                    result.annotations = kept;
+
+                                                    // Recalculate score
+                                                    result.score.awardedMarks = kept.reduce((sum: number, a: any) => sum + (a.credits || 1), 0);
+
+                                                    // Add note to feedback
+                                                    if (result.feedback) {
+                                                        result.feedback += ` (Note: ${cut.length} excess marks removed to fit budget)`;
+                                                    }
+                                                }
+                                            }
+
                                             // Attach scheme to result for persistence
                                             if (result.cleanedOcrText) {
                                                 // Already attached by service if it returns it

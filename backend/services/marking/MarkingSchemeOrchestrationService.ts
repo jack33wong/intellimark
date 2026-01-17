@@ -64,23 +64,56 @@ export interface MarkingSchemeOrchestrationResult {
 export class MarkingSchemeOrchestrationService {
 
   // [HELPER] Smart Estimate from Text (Used for guidance, not hard limit)
-  private static smartEstimateMaxMarks(text: string): number {
-    if (!text) return 0;
-    const patterns = [
-      /\(\s*Total\s*for\s*Question\s*\d+\s*is\s*(\d+)\s*marks?\s*\)/i,
-      /\(\s*Total\s*(\d+)\s*marks?\s*\)/i,
-      /\[\s*(\d+)\s*marks?\s*\]/i,
-      /Total\s*:?\s*(\d+)\s*marks?/i,
-      /\(\s*(\d+)\s*marks?\s*\)/i
+  // [HELPER] Smart Estimate from Text (Used for guidance, not hard limit)
+  private static smartEstimateMaxMarks(text: string, questionNumber?: string | null): number | null {
+    if (!text) return null;
+
+    // Normalize text (simplify whitespace)
+    const normalizedText = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ');
+    console.log(`[DEBUG] smartEstimateMaxMarks processing text (len=${text.length}) for Q${questionNumber || '?'}`);
+
+    // 0. TARGETED SEARCH (If Question Number is known) - Critical for full page OCR
+    if (questionNumber) {
+      const exactQPattern = new RegExp(`Total\\s+(?:for\\s+Question\\s+)?${questionNumber}\\s+(?:is\\s+)?(\\d+)\\s*marks?`, 'i');
+      const exactMatch = normalizedText.match(exactQPattern);
+      if (exactMatch) {
+        console.log(`[DEBUG] Found targeted max marks for Q${questionNumber}: ${exactMatch[1]}`);
+        return parseInt(exactMatch[1], 10);
+      }
+    }
+
+    // 1. Explicit Footer: "(Total X marks)" or "(Total for Question X is Y marks)"
+    // We prioritize these as they are standard format
+    const footerPatterns = [
+      /\(\s*Total\s+for\s+Question\s+\d+\s+is\s+(\d+)\s+marks?\s*\)/i, // Explicit full footer
+      /\(\s*Total\s+(?:is\s+)?(\d+)\s+marks?\s*\)/i,                    // Standard (Total 4 marks)
+      /Total\s+for\s+Question\s+\d+\s+is\s+(\d+)\s+marks?/i             // Missing parens
     ];
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
+
+    for (const pattern of footerPatterns) {
+      const match = normalizedText.match(pattern);
+      if (match) {
+        console.log(`[DEBUG] Found footer max marks: ${match[1]}`);
+        return parseInt(match[1], 10);
+      }
+    }
+
+    // 2. Loose / Fallback Patterns
+    const loosePatterns = [
+      /\[\s*(\d+)\s*marks?\s*\]/i,         // [4 marks]
+      /\bTotal\s*:?\s*(\d+)\s*marks?/i,    // Total: 4 marks
+      /\(\s*(\d+)\s*marks?\s*\)/i          // (4 marks) - risky, hence last
+    ];
+    for (const pattern of loosePatterns) {
+      const match = normalizedText.match(pattern);
       if (match && match[1]) {
         const marks = parseInt(match[1], 10);
+        // Sanity check: Generic questions usually 1-20 marks.
         if (!isNaN(marks) && marks > 0 && marks <= 50) return marks;
       }
     }
-    return 0; // Return 0 if not found
+
+    return null; // Return null if not found (caller handles default)
   }
 
   // [HELPER] Generate Sequential Rubric (M1, M2... M6)
@@ -127,7 +160,8 @@ export class MarkingSchemeOrchestrationService {
   static async orchestrateMarkingSchemeLookup(
     individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }>,
     classificationResult: any,
-    examPaperHint?: string | null
+    examPaperHint?: string | null,
+    extractedOcrText?: string // New Parameter for reliable max mark searching
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
 
@@ -459,8 +493,12 @@ export class MarkingSchemeOrchestrationService {
       const uniqueKey = `${item.actualQuestionNumber}_${examBoard}_${paperCode}`;
       markingSchemesMap.set(uniqueKey, {
         questionMarks: item.detectionResult.match.markingScheme?.questionMarks || item.detectionResult.match.markingScheme,
-        totalMarks: item.detectionResult.match.marks || 20,
-        parentQuestionMarks: item.detectionResult.match.marks || 20,
+        totalMarks: (paperCode === 'Generic Question')
+          ? (MarkingSchemeOrchestrationService.smartEstimateMaxMarks(extractedOcrText || '', item.actualQuestionNumber) || MarkingSchemeOrchestrationService.smartEstimateMaxMarks(item.question.text || '', item.actualQuestionNumber) || 20)
+          : (item.detectionResult.match.marks || 20),
+        parentQuestionMarks: (paperCode === 'Generic Question')
+          ? (MarkingSchemeOrchestrationService.smartEstimateMaxMarks(extractedOcrText || '', item.actualQuestionNumber) || MarkingSchemeOrchestrationService.smartEstimateMaxMarks(item.question.text || '', item.actualQuestionNumber) || 20)
+          : (item.detectionResult.match.marks || 20),
         questionNumber: item.actualQuestionNumber,
         questionDetection: item.detectionResult,
         questionText: item.question.text,

@@ -156,7 +156,8 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       subQuestionAnswersMap: subQuestionAnswersMap, // Map sub-question label to its answer
       alternativeMethod: alternativeMethod, // Include alternative method if available
       hasAlternatives: hasAlternatives, // Flag indicating if alternative exists
-      parentQuestionMarks: input.parentQuestionMarks // Preserve parent question marks for total score
+      parentQuestionMarks: input.parentQuestionMarks, // Preserve parent question marks for total score
+      isGeneric: input.isGeneric === true // SYSTEMATIC FIX: Propagate the flag
     };
 
 
@@ -756,22 +757,39 @@ export class MarkingInstructionService {
     // ------------------------------------------------------------------
     // GENERIC MODE INJECTION (UNIVERSAL BUDGET MODE)
     // ------------------------------------------------------------------
-    if (normalizedScheme.isGeneric) {
+    // ------------------------------------------------------------------
+    // GENERIC MODE INJECTION (UNIVERSAL BUDGET MODE)
+    // SYSTEMATIC FIX: Check Flag OR Content Signature (undefined marks)
+    // ------------------------------------------------------------------
+
+    // Check for "Generic Fallback" signature: many marks with "undefined" answers
+    const hasGenericSignature = normalizedScheme.marks.some((m: any) =>
+      String(m.answer).includes("undefined") ||
+      (m.mark && m.mark.startsWith('M') && !m.answer)
+    );
+
+    if (normalizedScheme.isGeneric || hasGenericSignature) {
       return `
 [GENERIC_GCSE_LOGIC]
-> [INSTRUCTION]: You are the CHIEF EXAMINER. You must grade this under strict "MARK BUDGET" rules.
-> 1. ESTABLISH BUDGET: Scan the RAW OCR BLOCKS for the text "(Total X marks)". Set your Mark Budget = X. (If not found, default to 3).
-> 2. SOLVE & MATCH: Solve the question yourself. Match student steps to your solution.
-> 3. SPEND THE BUDGET: Allocate marks from the pool below.
->    - CRITICAL RULE: You MUST NOT award more marks than the Budget. (e.g., If Budget=4, you can only output 4 "tick" annotations).
->    - CRITICAL RULE: NO DUPLICATES. Do not award multiple marks for the exact same equation or number. (e.g., Do not give M1 and A1 for the same intermediate line).
->    - If the student work exceeds the budget (e.g., they did extra unnecessary steps), IGNORE the extra steps.
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **SCAN**: Search OCR blocks for "(Total X marks)". Set \`budget\` = X. (Default 3).
+> 2. **SOLVE**: Identify ALL valid marks (Method + Accuracy).
+> 3. **CUT (The Guillotine):**
+>    - You CANNOT output more annotations than the \`budget\`.
+>    - **CONFLICT RULE:** If you have awarded full marks (e.g. 3/3), you MUST DELETE all error marks (M0/A0). A student cannot get full marks AND an error mark.
+>    - **DELETION ORDER (Remove from bottom up):**
+>         1. DELETE M0/A0/B0 (Errors) FIRST.
+>         2. DELETE "M" marks (Intermediate steps) SECOND.
+>         3. KEEP "A" marks (Final Answer) LAST.
 
-[MARK POOL (Select up to Budget Limit)]
-- M1, M2, M3, M4, M5: [METHOD] Valid steps (rationalising, substituting, rearranging).
-- A1, A2, A3: [ACCURACY] Correct intermediate values or Final Answer.
-- B1, B2: [INDEPENDENT] Correct independent statement/reason.
-- M0, A0: [ERROR] Explicitly marks a mistake (does not count towards Positive Budget, but counts as an Annotation).
+[MARK POOL]
+- M1-M5: [METHOD] Working steps (Delete these first if over budget).
+- A1-A3: [ACCURACY] Final answers (Keep these).
+- B1-B2: [INDEPENDENT] Statements.
+
+> [PERMISSIONS]
+> - **PARTIAL MATCHING:** You are allowed to match a [Student Line] to a [OCR Block] even if the block only contains *part* of the line (e.g. Student writes "5/sqrt(3) = ..." but OCR only sees the result "... = 5sqrt(3)/3").
+> - **FUZZY TEXT:** Ignore typos like 'S' for '5' or '72' for '27' if the position aligns.
 `;
     }
 
@@ -852,7 +870,18 @@ export class MarkingInstructionService {
       output += `\nFINAL ANSWER: ${normalizedScheme.questionLevelAnswer}\n`;
     }
 
-    return output.trim();
+    return `
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **NO OVER-MARKING**:
+>    - You have a specific list of marks. Do NOT invent new ones.
+>    - If the student provides multiple valid methods, award marks for the BEST method only.
+>    - **MAX LIMIT:** The total score cannot exceed the sum of marks listed below.
+
+[OFFICIAL SCHEME]
+${output.trim()}
+`;
   }
 
   static async generateFromOCR(
@@ -1013,7 +1042,7 @@ export class MarkingInstructionService {
 
       // Log SYSTEM PROMPT
       console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
-      console.log(systemPrompt.substring(0, 2000) + (systemPrompt.length > 2000 ? '\n[... System Prompt Truncated ...]' : ''));
+      console.log(systemPrompt); // Log FULL system prompt for debugging
       console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
 
       // Split userPrompt into sections for cleaner logging
@@ -1215,6 +1244,14 @@ export class MarkingInstructionService {
                 const code = (m.mark || '').trim();
                 if (code) {
                   limitMap.set(code, (limitMap.get(code) || 0) + 1);
+
+                  // RELAXED LIMITS FOR GENERIC MODE
+                  // In Budget Mode, the AI might reuse 'A1' multiple times instead of strictly using A1, A2.
+                  // We trust the "Mark Budget" to cap the total count, so we unblock the specific token limits.
+                  if (normalizedScheme.isGeneric) {
+                    limitMap.set(code, 99);
+                  }
+
                   // NEW: If code is numeric (OCR "blob"), add to floating capacity pool
                   if (/^\d+$/.test(code)) {
                     floatingCapacity += parseInt(code, 10);
@@ -1279,8 +1316,11 @@ export class MarkingInstructionService {
                     const text = (anno.text || '').trim();
                     const action = (anno.action || '').toLowerCase();
 
-                    // ONLY award points if action is 'tick' (check)
-                    if (text && action === 'tick') {
+                    // ONLY award points if action is 'tick' OR if the action itself is a mark code (AI hallucination fix)
+                    const isExplicitTick = action === 'tick' || action === 'mark';
+                    const isMarkCodeAction = /^[BMAPC][1-9]$/i.test(action);
+
+                    if (text && (isExplicitTick || isMarkCodeAction)) {
                       const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
                       tokens.forEach((token: string) => {
                         const code = token.split(/[^a-zA-Z0-9]/)[0];
@@ -1296,13 +1336,23 @@ export class MarkingInstructionService {
 
                   // HARD CEILING: Capping score at question/part max
                   const maxMarks = normalizedScheme.totalMarks || 0;
+
+                  // For Generic Mode (Budget Mode), we MUST respect the detected budget as a hard ceiling.
+                  // For Standard Mode, we also respect it, but it's less likely to be exceeded due to strict token matching.
                   if (maxMarks > 0 && totalAwarded > maxMarks) {
-                    // console.log(`🛡️ [HARD CEILING] Q${inputQuestionNumber}: Capping score ${totalAwarded} -> ${maxMarks}`);
+                    console.log(`🛡️ [HARD CEILING] Q${inputQuestionNumber}: Capping score ${totalAwarded} -> ${maxMarks}`);
                     totalAwarded = maxMarks;
                   }
 
                   parsedResponse.studentScore.awardedMarks = totalAwarded;
-                  if (parsedResponse.studentScore.totalMarks) {
+
+                  // SYSTEMATIC FIX: Override the Denominator with our trusted metadata
+                  // The AI often hallucinates "3" as the total in generic mode because of the prompt default.
+                  // We trust 'normalizedScheme.totalMarks' because it's derived from smartEstimateMaxMarks on the full OCR.
+                  if (maxMarks > 0) {
+                    parsedResponse.studentScore.totalMarks = maxMarks;
+                    parsedResponse.studentScore.scoreText = `${totalAwarded}/${maxMarks}`;
+                  } else if (parsedResponse.studentScore.totalMarks) {
                     parsedResponse.studentScore.scoreText = `${totalAwarded}/${parsedResponse.studentScore.totalMarks}`;
                   }
                 }

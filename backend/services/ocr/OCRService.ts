@@ -460,31 +460,26 @@ export class OCRService {
         }
 
         // [BRUTE FORCE DEBUG] See exactly what Mathpix returns for handwriting
-        if (line.is_printed === false || (line.type && line.type === 'handwriting')) {
-          console.log(`[OCR RAW DATA] HW Line: "${text.substring(0, 20)}..." Keys: ${Object.keys(line).join(', ')}`);
-          // console.log(`[OCR RAW DATA] Full Obj:`, JSON.stringify(line)); // Uncomment if needed
-        }
+        // if (line.is_printed === false || (line.type && line.type === 'handwriting')) {
+        //   console.log(`[OCR RAW DATA] HW Line: "${text.substring(0, 20)}..." Keys: ${Object.keys(line).join(', ')}`);
+        // }
 
         const coords = this.extractBoundingBox(line);
         const hasOriginalCoords = !!coords; // Define flag based on coords presence
 
         // [DEBUG] Log Coords for Handwriting (Existing or Missing)
-        if (text && (line.is_printed === false || line.type === 'handwriting')) {
-          if (!coords) {
-            console.log(`[OCR DEBUG] ❌ Missing Coords for Handwriting: "${text.substring(0, 30)}..."`);
-            console.log(`   Detailed Keys: ${Object.keys(line).join(', ')}`);
-            console.log(`   Raw Line:`, JSON.stringify(line));
-          } else {
-            // Check for Zero Coords or suspicious values
-            if (coords.x === 0 && coords.y === 0 && coords.width === 0 && coords.height === 0) {
-              console.log(`[OCR DEBUG] ⚠️ Zero Coords for Handwriting: "${text.substring(0, 30)}..."`);
-              console.log(`   Raw Line:`, JSON.stringify(line));
-            } else {
-              // Log successful extraction to ensure we are sane
-              console.log(`[OCR DEBUG] ✅ Found Coords for HW: "${text.substring(0, 15)}..." -> [${coords.x}, ${coords.y}, ${coords.width}, ${coords.height}]`);
-            }
-          }
-        }
+        // if (text && (line.is_printed === false || line.type === 'handwriting')) {
+        //   if (!coords) {
+        //     console.log(`[OCR DEBUG] ❌ Missing Coords for Handwriting: "${text.substring(0, 30)}..."`);
+        //     console.log(`   Detailed Keys: ${Object.keys(line).join(', ')}`);
+        //   } else {
+        //     if (coords.x === 0 && coords.y === 0 && coords.width === 0 && coords.height === 0) {
+        //       console.log(`[OCR DEBUG] ⚠️ Zero Coords for Handwriting: "${text.substring(0, 30)}..."`);
+        //     } else {
+        //       console.log(`[OCR DEBUG] ✅ Found Coords for HW: "${text.substring(0, 15)}..." -> [${coords.x}, ${coords.y}, ${coords.width}, ${coords.height}]`);
+        //     }
+        //   }
+        // }
 
         if (text.includes('\\\\')) {
           // Remove LaTeX delimiters and environment tags, but keep the actual content

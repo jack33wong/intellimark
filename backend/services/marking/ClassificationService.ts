@@ -307,8 +307,8 @@ ${pageHints}
         }
         const cleanContent = this.cleanGeminiResponse(content);
         // [DEBUG] Log the classification response per task
-        console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
-        console.log(cleanContent.substring(0, 500) + (cleanContent.length > 500 ? '...' : ''));
+        // console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
+        // console.log(cleanContent); // Full response (User Request)
 
         parsed = this.parseJsonWithSanitization(cleanContent);
 

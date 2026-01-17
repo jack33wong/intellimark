@@ -4,6 +4,7 @@
  */
 
 import { MarkingInstructionService } from './MarkingInstructionService.js';
+import { SpatialShieldService } from './SpatialShieldService.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
 import type { MarkingInstructions, Annotation, ModelType, MarkingTask, EnrichedAnnotation, MathBlock } from '../../types/index.js';
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
@@ -1122,9 +1123,19 @@ export function createMarkingTasksFromClassification(
   // Pass 1.5: Sibling recovery logic removed as it was error-prone for non-sub-question tasks.
 
   // Second pass: Create one task per main question (with all sub-questions grouped)
-  for (const [baseQNum, group] of questionGroups.entries()) {
+  // Second pass: Create one task per main question (with all sub-questions grouped)
+  // [REFACTOR] Sort groups first to allow "Look-Ahead" (accessing next question for spatial flooring)
+  const sortedQuestionGroups = Array.from(questionGroups.entries()).sort((a, b) => {
+    const numA = parseInt(String(a[0]).replace(/\D/g, '')) || 0;
+    const numB = parseInt(String(b[0]).replace(/\D/g, '')) || 0;
+    return numA - numB;
+  });
+
+  for (let i = 0; i < sortedQuestionGroups.length; i++) {
+    const [baseQNum, group] = sortedQuestionGroups[i];
+    const nextGroup = sortedQuestionGroups[i + 1]?.[1]; // Look-ahead for the floor
     // 1. Get all OCR blocks from ALL pages this question spans (COLLECT EARLY for filtering)
-    const allMathBlocks: MathBlock[] = [];
+    let allMathBlocks: MathBlock[] = [];
     group.sourceImageIndices.forEach((pageIndex) => {
       // FIX: Use find instead of array index to handle split/re-indexed pages correctly
       const pageOcrData = allPagesOcrData.find(d => d.pageIndex === pageIndex);
@@ -1143,13 +1154,154 @@ export function createMarkingTasksFromClassification(
 
     // [DEBUG] Log student work before re-indexing
     const rawWork = group.aiSegmentationResults.map(r => r.content).join('\n');
-    console.log(`\n\x1b[36m[MARKING DEBUG] Q${baseQNum} Student Work (Before Re-indexing):\x1b[0m`);
-    console.log(rawWork.substring(0, 300) + (rawWork.length > 300 ? '...' : ''));
+    // console.log(`\n\x1b[36m[MARKING DEBUG] Q${baseQNum} Student Work (Before Re-indexing):\x1b[0m`);
+    // console.log(rawWork.substring(0, 300) + (rawWork.length > 300 ? '...' : ''));
 
-    // NOTE: Spatial Shield (overlap filtering) removed to prevent stripping of typed work.
-    // We now trust the AI to distinguish landmarks from work using the landmark reference section.
+    // NOTE: Spatial Shield (overlap filtering) previously removed, but caused "Question 13" text to leak into Q12.
+    // [FIX] "LOOK-AHEAD" SPATIAL FILTER (The Bouncer)
+    // Strategy: Use the NEXT question's top coordinate as the hard floor for the CURRENT question.
 
-    // 3. Deduplicate aiSegmentationResults based on content to prevent repeated student work in prompt
+    let detectionBox = group.mainQuestion?.detectionResult?.box_2d; // [ymin, xmin, ymax, xmax]
+
+    // Only filter if we have valid detection coordinates
+    if (detectionBox && Array.isArray(detectionBox) && detectionBox.length === 4) {
+      const [q_ymin, q_xmin, q_ymax, q_xmax] = detectionBox;
+
+      const currentStartPage = group.sourceImageIndices[0]; // Assuming Q starts on first source page
+
+      // 1. DEFINE THE CEILING (Top of Band)
+      // We go slightly above the Classification Box to catch the "Q12" Header if Mathpix placed it higher.
+      const TOP_BUFFER_PX = 50;
+      const ceilingY = Math.max(0, q_ymin - TOP_BUFFER_PX);
+
+      // 2. DEFINE THE FLOOR (Bottom of Band)
+      // CRITICAL: We use the Next Question's top as the hard stop if it's on the same page.
+      let floorY: number;
+      let floorReason: string;
+      const pageH = pageDimensionsMap[currentStartPage]?.height || 2000;
+      floorY = pageH;
+      floorReason = "End of Page";
+
+      if (nextGroup && nextGroup.sourceImageIndices[0] === currentStartPage) {
+        const nextBox = nextGroup.mainQuestion?.detectionResult?.box_2d;
+        if (nextBox) {
+          // Stop exactly where the next question starts (minus safety buffer)
+          floorY = nextBox[0] - 10;
+          floorReason = `Next Q${nextGroup.mainQuestion?.questionNumber || '?'} starts at ${nextBox[0]}`;
+        }
+      }
+
+      // 🔍 DEBUG LOG 1: GEOMETRY
+      console.log(`[EXECUTOR] 📏 Banding Q${baseQNum}:`);
+      console.log(`   - Ceiling: ${ceilingY}px (Q${baseQNum} Top - ${TOP_BUFFER_PX})`);
+      console.log(`   - Floor:   ${floorY}px (${floorReason})`);
+
+      // Filter the collected blocks
+      const filteredBlocks = allMathBlocks.filter(block => {
+        // If block has no coordinates, keep it (ocr-only fallback)
+        if (!block.box_2d) {
+          console.log(`[SPATIAL WARNING] Block ${block.id} has NO box_2d. Keeping it.`);
+          return true;
+        }
+
+        const [b_ymin, b_xmin, b_ymax, b_xmax] = block.box_2d;
+        const blockPageIdx = (block as any).pageIndex;
+        const blockCenterY = (b_ymin + b_ymax) / 2;
+
+        // CEILING CHECK:
+        // Only apply ceiling if block is on the same page as current question START.
+        // If block is on a LATER page, ceiling is 0 (top of page).
+        let effectiveCeiling = 0;
+        if (blockPageIdx === currentStartPage) {
+          effectiveCeiling = ceilingY;
+        }
+
+        // FLOOR CHECK:
+        // Default Floor = Page Height (Bottom)
+        const pageH = pageDimensionsMap[blockPageIdx]?.height || 2000;
+        let effectiveFloor = pageH;
+
+        // If next question exists AND starts on THIS SAME PAGE, clamp the floor.
+        if (nextGroup && nextGroup.sourceImageIndices[0] === blockPageIdx) {
+          const nextBox = nextGroup.mainQuestion?.detectionResult?.box_2d;
+          if (nextBox) {
+            // Stop exactly where the next question starts (minus safety buffer)
+            effectiveFloor = nextBox[0] - 10;
+          }
+        }
+
+        const isKept = blockCenterY >= effectiveCeiling && blockCenterY <= effectiveFloor;
+
+        // Debug specific falling blocks (Q13 Leak Check)
+        const isQ13Block = block.id.includes('block_0_13_324');
+        if (isQ13Block) {
+          console.log(`[SPATIAL TRACE] Q13 Block ${block.id} on Page ${blockPageIdx}`);
+          console.log(`[SPATIAL TRACE] CenterY: ${blockCenterY} | Range: [${effectiveCeiling}, ${effectiveFloor}]`);
+          console.log(`[SPATIAL TRACE] Result: ${isKept ? 'KEPT' : 'EXCLUDED'}`);
+        }
+
+        return isKept;
+      });
+
+      // 🔍 DEBUG LOG 2: CAPTURE COUNT
+      // Check if we grabbed the student work (usually 5-10 blocks) or just the header (1-2 blocks)
+      console.log(`[EXECUTOR] 📥 Captured ${filteredBlocks.length} blocks for Q${baseQNum} (Physically between ${ceilingY}-${floorY})`);
+
+      // 🔍 DEBUG LOG 2: CAPTURE COUNT
+      // Check if we grabbed the student work (usually 5-10 blocks) or just the header (1-2 blocks)
+      console.log(`[EXECUTOR] 📥 Captured ${filteredBlocks.length} blocks for Q${baseQNum} (Physically between ${ceilingY}-${floorY})`);
+
+      // Log reduction stats
+      if (filteredBlocks.length < allMathBlocks.length) {
+        console.log(`[SPATIAL] Refined Q${baseQNum} context: Kept ${filteredBlocks.length}/${allMathBlocks.length} blocks.`);
+      }
+
+      // Replace the array
+      allMathBlocks.length = 0;
+      allMathBlocks.push(...filteredBlocks);
+    }
+
+    // [FALLBACK] If detection failed (Generic Mode), use Index-Based Slicing via Shield
+    if (!detectionBox || !Array.isArray(detectionBox)) {
+      // Use Refactored Hybrid Spatial Shield Service
+      const qNumInt = parseInt(baseQNum.replace(/\D/g, ''));
+      const nextQNum = isNaN(qNumInt) ? null : `${qNumInt + 1}`;
+      // Get known question text for semantic comparison
+      const questionText = group.mainQuestion?.text || '';
+
+      const slicedBlocks = SpatialShieldService.applyHybridShield(
+        baseQNum,
+        nextQNum,
+        questionText,
+        allMathBlocks
+      );
+
+      // If slicing happened (size changed or we trust the service), use it.
+      if (slicedBlocks.length !== allMathBlocks.length || slicedBlocks !== allMathBlocks) {
+        allMathBlocks = slicedBlocks;
+      }
+    }
+
+    // 4. PASS TO SHIELD (The Brain) - Apply Semantic Layer AFTER Geometric Layer
+    // Now we pass this "Geometrically Pure" bucket to the Shield for final semantic verification.
+    {
+      const qNumInt = parseInt(baseQNum.replace(/\D/g, ''));
+      const nextQNum = isNaN(qNumInt) ? null : `${qNumInt + 1}`;
+      const questionText = group.mainQuestion?.text || '';
+
+      const shieldedBlocks = SpatialShieldService.applyHybridShield(
+        baseQNum,
+        nextQNum,
+        questionText,
+        allMathBlocks
+      );
+
+      if (shieldedBlocks.length !== allMathBlocks.length) {
+        console.log(`[SHIELD] Further refined Q${baseQNum} via Semantic Shield: ${allMathBlocks.length} -> ${shieldedBlocks.length}`);
+        allMathBlocks = shieldedBlocks;
+      }
+    }
+
     const uniqueContent = new Set<string>();
     group.aiSegmentationResults = group.aiSegmentationResults.filter(result => {
       const normalizedContent = result.content.trim();

@@ -92,6 +92,11 @@ export class MathpixService {
         tracker.recordMathpix(1); // 1 page processed
       }
 
+      // [DEBUG] Log Raw Mathpix Response for validation
+      // console.log('📝 [MATHPIX RAW] Response Keys:', Object.keys(response.data));
+      // if (response.data.text) console.log('📝 [MATHPIX RAW] Text Preview:', response.data.text.substring(0, 100).replace(/\n/g, '\\n'));
+      // console.log('📝 [MATHPIX RAW] Full JSON:', JSON.stringify(response.data, null, 2)); // ENABLED for debugging
+
       return response.data;
 
     } catch (error: any) {

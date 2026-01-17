@@ -665,6 +665,8 @@ export interface MathBlock {
   bbox?: [number, number, number, number]; // Compatibility for stepsDataForMapping
   cleanedText?: string;
   unified_line_id?: string;
+  box_2d?: [number, number, number, number]; // Normalized coordinates [ymin, xmin, ymax, xmax] (0-1000)
+  isPrinted?: boolean; // Flag if block is typed/printed
 }
 
 // Marking Task type (migrated from MarkingExecutor)
