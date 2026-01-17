@@ -14,10 +14,16 @@ class MarkingHistoryService {
    * @param {string} authToken - Authentication token (optional)
    * @returns {Promise<Object>} The marking history data from sessions
    */
-  static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null) {
+  static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null, lastUpdatedAt = null, messageType = null) {
     try {
       // Use new messages API instead of old chat API
-      const url = `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
+      let url = `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
+      if (lastUpdatedAt && lastUpdatedAt !== 'undefined' && lastUpdatedAt !== 'null') {
+        url += `&lastUpdatedAt=${encodeURIComponent(lastUpdatedAt)}`;
+      }
+      if (messageType && messageType !== 'all') {
+        url += `&messageType=${encodeURIComponent(messageType)}`;
+      }
 
 
       const headers = {

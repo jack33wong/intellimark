@@ -712,11 +712,22 @@ export class FirestoreService {
   /**
    * Get user's UnifiedSessions (lightweight list with nested messages)
    */
-  static async getUserUnifiedSessions(userId: string, limit: number = 50): Promise<any[]> {
+  static async getUserUnifiedSessions(userId: string, limit: number = 50, lastUpdatedAt: string | null = null, messageType: string | null = null): Promise<any[]> {
     try {
-      const sessionsRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
-        .where('userId', '==', userId)
-        .limit(limit);
+      let sessionsRef: any = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
+        .where('userId', '==', userId);
+
+      if (messageType && messageType !== 'all') {
+        sessionsRef = sessionsRef.where('messageType', '==', messageType);
+      }
+
+      sessionsRef = sessionsRef.orderBy('updatedAt', 'desc');
+
+      if (lastUpdatedAt) {
+        sessionsRef = sessionsRef.startAfter(lastUpdatedAt);
+      }
+
+      sessionsRef = sessionsRef.limit(limit);
 
       const snapshot = await sessionsRef.get();
 

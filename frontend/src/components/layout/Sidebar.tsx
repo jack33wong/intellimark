@@ -62,11 +62,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const editInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
   const { checkPermission, loading: subLoading } = useSubscription();
   const canAccessAnalysis = checkPermission('analysis');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -75,30 +79,40 @@ const Sidebar: React.FC<SidebarProps> = ({
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
       setChatSessions([]);
+      simpleSessionService.clearAllSessions();
+      setInitialLoading(false);
       return;
     }
+    setInitialLoading(true);
+    setHasMore(true);
     try {
       const authToken = await getAuthToken();
       if (!authToken) {
         console.error('Authentication token not available.');
+        setInitialLoading(false);
         return;
       }
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 1000, authToken) as MarkingHistoryResponse;
+
+      let messageType: string | null = null;
+      if (activeTab === 'mark') messageType = 'Marking';
+      if (activeTab === 'question') messageType = 'Question';
+
+      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken, undefined, messageType as any) as MarkingHistoryResponse;
       if (response.success && response.sessions) {
-        const sortedSessions = [...response.sessions].sort((a, b) =>
-          new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
-        );
-        setChatSessions(sortedSessions);
-        sortedSessions.forEach(session => simpleSessionService.updateSidebarSession(session));
+        setChatSessions(response.sessions);
+        if (response.sessions.length < 50) {
+          setHasMore(false);
+        }
+        response.sessions.forEach(session => simpleSessionService.updateSidebarSession(session));
       } else {
         console.error('Failed to load chat sessions');
       }
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
     } finally {
-      // Loading complete
+      setInitialLoading(false);
     }
-  }, [user?.uid, getAuthToken]);
+  }, [user?.uid, getAuthToken, activeTab]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -107,7 +121,78 @@ const Sidebar: React.FC<SidebarProps> = ({
       setChatSessions([]);
       simpleSessionService.clearAllSessions();
     }
-  }, [user?.uid, initializeSessions]);
+
+    // Reset scroll when switching tabs or user
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [user?.uid, activeTab, initializeSessions]);
+
+  const loadMoreSessions = useCallback(async () => {
+    if (!user?.uid || isLoadingMore || !hasMore || initialLoading) return;
+
+    setIsLoadingMore(true);
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) return;
+
+      const lastSession = chatSessions[chatSessions.length - 1];
+      const lastUpdatedAt = lastSession ? (lastSession.updatedAt || lastSession.createdAt) : undefined;
+
+      let messageType: string | null = null;
+      if (activeTab === 'mark') messageType = 'Marking';
+      if (activeTab === 'question') messageType = 'Question';
+
+      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken, lastUpdatedAt as any, messageType as any) as MarkingHistoryResponse;
+
+      if (response.success && response.sessions) {
+        if (response.sessions.length < 50) {
+          setHasMore(false);
+        }
+
+        setChatSessions(prev => {
+          // Filter out any duplicates that might slip through
+          const existingIds = new Set(prev.map(s => s.id));
+          const sessions = response.sessions || [];
+          const uniqueNewSessions = sessions.filter(s => !existingIds.has(s.id));
+          return [...prev, ...uniqueNewSessions];
+        });
+
+        response.sessions.forEach(session => simpleSessionService.updateSidebarSession(session));
+      }
+    } catch (error) {
+      console.error('Failed to load more sessions:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [user?.uid, isLoadingMore, hasMore, initialLoading, chatSessions, getAuthToken, activeTab]);
+
+  // Intersection Observer for Infinite Scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !initialLoading) {
+          loadMoreSessions();
+        }
+      },
+      {
+        root: scrollRef.current,
+        threshold: 0.1
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [loadMoreSessions, hasMore, isLoadingMore, initialLoading, scrollRef]);
+
 
   useEffect(() => {
     const handleSessionUpdate = (event: CustomEvent<{ session: UnifiedSession }>) => {
@@ -464,62 +549,74 @@ const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </div>
               </div>
-              <div className="mark-history-scrollable">
+              <div className="mark-history-scrollable" ref={scrollRef}>
                 {getFilteredSessions().length > 0 ? (
-                  getFilteredSessions().map((session) => (
-                    <div
-                      key={session.id}
-                      className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''} ${dropdownSessionId === session.id ? 'has-open-dropdown' : ''}`}
-                      onClick={() => handleSessionClick(session)}
-                    >
-                      <div className="mark-history-content">
-                        <div className="mark-history-item-top-row">
-                          <div className="mark-history-item-title">
-                            {session.favorite && <Star size={14} className="favorite-star-inline" />}
-                            {editingSessionId === session.id ? (
-                              <input
-                                ref={editInputRef}
-                                type="text"
-                                className="title-edit-input"
-                                value={editingTitle}
-                                onChange={(e) => setEditingTitle(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleSaveTitle(session.id);
-                                  }
-                                  if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    handleCancelEdit();
-                                  }
-                                }}
-                                onBlur={() => handleSaveTitle(session.id)}
-                                style={{ width: '100%' }}
-                              />
-                            ) : getSessionTitle(session)}
+                  <>
+                    {getFilteredSessions().map((session) => (
+                      <div
+                        key={session.id}
+                        className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''} ${dropdownSessionId === session.id ? 'has-open-dropdown' : ''}`}
+                        onClick={() => handleSessionClick(session)}
+                      >
+                        <div className="mark-history-content">
+                          <div className="mark-history-item-top-row">
+                            <div className="mark-history-item-title">
+                              {session.favorite && <Star size={14} className="favorite-star-inline" />}
+                              {editingSessionId === session.id ? (
+                                <input
+                                  ref={editInputRef}
+                                  type="text"
+                                  className="title-edit-input"
+                                  value={editingTitle}
+                                  onChange={(e) => setEditingTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleSaveTitle(session.id);
+                                    }
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      handleCancelEdit();
+                                    }
+                                  }}
+                                  onBlur={() => handleSaveTitle(session.id)}
+                                  style={{ width: '100%' }}
+                                />
+                              ) : getSessionTitle(session)}
+                            </div>
                           </div>
-                        </div>
-                        <div className="mark-history-item-bottom-row">
-                          <div className="mark-history-last-message">{getLastMessage(session)}</div>
-                          <div className="mark-history-meta">
-                            <span className="mark-history-time">{formatSessionDate(session)}</span>
-                            <div className={`mark-history-actions-container ${dropdownSessionId === session.id ? 'dropdown-open' : ''}`}>
-                              <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
-                                <MoreHorizontal size={16} />
-                              </button>
-                              {dropdownSessionId === session.id && (
-                                <div className="mark-history-dropdown">
-                                  <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
-                                  <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
-                                  <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
-                                </div>
-                              )}
+                          <div className="mark-history-item-bottom-row">
+                            <div className="mark-history-last-message">{getLastMessage(session)}</div>
+                            <div className="mark-history-meta">
+                              <span className="mark-history-time">{formatSessionDate(session)}</span>
+                              <div className={`mark-history-actions-container ${dropdownSessionId === session.id ? 'dropdown-open' : ''}`}>
+                                <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
+                                  <MoreHorizontal size={16} />
+                                </button>
+                                {dropdownSessionId === session.id && (
+                                  <div className="mark-history-dropdown">
+                                    <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
+                                    <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
+                                    <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                    {/* Intersection Observer Sentinel */}
+                    {activeTab !== 'favorite' && hasMore && (
+                      <div ref={observerTarget} className="mark-history-load-more">
+                        {isLoadingMore ? (
+                          <div className="loading-spinner-small" />
+                        ) : (
+                          <div style={{ height: '20px' }} />
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="mark-history-empty">
                     <Clock size={24} style={{ opacity: 0.3, marginBottom: '8px' }} />
