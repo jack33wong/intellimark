@@ -24,23 +24,28 @@ interface UseImageModeReturn {
   imageError: boolean;
   isLoading: boolean;
   isDownloading: boolean;
-  
+
   // Actions
   zoomIn: () => void;
   zoomOut: () => void;
   rotate: () => void;
   resetAll: () => void;
-  
+
   // Drag handlers
   handleMouseDown: (e: React.MouseEvent) => void;
   handleMouseMove: (e: MouseEvent) => void;
   handleMouseUp: () => void;
-  
+
+  // Touch handlers
+  handleTouchStart: (e: React.TouchEvent) => void;
+  handleTouchMove: (e: TouchEvent) => void;
+  handleTouchEnd: () => void;
+
   // Image handlers
   handleImageLoad: () => void;
   handleImageError: () => void;
   handleDownload: (image: SessionImage) => Promise<void>;
-  
+
   // Utils
   calculateTransform: () => string;
   canZoomIn: boolean;
@@ -55,6 +60,8 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
   const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [pinchStartDistance, setPinchStartDistance] = useState<number | null>(null);
+  const [pinchStartZoom, setPinchStartZoom] = useState(DEFAULT_ZOOM);
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -84,10 +91,9 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
   // Zoom functions
   const zoomIn = useCallback(() => {
     setZoomLevel(prev => {
-      const currentIndex = ZOOM_LEVELS.indexOf(prev);
-      const newZoom = currentIndex < ZOOM_LEVELS.length - 1 
-        ? ZOOM_LEVELS[currentIndex + 1] 
-        : prev;
+      // Find the first zoom level greater than current
+      const nextLevel = ZOOM_LEVELS.find(level => level > prev);
+      const newZoom = nextLevel || prev;
       if (newZoom !== prev) {
         setTranslateX(0);
         setTranslateY(0);
@@ -98,10 +104,9 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
 
   const zoomOut = useCallback(() => {
     setZoomLevel(prev => {
-      const currentIndex = ZOOM_LEVELS.indexOf(prev);
-      const newZoom = currentIndex > 0 
-        ? ZOOM_LEVELS[currentIndex - 1] 
-        : prev;
+      // Find the last zoom level smaller than current
+      const prevLevel = [...ZOOM_LEVELS].reverse().find(level => level < prev);
+      const newZoom = prevLevel || prev;
       if (newZoom !== prev) {
         setTranslateX(0);
         setTranslateY(0);
@@ -124,23 +129,76 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     e.preventDefault();
-    
+
     const newTranslateX = e.clientX - dragStart.x;
     const newTranslateY = e.clientY - dragStart.y;
-    
+
     // Apply boundaries
     const maxTranslateX = window.innerWidth * 0.4;
     const maxTranslateY = window.innerHeight * 0.4;
-    
+
     const boundedX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newTranslateX));
     const boundedY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newTranslateY));
-    
+
     setTranslateX(boundedX);
     setTranslateY(boundedY);
   }, [isDragging, dragStart]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
+  }, []);
+
+  // Touch handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStart({ x: touch.clientX - translateX, y: touch.clientY - translateY });
+      setPinchStartDistance(null);
+    } else if (e.touches.length === 2) {
+      setIsDragging(false);
+      const distance = Math.max(1, Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      ));
+      setPinchStartDistance(distance);
+      setPinchStartZoom(zoomLevel);
+    }
+  }, [translateX, translateY, zoomLevel]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (e.touches.length === 1 && isDragging) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const newTranslateX = touch.clientX - dragStart.x;
+      const newTranslateY = touch.clientY - dragStart.y;
+
+      const maxTranslateX = window.innerWidth * 0.4;
+      const maxTranslateY = window.innerHeight * 0.4;
+      const boundedX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newTranslateX));
+      const boundedY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newTranslateY));
+
+      setTranslateX(boundedX);
+      setTranslateY(boundedY);
+    } else if (e.touches.length === 2 && pinchStartDistance !== null) {
+      e.preventDefault();
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = distance / pinchStartDistance;
+      const newZoom = Math.round(pinchStartZoom * ratio);
+
+      // Keep within bounds
+      const minZoom = ZOOM_LEVELS[0];
+      const maxZoom = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+      setZoomLevel(Math.max(minZoom, Math.min(maxZoom, newZoom)));
+    }
+  }, [isDragging, dragStart, pinchStartDistance, pinchStartZoom]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+    setPinchStartDistance(null);
   }, []);
 
   // Image handlers
@@ -177,7 +235,7 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
         // External URL - use backend proxy
         const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
         const downloadUrl = `${backendUrl}/api/marking/download-image?url=${encodeURIComponent(image.src)}&filename=${encodeURIComponent(image.filename || 'image')}`;
-        
+
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = image.filename || 'image';
@@ -220,23 +278,28 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
     imageError,
     isLoading,
     isDownloading,
-    
+
     // Actions
     zoomIn,
     zoomOut,
     rotate,
     resetAll,
-    
+
     // Drag handlers
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
-    
+
+    // Touch handlers
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+
     // Image handlers
     handleImageLoad,
     handleImageError,
     handleDownload,
-    
+
     // Utils
     calculateTransform,
     canZoomIn,

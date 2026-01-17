@@ -65,6 +65,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         handleMouseDown,
         handleMouseMove,
         handleMouseUp,
+        handleTouchStart,
+        handleTouchMove,
+        handleTouchEnd,
         handleImageLoad,
         handleImageError,
         handleDownload,
@@ -155,6 +158,24 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, zoomIn, zoomOut, rotate, onClose, navigateToNext, navigateToPrevious]);
 
+    // Handle touch events
+    useEffect(() => {
+        if (!isOpen) return;
+
+        // One-finger drag is handled via isDragging, 
+        // two-finger pinch is handled via pinchStartDistance
+        // We use global listeners for move and end for better stability
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd);
+        document.addEventListener('touchcancel', handleTouchEnd);
+
+        return () => {
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('touchend', handleTouchEnd);
+            document.removeEventListener('touchcancel', handleTouchEnd);
+        };
+    }, [isOpen, handleTouchMove, handleTouchEnd]);
+
     // Handle mouse drag events
     useEffect(() => {
         if (!isOpen) return;
@@ -237,6 +258,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                             onLoad={handleImageLoad}
                             onError={handleImageError}
                             onMouseDown={handleMouseDown}
+                            onTouchStart={handleTouchStart}
                             draggable={false}
                         />
                     )}
