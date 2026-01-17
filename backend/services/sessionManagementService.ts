@@ -819,6 +819,47 @@ export class SessionManagementService {
       };
     }
 
+    // ==================================================================================
+    // [SYNC FIX] SYNCHRONIZE UI STRUCTURE WITH ACTUAL ENGINE RESULTS
+    // The 'detectedQuestion' above is built from the SCHEMA (Default 20 marks).
+    // We MUST update it with the ACTUAL TOTALS found by the Marking Engine (e.g. 2 marks).
+    // ==================================================================================
+    if (detectedQuestion && detectedQuestion.examPapers && allQuestionResults && allQuestionResults.length > 0) {
+      console.log(`[SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...`);
+      let syncTotal = 0;
+
+      detectedQuestion.examPapers.forEach((paper: any) => {
+        if (paper.questions) {
+          paper.questions.forEach((q: any) => {
+            // Find matching result
+            const result = allQuestionResults.find((r: any) =>
+              // Match by Question Number (robust string match)
+              String(r.questionNumber).toLowerCase() === String(q.questionNumber).toLowerCase()
+            );
+
+            if (result && result.score) {
+              const oldTotal = q.totalMarks;
+              const newTotal = result.score.totalMarks;
+
+              // OVERWRITE the UI structure's total with the Engine's total
+              q.totalMarks = newTotal;
+
+              if (oldTotal !== newTotal) {
+                console.log(`[SYNC FIX] ✅ Q${q.questionNumber}: Updated Total Available Marks from ${oldTotal} (Schema) -> ${newTotal} (Engine)`);
+              }
+            }
+            syncTotal += (q.totalMarks || 0);
+          });
+        }
+      });
+
+      // Update the Grand Total for the whole paper
+      const oldGrandTotal = detectedQuestion.totalMarks;
+      detectedQuestion.totalMarks = syncTotal;
+      console.log(`[SYNC FIX] 🏁 Updated Grand Total from ${oldGrandTotal} -> ${syncTotal}`);
+    }
+    // ==================================================================================
+
     // Aggregated Summaries Redesign: Distilled Data Pass
     const summaryStartTime = Date.now();
     const overallPerformanceSummary = await this.generateMasterPerformanceSummary(allQuestionResults, actualModel, aiData.usageTracker);
@@ -875,6 +916,13 @@ export class SessionManagementService {
     // Add studentScore if provided
     if (studentScore) {
       (dbAiMessage as any).studentScore = studentScore;
+    }
+
+    // CRITICAL FIX: Expose allQuestionResults for SubjectMarkingResultService
+    // This ensures granular results (3/3) are available for the dashboard,
+    // overriding the stale schema default (20/40).
+    if (allQuestionResults && allQuestionResults.length > 0) {
+      (dbAiMessage as any).allQuestionResults = allQuestionResults;
     }
 
     // Add grade if provided

@@ -994,18 +994,28 @@ export function calculateOverallScore(
     // Only set if not already set (first occurrence wins)
     if (!baseQuestionToTotalMarks.has(baseQNum)) {
       // Use detected total marks from marking scheme instead of parent marks
-      // EXCEPTION: In Generic Mode with the 20-mark fallback, trust the AI's discovered total (qr.score) if available!
-      const isGenericFallback = qr.markingScheme?.isGeneric && (qr.markingScheme?.totalMarks === 20 || qr.markingScheme?.parentQuestionMarks === 20);
+      // EXCEPTION: In Generic Mode with the 20/40 mark fallback, trust the AI's discovered total (qr.score) if available!
+      const isGeneric = qr.markingScheme?.isGeneric;
+      const schemeTotal = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || 0;
+      const resultTotal = qr.score?.totalMarks || 0;
 
-      const qTotalMarks = isGenericFallback
-        ? (qr.score?.totalMarks || qr.markingScheme?.totalMarks || 20)
-        : (qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0);
+      // Identify if the System Scheme is just a placeholder (20, 40, etc.)
+      const isDefaultScheme = [20, 40, 100].includes(schemeTotal);
+
+      // If Generic and Default, prioritize the Result (AI) Total.
+      // Otherwise fallback to Scheme Total.
+      const qTotalMarks = (isGeneric && isDefaultScheme && resultTotal > 0)
+        ? resultTotal
+        : (schemeTotal || resultTotal || 0);
+
+      console.log(`[TOTAL TRAP] Q${baseQNum}: Scheme=${schemeTotal}, AI=${resultTotal}, IsDefault=${isDefaultScheme} -> FINAL=${qTotalMarks}`);
 
       baseQuestionToTotalMarks.set(baseQNum, qTotalMarks);
     }
   });
 
   const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
+  console.log(`[TOTAL TRAP] Grand Total Possible Score: ${totalPossibleScore}`);
   const overallScoreText = `${overallScore}/${totalPossibleScore}`;
 
   return {
@@ -1053,7 +1063,21 @@ export function calculateQuestionFirstPageScores(
     }
 
     if (!baseQData.has(baseQNum)) {
-      const qTotalMarks = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0;
+      // 🟢 [STAMP FIX] Apply "Total Trap" logic here too!
+      const isGeneric = qr.markingScheme?.isGeneric;
+      const schemeTotal = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || 0;
+      const resultTotal = qr.score?.totalMarks || 0;
+
+      // Identify if the System Scheme is just a placeholder (20, 40, etc.)
+      const isDefaultScheme = [20, 40, 100].includes(schemeTotal);
+
+      // If Generic and Default, prioritize the Result (AI) Total.
+      const qTotalMarks = (isGeneric && isDefaultScheme && resultTotal > 0)
+        ? resultTotal
+        : (schemeTotal || resultTotal || 0);
+
+      // console.log(`[STAMP TRAP] Q${baseQNum}: Scheme=${schemeTotal}, AI=${resultTotal} -> FINAL=${qTotalMarks}`);
+
       baseQData.set(baseQNum, { awarded: 0, total: qTotalMarks, minPage: minPageForThisPart });
     }
 
@@ -1123,8 +1147,16 @@ export function calculatePerPageScores(
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
     const pageBaseQMap = pageBaseQuestionToTotalMarks.get(pageIndex)!;
     if (!pageBaseQMap.has(baseQNum)) {
-      // Use detected total marks from marking scheme
-      const qTotalMarks = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || qr.score?.totalMarks || 0;
+      // 🟢 [STAMP FIX 2] Apply "Total Trap" logic here too!
+      const isGeneric = qr.markingScheme?.isGeneric;
+      const schemeTotal = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || 0;
+      const resultTotal = qr.score?.totalMarks || 0;
+      const isDefaultScheme = [20, 40, 100].includes(schemeTotal);
+
+      const qTotalMarks = (isGeneric && isDefaultScheme && resultTotal > 0)
+        ? resultTotal
+        : (schemeTotal || resultTotal || 0);
+
       pageBaseQMap.set(baseQNum, qTotalMarks);
     }
   });

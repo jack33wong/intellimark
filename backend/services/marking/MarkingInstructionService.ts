@@ -418,6 +418,16 @@ export class MarkingInstructionService {
 
       // Extract raw OCR blocks and classification for enhanced marking
       const rawOcrBlocks = (processedImage as any).rawOcrBlocks;
+
+      // [DEBUG] Log Raw OCR Blocks availability
+      if (rawOcrBlocks && Array.isArray(rawOcrBlocks)) {
+        console.log(`[MARKING DEBUG] Q${inputQuestionNumber} has ${rawOcrBlocks.length} OCR Blocks available.`);
+        // list IDs
+        console.log(`[MARKING DEBUG] Block IDs: ${rawOcrBlocks.map((b: any) => b.id).join(', ')}`);
+      } else {
+        console.warn(`[MARKING DEBUG] ⚠️ Q${inputQuestionNumber} has NO OCR BLOCKS available!`);
+      }
+
       const classificationStudentWork = (processedImage as any).classificationStudentWork;
       const classificationBlocks = (processedImage as any).classificationBlocks;
       const subQuestionMetadata = (processedImage as any).subQuestionMetadata;
@@ -772,15 +782,31 @@ export class MarkingInstructionService {
       return `
 [GENERIC_GCSE_LOGIC]
 > [INSTRUCTION]: You are the CHIEF EXAMINER.
-> 1. **SCAN**: Search OCR blocks for "(Total X marks)". Set \`budget\` = X. (Default 3).
+> 1. **GET BUDGET (HIERARCHY):**
+>    A. **HARD SEARCH:** Look for text "(Total X marks)". If found, Budget = X. (Set \`meta.isTotalEstimated\` = false).
+>    B. **SOFT ESTIMATE (Fallback):** If NOT found, estimate based on complexity:
+>       - Simple 1-step calc = 1 Mark.
+>       - Standard multi-step (Method + Answer) = 2-3 Marks.
+>       - Complex/Quadratics/Proofs = 4-5 Marks.
+>       - (Set \`meta.isTotalEstimated\` = true).
+>    C. **SAFETY FLOOR:** The Budget can NEVER be lower than the number of correct steps you find. (e.g. If you see 4 correct steps, the Budget is at least 4).
+
 > 2. **SOLVE**: Identify ALL valid marks (Method + Accuracy).
+
 > 3. **CUT (The Guillotine):**
 >    - You CANNOT output more annotations than the \`budget\`.
->    - **CONFLICT RULE:** If you have awarded full marks (e.g. 3/3), you MUST DELETE all error marks (M0/A0). A student cannot get full marks AND an error mark.
+>    - **CONFLICT RULE:** If you have awarded full marks (e.g. 3/3), you MUST DELETE all error marks (M0/A0).
 >    - **DELETION ORDER (Remove from bottom up):**
 >         1. DELETE M0/A0/B0 (Errors) FIRST.
 >         2. DELETE "M" marks (Intermediate steps) SECOND.
 >         3. KEEP "A" marks (Final Answer) LAST.
+
+> [MISSING TOTAL HANDLING]
+> If you cannot find the "(Total X marks)" text in the OCR blocks:
+> 1. Do NOT default to 3.
+> 2. Count the valid steps you found (e.g., you found M1, M1, A1 = 3 steps).
+> 3. Set \`question_total_marks\` equal to \`awardedMarks\` (via Safety Floor).
+> 4. Set \`isTotalEstimated\` to true.
 
 [MARK POOL]
 - M1-M5: [METHOD] Working steps (Delete these first if over budget).
@@ -1040,10 +1066,10 @@ ${output.trim()}
       console.log(`${BOLD}${BLUE}[AI MARKING] Q${questionNumber}${RESET}`);
       console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
 
-      // Log SYSTEM PROMPT
-      console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
-      console.log(systemPrompt); // Log FULL system prompt for debugging
-      console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
+      // Log SYSTEM PROMPT (DISABLED for production cleanliness)
+      // console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
+      // console.log(systemPrompt); // Log FULL system prompt for debugging
+      // console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
 
       // Split userPrompt into sections for cleaner logging
       const userPromptSections = userPrompt.split(/\n(?=# )/);
@@ -1139,6 +1165,8 @@ ${output.trim()}
         fixedJson = fixedJson.replace(/\\(?![\\"/nrtbfu])/g, '\\\\');
 
         try {
+          // [DEBUG] Log Raw AI Response for analysis
+          console.log(`\n🔍 [RAW AI JSON] Q${inputQuestionNumber || '?'}:\n${jsonString.substring(0, 500)}...\n`);
           parsedResponse = JSON.parse(fixedJson);
         } catch (secondError) {
           // Fix 3: More aggressive backslash escaping
@@ -1346,14 +1374,16 @@ ${output.trim()}
 
                   parsedResponse.studentScore.awardedMarks = totalAwarded;
 
-                  // SYSTEMATIC FIX: Override the Denominator with our trusted metadata
-                  // The AI often hallucinates "3" as the total in generic mode because of the prompt default.
-                  // We trust 'normalizedScheme.totalMarks' because it's derived from smartEstimateMaxMarks on the full OCR.
-                  if (maxMarks > 0) {
-                    parsedResponse.studentScore.totalMarks = maxMarks;
-                    parsedResponse.studentScore.scoreText = `${totalAwarded}/${maxMarks}`;
-                  } else if (parsedResponse.studentScore.totalMarks) {
-                    parsedResponse.studentScore.scoreText = `${totalAwarded}/${parsedResponse.studentScore.totalMarks}`;
+                  // SYSTEMATIC FIX (Refactored): Resolve Budget using Centralized Logic
+                  const authoritativeTotal = this.resolveBudget(parsedResponse.meta, maxMarks, inputQuestionNumber);
+
+                  if (authoritativeTotal > 0) {
+                    parsedResponse.studentScore.totalMarks = authoritativeTotal;
+                    parsedResponse.studentScore.scoreText = `${totalAwarded}/${authoritativeTotal}`;
+                  } else {
+                    console.log(`[BUDGET Q${inputQuestionNumber}] ⚠️ No Total Info resolved. Defaulting to Awarded (Safety Floor).`);
+                    parsedResponse.studentScore.totalMarks = totalAwarded;
+                    parsedResponse.studentScore.scoreText = `${totalAwarded}/${totalAwarded}`;
                   }
                 }
 
@@ -1682,5 +1712,40 @@ ${output.trim()}
       }
       throw new Error(`AI marking instruction generation failed: ${error instanceof Error ? error.message : 'Unknown AI error'}`);
     }
+  }
+
+  /**
+   * Encapsulates the logic for determining the authoritative Total Marks (Budget).
+   * Prioritizes AI-detected budget over System Defaults 20/40.
+   * "Easy Fix": Centralized logic makes maintenance simple.
+   */
+  private static resolveBudget(meta: any, systemMax: number, qNum: string): number {
+    const isAiEstimated = meta?.isTotalEstimated === true || String(meta?.isTotalEstimated) === 'true';
+    const aiTotal = meta?.question_total_marks || 0;
+    const isSystemDefault = [20, 40, 100].includes(systemMax) || systemMax === 0;
+
+    // PRIORITY 1: Trust AI matching if:
+    // A. It read explicit total "Total X marks" (!isAiEstimated)
+    // B. It estimated total, BUT System is just a Default placeholder (20, 40).
+    // This fixes the bug where "Estimated: true" caused us to fallback to "System: 20".
+    if (aiTotal > 0 && (!isAiEstimated || isSystemDefault)) {
+      console.log(`[BUDGET Q${qNum}] 🥇 Trusting AI Total: ${aiTotal} (Reason: ${!isAiEstimated ? 'Explicit Read' : 'System Default Override'})`);
+      return aiTotal;
+    }
+
+    // PRIORITY 2: Trust System if it looks custom/real AND AI is just guessing
+    // Only if we have a Custom Max (e.g. 7) do we override the AI's "Estimate".
+    if (systemMax > 0 && !isSystemDefault) {
+      console.log(`[BUDGET Q${qNum}] 🥈 Trusting System Max: ${systemMax} (Reliable Custom Value)`);
+      return systemMax;
+    }
+
+    // PRIORITY 3: Fallback to AI Estimate if available
+    if (aiTotal > 0) {
+      console.log(`[BUDGET Q${qNum}] 🥉 Fallback to AI Estimate: ${aiTotal}`);
+      return aiTotal;
+    }
+
+    return 0; // Unknown
   }
 }

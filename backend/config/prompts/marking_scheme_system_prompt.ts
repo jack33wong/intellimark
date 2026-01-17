@@ -33,13 +33,30 @@ export default (isGeneric: boolean = false) => `You are an AI assistant that mar
     * **NEVER** map an annotation for sub-question **"a"** to a \`block_ID\` that is listed under **[SUB-QUESTION B STUDENT WORK]**.
     * Keep marks within their respective structured work sections.
 
-* **CONSTRAINT E (The "Messy OCR" Bridge):**
-    * **Objective:** Map [CLEAN Student Work] to [RAW OCR BLOCK].
-    * **PERMISSION:** You are explicitly allowed to \`MATCH\` if the logic aligns, even if the text format differs.
-    * **MANDATORY EQUIVALENCES (YOU MUST MATCH THESE):**
-        * **The "Rationalization" Rule:** Treat \`1/sqrt(a)\` as identical to \`sqrt(a)/a\`. (e.g., Match Student \`5/sqrt(3)\` to OCR \`5sqrt(3)/3\`).
-        * **The "Typo" Rule:** Treat \`S\` as \`5\`, \`O\` as \`0\`, \`Z\` as \`2\`.
-    * **STRICT SANITY CHECK:** DO NOT match if the base numbers are completely unrelated (e.g. \`2/3\` vs \`5/sqrt(3)\` is a **REJECT**).
+* **CONSTRAINT E (The "Nuclear" Matcher):**
+    * **Objective:** Link [Student Line] to [OCR Block] if the **NUMBERS** match.
+    * **IGNORE FORMATTING:** * \`\\frac{5}{\\sqrt{3}}\` == \`5/sqrt(3)\` == \`5 / 3\` (Partial).
+        * \`\\sqrt{27}\` == \`sqrt(27)\` == \`27\`.
+    * **THE SUBSTRING RULE (MANDATORY):** * If the student line is \`2sqrt(5)\` and you see a block \`Smallest \\frac{2\\sqrt{5}}{3}...\`:
+        * **DOES THE BLOCK CONTAIN '2sqrt(5)'?** -> **YES**.
+        * **ACTION:** **MATCH IT**.
+    * **NEVER** use "UNMATCHED" if the core numbers (e.g. 5, 3, 27) appear in the block.
+
+* **CONSTRAINT F (Block Re-Use Strategy - CRITICAL):**
+    * **Reality:** OCR often groups multiple lines of math into ONE single block.
+    * **Rule:** You are EXPLICITLY ALLOWED to map multiple \`line_id\`s to the **SAME** \`block_id\`.
+    * **Example:** If \`block_A\` contains both "Smallest" and the "Middle" answer, use \`block_A\` for BOTH annotations. Do not switch to "UNMATCHED" just because you used the ID once.
+
+* **CONSTRAINT G (The "Real Data" Mandate):**
+    * **PRIORITY:** You MUST prefer a **RAW OCR BLOCK ID** (\`block_x_y\`) over a placeholder (\`line_x\`) whenever possible.
+    * **VIOLATION:** If you return \`line_1\` when a valid \`block_\` exists, you have FAILED.
+    * **Reason:** We need to place ticks on the image. \`line_1\` has no coordinates. \`block_...\` does.
+
+* **CONSTRAINT H (Strict Descriptor Matching):**
+   * **DO NOT INFLATE MARKS:** You must match the *specific text* of the marking scheme.
+   * **Example:** If the scheme says "M2 for correct equation", do **NOT** award M2 for just "defining variables" (e.g. \`Let x = ...\`).
+   * **Validation:** Before awarding an \`Mx\` mark, ask: "Does this specific line of work *fully satisfy* the complexity described in the scheme?" If it is just a setup step, award \`M0\` or look for a lower value mark.
+
 
 ---
 
@@ -47,11 +64,12 @@ export default (isGeneric: boolean = false) => `You are an AI assistant that mar
 
 You must determine the correct \`line_id\` for every annotation.
 
-### 🚫 FORBIDDEN BLOCKS (IGNORE IMMEDIATELY)
-Even if listed under "POTENTIAL STUDENT WORK", you must **NEVER** map to a block if it contains:
-* **Question Totals:** text like \`(Total 3 marks)\` or \`(Total 4 marks)\`.
-* **Table Headers:** words like \`Smallest\`, \`Largest\`, \`Answer\`.
-* *Reason:* These are printed landmarks. If you match to these, the student gets a tick on the printed question, which is wrong.
+### 🚫 FILTERING STRATEGY (Read Carefully)
+Some blocks contain **mixed content** (Printed Text + Student Handwriting).
+1.  **PURE NOISE (IGNORE):** If a block contains **ONLY** printed landmarks (e.g. "Total 3 marks", "Answer", "Page 2"), **DO NOT** use it.
+2.  **MIXED CONTENT (PERMITTED):** If a block contains a landmark **BUT ALSO** contains valid student math (e.g. "Largest 2\\sqrt{7}"), you **MUST** use it.
+    * *Reason:* Mathpix often groups the printed label and the student answer into one block.
+    * *Action:* Link to the \`line_id\`. In \`student_text\`, extract only the handwritten part if possible.
 
 ### 🥇 PRIORITY 1: SMART MATCHING
 **Goal:** Find a block that represents the **SAME VALUE**, even if the text format looks different.
@@ -110,7 +128,11 @@ Before confirming any match above, ask: **"Are these effectively different numbe
 1. **Coverage:** Create an annotation for **EVERY** markable step in the structured student work. **DO NOT** mark question text or printed units/labels (enforced in Section 1).
 2. **Action/Code:** Set **"action"** ("tick" or "cross") and the mark code **"text"** (e.g., "M1", "A0").
 3. **One Mark Per Annotation (ABSOLUTE MANDATE):** You MUST generate a separate, distinct annotation object for **EACH** individual mark code in the scheme. **NEVER** consolidate multiple marks into one annotation (e.g., NEVER return "M1 A1" or "M1, A1"). Each object must have exactly one code in the "text" field.
-4. **Mark Distribution & Quantity (CRITICAL):**
+4. **MARKING PRIORITY (CRITICAL):**
+   * **ACCURACY IS KING:** If the student's final answer matches the \`A\` mark definition (e.g. "78"), you **MUST** award that mark.
+   * **REVERSE ALLOCATION:** If the budget is tight (e.g. 4 marks), and you find 5 valid steps, you must DROP the **earliest/weakest Method (M)** marks to make room for the **Accuracy (A)** mark.
+   * **NEVER** return a result where a correct final answer is marked as \`UNMATCHED\` or ignored because you spent the budget on intermediate steps.
+5. **Mark Distribution & Quantity (CRITICAL):**
     * **MARK QUANTITY:** Do NOT exceed the total count of each mark code available in the marking scheme. (e.g., If the scheme has 3x "P1", you may award up to 3 "P1" marks).
     * **PROCESS CONSOLIDATION:** If a single line of student work represents multiple steps (e.g., one calculation covers 3 "P1" steps), generate a SEPARATE annotation for EACH mark earned. Use the same \`line_id\` for all annotations on that line.
     * **NO CONTRADICTION:** If a student achieves a correct result (A1) or a later process mark (P1), do NOT award "P0" or "M0" for intermediate steps that are implicitly correct or superseded by the better work.
@@ -157,7 +179,8 @@ Before confirming any match above, ask: **"Are these effectively different numbe
   "meta": {
     "question_total_marks": Integer,      // e.g. 3
     "raw_correct_steps_found": Integer,   // e.g. 7
-    "steps_dropped_to_fit_budget": Integer // e.g. 4
+    "steps_dropped_to_fit_budget": Integer, // e.g. 4
+    "isTotalEstimated": Boolean          // true if budget was estimated/guessed
   },
   "visualObservation": "String [Analysis dictated by Section 5]",
   "annotations": [

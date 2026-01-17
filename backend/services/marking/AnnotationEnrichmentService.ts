@@ -29,11 +29,8 @@ export const enrichAnnotationsWithPositions = (
         );
 
         if (targetOcrBlock && (targetOcrBlock as any).isHandwritten === false) {
-            console.warn(`[🛡️ INTERCEPTOR] 🛑 Intercepted AI match to printed block ${aiLineId}. Stripping to force fallback.`);
-            (anno as any).line_id = undefined;
-            (anno as any).lineId = undefined;
-            (anno as any).ocr_match_status = 'UNMATCHED';
-            aiLineId = '';
+            console.log(`[⚠️ MIXED CONTENT] AI matched a Printed Block (${aiLineId}). Allowing it as per Show Everything strategy.`);
+            // Do NOT strip the ID. Keep it MATCHED.
         }
 
         function normalizeId(id: string) {
@@ -440,7 +437,7 @@ export const enrichAnnotationsWithPositions = (
             pixelBbox[2] = 300; // Safety boost
         }
 
-        if (effectiveVisualPos && (isDrawing || !originalStep?.bbox)) {
+        if (effectiveVisualPos && (isDrawingAnno || !originalStep?.bbox)) {
             const pIdx = (effectiveVisualPos.pageIndex !== undefined) ? effectiveVisualPos.pageIndex : pageIndex;
             const pageDims = pageDimensions?.get(pIdx);
             const effectiveWidth = pageDims?.width || 2000;

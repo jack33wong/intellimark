@@ -1169,13 +1169,12 @@ export function createMarkingTasksFromClassification(
 
       const currentStartPage = group.sourceImageIndices[0]; // Assuming Q starts on first source page
 
-      // 1. DEFINE THE CEILING (Top of Band)
-      // We go slightly above the Classification Box to catch the "Q12" Header if Mathpix placed it higher.
-      const TOP_BUFFER_PX = 50;
-      const ceilingY = Math.max(0, q_ymin - TOP_BUFFER_PX);
+      // 1. CEILING (Top Buffer)
+      // CEILING: Catch work above the question
+      const ceilingY = Math.max(0, q_ymin - 200);
 
       // 2. DEFINE THE FLOOR (Bottom of Band)
-      // CRITICAL: We use the Next Question's top as the hard stop if it's on the same page.
+      // FLOOR: Catch work deep into the next question
       let floorY: number;
       let floorReason: string;
       const pageH = pageDimensionsMap[currentStartPage]?.height || 2000;
@@ -1185,16 +1184,18 @@ export function createMarkingTasksFromClassification(
       if (nextGroup && nextGroup.sourceImageIndices[0] === currentStartPage) {
         const nextBox = nextGroup.mainQuestion?.detectionResult?.box_2d;
         if (nextBox) {
-          // Stop exactly where the next question starts (minus safety buffer)
-          floorY = nextBox[0] - 10;
-          floorReason = `Next Q${nextGroup.mainQuestion?.questionNumber || '?'} starts at ${nextBox[0]}`;
+          // Go 400px DOWN into the next question. 
+          // This is the only way to catch handwriting that flows between columns.
+          floorY = nextBox[0] + 400;
+          floorReason = `Next Q (+400px overlap)`;
         }
       }
 
       // 🔍 DEBUG LOG 1: GEOMETRY
       console.log(`[EXECUTOR] 📏 Banding Q${baseQNum}:`);
-      console.log(`   - Ceiling: ${ceilingY}px (Q${baseQNum} Top - ${TOP_BUFFER_PX})`);
+      console.log(`   - Ceiling: ${ceilingY}px (Q${baseQNum} Top - 200)`);
       console.log(`   - Floor:   ${floorY}px (${floorReason})`);
+      console.log(`[EXECUTOR] Q${baseQNum} Band: ${ceilingY}px to ${floorY}px`);
 
       // Filter the collected blocks
       const filteredBlocks = allMathBlocks.filter(block => {

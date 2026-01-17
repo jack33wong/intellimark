@@ -82,10 +82,24 @@ export function convertMarkingResultToSubjectFormat(
       return null;
     }
 
-    // Build question results from detectedQuestion
+    // Build question results from detailed Marking Results (Truth Source)
+    // Avoids re-estimating from stale schema defaults (e.g. 20/40 issue)
     const questionResults: any[] = [];
+    const sourceResults = (markingMessage as any).allQuestionResults || (session as any).allQuestionResults;
 
-    if (detectedQuestion.examPapers) {
+    if (sourceResults && Array.isArray(sourceResults) && sourceResults.length > 0) {
+      sourceResults.forEach((qr: any) => {
+        questionResults.push({
+          questionNumber: qr.questionNumber || '',
+          score: {
+            awardedMarks: qr.score?.awardedMarks || 0,
+            totalMarks: qr.score?.totalMarks || 0, // Trust the resolved budget (e.g. 3, not 20)
+            scoreText: qr.score?.scoreText || ''
+          }
+        });
+      });
+    } else if (detectedQuestion.examPapers) {
+      // Fallback: Estimate from Exam Paper Schema (if granular results missing)
       detectedQuestion.examPapers.forEach((examPaper: any) => {
         if (examPaper.questions && Array.isArray(examPaper.questions)) {
           examPaper.questions.forEach((q: any) => {

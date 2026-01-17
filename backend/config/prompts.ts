@@ -155,7 +155,9 @@ Do NOT search for work on other pages for these sub-questions, even if you see a
  
 ${rawOcrBlocks && rawOcrBlocks.length > 0 ? (() => {
           const landmarks = rawOcrBlocks.filter(b => b.isPrinted);
-          const studentWork = rawOcrBlocks.filter(b => b.isHandwritten);
+          // ✅ SHOW EVERYTHING: Pass ALL blocks to student work section to catch mixed content
+          // The System Prompt's "Mixed Content Strategy" will handle filtering
+          const studentWork = rawOcrBlocks;
 
           let blocksSection = `## RAW OCR BLOCKS (SPATIALLY FILTERED)\nUse these IDs to map the student's work.\n\n`;
 

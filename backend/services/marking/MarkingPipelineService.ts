@@ -1269,12 +1269,15 @@ export class MarkingPipelineService {
                                         .then(result => {
                                             // [DIAGNOSTIC] Guillotine Trigger Check
                                             const scheme = task.markingScheme;
-                                            console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, totalMarks=${scheme?.totalMarks}`);
+                                            // FIX: Use authoritative Total Marks from the result (resolved by MarkingInstructionService)
+                                            const resultTotal = (result.score && result.score.totalMarks);
+                                            console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, SchemeTotal=${scheme?.totalMarks}, ResultTotal=${resultTotal}`);
 
                                             // [GUILLOTINE] Hard-Coded Post-Processing for Generic Questions
                                             // Ensure we strictly respect the budget, even if AI hallucinates more marks.
                                             if (task.markingScheme && task.markingScheme.isGeneric && result.annotations && result.score) {
-                                                const budget = task.markingScheme.totalMarks || 3; // Default to 3 if missing
+                                                const resultTotal = (result.score && result.score.totalMarks);
+                                                const budget = resultTotal || task.markingScheme.totalMarks || 3; // Prefer Result Total (AI), Fallback to Scheme (System)
                                                 // Cast to any[] to avoid 'Property mark does not exist' errors
                                                 const anyAnnotations = result.annotations as any[];
 

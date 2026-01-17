@@ -42,28 +42,15 @@ export class SpatialShieldService {
             validStart = 0;
         }
 
-        // Find the end index (The header for the NEXT question)
-        // If nextQNumber is null, we take everything until the end.
-        let endIndex = -1;
-        if (nextQNumber) {
-            endIndex = allOcrBlocks.findIndex(b => {
-                const t = (b.googleVisionText || b.text || b.mathpixLatex || b.cleanedText || '').trim();
-                return this.isHeaderMatch(t, nextQNumber);
-            });
-        }
+        // ⛔ REMOVED: End Index Slicing
+        // We trust MarkingExecutor's 'floorY' to have physically excluded Q13's body.
+        // If the 'Q13' header slips in, we will tag it as a Landmark later.
 
-        // SLICE LOGIC:
-        // If we can't find the start, we default to 0 (Safe Fallback).
-        // If we can't find the end, we go to the array length.
-        // If found end index is BEFORE start index (e.g. noise), ignore it.
-        const validEnd = (endIndex !== -1 && endIndex > validStart) ? endIndex : allOcrBlocks.length;
+        // KEEP EVERYTHING from Start onwards
+        const relevantBlocks = allOcrBlocks.slice(validStart);
 
         // 🔍 DEBUG LOG 4: BUCKET SIZE
-        console.log(`[SHIELD] ✂️ Slicing: Keeping blocks from index ${validStart} to ${validEnd}. (Dropped ${allOcrBlocks.length - (validEnd - validStart)} blocks)`);
-
-        // We keep everything in this "Bucket". 
-        // This removes Q13 content without risking "Guillotine" cuts on fringe pixels.
-        const relevantBlocks = allOcrBlocks.slice(validStart, validEnd);
+        console.log(`[SHIELD] ✂️ Slicing: Keeping blocks from index ${validStart} to End. (Dropped ${validStart} blocks from start)`);
 
 
         // --- STEP 2: SEMANTIC TAGGING (The Intelligence) ---
@@ -76,10 +63,15 @@ export class SpatialShieldService {
             const text = (block.googleVisionText || block.text || block.mathpixLatex || block.cleanedText || '').trim();
 
             // Logic: Is this block just the question text repeated?
-            const isHeader = this.isHeaderMatch(text, currentQNumber); // It's the "Q12" header
-            const isPromptContent = this.isTextSimilar(text, questionText); // It's the printed prompt
+            const isCurrentHeader = this.isHeaderMatch(text, currentQNumber);
+            const isNextHeader = nextQNumber ? this.isHeaderMatch(text, nextQNumber) : false;
+            const isHeader = isCurrentHeader || isNextHeader;
+            const isPromptContent = this.isTextSimilar(text, questionText);
 
-            const isLandmark = isHeader || isPromptContent;
+            // 🔥 NEW: Check for Footers (Total Marks / Page Numbers)
+            const isFooter = this.isFooterMatch(text);
+
+            const isLandmark = isHeader || isPromptContent || isFooter;
 
             if (isLandmark && !block.isPrinted) {
                 // 🔍 DEBUG LOG 5: RETAGGING
@@ -109,17 +101,28 @@ export class SpatialShieldService {
 
     /**
      * Detects "Q12", "Q12.", "Question 12" headers robustly
+     * Also checks for the Next Question Header (e.g. Q13) to prevent leaks.
      */
-    private static isHeaderMatch(blockText: string, qNum: string): boolean {
+    private static isHeaderMatch(blockText: string, qNum: string, nextQNum: string | null = null): boolean {
         const clean = blockText.trim().toLowerCase().replace(/[^a-z0-9.]/g, ''); // keep dots for "12."
-        const target = qNum.toLowerCase();
 
-        // Strict checks for headers to avoid false positives
-        return clean === `q${target}` ||
-            clean === `${target}.` ||
-            clean === `question${target}` ||
-            clean === `q${target}.` ||
-            clean.startsWith(`question${target}`);
+        // Check Current Question (e.g. "12")
+        if (this.checkSingleHeader(clean, qNum)) return true;
+
+        // Check Next Question (e.g. "13") - Treat as Header/Landmark too!
+        if (nextQNum && this.checkSingleHeader(clean, nextQNum)) return true;
+
+        return false;
+    }
+
+    // Helper to keep logic clean and robust
+    private static checkSingleHeader(cleanText: string, qNum: string): boolean {
+        const target = qNum.toLowerCase();
+        // Uses startsWith to catch "Q13." even if there is trailing noise or just the dot
+        return cleanText === `q${target}` ||
+            cleanText === `${target}.` ||
+            cleanText === `question${target}` ||
+            cleanText.startsWith(`q${target}.`);
     }
 
     /**
@@ -147,5 +150,28 @@ export class SpatialShieldService {
 
         // Threshold: 0.7 (70% similarity) allows for OCR noise but rejects distinct student work
         return similarity > 0.7;
+    }
+
+    /**
+     * 🔥 NEW HELPER: Detects Standard Exam Footers
+     */
+    private static isFooterMatch(text: string): boolean {
+        // Regex for "(Total X marks)" case-insensitive
+        const totalMarksRegex = /\(Total\s+\d+\s+marks\)/i;
+
+        // Regex for "Page X of Y"
+        const pageRegex = /Page\s+\d+\s+of\s+\d+/i;
+
+        // Regex for "End of questions" or standard exam footer text
+        const footerKeywords = ["physicsandmathstutor", "aqa gcse", "edexcel", "ocr"];
+
+        if (totalMarksRegex.test(text)) return true;
+        if (pageRegex.test(text)) return true;
+
+        // Check keywords
+        const lower = text.toLowerCase();
+        if (footerKeywords.some(k => lower.includes(k))) return true;
+
+        return false;
     }
 }
