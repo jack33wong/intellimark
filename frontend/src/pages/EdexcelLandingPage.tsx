@@ -93,7 +93,7 @@ const EdexcelLandingPage: React.FC = () => {
 
             {/* 3. The Three-Paper Strategy Hub */}
             <section className="landing-section edexcel-feature-row">
-                <div className="edexcel-feature-container">
+                <div className="edexcel-feature-container edexcel-strategy-hub-row">
                     <div className="edexcel-feature-text">
                         <h2 className="edexcel-section-title">The Three-Paper Strategy Hub</h2>
                         <p className="edexcel-section-body">
@@ -104,7 +104,7 @@ const EdexcelLandingPage: React.FC = () => {
                             <li><strong>Papers 2 & 3 (Calculator Allowed):</strong> Focus on "Accuracy Standards"—checking for correct rounding to significant figures and precise multi-step calculator execution.</li>
                         </ul>
                     </div>
-                    <div className="edexcel-feature-visual">
+                    <div className="edexcel-feature-visual edexcel-visual-large">
                         <div className="edexcel-mockup-frame">
                             <img src="/images/edexcel_strategy_hub.png" alt="Edexcel Strategy" style={{ width: '100%', borderRadius: '8px' }} />
                             <div className="edexcel-badge-overlay">Examiner-Level Marking</div>

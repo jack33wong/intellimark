@@ -262,7 +262,22 @@
 }
 
 /* Responsive Overrides */
+.edexcel-strategy-hub-row .edexcel-feature-text {
+    flex: 0.8;
+}
+
+.edexcel-strategy-hub-row .edexcel-visual-large {
+    flex: 1.8;
+    transform: scale(1.02);
+}
+
 @media (max-width: 900px) {
+
+    .edexcel-strategy-hub-row .edexcel-feature-text,
+    .edexcel-strategy-hub-row .edexcel-visual-large {
+        flex: 1;
+    }
+
     .edexcel-feature-container {
         flex-direction: column;
         text-align: center;
