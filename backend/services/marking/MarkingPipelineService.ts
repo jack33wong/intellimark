@@ -550,7 +550,12 @@ export class MarkingPipelineService {
                     const questions = r.result?.questions || [];
                     return questions.every((q: any) => {
                         const hasDrawing = q.hasStudentDrawing === true;
-                        const workLines = q.studentWorkLines || [];
+                        // Summarize all work lines (top-level + sub-questions)
+                        const workLines = [
+                            ...(q.studentWorkLines || []),
+                            ...(q.subQuestions?.flatMap((sq: any) => sq.studentWorkLines || []) || [])
+                        ];
+                        // Only override if there is a drawing but almost zero text work
                         const hasMinimalText = workLines.length < 2;
                         return hasDrawing && hasMinimalText;
                     });
@@ -790,15 +795,15 @@ export class MarkingPipelineService {
             });
 
             // Create combined classification result with enhanced mixed content detection
-            // Use MAPPER category (source of truth) instead of classification category
-            const hasAnyStudentWork = allClassificationResults.some(r => r.mapperCategory === "questionAnswer");
-            const hasMixedContent = allClassificationResults.some(r => r.mapperCategory !== allClassificationResults[0]?.mapperCategory);
+            // TRUST stage-2 results (and overrides) over stage-1 mapper
+            const hasAnyStudentWork = allClassificationResults.some(r => r.result?.category === "questionAnswer");
+            const hasMixedContent = allClassificationResults.some(r => r.result?.category !== allClassificationResults[0]?.result?.category);
 
-            // Determine combined category using MAPPER results (not classification results)
-            const allMapperCategories = allClassificationResults.map(r => r.mapperCategory).filter(Boolean);
+            // Determine combined category using stage-2 results
+            const allCategories = allClassificationResults.map(r => r.result?.category).filter(Boolean);
             const combinedCategory: "questionOnly" | "questionAnswer" | "metadata" =
-                allMapperCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
-                    allMapperCategories.every(cat => cat === "metadata" || cat === "frontPage") ? "metadata" :
+                allCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
+                    allCategories.every(cat => cat === "metadata" || cat === "frontPage") ? "metadata" :
                         "questionAnswer";
 
             let classificationResult = {

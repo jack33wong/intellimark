@@ -105,10 +105,9 @@ const OcrLandingPage: React.FC = () => {
                         </ul>
                     </div>
                     <div className="ocr-feature-visual">
-                        <div className="ocr-mobile-frame">
-                            <div className="ocr-mobile-screen">
-                                <img src="/images/aqa_question_mode_mockup.png" alt="OCR Strategy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
+                        <div className="ocr-mockup-frame">
+                            <img src="/images/ocr_strategic_feedback.png" alt="OCR Strategic Feedback" style={{ width: '100%', borderRadius: '8px' }} />
+                            <div className="ocr-badge-overlay">OCR Strategic Audit</div>
                         </div>
                     </div>
                 </div>

@@ -98,8 +98,15 @@ export class ClassificationMapper {
             }
 
             let parsed: any; // Declare 'parsed' before the try-catch block
+            const cleanContent = content.replace(/```json\n|\n```/g, '');
+
+            if (debug) {
+                console.log(`\n\x1b[35m[MAPPER DEBUG] Raw Response:\x1b[0m`);
+                console.log(cleanContent);
+            }
+
             try {
-                parsed = JSON.parse(content.replace(/```json\n|\n```/g, ''));
+                parsed = JSON.parse(cleanContent);
             } catch (e) { parsed = { pages: [] }; }
 
             const pages = Array.isArray(parsed.pages) ? parsed.pages : [];

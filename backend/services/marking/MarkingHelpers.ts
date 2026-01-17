@@ -1511,6 +1511,17 @@ export function mergeQuestionsFromPages(
 export function logDetectionAudit(detectionResults: any[]): void {
   if (!detectionResults || detectionResults.length === 0) return;
 
+  // 0. Build Search Context Summary
+  const firstRes = detectionResults[0]?.detectionResult;
+  const poolSize = firstRes?.hintMetadata?.poolSize || 0;
+  const hintUsed = firstRes?.hintMetadata?.hintUsed || 'Global Search';
+  const papersMatched = firstRes?.hintMetadata?.matchedPapersCount || 0;
+
+  console.log('\n🔍 [DETECTION CONTEXT]');
+  console.log(`   Strategy: ${hintUsed}`);
+  console.log(`   Pool Size: ${papersMatched} papers, ${poolSize} total question candidates`);
+  console.log('------------------------------------------------------------------------------------------------------------------------------------');
+
   console.log('\n📋 [DETECTION AUDIT REPORT]');
   console.log('------------------------------------------------------------------------------------------------------------------------------------');
   console.log('| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |');
@@ -1575,6 +1586,16 @@ export function logDetectionAudit(detectionResults: any[]): void {
     }
 
     console.log(`| ${qNum} | ${paddedInput} | ${matchTitle.padEnd(50)} | ${scoreStr} | ${status.padEnd(23)} |`);
+
+    // --- ADD AUDIT TRAIL LOGGING (if weak or failed) ---
+    const isWeakOrFailed = !result.found || (match && match.confidence < 0.8);
+    if (isWeakOrFailed && result.hintMetadata?.auditTrail?.length > 0) {
+      console.log('   └─ Runners Up (Audit Trail):');
+      result.hintMetadata.auditTrail.slice(0, 3).forEach((candidate: any) => {
+        const checkMark = candidate.score >= 0.7 ? '\x1b[32m○\x1b[0m' : '○';
+        console.log(`      ${checkMark} [${candidate.score.toFixed(3)}] ${candidate.candidateId.padEnd(30)} | ${candidate.scoreBreakdown}`);
+      });
+    }
   });
 
   console.log('------------------------------------------------------------------------------------------------------------------------------------\n');

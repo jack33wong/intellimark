@@ -186,6 +186,13 @@ export class QuestionDetectionService {
         return sum + (Array.isArray(questions) ? questions.length : Object.keys(questions).length);
       }, 0);
 
+      // Log search pool info for debugging
+      if (cleanPaperHint) {
+        console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Using paper hint: "${cleanPaperHint}" (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
+      } else {
+        console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Global search (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
+      }
+
       const hintMetadata: QuestionDetectionResult['hintMetadata'] = {
         hintUsed: isNarrowSearch ? cleanPaperHint : 'Global Search',
         matchedPapersCount: searchPool.length,

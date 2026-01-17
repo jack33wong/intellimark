@@ -1066,10 +1066,10 @@ ${output.trim()}
       console.log(`${BOLD}${BLUE}[AI MARKING] Q${questionNumber}${RESET}`);
       console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
 
-      // Log SYSTEM PROMPT (DISABLED for production cleanliness)
-      // console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
-      // console.log(systemPrompt); // Log FULL system prompt for debugging
-      // console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
+      // Log SYSTEM PROMPT (ENABLED for diagnostics)
+      console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
+      console.log(systemPrompt); // Log FULL system prompt for debugging
+      console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
 
       // Split userPrompt into sections for cleaner logging
       const userPromptSections = userPrompt.split(/\n(?=# )/);
@@ -1079,15 +1079,15 @@ ${output.trim()}
         } else if (section.trim().startsWith('## MARKING SCHEME')) {
           const lines = section.trim().split('\n');
           console.log(`${BOLD}${CYAN}${lines[0]}${RESET}`);
-          console.log(lines.slice(1, 10).join('\n') + (lines.length > 10 ? '\n...' : ''));
+          console.log(lines.slice(1).join('\n')); // Log FULL scheme
         } else if (section.trim().startsWith('## STUDENT WORK')) {
           console.log(`${BOLD}${CYAN}${section.trim()}${RESET}`);
         } else if (section.trim().startsWith('## RAW OCR BLOCKS') || section.trim().startsWith('## NO RAW OCR BLOCKS')) {
           const lines = section.trim().split('\n');
           console.log(`${BOLD}${CYAN}${lines[0]}${RESET}`);
-          console.log(lines.slice(1, 15).join('\n') + (lines.length > 15 ? '\n...' : ''));
+          console.log(lines.slice(1).join('\n')); // Log FULL blocks
         } else {
-          console.log(section.trim().substring(0, 1000));
+          console.log(section.trim()); // Log FULL text
         }
       });
 

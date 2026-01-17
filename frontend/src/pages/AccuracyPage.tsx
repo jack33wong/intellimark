@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, BarChart3, Binary, Zap, CheckCircle2, FlaskConical } from 'lucide-react';
+import LandingPageHeader from '../components/layout/LandingPageHeader';
+import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import './AccuracyPage.css';
 
@@ -13,21 +15,21 @@ const DivergenceChart = () => (
         <div className="svg-container">
             <svg viewBox="0 0 400 200" className="chart-svg">
                 {/* Grid Lines */}
-                <line x1="40" y1="20" x2="40" y2="180" stroke="rgba(255,255,255,0.1)" />
-                <line x1="40" y1="180" x2="380" y2="180" stroke="rgba(255,255,255,0.1)" />
+                <line x1="40" y1="20" x2="40" y2="180" stroke="rgba(0,0,0,0.05)" />
+                <line x1="40" y1="180" x2="380" y2="180" stroke="rgba(0,0,0,0.05)" />
 
                 {/* Distribution Curves */}
                 <path
                     d="M 40 180 Q 150 20, 260 180"
-                    fill="rgba(66, 245, 135, 0.1)"
-                    stroke="#42f587"
-                    strokeWidth="2"
+                    fill="rgba(26, 26, 25, 0.05)"
+                    stroke="#1a1a19"
+                    strokeWidth="2.5"
                     className="curve-ai"
                 />
                 <path
                     d="M 60 180 Q 160 40, 280 180"
                     fill="none"
-                    stroke="rgba(255,255,255,0.3)"
+                    stroke="rgba(0,0,0,0.2)"
                     strokeWidth="2"
                     strokeDasharray="4 2"
                     className="curve-human"
@@ -35,10 +37,10 @@ const DivergenceChart = () => (
 
                 {/* Legend */}
                 <g transform="translate(280, 40)">
-                    <rect width="10" height="10" fill="#42f587" />
-                    <text x="15" y="10" fill="white" fontSize="10">AI Marking</text>
-                    <rect y="15" width="10" height="10" fill="rgba(255,255,255,0.3)" />
-                    <text x="15" y="25" fill="white" fontSize="10">Human Baseline</text>
+                    <rect width="10" height="10" fill="#1a1a19" />
+                    <text x="15" y="10" fill="#1a1a19" fontSize="10" fontWeight="500">AI Marking</text>
+                    <rect y="15" width="10" height="10" fill="rgba(0,0,0,0.2)" />
+                    <text x="15" y="25" fill="#5e5e5b" fontSize="10" fontWeight="500">Human Baseline</text>
                 </g>
             </svg>
         </div>
@@ -52,11 +54,12 @@ const AccuracyPage: React.FC = () => {
     const navigate = useNavigate();
 
     return (
-        <div className="accuracy-page">
+        <div className="accuracy-page-wrapper light-mode-forced">
             <SeoHeader
                 title="AI Marking Accuracy Report | Performance vs Human Examiners"
                 description="Technical audit of the AI Marking engine. explore our 98.2% correlation with senior examiners and ViT-based handwriting analysis."
             />
+            <LandingPageHeader />
 
             <header className="accuracy-hero">
                 <div className="lab-badge">
@@ -149,9 +152,7 @@ const AccuracyPage: React.FC = () => {
                 </div>
             </section>
 
-            <footer className="lab-footer">
-                <p>© 2026 AI Marking • Technical Disclosure v4.1</p>
-            </footer>
+            <LandingFooter />
         </div>
     );
 };
