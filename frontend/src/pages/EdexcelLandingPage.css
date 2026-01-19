@@ -263,11 +263,11 @@
 
 /* Responsive Overrides */
 .edexcel-strategy-hub-row .edexcel-feature-text {
-    flex: 0.8;
+    flex: 0.9;
 }
 
 .edexcel-strategy-hub-row .edexcel-visual-large {
-    flex: 1.8;
+    flex: 1.3;
     transform: scale(1.02);
 }
 

@@ -92,10 +92,13 @@ export class MathpixService {
         tracker.recordMathpix(1); // 1 page processed
       }
 
-      // [DEBUG] Log Raw Mathpix Response for validation
+      // [DEBUG] Log Raw Mathpix Response for validation - DISABLED for production
       // console.log('📝 [MATHPIX RAW] Response Keys:', Object.keys(response.data));
       // if (response.data.text) console.log('📝 [MATHPIX RAW] Text Preview:', response.data.text.substring(0, 100).replace(/\n/g, '\\n'));
-      // console.log('📝 [MATHPIX RAW] Full JSON:', JSON.stringify(response.data, null, 2)); // ENABLED for debugging
+      // 
+      // // Filter out crowded fields
+      // const { line_data, ...cleanLog } = response.data;
+      // console.log('📝 [MATHPIX RAW] Clean JSON:', JSON.stringify(cleanLog, null, 2));
 
       return response.data;
 

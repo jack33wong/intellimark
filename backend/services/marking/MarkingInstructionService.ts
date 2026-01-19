@@ -29,6 +29,7 @@ interface NormalizedMarkingScheme {
   subQuestionMarks?: { [subQuestionNumber: string]: any[] }; // Map sub-question number to its marks array (prevents mix-up of marks between sub-questions)
   subQuestionMaxScores?: { [subQuestion: string]: number }; // Max scores per sub-question from database (e.g., { "a": 1, "b": 2 })
   subQuestionAnswersMap?: { [subLabel: string]: string }; // Map sub-question label to its answer (e.g., "a" -> "53000")
+  subQuestionTexts?: { [subQuestion: string]: string };    // Question texts for sub-questions
   hasAlternatives?: boolean; // Flag indicating if alternative method exists
   alternativeMethod?: any; // Alternative method details
   parentQuestionMarks?: number; // Total marks for the parent question (from database)
@@ -135,14 +136,59 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       undefined;
 
     // Extract sub-question max scores from database (passed from orchestration)
-    const subQuestionMaxScores = input.subQuestionMaxScores ||
+    let subQuestionMaxScores = input.subQuestionMaxScores ||
       (input as any).subQuestionMaxScores ||
       undefined;
 
-    // Extract sub-question answers map if available
     const subQuestionAnswersMap = questionMarksData?.subQuestionAnswersMap ||
       (input as any).subQuestionAnswersMap ||
       undefined;
+
+    const subQuestionTexts = input.subQuestionTexts ||
+      (input as any).subQuestionTexts ||
+      undefined;
+
+    // --- MAX SCORE HANDLING ---
+    // 1. Try to get explicit max scores mapping from database/orchestration
+    let explicitMaxScores = input.subQuestionMaxScores || (input as any).subQuestionMaxScores;
+
+    // 2. Normalize explicit scores to handle both full keys (10a) and suffixes (a)
+    if (explicitMaxScores && typeof explicitMaxScores === 'object') {
+      subQuestionMaxScores = {};
+      for (const [key, value] of Object.entries(explicitMaxScores)) {
+        subQuestionMaxScores[key] = Number(value);
+        // Also store as suffix if it's a full key
+        const suffix = key.replace(/^\d+/, '');
+        if (suffix && suffix !== key) {
+          subQuestionMaxScores[suffix] = Number(value);
+        }
+        // Also store as full key if it's a suffix (best effort using the base question number)
+        if (key === suffix && input.questionNumber) {
+          subQuestionMaxScores[`${input.questionNumber}${key}`] = Number(value);
+        }
+      }
+    }
+
+    // 3. Fallback derivation logic from subQuestionMarks if explicit mapping is missing
+    if (!subQuestionMaxScores && subQuestionMarks) {
+      subQuestionMaxScores = {};
+      for (const [key, marks] of Object.entries(subQuestionMarks)) {
+        let marksArray: any[] = [];
+        if (Array.isArray(marks)) {
+          marksArray = marks;
+        } else if ((marks as any).marks && Array.isArray((marks as any).marks)) {
+          marksArray = (marks as any).marks;
+        }
+
+        const total = marksArray.reduce((sum, m) => sum + (Number(m.value) || 1), 0);
+        subQuestionMaxScores[key] = total;
+
+        const suffix = key.replace(/^\d+/, '');
+        if (suffix && suffix !== key) {
+          subQuestionMaxScores[suffix] = total;
+        }
+      }
+    }
 
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
@@ -154,6 +200,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       subQuestionMarks: subQuestionMarks, // Preserve sub-question-to-marks mapping
       subQuestionMaxScores: subQuestionMaxScores, // Preserve max scores from database
       subQuestionAnswersMap: subQuestionAnswersMap, // Map sub-question label to its answer
+      subQuestionTexts: subQuestionTexts,           // Preserve sub-question texts
       alternativeMethod: alternativeMethod, // Include alternative method if available
       hasAlternatives: hasAlternatives, // Flag indicating if alternative exists
       parentQuestionMarks: input.parentQuestionMarks, // Preserve parent question marks for total score
@@ -420,6 +467,7 @@ export class MarkingInstructionService {
       const rawOcrBlocks = (processedImage as any).rawOcrBlocks;
 
       // [DEBUG] Log Raw OCR Blocks availability
+      /*
       if (rawOcrBlocks && Array.isArray(rawOcrBlocks)) {
         console.log(`[MARKING DEBUG] Q${inputQuestionNumber} has ${rawOcrBlocks.length} OCR Blocks available.`);
         // list IDs
@@ -427,6 +475,7 @@ export class MarkingInstructionService {
       } else {
         console.warn(`[MARKING DEBUG] ⚠️ Q${inputQuestionNumber} has NO OCR BLOCKS available!`);
       }
+      */
 
       const classificationStudentWork = (processedImage as any).classificationStudentWork;
       const classificationBlocks = (processedImage as any).classificationBlocks;
@@ -728,16 +777,13 @@ export class MarkingInstructionService {
     }
   }
 
-  /**
-   * EXTRACTOR: Decouples "Blob" comments into atomic criteria (B3, M2, A1, etc.)
-   * Used for OCR/AQA-style marking schemes where criteria are buried in strings.
-   */
   private static extractAtomicMarks(markObj: any): any[] {
     const mark = String(markObj.mark || '');
     const isNumeric = /^\d+$/.test(mark);
     const comments = String(markObj.comments || '');
 
-    // TRIGGER: Only decouple if the mark code is numeric and comments contain B/M/A codes
+
+    // 2. DECOUPLING OF NUMERIC BLOBS (e.g. "3 B1 for... B1 for... M1 for...")
     const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s+for/i.test(comments);
 
     if (!isNumeric || !hasAtomicCodes) {
@@ -745,25 +791,62 @@ export class MarkingInstructionService {
     }
 
     const results: any[] = [];
-    // Robust Regex to find "Code for Description" segments
-    // Stops at "or", "Listing:", "Ratios:", "Alternative", or another "Code for"
-    const regex = /([BMA][1-9]|SC[1-9])\s*for\s*((?:(?!or\s+|[BMA][1-9]\s*for|SC[1-9]\s*for|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
+    const regex = /([BMA][1-9]|SC[1-9])\s*for\s*((?:(?![BMA][1-9]\s*for|SC[1-9]\s*for|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
 
     let match;
+    let lastMatchEnd = 0;
     while ((match = regex.exec(comments)) !== null) {
+      if (results.length > 0 && match.index > lastMatchEnd) {
+        let skipped = comments.substring(lastMatchEnd, match.index).trim();
+        skipped = skipped.replace(/^\s*or\s+|\s+or\s*$/gi, '').trim();
+        if (skipped) {
+          results[results.length - 1].answer += ' ' + skipped;
+        }
+      }
+
+      const markCode = match[1].toUpperCase();
+      const markValue = parseInt(markCode.substring(1)) || 1;
+
       results.push({
-        mark: match[1].toUpperCase(),
+        mark: markCode,
+        value: markValue,
         answer: match[2].trim().replace(/\n+/g, ' '),
-        comments: `[OCR Decoupled from original ${mark}-mark blob]`
+        // REMOVED: Unnecessary "[OCR Decoupled...]" text as requested by user
+        comments: ''
+      });
+      lastMatchEnd = regex.lastIndex;
+    }
+
+    if (results.length > 0 && lastMatchEnd < comments.length) {
+      let leftover = comments.substring(lastMatchEnd).trim();
+      leftover = leftover.replace(/^\s*or\s+/gi, '').trim();
+      if (leftover) {
+        results[results.length - 1].answer += ' ' + leftover.replace(/\n+/g, ' ');
+      }
+    }
+
+    // 🏆 BUDGET BALANCING (NEW):
+    // If the database says this block is worth 2 marks, but we only found one "B1" (1 mark),
+    // we MUST add a "Balance" mark to fulfill the budget, otherwise the AI won't see the 2nd mark.
+    const numericTargetMark = parseInt(mark) || 0;
+    const currentExtractedTotal = results.reduce((sum, r) => sum + (r.value || 1), 0);
+
+    if (numericTargetMark > currentExtractedTotal) {
+      const deficit = numericTargetMark - currentExtractedTotal;
+      // Add a generic Accuracy (A) mark for the deficit
+      results.push({
+        mark: `A${deficit}`,
+        value: deficit,
+        answer: markObj.answer || 'Correct solution/result.',
+        comments: '(Auto-balanced to fulfill budget)'
       });
     }
 
-    // Special Case: If extraction fails but it's a numeric blob, keep the original
     return results.length > 0 ? results : [markObj];
   }
 
   private static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
-    console.log(`[DEBUG] formatMarkingSchemeForPrompt: isGeneric=${normalizedScheme.isGeneric}, Marks count=${normalizedScheme.marks.length}`);
+    // console.log(`[DEBUG] formatMarkingSchemeForPrompt: isGeneric=${normalizedScheme.isGeneric}, Marks count=${normalizedScheme.marks.length}`);
     // ------------------------------------------------------------------
     // GENERIC MODE INJECTION (UNIVERSAL BUDGET MODE)
     // ------------------------------------------------------------------
@@ -849,9 +932,11 @@ export class MarkingInstructionService {
         });
 
         // Extract max score from subQuestionMaxScores map if available
-        // subQ is like "11a", we need "a"
+        // Try full key (e.g. "10a") first, then fallback to suffix (e.g. "a")
         const subLabel = subQ.replace(/^\d+/, '');
-        const maxScore = normalizedScheme.subQuestionMaxScores ? normalizedScheme.subQuestionMaxScores[subLabel] : undefined;
+        const maxScore = normalizedScheme.subQuestionMaxScores ?
+          (normalizedScheme.subQuestionMaxScores[subQ] ?? normalizedScheme.subQuestionMaxScores[subLabel]) :
+          undefined;
 
         output += `[${subQ}]`;
         if (maxScore !== undefined) {
@@ -869,9 +954,11 @@ export class MarkingInstructionService {
       }
     } else {
       // Single Question
+      output += `[${normalizedScheme.questionNumber}]`;
       if (normalizedScheme.totalMarks) {
-        output += `[MAX SCORE: ${normalizedScheme.totalMarks}]\n`;
+        output += ` [MAX SCORE: ${normalizedScheme.totalMarks}]`;
       }
+      output += '\n';
 
       // DECOUPLING: Expand numeric blobs into atomic marks
       const expandedMarks: any[] = [];
@@ -896,8 +983,8 @@ export class MarkingInstructionService {
       output += `\nFINAL ANSWER: ${normalizedScheme.questionLevelAnswer}\n`;
     }
 
-    return `
-## MARKING SCHEME
+    // FINAL SANITIZATION: Remove any accidentally injected headers
+    const finalInstructions = `
 > [INSTRUCTION]: You are the CHIEF EXAMINER.
 > 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
 > 2. **NO OVER-MARKING**:
@@ -907,7 +994,9 @@ export class MarkingInstructionService {
 
 [OFFICIAL SCHEME]
 ${output.trim()}
-`;
+`.trim();
+
+    return finalInstructions.replace(/## MARKING SCHEME/gi, '');
   }
 
   static async generateFromOCR(
@@ -1005,12 +1094,37 @@ ${output.trim()}
           console.error('[MARKING INSTRUCTION] Error formatting marking scheme:', error);
         }
 
+        // BUILD STRUCTURED QUESTION TEXT
+        // Format:
+        // ## QUESTION TEXT
+        // **[10]**: Main question text...
+        // **[10a]**: Sub-question text...
+        let structuredQuestionText = '';
+        const baseQNum = String(currentQuestionNumber).replace(/[a-z]/i, '');
+
+        if (questionText) {
+          structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
+        }
+
+        if (normalizedScheme.subQuestionTexts) {
+          // Sort keys (e.g., a, b, bi, bii) to maintain order
+          const subKeys = Object.keys(normalizedScheme.subQuestionTexts).sort();
+          for (const key of subKeys) {
+            const text = normalizedScheme.subQuestionTexts[key];
+            if (text) {
+              // Ensure we don't duplicate the base number if it's already in the key
+              const displayKey = key.includes(baseQNum) ? key : `${baseQNum}${key}`;
+              structuredQuestionText += `**[${displayKey}]**: ${text}\n\n`;
+            }
+          }
+        }
+
         userPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.user(
           currentQuestionNumber,
           schemeText!,
           classificationStudentWork || 'No student work provided',
           rawOcrBlocks,
-          questionText,
+          structuredQuestionText.trim() || questionText || 'No question text provided',
           subQuestionPageMap as any,
           formattedGeneralGuidance,
           normalizedScheme.isGeneric === true
@@ -1140,12 +1254,30 @@ ${output.trim()}
       const outputTokens = res.outputTokens || 0;
 
       // Robust parsing of the AI response
-
       let parsedResponse: any = null;
       let jsonString = aiResponseString;
-      const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch && jsonMatch[1]) {
-        jsonString = jsonMatch[1];
+
+      // Extract JSON block more robustly (handle internal backticks)
+      const jsonStartMarker = '```json';
+      const jsonEndMarker = '```';
+      const startIndex = aiResponseString.indexOf(jsonStartMarker);
+      if (startIndex !== -1) {
+        const contentStart = startIndex + jsonStartMarker.length;
+        const lastEndIndex = aiResponseString.lastIndexOf(jsonEndMarker);
+        if (lastEndIndex > contentStart) {
+          jsonString = aiResponseString.substring(contentStart, lastEndIndex).trim();
+        }
+      } else {
+        // Fallback for ``` without json
+        const simpleStartMarker = '```';
+        const simpleStart = aiResponseString.indexOf(simpleStartMarker);
+        if (simpleStart !== -1) {
+          const contentStart = simpleStart + simpleStartMarker.length;
+          const lastEndIndex = aiResponseString.lastIndexOf(jsonEndMarker);
+          if (lastEndIndex > contentStart) {
+            jsonString = aiResponseString.substring(contentStart, lastEndIndex).trim();
+          }
+        }
       }
 
       try {

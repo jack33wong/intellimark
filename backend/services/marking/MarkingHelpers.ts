@@ -67,8 +67,8 @@ export function getShortSubjectName(qualification: string): string {
 
 // Common function to generate session titles for non-past-paper images
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
-  console.log('[TITLE DEBUG] generateNonPastPaperTitle called. Input text length:', extractedQuestionText?.length, 'Mode:', mode);
-  console.log('[TITLE DEBUG] Raw input text:', extractedQuestionText ? extractedQuestionText.substring(0, 100) + '...' : 'undefined');
+  // console.log('[TITLE DEBUG] generateNonPastPaperTitle called. Input text length:', extractedQuestionText?.length, 'Mode:', mode);
+  // console.log('[TITLE DEBUG] Raw input text:', extractedQuestionText ? extractedQuestionText.substring(0, 100) + '...' : 'undefined');
 
   if (extractedQuestionText && extractedQuestionText.trim()) {
     let questionText = extractedQuestionText.trim();
@@ -511,6 +511,7 @@ export function buildMarkingResponse({
   }
 }
 
+
 /**
  * Extract questions from AI classification result
  * 
@@ -523,78 +524,53 @@ export function buildMarkingResponse({
 export function extractQuestionsFromClassification(
   classification: any,
   fileName?: string
-): Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string }> {
-  // Handle hierarchical questions array structure
-  if (classification?.questions && Array.isArray(classification.questions)) {
-    const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string }> = [];
+): Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string }> {
+  const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string }> = [];
 
-    for (const q of classification.questions) {
-      const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
-      const sourceImageIndex = q.sourceImageIndex;
+  const recurse = (q: any, parentNum?: string, parentText?: string, rootSourceIdx?: number) => {
+    const currentNum = q.questionNumber !== undefined
+      ? (q.questionNumber || null)
+      : (parentNum ? `${parentNum}${q.part || ''}` : null);
 
-      if (q.text && q.subQuestions?.length > 0) {
+    const sourceImageIndex = q.sourceImageIndex !== undefined ? q.sourceImageIndex : rootSourceIdx;
 
-      }
+    const hasStudentWork = q.studentWork || (q.studentWorkLines && q.studentWorkLines.length > 0) || q.hasStudentDrawing;
 
-      // DEBUG: Log specific question structure for analysis
-
-
-      // If question has sub-questions, extract each sub-question separately
-      if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
-        // Debug logging for Q2
-        // Debug logging for Q2 - REMOVED
-
-        for (const subQ of q.subQuestions) {
-          const combinedQuestionNumber = mainQuestionNumber
-            ? `${mainQuestionNumber}${subQ.part || ''}`
-            : null;
-
-          // CRITICAL FIX: Extract sub-question even if text is missing, as long as it has student work
-          // This handles cases where classification detected student work but no question text
-          // (common for sub-questions like 2ai, 2aii where the question is in the parent)
-          const hasStudentWork = subQ.studentWork || (subQ.studentWorkLines && subQ.studentWorkLines.length > 0);
-
-          if (subQ.text || hasStudentWork) {
-            extractedQuestions.push({
-              questionNumber: combinedQuestionNumber,
-              text: subQ.text || '', // Use empty string if no text (detection will use question number only)
-              sourceImageIndex,
-              parentText: q.text // Preserving the lead-in text (e.g. "Sophie drives...")
-            });
-          }
-        }
-      } else {
-        // Main question without sub-questions (or main text exists)
-        if (q.text) {
-          extractedQuestions.push({
-            questionNumber: mainQuestionNumber,
-            text: q.text,
-            sourceImageIndex
-          });
-        }
-        // If main text is null but no sub-questions, skip (empty question)
-      }
+    // Push if it has text or work
+    if (q.text || hasStudentWork) {
+      extractedQuestions.push({
+        questionNumber: currentNum,
+        text: q.text || '',
+        sourceImageIndex,
+        parentText: parentText || q.parentText,
+        studentWork: q.studentWork || (q.studentWorkLines ? q.studentWorkLines.map((l: any) => l.text).join(' ') : '')
+      });
     }
 
+    // Recurse into sub-questions
+    if (q.subQuestions && Array.isArray(q.subQuestions)) {
+      q.subQuestions.forEach((sub: any) => {
+        recurse(sub, currentNum, q.text || parentText, sourceImageIndex);
+      });
+    }
+  };
 
+  // Handle hierarchical questions array structure
+  if (classification?.questions && Array.isArray(classification.questions)) {
+    classification.questions.forEach((q: any) => recurse(q, undefined, undefined, q.sourceImageIndex));
     return extractedQuestions;
   }
 
   // Fallback: Handle old extractedQuestionText structure
   if (classification?.extractedQuestionText) {
-    return [{
-      text: classification.extractedQuestionText
-      // No questionNumber in legacy format
-    }];
+    return [{ text: classification.extractedQuestionText }];
   }
 
   return [];
 }
-
 /**
- * Convert marking scheme to plain text format (same as sent to AI for marking instruction)
  * This ensures stored data matches what we send to AI
- */
+  */
 export function convertMarkingSchemeToPlainText(
   markingScheme: any,
   questionNumber: string,

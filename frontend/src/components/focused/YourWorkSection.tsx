@@ -75,21 +75,30 @@ const sanitizeStudentWork = (text: string) => {
     return cleaned;
 };
 
-const WorkContent = ({ content, MarkdownMathRenderer, showBullet }: { content: string, MarkdownMathRenderer?: any, showBullet: boolean }) => {
+const WorkContent = ({ content, reason, MarkdownMathRenderer, showBullet }: { content: string, reason?: string, MarkdownMathRenderer?: any, showBullet: boolean }) => {
     const isDrawing = content.includes('[DRAWING]');
     const [expanded, setExpanded] = React.useState(false);
 
     if (isDrawing) {
         // [DRAWING] Visual styling
-        const cleanContent = content.replace('[DRAWING]', '').trim();
+        let cleanContent = content.replace('[DRAWING]', '').trim();
+
+        // FALLBACK: If work is empty but reason has drawing description, pull it in
+        if (!cleanContent && reason && reason.includes('[DRAWING]')) {
+            cleanContent = reason.replace('[DRAWING]', '').replace(/^-\s*/, '').trim();
+        }
 
         return (
             <div
                 className={`yw-col-work ${!showBullet ? 'yw-no-bullet' : ''} yw-drawing-container ${expanded ? 'expanded' : ''}`}
-                onClick={() => setExpanded(!expanded)}
-                title={expanded ? "Click to collapse" : "Click to expand drawing description"}
             >
-                <span className="yw-drawing-badge">DRAWING</span>
+                <span
+                    className="yw-drawing-badge"
+                    onClick={() => setExpanded(!expanded)}
+                    title={expanded ? "Click to collapse" : "Click to expand drawing description"}
+                >
+                    DRAWING
+                </span>
                 <span className="yw-drawing-text">
                     {cleanContent}
                 </span>
@@ -298,6 +307,7 @@ export default function YourWorkSection({ content, MarkdownMathRenderer }: YourW
                             )}
                             <WorkContent
                                 content={row.studentWork}
+                                reason={row.annotationReason}
                                 MarkdownMathRenderer={MarkdownMathRenderer}
                                 showBullet={row.showBullet}
                             />

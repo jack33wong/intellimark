@@ -78,7 +78,7 @@ const EdexcelLandingPage: React.FC = () => {
                 <div className="edexcel-feature-container">
                     <div className="edexcel-feature-visual">
                         <div className="edexcel-mockup-frame">
-                            <img src="/images/spatial_mapping_v3.png" alt="Edexcel Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
+                            <img src="/images/edexcel_marking_logic_v1.png" alt="Edexcel Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
                             <div className="edexcel-badge-overlay">Edexcel 1MA1 Logic Check</div>
                         </div>
                     </div>

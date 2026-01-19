@@ -47,6 +47,7 @@ export interface OCROptions {
   maxMathBlockSize?: number;
   dbscanEpsPx?: number;
   dbscanMinPts?: number;
+  pageIndex?: number;
 }
 
 export class OCRService {
@@ -57,7 +58,8 @@ export class OCRService {
     minMathBlockSize: 20,
     maxMathBlockSize: 2000,
     dbscanEpsPx: 60, // Increased from 40 to 60
-    dbscanMinPts: 2
+    dbscanMinPts: 2,
+    pageIndex: 0
   };
 
   /**
@@ -675,7 +677,10 @@ export class OCRService {
           coords,
           hasOriginalCoords,
           isSplitBlock,
-          isHandwritten: line.is_printed === false // Authentic Mathpix check
+          // NOTE: Mathpix/OCR 'is_printed' indicator is highly UNRELIABLE. 
+          // Numbers and math symbols are often misclassified as printed even when handwritten.
+          // We use an inclusive check here and let the AI determine context later.
+          isHandwritten: line.is_printed !== true
         });
       }
 
@@ -688,7 +693,7 @@ export class OCRService {
         // For now, let's assume it's 0 or needs to be passed in.
         // If not available, a placeholder like `0` or `1` might be used, or it needs to be added to the function signature.
         // For this change, we'll assume `pageIndex` is available, or default to 0 if not.
-        const pageIndex = 0; // Placeholder, adjust if pageIndex is actually available in scope
+        const pageIndex = opts.pageIndex ?? 0;
 
         return {
           googleVisionText: line.text,
@@ -704,7 +709,7 @@ export class OCRService {
           // Ensure globalBlockId is set for reliable matching downstream (CRITICAL FIX)
           globalBlockId: (line as any).id || `block_${pageIndex}_${idx}_${Math.floor(Math.random() * 1000)}`,
 
-          pageIndex: pageIndex, // Placeholder, adjust if pageIndex is actually available in scope
+          pageIndex: pageIndex,
           isPrinted: !line.isHandwritten, // Derived from isHandwritten
           ocrSource: 'mathpix' // Assuming this is from Mathpix processing
         } as MathBlock;

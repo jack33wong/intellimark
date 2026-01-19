@@ -153,29 +153,12 @@ ${Object.entries(subQuestionPageMap).map(([part, pageIdx]) => `- Sub-question ${
 Do NOT search for work on other pages for these sub-questions, even if you see a question header there. Focus ONLY on the assigned page.
 ` : ''}
  
-${rawOcrBlocks && rawOcrBlocks.length > 0 ? (() => {
-          const landmarks = rawOcrBlocks.filter(b => b.isPrinted);
-          // ✅ SHOW EVERYTHING: Pass ALL blocks to student work section to catch mixed content
-          // The System Prompt's "Mixed Content Strategy" will handle filtering
-          const studentWork = rawOcrBlocks;
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the content.
 
-          let blocksSection = `## RAW OCR BLOCKS (SPATIALLY FILTERED)\nUse these IDs to map the student's work.\n\n`;
-
-          if (landmarks.length > 0) {
-            blocksSection += `### 📍 LANDMARKS (REFERENCE ONLY)\n// These are texts that match the Question Prompt. Do NOT grade these.\n`;
-            blocksSection += landmarks.map(b => `[${b.id}]: "${b.text.replace(/\n/g, ' ')}"`).join('\n') + `\n\n`;
-          }
-
-          if (studentWork.length > 0) {
-            blocksSection += `### 📝 POTENTIAL STUDENT WORK (GRADING TARGETS)\n// These blocks were found in the answer zone.\n// NOTE: Mathpix "type" flags are ignored. Determine logic context yourself.\n`;
-            blocksSection += studentWork.map(b => `[${b.id}]: "${b.text.replace(/\n/g, ' ')}"`).join('\n') + `\n\n`;
-          }
-
-          return blocksSection;
-        })() : `
-## NO RAW OCR BLOCKS AVAILABLE
-Please use the placeholder IDs from STUDENT WORK (e.g., \`line_1\`, \`line_2\`) for the \`line_id\` field.
-`}
+${rawOcrBlocks && rawOcrBlocks.length > 0 ? (
+          rawOcrBlocks.map(b => `[${b.id}]: "${b.text.replace(/\n/g, ' ')}"`).join('\n')
+        ) : 'No raw OCR blocks available.'}
 `,
     },
 

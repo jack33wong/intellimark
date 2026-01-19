@@ -581,6 +581,31 @@
   justify-content: flex-end;
 }
 
+.mark-history-status-indicators {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.pinned-icon-sidebar {
+  color: var(--text-brand);
+  opacity: 0.9;
+}
+
+.favorite-star-sidebar {
+  color: var(--function-warning);
+  fill: var(--function-warning);
+}
+
+.mark-history-icon-wrapper {
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
 /* Chat Item Title */
 .mark-history-item-title {
   font-size: 13px !important;
@@ -594,7 +619,7 @@
   text-align: left !important;
   display: flex;
   align-items: center;
-  width: 100%;
+  flex: 1;
   margin: 0;
   padding: 0;
   position: relative;
@@ -1057,6 +1082,17 @@
   align-items: center;
   padding: 16px;
   width: 100%;
+}
+
+.pinned-icon-small {
+  color: var(--text-brand);
+}
+
+.title-pin-indicator {
+  margin-left: 6px;
+  color: var(--text-brand);
+  opacity: 0.8;
+  vertical-align: middle;
 }
 
 .loading-spinner-small {

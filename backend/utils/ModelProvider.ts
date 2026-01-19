@@ -203,7 +203,6 @@ export class ModelProvider {
       const endpoint = config.apiEndpoint;
 
       const parts: any[] = [
-        { text: systemPrompt },
         { text: userPrompt }
       ];
 
@@ -234,6 +233,9 @@ export class ModelProvider {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: systemPrompt }]
+          },
           contents: [{
             parts: parts
           }],
@@ -291,7 +293,10 @@ export class ModelProvider {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
+          system_instruction: {
+            parts: [{ text: systemPrompt }]
+          },
+          contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0,
             maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens,

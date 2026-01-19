@@ -753,6 +753,7 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit as string) || 50;
     const lastUpdatedAt = req.query.lastUpdatedAt as string || null;
+    const lastPinned = req.query.lastPinned === 'true' ? true : (req.query.lastPinned === 'false' ? false : null);
     const messageType = req.query.messageType as string || null;
 
     // Only return sessions for authenticated users who match the requested userId

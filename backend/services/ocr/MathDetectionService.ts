@@ -4,6 +4,7 @@
  */
 
 import type { ProcessedVisionResult, MathBlock } from '../../types/index.js';
+export type { MathBlock };
 
 // Inline MathBlock interface from MathDetectionService
 // MathBlock type imported from types/index.js

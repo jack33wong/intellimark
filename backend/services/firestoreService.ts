@@ -564,6 +564,7 @@ export class FirestoreService {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         favorite: false,
+        pinned: false,
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
         sessionStats: finalSessionStats,
@@ -695,6 +696,7 @@ export class FirestoreService {
         createdAt: sessionData.createdAt,
         updatedAt: sessionData.updatedAt,
         favorite: sessionData.favorite,
+        pinned: sessionData.pinned || false,
         rating: sessionData.rating,
         isPastPaper: sessionData.isPastPaper,  // Include isPastPaper
         detectedQuestion: sessionData.detectedQuestion,
@@ -721,7 +723,7 @@ export class FirestoreService {
         sessionsRef = sessionsRef.where('messageType', '==', messageType);
       }
 
-      sessionsRef = sessionsRef.orderBy('updatedAt', 'desc');
+      sessionsRef = sessionsRef.orderBy("updatedAt", "desc");
 
       if (lastUpdatedAt) {
         sessionsRef = sessionsRef.startAfter(lastUpdatedAt);
@@ -767,6 +769,7 @@ export class FirestoreService {
           createdAt: sessionData.createdAt,
           updatedAt: sessionData.updatedAt,
           favorite: sessionData.favorite || false,
+          pinned: sessionData.pinned || false,
           rating: sessionData.rating || 0,
           messages: unifiedMessages.map((msg: any) => {
             // HYDRATION: Ensure progressData exists for AI messages (same as getUnifiedSession)
@@ -795,8 +798,11 @@ export class FirestoreService {
         });
       }
 
-      // Sort sessions by updatedAt in JavaScript
+      // Sort sessions by pinned first, then updatedAt in JavaScript
       sessions.sort((a: any, b: any) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+
         const timeA = new Date(a.updatedAt || 0).getTime();
         const timeB = new Date(b.updatedAt || 0).getTime();
         return timeB - timeA; // Descending order

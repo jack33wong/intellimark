@@ -21,7 +21,9 @@ import {
   Lock,
   ChevronDown,
   PanelLeft,
-  User
+  User,
+  Pin,
+  PinOff
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -215,7 +217,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           newSessions = [updatedSession, ...sessionsWithoutTemp];
         }
 
-        return newSessions.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+        return newSessions.sort((a, b) => {
+          if ((a as any).pinned && !(b as any).pinned) return -1;
+          if (!(a as any).pinned && (b as any).pinned) return 1;
+          return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+        });
       });
     };
     const handleSessionDeleted = (event: CustomEvent<{ sessionId: string }>) => {
@@ -364,25 +370,57 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (!authToken) return;
       await MarkingHistoryService.updateSession(session.id, { favorite: newFavoriteStatus }, authToken);
       const updatedSession = { ...session, favorite: newFavoriteStatus, updatedAt: new Date().toISOString() };
-      EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { session: updatedSession });
-      simpleSessionService.setCurrentSession(updatedSession);
+      EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { session: updatedSession } as any);
       setDropdownSessionId(null);
     } catch (error) {
-      console.error('Error updating favorite status:', error);
+      console.error('Error updating session favorite status:', error);
+    }
+  };
+
+  const handleTogglePin = async (session: UnifiedSession, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const newPinStatus = !(session as any).pinned;
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) return;
+      await MarkingHistoryService.updateSession(session.id, { pinned: newPinStatus }, authToken);
+      const updatedSession = { ...session, pinned: newPinStatus, updatedAt: new Date().toISOString() };
+      EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { session: updatedSession } as any);
+      setDropdownSessionId(null);
+    } catch (error) {
+      console.error('Error updating session pin status:', error);
     }
   };
 
   const getFilteredSessions = (): UnifiedSession[] => {
+    let filtered: UnifiedSession[] = [];
     switch (activeTab) {
       case 'mark':
-        return chatSessions.filter(session => session.messageType === 'Marking');
+        filtered = chatSessions.filter(session => session.messageType === 'Marking');
+        break;
       case 'question':
-        return chatSessions.filter(session => session.messageType === 'Question');
+        filtered = chatSessions.filter(session => session.messageType === 'Question');
+        break;
       case 'favorite':
-        return chatSessions.filter(session => session.favorite === true);
+        filtered = chatSessions.filter(session => session.favorite === true);
+        break;
       default:
-        return chatSessions;
+        filtered = chatSessions;
+        break;
     }
+
+    // Sort: Pinned first, then by updatedAt desc
+    return [...filtered].sort((a, b) => {
+      const aPinned = (a as any).pinned === true;
+      const bPinned = (b as any).pinned === true;
+
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+
+      const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
   };
 
   const getSessionTitle = (session: UnifiedSession) => {
@@ -561,7 +599,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <div className="mark-history-content">
                           <div className="mark-history-item-top-row">
                             <div className="mark-history-item-title">
-                              {session.favorite && <Star size={14} className="favorite-star-inline" />}
                               {editingSessionId === session.id ? (
                                 <input
                                   ref={editInputRef}
@@ -582,7 +619,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                                   onBlur={() => handleSaveTitle(session.id)}
                                   style={{ width: '100%' }}
                                 />
-                              ) : getSessionTitle(session)}
+                              ) : (
+                                <>
+                                  {getSessionTitle(session)}
+                                </>
+                              )}
+                            </div>
+                            <div className="mark-history-status-indicators">
+                              {session.favorite && <Star size={12} className="favorite-star-sidebar" />}
+                              {(session as any).pinned && <Pin size={12} className="pinned-icon-sidebar" />}
                             </div>
                           </div>
                           <div className="mark-history-item-bottom-row">
@@ -595,7 +640,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 </button>
                                 {dropdownSessionId === session.id && (
                                   <div className="mark-history-dropdown">
-                                    <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
+                                    <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Rename</span></div>
+                                    <div className="dropdown-item" onClick={(e) => handleTogglePin(session, e)}>
+                                      {(session as any).pinned ? <PinOff size={16} /> : <Pin size={16} />}
+                                      <span>{(session as any).pinned ? 'Unpin' : 'Pin'}</span>
+                                    </div>
                                     <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
                                     <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
                                   </div>
@@ -665,7 +714,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 

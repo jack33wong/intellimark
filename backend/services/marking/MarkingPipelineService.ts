@@ -689,58 +689,84 @@ export class MarkingPipelineService {
 
                     // Merge sub-questions if present (group by part, combine student work)
                     // Also track which pages each sub-question came from
-                    const mergedSubQuestions = new Map<string, any>();
-                    const subQuestionPageIndices = new Set<number>(); // Track pages that have sub-questions
+                    // Recursive merge helper for sub-questions
+                    const mergeSubQuestionsRecursive = (existingMap: Map<string, any>, incomingSubQuestions: any[], pIdx: number) => {
+                        incomingSubQuestions.forEach((subQ: any) => {
+                            const part = subQ.part || '';
+                            subQuestionPageIndices.add(pIdx);
+
+                            if (!existingMap.has(part)) {
+                                existingMap.set(part, {
+                                    ...subQ,
+                                    pageIndex: pIdx,
+                                    studentWorkLines: subQ.studentWorkLines || [],
+                                    subQuestions: subQ.subQuestions ? [] : undefined
+                                });
+                            }
+
+                            const existing = existingMap.get(part)!;
+
+                            // Merge Text
+                            if (subQ.text && subQ.text !== 'null' && !existing.text) {
+                                existing.text = subQ.text;
+                            }
+
+                            // Merge Student Work
+                            if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim().length > 0) {
+                                if (existing.studentWork && !existing.studentWork.includes(subQ.studentWork)) {
+                                    existing.studentWork += '\n' + subQ.studentWork;
+                                } else if (!existing.studentWork) {
+                                    existing.studentWork = subQ.studentWork;
+                                }
+                            }
+
+                            // Merge Lines
+                            if (subQ.studentWorkLines && Array.isArray(subQ.studentWorkLines)) {
+                                // Simple deduplication based on text and position
+                                subQ.studentWorkLines.forEach((newLine: any) => {
+                                    const isDuplicate = existing.studentWorkLines.some((l: any) =>
+                                        l.text === newLine.text &&
+                                        l.position?.x === newLine.position?.x &&
+                                        l.position?.y === newLine.position?.y
+                                    );
+                                    if (!isDuplicate) existing.studentWorkLines.push(newLine);
+                                });
+                            }
+
+                            // Merge Drawing Flag
+                            if (subQ.hasStudentDrawing) {
+                                existing.hasStudentDrawing = true;
+                                if (existing.studentWork && !existing.studentWork.includes('[DRAWING]')) {
+                                    existing.studentWork += '\n[DRAWING]';
+                                } else if (!existing.studentWork) {
+                                    existing.studentWork = '[DRAWING]';
+                                }
+                            }
+
+                            // RECURSE: Merge children of this sub-question
+                            if (subQ.subQuestions && Array.isArray(subQ.subQuestions)) {
+                                if (!existing.subQuestionsMap) existing.subQuestionsMap = new Map<string, any>();
+                                mergeSubQuestionsRecursive(existing.subQuestionsMap, subQ.subQuestions, pIdx);
+                            }
+                        });
+                    };
+
+                    const finalizeSubQuestions = (subQsMap: Map<string, any>): any[] => {
+                        return Array.from(subQsMap.values()).map(subQ => {
+                            if (subQ.subQuestionsMap) {
+                                subQ.subQuestions = finalizeSubQuestions(subQ.subQuestionsMap);
+                                delete subQ.subQuestionsMap;
+                            }
+                            return subQ;
+                        });
+                    };
+
+                    const mergedSubQuestionsMap = new Map<string, any>();
+                    const subQuestionPageIndices = new Set<number>();
 
                     questionInstances.forEach(({ question, pageIndex }) => {
                         if (question.subQuestions && Array.isArray(question.subQuestions)) {
-                            question.subQuestions.forEach((subQ: any) => {
-                                const part = subQ.part || '';
-                                // Track that this page has sub-questions
-                                subQuestionPageIndices.add(pageIndex);
-
-                                if (!mergedSubQuestions.has(part)) {
-                                    mergedSubQuestions.set(part, {
-                                        part: subQ.part,
-                                        text: subQ.text && subQ.text !== 'null' ? subQ.text : null,
-                                        studentWork: null,
-                                        confidence: subQ.confidence || 0.9,
-                                        pageIndex: pageIndex, // Track which page this sub-question came from
-                                        studentWorkLines: subQ.studentWorkLines || [], // Preserve lines
-                                        hasStudentDrawing: subQ.hasStudentDrawing // Preserve drawing flag
-                                    });
-                                }
-
-                                // Combine student work for same sub-question part
-                                if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim().length > 0) {
-                                    const existing = mergedSubQuestions.get(part)!;
-                                    if (existing.studentWork) {
-                                        existing.studentWork += '\n' + subQ.studentWork;
-                                    } else {
-                                        existing.studentWork = subQ.studentWork;
-                                    }
-                                    // Merge lines if present
-                                    if (subQ.studentWorkLines && Array.isArray(subQ.studentWorkLines)) {
-                                        existing.studentWorkLines = [...(existing.studentWorkLines || []), ...subQ.studentWorkLines];
-                                    }
-                                    // Merge drawing flag
-                                    if (subQ.hasStudentDrawing) {
-                                        existing.hasStudentDrawing = true;
-                                        // Ensure [DRAWING] token exists in text if flag is true
-                                        if (existing.studentWork) {
-                                            if (!existing.studentWork.includes('[DRAWING]')) {
-                                                existing.studentWork += '\n[DRAWING]';
-                                            }
-                                        } else {
-                                            existing.studentWork = '[DRAWING]';
-                                        }
-                                    }
-                                }
-                                // Use text from sub-question that has it
-                                if (subQ.text && subQ.text !== 'null' && !mergedSubQuestions.get(part)!.text) {
-                                    mergedSubQuestions.get(part)!.text = subQ.text;
-                                }
-                            });
+                            mergeSubQuestionsRecursive(mergedSubQuestionsMap, question.subQuestions, pageIndex);
                         }
                     });
 
@@ -765,8 +791,8 @@ export class MarkingPipelineService {
                         // Store all page indices this question spans (for multi-page questions)
                         sourceImageIndices: allPageIndices,
                         // Merge sub-questions if present
-                        subQuestions: mergedSubQuestions.size > 0
-                            ? Array.from(mergedSubQuestions.values())
+                        subQuestions: mergedSubQuestionsMap.size > 0
+                            ? finalizeSubQuestions(mergedSubQuestionsMap)
                             : pageWithText.question.subQuestions || [],
                         // Use highest confidence
                         confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
@@ -925,7 +951,7 @@ export class MarkingPipelineService {
                     annotatedOutput: [],
                     results: []
                 };
-                console.log(`\n🔍 [RETURN DEBUG] Pure Question Mode - Returning:`);
+                // console.log(`\n🔍 [RETURN DEBUG] Pure Question Mode - Returning:`);
                 console.log(`   - sessionId: ${pureQuestionResult.sessionId}`);
                 console.log(`   - hasUnifiedSession: ${!!pureQuestionResult.unifiedSession}`);
                 console.log(`   - result object exists: true\n`);
@@ -953,7 +979,7 @@ export class MarkingPipelineService {
 
 
                 const ocrResult = await OCRService.processImage(
-                    page.imageData, {}, false, 'auto',
+                    page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
                     { extractedQuestionText: globalQuestionText },
                     usageTracker // Pass tracker here
                 );
@@ -970,7 +996,10 @@ export class MarkingPipelineService {
             if (allPagesOcrData.length > 1) {
                 const page1Data = allPagesOcrData[1]?.ocrData;
                 if (page1Data?.mathBlocks?.length) {
+                    // NOTE: OCR 'isHandwritten' flags are unreliable. 
+                    // We pass all blocks to ensure no data loss and let AI determine context.
                     const sample = page1Data.mathBlocks.find(b => (b as any).isHandwritten || !b.isPrinted) || page1Data.mathBlocks[0];
+                    /*
                     console.log(`[PIPELINE DEBUG] Page 1 OCR Data Check:`);
                     console.log(`   - Total Blocks: ${page1Data.mathBlocks.length}`);
                     console.log(`   - Sample HW Block Check:`, JSON.stringify({
@@ -978,8 +1007,9 @@ export class MarkingPipelineService {
                         hasCoords: !!sample.coordinates,
                         coords: sample.coordinates
                     }));
+                    */
                 } else {
-                    console.log(`[PIPELINE DEBUG] Page 1 OCR Data has NO mathBlocks!`);
+                    // console.log(`[PIPELINE DEBUG] Page 1 OCR Data has NO mathBlocks!`);
                 }
             }
 
@@ -1008,8 +1038,7 @@ export class MarkingPipelineService {
             const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
                 classificationResult,
-                options.customText,
-                extractedOcrText
+                options.customText
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;
@@ -1036,7 +1065,7 @@ export class MarkingPipelineService {
             });
 
             if (dominantPaperHint) {
-                console.log(`📍 [PIPELINE] Detected consensus paper: "${dominantPaperHint}". Will use as hint for question-only pages.`);
+                // console.log(`📍 [PIPELINE] Detected consensus paper: "${dominantPaperHint}". Will use as hint for question-only pages.`);
             }
 
             logQuestionDetectionComplete();
@@ -1099,8 +1128,6 @@ export class MarkingPipelineService {
             // Create marking tasks directly from classification results (bypass segmentation)
             try {
                 // PATCH: Ensure [DRAWING] token exists in classificationResult if hasStudentDrawing is true
-                // This is critical for MarkingExecutor to create drawing blocks for questions with 0 lines of text
-                // classificationResult is an object with a 'questions' array
                 if (classificationResult && classificationResult.questions && Array.isArray(classificationResult.questions)) {
                     classificationResult.questions.forEach((q: any) => {
                         // Check main question
@@ -1115,12 +1142,12 @@ export class MarkingPipelineService {
 
                             // Ensure studentWorkLines has a line with [DRAWING]
                             if (!q.studentWorkLines || q.studentWorkLines.length === 0) {
-                                q.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0 }];
+                                q.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0, pageIndex: q.sourceImageIndex }];
                             } else {
                                 // Check if any line has [DRAWING]
                                 const hasDrawingLine = q.studentWorkLines.some((l: any) => l.text && l.text.includes('[DRAWING]'));
                                 if (!hasDrawingLine) {
-                                    q.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0 });
+                                    q.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0, pageIndex: q.sourceImageIndex });
                                 }
                             }
                         }
@@ -1139,11 +1166,11 @@ export class MarkingPipelineService {
 
                                     // Update lines for sub-question too
                                     if (!sq.studentWorkLines || sq.studentWorkLines.length === 0) {
-                                        sq.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0 }];
+                                        sq.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0, pageIndex: sq.pageIndex || q.sourceImageIndex }];
                                     } else {
                                         const hasDrawingLine = sq.studentWorkLines.some((l: any) => l.text && l.text.includes('[DRAWING]'));
                                         if (!hasDrawingLine) {
-                                            sq.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0 });
+                                            sq.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0, pageIndex: sq.pageIndex || q.sourceImageIndex });
                                         }
                                     }
                                 }
@@ -1192,7 +1219,7 @@ export class MarkingPipelineService {
                 };
 
 
-                console.log(`\n🔍 [RETURN DEBUG] No Marking Tasks - Returning:`);
+                // console.log(`\n🔍 [RETURN DEBUG] No Marking Tasks - Returning:`);
                 console.log(`   - submissionId: ${finalOutput.submissionId}`);
                 console.log(`   - result object exists: true\n`);
                 // sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
@@ -1278,48 +1305,78 @@ export class MarkingPipelineService {
                                             const resultTotal = (result.score && result.score.totalMarks);
                                             console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, SchemeTotal=${scheme?.totalMarks}, ResultTotal=${resultTotal}`);
 
-                                            // [GUILLOTINE] Hard-Coded Post-Processing for Generic Questions
-                                            // Ensure we strictly respect the budget, even if AI hallucinates more marks.
-                                            if (task.markingScheme && task.markingScheme.isGeneric && result.annotations && result.score) {
-                                                const resultTotal = (result.score && result.score.totalMarks);
-                                                const budget = resultTotal || task.markingScheme.totalMarks || 3; // Prefer Result Total (AI), Fallback to Scheme (System)
-                                                // Cast to any[] to avoid 'Property mark does not exist' errors
+                                            // [GUILLOTINE] Hard-Coded Post-Processing for All Questions
+                                            // Ensure we strictly respect the budget, especially per sub-question.
+                                            if (task.markingScheme && result.annotations && result.score) {
                                                 const anyAnnotations = result.annotations as any[];
+                                                const subQuestionBudgets = task.markingScheme.subQuestionMaxScores || {};
+                                                const totalBudget = result.score.totalMarks || task.markingScheme.totalMarks || 0;
 
-                                                const validAnnotations = anyAnnotations.filter((a: any) => a.action === 'tick' || a.action === 'mark' || (a.mark && a.mark.length > 0));
+                                                // 1. Group by subQuestion
+                                                const groups = new Map<string, any[]>();
+                                                anyAnnotations.forEach(a => {
+                                                    const rawSq = (a.subQuestion || 'root').toLowerCase();
+                                                    const sq = rawSq.replace(/^\d+/, '').replace(/[()\s]/g, '');
+                                                    if (!groups.has(sq)) groups.set(sq, []);
+                                                    groups.get(sq)!.push(a);
+                                                });
 
-                                                if (validAnnotations.length > budget) {
-                                                    console.log(`[GUILLOTINE] Q${task.questionNumber} exceeded budget! Found ${validAnnotations.length}, Budget ${budget}. Executing cut...`);
+                                                let finalizedAnnotations: any[] = [];
+                                                const priorityMap: Record<string, number> = { 'A': 3, 'B': 2, 'M': 1 };
 
-                                                    // SORT PRIORITY: A (High) > B (Medium) > M (Low)
-                                                    // We want to KEEP the top 'budget' items.
-                                                    // So we sort DESCENDING by priority.
-                                                    const priorityMap: Record<string, number> = { 'A': 3, 'B': 2, 'M': 1 };
+                                                // 2. Process each group (Sub-Question Guillotine)
+                                                for (const [sq, annos] of groups.entries()) {
+                                                    const subBudget = subQuestionBudgets[sq] ?? 99; // Default high if unknown
 
-                                                    // Sort annotations to put high priority at the start
-                                                    anyAnnotations.sort((a: any, b: any) => {
-                                                        const pA = priorityMap[(a.mark || '').charAt(0)] || 0;
-                                                        const pB = priorityMap[(b.mark || '').charAt(0)] || 0;
-                                                        return pB - pA; // Descending
-                                                    });
+                                                    const validAnnos = annos.filter(a => a.action === 'tick' || a.action === 'mark' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0));
 
-                                                    // Trace what we are keeping/cutting
-                                                    const kept = anyAnnotations.slice(0, budget);
-                                                    const cut = anyAnnotations.slice(budget);
+                                                    if (validAnnos.length > subBudget) {
+                                                        console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} exceeded budget! Found ${validAnnos.length}, Budget ${subBudget}. Executing cut...`);
 
-                                                    console.log(`[GUILLOTINE] Kept: ${kept.map((a: any) => a.mark).join(',')}`);
-                                                    console.log(`[GUILLOTINE] Cut: ${cut.map((a: any) => a.mark).join(',')}`);
+                                                        // Sort by priority (A > B > M)
+                                                        annos.sort((a: any, b: any) => {
+                                                            const pA = priorityMap[(a.text || '').charAt(0).toUpperCase()] || 0;
+                                                            const pB = priorityMap[(b.text || '').charAt(0).toUpperCase()] || 0;
+                                                            return pB - pA;
+                                                        });
 
-                                                    // Apply the cut (cast back to original type if needed, but array reference is usually compatible)
-                                                    result.annotations = kept;
-
-                                                    // Recalculate score
-                                                    result.score.awardedMarks = kept.reduce((sum: number, a: any) => sum + (a.credits || 1), 0);
-
-                                                    // Add note to feedback
-                                                    if (result.feedback) {
-                                                        result.feedback += ` (Note: ${cut.length} excess marks removed to fit budget)`;
+                                                        const kept = annos.slice(0, subBudget);
+                                                        const cut = annos.slice(subBudget);
+                                                        console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} Kept: ${kept.map((a: any) => a.text).join(',')} | Cut: ${cut.map((a: any) => a.text).join(',')}`);
+                                                        finalizedAnnotations.push(...kept);
+                                                    } else {
+                                                        finalizedAnnotations.push(...annos);
                                                     }
+                                                }
+
+                                                // 3. Final Global Guillotine (just in case sum of subs > total)
+                                                const ticks = finalizedAnnotations.filter(a => a.action === 'tick' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0));
+                                                if (totalBudget > 0 && ticks.length > totalBudget) {
+                                                    console.log(`[GUILLOTINE] Q${task.questionNumber} GLOBAL exceeded budget! Total ${totalBudget}. Executing final cut...`);
+                                                    finalizedAnnotations.sort((a, b) => {
+                                                        const pA = priorityMap[(a.text || '').charAt(0).toUpperCase()] || 0;
+                                                        const pB = priorityMap[(b.text || '').charAt(0).toUpperCase()] || 0;
+                                                        return pB - pA;
+                                                    });
+                                                    finalizedAnnotations = finalizedAnnotations.slice(0, totalBudget);
+                                                }
+
+                                                result.annotations = finalizedAnnotations;
+
+                                                // 4. Recalculate score
+                                                const newAwarded = finalizedAnnotations.reduce((sum: number, a: any) => {
+                                                    if (a.action === 'tick' || a.action === 'mark') {
+                                                        const val = parseInt((a.text || '').replace(/\D/g, '') || '0') || 1;
+                                                        return sum + val;
+                                                    }
+                                                    return sum;
+                                                }, 0);
+
+                                                result.score.awardedMarks = newAwarded;
+                                                result.score.scoreText = `${newAwarded}/${result.score.totalMarks}`;
+
+                                                if (finalizedAnnotations.length < anyAnnotations.length && result.feedback) {
+                                                    result.feedback += ` (Note: ${anyAnnotations.length - finalizedAnnotations.length} excess marks removed to fit budget)`;
                                                 }
                                             }
 

@@ -1,10 +1,10 @@
 /**
  * Marking Scheme Orchestration Service
  * Handles question detection, grouping, and marking scheme lookup/merging
- * * * CRITICAL FIX: SEQUENTIAL RUBRIC & SAFE CEILING
- * 1. Replaces duplicates with SEQUENTIAL CODES (M1-M6, A1-A6) to fix log/limit errors.
- * 2. Adds NEGATIVE CODES (M0, A0, B0) for expert corrections.
- * 3. Sets Total Marks to a SAFE CEILING (20) to prevent capping valid marks.
+ * * * CRITICAL FIX: ENSURE CONTEXT PROPAGATION
+ * 1. Guarantees that if the Group Anchor Text matches, all sub-questions inherit that match.
+ * 2. Prevents "Weak Match" errors on short sub-questions (e.g. "Complete diagram").
+ * 3. Keeps "Sequential Rubric" and "Dynamic Totals".
  */
 
 import { logDetectionAudit } from './MarkingHelpers.js';
@@ -14,16 +14,16 @@ import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../../utils/Tex
 // --- CONFIGURATION ---
 const GENERIC_EXAMINER_INSTRUCTION = `
 ⚠️ NO OFFICIAL MARKING SCHEME AVAILABLE (GENERIC MODE).
-1. You are the CHIEF EXAMINER.
+1. You are the CHIEF EXAMINER. Determine the marking criteria based on the question text.
 2. GRADING STRATEGY:
    - Use M1, M2, M3... for sequential Method steps (correct approach).
    - Use A1, A2, A3... for sequential Accuracy steps (correct values).
    - Use B1, B2, B3... for Independent statements/reasons.
    - Use M0/A0/B0 ONLY to explicitly flag incorrect steps.
-3. LIMITS:
-   - Ignore the 'Total 20' ceiling. It is just a buffer.
-   - Determine the actual value of the question yourself (e.g., if it's worth 4 marks, award 4 marks).
-   - Do NOT award more marks than the question is logically worth.
+3. SCORING LIMITS:
+   - If a specific max mark is detected (e.g. [3]), try to align with it.
+   - HOWEVER, if the student shows valid work exceeding that limit, AWARD THE MARKS.
+   - Do not cap the score artificially. Prioritize correct mathematics.
 `;
 
 export interface DetectionStatistics {
@@ -56,75 +56,38 @@ export interface MarkingSchemeOrchestrationResult {
   detectionStats: DetectionStatistics;
   updatedClassificationResult: any;
   detectionResults: Array<{
-    question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
+    question: { text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string };
     detectionResult: any;
   }>;
 }
 
 export class MarkingSchemeOrchestrationService {
 
-  // [HELPER] Smart Estimate from Text (Used for guidance, not hard limit)
-  // [HELPER] Smart Estimate from Text (Used for guidance, not hard limit)
-  private static smartEstimateMaxMarks(text: string, questionNumber?: string | null): number | null {
-    if (!text) return null;
-
-    // Normalize text (simplify whitespace)
-    const normalizedText = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ');
-    console.log(`[DEBUG] smartEstimateMaxMarks processing text (len=${text.length}) for Q${questionNumber || '?'}`);
-
-    // 0. TARGETED SEARCH (If Question Number is known) - Critical for full page OCR
-    if (questionNumber) {
-      const exactQPattern = new RegExp(`Total\\s+(?:for\\s+Question\\s+)?${questionNumber}\\s+(?:is\\s+)?(\\d+)\\s*marks?`, 'i');
-      const exactMatch = normalizedText.match(exactQPattern);
-      if (exactMatch) {
-        console.log(`[DEBUG] Found targeted max marks for Q${questionNumber}: ${exactMatch[1]}`);
-        return parseInt(exactMatch[1], 10);
-      }
-    }
-
-    // 1. Explicit Footer: "(Total X marks)" or "(Total for Question X is Y marks)"
-    // We prioritize these as they are standard format
-    const footerPatterns = [
-      /\(\s*Total\s+for\s+Question\s+\d+\s+is\s+(\d+)\s+marks?\s*\)/i, // Explicit full footer
-      /\(\s*Total\s+(?:is\s+)?(\d+)\s+marks?\s*\)/i,                    // Standard (Total 4 marks)
-      /Total\s+for\s+Question\s+\d+\s+is\s+(\d+)\s+marks?/i             // Missing parens
+  // [HELPER] Smart Estimate from Text
+  private static smartEstimateMaxMarks(text: string): number {
+    if (!text) return 0;
+    const patterns = [
+      /\(\s*Total\s*for\s*Question\s*\d+\s*is\s*(\d+)\s*marks?\s*\)/i,
+      /\(\s*Total\s*(\d+)\s*marks?\s*\)/i,
+      /\[\s*(\d+)\s*marks?\s*\]/i,
+      /Total\s*:?\s*(\d+)\s*marks?/i,
+      /\(\s*(\d+)\s*marks?\s*\)/i
     ];
-
-    for (const pattern of footerPatterns) {
-      const match = normalizedText.match(pattern);
-      if (match) {
-        console.log(`[DEBUG] Found footer max marks: ${match[1]}`);
-        return parseInt(match[1], 10);
-      }
-    }
-
-    // 2. Loose / Fallback Patterns
-    const loosePatterns = [
-      /\[\s*(\d+)\s*marks?\s*\]/i,         // [4 marks]
-      /\bTotal\s*:?\s*(\d+)\s*marks?/i,    // Total: 4 marks
-      /\(\s*(\d+)\s*marks?\s*\)/i          // (4 marks) - risky, hence last
-    ];
-    for (const pattern of loosePatterns) {
-      const match = normalizedText.match(pattern);
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
       if (match && match[1]) {
         const marks = parseInt(match[1], 10);
-        // Sanity check: Generic questions usually 1-20 marks.
         if (!isNaN(marks) && marks > 0 && marks <= 50) return marks;
       }
     }
-
-    return null; // Return null if not found (caller handles default)
+    return 0;
   }
 
-  // [HELPER] Generate Sequential Rubric (M1, M2... M6)
-  // Fixes "Duplicated marking scheme" and "Dropped excess token".
+  // [HELPER] Generate Sequential Rubric
   private static generateSequentialRubric(detectedMax: number): any[] {
     const rubric = [];
-    // Ensure we have enough tokens even for large questions.
-    // REDUCED BUFFER: If detectedMax is 4, we give exactly 4 slots. If 0, we give 4.
-    const count = detectedMax > 0 ? detectedMax : 4;
+    const count = detectedMax > 0 ? detectedMax + 3 : 10;
 
-    // Sequential Method Marks
     for (let i = 1; i <= count; i++) {
       rubric.push({
         mark: `M${i}`, value: 1,
@@ -132,7 +95,6 @@ export class MarkingSchemeOrchestrationService {
         comments: 'Method mark', notes: 'Method', details: 'Method'
       });
     }
-    // Sequential Accuracy Marks
     for (let i = 1; i <= count; i++) {
       rubric.push({
         mark: `A${i}`, value: 1,
@@ -140,7 +102,6 @@ export class MarkingSchemeOrchestrationService {
         comments: 'Accuracy mark', notes: 'Accuracy', details: 'Accuracy'
       });
     }
-    // Sequential Independent Marks
     for (let i = 1; i <= count; i++) {
       rubric.push({
         mark: `B${i}`, value: 1,
@@ -149,7 +110,6 @@ export class MarkingSchemeOrchestrationService {
       });
     }
 
-    // Negative Marks (Single instance is enough as they don't sum up)
     rubric.push({ mark: 'M0', value: 0, guidance: 'Method: Incorrect approach.', comments: 'Method lost' });
     rubric.push({ mark: 'A0', value: 0, guidance: 'Accuracy: Incorrect value.', comments: 'Accuracy lost' });
     rubric.push({ mark: 'B0', value: 0, guidance: 'Independent: Invalid statement.', comments: 'Mark lost' });
@@ -158,10 +118,9 @@ export class MarkingSchemeOrchestrationService {
   }
 
   static async orchestrateMarkingSchemeLookup(
-    individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }>,
+    individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string }>,
     classificationResult: any,
-    examPaperHint?: string | null,
-    extractedOcrText?: string // New Parameter for reliable max mark searching
+    examPaperHint?: string | null
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
 
@@ -176,17 +135,87 @@ export class MarkingSchemeOrchestrationService {
       return false;
     };
 
-    // --- STEP 1: GROUP QUESTIONS ---
+    // --- STEP 0: BUILD CLEAN TEXT MAP & PARENT MAP ---
+    const cleanQuestionsMap = new Map<string, string>();
+    const parentTextMap = new Map<string, string>();
+
+    // Use either pages structure (original classification) or flat questions (merged result)
+    const questionsToProcess: any[] = [];
+    if (classificationResult && classificationResult.pages) {
+      classificationResult.pages.forEach((p: any) => {
+        if (p.questions) questionsToProcess.push(...p.questions);
+      });
+    } else if (classificationResult && classificationResult.questions) {
+      questionsToProcess.push(...classificationResult.questions);
+    }
+
+    questionsToProcess.forEach((q: any) => {
+      const qNum = q.questionNumber;
+      if (qNum && q.text) {
+        cleanQuestionsMap.set(qNum, q.text);
+        const baseNum = getBaseQuestionNumber(qNum);
+        if (!parentTextMap.has(baseNum)) {
+          parentTextMap.set(baseNum, q.text);
+        }
+      }
+      // Deeply check sub-questions for the map
+      const processSubQs = (subs: any[]) => {
+        subs.forEach((sq: any) => {
+          const subPart = sq.part || sq.label || '';
+          if (subPart) {
+            const fullKey = qNum ? `${qNum}${subPart}`.toLowerCase() : subPart.toLowerCase();
+            if (sq.text) cleanQuestionsMap.set(fullKey, sq.text);
+          }
+          if (sq.subQuestions) processSubQs(sq.subQuestions);
+        });
+      };
+      if (q.subQuestions) processSubQs(q.subQuestions);
+    });
+
+
+    // --- STEP 1: PREPARE QUESTIONS (CONTEXT INJECTION) ---
     const questionGroups = new Map<string, typeof individualQuestions>();
+
     for (const q of individualQuestions) {
       const baseNum = getBaseQuestionNumber(q.questionNumber) || 'General';
+
+      if (q.questionNumber) {
+        // A. SMART SWAP
+        const cleanText = cleanQuestionsMap.get(q.questionNumber) ||
+          cleanQuestionsMap.get(q.questionNumber.toLowerCase());
+
+        let effectiveText = (cleanText && cleanText.length > 5) ? cleanText : q.text;
+
+        // console.log(`[DETECTION DEBUG] Q${q.questionNumber} - Initial Text: "${effectiveText.substring(0, 50)}..."`);
+
+        if (q.studentWork) {
+          effectiveText = `${effectiveText}\n\n${q.studentWork}`;
+          //  console.log(`[DETECTION DEBUG] Q${q.questionNumber} - Added Student Work: "${q.studentWork.substring(0, 30)}..."`);
+        }
+
+        // B. CONTEXT INJECTION (Avoid repeating if parent text is already in the questio text)
+        if (isSubQuestion(q.questionNumber)) {
+          const parentContext = parentTextMap.get(baseNum);
+          if (parentContext && parentContext.trim() !== effectiveText.trim()) {
+            // Only inject if it's not already there
+            if (!effectiveText.toLowerCase().includes(parentContext.toLowerCase().substring(0, 30))) {
+              effectiveText = `${parentContext}\n\n${effectiveText}`;
+            }
+          }
+        }
+
+        // IMPORTANT: Update the question object itself so subsequent logs use this rich text
+        q.text = effectiveText;
+        // console.log(`[DETECTION DEBUG] Q${q.questionNumber} - Final Contextual Text: "${effectiveText.substring(0, 80)}..."`);
+      }
+
       if (!questionGroups.has(baseNum)) questionGroups.set(baseNum, []);
       questionGroups.get(baseNum)!.push(q);
     }
 
     // --- STEP 2: DETECT PER GROUP ---
     const detectionResults: Array<{
-      question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
+      question: { text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string };
       detectionResult: any;
     }> = [];
 
@@ -198,16 +227,62 @@ export class MarkingSchemeOrchestrationService {
     };
 
     for (const [baseNum, group] of questionGroups.entries()) {
-      const anchorText = group.map(q => q.text).join('\n\n');
-      const groupDetectionResult = await questionDetectionService.detectQuestion(anchorText, baseNum, examPaperHint);
+      // IMPROVED GROUP ANCHOR: Combine all unique question text fragments into one dense query
+      // This ensures keywords from Q10a, Q10b, Q10bi are all available to match against the DB record
+      const uniqueFragments = new Set<string>();
+      group.forEach(q => {
+        if (q.text) {
+          // Add the question text
+          uniqueFragments.add(q.text.trim());
+        }
+      });
+
+      // Build a dense anchor that captures all context without excessive repetition
+      // We sort fragments by length to put the most descriptive ones first
+      const sortedFragments = Array.from(uniqueFragments).sort((a, b) => b.length - a.length);
+
+      // we want to avoid repeating the intro ("100 people...") while ensuring 
+      // the unique part ("Complete the Venn diagram") is preserved.
+      let combinedAnchor = sortedFragments[0] || '';
+      for (let i = 1; i < sortedFragments.length; i++) {
+        const frag = sortedFragments[i];
+        if (frag.length < 5) continue;
+
+        // Smarter overlap check: If the fragment is largely NOT already in the combined text, add it.
+        // We check if the last 50% of the fragment is present.
+        const tailLength = Math.min(frag.length, 40);
+        const tail = frag.substring(frag.length - tailLength);
+
+        if (!combinedAnchor.toLowerCase().includes(tail.toLowerCase().trim())) {
+          combinedAnchor += `\n\n${frag}`;
+        }
+      }
+
+      // console.log(`[DETECTION DEBUG] Group ${baseNum} Combined Anchor: "${combinedAnchor.substring(0, 150)}..."`);
+
+      const groupDetectionResult = await questionDetectionService.detectQuestion(
+        combinedAnchor,
+        baseNum,
+        examPaperHint
+      );
 
       for (const question of group) {
-        detectionResults.push({ question, detectionResult: groupDetectionResult });
+        // [FIX] Ensure the result reflects the GROUP match, not individual failures
+        // If the group matched (confidence > 0), assume sub-questions are part of it
+        const effectiveResult = { ...groupDetectionResult };
 
-        const similarity = groupDetectionResult.match?.confidence || 0;
-        const hasScheme = !!groupDetectionResult.match?.markingScheme;
+        // If group matched but individual score is low (which shouldn't happen with context),
+        // we force it to trust the group match.
+        if (effectiveResult.found && effectiveResult.match) {
+          effectiveResult.message = `Matched via Group ${baseNum}`;
+        }
 
-        if (groupDetectionResult.found) {
+        detectionResults.push({ question, detectionResult: effectiveResult });
+
+        const similarity = effectiveResult.match?.confidence || 0;
+        const hasScheme = !!effectiveResult.match?.markingScheme;
+
+        if (effectiveResult.found) {
           detectionStats.detected++;
           if (hasScheme) detectionStats.withMarkingScheme++; else detectionStats.withoutMarkingScheme++;
           if (similarity >= 0.9) detectionStats.bySimilarityRange.high++;
@@ -219,10 +294,10 @@ export class MarkingSchemeOrchestrationService {
 
         detectionStats.questionDetails.push({
           questionNumber: question.questionNumber,
-          detected: groupDetectionResult.found,
+          detected: effectiveResult.found,
           similarity,
           hasMarkingScheme: hasScheme,
-          matchedPaperTitle: groupDetectionResult.match?.paperTitle
+          matchedPaperTitle: effectiveResult.match?.paperTitle
         });
       }
 
@@ -239,6 +314,7 @@ export class MarkingSchemeOrchestrationService {
       const detectedCount = detectionStats.detected;
       const totalCount = detectionStats.totalQuestions;
       const detectionRate = totalCount > 0 ? detectedCount / totalCount : 0;
+
       const distinctPapers = new Set(detectionStats.questionDetails
         .filter(q => q.detected && q.matchedPaperTitle)
         .map(q => q.matchedPaperTitle)
@@ -297,7 +373,7 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 5: MERGE & FORMAT OUTPUT (SEQUENTIAL RUBRIC FIX) ---
+    // --- STEP 5: MERGE & FORMAT OUTPUT (SEQUENTIAL & DYNAMIC) ---
 
     const groupedResults = new Map<string, Array<{
       question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
@@ -312,20 +388,9 @@ export class MarkingSchemeOrchestrationService {
     for (const item of detectionResults) {
       if (!item.detectionResult.match) {
         const qNum = item.question.questionNumber || '1';
-
-        // 1. Smart Mark Estimation
         const detectedMarks = this.smartEstimateMaxMarks(item.question.text);
-
-        // 2. Generate SEQUENTIAL Rubric (M1, M2... M6)
-        // This prevents "Dropped Token" errors and looks clean in logs.
         const sequentialRubric = this.generateSequentialRubric(detectedMarks);
-
         const subQMarks = { [qNum]: sequentialRubric };
-
-        // 3. Set a SAFE CEILING for Total Marks (e.g., 20)
-        // If we found a mark total in the text (e.g. "Total 4 marks"), use it!
-        // Otherwise, use 20 to allow the AI full freedom.
-        const safeCeiling = detectedMarks > 0 ? detectedMarks : 20;
 
         item.detectionResult.match = {
           board: 'Unknown',
@@ -337,8 +402,8 @@ export class MarkingSchemeOrchestrationService {
           paperTitle: 'General Question (No Past Paper Match)',
           questionNumber: qNum,
           confidence: 0,
-          marks: safeCeiling,
-          parentQuestionMarks: safeCeiling,
+          marks: detectedMarks,
+          parentQuestionMarks: detectedMarks,
           markingScheme: {
             questionMarks: {
               marks: sequentialRubric,
@@ -404,13 +469,15 @@ export class MarkingSchemeOrchestrationService {
         const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
         markingSchemesMap.set(uniqueKey, {
           questionMarks: { marks: parentScheme.marks, subQuestionMarks: subQMarksMap },
-          totalMarks: masterMatch.marks || 20, // Keep safe ceiling
-          parentQuestionMarks: masterMatch.parentQuestionMarks || 20,
+          totalMarks: masterMatch.marks || 0, // [FIX] 0 allows dynamic total
+          parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
           questionNumber: baseQuestionNumber,
           questionDetection: group[0].detectionResult,
           databaseQuestionText: masterMatch.databaseQuestionText || '',
           subQuestionNumbers: questionNumbers,
           subQuestionAnswers: subAns,
+          subQuestionMaxScores: masterMatch.subQuestionMaxScores,
+          subQuestionTexts: masterMatch.subQuestionTexts,
           isGeneric: (paperCode === 'Generic Question'),
           generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance,
           sourceImageIndex: groupSourceImageIndex
@@ -481,6 +548,8 @@ export class MarkingSchemeOrchestrationService {
             databaseQuestionText: masterMatch.databaseQuestionText,
             subQuestionNumbers: questionNumbers,
             subQuestionAnswers: subQuestionAnswers,
+            subQuestionMaxScores: masterMatch.subQuestionMaxScores,
+            subQuestionTexts: masterMatch.subQuestionTexts,
             isGeneric: false,
             sourceImageIndex: groupSourceImageIndex
           });
@@ -493,19 +562,16 @@ export class MarkingSchemeOrchestrationService {
       const uniqueKey = `${item.actualQuestionNumber}_${examBoard}_${paperCode}`;
       markingSchemesMap.set(uniqueKey, {
         questionMarks: item.detectionResult.match.markingScheme?.questionMarks || item.detectionResult.match.markingScheme,
-        totalMarks: (paperCode === 'Generic Question')
-          ? (MarkingSchemeOrchestrationService.smartEstimateMaxMarks(extractedOcrText || '', item.actualQuestionNumber) || MarkingSchemeOrchestrationService.smartEstimateMaxMarks(item.question.text || '', item.actualQuestionNumber) || 20)
-          : (item.detectionResult.match.marks || 20),
-        parentQuestionMarks: (paperCode === 'Generic Question')
-          ? (MarkingSchemeOrchestrationService.smartEstimateMaxMarks(extractedOcrText || '', item.actualQuestionNumber) || MarkingSchemeOrchestrationService.smartEstimateMaxMarks(item.question.text || '', item.actualQuestionNumber) || 20)
-          : (item.detectionResult.match.marks || 20),
+        totalMarks: item.detectionResult.match.marks || 0,
+        parentQuestionMarks: item.detectionResult.match.marks || 0,
         questionNumber: item.actualQuestionNumber,
         questionDetection: item.detectionResult,
         questionText: item.question.text,
         databaseQuestionText: item.detectionResult.match?.databaseQuestionText || '',
+        subQuestionMaxScores: item.detectionResult.match?.subQuestionMaxScores,
+        subQuestionTexts: item.detectionResult.match?.subQuestionTexts,
         generalMarkingGuidance: item.detectionResult.match?.markingScheme?.generalMarkingGuidance,
-        sourceImageIndex: groupSourceImageIndex,
-        isGeneric: (paperCode === 'Generic Question')
+        sourceImageIndex: groupSourceImageIndex
       });
     }
 

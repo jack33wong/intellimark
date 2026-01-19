@@ -423,19 +423,24 @@ export class SVGOverlayService {
       const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
       const lineHeight = reasoningSize + 4;
 
+      // Break text into lines
       const lineCharLimit = isFlipped ? 20 : 30;
       const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, lineCharLimit);
 
       const totalBlockHeight = fallbackLines.length * lineHeight;
 
-      // 🔥 FIX: ALIGN BOTTOM-UP
-      // Instead of centering (which spills down), we anchor the bottom of the text 
-      // to the bottom of the symbol. The text grows UPWARDS.
+      // 🔥 FIX 1 (Vertical): ALIGN BOTTOM-UP
+      // Anchor the bottom of the text block to the bottom of the symbol.
+      // This forces the text to "Grow Upwards" into the empty margin, 
+      // preventing it from dropping into the next question (20b).
       const startY = symbolY + (symbolSize * 0.5) - totalBlockHeight + (lineHeight * 0.8);
 
       let reasonX = symbolAnchorX;
       let anchor = isFlipped ? 'end' : 'start';
 
+      // 🔥 FIX 2 (Horizontal): JUMP THE FULL LABEL
+      // Use symbolContentWidth (Icon + "A0" + Padding) instead of just symbolSize.
+      // This prevents the text from printing on top of the "A0" code.
       const separation = symbolContentWidth + 10;
 
       if (anchor === 'start') {
@@ -447,7 +452,7 @@ export class SVGOverlayService {
       // Draw Background Box
       const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.55)));
       const boxX = (anchor === 'start') ? reasonX - 5 : reasonX - maxLineWidth - 5;
-      const boxY = startY - reasoningSize + 5; // Adjusted for bottom-up alignment
+      const boxY = startY - reasoningSize + 5;
 
       reasoningBlockSVG += `<rect x="${boxX}" y="${boxY}" width="${maxLineWidth + 10}" height="${totalBlockHeight + 5}" 
                               fill="rgba(255, 255, 255, 0.9)" rx="4" />`;

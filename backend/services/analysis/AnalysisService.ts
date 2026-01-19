@@ -703,15 +703,32 @@ export class AnalysisService {
       // Try to extract JSON from response
       let jsonString = aiResponse;
 
-      // Check for JSON code block
-      const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch && jsonMatch[1]) {
-        jsonString = jsonMatch[1];
+      // Extract JSON block more robustly (handle internal backticks)
+      const jsonStartMarker = '```json';
+      const jsonEndMarker = '```';
+      const startIndex = aiResponse.indexOf(jsonStartMarker);
+      if (startIndex !== -1) {
+        const contentStart = startIndex + jsonStartMarker.length;
+        const lastEndIndex = aiResponse.lastIndexOf(jsonEndMarker);
+        if (lastEndIndex > contentStart) {
+          jsonString = aiResponse.substring(contentStart, lastEndIndex).trim();
+        }
       } else {
-        // Check for JSON object directly
-        const objectMatch = aiResponse.match(/\{[\s\S]*\}/);
-        if (objectMatch) {
-          jsonString = objectMatch[0];
+        // Fallback for ``` without json
+        const simpleStartMarker = '```';
+        const simpleStart = aiResponse.indexOf(simpleStartMarker);
+        if (simpleStart !== -1) {
+          const contentStart = simpleStart + simpleStartMarker.length;
+          const lastEndIndex = aiResponse.lastIndexOf(jsonEndMarker);
+          if (lastEndIndex > contentStart) {
+            jsonString = aiResponse.substring(contentStart, lastEndIndex).trim();
+          }
+        } else {
+          // Check for JSON object directly
+          const objectMatch = aiResponse.match(/\{[\s\S]*\}/);
+          if (objectMatch) {
+            jsonString = objectMatch[0];
+          }
         }
       }
 

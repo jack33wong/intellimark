@@ -4,7 +4,7 @@
  * Refactored for:
  * 1. Question-Level Detection (Block Matching)
  * 2. Performance (Singleton Caching)
- * 3. Robustness (Math-aware Keywords)
+ * 3. Robustness (Containment Logic for Context Matches)
  */
 
 import { getFirestore } from '../../config/firebase.js';
@@ -14,9 +14,8 @@ import * as stringSimilarity from 'string-similarity';
 // --- Constants ---
 const COMMON_STOP_WORDS = new Set([
   'the', 'and', 'is', 'in', 'it', 'of', 'to', 'for', 'a', 'an', 'on', 'with', 'at', 'by',
-  'from', 'up', 'down', 'out', 'that', 'this', 'write', 'down', 'calculate', 'find', 'work',
-  'answer', 'total', 'marks', 'question', 'show', 'give', 'your', 'reason', 'explain', 'state',
-  'describe', 'complete', 'value', 'table', 'graph', 'grid', 'diagram', 'space', 'left', 'blank'
+  'from', 'up', 'down', 'out', 'that', 'this', 'write', 'down', 'answer', 'total', 'marks', 'question', 'show', 'give', 'your', 'reason', 'explain', 'state',
+  'describe', 'value', 'table', 'graph', 'grid', 'space', 'left', 'blank'
 ]);
 
 // Semantic mapping for LaTeX commands to English keywords
@@ -43,6 +42,8 @@ export interface ExamPaperMatch {
   examPaper?: any;
   markingScheme?: MarkingSchemeMatch;
   databaseQuestionText?: string;
+  subQuestionMaxScores?: { [key: string]: number };
+  subQuestionTexts?: { [key: string]: string };
   isRescued?: boolean;
 }
 
@@ -177,7 +178,6 @@ export class QuestionDetectionService {
       const isNarrowSearch = primaryPapers.length > 0;
       const searchPool = isNarrowSearch ? primaryPapers : allExamPapers;
 
-      // "Rescue Mode" is active if we have narrowed down to a very specific pool (≤ 2 papers)
       const isRescueMode = isNarrowSearch && primaryPapers.length <= 2;
 
       // 3. Metadata Setup
@@ -186,11 +186,10 @@ export class QuestionDetectionService {
         return sum + (Array.isArray(questions) ? questions.length : Object.keys(questions).length);
       }, 0);
 
-      // Log search pool info for debugging
       if (cleanPaperHint) {
-        console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Using paper hint: "${cleanPaperHint}" (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
+        // console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Using paper hint: "${cleanPaperHint}" (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
       } else {
-        console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Global search (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
+        // console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Global search (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
       }
 
       const hintMetadata: QuestionDetectionResult['hintMetadata'] = {
@@ -213,13 +212,20 @@ export class QuestionDetectionService {
       let candidates: MatchCandidate[] = [];
 
       for (const paper of searchPool) {
-        // Pass rescue mode to scoring logic
         const paperCandidates = this.findCandidatesInPaper(cleanText, paper, cleanQHint, isRescueMode);
         candidates = candidates.concat(paperCandidates);
       }
 
       // 5. Ranking & Sorting
       candidates.sort((a, b) => b.score - a.score);
+
+      // Log the top candidate for debugging
+      if (candidates.length > 0) {
+        const top = candidates[0];
+        // console.log(`[DETECTION DEBUG] Q${questionNumberHint || '??'} Top Candidate: ${top.paper.metadata.exam_board} - ${top.paper.metadata.exam_code} Q${top.questionNumber}${top.subQuestionNumber || ''} (Score: ${top.score.toFixed(3)})`);
+        // console.log(`[DETECTION DEBUG] Q${questionNumberHint || '??'} Input Text: "${extractedQuestionText.substring(0, 100)}..."`);
+        // console.log(`[DETECTION DEBUG] Q${questionNumberHint || '??'} DB Text:    "${top.databaseText.substring(0, 100)}..."`);
+      }
 
       // Populate Audit Trail (Top 5)
       hintMetadata.auditTrail = candidates.slice(0, 5).map((c, idx) => ({
@@ -230,24 +236,39 @@ export class QuestionDetectionService {
         reason: c.scoreDetails.semanticCheck ? 'Valid' : 'Semantic Fail'
       }));
 
-      // 6. Thresholding & Selection
+      // 6. Thresholding & Selection (IMPROVED RELATIVE CONFIDENCE)
       if (candidates.length > 0) {
         const winner = candidates[0];
+        const runnerUp = candidates.length > 1 ? candidates[1] : null;
 
-        // Strict Global Thresholds for "Full Question" blocks
+        // Base Thresholds
         const strictThreshold = 0.80;
         const rescueThreshold = 0.35;
 
-        const requiredThreshold = isRescueMode ? rescueThreshold : strictThreshold;
-        const minimumTextScore = isRescueMode ? 0.15 : 0.30;
+        // Relative Confidence Logic
+        const isRelativeWinner = winner.score >= 0.65 && (!runnerUp || (winner.score - runnerUp.score > 0.15));
 
-        if (winner.score >= requiredThreshold && winner.scoreDetails.text >= minimumTextScore) {
+        let shouldAccept = false;
 
-          if (winner.score < 0.80) hintMetadata.thresholdRelaxed = true;
+        if (isRescueMode) {
+          shouldAccept = winner.score >= rescueThreshold;
+        } else {
+          shouldAccept = (winner.score >= strictThreshold) || isRelativeWinner;
+        }
+
+        const minimumTextScore = isRescueMode ? 0.15 : 0.25; // Relaxed slightly for context matches
+
+        if (shouldAccept && winner.scoreDetails.text >= minimumTextScore) {
+
+          if (winner.score < strictThreshold) hintMetadata.thresholdRelaxed = true;
           hintMetadata.isWeakMatch = winner.score < 0.7;
 
+          if (isRelativeWinner && !isRescueMode && winner.score < strictThreshold) {
+            console.log(`[DETECTION] 🏆 Relative Winner Accepted: ${winner.score.toFixed(3)} vs Runner-up ${runnerUp?.score.toFixed(3)}`);
+          }
+
           // Construct Result
-          const matchResult = this.constructMatchResult(winner, isRescueMode);
+          const matchResult = this.constructMatchResult(winner, isRescueMode || isRelativeWinner);
 
           // Attach Marking Scheme
           const markingScheme = await this.findCorrespondingMarkingScheme(matchResult);
@@ -278,7 +299,7 @@ export class QuestionDetectionService {
     }
   }
 
-  // --- BLOCK MATCHING LOGIC (No Sub-Question Loops) ---
+  // --- BLOCK MATCHING LOGIC ---
   private findCandidatesInPaper(
     inputQueryText: string,
     paper: any,
@@ -288,14 +309,12 @@ export class QuestionDetectionService {
     const candidates: MatchCandidate[] = [];
     const questions = paper.questions || {};
 
-    // Normalize to array
     const questionIterator = Array.isArray(questions)
       ? questions.map(q => ({ num: String(q.question_number || q.number), data: q }))
       : Object.entries(questions).map(([k, v]) => ({ num: String((v as any).question_number || k), data: v }));
 
     for (const { num: qNum, data: qData } of questionIterator) {
-      // 1. Base Number Check (Fast Filter)
-      // Since input is grouped by "1", we only look at "1".
+      // 1. Base Number Check
       const hintBase = hintQNum ? hintQNum.match(/^\d+/)?.[0] : null;
       const currentBase = qNum.match(/^\d+/)?.[0];
 
@@ -303,9 +322,7 @@ export class QuestionDetectionService {
         continue;
       }
 
-      // 2. CONSTRUCT AGGREGATE DB TEXT (The "Anchor")
-      // We combine Main Text + All Sub-question Texts into one block.
-      // This creates a "Full Question Context" matching the input group.
+      // 2. CONSTRUCT AGGREGATE DB TEXT
       let fullDbText = (qData.question_text || qData.text || qData.question || '') + ' ';
 
       const subQuestions = qData.sub_questions || qData.subQuestions || [];
@@ -324,7 +341,7 @@ export class QuestionDetectionService {
           paper,
           questionData: qData,
           questionNumber: qNum,
-          subQuestionNumber: '', // Parent match
+          subQuestionNumber: '',
           databaseText: fullDbText.trim(),
           score: scoreDetails.total,
           scoreDetails
@@ -340,11 +357,13 @@ export class QuestionDetectionService {
     dbText: string,
     hint: string | null,
     dbQNum: string,
-    dbSubPart: string | null, // Unused in Block Match but kept for interface
+    dbSubPart: string | null,
     isRescueMode: boolean
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
-    // 1. Text Similarity
+    // 1. Text Similarity (WITH CONTAINMENT BOOST)
+    // We check if one text is largely contained in the other to handle the Context Injection scenario.
+    // E.g. "100 people... Complete Venn" (Input) vs "Complete Venn" (DB) -> High Match
     const textScore = this.calculateSimilarity(inputText, dbText);
 
     // 2. Semantic Anchoring (Math-Aware)
@@ -371,11 +390,18 @@ export class QuestionDetectionService {
       const setDb = new Set(dbNums);
       const intersection = inputNums.filter(n => setDb.has(n));
       numericScore = intersection.length / Math.max(inputNums.length, dbNums.length);
+
+      // Minimal debug for numeric match
+      if (numericScore > 0 && numericScore < 1.0) {
+        // console.log(`[NUMERIC DEBUG] Input Nums: [${inputNums.slice(0, 10).join(', ')}]`);
+        // console.log(`[NUMERIC DEBUG] DB Nums:    [${dbNums.slice(0, 10).join(', ')}]`);
+        // console.log(`[NUMERIC DEBUG] Intersection: ${intersection.length} / ${Math.max(inputNums.length, dbNums.length)} = ${numericScore.toFixed(3)}`);
+      }
     } else if (dbNums.length === 0 && inputNums.length === 0) {
       numericScore = 0.5;
     }
 
-    // 4. Structural Match (Only Check Base Number)
+    // 4. Structural Match
     let structureScore = 0.5;
     if (hint) {
       const hintBase = hint.match(/^\d+/)?.[0];
@@ -416,17 +442,33 @@ export class QuestionDetectionService {
 
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
     const { paper, questionData, questionNumber, databaseText, score } = candidate;
-    const meta = paper.metadata || {}; // Ensure meta is not null
+    const meta = paper.metadata || {};
     const parentMarks = questionData.marks || 0;
 
-    // Robust extraction with fallbacks based on user feedback
-    // DB uses 'exam_code' and 'code'
     const board = meta.exam_board || meta.board;
     const code = meta.exam_code || meta.code;
     const series = meta.exam_series || meta.series;
-    const tier = meta.tier; // usually just 'tier'
+    const tier = meta.tier;
     const subject = meta.subject;
     const qualification = meta.qualification || meta.subject;
+
+    // Extract sub-question max scores AND texts from database JSON
+    const subQuestionMaxScores: { [key: string]: number } = {};
+    const subQuestionTexts: { [key: string]: string } = {};
+    const subQuestions = questionData.sub_questions || questionData.subQuestions || [];
+    if (Array.isArray(subQuestions)) {
+      subQuestions.forEach((sq: any) => {
+        const part = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
+        if (part) {
+          if (sq.marks !== undefined) {
+            subQuestionMaxScores[String(part)] = Number(sq.marks);
+          }
+          if (sq.question_text || sq.text) {
+            subQuestionTexts[String(part)] = sq.question_text || sq.text;
+          }
+        }
+      });
+    }
 
     return {
       board: board,
@@ -436,13 +478,15 @@ export class QuestionDetectionService {
       tier: tier,
       subject: subject,
       questionNumber: questionNumber,
-      subQuestionNumber: undefined, // Block match is always parent
+      subQuestionNumber: undefined,
       marks: parentMarks,
       parentQuestionMarks: parentMarks,
       confidence: score,
       paperTitle: `${board} - ${code} - ${series}${tier ? `, ${tier}` : ''}`,
       examPaper: paper,
       databaseQuestionText: databaseText,
+      subQuestionMaxScores: Object.keys(subQuestionMaxScores).length > 0 ? subQuestionMaxScores : undefined,
+      subQuestionTexts: Object.keys(subQuestionTexts).length > 0 ? subQuestionTexts : undefined,
       isRescued: isRescueMode && score < 0.8
     };
   }
@@ -520,21 +564,55 @@ export class QuestionDetectionService {
     }
   }
 
+  // [UPDATED] Robust Similarity with Containment Boost
   public calculateSimilarity(str1: string, str2: string): number {
     if (!str1 || !str2) return 0;
+
+    // 1. Precise Match Check
     const norm1 = normalizeTextForComparison(str1);
     const norm2 = normalizeTextForComparison(str2);
     if (norm1 === norm2) return 1.0;
-    if (norm1.length < 50 || norm2.length < 50) {
-      if (norm1.includes(norm2) || norm2.includes(norm1)) {
-        const shorter = norm1.length < norm2.length ? norm1 : norm2;
-        const longer = norm1.length >= norm2.length ? norm1 : norm2;
-        return Math.max(0.7, shorter.length / longer.length);
+
+    // 2. Keyword Match (Fuzzy Containment)
+    const keys1 = this.getKeywords(str1);
+    const keys2 = this.getKeywords(str2);
+
+    // We check if the shorter set of keywords is contained in the longer set
+    const shorterKeys = keys1.size < keys2.size ? keys1 : keys2;
+    const longerKeys = keys1.size >= keys2.size ? keys1 : keys2;
+
+    if (shorterKeys.size >= 2) {
+      let matches = 0;
+      const matchedWords: string[] = [];
+      const missingWords: string[] = [];
+
+      for (const word of shorterKeys) {
+        if (longerKeys.has(word)) {
+          matches++;
+          matchedWords.push(word);
+        } else {
+          missingWords.push(word);
+        }
       }
+
+      const matchRate = matches / shorterKeys.size;
+
+      // LOG THE FUZZY ATTEMPT
+      if (matchRate > 0.45) {
+        // console.log(`[SIMILARITY DEBUG] Fuzzy Rate: ${matchRate.toFixed(2)} (${matches}/${shorterKeys.size})`);
+        // console.log(`[SIMILARITY DEBUG] Matched: [${matchedWords.join(', ')}]`);
+        if (missingWords.length > 0) {
+          // console.log(`[SIMILARITY DEBUG] Missing: [${missingWords.slice(0, 5).join(', ')}${missingWords.length > 5 ? '...' : ''}]`);
+        }
+      }
+
+      if (matchRate >= 0.80) return 0.98;
+      if (matchRate >= 0.60) return 0.85;
     }
+
+    // 3. Fallback to Dice
     const dice = stringSimilarity.compareTwoStrings(norm1, norm2);
-    const ngram = this.calculateNgramSimilarity(norm1, norm2, 3);
-    return Math.max(dice, ngram);
+    return dice;
   }
 
   private calculateNgramSimilarity(text1: string, text2: string, n: number = 3): number {
@@ -594,25 +672,19 @@ export class QuestionDetectionService {
         if (!examPaperMatch.questionNumber || !markingScheme.questions) return null;
         const qNum = String(examPaperMatch.questionNumber).trim().replace(/^0+/, '');
 
-        // Block Match logic: We assume the match is at parent level "1"
-        // so we fetch Q1 from scheme.
         const questions = markingScheme.questions;
         const baseNum = qNum.match(/^\d+/)?.[0] || qNum;
         const mainQ = questions[qNum];
 
         if (mainQ && (mainQ.sub_questions || mainQ.subQuestions || mainQ.parts)) {
-          // It's a parent that already has children inside it - use as is
           questionMarks = mainQ;
         } else {
-          // Check for sibling keys (e.g. "20a", "20b" when we only have "20")
           const subKeys = Object.keys(questions).filter(k => {
             const m = k.match(/^(\d+)([a-z]+|\(?[ivx]+\)?)$/i);
             return m && m[1] === baseNum;
           }).sort();
 
           if (subKeys.length > 0) {
-            // We found siblings or parts for this base number
-            // If mainQ exists but has no children, and siblings exist, it's better to return a composite
             if (subKeys.length > 1 || (subKeys.length === 1 && subKeys[0] !== qNum)) {
               questionMarks = {
                 isComposite: true,
@@ -622,7 +694,6 @@ export class QuestionDetectionService {
                 )
               };
             } else {
-              // Only one key and it's either qNum or the only variant - use it
               questionMarks = mainQ || questions[subKeys[0]];
             }
           } else if (mainQ) {
@@ -647,128 +718,127 @@ export class QuestionDetectionService {
   }
 }
 
-export const questionDetectionService = QuestionDetectionService.getInstance();
+// --- Helper functions for session management and titles ---
 
 /**
- * UTILITY: Build Exam Paper Structure for Frontend "Exam Tab"
- * Groups individual detection results by their parent paper.
+ * Build a structured exam paper display for the frontend
  */
 export function buildExamPaperStructure(detectionResults: any[]) {
-  const paperGroups = new Map<string, any>();
-  let totalMarks = 0;
+  if (!detectionResults || detectionResults.length === 0) {
+    return {
+      examPapers: [],
+      multipleExamPapers: false,
+      totalMarks: 0
+    };
+  }
+
+  // Group detection results by unique exam paper
+  const examPaperGroups = new Map<string, any>();
 
   detectionResults.forEach(dr => {
-    const match = dr.detectionResult.match;
+    const match = dr.detectionResult?.match;
     if (!match) return;
 
-    const paperKey = `${match.board}_${match.paperCode}_${match.examSeries}`;
-    if (!paperGroups.has(paperKey)) {
-      paperGroups.set(paperKey, {
-        examBoard: match.board,
-        examCode: match.paperCode,
-        examSeries: match.examSeries,
-        tier: match.tier || '',
-        subject: match.subject || '',
-        paperTitle: match.paperTitle,
+    const board = match.board || '';
+    const code = match.paperCode || '';
+    const series = match.examSeries || '';
+    const tier = match.tier || '';
+    const paperKey = `${board}_${code}_${series}_${tier}`;
+
+    if (!examPaperGroups.has(paperKey)) {
+      // Get subject from match
+      const subject = match.subject || match.qualification || '';
+
+      examPaperGroups.set(paperKey, {
+        examBoard: board,
+        examCode: code,
+        examSeries: series,
+        tier: tier,
+        subject: subject,
+        // paperTitle logic consolidated
+        paperTitle: `${board} ${subject} ${code} (${series})${tier ? ` ${tier}` : ''}`,
         questions: [],
         totalMarks: 0
       });
     }
 
-    const group = paperGroups.get(paperKey);
-    // Add question if not already in this paper group
-    const existingQ = group.questions.find((q: any) => q.questionNumber === match.questionNumber);
-    if (!existingQ) {
-      group.questions.push({
-        questionNumber: match.questionNumber,
-        questionText: match.databaseQuestionText || dr.question.text,
-        marks: match.marks || 0,
-        markingScheme: match.markingScheme?.questionMarks?.marks || []
-      });
-      group.totalMarks += (match.marks || 0);
-      totalMarks += (match.marks || 0);
+    const paperGroup = examPaperGroups.get(paperKey);
+    const questionNumber = dr.question.questionNumber || match.questionNumber;
+    const marks = match.marks || 0;
+
+    // Use database text if available
+    const questionText = match.databaseQuestionText || dr.question.text || '';
+
+    // markingScheme: adapt plain text if it exists (for compatibility)
+    let markingSchemeEntries = [];
+    if (match.markingScheme?.questionMarks) {
+      // Complex object case - handling by conversion or direct assign
+      markingSchemeEntries = [{ mark: 'Model', answer: 'See scheme details' }];
+    } else if (dr.detectionResult.markingScheme && typeof dr.detectionResult.markingScheme === 'string') {
+      markingSchemeEntries = [{ mark: 'Model', answer: dr.detectionResult.markingScheme }];
     }
+
+    paperGroup.questions.push({
+      questionNumber: String(questionNumber),
+      questionText: questionText,
+      marks: marks,
+      markingScheme: markingSchemeEntries
+    });
+
+    // Add to paper total marks
+    paperGroup.totalMarks += marks;
   });
 
-  const examPapers = Array.from(paperGroups.values());
+  const examPapers = Array.from(examPaperGroups.values());
+  const multipleExamPapers = examPapers.length > 1;
+
+  // Total marks across all uniqueness
+  const totalMarks = examPapers.reduce((sum, p) => sum + p.totalMarks, 0);
+
   return {
     examPapers,
-    multipleExamPapers: examPapers.length > 1,
+    multipleExamPapers,
     totalMarks
   };
 }
 
 /**
- * UTILITY: Generate Session Title from Detection Results
- * Creates a descriptive title like "Edexcel 1MA1/1F Nov 2023 Q1 to Q5"
+ * Generate a descriptive session title from detection results
  */
-export function generateSessionTitleFromDetectionResults(detectionResults: any[], mode: 'Question' | 'Marking' = 'Marking'): string {
-  if (!detectionResults || detectionResults.length === 0) return 'New Session';
+export function generateSessionTitleFromDetectionResults(detectionResults: any[], mode: 'Marking' | 'Question'): string {
+  const { examPapers, totalMarks } = buildExamPaperStructure(detectionResults);
 
-  const validMatches = detectionResults.filter(dr => dr.detectionResult.found && dr.detectionResult.match);
-
-  // Check if matches are just "Generic Question" mocks (not real past papers)
-  const isGenericMatch = validMatches.some(dr => dr.detectionResult.match?.paperCode === 'Generic Question');
-
-  if (validMatches.length === 0 || isGenericMatch) {
-    // Fallback to non-past paper title logic if no matches found or if generic
-    // Use parentText (main question) if available, else fallback to sub-question text
-    const firstQ = detectionResults[0]?.question;
-    const firstText = (firstQ as any)?.parentText || firstQ?.text;
-    const cleanText = (firstText || '').trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
-    const truncatedText = cleanText.length > 30 ? cleanText.substring(0, 30) + '...' : cleanText;
-    return truncatedText ? `${mode} - ${truncatedText}` : `${mode} - New Session`;
+  if (examPapers.length === 0) {
+    return `${mode} - ${new Date().toLocaleDateString()}`;
   }
 
+  // Paper Title: Use the first paper's details
+  const p = examPapers[0];
+  const board = p.examBoard === 'Pearson Edexcel' ? 'Edexcel' : p.examBoard;
 
-  // Find dominant paper
-  const paperCounts = new Map<string, number>();
-  validMatches.forEach(dr => {
-    const title = dr.detectionResult.match.paperTitle;
-    paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
-  });
-
-  const topPaper = Array.from(paperCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
-  const firstMatch = validMatches.find(dr => dr.detectionResult.match.paperTitle === topPaper).detectionResult.match;
-
-  // Get question range
-  const qNums = validMatches
-    .filter(dr => dr.detectionResult.match.paperTitle === topPaper)
-    .map(dr => {
-      const base = getBaseQuestionNumber(dr.question.questionNumber);
-      return parseInt(base, 10);
-    })
-    .filter(n => !isNaN(n))
-    .sort((a, b) => a - b);
+  // Question Range (Q1 to Q8)
+  const qNums = p.questions
+    .map((q: any) => parseInt(q.questionNumber))
+    .filter((n: any) => !isNaN(n))
+    .sort((a: any, b: any) => a - b);
 
   let qRange = '';
-  if (qNums.length === 1) {
-    qRange = `Q${qNums[0]}`;
-  } else if (qNums.length > 1) {
-    const min = qNums[0];
-    const max = qNums[qNums.length - 1];
-    qRange = min === max ? `Q${min}` : `Q${min} to Q${max}`;
+  if (qNums.length > 0) {
+    if (qNums.length === 1) {
+      qRange = ` Q${qNums[0]}`;
+    } else {
+      qRange = ` Q${qNums[0]} to Q${qNums[qNums.length - 1]}`;
+    }
   }
 
-  let board = firstMatch.board;
-  if (board === 'Pearson Edexcel') board = 'Edexcel';
-
-  return `${firstMatch.examSeries} ${firstMatch.paperCode} ${board} ${qRange}`.trim();
+  return `${board} ${p.subject} ${p.examCode} (${p.examSeries})${qRange} ${totalMarks} marks`;
 }
 
 /**
- * UTILITY: Calculate total marks for a paper match
+ * Simple total marks calculator
  */
-export function calculateTotalMarks(match: any): number {
-  if (!match) return 0;
-  return match.marks || match.parentQuestionMarks || 0;
+export function calculateTotalMarks(detectionResults: any[]): number {
+  return detectionResults.reduce((sum, dr) => sum + (dr.detectionResult?.match?.marks || 0), 0);
 }
 
-/**
- * Helper to get base question number for sorting/titling without importing utils to avoid cycles
- */
-function getBaseQuestionNumber(qNum: string | null | undefined): string {
-  if (!qNum) return '';
-  const match = String(qNum).match(/^\d+/);
-  return match ? match[0] : '';
-}
+export const questionDetectionService = QuestionDetectionService.getInstance();

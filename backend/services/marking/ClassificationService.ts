@@ -306,9 +306,9 @@ ${pageHints}
           tracker.recordClassification(inputTokens, outputTokens);  // Classification Marking Pass
         }
         const cleanContent = this.cleanGeminiResponse(content);
-        // [DEBUG] Log the classification response per task
-        console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
-        console.log(cleanContent); // Full response (User Request)
+        // [DEBUG] Log the classification response per task - ENABLED
+        // console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
+        // console.log(cleanContent); // Full response (User Request)
 
         parsed = this.parseJsonWithSanitization(cleanContent);
 
@@ -333,31 +333,20 @@ ${pageHints}
 
             // NOTE: Text Shield (printed text filtering) removed to prevent stripping of typed model answers.
 
-            // ✅ CRITICAL FIX: Inject pageIndex into studentWorkLines position objects
+            // ✅ CRITICAL FIX: Inject pageIndex into studentWorkLines position objects (Recursive)
             if (processedQuestions && Array.isArray(processedQuestions)) {
-              processedQuestions.forEach((q: any) => {
-                // Add pageIndex to main question studentWorkLines
-                if (q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
-                  q.studentWorkLines.forEach((line: any) => {
-                    if (line.position) {
-                      line.position.pageIndex = globalPageIndex;
-                    }
+              const injectPageIndex = (node: any) => {
+                if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {
+                  node.studentWorkLines.forEach((line: any) => {
+                    line.pageIndex = globalPageIndex;
+                    if (line.position) line.position.pageIndex = globalPageIndex;
                   });
                 }
-
-                // Add pageIndex to sub-question studentWorkLines
-                if (q.subQuestions && Array.isArray(q.subQuestions)) {
-                  q.subQuestions.forEach((sq: any) => {
-                    if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines)) {
-                      sq.studentWorkLines.forEach((line: any) => {
-                        if (line.position) {
-                          line.position.pageIndex = globalPageIndex;
-                        }
-                      });
-                    }
-                  });
+                if (node.subQuestions && Array.isArray(node.subQuestions)) {
+                  node.subQuestions.forEach((sq: any) => injectPageIndex(sq));
                 }
-              });
+              };
+              processedQuestions.forEach(q => injectPageIndex(q));
             }
 
             results.push({
@@ -970,7 +959,7 @@ ${pageHints}
   private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
     let rawQuestions: any[] = [];
 
-    // Handle 'pages' structure (from prompt)
+    // Handle 'pages' structure
     if (parsed.pages && Array.isArray(parsed.pages)) {
       parsed.pages.forEach((page: any) => {
         if (page.questions && Array.isArray(page.questions)) {
@@ -978,7 +967,7 @@ ${pageHints}
         }
       });
     }
-    // Handle direct 'questions' structure (legacy/fallback)
+    // Handle direct 'questions' structure
     else if (parsed.questions && Array.isArray(parsed.questions)) {
       rawQuestions = parsed.questions;
     }
@@ -987,13 +976,11 @@ ${pageHints}
       return undefined;
     }
 
-    const questions = rawQuestions.map((q: any) => {
-      if (q.studentWorkLines && Array.isArray(q.studentWorkLines) && q.studentWorkLines.length > 0) {
-        q.studentWorkLines.forEach((line: any, i: number) => {
+    const recursiveParse = (q: any): any => {
+      // 1. Normalize Coordinates (0-1000 to 0-100)
+      if (q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
+        q.studentWorkLines.forEach((line: any) => {
           let p = line.position;
-          // Normalize 0-1000 scale to 0-100
-          // Use a higher threshold (150) to avoid false positives from slight percentage overflows (>100)
-          // Also check if multiple dimensions are large to be more confident it's 0-1000
           const isLargeScale = p && (
             (p.x > 120 || p.y > 120) ||
             (p.width > 200 || p.height > 200) ||
@@ -1001,71 +988,37 @@ ${pageHints}
           );
 
           if (isLargeScale) {
-            p = {
+            line.position = {
               x: p.x / 10,
               y: p.y / 10,
               width: p.width / 10,
               height: p.height / 10
             };
-            line.position = p; // Update the line object
           }
 
-
-          // DEBUG: Log if drawing position is missing
-          const isDrawing = (line.text || '').toLowerCase().includes('[drawing]');
-          if (isDrawing && !p) {
-            console.error(`❌ [CLASSIFICATION ERROR] Q${q.questionNumber || '?'}: Detected [DRAWING] on Line ${i + 1} but NO POSITION was provided by AI.`);
+          // [DEBUG] Drawing check
+          if ((line.text || '').toLowerCase().includes('[drawing]') && !line.position) {
+            console.error(`❌ [CLASSIFICATION ERROR] Q${q.questionNumber || '?'}: Found [DRAWING] but NO POSITION.`);
           }
         });
       }
 
-      // DEBUG: Log student work lines from Sub-Questions
-      if (q.subQuestions && Array.isArray(q.subQuestions)) {
-        q.subQuestions.forEach((sq: any) => {
-          if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines) && sq.studentWorkLines.length > 0) {
-            sq.studentWorkLines.forEach((line: any, i: number) => {
-              let p = line.position;
-              // Normalize 0-1000 scale to 0-100 (same robust heuristic)
-              const isLargeScale = p && (
-                (p.x > 120 || p.y > 120) ||
-                (p.width > 200 || p.height > 200) ||
-                (p.x > 100 && p.y > 100)
-              );
-
-              if (isLargeScale) {
-                p = {
-                  x: p.x / 10,
-                  y: p.y / 10,
-                  width: p.width / 10,
-                  height: p.height / 10
-                };
-                line.position = p; // Update the line object
-              }
-
-
-            });
-          }
-
-        });
-      }
+      // 2. Build Object with recursive subQuestions
       return {
         questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,
+        part: q.part,
         text: q.text !== undefined ? (q.text || null) : undefined,
         studentWorkLines: q.studentWorkLines,
-        hasStudentDrawing: q.hasStudentDrawing !== undefined ? (q.hasStudentDrawing === true) : false,
-        subQuestions: q.subQuestions?.map((sq: any) => ({
-          part: sq.part,
-          text: sq.text,
-          studentWorkLines: sq.studentWorkLines,
-          hasStudentDrawing: sq.hasStudentDrawing !== undefined ? (sq.hasStudentDrawing === true) : false,
-          confidence: defaultConfidence,
-          pageIndex: sq.pageIndex
-        })),
-        confidence: q.confidence || defaultConfidence
+        hasStudentDrawing: q.hasStudentDrawing === true,
+        confidence: q.confidence || defaultConfidence,
+        pageIndex: q.pageIndex,
+        subQuestions: q.subQuestions && Array.isArray(q.subQuestions)
+          ? q.subQuestions.map((sq: any) => recursiveParse(sq))
+          : undefined
       };
-    });
+    };
 
-    return questions;
+    return rawQuestions.map(q => recursiveParse(q));
   }
 
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {

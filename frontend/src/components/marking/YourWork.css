@@ -252,17 +252,11 @@
 
 /* Drawing UI Styles */
 .yw-drawing-container {
-    cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 400px;
     display: block;
-    transition: color 0.15s ease;
-}
-
-.yw-drawing-container:hover {
-    color: var(--function-success);
 }
 
 .yw-drawing-container.expanded {
@@ -283,4 +277,12 @@
     vertical-align: middle;
     line-height: 1;
     margin-top: -2px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.yw-drawing-badge:hover {
+    background-color: var(--function-success);
+    color: white;
+    transform: scale(1.05);
 }

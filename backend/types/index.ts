@@ -394,6 +394,7 @@ export interface UnifiedSession {
 
   // User preferences
   favorite?: boolean;
+  pinned?: boolean;
   rating?: number;
 
   // Session-specific flags

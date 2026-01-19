@@ -780,6 +780,7 @@ class SimpleSessionService {
       createdAt: sessionData.createdAt || new Date().toISOString(),
       updatedAt: sessionData.updatedAt || new Date().toISOString(),
       favorite: sessionData.favorite || false,
+      pinned: sessionData.pinned || false,
       rating: sessionData.rating || 0,
       sessionStats: sessionStats,
     };
@@ -790,19 +791,29 @@ class SimpleSessionService {
     // Don't add temp sessions to sidebar - they will be replaced by real sessions
     if (session.id && session.id.startsWith('temp-')) return;
 
-    const lightweightSession = {
-      id: session.id,
-      title: session.title,
-      messageType: session.messageType,
-      createdAt: session.createdAt,
-      updatedAt: session.updatedAt,
-      favorite: session.favorite,
-      rating: session.rating,
-      lastMessage: session.messages?.slice().reverse().find(m => m.content && !m.isProcessing) || null
-    };
 
     this.setState(prevState => {
       const existingIndex = prevState.sidebarSessions.findIndex(s => s.id === session.id);
+      const existingSession = existingIndex > -1 ? prevState.sidebarSessions[existingIndex] : {};
+
+      // Merge new data with existing session data to prevent losing fields like 'title'
+      const mergedData = { ...existingSession, ...session };
+
+      const lightweightSession = {
+        id: mergedData.id,
+        title: mergedData.title,
+        messageType: mergedData.messageType,
+        createdAt: mergedData.createdAt,
+        updatedAt: mergedData.updatedAt || new Date().toISOString(),
+        favorite: mergedData.favorite,
+        pinned: mergedData.pinned,
+        rating: mergedData.rating,
+        lastMessage: (mergedData.messages && Array.isArray(mergedData.messages))
+          ? (mergedData.messages.slice().reverse().find(m => m.content && !m.isProcessing) || mergedData.lastMessage || null)
+          : (mergedData.lastMessage || null)
+      };
+
+
       let newSessions;
       if (existingIndex > -1) {
         newSessions = [...prevState.sidebarSessions];
@@ -814,7 +825,7 @@ class SimpleSessionService {
     });
 
     // Trigger event to update Sidebar component
-    this.triggerSessionUpdate(lightweightSession);
+    this.triggerSessionUpdate(session);
   }
 
   updateSession = async (sessionId, updates) => {
