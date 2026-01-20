@@ -168,9 +168,11 @@ export const enrichAnnotationsWithPositions = (
             // and we have a large offset being applied, it's highly likely the coordinate is ALREADY global.
             // Heuristic: If pixelBbox.y + offset > Page Height, something is wrong.
             const dims = getPageDims(pageDimensions!, pageIndex);
-            // 🔥 DOUBLE-OFFSET PROTECTION: If the base pixelBbox Y is already significant,
-            // and it's close to the target landmark Y, adding them will double-globalize it.
-            const isAlreadyGlobal = pixelBbox[1] > (specificOffsetY - 150) && pixelBbox[1] > 200;
+            // 🔥 DOUBLE-OFFSET PROTECTION Refinement (V24):
+            // If the match was found via Scale Detective (VISUAL_NORM_..._CALC), 
+            // it is DEFINITIVELY relative to a crop and MUST receive the offset.
+            const isScaleDetective = method.includes('CALC');
+            const isAlreadyGlobal = !isScaleDetective && pixelBbox[1] > (specificOffsetY - 150) && pixelBbox[1] > 200;
 
             if (isAlreadyGlobal && specificOffsetY > 0) {
                 console.log(`   🛡️ [OFFSET-BYPASS] Base Y (${Math.round(pixelBbox[1])}) is already near/past Landmark Y (${specificOffsetY}). Skipping Anchor.`);
@@ -189,22 +191,25 @@ export const enrichAnnotationsWithPositions = (
 
         const isDrawing = (anno.text || '').includes('[DRAWING]') || (anno.reasoning && anno.reasoning.includes('[DRAWING]'));
 
-        // 🔥 FINAL ROBUST FIX: Preserve incoming status if it's already robust (Sovereignty)
+        // 🔥 FINAL ROBUST FIX (V24): Trust incoming status (Sovereignty)
+        // This ensures redirected marks from Interceptor keep their MATCHED (M) status.
         let status = incomingStatus || (isDrawing ? "VISUAL" :
             (lineId && (lineId.startsWith('block_') || lineId.startsWith('ocr_')) || method.includes('OCR')) ? "MATCHED" :
                 (method.includes('PERCENT') ? "VISUAL" : "UNMATCHED"));
 
-        // Ensure redirected marks that are NOT drawings stay MATCHED (V23)
+        // If it was a redirect, and no status was provided, fallback to visual ONLY if it's a drawing
         if (lineId && lineId.startsWith('visual_redirect_')) {
-            // Respect the status passed from MarkingInstructionService (now MATCHED)
-            status = incomingStatus || "VISUAL";
+            status = incomingStatus || (isDrawing ? "VISUAL" : "MATCHED");
         }
+
+        console.log(`   🏁 [FINAL] ID: ${lineId} | Status: ${status} | Method: ${method}`);
 
         return {
             ...anno,
             bbox: pixelBbox,
             pageIndex: pageIndex,
-            ocr_match_status: status,
+            ocr_match_status: status as any,
+            line_id: lineId, // Explicitly preserve ID for logs
             _debug_placement_method: method,
             visualObservation: visualObservation
         } as EnrichedAnnotation;

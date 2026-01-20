@@ -18,7 +18,7 @@
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 💳 [CREDIT CHECK] Estimated cost: 0.0449631, files: 1, bytes: 399631
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":426.36}
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":424.84}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
@@ -28,8 +28,8 @@
 [1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
 [MAPPER] Starting Map Pass for 1 pages...
-✅ [MAPPER] Map Pass complete in 2.45s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+✅ [MAPPER] Map Pass complete in 1.91s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -39,14 +39,14 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
 [1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.6s[0m ([32m[1mMATHPIX[0m)
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -94,25 +94,20 @@
    🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=351, y=573
 [BUDGET Q6] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
 🤖 [AI RESPONSE] [31mQ6[0m - Clean response received:
-  - Annotations count: [35m3[0m
+  - Annotations count: [35m2[0m
   - Student score: [32m4/4[0m
-  - Usage tokens: [33m7216[0m
+  - Usage tokens: [33m7240[0m
      [36mThe student has completed the probability tree diagram and calculated the probability of both coins landing on heads.[0m
   - Annotations:
     1. [32mtick[0m [34m[block_0_4][0m [B1 B1] [34m"0.4"[0m
-      ↳ Reason: Correct probability (0.4) for coin A not landing on heads. | Correct probabilities for coin B (0.55 and 0.45) in the correct places.
+      ↳ Reason: Correct probability 0.4 for coin A is in the correct position. | Correct probabilities for coin B (0.55 and 0.45) are in the correct places.
       ↳ OCR Match: [35m"0.4"[0m
       ↳ Classification: [35m"(a) Complete the probability tree diagram. [PRINTED_INSTRUCTION]"[0m
       ↳ Status: [32m"MATCHED"[0m
-    2. [32mtick[0m [34m[block_0_7][0m [M1] [34m"0.33"[0m
-      ↳ Reason: Correct method implied by the correct answer.
+    2. [32mtick[0m [34m[block_0_7][0m [M1 A1] [34m"0.33"[0m
+      ↳ Reason: Correct method for calculating the probability of both coins landing on heads. | Correct answer for the probability of both coins landing on heads.
       ↳ OCR Match: [35m"0.33"[0m
       ↳ Classification: [35m"(b) Work out the probability that both coins land on heads. [PRINTED_INSTRUCTION]"[0m
-      ↳ Status: [32m"MATCHED"[0m
-    3. [32mtick[0m [34m[block_0_9][0m [A1] [34m"0.33"[0m
-      ↳ Reason: Correct answer (0.33).
-      ↳ OCR Match: [35m"0.33"[0m
-      ↳ Classification: [35m"0.33"[0m
       ↳ Status: [32m"MATCHED"[0m
    🛡️ [REDIRECT] Intercepted link to Instruction [block_0_4]
    🛡️ [REDIRECT] Intercepted link to Instruction [block_0_7]
@@ -123,35 +118,40 @@
    ⚓ [GLOBAL-OFFSET] Applying offsets: x=351, y=573
 
 👉 [ANNO 0] "B1" (ID: ) | Status In: VISUAL
-   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 121, 140
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (121, 140)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
    ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
-   🏗️ [OFFSET] Applying Anchor (+351, +573)
-      Final Coord: (472, 713)
+   🏗️ [OFFSET] Applying Anchor (+351, +573) to base (301, 492)
+      Final Coord: (652, 1065)
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
 
 👉 [ANNO 1] "B1" (ID: ) | Status In: VISUAL
-   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 121, 140
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (121, 140)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
    ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
-   🏗️ [OFFSET] Applying Anchor (+351, +573)
-      Final Coord: (472, 713)
+   🏗️ [OFFSET] Applying Anchor (+351, +573) to base (301, 492)
+      Final Coord: (652, 1065)
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
 
 👉 [ANNO 2] "M1" (ID: ) | Status In: VISUAL
    ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1787, 2439
    ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [b] (+354, +2083)
-   🏗️ [OFFSET] Applying Anchor (+354, +2083)
-      Final Coord: (2141, 4522)
+   🛡️ [OFFSET-BYPASS] Base Y (2439) is already near/past Landmark Y (2083). Skipping Anchor.
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: PX_PRECOMPUTED
 
-👉 [ANNO 3] "A1" (ID: block_0_9) | Status In: MATCHED
-   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
-      Input:  [1858,2447,195,110]
-      Output: [1858,2447,195,110]
+👉 [ANNO 3] "A1" (ID: ) | Status In: VISUAL
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1787, 2439
+   ⚖️ [SCOPED-OFFSET] Annotation "A1" uses Landmark [b] (+354, +2083)
+   🛡️ [OFFSET-BYPASS] Base Y (2439) is already near/past Landmark Y (2083). Skipping Anchor.
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: PX_PRECOMPUTED
 
 🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q6
 ✅ [ANNOTATION-AUDIT] Complete
 
 [SCORE DEBUG] Q6: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
 [GUILLOTINE CHECK] Q6: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.4s[0m ([32m[1mAI-MARKING[0m)
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.5s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
    📊 Marking Results: 1 questions
@@ -162,128 +162,2087 @@
 [32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
 [32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
 [32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 6 ([37mQ6a, Q6b[32m)[0m
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.7s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m2.3s[0m ([32m[1mOUTPUT-GENERATION[0m)
 [SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...
 [SYNC FIX] ✅ Q6: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
 [SYNC FIX] 🏁 Updated Grand Total from 12 -> 4
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 📊 [ANNOTATION SUMMARY]
 ----------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status              |
 |----------|-------|-------------------------|---------------------------|
-| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:1 V:3 U:0 S:0           |
+| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:0 V:4 U:0 S:0           |
 | [90m  a     [0m | 2     | B1, B1                  | M:0 V:2 U:0 S:0           |
-| [90m  b     [0m | 2     | M1, A1                  | M:1 V:1 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:0 V:2 U:0 S:0           |
 |----------|-------|-------------------------|---------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 23.7s
+Total Processing Time: 24.0s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      8.1s (34%)
-marking                             7.4s (31%)
+classification                      7.6s (32%)
+marking                             7.5s (31%)
 ocr_processing                      3.6s (15%)
-output_generation                   1.7s (7%)
-performance_summary                 0.6s (3%)
-question_detection                  0.6s (3%)
+output_generation                   2.3s (9%)
+performance_summary                 0.9s (4%)
+question_detection                  0.8s (3%)
 preprocessing                       0.4s (2%)
-database_persistence                0.3s (1%)
+database_persistence                0.2s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
    API Requests: 3 total
-   Total Tokens: 11,615 (10,828 in + 787 out)
-   Total Cost: $0.004966
+   Total Tokens: 11,656 (10,866 in + 790 out)
+   Total Cost: $0.004971
    Mathpix OCR: 1 pages → $0.004000
 
    Breakdown by Phase:
    • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
    • Classification (Marking Pass): 6,988 tokens (1 requests) → $0.000910
-   • Performance Summary: 466 tokens (1 requests) → $0.000056
+   • Performance Summary: 507 tokens (1 requests) → $0.000061
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768928042670
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768928042670
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.004965600000000001
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768932798045
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768932798045
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0049706
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768928042670), remaining: 425.86
-💳 Deducted 0.0050 credits (session: sub-1768928042670) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768928042670
-💳 Deducted 0.02 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768928042670), remaining: 425.84
-💳 Deducted 0.00 cost (session: sub-1768928042670, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
+💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768932798045), remaining: 424.34
+💳 Deducted 0.0050 credits (session: sub-1768932798045) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768932798045
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 21, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.9444994000000001, files: 21, bytes: 8394994
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":424.34}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Multiple Images (21 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m4.5s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 21 pages...
+✅ [MAPPER] Map Pass complete in 8.01s. Mapped 21 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m32.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🚀 [OVERRIDE] 90% Rule Triggered: 22/22 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m32.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mMATHPIX[0m)
+[DETECTION] 🏆 Relative Winner Accepted: 0.783 vs Runner-up 0.591
+[DETECTION] 🏆 Relative Winner Accepted: 0.782 vs Runner-up 0.551
+[32m[HINT] 🏛️ Consensus Reached! Forcing to "Pearson Edexcel - 1MA1/3H - June 2024, Higher Tier"[0m
+   └─ Rescued Group Q1 -> Pearson Edexcel - 1MA1/3H - June 2024, Higher Tier
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m7.6s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Pearson Edexcel 1MA1/3H June 2024 Higher Tier
+   Pool Size: 1 papers, 21 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 1    | Find the highest common factor (HCF) of 63... | Edexcel GCSE 1MA1/3H June 2024 Q1                  | 0.747 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.747] 1MA1/3H Q1                     | Txt:0.98 Num:0.36 Str:0.50 Sem:PASS
+      ○ [0.304] 1MA1/3H Q16                    | Txt:0.24 Num:0.36 Str:0.50 Sem:PASS
+      ○ [0.283] 1MA1/3H Q19                    | Txt:0.16 Num:0.45 Str:0.50 Sem:FAIL
+| 2ai  | Write 5.3 x 10' as an ordinary number.  53000 | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.933 | [32m✅ SUCCESS[0m      |
+| 2aii | Write 7.4 x 10 as an ordinary number.  0.0... | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.933 | [32m✅ SUCCESS[0m      |
+| 2b   | Calculate the value of 9.7 x 10+ 2.45 × 10... | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.933 | [32m✅ SUCCESS[0m      |
+| 3    | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
+      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
+| 3a   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
+      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
+| 3b   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
+      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
+| 4    | A company has 25000 workers. The number of... | Edexcel GCSE 1MA1/3H June 2024 Q4                  | 0.929 | [32m✅ SUCCESS[0m      |
+| 5    | Habib has two identical tins. He puts 600 ... | Edexcel GCSE 1MA1/3H June 2024 Q5                  | 0.895 | [32m✅ SUCCESS[0m      |
+| 6    | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.880 | [32m✅ SUCCESS[0m      |
+| 6a   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.880 | [32m✅ SUCCESS[0m      |
+| 6b   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.880 | [32m✅ SUCCESS[0m      |
+| 7    | A paddling pool is in the shape of a cylin... | Edexcel GCSE 1MA1/3H June 2024 Q7                  | 0.866 | [32m✅ SUCCESS[0m      |
+| 8    | a = \begin{pmatrix} 3 \\ 2 \end{pmatrix} b... | Edexcel GCSE 1MA1/3H June 2024 Q8                  | 0.991 | [32m✅ SUCCESS[0m      |
+| 9    | The diagram shows a cube and a square-base... | Edexcel GCSE 1MA1/3H June 2024 Q9                  | 0.841 | [32m✅ SUCCESS[0m      |
+| 10   | There are only red counters and yellow cou... | Edexcel GCSE 1MA1/3H June 2024 Q10                 | 0.955 | [32m✅ SUCCESS[0m      |
+| 11   | Mina records the speeds, in mph, of some c... | Edexcel GCSE 1MA1/3H June 2024 Q11                 | 0.782 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.782] 1MA1/3H Q11                    | Txt:0.85 Num:0.40 Str:1.00 Sem:PASS
+      ○ [0.551] 1MA1/3H Q11                    | Txt:0.56 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.539] J560/04 Q11                    | Txt:0.39 Num:0.25 Str:1.00 Sem:PASS
+| 11a  | Mina records the speeds, in mph, of some c... | Edexcel GCSE 1MA1/3H June 2024 Q11                 | 0.782 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.782] 1MA1/3H Q11                    | Txt:0.85 Num:0.40 Str:1.00 Sem:PASS
+      ○ [0.551] 1MA1/3H Q11                    | Txt:0.56 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.539] J560/04 Q11                    | Txt:0.39 Num:0.25 Str:1.00 Sem:PASS
+| 11b  | Mina records the speeds, in mph, of some c... | Edexcel GCSE 1MA1/3H June 2024 Q11                 | 0.782 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.782] 1MA1/3H Q11                    | Txt:0.85 Num:0.40 Str:1.00 Sem:PASS
+      ○ [0.551] 1MA1/3H Q11                    | Txt:0.56 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.539] J560/04 Q11                    | Txt:0.39 Num:0.25 Str:1.00 Sem:PASS
+| 12   | The diagram shows triangle T drawn on a gr... | Edexcel GCSE 1MA1/3H June 2024 Q12                 | 0.833 | [32m✅ SUCCESS[0m      |
+| 13   | There are 30 students in a class. A teache... | Edexcel GCSE 1MA1/3H June 2024 Q13                 | 0.908 | [32m✅ SUCCESS[0m      |
+| 14   | At the start of 2022 Kim invested some mon... | Edexcel GCSE 1MA1/3H June 2024 Q14                 | 0.908 | [32m✅ SUCCESS[0m      |
+| 15a  | Simplify fully \frac{(a-3)^2}{5(a-3)}  \fr... | Edexcel GCSE 1MA1/3H June 2024 Q15                 | 0.981 | [32m✅ SUCCESS[0m      |
+| 15b  | Factorise 3k^2 + 11k - 4  (3k-1)(k+4)         | Edexcel GCSE 1MA1/3H June 2024 Q15                 | 0.981 | [32m✅ SUCCESS[0m      |
+| 15c  | Simplify fully \frac{4-x^2}{x^2+3x} \div \... | Edexcel GCSE 1MA1/3H June 2024 Q15                 | 0.981 | [32m✅ SUCCESS[0m      |
+| 16   | The functions f and g are given by            | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.929 | [32m✅ SUCCESS[0m      |
+| 16a  | The functions f and g are given by  Find f... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.929 | [32m✅ SUCCESS[0m      |
+| 16b  | The functions f and g are given by  Find f... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.929 | [32m✅ SUCCESS[0m      |
+| 16c  | The functions f and g are given by  Find g... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.929 | [32m✅ SUCCESS[0m      |
+| 17   | A ball is thrown upwards and reaches a max... | Edexcel GCSE 1MA1/3H June 2024 Q17                 | 0.920 | [32m✅ SUCCESS[0m      |
+| 18   | ABCD is a quadrilateral. The area of trian... | Edexcel GCSE 1MA1/3H June 2024 Q18                 | 0.813 | [32m✅ SUCCESS[0m      |
+| 19   | R = \\frac{P}{Q} P = 5.88 x 10" correct to... | Edexcel GCSE 1MA1/3H June 2024 Q19                 | 0.916 | [32m✅ SUCCESS[0m      |
+| 20   | x 4, x + 2 and 3x + 1 are three consecutiv... | Edexcel GCSE 1MA1/3H June 2024 Q20                 | 0.941 | [32m✅ SUCCESS[0m      |
+| 20a  | x 4, x + 2 and 3x + 1 are three consecutiv... | Edexcel GCSE 1MA1/3H June 2024 Q20                 | 0.941 | [32m✅ SUCCESS[0m      |
+| 20b  | x 4, x + 2 and 3x + 1 are three consecutiv... | Edexcel GCSE 1MA1/3H June 2024 Q20                 | 0.941 | [32m✅ SUCCESS[0m      |
+| 21   | The diagram shows a circle, radius r cm an... | Edexcel GCSE 1MA1/3H June 2024 Q21                 | 0.839 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 36
+   Detected: 35/36
+   Not detected: 1
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+[DRAWING] Q3: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q3: Will pass image to Marking AI
+[DRAWING] Q6: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q6: Will pass image to Marking AI
+[DRAWING] Q8: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q8: Will pass image to Marking AI
+[DRAWING] Q11: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q11: Will pass image to Marking AI
+[DRAWING] Q12: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q12: Will pass image to Marking AI
+✅ createMarkingTasksFromClassification completed, created 21 marking task(s)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q1:
+   [0] ID: line_1 | Text: "63=3\times^2\times 11" | Handwriting: true | Box: [61,106,83,28]
+   [1] ID: line_2 | Text: "105=3x5x7" | Handwriting: true | Box: [61,135,74,24]
+   [2] ID: line_3 | Text: "3" | Handwriting: true | Box: [171,175,15,26]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_1_0] "Answer ALL..." for Offset: x=998, y=301
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q2:
+   [0] ID: line_1 | Text: "53000" | Handwriting: true | Box: [142,63,27,14]
+   [1] ID: line_2 | Text: "0.000074" | Handwriting: true | Box: [142,126,35,14]
+   [2] ID: line_3 | Text: "3.42×10^6" | Handwriting: true | Box: [142,217,35,14]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "ii" at Page 2, Y=844
+   📍 Found Landmark: "b" at Page 2, Y=1370
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: ii, b
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_2_0] "2 (a) (i) ..." for Offset: x=280, y=315
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q3:
+   [0] ID: line_1 | Text: "The height of prism is not 4cm" | Handwriting: true | Box: [29,245,104,12]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 3, Y=2094
+   📍 Found Landmark: "b" at Page 4, Y=296
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, b
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '3' to First Child Landmark 'a' at Y=2094
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=263, y=2094
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q4:
+   [0] ID: line_1 | Text: "25000 x 1.06^3" | Handwriting: true | Box: [76,200,74,21]
+   [1] ID: line_2 | Text: "29775" | Handwriting: true | Box: [124,281,37,18]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "b" at Page 4, Y=296
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: b
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_4_0] "(b) On the..." for Offset: x=345, y=296
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q5:
+   [0] ID: line_1 | Text: "Volume of tin= \frac{600}{0.6}" | Handwriting: true | Box: [25,98,99,35]
+   [1] ID: line_2 | Text: "= 1000 cm³" | Handwriting: true | Box: [25,158,74,28]
+   [2] ID: line_3 | Text: "1000-700=300" | Handwriting: true | Box: [25,210,87,28]
+   [3] ID: line_4 | Text: "600/300=2g/cm³" | Handwriting: true | Box: [25,263,99,28]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_5_0] "5 Habib ha..." for Offset: x=252, y=280
+[BUDGET Q1] 🥇 Trusting AI Total: 2 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ1[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m0/2[0m
+  - Usage tokens: [33m6586[0m
+     [36mStudent attempts to find the HCF of 63 and 105 by prime factorization but makes an error in the factorization of 63. The final answer is incorrect.[0m
+  - Annotations:
+    1. [31mcross[0m [34m[block_1_4][0m [M1] [34m"63 = 3^{2} times 11"[0m
+      ↳ Reason: Incorrect prime factorization of 63. Should be 3 x 3 x 7. Does not meet M1 criteria.
+      ↳ OCR Match: [35m"63 = 3^{2} times 11"[0m
+      ↳ Classification: [35m"63  =3^{2} \times 11"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [31mcross[0m [34m[block_1_6][0m [A1] [34m"QU. 3"[0m
+      ↳ Reason: Incorrect final answer. The correct answer is 21. A1 not awarded.
+      ↳ OCR Match: [35m"QU. 3"[0m
+      ↳ Classification: [35m"QU. 3"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q1
+
+🔍 [ENRICH-START] Processing Q1 | 2 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=998, y=301
+
+👉 [ANNO 0] "M1" (ID: block_1_4) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [893,926,546,147]
+      Output: [893,926,546,147]
+   🏁 [FINAL] ID: block_1_4 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "A1" (ID: block_1_6) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1902,1694,238,123]
+      Output: [1902,1694,238,123]
+   🏁 [FINAL] ID: block_1_6 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q1
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q1: rawScore={"totalMarks":2,"awardedMarks":0,"scoreText":"0/2"}, parsedAwarded=2, parsedTotal=2, schemeTotal=2
+[GUILLOTINE CHECK] Q1: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=2, ResultTotal=2
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q6:
+   [0] ID: line_1 | Text: "0.45" | Handwriting: true | Box: [118,139,15,11]
+   [1] ID: line_2 | Text: "0.55" | Handwriting: true | Box: [143,174,15,11]
+   [2] ID: line_3 | Text: "0.45" | Handwriting: true | Box: [143,209,15,11]
+   [3] ID: line_4 | Text: "0.4" | Handwriting: true | Box: [76,174,10,11]
+   [4] ID: line_5 | Text: "0.33" | Handwriting: true | Box: [171,260,15,14]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 6, Y=573
+   📍 Found Landmark: "b" at Page 6, Y=2083
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, b
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '6' to First Child Landmark 'a' at Y=573
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=351, y=573
+[BUDGET Q3] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ3[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m2/3[0m
+  - Usage tokens: [33m4456[0m
+     [36mStudent provides an explanation for why Rana's side elevation is incorrect and attempts to draw a plan of the solid prism.[0m
+  - Annotations:
+    1. [31mcross[0m [34m[block_3_8][0m [C1] [34m"The height of prim i) not 4 cm"[0m
+      ↳ Reason: The student's explanation is not sufficient to earn credit. The height of the prism in Rana's drawing is 4cm, but the student does not explain why this is incorrect.
+      ↳ OCR Match: [35m"The height of prim i) not 4 cm"[0m
+      ↳ Classification: [35m"for explanation"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_4_0][0m [M1 A1] [34m"(b) On the centimetre grid below, draw a plan of the solid prism."[0m
+      ↳ Reason: Student draws a 7cm by 6cm rectangle. | The student's plan is fully correct.
+      ↳ OCR Match: [35m"(b) On the centimetre grid below, draw a plan of the solid prism."[0m
+      ↳ Classification: [35m"for a 7 cm by 6 cm rectangle or for a 7 cm by n cm or m cm by 6 cm rectangle and dividing line which is parallel to the 7 cm or the m cm side"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q3
+
+🔍 [ENRICH-START] Processing Q3 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=263, y=2094
+
+👉 [ANNO 0] "C1" (ID: block_3_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [340,2160,1299,161]
+      Output: [340,2160,1299,161]
+   🏁 [FINAL] ID: block_3_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "M1" (ID: block_4_0) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (29, 245)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [b] (+345, +296)
+   🏗️ [OFFSET] Applying Anchor (+345, +296) to base (72, 859)
+      Final Coord: (417, 1155)
+   🏁 [FINAL] ID: block_4_0 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 2] "A1" (ID: block_4_0) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (29, 245)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "A1" uses Landmark [b] (+345, +296)
+   🏗️ [OFFSET] Applying Anchor (+345, +296) to base (72, 859)
+      Final Coord: (417, 1155)
+   🏁 [FINAL] ID: block_4_0 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q3
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q3: rawScore={"totalMarks":3,"awardedMarks":2,"scoreText":"2/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q3: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q7:
+   [0] ID: line_1 | Text: "volume = \\pi x100^2 x 30 = 30000\\pi" | Handwriting: true | Box: [30,154,161,35]
+   [1] ID: line_2 | Text: "time = \\frac{30000\\pi}{250}" | Handwriting: true | Box: [30,200,99,35]
+   [2] ID: line_3 | Text: "= 120\\pi seconds" | Handwriting: true | Box: [30,246,87,35]
+   [3] ID: line_4 | Text: "= 62.8 minute" | Handwriting: true | Box: [30,288,74,35]
+   [4] ID: line_5 | Text: "63" | Handwriting: true | Box: [144,288,25,35]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_7_0] "7 A paddli..." for Offset: x=236, y=277
+[BUDGET Q4] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ4[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m7055[0m
+     [36mStudent provides the correct formula and answer for the compound interest problem.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_4_5][0m [P1 P1 P1] [34m"25000 times 1.06^{3}"[0m
+      ↳ Reason: Correct first step: using the compound interest formula. | Evidence of a compound interest process. | Complete process shown.
+      ↳ OCR Match: [35m"25000 times 1.06^{3}"[0m
+      ↳ Classification: [35m"25000 \times 1.06^{3}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_4_8][0m [A1] [34m"29775"[0m
+      ↳ Reason: Correct answer.
+      ↳ OCR Match: [35m"29775"[0m
+      ↳ Classification: [35m"29775"[0m
+      ↳ Status: [32m"MATCHED"[0m
+[BUDGET Q5] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ5[0m - Clean response received:
+  - Annotations count: [35m4[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m7344[0m
+     [36mStudent correctly calculates the density of the salt, showing all necessary steps.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_5_9][0m [P1] [34m"frac{600}{0.6}"[0m
+      ↳ Reason: Correct process to find volume of tin: 600 / 0.6.
+      ↳ OCR Match: [35m"frac{600}{0.6}"[0m
+      ↳ Classification: [35m"\text { Volume of Gin }  =\frac{600}{0.6}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_5_10][0m [P1] [34m"= 100 cm³"[0m
+      ↳ Reason: Correct volume of tin calculated as 1000 cm^3.
+      ↳ OCR Match: [35m"= 100 cm³"[0m
+      ↳ Classification: [35m" =100 \mathrm{~cm}^{3}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_5_11][0m [P1] [34m"1000-700 = 300"[0m
+      ↳ Reason: Correct process to find volume of salt: 1000 - 700 = 300.
+      ↳ OCR Match: [35m"1000-700 = 300"[0m
+      ↳ Classification: [35m"1000-700  =300"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_5_12][0m [A1] [34m"600 / 300 = 2 g/cm³"[0m
+      ↳ Reason: Correct density of salt calculated as 2 g/cm^3.
+      ↳ OCR Match: [35m"600 / 300 = 2 g/cm³"[0m
+      ↳ Classification: [35m"600 / 300=2 \mathrm{~g} / \mathrm{cm}^{3}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q4
+
+🔍 [ENRICH-START] Processing Q4 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=345, y=296
+
+👉 [ANNO 0] "P1" (ID: block_4_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [850,1921,512,192]
+      Output: [850,1921,512,192]
+   🏁 [FINAL] ID: block_4_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_4_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [850,1921,512,192]
+      Output: [850,1921,512,192]
+   🏁 [FINAL] ID: block_4_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_4_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [850,1921,512,192]
+      Output: [850,1921,512,192]
+   🏁 [FINAL] ID: block_4_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "A1" (ID: block_4_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1825,2911,269,126]
+      Output: [1825,2911,269,126]
+   🏁 [FINAL] ID: block_4_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q4
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q4: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q4: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q5
+
+🔍 [ENRICH-START] Processing Q5 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=252, y=280
+
+👉 [ANNO 0] "P1" (ID: block_5_9) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [277,1009,773,176]
+      Output: [277,1009,773,176]
+   🏁 [FINAL] ID: block_5_9 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_5_10) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [277,1185,773,176]
+      Output: [277,1185,773,176]
+   🏁 [FINAL] ID: block_5_10 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_5_11) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [277,1361,773,176]
+      Output: [277,1361,773,176]
+   🏁 [FINAL] ID: block_5_11 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "A1" (ID: block_5_12) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [702,1535,605,194]
+      Output: [702,1535,605,194]
+   🏁 [FINAL] ID: block_5_12 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q5
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q5: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q5: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q8:
+   [0] ID: line_1 | Text: "2a+b" | Handwriting: true | Box: [112,141,25,18]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_8_0] "\( 8 \quad..." for Offset: x=307, y=291
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q9:
+   [0] ID: line_1 | Text: "6^3=8^2h \times \frac{1}{3}" | Handwriting: true | Box: [67,126,99,35]
+   [1] ID: line_2 | Text: "h=\frac{81}{8}" | Handwriting: true | Box: [67,175,50,28]
+   [2] ID: line_3 | Text: "\frac{81}{8}" | Handwriting: true | Box: [144,221,25,28]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "b" at Page 9, Y=1239
+   📍 Found Landmark: "h" at Page 9, Y=1476
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: b, h
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_9_0] "9 The diag..." for Offset: x=269, y=280
+[BUDGET Q2] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ2[0m - Clean response received:
+  - Annotations count: [35m3[0m
+  - Student score: [32m2/4[0m
+  - Usage tokens: [33m7300[0m
+     [36mThe student correctly answers 2a(i) and 2a(ii), but makes a mistake in 2b, getting the power of 10 wrong.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_2_1][0m [B1] [34m"53000"[0m
+      ↳ Reason: Correct answer for 2a(i).
+      ↳ OCR Match: [35m"53000"[0m
+      ↳ Classification: [35m"53000"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_2_3][0m [B1] [34m"0.000014"[0m
+      ↳ Reason: The student wrote 0.000074, but the OCR misread it as 0.000014. The student's answer is correct.
+      ↳ OCR Match: [35m"0.000014"[0m
+      ↳ Classification: [35m"0.000014"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [31mcross[0m [34m[block_2_7][0m [M1 A0] [34m"( 3.42 times 10^{-6} )"[0m
+      ↳ Reason: The student's answer is incorrect. The power of 10 is wrong. However, they have the correct digits, so award M1. | Incorrect final answer.
+      ↳ OCR Match: [35m"( 3.42 times 10^{-6} )"[0m
+      ↳ Classification: [35m"\( 3.42 \times 10^{-6} \)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q2
+
+🔍 [ENRICH-START] Processing Q2 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=280, y=315
+
+👉 [ANNO 0] "B1" (ID: block_2_1) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1814,622,351,186]
+      Output: [1814,622,351,186]
+   🏁 [FINAL] ID: block_2_1 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "B1" (ID: block_2_3) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1831,1168,348,115]
+      Output: [1831,1168,348,115]
+   🏁 [FINAL] ID: block_2_3 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "M1" (ID: block_2_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1869,2149,397,161]
+      Output: [1869,2149,397,161]
+   🏁 [FINAL] ID: block_2_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "A0" (ID: block_2_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1869,2149,397,161]
+      Output: [1869,2149,397,161]
+   🏁 [FINAL] ID: block_2_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q2
+   🗑️ [DEDUPE] Dropping zero mark "A0" for 2b
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q2: rawScore={"totalMarks":4,"awardedMarks":2,"scoreText":"2/4"}, parsedAwarded=3, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q2: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q10:
+   [0] ID: line_1 | Text: "x red \Rightarrow \frac{5}{3}x yellow" | Handwriting: true | Box: [62,95,99,21]
+   [1] ID: line_2 | Text: "= \frac{8}{3}x counters in A" | Handwriting: true | Box: [62,119,99,21]
+   [2] ID: line_3 | Text: "= \frac{4}{3}x counters in B" | Handwriting: true | Box: [62,144,99,21]
+   [3] ID: line_4 | Text: "= \frac{4}{3}x + \frac{8}{3}x total counters" | Handwriting: true | Box: [62,168,124,21]
+   [4] ID: line_5 | Text: "= 4x counters" | Handwriting: true | Box: [62,193,62,21]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_10_0] "10 There a..." for Offset: x=334, y=291
+[BUDGET Q6] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ6[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m7176[0m
+     [36mThe student has completed the probability tree diagram and calculated the probability of both coins landing on heads.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_6_4][0m [B1 B1] [34m"0.4"[0m
+      ↳ Reason: Correct probability for coin A (0.4) is in the correct position. | Correct probabilities for coin B (0.55 and 0.45) are in the correct places on the branches.
+      ↳ OCR Match: [35m"0.4"[0m
+      ↳ Classification: [35m"0.4"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_6_7][0m [M1 A1] [34m"0.33"[0m
+      ↳ Reason: Correct method for calculating the probability of both coins landing on heads (0.6 x 0.55). | Correct probability of both coins landing on heads (0.33).
+      ↳ OCR Match: [35m"0.33"[0m
+      ↳ Classification: [35m"0.33"[0m
+      ↳ Status: [32m"MATCHED"[0m
+   🛡️ [REDIRECT] Intercepted link to Instruction [block_6_4]
+   🛡️ [REDIRECT] Intercepted link to Instruction [block_6_7]
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q6
+
+🔍 [ENRICH-START] Processing Q6 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=351, y=573
+
+👉 [ANNO 0] "B1" (ID: ) | Status In: VISUAL
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (76, 174)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
+   🏗️ [OFFSET] Applying Anchor (+351, +573) to base (187, 609)
+      Final Coord: (538, 1182)
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 1] "B1" (ID: ) | Status In: VISUAL
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (76, 174)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
+   🏗️ [OFFSET] Applying Anchor (+351, +573) to base (187, 609)
+      Final Coord: (538, 1182)
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 2] "M1" (ID: ) | Status In: VISUAL
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1858, 2447
+   ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [b] (+354, +2083)
+   🛡️ [OFFSET-BYPASS] Base Y (2447) is already near/past Landmark Y (2083). Skipping Anchor.
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: PX_PRECOMPUTED
+
+👉 [ANNO 3] "A1" (ID: ) | Status In: VISUAL
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1858, 2447
+   ⚖️ [SCOPED-OFFSET] Annotation "A1" uses Landmark [b] (+354, +2083)
+   🛡️ [OFFSET-BYPASS] Base Y (2447) is already near/past Landmark Y (2083). Skipping Anchor.
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: PX_PRECOMPUTED
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q6
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q6: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q6: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q11:
+   [0] ID: line_1 | Text: "The medion is higher on Sunday compore to Fridoy." | Handwriting: true | Box: [27,276,186,12]
+   [1] ID: line_2 | Text: "Mas 42>40." | Handwriting: true | Box: [30,290,55,12]
+   [2] ID: line_3 | Text: "The ronge die is also higher on Sunday as" | Handwriting: true | Box: [30,304,174,12]
+   [3] ID: line_4 | Text: "44>37." | Handwriting: true | Box: [30,319,30,12]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 11, Y=1173
+   📍 Found Landmark: "b" at Page 11, Y=2384
+   📍 Found Landmark: "a" at Page 11, Y=2636
+   📍 Found Landmark: "i" at Page 11, Y=2749
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, b, i
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '11' to First Child Landmark 'a' at Y=2636
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=619, y=2636
+[BUDGET Q8] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ8[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m3/3[0m
+  - Usage tokens: [33m6772[0m
+     [36mThe student has drawn a vector on the grid and labeled it '2a+b'. The vector appears to start at (0,0) and end at approximately (5,8).[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_8_0][0m [M1] [34m"\( 8 \quad \mathrm{a}=\binom{3}{2} \quad \mathrm{~b}=\binom{-1}{4} \)"[0m
+      ↳ Reason: Student has correctly identified the components of vectors a and b, implying understanding of the calculation.
+      ↳ OCR Match: [35m"\( 8 \quad \mathrm{a}=\binom{3}{2} \quad \mathrm{~b}=\binom{-1}{4} \)"[0m
+      ↳ Classification: [35m"a=\binom{3}{2} \quad b=\binom{-1}{4}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_8_1][0m [M1 A1] [34m"On the grid below, draw and label the vector \( 2 \mathrm{a}+\mathrm{b} \)"[0m
+      ↳ Reason: The student has drawn a vector that visually represents (5,8), but the arrow is incorrect. | The student has drawn the vector (5,8) correctly.
+      ↳ OCR Match: [35m"On the grid below, draw and label the vector \( 2 \mathrm{a}+\mathrm{b} \)"[0m
+      ↳ Classification: [35m"On the grid below, draw and label the vector 2a + b"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q8
+
+🔍 [ENRICH-START] Processing Q8 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=307, y=291
+
+👉 [ANNO 0] "M1" (ID: block_8_0) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (112, 141)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   🏗️ [OFFSET] Applying Anchor (+307, +291) to base (278, 495)
+      Final Coord: (585, 786)
+   🏁 [FINAL] ID: block_8_0 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 1] "M1" (ID: block_8_1) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (112, 141)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   🏗️ [OFFSET] Applying Anchor (+307, +291) to base (278, 495)
+      Final Coord: (585, 786)
+   🏁 [FINAL] ID: block_8_1 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 2] "A1" (ID: block_8_1) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (112, 141)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   🏗️ [OFFSET] Applying Anchor (+307, +291) to base (278, 495)
+      Final Coord: (585, 786)
+   🏁 [FINAL] ID: block_8_1 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q8
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q8: rawScore={"totalMarks":3,"awardedMarks":3,"scoreText":"3/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q8: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q12:
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_12_0] "12 The dia..." for Offset: x=318, y=285
+[BUDGET Q7] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ7[0m - Clean response received:
+  - Annotations count: [35m4[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m7422[0m
+     [36mStudent calculates the volume, finds the time in seconds, converts to minutes, and rounds to the nearest minute.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_7_8][0m [P1] [34m"volume = pi x100^2 x 30 = 30000pi"[0m
+      ↳ Reason: Correct process to find volume: \\pi x 100^2 x 30 = 300000\\pi.
+      ↳ OCR Match: [35m"volume = pi x100^2 x 30 = 30000pi"[0m
+      ↳ Classification: [35m"\text { rolume }  =\pi \times 100^{2} \times 30=300000 \pi"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_7_9][0m [P1] [34m"time = frac{30000pi}{250}"[0m
+      ↳ Reason: Correct process to find time in seconds: volume / 250.
+      ↳ OCR Match: [35m"time = frac{30000pi}{250}"[0m
+      ↳ Classification: [35m"\text { lime }  =\frac{300000 \pi}{250}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_7_11][0m [P1] [34m"= 62.8 minute"[0m
+      ↳ Reason: Correct process to convert seconds to minutes: dividing by 60.
+      ↳ OCR Match: [35m"= 62.8 minute"[0m
+      ↳ Classification: [35m" =62.8 \text { minute }"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_7_12][0m [A1] [34m"63"[0m
+      ↳ Reason: Correct answer in the range 62 to 63: 63.
+      ↳ OCR Match: [35m"63"[0m
+      ↳ Classification: [35m"63 minitutes"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q7
+
+🔍 [ENRICH-START] Processing Q7 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=236, y=277
+
+👉 [ANNO 0] "P1" (ID: block_7_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [293,1269,1417,211.75]
+      Output: [293,1269,1417,211.75]
+   🏁 [FINAL] ID: block_7_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_7_9) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [293,1480.75,1417,211.75]
+      Output: [293,1480.75,1417,211.75]
+   🏁 [FINAL] ID: block_7_9 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_7_11) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [293,1904.25,1417,211.75]
+      Output: [293,1904.25,1417,211.75]
+   🏁 [FINAL] ID: block_7_11 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "A1" (ID: block_7_12) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1655,2253,543,153]
+      Output: [1655,2253,543,153]
+   🏁 [FINAL] ID: block_7_12 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q7
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q7: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q7: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q13:
+   [0] ID: line_1 | Text: "\frac{30x29}{2}" | Handwriting: true | Box: [85,91,36,35]
+   [1] ID: line_2 | Text: "435" | Handwriting: true | Box: [152,132,18,19]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 13, Y=318
+   📍 Found Landmark: "x" at Page 13, Y=2414
+   📍 Found Landmark: "y" at Page 13, Y=2728
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, x, y
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '13' to First Child Landmark 'a' at Y=318
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=354, y=318
+
+🔍 [RAW AI JSON] Q10:
+{
+  "meta": {
+    "question_total_marks": 3,
+    "raw_correct_steps_found": 3,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "Student correctly uses algebra to show the total number of counters in bag A and bag B is 4x.",
+  "annotations": [
+    {
+      "line_id": "block_10_6",
+      "action": "tick",
+      "text": "M1",
+      "student_text": "\\( x \) red \( \\Rightarrow 3 / 3 x \) yollow",
+      "classification_text": "\\( x \) red \( \\Rightarr...
+
+[BUDGET Q10] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ10[0m - Clean response received:
+  - Annotations count: [35m3[0m
+  - Student score: [32m3/3[0m
+  - Usage tokens: [33m7272[0m
+     [36mStudent correctly uses algebra to show the total number of counters in bag A and bag B is 4x.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_10_6][0m [M1] [34m"( x ) red ( Rightarrow 3 / 3 x ) yollow"[0m
+      ↳ Reason: M1: Method to find the number of yellow counters in bag A, student calculates 5/3x.
+      ↳ OCR Match: [35m"( x ) red ( Rightarrow 3 / 3 x ) yollow"[0m
+      ↳ Classification: [35m"\\( x \) red \( \\Rightarrow 3 / 3 x \) yollow"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_10_8][0m [M1] [34m"( = rac{4}{3} x ) anites in ( B )"[0m
+      ↳ Reason: M1: Method to find the total number of counters in bag B, student calculates 4/3x.
+      ↳ OCR Match: [35m"( = rac{4}{3} x ) anites in ( B )"[0m
+      ↳ Classification: [35m"\\( =\rac{4}{3} x \) anites in \( B \)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_10_10][0m [C1] [34m"( = 4 x ) conters"[0m
+      ↳ Reason: C1: Complete method showing that total number of counters in bag A and bag B is 4x.
+      ↳ OCR Match: [35m"( = 4 x ) conters"[0m
+      ↳ Classification: [35m"\\( =4 x \) conters"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q10
+
+🔍 [ENRICH-START] Processing Q10 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=334, y=291
+
+👉 [ANNO 0] "M1" (ID: block_10_6) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [839,970,896,173]
+      Output: [839,970,896,173]
+   🏁 [FINAL] ID: block_10_6 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "M1" (ID: block_10_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [778,1348,754,272]
+      Output: [778,1348,754,272]
+   🏁 [FINAL] ID: block_10_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "C1" (ID: block_10_10) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [872,1869,613,118]
+      Output: [872,1869,613,118]
+   🏁 [FINAL] ID: block_10_10 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q10
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q10: rawScore={"totalMarks":3,"awardedMarks":3,"scoreText":"3/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q10: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q14:
+   [0] ID: line_1 | Text: "2937.14 +1000" | Handwriting: true | Box: [80,184,57,14]
+   [1] ID: line_2 | Text: "= 3937.14" | Handwriting: true | Box: [80,204,50,14]
+   [2] ID: line_3 | Text: "3037.14= x \\times 1.035" | Handwriting: true | Box: [80,229,80,14]
+   [3] ID: line_4 | Text: "x =  at end of 2022" | Handwriting: true | Box: [112,248,99,14]
+   [4] ID: line_5 | Text: " +750 = y \\times 1.035" | Handwriting: true | Box: [112,267,74,14]
+   [5] ID: line_6 | Text: "y= " | Handwriting: true | Box: [112,287,37,14]
+   [6] ID: line_7 | Text: "4400" | Handwriting: true | Box: [137,301,25,14]
+   [7] ID: line_8 | Text: "£ 4400" | Handwriting: true | Box: [186,312,37,14]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 13, Y=318
+   📍 Found Landmark: "x" at Page 13, Y=2414
+   📍 Found Landmark: "y" at Page 13, Y=2728
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, x, y
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '14' to First Child Landmark 'a' at Y=318
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=354, y=318
+[BUDGET Q9] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ9[0m - Clean response received:
+  - Annotations count: [35m3[0m
+  - Student score: [32m3/3[0m
+  - Usage tokens: [33m6912[0m
+     [36mStudent calculates the volume of the cube and equates it to the volume of the pyramid to find the height h.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_9_3][0m [P1] [34m"6^3 = 8^2h times frac{1}{3}"[0m
+      ↳ Reason: Correct process to find volume of cube and pyramid and equates them. 6^3 = 8^2*h*(1/3).
+      ↳ OCR Match: [35m"6^3 = 8^2h times frac{1}{3}"[0m
+      ↳ Classification: [35m"b^{3}=8^{2} h \\times 1 / 3"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_9_4][0m [P1] [34m"h = frac{81}{8}"[0m
+      ↳ Reason: Correct process to find h. h = 81/8.
+      ↳ OCR Match: [35m"h = frac{81}{8}"[0m
+      ↳ Classification: [35m"h=\frac{81}{8}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_9_5][0m [A1] [34m"frac{81}{8} mathrm{~cm}"[0m
+      ↳ Reason: Correct answer: 81/8 = 10.125
+      ↳ OCR Match: [35m"frac{81}{8} mathrm{~cm}"[0m
+      ↳ Classification: [35m"\frac{81}{8} \mathrm{~cm}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q9
+
+🔍 [ENRICH-START] Processing Q9 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=269, y=280
+
+👉 [ANNO 0] "P1" (ID: block_9_3) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [814,1239,606,237]
+      Output: [814,1239,606,237]
+   🏁 [FINAL] ID: block_9_3 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_9_4) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [814,1476,606,237]
+      Output: [814,1476,606,237]
+   🏁 [FINAL] ID: block_9_4 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "A1" (ID: block_9_5) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (67, 126)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   🏗️ [OFFSET] Applying Anchor (+269, +280) to base (166, 443)
+      Final Coord: (435, 723)
+   🏁 [FINAL] ID: block_9_5 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q9
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q9: rawScore={"totalMarks":3,"awardedMarks":3,"scoreText":"3/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q9: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q15:
+   [0] ID: line_1 | Text: "\frac{a-3}{5}" | Handwriting: true | Box: [134,81,25,21]
+   [1] ID: line_2 | Text: "(3k-1)(k+4)" | Handwriting: true | Box: [151,140,42,18]
+   [2] ID: line_3 | Text: "= \frac{2-x(x2+x)}{x(3+L)} \times \frac{x+3}{x+2}" | Handwriting: true | Box: [76,185,75,35]
+   [3] ID: line_4 | Text: "\frac{2-x}{x}" | Handwriting: true | Box: [151,259,25,18]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "b" at Page 14, Y=1047
+   📍 Found Landmark: "c" at Page 14, Y=1833
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: b, c
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_14_0] "15 (a) Sim..." for Offset: x=329, y=296
+[BUDGET Q12] 🥇 Trusting AI Total: 2 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ12[0m - Clean response received:
+  - Annotations count: [35m1[0m
+  - Student score: [32m2/2[0m
+  - Usage tokens: [33m6375[0m
+     [36mThe student has drawn an enlargement of triangle T by a scale factor of -2 with the center of enlargement at (0,0). The vertices of the enlarged triangle are at (-2, -4), (-2, -6), and (-6, -4).[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_12_1][0m [B2] [34m"Enlarge triangle ( mathbf{T} ) by scale factor ( -mathbf{2} ) with centre of enl..."[0m
+      ↳ Reason: The student has drawn the correct enlargement with vertices at (-2, -4), (-2, -6), and (-6, -4).
+      ↳ OCR Match: [35m"Enlarge triangle ( mathbf{T} ) by scale factor ( -mathbf{2} ) with centre of enlargement ( (0,0) )"[0m
+      ↳ Classification: [35m"Enlarge triangle \( \mathbf{T} \) by scale factor \( -\mathbf{2} \) with centre of enlargement \( (0,0) \)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q12
+
+🔍 [ENRICH-START] Processing Q12 | 1 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=318, y=285
+
+👉 [ANNO 0] "B2" (ID: block_12_1) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [386,2488,1278,64]
+      Output: [386,2488,1278,64]
+   🏁 [FINAL] ID: block_12_1 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q12
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q12: rawScore={"totalMarks":2,"awardedMarks":2,"scoreText":"2/2"}, parsedAwarded=2, parsedTotal=2, schemeTotal=2
+[GUILLOTINE CHECK] Q12: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=2, ResultTotal=2
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q16:
+   [0] ID: line_1 | Text: "-6" | Handwriting: true | Box: [154,94,10,18]
+   [1] ID: line_2 | Text: "4" | Handwriting: true | Box: [171,175,7,18]
+   [2] ID: line_3 | Text: "\frac{1}{3}" | Handwriting: true | Box: [174,256,12,25]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 15, Y=532
+   📍 Found Landmark: "b" at Page 15, Y=1239
+   📍 Found Landmark: "c" at Page 15, Y=2160
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, b, c
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '16' to First Child Landmark 'a' at Y=532
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=334, y=532
+[BUDGET Q13] 🥇 Trusting AI Total: 2 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ13[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m2/2[0m
+  - Usage tokens: [33m7009[0m
+     [36mStudent correctly calculates the number of different pairs of students that the teacher can choose.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_13_3][0m [M1] [34m"frac{30x29}{2}"[0m
+      ↳ Reason: Student shows the correct method for finding the number of pairs, which is (30*29)/2.
+      ↳ OCR Match: [35m"frac{30x29}{2}"[0m
+      ↳ Classification: [35m"\\frac{30 \\times 29}{2}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_13_5][0m [A1] [34m"435"[0m
+      ↳ Reason: Student provides the correct answer of 435.
+      ↳ OCR Match: [35m"435"[0m
+      ↳ Classification: [35m"435"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q13
+
+🔍 [ENRICH-START] Processing Q13 | 2 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=354, y=318
+
+👉 [ANNO 0] "M1" (ID: block_13_3) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1061,565,246,216]
+      Output: [1061,565,246,216]
+   🏁 [FINAL] ID: block_13_3 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "A1" (ID: block_13_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1836,926,189,135]
+      Output: [1836,926,189,135]
+   🏁 [FINAL] ID: block_13_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q13
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q13: rawScore={"totalMarks":2,"awardedMarks":2,"scoreText":"2/2"}, parsedAwarded=2, parsedTotal=2, schemeTotal=2
+[GUILLOTINE CHECK] Q13: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=2, ResultTotal=2
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q17:
+   [0] ID: line_1 | Text: "8x0.55^3" | Handwriting: true | Box: [76,112,52,25]
+   [1] ID: line_2 | Text: "1.331" | Handwriting: true | Box: [145,182,25,14]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_16_0] "17 A ball ..." for Offset: x=323, y=274
+[BUDGET Q11] 🥇 Trusting AI Total: 5 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ11[0m - Clean response received:
+  - Annotations count: [35m3[0m
+  - Student score: [32m2/5[0m
+  - Usage tokens: [33m8102[0m
+     [36mStudent has drawn a box plot for Friday in part (a) and compared median and range in part (b).[0m
+  - Annotations:
+    1. [31mcross[0m [34m[block_11_9][0m [M0 A0] [34m"(a) On the grid, draw a box plot to show the information in the table."[0m
+      ↳ Reason: Box plot is not fully correct. The upper quartile and greatest value are incorrect.
+      ↳ OCR Match: [35m"(a) On the grid, draw a box plot to show the information in the table."[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_11_16][0m [C1] [34m"The medion is higher on Sunday compore to Fridoy."[0m
+      ↳ Reason: Correct comparison of medians.
+      ↳ OCR Match: [35m"The medion is higher on Sunday compore to Fridoy."[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_11_24][0m [C1] [34m"- The ronge die is also higher on Sunday as 44>37 ."[0m
+      ↳ Reason: Correct comparison of ranges.
+      ↳ OCR Match: [35m"- The ronge die is also higher on Sunday as 44>37 ."[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q11
+
+🔍 [ENRICH-START] Processing Q11 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=619, y=2636
+
+👉 [ANNO 0] "M0" (ID: block_11_9) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (27, 276)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "M0" uses Landmark [a] (+619, +2636)
+   🏗️ [OFFSET] Applying Anchor (+619, +2636) to base (66, 970)
+      Final Coord: (685, 3606)
+   🏁 [FINAL] ID: block_11_9 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 1] "A0" (ID: block_11_9) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (27, 276)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "A0" uses Landmark [a] (+619, +2636)
+   🏗️ [OFFSET] Applying Anchor (+619, +2636) to base (66, 970)
+      Final Coord: (685, 3606)
+   🏁 [FINAL] ID: block_11_9 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 2] "C1" (ID: block_11_16) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [378,2508,924,126]
+      Output: [378,2508,924,126]
+   🏁 [FINAL] ID: block_11_16 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "C1" (ID: block_11_24) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [367,2752,211,90]
+      Output: [367,2752,211,90]
+   🏁 [FINAL] ID: block_11_24 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q11
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q11: rawScore={"totalMarks":5,"awardedMarks":2,"scoreText":"2/5"}, parsedAwarded=2, parsedTotal=5, schemeTotal=5
+[GUILLOTINE CHECK] Q11: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=5, ResultTotal=5
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q18:
+   [0] ID: line_1 | Text: "54= \\frac{1}{2}x17x ACx sin 35" | Handwriting: true | Box: [61,143,110,14]
+   [1] ID: line_2 | Text: "AC = 11.08" | Handwriting: true | Box: [61,166,57,14]
+   [2] ID: line_3 | Text: "AD = \\frac{11.08}{sin 57} x sin (48)" | Handwriting: true | Box: [61,188,99,14]
+   [3] ID: line_4 | Text: "= 9.81" | Handwriting: true | Box: [61,211,42,14]
+   [4] ID: line_5 | Text: "Area= \\frac{1}{2}x 9.81 x 11.08 x sin (180-48-57)" | Handwriting: true | Box: [61,239,141,14]
+   [5] ID: line_6 | Text: "= 52.5" | Handwriting: true | Box: [61,261,37,14]
+   [6] ID: line_7 | Text: "52.5" | Handwriting: true | Box: [172,283,25,14]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "h" at Page 17, Y=1794
+   📍 Found Landmark: "a" at Page 17, Y=1989
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: h, a
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_17_0] "\( 18 A B ..." for Offset: x=249, y=258
+[BUDGET Q14] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ14[0m - Clean response received:
+  - Annotations count: [35m4[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m8003[0m
+     [36mStudent calculates the initial investment by working backwards, adding withdrawals and dividing by the interest rate. The final answer is correct.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_13_16][0m [P1] [34m"= 3937.14"[0m
+      ↳ Reason: Adds 1000 to 2937.14, starting the process to find the initial investment. Awarding P1.
+      ↳ OCR Match: [35m"= 3937.14"[0m
+      ↳ Classification: [35m"=3937.14"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_13_17][0m [P1] [34m"3937.14 = x times 1.039"[0m
+      ↳ Reason: Divides 3937.14 by 1.035 (interest rate) to find the amount before the withdrawal. Awarding P1.
+      ↳ OCR Match: [35m"3937.14 = x times 1.039"[0m
+      ↳ Classification: [35m"3937.14=x \\times 1.039"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_13_21][0m [P1] [34m"+750 = y times 1,039"[0m
+      ↳ Reason: Adds 750 and divides by 1.035. Awarding P1.
+      ↳ OCR Match: [35m"+750 = y times 1,039"[0m
+      ↳ Classification: [35m"+750=y \\times 1,039"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_13_23][0m [A1] [34m"4400"[0m
+      ↳ Reason: Correct final answer of 4400. Awarding A1.
+      ↳ OCR Match: [35m"4400"[0m
+      ↳ Classification: [35m"4400"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q14
+
+🔍 [ENRICH-START] Processing Q14 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=354, y=318
+
+👉 [ANNO 0] "P1" (ID: block_13_16) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [653,2098.9,1277,104.9]
+      Output: [653,2098.9,1277,104.9]
+   🏁 [FINAL] ID: block_13_16 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_13_17) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [653,2203.8,1277,104.9]
+      Output: [653,2203.8,1277,104.9]
+   🏁 [FINAL] ID: block_13_17 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_13_21) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [653,2623.4,1277,104.9]
+      Output: [653,2623.4,1277,104.9]
+   🏁 [FINAL] ID: block_13_21 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "A1" (ID: block_13_23) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [653,2833.2,1277,104.9]
+      Output: [653,2833.2,1277,104.9]
+   🏁 [FINAL] ID: block_13_23 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q14
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q14: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q14: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q19:
+   [0] ID: line_1 | Text: "LMB of P= 5.875x10^8, UB of Q = 365x10^8" | Handwriting: true | Box: [54,85,149,18]
+   [1] ID: line_2 | Text: "R= \\frac{5.8875x10^8}{3.65x10^5}" | Handwriting: true | Box: [54,116,87,25]
+   [2] ID: line_3 | Text: "= 1609.59" | Handwriting: true | Box: [54,147,50,18]
+   [3] ID: line_4 | Text: "1610" | Handwriting: true | Box: [146,182,25,18]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "l" at Page 18, Y=679
+   📍 Found Landmark: "r" at Page 18, Y=912
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: l, r
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_18_0] "\( 19 R=\f..." for Offset: x=301, y=291
+[BUDGET Q15] 🥇 Trusting AI Total: 6 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ15[0m - Clean response received:
+  - Annotations count: [35m4[0m
+  - Student score: [32m6/6[0m
+  - Usage tokens: [33m7839[0m
+     [36mStudent has correctly answered all three sub-questions, showing clear and accurate working.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_14_1][0m [B1] [34m"frac{a-3}{5}"[0m
+      ↳ Reason: Correct simplification of the expression in 15a. Matches the official scheme B1.
+      ↳ OCR Match: [35m"frac{a-3}{5}"[0m
+      ↳ Classification: [35m"\frac{a-3}{5}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_14_4][0m [A1 M1] [34m"(3k-1)(k+4)"[0m
+      ↳ Reason: Correct factorization in 15b. Matches the official scheme A1. | Correct factorization in 15b. Matches the official scheme M1.
+      ↳ OCR Match: [35m"(3k-1)(k+4)"[0m
+      ↳ Classification: [35m"(3 k-1)(k+4)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_14_7][0m [M1 M1] [34m"= frac{(2-x)(2+x)}{x(3+x)} times frac{x+7}{x+2}"[0m
+      ↳ Reason: Correct factorisation and inversion in 15c.  Meets the criteria for M1. | Correct factorisation and inversion in 15c. Meets the criteria for M1.
+      ↳ OCR Match: [35m"= frac{(2-x)(2+x)}{x(3+x)} times frac{x+7}{x+2}"[0m
+      ↳ Classification: [35m"=\frac{(2-x)(2+x)}{x(3+x)} \times \frac{x+7}{x+2}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_14_8][0m [A1] [34m"frac{2-x}{x}"[0m
+      ↳ Reason: Correct simplification to final answer in 15c. Matches the official scheme A1.
+      ↳ OCR Match: [35m"frac{2-x}{x}"[0m
+      ↳ Classification: [35m"\frac{2-x}{x}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q15
+
+🔍 [ENRICH-START] Processing Q15 | 6 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=329, y=296
+
+👉 [ANNO 0] "B1" (ID: block_14_1) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1677,778,151,195]
+      Output: [1677,778,151,195]
+   🏁 [FINAL] ID: block_14_1 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "A1" (ID: block_14_4) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1579,1666,523,124]
+      Output: [1579,1666,523,124]
+   🏁 [FINAL] ID: block_14_4 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "M1" (ID: block_14_4) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1579,1666,523,124]
+      Output: [1579,1666,523,124]
+   🏁 [FINAL] ID: block_14_4 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "M1" (ID: block_14_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [689,1999,748,271]
+      Output: [689,1999,748,271]
+   🏁 [FINAL] ID: block_14_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 4] "M1" (ID: block_14_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [689,1999,748,271]
+      Output: [689,1999,748,271]
+   🏁 [FINAL] ID: block_14_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 5] "A1" (ID: block_14_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1568,2787,279,209]
+      Output: [1568,2787,279,209]
+   🏁 [FINAL] ID: block_14_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q15
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q15: rawScore={"totalMarks":6,"awardedMarks":6,"scoreText":"6/6"}, parsedAwarded=6, parsedTotal=6, schemeTotal=6
+[GUILLOTINE CHECK] Q15: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=6, ResultTotal=6
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q20:
+   [0] ID: line_1 | Text: "3x+1-(x+2)=x+2-(x-4)" | Handwriting: true | Box: [61,55,99,14]
+   [1] ID: line_2 | Text: "4x-3=x+4" | Handwriting: true | Box: [61,74,50,14]
+   [2] ID: line_3 | Text: "-7=-2x" | Handwriting: true | Box: [61,94,25,14]
+   [3] ID: line_4 | Text: "x = \frac{7}{2}" | Handwriting: true | Box: [154,109,25,21]
+   [4] ID: line_5 | Text: "\frac{3y+1}{y+2} = \frac{y+2}{y-4}" | Handwriting: true | Box: [61,174,50,21]
+   [5] ID: line_6 | Text: "(3y+1)(y-4) = (y+2)^2" | Handwriting: true | Box: [61,203,99,14]
+   [6] ID: line_7 | Text: "3y^2-11y-4=y^2+4y+4" | Handwriting: true | Box: [61,223,99,14]
+   [7] ID: line_8 | Text: "2y^2-15y-8=0" | Handwriting: true | Box: [61,242,74,14]
+   [8] ID: line_9 | Text: "Y=8,-0.5" | Handwriting: true | Box: [94,261,50,14]
+   [9] ID: line_10 | Text: "8,-0.5" | Handwriting: true | Box: [174,281,37,14]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 19, Y=312
+   📍 Found Landmark: "x" at Page 19, Y=970
+   📍 Found Landmark: "b" at Page 19, Y=1348
+   📍 Found Landmark: "y" at Page 19, Y=2241
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, x, b, y
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '20' to First Child Landmark 'a' at Y=312
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=301, y=312
+[BUDGET Q16] 🥇 Trusting AI Total: 5 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ16[0m - Clean response received:
+  - Annotations count: [35m3[0m
+  - Student score: [32m5/5[0m
+  - Usage tokens: [33m7343[0m
+     [36mStudent correctly answers all three sub-questions: f(-3), fg(1), and g^-1(4).[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_15_4][0m [B1] [34m"-6"[0m
+      ↳ Reason: Correct answer for f(-3).
+      ↳ OCR Match: [35m"-6"[0m
+      ↳ Classification: [35m"-6"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_15_8][0m [M1 A1] [34m"4"[0m
+      ↳ Reason: Correct final answer for fg(1).
+      ↳ OCR Match: [35m"4"[0m
+      ↳ Classification: [35m"4"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_15_13][0m [M1 A1] [34m"1 / 3"[0m
+      ↳ Reason: Correct answer for g^-1(4).
+      ↳ OCR Match: [35m"1 / 3"[0m
+      ↳ Classification: [35m"1 / 3"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q16
+
+🔍 [ENRICH-START] Processing Q16 | 5 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=334, y=532
+
+👉 [ANNO 0] "B1" (ID: block_15_4) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1847,1025,140,112]
+      Output: [1847,1025,140,112]
+   🏁 [FINAL] ID: block_15_4 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "M1" (ID: block_15_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1812,1918,109,132]
+      Output: [1812,1918,109,132]
+   🏁 [FINAL] ID: block_15_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "A1" (ID: block_15_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1812,1918,109,132]
+      Output: [1812,1918,109,132]
+   🏁 [FINAL] ID: block_15_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "M1" (ID: block_15_13) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1858,2828,102,151]
+      Output: [1858,2828,102,151]
+   🏁 [FINAL] ID: block_15_13 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 4] "A1" (ID: block_15_13) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1858,2828,102,151]
+      Output: [1858,2828,102,151]
+   🏁 [FINAL] ID: block_15_13 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q16
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q16: rawScore={"totalMarks":5,"awardedMarks":5,"scoreText":"5/5"}, parsedAwarded=5, parsedTotal=5, schemeTotal=5
+[GUILLOTINE CHECK] Q16: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=5, ResultTotal=5
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q21:
+   [0] ID: line_1 | Text: "perimeter: smull hexagon <circle <large lhexagon" | Handwriting: true | Box: [62,172,124,18]
+   [1] ID: line_2 | Text: "perimeter of small hexagus = 6r" | Handwriting: true | Box: [62,196,99,18]
+   [2] ID: line_3 | Text: "of circle =2\\pi r" | Handwriting: true | Box: [62,217,62,18]
+   [3] ID: line_4 | Text: "of large hexugun= \\frac{6r}{cos(30)}" | Handwriting: true | Box: [62,235,112,18]
+   [4] ID: line_5 | Text: "=4\\sqrt{3} r" | Handwriting: true | Box: [112,256,37,18]
+   [5] ID: line_6 | Text: "6r<2\\pi r<4\\sqrt{3}r" | Handwriting: true | Box: [62,274,99,18]
+   [6] ID: line_7 | Text: "3 < \\pi < 2\\sqrt{3}" | Handwriting: true | Box: [62,295,62,18]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: 
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_20_0] "21 The dia..." for Offset: x=288, y=236
+[BUDGET Q17] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ17[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m3/3[0m
+  - Usage tokens: [33m6949[0m
+     [36mStudent calculates the height after the 4th bounce. The calculation and final answer are correct.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_16_6][0m [M1] [34m"8x0.55^3"[0m
+      ↳ Reason: Correct method to find height after 4th bounce, 8*0.55^3.
+      ↳ OCR Match: [35m"8x0.55^3"[0m
+      ↳ Classification: [35m"8 \\times 0.99^{3}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_16_7][0m [A1 M1] [34m"1.331"[0m
+      ↳ Reason: Correct answer 1.331. | Implied method mark for correct final answer.
+      ↳ OCR Match: [35m"1.331"[0m
+      ↳ Classification: [35m"1.33"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q17
+
+🔍 [ENRICH-START] Processing Q17 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=323, y=274
+
+👉 [ANNO 0] "M1" (ID: block_16_6) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [959,946,337,180]
+      Output: [959,946,337,180]
+   🏁 [FINAL] ID: block_16_6 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "A1" (ID: block_16_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1768,1672,153,98]
+      Output: [1768,1672,153,98]
+   🏁 [FINAL] ID: block_16_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "M1" (ID: block_16_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1768,1672,153,98]
+      Output: [1768,1672,153,98]
+   🏁 [FINAL] ID: block_16_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q17
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q17: rawScore={"totalMarks":3,"awardedMarks":3,"scoreText":"3/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q17: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+[BUDGET Q18] 🥇 Trusting AI Total: 5 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ18[0m - Clean response received:
+  - Annotations count: [35m5[0m
+  - Student score: [32m5/5[0m
+  - Usage tokens: [33m7981[0m
+     [36mStudent correctly calculates the area of triangle ACD using the sine rule and area formula. All steps are shown and the final answer is accurate to 3 significant figures.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_17_4][0m [P1] [34m"54 = frac{1}{2}x17x ACx sin 35"[0m
+      ↳ Reason: Correct start of process to find length of AC using the area of triangle ABC formula.
+      ↳ OCR Match: [35m"54 = frac{1}{2}x17x ACx sin 35"[0m
+      ↳ Classification: [35m"\rho_{4}  =\frac{1}{2} \times 17 \times A(\times \sin 35"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_17_5][0m [P1] [34m"AC = 11.08"[0m
+      ↳ Reason: Correctly finds AC = 11.08.
+      ↳ OCR Match: [35m"AC = 11.08"[0m
+      ↳ Classification: [35m"H C  =11.08"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_17_6][0m [P1] [34m"AD = frac{11.08}{sin 57} x sin (48)"[0m
+      ↳ Reason: Correct start of process to find AD using sine rule.
+      ↳ OCR Match: [35m"AD = frac{11.08}{sin 57} x sin (48)"[0m
+      ↳ Classification: [35m"A D  =\frac{1.108}{\sin 51} \times \sin (48)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_17_7][0m [P1] [34m"= 9.81"[0m
+      ↳ Reason: Correctly finds AD = 9.81.
+      ↳ OCR Match: [35m"= 9.81"[0m
+      ↳ Classification: [35m" =9.81"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    5. [32mtick[0m [34m[block_17_8][0m [A1] [34m"Area = frac{1}{2}x 9.81 x 11.08 x sin (180-48-57)"[0m
+      ↳ Reason: Correct process to find area of triangle ACD and answer is in the range 52.4 to 52.52.
+      ↳ OCR Match: [35m"Area = frac{1}{2}x 9.81 x 11.08 x sin (180-48-57)"[0m
+      ↳ Classification: [35m"\text { Area }  =18 \times 1.08 \times \sin (180.48 .57)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q18
+
+🔍 [ENRICH-START] Processing Q18 | 5 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=249, y=258
+
+👉 [ANNO 0] "P1" (ID: block_17_4) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [647,1598,1203,195.5]
+      Output: [647,1598,1203,195.5]
+   🏁 [FINAL] ID: block_17_4 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_17_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [647,1793.5,1203,195.5]
+      Output: [647,1793.5,1203,195.5]
+   🏁 [FINAL] ID: block_17_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_17_6) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [647,1989,1203,195.5]
+      Output: [647,1989,1203,195.5]
+   🏁 [FINAL] ID: block_17_6 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "P1" (ID: block_17_7) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [647,2184.5,1203,195.5]
+      Output: [647,2184.5,1203,195.5]
+   🏁 [FINAL] ID: block_17_7 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 4] "A1" (ID: block_17_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [647,2380,1203,195.5]
+      Output: [647,2380,1203,195.5]
+   🏁 [FINAL] ID: block_17_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q18
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q18: rawScore={"totalMarks":5,"awardedMarks":5,"scoreText":"5/5"}, parsedAwarded=5, parsedTotal=5, schemeTotal=5
+[GUILLOTINE CHECK] Q18: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=5, ResultTotal=5
+[BUDGET Q19] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ19[0m - Clean response received:
+  - Annotations count: [35m3[0m
+  - Student score: [32m3/3[0m
+  - Usage tokens: [33m7287[0m
+     [36mStudent calculates the lower bound of R by finding the lower bound of P and the upper bound of Q, then dividing. The final answer is rounded to the nearest integer.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_18_5][0m [B1] [34m"LMB of P = 5.875x10^8, UB of Q = 365x10^8"[0m
+      ↳ Reason: Identifies the lower bound of P as 5.875 x 10^8 and the upper bound of Q as 3.65 x 10^5 (365x10^8 is a typo, but the correct value is used later).
+      ↳ OCR Match: [35m"LMB of P = 5.875x10^8, UB of Q = 365x10^8"[0m
+      ↳ Classification: [35m"L U B & 	ext { ot } P=5.875 \\times 10^{8}, U B 	ext { of } Q=3(5 \\times 10^{\rho}."[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_18_6][0m [M1] [34m"R = frac{5.8875x10^8}{3.65x10^5}"[0m
+      ↳ Reason: Applies the correct method to find the lower bound of R by dividing the lower bound of P by the upper bound of Q. The student uses 5.875 instead of 5.8875 in the numerator, but the correct method is shown.
+      ↳ OCR Match: [35m"R = frac{5.8875x10^8}{3.65x10^5}"[0m
+      ↳ Classification: [35m"R  =\\frac{9.1875 \\times 10^{8}}{3.65 \\times 10^{9}}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_18_8][0m [A1] [34m"1610"[0m
+      ↳ Reason: The final answer is 1610, which is within the range 1609-1610 and correctly rounded to the nearest integer.
+      ↳ OCR Match: [35m"1610"[0m
+      ↳ Classification: [35m"1610"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q19
+
+🔍 [ENRICH-START] Processing Q19 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=301, y=291
+
+👉 [ANNO 0] "B1" (ID: block_18_5) | Status In: MATCHED
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1677, 1705
+   🛡️ [OFFSET-BYPASS] Base Y (1705) is already near/past Landmark Y (291). Skipping Anchor.
+   🏁 [FINAL] ID: block_18_5 | Status: MATCHED | Method: PX_PRECOMPUTED
+
+👉 [ANNO 1] "M1" (ID: block_18_6) | Status In: MATCHED
+   🏁 [FINAL] ID: block_18_6 | Status: MATCHED | Method: FALLBACK
+
+👉 [ANNO 2] "A1" (ID: block_18_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1677,1705,214,107]
+      Output: [1677,1705,214,107]
+   🏁 [FINAL] ID: block_18_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q19
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q19: rawScore={"totalMarks":3,"awardedMarks":3,"scoreText":"3/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q19: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+[BUDGET Q21] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ21[0m - Clean response received:
+  - Annotations count: [35m4[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m7620[0m
+     [36mStudent attempts to show the relationship between the perimeters of the inscribed hexagon, circle, and circumscribed hexagon to prove the inequality.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_20_6][0m [P1] [34m"perimeter of small hexagus = 6r"[0m
+      ↳ Reason: Correct perimeter of smaller hexagon. P1 awarded.
+      ↳ OCR Match: [35m"perimeter of small hexagus = 6r"[0m
+      ↳ Classification: [35m"perimeter of smoll hexagou \( =6 r \)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_20_9][0m [P1] [34m"= 4sqrt{3} r"[0m
+      ↳ Reason: Perimeter of larger hexagon is calculated correctly. P1 awarded.
+      ↳ OCR Match: [35m"= 4sqrt{3} r"[0m
+      ↳ Classification: [35m"=4 \sqrt{3} r"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_20_10][0m [P1] [34m"6r<2pi r<4sqrt{3}r"[0m
+      ↳ Reason: Correct inequality formed using the perimeters. P1 awarded.
+      ↳ OCR Match: [35m"6r<2pi r<4sqrt{3}r"[0m
+      ↳ Classification: [35m"6 r<2 \pi r<4 \sqrt{3}<"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_20_11][0m [C1] [34m"3 < pi < 2sqrt{3}"[0m
+      ↳ Reason: Correct algebra leading to the given result. C1 awarded.
+      ↳ OCR Match: [35m"3 < pi < 2sqrt{3}"[0m
+      ↳ Classification: [35m"3<\pi<2 \sqrt{3} [PRINTED_INSTRUCTION]"[0m
+      ↳ Status: [32m"MATCHED"[0m
+   🛡️ [REDIRECT] Intercepted link to Instruction [block_20_11]
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q21
+
+🔍 [ENRICH-START] Processing Q21 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=288, y=236
+
+👉 [ANNO 0] "C1" (ID: ) | Status In: VISUAL
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (62, 274)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   🏗️ [OFFSET] Applying Anchor (+288, +236) to base (154, 960)
+      Final Coord: (442, 1196)
+   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 1] "P1" (ID: block_20_6) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [335,1980,1163,200]
+      Output: [335,1980,1163,200]
+   🏁 [FINAL] ID: block_20_6 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_20_9) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1222,2406,283,118]
+      Output: [1222,2406,283,118]
+   🏁 [FINAL] ID: block_20_9 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "P1" (ID: block_20_10) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [978,2549,551,127]
+      Output: [978,2549,551,127]
+   🏁 [FINAL] ID: block_20_10 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q21
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q21: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q21: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+[BUDGET Q20] 🥇 Trusting AI Total: 7 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ20[0m - Clean response received:
+  - Annotations count: [35m7[0m
+  - Student score: [32m7/7[0m
+  - Usage tokens: [33m8295[0m
+     [36mStudent provides solutions for both parts of question 20, showing clear steps for arithmetic and geometric sequences.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_19_2][0m [P1] [34m"3x+1-(x+2) = x+2-(x-4)"[0m
+      ↳ Reason: Correct equation in x is written. Award P1.
+      ↳ OCR Match: [35m"3x+1-(x+2) = x+2-(x-4)"[0m
+      ↳ Classification: [35m"3 x+1-(x+7)  =8 x+2-(x-4)"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_19_6][0m [A1] [34m"x = frac{7}{2}"[0m
+      ↳ Reason: Correct value of x is found. Award A1.
+      ↳ OCR Match: [35m"x = frac{7}{2}"[0m
+      ↳ Classification: [35m"x=\frac{7}{2}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_19_11][0m [P1] [34m"frac{3y+1}{y+2} = frac{y+2}{y-4}"[0m
+      ↳ Reason: Correct equation in y is written. Award P1.
+      ↳ OCR Match: [35m"frac{3y+1}{y+2} = frac{y+2}{y-4}"[0m
+      ↳ Classification: [35m"\frac{3 y+1}{y+2}  =\frac{y+2}{y-4}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    4. [32mtick[0m [34m[block_19_12][0m [P1] [34m"(3y+1)(y-4) = (y+2)^2"[0m
+      ↳ Reason: Correct equation without fractions. Award P1.
+      ↳ OCR Match: [35m"(3y+1)(y-4) = (y+2)^2"[0m
+      ↳ Classification: [35m"(3 y+4)[y-4]  =[y+2]^{2}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    5. [32mtick[0m [34m[block_19_14][0m [P1] [34m"2y^2-15y-8 = 0"[0m
+      ↳ Reason: Correct simplified equation. Award P1.
+      ↳ OCR Match: [35m"2y^2-15y-8 = 0"[0m
+      ↳ Classification: [35m"2 y^{2}-15 y-8  =0"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    6. [32mtick[0m [34m[block_19_15][0m [P1] [34m"y = 8,-0.5"[0m
+      ↳ Reason: Process of writing a correct simplified equation. Award P1.
+      ↳ OCR Match: [35m"y = 8,-0.5"[0m
+      ↳ Classification: [35m"y  =8,-0.5"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    7. [32mtick[0m [34m[block_19_17][0m [A1] [34m"8,-0.5"[0m
+      ↳ Reason: Correct values of y are found. Award A1.
+      ↳ OCR Match: [35m"8,-0.5"[0m
+      ↳ Classification: [35m"8,-0.5"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q20
+
+🔍 [ENRICH-START] Processing Q20 | 7 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=301, y=312
+
+👉 [ANNO 0] "P1" (ID: block_19_2) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [710,482,984,127]
+      Output: [710,482,984,127]
+   🏁 [FINAL] ID: block_19_2 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "A1" (ID: block_19_6) | Status In: MATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (61, 174)
+   ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
+   ⚖️ [SCOPED-OFFSET] Annotation "A1" uses Landmark [a] (+301, +312)
+   🏗️ [OFFSET] Applying Anchor (+301, +312) to base (151, 609)
+      Final Coord: (452, 921)
+   🏁 [FINAL] ID: block_19_6 | Status: MATCHED | Method: VISUAL_NORM_1000_CALC
+
+👉 [ANNO 2] "P1" (ID: block_19_11) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [471,1480,943,190.2]
+      Output: [471,1480,943,190.2]
+   🏁 [FINAL] ID: block_19_11 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "P1" (ID: block_19_12) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [471,1670.2,943,190.2]
+      Output: [471,1670.2,943,190.2]
+   🏁 [FINAL] ID: block_19_12 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 4] "P1" (ID: block_19_14) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [471,2050.6,943,190.2]
+      Output: [471,2050.6,943,190.2]
+   🏁 [FINAL] ID: block_19_14 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 5] "P1" (ID: block_19_15) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [471,2240.8,943,190.2]
+      Output: [471,2240.8,943,190.2]
+   🏁 [FINAL] ID: block_19_15 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 6] "A1" (ID: block_19_17) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1823,2831,298,137]
+      Output: [1823,2831,298,137]
+   🏁 [FINAL] ID: block_19_17 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q20
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q20: rawScore={"totalMarks":7,"awardedMarks":7,"scoreText":"7/7"}, parsedAwarded=7, parsedTotal=7, schemeTotal=7
+[GUILLOTINE CHECK] Q20: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=7, ResultTotal=7
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m34.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m34.5s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 21 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+[TOTAL TRAP] Q1: Scheme=2, AI=2, IsDefault=false -> FINAL=2
+[TOTAL TRAP] Q2: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Q3: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q4: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Q5: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Q6: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Q7: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Q8: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q9: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q10: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q11: Scheme=5, AI=5, IsDefault=false -> FINAL=5
+[TOTAL TRAP] Q12: Scheme=2, AI=2, IsDefault=false -> FINAL=2
+[TOTAL TRAP] Q13: Scheme=2, AI=2, IsDefault=false -> FINAL=2
+[TOTAL TRAP] Q14: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Q15: Scheme=6, AI=6, IsDefault=false -> FINAL=6
+[TOTAL TRAP] Q16: Scheme=5, AI=5, IsDefault=false -> FINAL=5
+[TOTAL TRAP] Q17: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q18: Scheme=5, AI=5, IsDefault=false -> FINAL=5
+[TOTAL TRAP] Q19: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q20: Scheme=7, AI=7, IsDefault=false -> FINAL=7
+[TOTAL TRAP] Q21: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Grand Total Possible Score: 80
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 21 questions and 21 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 0 ([37mFRONT PAGE[32m) -> [2] Page 1 ([37mQ1[32m) -> [3] Page 2 ([37mQ2ai, Q2aii, Q2b[32m) -> [4] Page 3 ([37mQ3a[32m) -> [5] Page 4 ([37mQ3b, Q4[32m) -> [6] Page 5 ([37mQ5[32m) -> [7] Page 6 ([37mQ6a, Q6b[32m) -> [8] Page 7 ([37mQ7[32m) -> [9] Page 8 ([37mQ8[32m) -> [10] Page 9 ([37mQ9[32m) -> [11] Page 10 ([37mQ10[32m) -> [12] Page 11 ([37mQ11a, Q11b[32m) -> [13] Page 12 ([37mQ12[32m) -> [14] Page 13 ([37mQ13, Q14[32m) -> [15] Page 14 ([37mQ15a, Q15b, Q15c[32m) -> [16] Page 15 ([37mQ16a, Q16b, Q16c[32m) -> [17] Page 16 ([37mQ17[32m) -> [18] Page 17 ([37mQ18[32m) -> [19] Page 18 ([37mQ19[32m) -> [20] Page 19 ([37mQ20a, Q20b[32m) -> [21] Page 20 ([37mQ21[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...
+[SYNC FIX] ✅ Q1: Updated Total Available Marks from undefined (Schema) -> 2 (Engine)
+[SYNC FIX] ✅ Q3: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q4: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] ✅ Q5: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] ✅ Q6: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] ✅ Q7: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] ✅ Q8: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q9: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q10: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q11: Updated Total Available Marks from undefined (Schema) -> 5 (Engine)
+[SYNC FIX] ✅ Q12: Updated Total Available Marks from undefined (Schema) -> 2 (Engine)
+[SYNC FIX] ✅ Q13: Updated Total Available Marks from undefined (Schema) -> 2 (Engine)
+[SYNC FIX] ✅ Q14: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] ✅ Q16: Updated Total Available Marks from undefined (Schema) -> 5 (Engine)
+[SYNC FIX] ✅ Q17: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q18: Updated Total Available Marks from undefined (Schema) -> 5 (Engine)
+[SYNC FIX] ✅ Q19: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q20: Updated Total Available Marks from undefined (Schema) -> 7 (Engine)
+[SYNC FIX] ✅ Q21: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] 🏁 Updated Grand Total from 153 -> 70
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+📊 [ANNOTATION SUMMARY]
+----------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status              |
+|----------|-------|-------------------------|---------------------------|
+| [32m1       [0m | 0/2   | M1, A1                  | M:2 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m2       [0m | 2/4   | B1, B1, M1              | M:3 V:0 U:0 S:0           |
+| [90m  ai    [0m | 1     | B1                      | M:1 V:0 U:0 S:0           |
+| [90m  aii   [0m | 1     | B1                      | M:1 V:0 U:0 S:0           |
+| [90m  b     [0m | 1     | M1                      | M:1 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m3       [0m | 2/3   | C1, M1, A1              | M:3 V:0 U:0 S:0           |
+| [90m  a     [0m | 1     | C1                      | M:1 V:0 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:2 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m4       [0m | 4/4   | P1, P1, P1, A1          | M:4 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m5       [0m | 4/4   | P1, P1, P1, A1          | M:4 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:0 V:4 U:0 S:0           |
+| [90m  a     [0m | 2     | B1, B1                  | M:0 V:2 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:0 V:2 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m7       [0m | 4/4   | P1, P1, P1, A1          | M:4 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m8       [0m | 3/3   | M1, M1, A1              | M:3 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m9       [0m | 3/3   | P1, P1, A1              | M:3 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m10      [0m | 3/3   | M1, M1, C1              | M:3 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m11      [0m | 2/5   | M0, A0, C1, C1          | M:4 V:0 U:0 S:0           |
+| [90m  a     [0m | 0     | M0, A0                  | M:2 V:0 U:0 S:0           |
+| [90m  b     [0m | 2     | C1, C1                  | M:2 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m12      [0m | 2/2   | B2                      | M:1 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m13      [0m | 2/2   | M1, A1                  | M:2 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m14      [0m | 4/4   | P1, P1, P1, A1          | M:4 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m15      [0m | 6/6   | B1, A1, M1, M1, M1, A1  | M:6 V:0 U:0 S:0           |
+| [90m  a     [0m | 1     | B1                      | M:1 V:0 U:0 S:0           |
+| [90m  b     [0m | 2     | A1, M1                  | M:2 V:0 U:0 S:0           |
+| [90m  c     [0m | 3     | M1, M1, A1              | M:3 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m16      [0m | 5/5   | B1, M1, A1, M1, A1      | M:5 V:0 U:0 S:0           |
+| [90m  a     [0m | 1     | B1                      | M:1 V:0 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:2 V:0 U:0 S:0           |
+| [90m  c     [0m | 2     | M1, A1                  | M:2 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m17      [0m | 3/3   | M1, A1, M1              | M:3 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m18      [0m | 5/5   | P1, P1, P1, P1, A1      | M:5 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m19      [0m | 3/3   | B1, M1, A1              | M:3 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m20      [0m | 7/7   | P1, A1, P1, P1, P1, P1, A1 | M:7 V:0 U:0 S:0           |
+| [90m  a     [0m | 2     | P1, A1                  | M:2 V:0 U:0 S:0           |
+| [90m  b     [0m | 5     | P1, P1, P1, P1, A1      | M:5 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m21      [0m | 4/4   | C1, P1, P1, P1          | M:3 V:1 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 95.8s
+Model Used: gemini-2.0-flash
+----------------------------
+marking                             34.5s (36%)
+classification                      32.6s (34%)
+question_detection                  7.6s (8%)
+ocr_processing                      7.2s (8%)
+output_generation                   6.0s (6%)
+preprocessing                       4.5s (5%)
+performance_summary                 1.1s (1%)
+database_persistence                1.0s (1%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 23 total
+   Total Tokens: 149,760 (138,595 in + 11,165 out)
+   Total Cost: $0.101396
+   Mathpix OCR: 21 pages → $0.084000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 7,067 tokens (1 requests) → $0.000929
+   • Classification (Marking Pass): 139,495 tokens (21 requests) → $0.017055
+   • Performance Summary: 3,198 tokens (1 requests) → $0.000341
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768932895076
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768932895076
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.1013962
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 10.14 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768932895076), remaining: 414.20
+💳 Deducted 0.1014 credits (session: sub-1768932895076) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768932895076
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.0095678, files: 1, bytes: 45678
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":414.2}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.1s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 1 pages...
+✅ [MAPPER] Map Pass complete in 1.53s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.5s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Global Search
+   Pool Size: 108 papers, 2709 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 10   | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10a  | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10b  | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10bbi | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10bbii | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 5
+   Detected: 5/5
+   Not detected: 0
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q10:
+   [0] ID: line_1 | Text: "36" | Handwriting: true | Box: [21,41,4,4]
+   [1] ID: line_2 | Text: "19" | Handwriting: true | Box: [36,41,3,4]
+   [2] ID: line_3 | Text: "41" | Handwriting: true | Box: [51,41,4,4]
+   [3] ID: line_4 | Text: "4" | Handwriting: true | Box: [51,55,2,4]
+   [4] ID: line_5 | Text: "\frac{77}{100}" | Handwriting: true | Box: [40,68,8,6]
+   [5] ID: line_6 | Text: "\frac{19}{60}" | Handwriting: true | Box: [40,86,8,6]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "a" at Page 0, Y=192
+   📍 Found Landmark: "b" at Page 0, Y=434
+   📍 Found Landmark: "f" at Page 0, Y=467
+   📍 Found Landmark: "b" at Page 0, Y=559
+   📍 Found Landmark: "ii" at Page 0, Y=595
+   📍 Found Landmark: "ii" at Page 0, Y=706
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, b, f, ii
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '10' to First Child Landmark 'a' at Y=192
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=106, y=192
+[BUDGET Q10] 🥇 Trusting AI Total: 7 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ10[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m7/7[0m
+  - Usage tokens: [33m6230[0m
+     [36mThe student has completed the Venn diagram and calculated the probabilities.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_0_6][0m [B2 B2 B2] [34m"36"[0m
+      ↳ Reason: 36, 19, and 41 are correctly placed in the Venn diagram.
+      ↳ OCR Match: [35m"36"[0m
+      ↳ Classification: [35m"36"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_0_11][0m [M1] [34m"frac{77}{100}"[0m
+      ↳ Reason: M1 for their (36+41) or 77
+      ↳ OCR Match: [35m"frac{77}{100}"[0m
+      ↳ Classification: [35m"77"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q10
+
+🔍 [ENRICH-START] Processing Q10 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=106, y=192
+
+👉 [ANNO 0] "B2" (ID: block_0_6) | Status In: MATCHED
+   ⚖️ [SCOPED-OFFSET] Annotation "B2" uses Landmark [a] (+106, +192)
+   🏗️ [OFFSET] Applying Anchor (+106, +192) to base (21, 41)
+      Final Coord: (127, 233)
+   🏁 [FINAL] ID: block_0_6 | Status: MATCHED | Method: PX_PRECOMPUTED
+
+👉 [ANNO 1] "B2" (ID: block_0_6) | Status In: MATCHED
+   ⚖️ [SCOPED-OFFSET] Annotation "B2" uses Landmark [a] (+106, +192)
+   🏗️ [OFFSET] Applying Anchor (+106, +192) to base (21, 41)
+      Final Coord: (127, 233)
+   🏁 [FINAL] ID: block_0_6 | Status: MATCHED | Method: PX_PRECOMPUTED
+
+👉 [ANNO 2] "B2" (ID: block_0_6) | Status In: MATCHED
+   ⚖️ [SCOPED-OFFSET] Annotation "B2" uses Landmark [a] (+106, +192)
+   🏗️ [OFFSET] Applying Anchor (+106, +192) to base (21, 41)
+      Final Coord: (127, 233)
+   🏁 [FINAL] ID: block_0_6 | Status: MATCHED | Method: PX_PRECOMPUTED
+
+👉 [ANNO 3] "M1" (ID: block_0_11) | Status In: MATCHED
+   ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [bi] (+397, +559)
+   🏗️ [OFFSET] Applying Anchor (+397, +559) to base (21, 41)
+      Final Coord: (418, 600)
+   🏁 [FINAL] ID: block_0_11 | Status: MATCHED | Method: PX_PRECOMPUTED
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q10
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q10: rawScore={"totalMarks":7,"awardedMarks":7,"scoreText":"7/7"}, parsedAwarded=7, parsedTotal=7, schemeTotal=7
+[GUILLOTINE CHECK] Q10: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=7, ResultTotal=7
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m8.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m8.4s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+[TOTAL TRAP] Q10: Scheme=7, AI=7, IsDefault=false -> FINAL=7
+[TOTAL TRAP] Grand Total Possible Score: 7
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 10 ([37mQ10a, Q10b[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...
+[SYNC FIX] ✅ Q10: Updated Total Available Marks from undefined (Schema) -> 7 (Engine)
+[SYNC FIX] 🏁 Updated Grand Total from 35 -> 7
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+📊 [ANNOTATION SUMMARY]
+----------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status              |
+|----------|-------|-------------------------|---------------------------|
+| [32m10      [0m | 7/7   | B2, B2, B2, M1          | M:4 V:0 U:0 S:0           |
+| [90m  a     [0m | 6     | B2, B2, B2              | M:3 V:0 U:0 S:0           |
+| [90m  bi    [0m | 1     | M1                      | M:1 V:0 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 19.6s
+Model Used: gemini-2.0-flash
+----------------------------
+marking                             8.4s (43%)
+classification                      7.0s (35%)
+ocr_processing                      1.5s (8%)
+output_generation                   0.8s (4%)
+performance_summary                 0.8s (4%)
+question_detection                  0.4s (2%)
+database_persistence                0.2s (1%)
+preprocessing                       0.1s (0%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 3 total
+   Total Tokens: 8,593 (7,732 in + 861 out)
+   Total Cost: $0.004833
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 2,631 tokens (1 requests) → $0.000284
+   • Classification (Marking Pass): 5,505 tokens (1 requests) → $0.000776
+   • Performance Summary: 457 tokens (1 requests) → $0.000057
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768933136568
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768933136568
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0048332
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.48 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768933136568), remaining: 413.72
+💳 Deducted 0.0048 credits (session: sub-1768933136568) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768933136568
