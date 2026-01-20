@@ -18,7 +18,7 @@
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 💳 [CREDIT CHECK] Estimated cost: 0.0449631, files: 1, bytes: 399631
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":426.86}
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":426.36}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
@@ -28,8 +28,8 @@
 [1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
 [MAPPER] Starting Map Pass for 1 pages...
-✅ [MAPPER] Map Pass complete in 2.22s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+✅ [MAPPER] Map Pass complete in 2.45s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -39,14 +39,14 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m2.4s[0m ([32m[1mMATHPIX[0m)
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.6s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -94,18 +94,23 @@
    🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=351, y=573
 [BUDGET Q6] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
 🤖 [AI RESPONSE] [31mQ6[0m - Clean response received:
-  - Annotations count: [35m2[0m
+  - Annotations count: [35m3[0m
   - Student score: [32m4/4[0m
-  - Usage tokens: [33m7192[0m
+  - Usage tokens: [33m7216[0m
      [36mThe student has completed the probability tree diagram and calculated the probability of both coins landing on heads.[0m
   - Annotations:
     1. [32mtick[0m [34m[block_0_4][0m [B1 B1] [34m"0.4"[0m
-      ↳ Reason: Correct probability (0.4) for coin A not landing on heads. | Correct probabilities (0.55, 0.45, 0.55, 0.45) for coin B.
+      ↳ Reason: Correct probability (0.4) for coin A not landing on heads. | Correct probabilities for coin B (0.55 and 0.45) in the correct places.
       ↳ OCR Match: [35m"0.4"[0m
-      ↳ Classification: [35m"0.4"[0m
+      ↳ Classification: [35m"(a) Complete the probability tree diagram. [PRINTED_INSTRUCTION]"[0m
       ↳ Status: [32m"MATCHED"[0m
-    2. [32mtick[0m [34m[block_0_7][0m [M1 A1] [34m"0.33"[0m
-      ↳ Reason: Correct method for calculating the probability of both coins landing on heads (0.6 * 0.55). | Correct probability of both coins landing on heads (0.33).
+    2. [32mtick[0m [34m[block_0_7][0m [M1] [34m"0.33"[0m
+      ↳ Reason: Correct method implied by the correct answer.
+      ↳ OCR Match: [35m"0.33"[0m
+      ↳ Classification: [35m"(b) Work out the probability that both coins land on heads. [PRINTED_INSTRUCTION]"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    3. [32mtick[0m [34m[block_0_9][0m [A1] [34m"0.33"[0m
+      ↳ Reason: Correct answer (0.33).
       ↳ OCR Match: [35m"0.33"[0m
       ↳ Classification: [35m"0.33"[0m
       ↳ Status: [32m"MATCHED"[0m
@@ -114,28 +119,39 @@
 
 🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q6
 
-🔍 [ENRICH-START] Processing Q6 | 2 annotations
+🔍 [ENRICH-START] Processing Q6 | 4 annotations
    ⚓ [GLOBAL-OFFSET] Applying offsets: x=351, y=573
 
-👉 [ANNO 0] "B1 B1" (ID: ) | Status In: VISUAL
+👉 [ANNO 0] "B1" (ID: ) | Status In: VISUAL
    ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 121, 140
-   ⚖️ [SCOPED-OFFSET] Annotation "B1 B1" uses Landmark [a] (+351, +573)
+   ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
    🏗️ [OFFSET] Applying Anchor (+351, +573)
       Final Coord: (472, 713)
 
-👉 [ANNO 1] "M1 A1" (ID: ) | Status In: VISUAL
+👉 [ANNO 1] "B1" (ID: ) | Status In: VISUAL
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 121, 140
+   ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
+   🏗️ [OFFSET] Applying Anchor (+351, +573)
+      Final Coord: (472, 713)
+
+👉 [ANNO 2] "M1" (ID: ) | Status In: VISUAL
    ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1787, 2439
-   ⚖️ [SCOPED-OFFSET] Annotation "M1 A1" uses Landmark [b] (+354, +2083)
+   ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [b] (+354, +2083)
    🏗️ [OFFSET] Applying Anchor (+354, +2083)
       Final Coord: (2141, 4522)
+
+👉 [ANNO 3] "A1" (ID: block_0_9) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1858,2447,195,110]
+      Output: [1858,2447,195,110]
 
 🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q6
 ✅ [ANNOTATION-AUDIT] Complete
 
 [SCORE DEBUG] Q6: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
 [GUILLOTINE CHECK] Q6: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mAI-MARKING[0m)
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.4s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
    📊 Marking Results: 1 questions
@@ -146,69 +162,61 @@
 [32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
 [32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
 [32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 6 ([37mQ6a, Q6b[32m)[0m
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m2.0s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.7s[0m ([32m[1mOUTPUT-GENERATION[0m)
 [SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...
 [SYNC FIX] ✅ Q6: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
 [SYNC FIX] 🏁 Updated Grand Total from 12 -> 4
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 📊 [ANNOTATION SUMMARY]
 ----------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status              |
 |----------|-------|-------------------------|---------------------------|
-| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:0 V:4 U:0 S:0           |
+| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:1 V:3 U:0 S:0           |
 | [90m  a     [0m | 2     | B1, B1                  | M:0 V:2 U:0 S:0           |
-| [90m  b     [0m | 2     | M1, A1                  | M:0 V:2 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:1 V:1 U:0 S:0           |
 |----------|-------|-------------------------|---------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 22.9s
+Total Processing Time: 23.7s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      8.4s (37%)
-marking                             7.2s (31%)
-ocr_processing                      2.4s (10%)
-output_generation                   2.0s (9%)
-performance_summary                 0.8s (4%)
-question_detection                  0.7s (3%)
+classification                      8.1s (34%)
+marking                             7.4s (31%)
+ocr_processing                      3.6s (15%)
+output_generation                   1.7s (7%)
+performance_summary                 0.6s (3%)
+question_detection                  0.6s (3%)
 preprocessing                       0.4s (2%)
-database_persistence                0.2s (1%)
+database_persistence                0.3s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
    API Requests: 3 total
-   Total Tokens: 11,692 (10,905 in + 787 out)
-   Total Cost: $0.004973
+   Total Tokens: 11,615 (10,828 in + 787 out)
+   Total Cost: $0.004966
    Mathpix OCR: 1 pages → $0.004000
 
    Breakdown by Phase:
    • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
    • Classification (Marking Pass): 6,988 tokens (1 requests) → $0.000910
-   • Performance Summary: 543 tokens (1 requests) → $0.000064
+   • Performance Summary: 466 tokens (1 requests) → $0.000056
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768927164595
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768927164595
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0049733
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768928042670
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768928042670
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.004965600000000001
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768927164595), remaining: 426.36
-💳 Deducted 0.0050 credits (session: sub-1768927164595) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768927164595
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
+💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768928042670), remaining: 425.86
+💳 Deducted 0.0050 credits (session: sub-1768928042670) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768928042670
+💳 Deducted 0.02 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768928042670), remaining: 425.84
+💳 Deducted 0.00 cost (session: sub-1768928042670, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 ✅ Permissions configuration loaded from .env.local:
    - Analysis Plans: pro, ultra
    - Model Selection Plans: pro, ultra

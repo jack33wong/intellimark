@@ -434,10 +434,10 @@ export class MarkingInstructionService {
       if (classificationBlocks && classificationBlocks.length > 0) {
         classificationBlocks.forEach((block: any) => {
           // 🏮 PER-BLOCK ANCHORING: Find best landmark for THIS specific block
+          // (Used for INHERITANCE fallback if coordinates are missing)
           let blockOffsetX = offsetX;
           let blockOffsetY = offsetY;
 
-          // Attempt to find a sub-question label in the block (e.g. "(b)")
           const blockText = (block.text || "").toLowerCase();
           const blockMatch = landmarks.find((l: any) =>
             blockText.includes(`(${l.label?.toLowerCase()})`) ||
@@ -447,36 +447,28 @@ export class MarkingInstructionService {
           if (blockMatch) {
             blockOffsetX = blockMatch.x || blockMatch.left || 0;
             blockOffsetY = blockMatch.y || blockMatch.top || 0;
-            console.log(`   [BLOCK-ANCHOR] Found Scoped Landmark [${blockMatch.label}] for block "${blockText.substring(0, 15)}..." at Y=${blockOffsetY}`);
           }
 
-          // Local offset for this specific block:
-          // 1. Use block-level absolute box if available (ideal)
-          // 2. Fallback to the scoped block anchor found above
-          const finalX = block.box?.x || block.x || blockOffsetX;
-          const finalY = block.box?.y || block.y || blockOffsetY;
-
-          const globalizeLine = (line: any) => {
-            if (!line.position) return line;
-            return {
-              ...line,
-              position: {
-                ...line.position,
-                x: line.position.x + finalX,
-                y: line.position.y + finalY,
-                width: line.position.width,
-                height: line.position.height
-              }
-            };
+          // RAW PROCESSING (Centralization): We do NOT add offsets here.
+          // AnnotationEnrichmentService is the single source of truth for globalizing these.
+          const passThroughLine = (line: any) => {
+            if (!line.position) {
+              // INHERITANCE FALLBACK: If AI provided no position, anchor to the landmark
+              return {
+                ...line,
+                position: { x: blockOffsetX, y: blockOffsetY, width: 100, height: 40 }
+              };
+            }
+            return line;
           };
 
           if (block.studentWorkLines && Array.isArray(block.studentWorkLines)) {
-            studentWorkLines = studentWorkLines.concat(block.studentWorkLines.map(globalizeLine));
+            studentWorkLines = studentWorkLines.concat(block.studentWorkLines.map(passThroughLine));
           }
           if (block.subQuestions && Array.isArray(block.subQuestions)) {
             block.subQuestions.forEach((sq: any) => {
               if (sq.studentWorkLines) {
-                studentWorkLines = studentWorkLines.concat(sq.studentWorkLines.map(globalizeLine));
+                studentWorkLines = studentWorkLines.concat(sq.studentWorkLines.map(passThroughLine));
               }
             });
           }

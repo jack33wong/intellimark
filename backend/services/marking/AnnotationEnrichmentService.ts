@@ -169,8 +169,17 @@ export const enrichAnnotationsWithPositions = (
                 }
             }
 
-            if (specificOffsetX !== 0 || specificOffsetY !== 0) {
-                console.log(`   🏗️ [OFFSET] Applying Anchor (+${specificOffsetX}, +${specificOffsetY})`);
+            // 🔥 DOUBLE-OFFSET PROTECTION: If the base pixelBbox is already "large" (e.g. y > 200),
+            // and we have a large offset being applied, it's highly likely the coordinate is ALREADY global.
+            // Heuristic: If pixelBbox.y + offset > Page Height, something is wrong.
+            const dims = getPageDims(pageDimensions!, pageIndex);
+            const isAlreadyGlobal = pixelBbox[1] > 200 && (pixelBbox[1] + specificOffsetY) > (dims.height * 0.9);
+
+            if (isAlreadyGlobal) {
+                console.log(`   🛡️ [OFFSET-BYPASS] Base Y (${Math.round(pixelBbox[1])}) looks already global. Skipping Anchor (+${specificOffsetY})`);
+            }
+            else if (specificOffsetX !== 0 || specificOffsetY !== 0) {
+                console.log(`   🏗️ [OFFSET] Applying Anchor (+${specificOffsetX}, +${specificOffsetY}) to base (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
                 pixelBbox[0] += specificOffsetX;
                 pixelBbox[1] += specificOffsetY;
                 console.log(`      Final Coord: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
