@@ -1192,6 +1192,12 @@ ${output.trim()}
               if (match) subQ = match[1];
             }
 
+            // V27: Final fallback - extract from reasoning [3b]
+            if (!subQ && anno.reasoning) {
+              const reasonMatch = anno.reasoning.match(/\[(\d*[a-z]+)\]/i);
+              if (reasonMatch) subQ = reasonMatch[1];
+            }
+
             // NORMALIZATION: Convert "3b" or "3(b)" to "b" to match subQuestionPageMap keys
             if (subQ) {
               const normalizedSubQ = subQ.replace(/^\d+[\s()]*|[\s()]+/g, '').toLowerCase();

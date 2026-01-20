@@ -14,22 +14,22 @@
 📚 Swagger UI available at /api-docs
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🚀 [MARKING] Controller started - Files: 2, Body Keys: model, aiMessageId
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.0449631, files: 1, bytes: 399631
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":412.78}
+💳 [CREDIT CHECK] Estimated cost: 0.08971280000000001, files: 2, bytes: 797128
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":411.78}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
 
 [1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Single Image (1 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[INPUT TYPE] Detected: Multiple Images (2 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 1 pages...
-✅ [MAPPER] Map Pass complete in 2.12s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[MAPPER] Starting Map Pass for 2 pages...
+✅ [MAPPER] Map Pass complete in 1.67s. Mapped 2 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m10.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -39,14 +39,15 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m10.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.5s[0m ([32m[1mMATHPIX[0m)
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m4.1s[0m ([32m[1mMATHPIX[0m)
+[DETECTION] 🏆 Relative Winner Accepted: 0.783 vs Runner-up 0.591
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m1.0s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -57,198 +58,76 @@
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 6    | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
-| 6a   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
-| 6b   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
+| 3    | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
+      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
+| 3a   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
+      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
+| 3b   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
+      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
+| 4    | A company has 25000 workers. The number of... | Edexcel GCSE 1MA1/3H June 2024 Q4                  | 0.929 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
 📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 3
-   Detected: 3/3
+   Total questions: 4
+   Detected: 4/4
    Not detected: 0
    [HINT] Hint Used: "Global Search"
    [HINT] Matched Papers: 108
-[DRAWING] Q6: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q6: Will pass image to Marking AI
-✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
+[DRAWING] Q3: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q3: Will pass image to Marking AI
+✅ createMarkingTasksFromClassification completed, created 2 marking task(s)
 [1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
 
-🔍 [MAPPING DEBUG] Available Classification Targets for Q6:
-   [0] ID: line_1 | Text: "0.4" | Handwriting: true | Box: [79,154,12,14]
-   [1] ID: line_2 | Text: "0.55" | Handwriting: true | Box: [121,140,17,14]
-   [2] ID: line_3 | Text: "0.45" | Handwriting: true | Box: [121,186,17,14]
-   [3] ID: line_4 | Text: "0.55" | Handwriting: true | Box: [121,140,17,14]
-   [4] ID: line_5 | Text: "0.45" | Handwriting: true | Box: [121,186,17,14]
-   [5] ID: line_6 | Text: "0.33" | Handwriting: true | Box: [171,267,17,18]
+🔍 [MAPPING DEBUG] Available Classification Targets for Q3:
+   [0] ID: line_1 | Text: "The height of prism is not 4cm" | Handwriting: true | Box: [29,245,106,12]
 🔍 [ZONE SCAN] Scanning blocks for landmarks...
-   📍 Found Landmark: "a" at Page 0, Y=573
-   📍 Found Landmark: "b" at Page 0, Y=2083
+   📍 Found Landmark: "a" at Page 0, Y=2094
+   📍 Found Landmark: "b" at Page 1, Y=296
 
 🔍 [ZONE DEBUG] Detected Semantic Zones: a, b
 
 🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
    👉 QuestionDetection Box: undefined
    ⚠️ ClassificationBlocks array is empty.
-   [ANCHOR-FIX] Bridging Root Question '6' to First Child Landmark 'a' at Y=573
-   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=351, y=573
+   [ANCHOR-FIX] Bridging Root Question '3' to First Child Landmark 'a' at Y=2094
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=263, y=2094
+
+🔍 [MAPPING DEBUG] Available Classification Targets for Q4:
+   [0] ID: line_1 | Text: "25000 x 1.06^3" | Handwriting: true | Box: [76,201,74,18]
+   [1] ID: line_2 | Text: "29775" | Handwriting: true | Box: [124,281,30,18]
+🔍 [ZONE SCAN] Scanning blocks for landmarks...
+   📍 Found Landmark: "b" at Page 1, Y=296
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: b
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   🔍 [COORD-DEBUG] Using Sub-Question Anchor [block_1_0] "(b) On the..." for Offset: x=345, y=296
 
 [1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[1m[34m[AI MARKING] Q6[0m
+[1m[34m[AI MARKING] Q3[0m
 [1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[1m[36m## SYSTEM PROMPT[0m
-You are an AI assistant that marks student work. Your task is to generate a single, valid JSON object following all rules below. Your entire response MUST start with { and end with }, with no other text.
-
----
-
-## 1. GOLDEN RULES (ABSOLUTE LAWS)
-
-1. **ATOMICITY IS MANDATORY:**
-   * **LAW:** The `text` field MUST contain **ONE** single code.
-   * **ILLEGAL:** "B2 B2 B2", "M1 A1", "B2, B2".
-   * **LEGAL:** "B2".
-   * **PENALTY:** If you combine codes, the entire grading session is FAILED.
-
-2. **THE "ONE-SHOT" LIST RULE:**
-   * **SCENARIO:** The scheme says B2: 36 or 19 or 41.
-   * **INTERPRETATION:** This is a **Single-Use** marking criteria.
-   * **ACTION:** If the student writes "36, 19, 41", you award **ONE** "B2" mark.
-   * **PROHIBITION:** Do NOT award B2 three times. Do NOT output "B2 B2 B2".
-
-3. **MARGIN BLINDNESS:**
-   * **RULE:** Ignore printed mark counts (e.g. [3]) in the margins. Never map annotations to them.
-
-4. **THE "NUCLEAR" MATCHER (LOGIC VS LOCATION):**
-   * **APPLICABILITY:** This rule applies to numbers, equations, and text-based mathematical logic.
-   * **LOGIC SOURCE:** Use **STUDENT WORK (STRUCTURED)** (transcripts) to determine correctness.
-   * **LOCATION SOURCE:** Use **RAW OCR BLOCKS** ONLY to find the matching `block_ID` (coordinates).
-   * **THE RULE:** If the numbers in [STUDENT WORK] and [OCR BLOCK] match, you **MUST** use the `block_ID`.
-   * **EXEMPTION (DRAWINGS):** Do NOT apply this rule to drawings, diagrams, or sketches. Drawings MUST NOT be anchored to text `block_ID`s.
-   * **PENALTY:** Trusting an OCR typo over a correct classification transcript for text-based work is a **CRITICAL FAILURE**.
-
-5. **CONTEXT ISOLATION (HARD PAGE BOUNDARY):**
-   - **RULE:** You must respect physical page assignments.
-   - **CONSTRAINT:** If the prompt lists sub-question '2a' as being on 'Page 1' (see assignments below or in block IDs), you are **FORBIDDEN** from mapping it to a block ID that belongs to 'Page 2'.
-
-6. **ZERO-FEEDBACK POLICY:**
-   - **SILENCE IS GOLDEN:** You are a grading engine, not a tutor. No conversational text.
-   - **PURE JSON:** Your output must strictly be the JSON object.
-   - **EMPTY STATE:** If you have no annotations to return, return an empty `annotations` array inside the JSON object, but never speak.
-
----
-
-## 2. JSON LOGIC CONSTRAINTS (CRITICAL VALIDATION)
-
-* **JSON FORMAT:** You MUST return a single valid JSON object.
-    * **NO RAW NEWLINES:** String values MUST NOT contain raw newline characters. Use \n for line breaks.
-    * **LATEX ESCAPING:** All LaTeX backslashes MUST be double-escaped (e.g., \\\\frac, \\\\times).
-* **CONSTRAINT A (The "ID Whitelist"):**
-    * You **MUST NOT** generate a `line_id` that is not explicitly listed in the **RAW OCR BLOCKS** section.
-* **CONSTRAINT B (No Fake Matches):**
-    * **IF** `ocr_match_status` is **"MATCHED"**, **THEN** `line_id` **MUST** start with **"block_"**.
-* **CONSTRAINT D (Sub-Question Isolation):**
-    * **NEVER** map an annotation for sub-question "a" to a `block_ID` that is listed under **[SUB-QUESTION B STUDENT WORK]**.
-* **CONSTRAINT E (The "Nuclear" Matcher):**
-    * **Objective:** Link [Student Line] to [OCR Block] if the **NUMBERS** match.
-    * **THE SUBSTRING RULE (MANDATORY):** If student line is 2sqrt(5) and you see block Smallest \\\\frac{2\\\\sqrt{5}}{3}..., **MATCH IT**.
-* **CONSTRAINT F (The Block Mandate):**
-    * **MANDATORY:** For text/numeric work, you MUST find the `block_ID` that corresponds to the logic. 
-    * **DRAWING EXEMPTION:** Do NOT use `block_ID` for drawings. Use `ocr_match_status: "VISUAL"`.
-    * **NO LAZY FALLBACKS:** You are prohibited from using placeholder `line_x` IDs for text work unless NO physical block contains a matching numeric or textual marker.
-
----
-
----
-
-## 4. MARKING LOGIC & FALLBACK
-1. **Source Strategy:** Mark based SOLELY on the **STUDENT WORK (STRUCTURED)** content.
-2. **Anchor Strategy:** Map the awarded mark to the corresponding **RAW OCR BLOCK** (`block_ID`).
-3. **Multi-Mark Rule:** All annotations for a single line of work **MUST** share the same `line_id`.
-
----
-
-## 5. VISUAL & INDEX PROTOCOL
-
-* **Visual Analysis (MANDATORY):** Populate `visualObservation` with concise description.
-* **CRITICAL pageIndex:** Must match absolute page number (0, 1, 2...) from labels.
-
----
-
-## 6. ANNOTATION RULES
-
-1. **One Mark Per Annotation (ABSOLUTE MANDATE):** Generate a SEPARATE object for EACH mark code.
-2. **MARKING PRIORITY:** ACCURACY IS KING.
-3. **Reasoning (CRITICAL):** Concisely direct, max 20 words.
-4. MANDATORY ANNOTATIONS: Output at least one annotation for EVERY sub-question listed in Scheme.
-    * STRICT MODE RULE: Do NOT skip Part-Q. If blank, cross (A0/M0) on answer line.
-
----
-
-## 7. DRAWING & VISUAL MARKING
-
-* For drawings, sketches, or diagrams, you **MUST** use `ocr_match_status: "VISUAL"`.
-* **NO MATCHING:** Do NOT generate a `block_ID` or `line_id` for drawing marks.
-* **ESTIMATION:** Manually extract the drawing's location from the PROVIDED SOURCE IMAGES and populate `visual_position` with percentage bounding box (0-100).
-* **MULTI-PAGE RULE:** If a question spans multiple pages, you MUST include the 0-indexed page index 'p' in the keyword (e.g. **[POSITION: x=75, y=20, p=1]** for Page 2).
-* Prepend keyword **[DRAWING]** to reasoning for visual marks.
-
----
-
-## 8. SCORING RULES
-
-**RULE: SCORE LIMITS & BUDGETING**
-1. **IF [MAX SCORE] EXISTS:** You **MUST NOT** award more marks than this number for this part.
-
-**CRITICAL RULE: THE "ONE-SHOT" CONSTRAINT**
-A single bullet point represents ONE mark opportunity. Once used, it is USED.
-
----
-
-## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
-
-```json
-{
-  "meta": {
-    "question_total_marks": "Integer",
-    "raw_correct_steps_found": "Integer",
-    "steps_dropped_to_fit_budget": "Integer",
-    "isTotalEstimated": "Boolean"
-  },
-  "visualObservation": "String",
-  "annotations": [
-    {
-      "line_id": "String",
-      "action": "tick|cross",
-      "text": "String",
-      "student_text": "String",
-      "classification_text": "String",
-      "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
-      "reasoning": "String",
-      "subQuestion": "String",
-      "pageIndex": "Integer",
-      "line_index": "Integer",
-      "visual_position": { "x": 0, "y": 0, "width": 0, "height": 0 }
-    }
-  ],
-  "studentScore": {
-    "totalMarks": "Integer",
-    "awardedMarks": "Integer",
-    "scoreText": "String"
-  }
-}
-```
-
-**CRITICAL REMINDER:** The "totalMarks" field MUST reflect the sum of all available marks in the scheme (Absolute Truth).
 [1m[34m------------------------------------------------------------[0m
 
-[1m[36m# MARKING TASK: Question 6
+[1m[36m# MARKING TASK: Question 3
 
 ## QUESTION TEXT
-**[6]**: Tim has two biased coins, coin A and coin B. He is going to throw both coins. The probability that coin A will land on heads is 0.6. The probability that coin B will land on heads is 0.55. Complete the probability tree diagram. Tim throws coin A once and he throws coin B once. Work out the probability that both coins land on heads.
+**[3]**: The diagram shows a solid triangular prism. [Diagram shows a prism with a triangular cross-section base 6cm and height 4cm. The length of the prism is 7cm. The slant height of the triangular face is 4cm.] Rana is trying to draw the side elevation of the solid prism from the direction of the arrow. Here is her answer on a centimetre grid. [Rana's drawing shows a rectangle 6cm wide by 4cm high.] Explain why Rana's side elevation is not correct. On the centimetre grid below, draw a plan of the solid prism.
 
-**[6a]**: Tim has two biased coins, coin A and coin B. He is going to throw both coins. The probability that coin A will land on heads is 0.6. The probability that coin B will land on heads is 0.55. Complete the probability tree diagram.
+**[3a]**: The diagram shows a solid triangular prism. [Diagram shows a prism with a triangular cross-section base 6cm and height 4cm. The length of the prism is 7cm. The slant height of the triangular face is 4cm.] Rana is trying to draw the side elevation of the solid prism from the direction of the arrow. Here is her answer on a centimetre grid. [Rana's drawing shows a rectangle 6cm wide by 4cm high.] Explain why Rana's side elevation is not correct.
 
-**[6b]**: Tim throws coin A once and he throws coin B once. Work out the probability that both coins land on heads.
+**[3b]**: On the centimetre grid below, draw a plan of the solid prism.
 
 
 ## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
@@ -275,13 +154,12 @@ A single bullet point represents ONE mark opportunity. Once used, it is USED.
 >    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
 
 [OFFICIAL SCHEME]
-[6a] [MAX SCORE: 2]
-- B1: for 0.4 in correct position
-- B1: for the correct probabilities for coin B in the correct place on the branches
+[3a] [MAX SCORE: 1]
+- C1: for explanation
 
-[6b] [MAX SCORE: 2]
-- M1: for a correct method, eg $0.6 \times 0.55$ only
-- A1: for 0.33 oe
+[3b] [MAX SCORE: 2]
+- M1: for a 7 cm by 6 cm rectangle or for a 7 cm by n cm or m cm by 6 cm rectangle and dividing line which is parallel to the 7 cm or the m cm side
+- A1: for a fully correct plan
 
 
 > [!IMPORTANT]
@@ -293,208 +171,47 @@ A single bullet point represents ONE mark opportunity. Once used, it is USED.
 ## STUDENT WORK (STRUCTURED)
 
 [SUB-QUESTION a]
-1. [line_1] 0.4
-2. [line_2] 0.55
-3. [line_3] 0.45
-4. [line_4] 0.55
-5. [line_5] 0.45
-
-[SUB-QUESTION b]
-6. [line_6] 0.33
+1. [line_1] The height of prism is not 4cm
 
 
  
 ## RAW OCR BLOCKS
 Use these IDs to map the student's work. Match them yourself based on the content.
 
-[block_0_0]: "6 Tim has two biased coins, coin A and coin B."
-[block_0_1]: "He is going to throw both coins. [PRINTED_INSTRUCTION]"
-[block_0_2]: "The probability that coin A will land on heads is 0.6 [PRINTED_INSTRUCTION]"
-[block_0_3]: "The probability that coin B will land on heads is 0.55 [PRINTED_INSTRUCTION]"
-[block_0_4]: "(a) Complete the probability tree diagram. [PRINTED_INSTRUCTION]"
-[block_0_5]: "(2)"
-[block_0_6]: "Tim throws coin \( \mathbf{A} \) once and he throws coin \( \mathbf{B} \) once."
-[block_0_7]: "(b) Work out the probability that both coins land on heads. [PRINTED_INSTRUCTION]"
-[block_0_8]: "\( \_\_\_\_ \) [PRINTED_INSTRUCTION]"
-[block_0_9]: "0.33"
-[block_0_10]: "(2)"
-[block_0_11]: "7"[0m
+[block_0_0]: "3 The diagram shows a solid triangular prism."
+[block_0_1]: "Rana is trying to draw the side elevation of the solid prism from the direction of [PRINTED_INSTRUCTION]"
+[block_0_2]: "the arrow. [PRINTED_INSTRUCTION]"
+[block_0_3]: "VJYV SIHI NI JIIYM ION OC"
+[block_0_4]: "Here is her answer on a centimetre grid. [PRINTED_INSTRUCTION]"
+[block_0_5]: "VALV SIHI NI JITYM ION OC"
+[block_0_6]: "(a) Explain why Rana's side elevation is not correct. [PRINTED_INSTRUCTION]"
+[block_0_7]: "\( \_\_\_\_ \) [PRINTED_INSTRUCTION]"
+[block_0_8]: "The height of prim i) not 4 cm"
+[block_0_9]: "\( \_\_\_\_ \) [PRINTED_INSTRUCTION]"
+[block_0_10]: "\( \_\_\_\_ \) [PRINTED_INSTRUCTION]"
+[block_0_11]: "(1)"
+[block_0_12]: "VJYV SIHL NI BIIIAM ION OC"
+[block_0_13]: "4"
+[block_1_0]: "(b) On the centimetre grid below, draw a plan of the solid prism."
+[block_1_1]: "(2)"
+[block_1_2]: "4 A company has 25000 workers."
+[block_1_3]: "The number of workers increases at a rate of \( 6 \% \) per year for 3 years."
+[block_1_4]: "Calculate the total number of workers at the end of the 3 years. [PRINTED_INSTRUCTION]"
+[block_1_5]: "25000 \times 1.06^{3}"
+[block_1_8]: "29775"
+[block_1_9]: "5"[0m
 [1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
 
-[BUDGET Q6] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
-🤖 [AI RESPONSE] [31mQ6[0m - Clean response received:
-  - Annotations count: [35m2[0m
-  - Student score: [32m4/4[0m
-  - Usage tokens: [33m7222[0m
-     [36mThe student has completed the probability tree diagram and calculated the probability of both coins landing on heads.[0m
-  - Annotations:
-    1. [32mtick[0m [34m[block_0_4][0m [B1 B1] [34m"0.4"[0m
-      ↳ Reason: Correct probability 0.4 for coin A not landing on heads. | Correct probabilities 0.55 and 0.45 for coin B.
-      ↳ OCR Match: [35m"0.4"[0m
-      ↳ Classification: [35m"0.4"[0m
-      ↳ Status: [32m"MATCHED"[0m
-    2. [32mtick[0m [34m[block_0_7][0m [M1 A1] [34m"0.33"[0m
-      ↳ Reason: Correct method for calculating the probability of both coins landing on heads. | Correct probability 0.33 for both coins landing on heads.
-      ↳ OCR Match: [35m"0.33"[0m
-      ↳ Classification: [35m"0.33"[0m
-      ↳ Status: [32m"MATCHED"[0m
-   🛡️ [REDIRECT] Intercepted link to Instruction [block_0_4]
-   🛡️ [REDIRECT] Intercepted link to Instruction [block_0_7]
 
-🤖 [G0-PROMPT] Full AI Marking Context for Q6:
-   --- SYSTEM PROMPT ---
-You are an AI assistant that marks student work. Your task is to generate a single, valid JSON object following all rules below. Your entire response MUST start with { and end with }, with no other text.
+[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1m[34m[AI MARKING] Q4[0m
+[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1m[34m------------------------------------------------------------[0m
 
----
-
-## 1. GOLDEN RULES (ABSOLUTE LAWS)
-
-1. **ATOMICITY IS MANDATORY:**
-   * **LAW:** The `text` field MUST contain **ONE** single code.
-   * **ILLEGAL:** "B2 B2 B2", "M1 A1", "B2, B2".
-   * **LEGAL:** "B2".
-   * **PENALTY:** If you combine codes, the entire grading session is FAILED.
-
-2. **THE "ONE-SHOT" LIST RULE:**
-   * **SCENARIO:** The scheme says B2: 36 or 19 or 41.
-   * **INTERPRETATION:** This is a **Single-Use** marking criteria.
-   * **ACTION:** If the student writes "36, 19, 41", you award **ONE** "B2" mark.
-   * **PROHIBITION:** Do NOT award B2 three times. Do NOT output "B2 B2 B2".
-
-3. **MARGIN BLINDNESS:**
-   * **RULE:** Ignore printed mark counts (e.g. [3]) in the margins. Never map annotations to them.
-
-4. **THE "NUCLEAR" MATCHER (LOGIC VS LOCATION):**
-   * **APPLICABILITY:** This rule applies to numbers, equations, and text-based mathematical logic.
-   * **LOGIC SOURCE:** Use **STUDENT WORK (STRUCTURED)** (transcripts) to determine correctness.
-   * **LOCATION SOURCE:** Use **RAW OCR BLOCKS** ONLY to find the matching `block_ID` (coordinates).
-   * **THE RULE:** If the numbers in [STUDENT WORK] and [OCR BLOCK] match, you **MUST** use the `block_ID`.
-   * **EXEMPTION (DRAWINGS):** Do NOT apply this rule to drawings, diagrams, or sketches. Drawings MUST NOT be anchored to text `block_ID`s.
-   * **PENALTY:** Trusting an OCR typo over a correct classification transcript for text-based work is a **CRITICAL FAILURE**.
-
-5. **CONTEXT ISOLATION (HARD PAGE BOUNDARY):**
-   - **RULE:** You must respect physical page assignments.
-   - **CONSTRAINT:** If the prompt lists sub-question '2a' as being on 'Page 1' (see assignments below or in block IDs), you are **FORBIDDEN** from mapping it to a block ID that belongs to 'Page 2'.
-
-6. **ZERO-FEEDBACK POLICY:**
-   - **SILENCE IS GOLDEN:** You are a grading engine, not a tutor. No conversational text.
-   - **PURE JSON:** Your output must strictly be the JSON object.
-   - **EMPTY STATE:** If you have no annotations to return, return an empty `annotations` array inside the JSON object, but never speak.
-
----
-
-## 2. JSON LOGIC CONSTRAINTS (CRITICAL VALIDATION)
-
-* **JSON FORMAT:** You MUST return a single valid JSON object.
-    * **NO RAW NEWLINES:** String values MUST NOT contain raw newline characters. Use \n for line breaks.
-    * **LATEX ESCAPING:** All LaTeX backslashes MUST be double-escaped (e.g., \\\\frac, \\\\times).
-* **CONSTRAINT A (The "ID Whitelist"):**
-    * You **MUST NOT** generate a `line_id` that is not explicitly listed in the **RAW OCR BLOCKS** section.
-* **CONSTRAINT B (No Fake Matches):**
-    * **IF** `ocr_match_status` is **"MATCHED"**, **THEN** `line_id` **MUST** start with **"block_"**.
-* **CONSTRAINT D (Sub-Question Isolation):**
-    * **NEVER** map an annotation for sub-question "a" to a `block_ID` that is listed under **[SUB-QUESTION B STUDENT WORK]**.
-* **CONSTRAINT E (The "Nuclear" Matcher):**
-    * **Objective:** Link [Student Line] to [OCR Block] if the **NUMBERS** match.
-    * **THE SUBSTRING RULE (MANDATORY):** If student line is 2sqrt(5) and you see block Smallest \\\\frac{2\\\\sqrt{5}}{3}..., **MATCH IT**.
-* **CONSTRAINT F (The Block Mandate):**
-    * **MANDATORY:** For text/numeric work, you MUST find the `block_ID` that corresponds to the logic. 
-    * **DRAWING EXEMPTION:** Do NOT use `block_ID` for drawings. Use `ocr_match_status: "VISUAL"`.
-    * **NO LAZY FALLBACKS:** You are prohibited from using placeholder `line_x` IDs for text work unless NO physical block contains a matching numeric or textual marker.
-
----
-
----
-
-## 4. MARKING LOGIC & FALLBACK
-1. **Source Strategy:** Mark based SOLELY on the **STUDENT WORK (STRUCTURED)** content.
-2. **Anchor Strategy:** Map the awarded mark to the corresponding **RAW OCR BLOCK** (`block_ID`).
-3. **Multi-Mark Rule:** All annotations for a single line of work **MUST** share the same `line_id`.
-
----
-
-## 5. VISUAL & INDEX PROTOCOL
-
-* **Visual Analysis (MANDATORY):** Populate `visualObservation` with concise description.
-* **CRITICAL pageIndex:** Must match absolute page number (0, 1, 2...) from labels.
-
----
-
-## 6. ANNOTATION RULES
-
-1. **One Mark Per Annotation (ABSOLUTE MANDATE):** Generate a SEPARATE object for EACH mark code.
-2. **MARKING PRIORITY:** ACCURACY IS KING.
-3. **Reasoning (CRITICAL):** Concisely direct, max 20 words.
-4. MANDATORY ANNOTATIONS: Output at least one annotation for EVERY sub-question listed in Scheme.
-    * STRICT MODE RULE: Do NOT skip Part-Q. If blank, cross (A0/M0) on answer line.
-
----
-
-## 7. DRAWING & VISUAL MARKING
-
-* For drawings, sketches, or diagrams, you **MUST** use `ocr_match_status: "VISUAL"`.
-* **NO MATCHING:** Do NOT generate a `block_ID` or `line_id` for drawing marks.
-* **ESTIMATION:** Manually extract the drawing's location from the PROVIDED SOURCE IMAGES and populate `visual_position` with percentage bounding box (0-100).
-* **MULTI-PAGE RULE:** If a question spans multiple pages, you MUST include the 0-indexed page index 'p' in the keyword (e.g. **[POSITION: x=75, y=20, p=1]** for Page 2).
-* Prepend keyword **[DRAWING]** to reasoning for visual marks.
-
----
-
-## 8. SCORING RULES
-
-**RULE: SCORE LIMITS & BUDGETING**
-1. **IF [MAX SCORE] EXISTS:** You **MUST NOT** award more marks than this number for this part.
-
-**CRITICAL RULE: THE "ONE-SHOT" CONSTRAINT**
-A single bullet point represents ONE mark opportunity. Once used, it is USED.
-
----
-
-## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
-
-```json
-{
-  "meta": {
-    "question_total_marks": "Integer",
-    "raw_correct_steps_found": "Integer",
-    "steps_dropped_to_fit_budget": "Integer",
-    "isTotalEstimated": "Boolean"
-  },
-  "visualObservation": "String",
-  "annotations": [
-    {
-      "line_id": "String",
-      "action": "tick|cross",
-      "text": "String",
-      "student_text": "String",
-      "classification_text": "String",
-      "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
-      "reasoning": "String",
-      "subQuestion": "String",
-      "pageIndex": "Integer",
-      "line_index": "Integer",
-      "visual_position": { "x": 0, "y": 0, "width": 0, "height": 0 }
-    }
-  ],
-  "studentScore": {
-    "totalMarks": "Integer",
-    "awardedMarks": "Integer",
-    "scoreText": "String"
-  }
-}
-```
-
-**CRITICAL REMINDER:** The "totalMarks" field MUST reflect the sum of all available marks in the scheme (Absolute Truth).
-   --- USER PROMPT ---
-
-# MARKING TASK: Question 6
+[1m[36m# MARKING TASK: Question 4
 
 ## QUESTION TEXT
-**[6]**: Tim has two biased coins, coin A and coin B. He is going to throw both coins. The probability that coin A will land on heads is 0.6. The probability that coin B will land on heads is 0.55. Complete the probability tree diagram. Tim throws coin A once and he throws coin B once. Work out the probability that both coins land on heads.
-
-**[6a]**: Tim has two biased coins, coin A and coin B. He is going to throw both coins. The probability that coin A will land on heads is 0.6. The probability that coin B will land on heads is 0.55. Complete the probability tree diagram.
-
-**[6b]**: Tim throws coin A once and he throws coin B once. Work out the probability that both coins land on heads.
+**[4]**: A company has 25000 workers. The number of workers increases at a rate of 6% per year for 3 years. Calculate the total number of workers at the end of the 3 years.
 
 
 ## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
@@ -521,13 +238,13 @@ A single bullet point represents ONE mark opportunity. Once used, it is USED.
 >    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
 
 [OFFICIAL SCHEME]
-[6a] [MAX SCORE: 2]
-- B1: for 0.4 in correct position
-- B1: for the correct probabilities for coin B in the correct place on the branches
+[4] [MAX SCORE: 4]
+- P1: for evidence of using a correct first step eg $25000 \times 0.06 (= 1500)$ or $25000 \times 1.06 (= 26500)$
+- P1: for evidence of a "compound interest" process eg "26500" $\times$ 0.06 (= 1590) or "26500" $\times$ 1.06 (= 28090) or $25000 \times 1.06^t$ ($t \ge 2$)
+- P1: for a complete process eg $25000 \times 1.06^3 (= 29775.4)$
+- A1: for 29775 or 29 776 or 29 780 or 29 800
 
-[6b] [MAX SCORE: 2]
-- M1: for a correct method, eg $0.6 \times 0.55$ only
-- A1: for 0.33 oe
+FINAL ANSWER: 29775
 
 
 > [!IMPORTANT]
@@ -537,141 +254,352 @@ A single bullet point represents ONE mark opportunity. Once used, it is USED.
 
 
 ## STUDENT WORK (STRUCTURED)
-
-[SUB-QUESTION a]
-1. [line_1] 0.4
-2. [line_2] 0.55
-3. [line_3] 0.45
-4. [line_4] 0.55
-5. [line_5] 0.45
-
-[SUB-QUESTION b]
-6. [line_6] 0.33
+1. [line_1] 25000 x 1.06^3
+2. [line_2] 29775
 
 
  
 ## RAW OCR BLOCKS
 Use these IDs to map the student's work. Match them yourself based on the content.
 
-[block_0_0]: "6 Tim has two biased coins, coin A and coin B."
-[block_0_1]: "He is going to throw both coins. [PRINTED_INSTRUCTION]"
-[block_0_2]: "The probability that coin A will land on heads is 0.6 [PRINTED_INSTRUCTION]"
-[block_0_3]: "The probability that coin B will land on heads is 0.55 [PRINTED_INSTRUCTION]"
-[block_0_4]: "(a) Complete the probability tree diagram. [PRINTED_INSTRUCTION]"
-[block_0_5]: "(2)"
-[block_0_6]: "Tim throws coin \( \mathbf{A} \) once and he throws coin \( \mathbf{B} \) once."
-[block_0_7]: "(b) Work out the probability that both coins land on heads. [PRINTED_INSTRUCTION]"
-[block_0_8]: "\( \_\_\_\_ \) [PRINTED_INSTRUCTION]"
-[block_0_9]: "0.33"
-[block_0_10]: "(2)"
-[block_0_11]: "7"
+[block_1_0]: "(b) On the centimetre grid below, draw a plan of the solid prism."
+[block_1_1]: "(2)"
+[block_1_2]: "4 A company has 25000 workers."
+[block_1_3]: "The number of workers increases at a rate of \( 6 \% \) per year for 3 years. [PRINTED_INSTRUCTION]"
+[block_1_4]: "Calculate the total number of workers at the end of the 3 years. [PRINTED_INSTRUCTION]"
+[block_1_5]: "25000 \times 1.06^{3}"
+[block_1_8]: "29775"
+[block_1_9]: "5"[0m
+[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[BUDGET Q3] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ3[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m2/3[0m
+  - Usage tokens: [33m4457[0m
+     [36mStudent attempts to explain why Rana's side elevation is incorrect and draw a plan of the solid prism.[0m
+  - Annotations:
+    1. [31mcross[0m [34m[block_0_8][0m [C0] [34m"The height of prim i) not 4 cm"[0m
+      ↳ Reason: Incorrect explanation. The height is correct, but the width is wrong. [3a]
+      ↳ OCR Match: [35m"The height of prim i) not 4 cm"[0m
+      ↳ Classification: [35m"The height of prim i) not 4 cm"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_1_0][0m [M1 A1] [34m"(b) On the centimetre grid below, draw a plan of the solid prism."[0m
+      ↳ Reason: Rectangle 7cm by 6cm drawn. [3b] | Fully correct plan drawn. [3b]
+      ↳ OCR Match: [35m"(b) On the centimetre grid below, draw a plan of the solid prism."[0m
+      ↳ Status: [31m"UNMATCHED (Fallback to Classification)"[0m
+
+🤖 [G0-PROMPT] Full AI Marking Context for Q3:
+   --- USER PROMPT ---
+
+# MARKING TASK: Question 4
+
+## QUESTION TEXT
+**[4]**: A company has 25000 workers. The number of workers increases at a rate of 6% per year for 3 years. Calculate the total number of workers at the end of the 3 years.
+
+
+## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
+## GENERAL MARKING GUIDANCE
+> [!IMPORTANT]
+> **Precedence:** These notes offer general guidance, but the specific notes for examiners appertaining to individual questions take precedence.
+
+### General Principles
+- All candidates must receive the same treatment. Examiners must mark the last candidate in exactly the same way as they mark the first.
+- Where some judgement is required, mark schemes will provide the principles by which marks will be awarded; exemplification/indicative content will not be exhaustive.
+- All the marks on the mark scheme are designed to be awarded; mark schemes should be applied positively.
+- Examiners should also be prepared to award zero marks if the candidate's response is not worthy of credit according to the mark scheme.
+
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[4] [MAX SCORE: 4]
+- P1: for evidence of using a correct first step eg $25000 \times 0.06 (= 1500)$ or $25000 \times 1.06 (= 26500)$
+- P1: for evidence of a "compound interest" process eg "26500" $\times$ 0.06 (= 1590) or "26500" $\times$ 1.06 (= 28090) or $25000 \times 1.06^t$ ($t \ge 2$)
+- P1: for a complete process eg $25000 \times 1.06^3 (= 29775.4)$
+- A1: for 29775 or 29 776 or 29 780 or 29 800
+
+FINAL ANSWER: 29775
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+1. [line_1] 25000 x 1.06^3
+2. [line_2] 29775
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the content.
+
+[block_1_0]: "(b) On the centimetre grid below, draw a plan of the solid prism."
+[block_1_1]: "(2)"
+[block_1_2]: "4 A company has 25000 workers."
+[block_1_3]: "The number of workers increases at a rate of \( 6 \% \) per year for 3 years. [PRINTED_INSTRUCTION]"
+[block_1_4]: "Calculate the total number of workers at the end of the 3 years. [PRINTED_INSTRUCTION]"
+[block_1_5]: "25000 \times 1.06^{3}"
+[block_1_8]: "29775"
+[block_1_9]: "5"
 
    --- END PROMPT ---
 
 
-🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q6
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q3
 
-🔍 [ENRICH-START] Processing Q6 | 4 annotations
-   ⚓ [GLOBAL-OFFSET] Applying offsets: x=351, y=573
+🔍 [ENRICH-START] Processing Q3 | 3 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=263, y=2094
 
-👉 [ANNO 0] "B1" (ID: ) | Status In: VISUAL
-   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (121, 140)
+👉 [ANNO 0] "C0" (ID: block_0_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [340,2160,1299,161]
+      Output: [340,2160,1299,161]
+   🏁 [FINAL] ID: block_0_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "M1" (ID: block_1_0) | Status In: UNMATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (29, 245)
    ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
-   ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
-   🏗️ [OFFSET] Applying Anchor (+351, +573) to base (301, 492)
-      Final Coord: (652, 1065)
-   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
+   ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [b] (+345, +296)
+   🏗️ [OFFSET] Applying Anchor (+345, +296) to base (71, 859)
+      Final Coord: (416, 1155)
+   🏁 [FINAL] ID: block_1_0 | Status: UNMATCHED | Method: VISUAL_NORM_1000_CALC
 
-👉 [ANNO 1] "B1" (ID: ) | Status In: VISUAL
-   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (121, 140)
+👉 [ANNO 2] "A1" (ID: block_1_0) | Status In: UNMATCHED
+   ⚠️ [DETECTIVE] Detected 1000-scale normalized coords (29, 245)
    ✅ [PATH: VISUAL] Converted 1000 scale to Pixels.
-   ⚖️ [SCOPED-OFFSET] Annotation "B1" uses Landmark [a] (+351, +573)
-   🏗️ [OFFSET] Applying Anchor (+351, +573) to base (301, 492)
-      Final Coord: (652, 1065)
-   🏁 [FINAL] ID:  | Status: VISUAL | Method: VISUAL_NORM_1000_CALC
+   ⚖️ [SCOPED-OFFSET] Annotation "A1" uses Landmark [b] (+345, +296)
+   🏗️ [OFFSET] Applying Anchor (+345, +296) to base (71, 859)
+      Final Coord: (416, 1155)
+   🏁 [FINAL] ID: block_1_0 | Status: UNMATCHED | Method: VISUAL_NORM_1000_CALC
 
-👉 [ANNO 2] "M1" (ID: ) | Status In: VISUAL
-   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1787, 2439
-   ⚖️ [SCOPED-OFFSET] Annotation "M1" uses Landmark [b] (+354, +2083)
-   🛡️ [OFFSET-BYPASS] Base Y (2439) is already near/past Landmark Y (2083). Skipping Anchor.
-   🏁 [FINAL] ID:  | Status: VISUAL | Method: PX_PRECOMPUTED
-
-👉 [ANNO 3] "A1" (ID: ) | Status In: VISUAL
-   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1787, 2439
-   ⚖️ [SCOPED-OFFSET] Annotation "A1" uses Landmark [b] (+354, +2083)
-   🛡️ [OFFSET-BYPASS] Base Y (2439) is already near/past Landmark Y (2083). Skipping Anchor.
-   🏁 [FINAL] ID:  | Status: VISUAL | Method: PX_PRECOMPUTED
-
-🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q6
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q3
 ✅ [ANNOTATION-AUDIT] Complete
 
-[SCORE DEBUG] Q6: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
-[GUILLOTINE CHECK] Q6: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mAI-MARKING[0m)
+[SCORE DEBUG] Q3: rawScore={"totalMarks":3,"awardedMarks":2,"scoreText":"2/3"}, parsedAwarded=2, parsedTotal=3, schemeTotal=3
+[GUILLOTINE CHECK] Q3: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
+[BUDGET Q4] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ4[0m - Clean response received:
+  - Annotations count: [35m2[0m
+  - Student score: [32m4/4[0m
+  - Usage tokens: [33m7126[0m
+     [36mStudent provides the correct formula and answer for compound interest calculation.[0m
+  - Annotations:
+    1. [32mtick[0m [34m[block_1_5][0m [P1 P1 P1] [34m"25000 times 1.06^{3}"[0m
+      ↳ Reason: Correct complete process for compound interest calculation. | Evidence of a compound interest process with exponent greater than or equal to 2. | Evidence of using a correct first step.
+      ↳ OCR Match: [35m"25000 times 1.06^{3}"[0m
+      ↳ Classification: [35m"25000 \times 1.06^{3}"[0m
+      ↳ Status: [32m"MATCHED"[0m
+    2. [32mtick[0m [34m[block_1_8][0m [A1] [34m"29775"[0m
+      ↳ Reason: Correct final answer.
+      ↳ OCR Match: [35m"29775"[0m
+      ↳ Classification: [35m"29775"[0m
+      ↳ Status: [32m"MATCHED"[0m
+
+🤖 [G0-PROMPT] Full AI Marking Context for Q4:
+   --- USER PROMPT ---
+
+# MARKING TASK: Question 4
+
+## QUESTION TEXT
+**[4]**: A company has 25000 workers. The number of workers increases at a rate of 6% per year for 3 years. Calculate the total number of workers at the end of the 3 years.
+
+
+## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
+## GENERAL MARKING GUIDANCE
+> [!IMPORTANT]
+> **Precedence:** These notes offer general guidance, but the specific notes for examiners appertaining to individual questions take precedence.
+
+### General Principles
+- All candidates must receive the same treatment. Examiners must mark the last candidate in exactly the same way as they mark the first.
+- Where some judgement is required, mark schemes will provide the principles by which marks will be awarded; exemplification/indicative content will not be exhaustive.
+- All the marks on the mark scheme are designed to be awarded; mark schemes should be applied positively.
+- Examiners should also be prepared to award zero marks if the candidate's response is not worthy of credit according to the mark scheme.
+
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[4] [MAX SCORE: 4]
+- P1: for evidence of using a correct first step eg $25000 \times 0.06 (= 1500)$ or $25000 \times 1.06 (= 26500)$
+- P1: for evidence of a "compound interest" process eg "26500" $\times$ 0.06 (= 1590) or "26500" $\times$ 1.06 (= 28090) or $25000 \times 1.06^t$ ($t \ge 2$)
+- P1: for a complete process eg $25000 \times 1.06^3 (= 29775.4)$
+- A1: for 29775 or 29 776 or 29 780 or 29 800
+
+FINAL ANSWER: 29775
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+1. [line_1] 25000 x 1.06^3
+2. [line_2] 29775
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the content.
+
+[block_1_0]: "(b) On the centimetre grid below, draw a plan of the solid prism."
+[block_1_1]: "(2)"
+[block_1_2]: "4 A company has 25000 workers."
+[block_1_3]: "The number of workers increases at a rate of \( 6 \% \) per year for 3 years. [PRINTED_INSTRUCTION]"
+[block_1_4]: "Calculate the total number of workers at the end of the 3 years. [PRINTED_INSTRUCTION]"
+[block_1_5]: "25000 \times 1.06^{3}"
+[block_1_8]: "29775"
+[block_1_9]: "5"
+
+   --- END PROMPT ---
+
+
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q4
+
+🔍 [ENRICH-START] Processing Q4 | 4 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=345, y=296
+
+👉 [ANNO 0] "P1" (ID: block_1_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [850,1921,512,192]
+      Output: [850,1921,512,192]
+   🏁 [FINAL] ID: block_1_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 1] "P1" (ID: block_1_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [850,1921,512,192]
+      Output: [850,1921,512,192]
+   🏁 [FINAL] ID: block_1_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 2] "P1" (ID: block_1_5) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [850,1921,512,192]
+      Output: [850,1921,512,192]
+   🏁 [FINAL] ID: block_1_5 | Status: MATCHED | Method: OCR_PHYSICAL
+
+👉 [ANNO 3] "A1" (ID: block_1_8) | Status In: MATCHED
+   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
+      Input:  [1825,2911,269,126]
+      Output: [1825,2911,269,126]
+   🏁 [FINAL] ID: block_1_8 | Status: MATCHED | Method: OCR_PHYSICAL
+
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q4
+✅ [ANNOTATION-AUDIT] Complete
+
+[SCORE DEBUG] Q4: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q4: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.5s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
-   📊 Marking Results: 1 questions
+   📊 Marking Results: 2 questions
    📝 Question Results: NO
    ✅ Both modes triggered: NO
-[TOTAL TRAP] Q6: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Grand Total Possible Score: 4
+[TOTAL TRAP] Q3: Scheme=3, AI=3, IsDefault=false -> FINAL=3
+[TOTAL TRAP] Q4: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Grand Total Possible Score: 7
 [32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
-[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
-[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 6 ([37mQ6a, Q6b[32m)[0m
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.7s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 2 questions and 2 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 3 ([37mQ3a[32m) -> [2] Page 4 ([37mQ3b, Q4[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mOUTPUT-GENERATION[0m)
 [SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...
-[SYNC FIX] ✅ Q6: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
-[SYNC FIX] 🏁 Updated Grand Total from 12 -> 4
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[SYNC FIX] ✅ Q3: Updated Total Available Marks from undefined (Schema) -> 3 (Engine)
+[SYNC FIX] ✅ Q4: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] 🏁 Updated Grand Total from 13 -> 7
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 📊 [ANNOTATION SUMMARY]
 ----------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status              |
 |----------|-------|-------------------------|---------------------------|
-| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:0 V:4 U:0 S:0           |
-| [90m  a     [0m | 2     | B1, B1                  | M:0 V:2 U:0 S:0           |
-| [90m  b     [0m | 2     | M1, A1                  | M:0 V:2 U:0 S:0           |
+| [32m3       [0m | 2/3   | C0, M1, A1              | M:1 V:0 U:2 S:0           |
+| [90m  a     [0m | 0     | C0                      | M:1 V:0 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:0 V:0 U:2 S:0           |
+|----------|-------|-------------------------|---------------------------|
+| [32m4       [0m | 4/4   | P1, P1, P1, A1          | M:4 V:0 U:0 S:0           |
 |----------|-------|-------------------------|---------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 23.4s
+Total Processing Time: 28.0s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      8.1s (34%)
-marking                             7.2s (31%)
-ocr_processing                      3.5s (15%)
-output_generation                   1.7s (7%)
-performance_summary                 0.9s (4%)
-question_detection                  0.7s (3%)
-preprocessing                       0.4s (2%)
-database_persistence                0.2s (1%)
+classification                      10.5s (38%)
+marking                             7.5s (27%)
+ocr_processing                      4.1s (15%)
+output_generation                   1.9s (7%)
+performance_summary                 1.2s (4%)
+question_detection                  1.0s (4%)
+preprocessing                       0.6s (2%)
+database_persistence                0.3s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
-   API Requests: 3 total
-   Total Tokens: 11,643 (10,856 in + 787 out)
-   Total Cost: $0.004968
-   Mathpix OCR: 1 pages → $0.004000
+   API Requests: 4 total
+   Total Tokens: 12,597 (11,583 in + 1,014 out)
+   Total Cost: $0.009403
+   Mathpix OCR: 2 pages → $0.008000
 
    Breakdown by Phase:
-   • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
-   • Classification (Marking Pass): 6,988 tokens (1 requests) → $0.000910
-   • Performance Summary: 494 tokens (1 requests) → $0.000059
+   • Mapper (Map Pass): 1,359 tokens (1 requests) → $0.000160
+   • Classification (Marking Pass): 10,624 tokens (2 requests) → $0.001329
+   • Performance Summary: 614 tokens (1 requests) → $0.000075
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768935950914
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768935950914
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0049684
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768936691862
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768936691862
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0094034
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768935950914), remaining: 412.28
-💳 Deducted 0.0050 credits (session: sub-1768935950914) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768935950914
+💳 Deducted 0.94 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768936691862), remaining: 410.84
+💳 Deducted 0.0094 credits (session: sub-1768936691862) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768936691862
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
 ✅ Permissions configuration loaded from .env.local:
    - Analysis Plans: pro, ultra
    - Model Selection Plans: pro, ultra

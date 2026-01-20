@@ -205,13 +205,23 @@ export function createAnnotationFromAI(
 ): ImmutableAnnotation {
     const aiPosition = parseAIPosition(aiAnnotation, context);
 
+    // V27: Direct ground-truth extraction from block ID (e.g., block_1_5 -> Page 1)
+    let groundTruthPage: number | undefined = undefined;
+    if (aiAnnotation.line_id?.startsWith('block_')) {
+        const parts = aiAnnotation.line_id.split('_');
+        const pageIdx = parseInt(parts[1], 10);
+        if (!isNaN(pageIdx)) groundTruthPage = pageIdx;
+    }
+
     const page: PageCoordinates = {
-        // V25 Fix: If [POSITION] tag has explicit p=X, trust it over the generic JSON pageIndex
-        relative: (aiPosition?.pageIndex !== undefined)
-            ? RelativePageIndex.from(aiPosition.pageIndex)
-            : (aiAnnotation.pageIndex !== undefined
-                ? RelativePageIndex.from(aiAnnotation.pageIndex)
-                : undefined),
+        // V27: Priority: 1. Ground Truth from ID, 2. [POSITION] tag, 3. JSON pageIndex
+        relative: (groundTruthPage !== undefined)
+            ? RelativePageIndex.from(groundTruthPage)
+            : ((aiPosition?.pageIndex !== undefined)
+                ? RelativePageIndex.from(aiPosition.pageIndex)
+                : (aiAnnotation.pageIndex !== undefined
+                    ? RelativePageIndex.from(aiAnnotation.pageIndex)
+                    : undefined)),
         global: GlobalPageIndex.from(0), // Not yet mapped
         source: 'ai'
     };

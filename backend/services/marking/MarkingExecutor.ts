@@ -767,14 +767,26 @@ export function createMarkingTasksFromClassification(
   });
 
   for (const [baseQNum, group] of sortedQuestionGroups) {
-    let allMathBlocks: MathBlock[] = [];
+    let allOcrBlocks: MathBlock[] = [];
     group.sourceImageIndices.forEach((pageIndex: number) => {
       const pageOcr = allPagesOcrData.find(d => d.pageIndex === pageIndex);
+      let ocrIdx = 0;
+
+      // 1. Add Math Blocks
       if (pageOcr?.ocrData?.mathBlocks) {
-        pageOcr.ocrData.mathBlocks.forEach((b: any, i: number) => {
+        pageOcr.ocrData.mathBlocks.forEach((b: any) => {
           b.pageIndex = pageIndex;
-          b.globalBlockId = `block_${pageIndex}_${i}`;
-          allMathBlocks.push(b);
+          b.globalBlockId = `block_${pageIndex}_${ocrIdx++}`;
+          allOcrBlocks.push(b);
+        });
+      }
+
+      // 2. Add Standard Text Blocks (V27 Fix: Crucial for Instruction Mapping)
+      if (pageOcr?.ocrData?.blocks) {
+        pageOcr.ocrData.blocks.forEach((b: any) => {
+          b.pageIndex = pageIndex;
+          b.globalBlockId = `block_${pageIndex}_${ocrIdx++}`;
+          allOcrBlocks.push(b);
         });
       }
     });
@@ -805,7 +817,7 @@ export function createMarkingTasksFromClassification(
 
     tasks.push({
       questionNumber: baseQNum,
-      mathBlocks: allMathBlocks,
+      mathBlocks: allOcrBlocks,
       markingScheme: group.markingScheme,
       sourcePages: group.sourceImageIndices,
       classificationStudentWork: promptMainWork,
