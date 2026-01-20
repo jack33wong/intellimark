@@ -14,22 +14,22 @@
 📚 Swagger UI available at /api-docs
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 2, Body Keys: model, aiMessageId
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.08971280000000001, files: 2, bytes: 797128
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":477.81}
+💳 [CREDIT CHECK] Estimated cost: 0.0449631, files: 1, bytes: 399631
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":426.86}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
 
 [1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Multiple Images (2 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 2 pages...
-✅ [MAPPER] Map Pass complete in 1.23s. Mapped 2 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m5.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[MAPPER] Starting Map Pass for 1 pages...
+✅ [MAPPER] Map Pass complete in 2.22s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -39,15 +39,14 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m5.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m4.8s[0m ([32m[1mMATHPIX[0m)
-[DETECTION] 🏆 Relative Winner Accepted: 0.783 vs Runner-up 0.591
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m2.4s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -58,611 +57,145 @@
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 3    | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
-      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
-      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
-| 3a   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
-      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
-      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
-| 3b   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
-      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
-      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
-| 4    | A company has 25000 workers. The number of... | Edexcel GCSE 1MA1/3H June 2024 Q4                  | 0.929 | [32m✅ SUCCESS[0m      |
+| 6    | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
+| 6a   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
+| 6b   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
 📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 4
-   Detected: 4/4
+   Total questions: 3
+   Detected: 3/3
    Not detected: 0
    [HINT] Hint Used: "Global Search"
    [HINT] Matched Papers: 108
-[DRAWING] Q3: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q3: Will pass image to Marking AI
-✅ createMarkingTasksFromClassification completed, created 2 marking task(s)
+[DRAWING] Q6: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q6: Will pass image to Marking AI
+✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
 [1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
 
-🔍 [MAPPING DEBUG] Available Classification Targets for Q3:
-   [0] ID: line_1 | Text: "The height of prism is not 4cm" | Handwriting: true | Box: [29,245,106,12]
+🔍 [MAPPING DEBUG] Available Classification Targets for Q6:
+   [0] ID: line_1 | Text: "0.4" | Handwriting: true | Box: [79,154,12,14]
+   [1] ID: line_2 | Text: "0.55" | Handwriting: true | Box: [121,140,17,14]
+   [2] ID: line_3 | Text: "0.45" | Handwriting: true | Box: [121,186,17,14]
+   [3] ID: line_4 | Text: "0.55" | Handwriting: true | Box: [121,140,17,14]
+   [4] ID: line_5 | Text: "0.45" | Handwriting: true | Box: [121,186,17,14]
+   [5] ID: line_6 | Text: "0.33" | Handwriting: true | Box: [171,267,17,18]
 🔍 [ZONE SCAN] Scanning blocks for landmarks...
-   📍 Found Landmark: "b" (raw: "(b) On the cent...") at Y=296
-   📍 Found Landmark: "a" (raw: "(a) Explain why...") at Y=2094
-
-🔍 [ZONE DEBUG] Detected Semantic Zones: b, a
-
-🔍 [MAPPING DEBUG] Available Classification Targets for Q4:
-   [0] ID: line_1 | Text: "25000 x 1.06^3" | Handwriting: true | Box: [76,201,74,18]
-   [1] ID: line_2 | Text: "29775" | Handwriting: true | Box: [124,281,30,18]
-🔍 [ZONE SCAN] Scanning blocks for landmarks...
-   📍 Found Landmark: "b" (raw: "(b) On the cent...") at Y=296
-
-🔍 [ZONE DEBUG] Detected Semantic Zones: b
-
-[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[1m[34m[AI MARKING] Q3[0m
-[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[1m[36m## SYSTEM PROMPT[0m
-You are an AI assistant that marks student work. Your task is to generate a single, valid JSON object following all rules below. Your entire response MUST start with { and end with }, with no other text.
-
----
-
-## 1. GOLDEN RULES (ABSOLUTE LAWS)
-
-1. **ATOMICITY IS MANDATORY:**
-   * **LAW:** The `text` field MUST contain **ONE** single code.
-   * **ILLEGAL:** "B2 B2 B2", "M1 A1", "B2, B2".
-   * **LEGAL:** "B2".
-   * **PENALTY:** If you combine codes, the entire grading session is FAILED.
-
-2. **THE "ONE-SHOT" LIST RULE:**
-   * **SCENARIO:** The scheme says B2: 36 or 19 or 41.
-   * **INTERPRETATION:** This is a **Single-Use** marking criteria.
-   * **ACTION:** If the student writes "36, 19, 41", you award **ONE** "B2" mark.
-   * **PROHIBITION:** Do NOT award B2 three times. Do NOT output "B2 B2 B2".
-
-3. **MARGIN BLINDNESS:**
-   * **RULE:** Ignore printed mark counts (e.g. [3]) in the margins. Never map annotations to them.
-
----
-
-## 2. JSON LOGIC CONSTRAINTS (CRITICAL VALIDATION)
-
-* **JSON FORMAT:** You MUST return a single valid JSON object.
-    * **NO RAW NEWLINES:** String values MUST NOT contain raw newline characters. Use \n for line breaks.
-    * **LATEX ESCAPING:** All LaTeX backslashes MUST be double-escaped (e.g., \\\\frac, \\\\times).
-* **CONSTRAINT A (The "ID Whitelist"):**
-    * You **MUST NOT** generate a `line_id` that is not explicitly listed in the **RAW OCR BLOCKS** section.
-* **CONSTRAINT B (No Fake Matches):**
-    * **IF** `ocr_match_status` is **"MATCHED"**, **THEN** `line_id` **MUST** start with **"block_"**.
-* **CONSTRAINT D (Sub-Question Isolation):**
-    * **NEVER** map an annotation for sub-question "a" to a `block_ID` that is listed under **[SUB-QUESTION B STUDENT WORK]**.
-* **CONSTRAINT E (The "Nuclear" Matcher):**
-    * **Objective:** Link [Student Line] to [OCR Block] if the **NUMBERS** match.
-    * **THE SUBSTRING RULE (MANDATORY):** If student line is 2sqrt(5) and you see block Smallest \\\\frac{2\\\\sqrt{5}}{3}..., **MATCH IT**.
-
----
-
-## 3. ID MAPPING HIERARCHY (STRICT)
-
-1. **DETERMINE CONTEXT:** Look at text content.
-2. **PRIORITIZE STUDENT DATA:** Use placeholder `line_x` if no 100% match in RAW OCR BLOCKS.
-
----
-
-## 4. MARKING LOGIC & FALLBACK
-1. **Source Strategy:** Mark based strictly on Marking Scheme applied to **STUDENT WORK**.
-2. **Multi-Mark Rule:** All annotations for a single line of work **MUST** share the same `line_id`.
-
----
-
-## 5. VISUAL & INDEX PROTOCOL
-
-* **Visual Analysis (MANDATORY):** Populate `visualObservation` with concise description.
-* **CRITICAL pageIndex:** Must match absolute page number (0, 1, 2...) from labels.
-
----
-
-## 6. ANNOTATION RULES
-
-1. **One Mark Per Annotation (ABSOLUTE MANDATE):** Generate a SEPARATE object for EACH mark code.
-2. **MARKING PRIORITY:** ACCURACY IS KING.
-3. **Reasoning (CRITICAL):** Concisely direct, max 20 words.
-4. MANDATORY ANNOTATIONS: Output at least one annotation for EVERY sub-question listed in Scheme.
-    * STRICT MODE RULE: Do NOT skip Part-Q. If blank, cross (A0/M0) on answer line.
-
----
-
-## 7. DRAWING & VISUAL MARKING
-
-* For visual marks, you **MUST** populate `visual_position` with percentage bounding box (0-100).
-* Prepend keyword **[DRAWING]** to reasoning for visual marks.
-
----
-
-## 8. SCORING RULES
-
-**RULE: SCORE LIMITS & BUDGETING**
-1. **IF [MAX SCORE] EXISTS:** You **MUST NOT** award more marks than this number for this part.
-
-**CRITICAL RULE: THE "ONE-SHOT" CONSTRAINT**
-A single bullet point represents ONE mark opportunity. Once used, it is USED.
-
----
-
-## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
-
-```json
-{
-  "meta": {
-    "question_total_marks": "Integer",
-    "raw_correct_steps_found": "Integer",
-    "steps_dropped_to_fit_budget": "Integer",
-    "isTotalEstimated": "Boolean"
-  },
-  "visualObservation": "String",
-  "annotations": [
-    {
-      "line_id": "String",
-      "action": "tick|cross",
-      "text": "String",
-      "student_text": "String",
-      "classification_text": "String",
-      "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
-      "reasoning": "String",
-      "subQuestion": "String",
-      "pageIndex": "Integer",
-      "line_index": "Integer",
-      "visual_position": { "x": 0, "y": 0, "width": 0, "height": 0 }
-    }
-  ],
-  "studentScore": {
-    "totalMarks": "Integer",
-    "awardedMarks": "Integer",
-    "scoreText": "String"
-  }
-}
-```
-
-**CRITICAL REMINDER:** The "totalMarks" field MUST reflect the sum of all available marks in the scheme (Absolute Truth).
-[1m[34m------------------------------------------------------------[0m
-
-[1m[36m# MARKING TASK: Question 3
-
-## QUESTION TEXT
-**[3]**: The diagram shows a solid triangular prism. [Diagram shows a prism with a triangular cross-section base 6cm and height 4cm. The length of the prism is 7cm. The slant height of the triangular face is 4cm.] Rana is trying to draw the side elevation of the solid prism from the direction of the arrow. Here is her answer on a centimetre grid. [Rana's drawing shows a rectangle 6cm wide by 4cm high.] Explain why Rana's side elevation is not correct. On the centimetre grid below, draw a plan of the solid prism.
-
-**[3a]**: The diagram shows a solid triangular prism. [Diagram shows a prism with a triangular cross-section base 6cm and height 4cm. The length of the prism is 7cm. The slant height of the triangular face is 4cm.] Rana is trying to draw the side elevation of the solid prism from the direction of the arrow. Here is her answer on a centimetre grid. [Rana's drawing shows a rectangle 6cm wide by 4cm high.] Explain why Rana's side elevation is not correct.
-
-**[3b]**: On the centimetre grid below, draw a plan of the solid prism.
-
-
-## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
-## GENERAL MARKING GUIDANCE
-> [!IMPORTANT]
-> **Precedence:** These notes offer general guidance, but the specific notes for examiners appertaining to individual questions take precedence.
-
-### General Principles
-- All candidates must receive the same treatment. Examiners must mark the last candidate in exactly the same way as they mark the first.
-- Where some judgement is required, mark schemes will provide the principles by which marks will be awarded; exemplification/indicative content will not be exhaustive.
-- All the marks on the mark scheme are designed to be awarded; mark schemes should be applied positively.
-- Examiners should also be prepared to award zero marks if the candidate's response is not worthy of credit according to the mark scheme.
-
-### Marking Procedure
-- If there is a wrong answer (or no answer) indicated on the answer line always check the working in the body of the script (and on any diagrams), and award any marks appropriate from the mark scheme.
-- Questions where working is not required: In general, the correct answer should be given full marks.
-- Questions that specifically require working: In general, candidates who do not show working on this type of question will get no marks - full details will be given in the mark scheme for each individual question.
-- Crossed out work should be marked unless the candidate has replaced it with an alternative response.
-- If there is a choice of methods shown, mark the method that leads to the answer given on the answer line. If no answer appears on the answer line, mark both methods then award the lower number of marks.
-- If it is clear from the working that the "correct" answer has been obtained from incorrect working, award 0 marks.
-
-### Follow Through Marks
-- Follow through marks which involve a single stage calculation can be awarded without working as you can check the answer, but if ambiguous do not award.
-- Follow through marks which involve more than one stage of calculation can only be awarded on sight of the relevant working, even if it appears obvious that there is only one way you could get the answer given.
-
-### Treatment of Answers
-- It is appropriate to ignore subsequent work when the additional work does not change the answer in a way that is inappropriate for the question or its context (eg an incorrectly cancelled fraction when the unsimplified fraction would gain full marks).
-- It is not appropriate to ignore subsequent work when the additional work essentially makes the answer incorrect (eg. incorrect algebraic simplification).
-- Probability answers must be given as a fraction, percentage or decimal.
-- If a candidate gives a decimal equivalent to a probability, this should be written to at least 2 decimal places (unless tenths).
-- Incorrect notation should lose the accuracy marks, but be awarded any implied method marks.
-- Unless otherwise stated, when an answer is given as a range (eg 3.5 - 4.2) then this is inclusive of the end points (eg 3.5, 4.2) and all numbers within the range.
-
-### Abbreviations
-- **M**: method mark awarded for a correct method or partial method
-- **P**: process mark awarded for a correct process as part of a problem solving question
-- **A**: accuracy mark (awarded after a correct method or process; if no method or process is seen then full marks for the question are implied)
-- **C**: communication mark awarded for a fully correct statement(s) with no contradiction or ambiguity
-- **B**: unconditional accuracy mark (no method needed)
-- **oe**: or equivalent
-- **cao**: correct answer only
-- **ft**: follow through (when appropriate as per mark scheme)
-- **SC**: special case
-- **dep**: dependent (on a previous mark)
-- **indep**: independent
-- **awrt**: answer which rounds to
-- **isw**: ignore subsequent working
-
-
-
-
-
-## MARKING SCHEME
-> [INSTRUCTION]: You are the CHIEF EXAMINER.
-> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
-> 2. **NO OVER-MARKING**:
->    - You have a specific list of marks. Do NOT invent new ones.
->    - If the student provides multiple valid methods, award marks for the BEST method only.
->    - **MAX LIMIT:** The total score cannot exceed the sum of marks listed below.
-
-[OFFICIAL SCHEME]
-[3a] [MAX SCORE: 1]
-- C1: for explanation
-
-[3b] [MAX SCORE: 2]
-- M1: for a 7 cm by 6 cm rectangle or for a 7 cm by n cm or m cm by 6 cm rectangle and dividing line which is parallel to the 7 cm or the m cm side
-- A1: for a fully correct plan
-
-
-> [!IMPORTANT]
-> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
-> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
-> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
-
-
-## STUDENT WORK (STRUCTURED)
-
-[SUB-QUESTION a]
-1. [line_1] The height of prism is not 4cm
-
-
- 
-## RAW OCR BLOCKS
-Use these IDs to map the student's work. Match them yourself based on the content.
-
-[block_0_0]: "3 The diagram shows a solid triangular prism."
-[block_0_1]: "Rana is trying to draw the side elevation of the solid prism from the direction of"
-[block_0_2]: "the arrow."
-[block_0_3]: "VJYV SIHI NI JIIYM ION OC"
-[block_0_4]: "Here is her answer on a centimetre grid."
-[block_0_5]: "VALV SIHI NI JITYM ION OC"
-[block_0_6]: "(a) Explain why Rana's side elevation is not correct."
-[block_0_7]: "\( \_\_\_\_ \)"
-[block_0_8]: "The height of prim i) not 4 cm"
-[block_0_9]: "\( \_\_\_\_ \)"
-[block_0_10]: "\( \_\_\_\_ \)"
-[block_0_11]: "(1)"
-[block_0_12]: "VJYV SIHL NI BIIIAM ION OC"
-[block_0_13]: "4"
-[block_1_0]: "(b) On the centimetre grid below, draw a plan of the solid prism."
-[block_1_1]: "(2)"
-[block_1_2]: "4 A company has 25000 workers."
-[block_1_3]: "The number of workers increases at a rate of \( 6 \% \) per year for 3 years."
-[block_1_4]: "Calculate the total number of workers at the end of the 3 years."
-[block_1_5]: "25000 \times 1.06^{3}"
-[block_1_6]: "DO NOT WRITEIN THIS AREA"
-[block_1_7]: "DO NOT WRITEIN THIS AREA"
-[block_1_8]: "29775"
-[block_1_9]: "5"
-[block_1_10]: "Turn over -"[0m
-[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-
-
-[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[1m[34m[AI MARKING] Q4[0m
-[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[1m[36m## SYSTEM PROMPT[0m
-You are an AI assistant that marks student work. Your task is to generate a single, valid JSON object following all rules below. Your entire response MUST start with { and end with }, with no other text.
-
----
-
-## 1. GOLDEN RULES (ABSOLUTE LAWS)
-
-1. **ATOMICITY IS MANDATORY:**
-   * **LAW:** The `text` field MUST contain **ONE** single code.
-   * **ILLEGAL:** "B2 B2 B2", "M1 A1", "B2, B2".
-   * **LEGAL:** "B2".
-   * **PENALTY:** If you combine codes, the entire grading session is FAILED.
-
-2. **THE "ONE-SHOT" LIST RULE:**
-   * **SCENARIO:** The scheme says B2: 36 or 19 or 41.
-   * **INTERPRETATION:** This is a **Single-Use** marking criteria.
-   * **ACTION:** If the student writes "36, 19, 41", you award **ONE** "B2" mark.
-   * **PROHIBITION:** Do NOT award B2 three times. Do NOT output "B2 B2 B2".
-
-3. **MARGIN BLINDNESS:**
-   * **RULE:** Ignore printed mark counts (e.g. [3]) in the margins. Never map annotations to them.
-
----
-
-## 2. JSON LOGIC CONSTRAINTS (CRITICAL VALIDATION)
-
-* **JSON FORMAT:** You MUST return a single valid JSON object.
-    * **NO RAW NEWLINES:** String values MUST NOT contain raw newline characters. Use \n for line breaks.
-    * **LATEX ESCAPING:** All LaTeX backslashes MUST be double-escaped (e.g., \\\\frac, \\\\times).
-* **CONSTRAINT A (The "ID Whitelist"):**
-    * You **MUST NOT** generate a `line_id` that is not explicitly listed in the **RAW OCR BLOCKS** section.
-* **CONSTRAINT B (No Fake Matches):**
-    * **IF** `ocr_match_status` is **"MATCHED"**, **THEN** `line_id` **MUST** start with **"block_"**.
-* **CONSTRAINT D (Sub-Question Isolation):**
-    * **NEVER** map an annotation for sub-question "a" to a `block_ID` that is listed under **[SUB-QUESTION B STUDENT WORK]**.
-* **CONSTRAINT E (The "Nuclear" Matcher):**
-    * **Objective:** Link [Student Line] to [OCR Block] if the **NUMBERS** match.
-    * **THE SUBSTRING RULE (MANDATORY):** If student line is 2sqrt(5) and you see block Smallest \\\\frac{2\\\\sqrt{5}}{3}..., **MATCH IT**.
-
----
-
-## 3. ID MAPPING HIERARCHY (STRICT)
-
-1. **DETERMINE CONTEXT:** Look at text content.
-2. **PRIORITIZE STUDENT DATA:** Use placeholder `line_x` if no 100% match in RAW OCR BLOCKS.
-
----
-
-## 4. MARKING LOGIC & FALLBACK
-1. **Source Strategy:** Mark based strictly on Marking Scheme applied to **STUDENT WORK**.
-2. **Multi-Mark Rule:** All annotations for a single line of work **MUST** share the same `line_id`.
-
----
-
-## 5. VISUAL & INDEX PROTOCOL
-
-* **Visual Analysis (MANDATORY):** Populate `visualObservation` with concise description.
-* **CRITICAL pageIndex:** Must match absolute page number (0, 1, 2...) from labels.
-
----
-
-## 6. ANNOTATION RULES
-
-1. **One Mark Per Annotation (ABSOLUTE MANDATE):** Generate a SEPARATE object for EACH mark code.
-2. **MARKING PRIORITY:** ACCURACY IS KING.
-3. **Reasoning (CRITICAL):** Concisely direct, max 20 words.
-4. MANDATORY ANNOTATIONS: Output at least one annotation for EVERY sub-question listed in Scheme.
-    * STRICT MODE RULE: Do NOT skip Part-Q. If blank, cross (A0/M0) on answer line.
-
----
-
-## 7. DRAWING & VISUAL MARKING
-
-* For visual marks, you **MUST** populate `visual_position` with percentage bounding box (0-100).
-* Prepend keyword **[DRAWING]** to reasoning for visual marks.
-
----
-
-## 8. SCORING RULES
-
-**RULE: SCORE LIMITS & BUDGETING**
-1. **IF [MAX SCORE] EXISTS:** You **MUST NOT** award more marks than this number for this part.
-
-**CRITICAL RULE: THE "ONE-SHOT" CONSTRAINT**
-A single bullet point represents ONE mark opportunity. Once used, it is USED.
-
----
-
-## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
-
-```json
-{
-  "meta": {
-    "question_total_marks": "Integer",
-    "raw_correct_steps_found": "Integer",
-    "steps_dropped_to_fit_budget": "Integer",
-    "isTotalEstimated": "Boolean"
-  },
-  "visualObservation": "String",
-  "annotations": [
-    {
-      "line_id": "String",
-      "action": "tick|cross",
-      "text": "String",
-      "student_text": "String",
-      "classification_text": "String",
-      "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
-      "reasoning": "String",
-      "subQuestion": "String",
-      "pageIndex": "Integer",
-      "line_index": "Integer",
-      "visual_position": { "x": 0, "y": 0, "width": 0, "height": 0 }
-    }
-  ],
-  "studentScore": {
-    "totalMarks": "Integer",
-    "awardedMarks": "Integer",
-    "scoreText": "String"
-  }
-}
-```
-
-**CRITICAL REMINDER:** The "totalMarks" field MUST reflect the sum of all available marks in the scheme (Absolute Truth).
-[1m[34m------------------------------------------------------------[0m
-
-[1m[36m# MARKING TASK: Question 4
-
-## QUESTION TEXT
-**[4]**: A company has 25000 workers. The number of workers increases at a rate of 6% per year for 3 years. Calculate the total number of workers at the end of the 3 years.
-
-
-## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
-## GENERAL MARKING GUIDANCE
-> [!IMPORTANT]
-> **Precedence:** These notes offer general guidance, but the specific notes for examiners appertaining to individual questions take precedence.
-
-### General Principles
-- All candidates must receive the same treatment. Examiners must mark the last candidate in exactly the same way as they mark the first.
-- Where some judgement is required, mark schemes will provide the principles by which marks will be awarded; exemplification/indicative content will not be exhaustive.
-- All the marks on the mark scheme are designed to be awarded; mark schemes should be applied positively.
-- Examiners should also be prepared to award zero marks if the candidate's response is not worthy of credit according to the mark scheme.
-
-### Marking Procedure
-- If there is a wrong answer (or no answer) indicated on the answer line always check the working in the body of the script (and on any diagrams), and award any marks appropriate from the mark scheme.
-- Questions where working is not required: In general, the correct answer should be given full marks.
-- Questions that specifically require working: In general, candidates who do not show working on this type of question will get no marks - full details will be given in the mark scheme for each individual question.
-- Crossed out work should be marked unless the candidate has replaced it with an alternative response.
-- If there is a choice of methods shown, mark the method that leads to the answer given on the answer line. If no answer appears on the answer line, mark both methods then award the lower number of marks.
-- If it is clear from the working that the "correct" answer has been obtained from incorrect working, award 0 marks.
-
-### Follow Through Marks
-- Follow through marks which involve a single stage calculation can be awarded without working as you can check the answer, but if ambiguous do not award.
-- Follow through marks which involve more than one stage of calculation can only be awarded on sight of the relevant working, even if it appears obvious that there is only one way you could get the answer given.
-
-### Treatment of Answers
-- It is appropriate to ignore subsequent work when the additional work does not change the answer in a way that is inappropriate for the question or its context (eg an incorrectly cancelled fraction when the unsimplified fraction would gain full marks).
-- It is not appropriate to ignore subsequent work when the additional work essentially makes the answer incorrect (eg. incorrect algebraic simplification).
-- Probability answers must be given as a fraction, percentage or decimal.
-- If a candidate gives a decimal equivalent to a probability, this should be written to at least 2 decimal places (unless tenths).
-- Incorrect notation should lose the accuracy marks, but be awarded any implied method marks.
-- Unless otherwise stated, when an answer is given as a range (eg 3.5 - 4.2) then this is inclusive of the end points (eg 3.5, 4.2) and all numbers within the range.
-
-### Abbreviations
-- **M**: method mark awarded for a correct method or partial method
-- **P**: process mark awarded for a correct process as part of a problem solving question
-- **A**: accuracy mark (awarded after a correct method or process; if no method or process is seen then full marks for the question are implied)
-- **C**: communication mark awarded for a fully correct statement(s) with no contradiction or ambiguity
-- **B**: unconditional accuracy mark (no method needed)
-- **oe**: or equivalent
-- **cao**: correct answer only
-- **ft**: follow through (when appropriate as per mark scheme)
-- **SC**: special case
-- **dep**: dependent (on a previous mark)
-- **indep**: independent
-- **awrt**: answer which rounds to
-- **isw**: ignore subsequent working
-
-
-
-
-
-## MARKING SCHEME
-> [INSTRUCTION]: You are the CHIEF EXAMINER.
-> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
-> 2. **NO OVER-MARKING**:
->    - You have a specific list of marks. Do NOT invent new ones.
->    - If the student provides multiple valid methods, award marks for the BEST method only.
->    - **MAX LIMIT:** The total score cannot exceed the sum of marks listed below.
-
-[OFFICIAL SCHEME]
-[4] [MAX SCORE: 4]
-- P1: for evidence of using a correct first step eg $25000 \times 0.06 (= 1500)$ or $25000 \times 1.06 (= 26500)$
-- P1: for evidence of a "compound interest" process eg "26500" $\times$ 0.06 (= 1590) or "26500" $\times$ 1.06 (= 28090) or $25000 \times 1.06^t$ ($t \ge 2$)
-- P1: for a complete process eg $25000 \times 1.06^3 (= 29775.4)$
-- A1: for 29775 or 29 776 or 29 780 or 29 800
-
-FINAL ANSWER: 29775
-
-
-> [!IMPORTANT]
-> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
-> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
-> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
-
-
-## STUDENT WORK (STRUCTURED)
-1. [line_1] 25000 x 1.06^3
-2. [line_2] 29775
-
-
- 
-## RAW OCR BLOCKS
-Use these IDs to map the student's work. Match them yourself based on the content.
-
-[block_1_0]: "(b) On the centimetre grid below, draw a plan of the solid prism."
-[block_1_1]: "(2)"
-[block_1_2]: "4 A company has 25000 workers."
-[block_1_3]: "The number of workers increases at a rate of \( 6 \% \) per year for 3 years."
-[block_1_4]: "Calculate the total number of workers at the end of the 3 years."
-[block_1_5]: "25000 \times 1.06^{3}"
-[block_1_6]: "DO NOT WRITEIN THIS AREA"
-[block_1_7]: "DO NOT WRITEIN THIS AREA"
-[block_1_8]: "29775"
-[block_1_9]: "5"
-[block_1_10]: "Turn over -"[0m
-[1m[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-
-[BUDGET Q3] 🥇 Trusting AI Total: 3 (Reason: Explicit Read)
-🤖 [AI RESPONSE] [31mQ3[0m - Clean response received:
-  - Annotations count: [35m2[0m
-  - Student score: [32m2/3[0m
-  - Usage tokens: [33m4544[0m
-     [36mStudent provides an explanation for part a and a diagram for part b.[0m
-  - Annotations:
-    1. [31mcross[0m [34m[block_0_8][0m [C1] [34m"The height of prim i) not 4 cm"[0m
-      ↳ Reason: The student's explanation is incorrect. The height of the prism is 4cm, but the side elevation should be a rectangle with dimensions 7cm x 4cm.
-      ↳ OCR Match: [35m"The height of prim i) not 4 cm"[0m
-      ↳ Classification: [35m"for explanation"[0m
-      ↳ Status: [32m"MATCHED"[0m
-    2. [32mtick[0m [34m[block_1_0][0m [M1 A1] [34m"(b) On the centimetre grid below, draw a plan of the solid prism."[0m
-      ↳ Reason: Student draws a 7cm by 6cm rectangle. | Student draws a fully correct plan.
-      ↳ OCR Match: [35m"(b) On the centimetre grid below, draw a plan of the solid prism."[0m
-      ↳ Classification: [35m"for a 7 cm by 6 cm rectangle or for a 7 cm by n cm or m cm by 6 cm rectangle and dividing line which is parallel to the 7 cm or the m cm side"[0m
-      ↳ Status: [31m"UNMATCHED (Fallback to Classification)"[0m
-
-🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q3
-
-🔍 [ENRICH-START] Processing Q3 | 2 annotations
-
-👉 [ANNO 0] "C1" (ID: block_0_8)
-   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
-      Input:  [340,2160,1299,161]
-      Output: [340,2160,1299,161]
-
-👉 [ANNO 1] "M1 A1" (ID: block_1_0)
-   ℹ️ [PATH: PRECOMPUTED] Trusted existing pixels.
-
-🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q3
-      🛡️ [ZONE SNAP] "M1 A1" snapped to b (Y=296)
-✅ [ANNOTATION-AUDIT] Complete
-
-[SCORE DEBUG] Q3: rawScore={"totalMarks":3,"awardedMarks":2,"scoreText":"2/3"}, parsedAwarded=3, parsedTotal=3, schemeTotal=3
-[GUILLOTINE CHECK] Q3: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=3, ResultTotal=3
-[BUDGET Q4] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
-🤖 [AI RESPONSE] [31mQ4[0m - Clean response received:
+   📍 Found Landmark: "a" at Page 0, Y=573
+   📍 Found Landmark: "b" at Page 0, Y=2083
+
+🔍 [ZONE DEBUG] Detected Semantic Zones: a, b
+
+🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...
+   👉 QuestionDetection Box: undefined
+   ⚠️ ClassificationBlocks array is empty.
+   [ANCHOR-FIX] Bridging Root Question '6' to First Child Landmark 'a' at Y=573
+   🔍 [COORD-DEBUG] Using Landmark Anchor [a] for Offset: x=351, y=573
+[BUDGET Q6] 🥇 Trusting AI Total: 4 (Reason: Explicit Read)
+🤖 [AI RESPONSE] [31mQ6[0m - Clean response received:
   - Annotations count: [35m2[0m
   - Student score: [32m4/4[0m
-  - Usage tokens: [33m7188[0m
-     [36mStudent provides the correct formula and answer.[0m
+  - Usage tokens: [33m7192[0m
+     [36mThe student has completed the probability tree diagram and calculated the probability of both coins landing on heads.[0m
   - Annotations:
-    1. [32mtick[0m [34m[block_1_5][0m [P1 P1 P1] [34m"25000 x 1.06^3"[0m
-      ↳ Reason: Correct first step, evidence of using a correct formula. | Evidence of a compound interest process. | Complete process shown.
-      ↳ OCR Match: [35m"25000 x 1.06^3"[0m
-      ↳ Classification: [35m"25000 \\times 1.06^{3}"[0m
+    1. [32mtick[0m [34m[block_0_4][0m [B1 B1] [34m"0.4"[0m
+      ↳ Reason: Correct probability (0.4) for coin A not landing on heads. | Correct probabilities (0.55, 0.45, 0.55, 0.45) for coin B.
+      ↳ OCR Match: [35m"0.4"[0m
+      ↳ Classification: [35m"0.4"[0m
       ↳ Status: [32m"MATCHED"[0m
-    2. [32mtick[0m [34m[block_1_8][0m [A1] [34m"29775"[0m
-      ↳ Reason: Correct answer.
-      ↳ OCR Match: [35m"29775"[0m
-      ↳ Classification: [35m"29775"[0m
+    2. [32mtick[0m [34m[block_0_7][0m [M1 A1] [34m"0.33"[0m
+      ↳ Reason: Correct method for calculating the probability of both coins landing on heads (0.6 * 0.55). | Correct probability of both coins landing on heads (0.33).
+      ↳ OCR Match: [35m"0.33"[0m
+      ↳ Classification: [35m"0.33"[0m
       ↳ Status: [32m"MATCHED"[0m
+   🛡️ [REDIRECT] Intercepted link to Instruction [block_0_4]
+   🛡️ [REDIRECT] Intercepted link to Instruction [block_0_7]
 
-🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q4
+🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q6
 
-🔍 [ENRICH-START] Processing Q4 | 2 annotations
+🔍 [ENRICH-START] Processing Q6 | 2 annotations
+   ⚓ [GLOBAL-OFFSET] Applying offsets: x=351, y=573
 
-👉 [ANNO 0] "P1 P1 P1" (ID: block_1_5)
-   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
-      Input:  [850,1921,512,192]
-      Output: [850,1921,512,192]
+👉 [ANNO 0] "B1 B1" (ID: ) | Status In: VISUAL
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 121, 140
+   ⚖️ [SCOPED-OFFSET] Annotation "B1 B1" uses Landmark [a] (+351, +573)
+   🏗️ [OFFSET] Applying Anchor (+351, +573)
+      Final Coord: (472, 713)
 
-👉 [ANNO 1] "A1" (ID: block_1_8)
-   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.
-      Input:  [1825,2911,269,126]
-      Output: [1825,2911,269,126]
+👉 [ANNO 1] "M1 A1" (ID: ) | Status In: VISUAL
+   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: 1787, 2439
+   ⚖️ [SCOPED-OFFSET] Annotation "M1 A1" uses Landmark [b] (+354, +2083)
+   🏗️ [OFFSET] Applying Anchor (+354, +2083)
+      Final Coord: (2141, 4522)
 
-🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q4
+🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q6
 ✅ [ANNOTATION-AUDIT] Complete
 
-[SCORE DEBUG] Q4: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
-[GUILLOTINE CHECK] Q4: isGeneric=undefined, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m6.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m6.2s[0m ([32m[1mAI-MARKING[0m)
+[SCORE DEBUG] Q6: rawScore={"totalMarks":4,"awardedMarks":4,"scoreText":"4/4"}, parsedAwarded=4, parsedTotal=4, schemeTotal=4
+[GUILLOTINE CHECK] Q6: isGeneric=false, hasAnnotations=true, hasScore=true, SchemeTotal=4, ResultTotal=4
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
-   📊 Marking Results: 2 questions
+   📊 Marking Results: 1 questions
    📝 Question Results: NO
    ✅ Both modes triggered: NO
-[TOTAL TRAP] Q3: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q4: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Grand Total Possible Score: 7
+[TOTAL TRAP] Q6: Scheme=4, AI=4, IsDefault=false -> FINAL=4
+[TOTAL TRAP] Grand Total Possible Score: 4
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 6 ([37mQ6a, Q6b[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m2.0s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...
+[SYNC FIX] ✅ Q6: Updated Total Available Marks from undefined (Schema) -> 4 (Engine)
+[SYNC FIX] 🏁 Updated Grand Total from 12 -> 4
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+📊 [ANNOTATION SUMMARY]
+----------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status              |
+|----------|-------|-------------------------|---------------------------|
+| [32m6       [0m | 4/4   | B1, B1, M1, A1          | M:0 V:4 U:0 S:0           |
+| [90m  a     [0m | 2     | B1, B1                  | M:0 V:2 U:0 S:0           |
+| [90m  b     [0m | 2     | M1, A1                  | M:0 V:2 U:0 S:0           |
+|----------|-------|-------------------------|---------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 22.9s
+Model Used: gemini-2.0-flash
+----------------------------
+classification                      8.4s (37%)
+marking                             7.2s (31%)
+ocr_processing                      2.4s (10%)
+output_generation                   2.0s (9%)
+performance_summary                 0.8s (4%)
+question_detection                  0.7s (3%)
+preprocessing                       0.4s (2%)
+database_persistence                0.2s (1%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 3 total
+   Total Tokens: 11,692 (10,905 in + 787 out)
+   Total Cost: $0.004973
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
+   • Classification (Marking Pass): 6,988 tokens (1 requests) → $0.000910
+   • Performance Summary: 543 tokens (1 requests) → $0.000064
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1768927164595
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1768927164595
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0049733
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768927164595), remaining: 426.36
+💳 Deducted 0.0050 credits (session: sub-1768927164595) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768927164595

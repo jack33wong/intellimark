@@ -33,43 +33,54 @@ export interface QuestionResult {
 }
 
 // --- 1. ROBUST ZONE DETECTOR ---
-// Scans raw OCR blocks to find Y-coordinates of headers like (a), (b)(i), etc.
+// Scans raw OCR blocks to find coordinates of headers like (a), (b)(i), etc.
 function detectSemanticZones(rawBlocks: any[], pageHeight: number) {
-  const zones: Record<string, { startY: number; endY: number; pageIndex: number }> = {};
-  // Sort by Y position
-  const sortedBlocks = [...rawBlocks].sort((a, b) => (a.coordinates?.y || 0) - (b.coordinates?.y || 0));
+  const zones: Record<string, { startY: number; endY: number; pageIndex: number; x: number }> = {};
 
-  // 🔥 FIX 1: Robust Regex that ignores leading symbols like "```" or "-"
+  // 🔥 FIX: Sort by pageIndex FIRST, then by Y position
+  const sortedBlocks = [...rawBlocks].sort((a, b) => {
+    if (a.pageIndex !== b.pageIndex) return (a.pageIndex || 0) - (b.pageIndex || 0);
+    return (a.coordinates?.y || 0) - (b.coordinates?.y || 0);
+  });
+
   // Matches: "10a", "(a)", "a)", "b(i)", "(ii)", "``` (b)(i)"
   const landmarkRegex = /^[^\w\(\)]*(\d*[a-z]+|[ivx]+|[\(][a-zivx]+[\)])/i;
 
   let currentLabel: string | null = null;
   let currentStartY = 0;
+  let currentPageIndex = 0;
 
   console.log("🔍 [ZONE SCAN] Scanning blocks for landmarks...");
 
   sortedBlocks.forEach((block) => {
     const text = (block.text || '').trim();
+    const blockPage = block.pageIndex || 0;
 
-    // 🔥 FIX 2: Increased length to 100 to catch verbose headers
     if (text.length < 100) {
       const match = text.match(landmarkRegex);
       if (match) {
-        // Clean label: "``` (b)(i) ```" -> "bi"
-        // We strip everything except letters and numbers, then ensure it's a valid sub-q label
         const cleanLabel = match[1].replace(/[\d\(\)\.\s`]/g, '').toLowerCase();
 
-        // Valid Sub-Questions: a-z (single char) or roman numerals (i, ii, iii, iv)
-        // Also allows combined like "bi"
         if (/^[a-z]$|^[a-z]?[ivx]{1,4}$/.test(cleanLabel)) {
-          console.log(`   📍 Found Landmark: "${cleanLabel}" (raw: "${text.substring(0, 15)}...") at Y=${Math.round(block.coordinates?.y || 0)}`);
+          console.log(`   📍 Found Landmark: "${cleanLabel}" at Page ${blockPage}, Y=${Math.round(block.coordinates?.y || 0)}`);
 
           if (currentLabel) {
-            // Close previous zone
-            zones[currentLabel] = { startY: currentStartY, endY: block.coordinates?.y || 0, pageIndex: block.pageIndex ?? 0 };
+            // Close previous zone (handle page wrap if needed)
+            const endY = (blockPage === currentPageIndex) ? (block.coordinates?.y || 0) : pageHeight;
+            zones[currentLabel] = {
+              startY: currentStartY,
+              endY,
+              pageIndex: currentPageIndex,
+              x: zones[currentLabel]?.x || 0 // Preserve previous x if closing
+            };
           }
           currentLabel = cleanLabel;
           currentStartY = block.coordinates?.y || 0;
+          currentPageIndex = blockPage;
+
+          // Store start X for this landmark
+          const startX = block.coordinates?.x || 0;
+          zones[currentLabel] = { startY: currentStartY, endY: pageHeight, pageIndex: currentPageIndex, x: startX };
         }
       }
     }
@@ -77,7 +88,12 @@ function detectSemanticZones(rawBlocks: any[], pageHeight: number) {
 
   // Close final zone
   if (currentLabel) {
-    zones[currentLabel] = { startY: currentStartY, endY: pageHeight, pageIndex: 0 };
+    zones[currentLabel] = {
+      startY: currentStartY,
+      endY: pageHeight,
+      pageIndex: currentPageIndex,
+      x: zones[currentLabel]?.x || 0
+    };
   }
 
   return zones;
@@ -285,7 +301,15 @@ export async function executeMarkingForQuestion(
         rawOcrBlocks: rawOcrBlocks,
         classificationStudentWork: ocrTextForPrompt,
         classificationBlocks: task.classificationBlocks,
-        subQuestionMetadata: task.subQuestionMetadata
+        subQuestionMetadata: task.subQuestionMetadata,
+        landmarks: Object.entries(semanticZones).map(([label, data]) => ({
+          label,
+          y: data.startY,
+          x: data.x,
+          top: data.startY,
+          left: data.x,
+          pageIndex: data.pageIndex
+        }))
       } as any,
       questionDetection: task.markingScheme,
       questionText: task.markingScheme?.databaseQuestionText || null,
@@ -324,7 +348,7 @@ export async function executeMarkingForQuestion(
       // 3. Robust Fuzzy Match (If snapped to printed text or missing)
       const isPrinted = !sourceStep || sourceStep.isHandwritten === false;
       if (isPrinted) {
-        const isDrawing = (anno.text || '').includes('[DRAWING]') || (anno.reasoning && anno.reasoning.includes('[DRAWING]'));
+        const isDrawing = (anno.text || '').includes('[DRAWING]') || (anno.reasoning && (anno.reasoning.includes('[DRAWING]') || anno.reasoning.includes('plan')));
         if (isDrawing) {
           const syntheticLine = stepsDataForMapping.find(s => s.text.includes('[DRAWING]'));
           if (syntheticLine) {
@@ -332,6 +356,8 @@ export async function executeMarkingForQuestion(
             anno.bbox = [syntheticLine.bbox[0], syntheticLine.bbox[1], syntheticLine.bbox[2], syntheticLine.bbox[3]];
             anno.line_id = syntheticLine.line_id;
           }
+          // Sovereignty: Do not proceed to fuzzy matching for drawings
+          return anno;
         } else {
           // FUZZY MATCHER
           const clean = (str: string) => str.toLowerCase()
@@ -341,17 +367,19 @@ export async function executeMarkingForQuestion(
 
           const targetText = clean(anno.studentText || anno.text || "");
           if (targetText.length > 0) {
+            // 🔥 FINAL ROBUST FIX: Only re-home to physical BLOCKS (block_x)
+            // This prevents matching line_1 to line_1 and ensures we get Mathpix coords.
             let betterMatch = stepsDataForMapping.find(s =>
-              s.ocrSource === 'classification' && s.isHandwritten === true && clean(s.text) === targetText
+              s.line_id.startsWith('block_') && s.isHandwritten !== false && clean(s.text) === targetText
             ) || stepsDataForMapping.find(s =>
-              s.ocrSource === 'classification' && s.isHandwritten === true && clean(s.text).includes(targetText)
+              s.line_id.startsWith('block_') && s.isHandwritten !== false && clean(s.text).includes(targetText)
             );
 
             if (!betterMatch) {
               const numbers = targetText.match(/\d+/g);
               if (numbers && numbers.length > 0) {
                 betterMatch = stepsDataForMapping.find(s =>
-                  s.ocrSource === 'classification' && s.isHandwritten === true && numbers.every(n => clean(s.text).includes(n))
+                  s.line_id.startsWith('block_') && s.isHandwritten !== false && numbers.every(n => clean(s.text).includes(n))
                 );
               }
             }
@@ -360,8 +388,7 @@ export async function executeMarkingForQuestion(
               console.log(`      🎯 SUCCESS: Re-homed "${anno.text}" to "${betterMatch.text}" (ID: ${betterMatch.line_id})`);
               anno.line_id = betterMatch.line_id;
               anno.pageIndex = betterMatch.pageIndex;
-              // Pre-fill bbox so Enrichment can use it
-              if (betterMatch.bbox) anno.bbox = [...betterMatch.bbox];
+              // Do NOT pre-fill bbox here, let Enrichment service resolve it fresh from the ID
             }
           }
         }
@@ -382,7 +409,10 @@ export async function executeMarkingForQuestion(
       task.pageDimensions,
       task.classificationBlocks,
       task,
-      (markingResult as any).visualObservation
+      (markingResult as any).visualObservation,
+      (markingResult as any).globalOffsetX || 0,
+      (markingResult as any).globalOffsetY || 0,
+      semanticZones // NEW: Pass landmarks for per-annotation scoping
     ).filter(anno => (anno.text || '').trim() !== '');
 
     // =========================================================================
@@ -394,10 +424,13 @@ export async function executeMarkingForQuestion(
       let isAnchored = false; // TRACKER: Did we successfully place this?
 
       // A. ZONE ENFORCEMENT
-      // 🛡️ CRITICAL FIX: NEVER Move a "MATCHED" OCR Annotation
+      // 🛡️ CRITICAL FIX: NEVER Move a "MATCHED" OCR Annotation OR a "VISUAL/REDIRECTED" mark
       // If Mathpix found the text exactly, we trust Mathpix's coordinates 100%.
+      // If the system redirected the mark to handwriting for precision, we trust that too.
       // We ONLY apply Zone Snapping to "UNMATCHED" or "FALLBACK" annotations.
-      if (anno.subQuestion && anno.bbox && semanticZones && anno.ocr_match_status !== 'MATCHED') {
+      const isVisual = anno.ocr_match_status === 'VISUAL' || String(anno.line_id || '').startsWith('visual_redirect_');
+
+      if (anno.subQuestion && anno.bbox && semanticZones && anno.ocr_match_status !== 'MATCHED' && !isVisual) {
         // Clean SubQ: "10(a)" -> "a", "(b)(i)" -> "bi"
         let subQ = anno.subQuestion.replace(/^\d+/, '').replace(/[()\s]/g, '').toLowerCase();
 

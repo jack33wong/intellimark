@@ -104,10 +104,6 @@ function parseAIPosition(
             w = !isNaN(w) ? w : 10;
             h = !isNaN(h) ? h : 5;
 
-            // Normalize if values are > 100 (AI likely used 0-1000 scale or pixels)
-            if (x > 100 || y > 100 || w > 100 || h > 100) {
-                x /= 10; y /= 10; w /= 10; h /= 10;
-            }
             aiPosition = { x, y, width: w, height: h };
         }
     }
@@ -121,9 +117,6 @@ function parseAIPosition(
                 if (typeof vp.x === 'number' && typeof vp.y === 'number') {
                     let { x, y, width: w, height: h } = vp;
                     w = w || 10; h = h || 5;
-                    if (x > 100 || y > 100 || w > 100 || h > 100) {
-                        x /= 10; y /= 10; w /= 10; h /= 10;
-                    }
                     aiPosition = { x, y, width: w, height: h };
                 }
             } catch (e) { /* ignore */ }
@@ -377,7 +370,14 @@ export function processAnnotations(
         .map(anno => mapToGlobalPage(anno, context.sourcePages))
         .map(anno => {
             // Priority: Existing bbox (if set by caller) > OCR match
-            if (anno.bbox) return anno;
+            if (anno.bbox) {
+                // If bbox is already provided (e.g. from Source 1/2), mark as MATCHED if not already VISUAL
+                return {
+                    ...anno,
+                    ocrSource: anno.ocrSource || 'precomputed',
+                    aiMatchStatus: anno.aiMatchStatus || 'MATCHED'
+                };
+            }
             return context.ocrBlocks ? enrichWithOCRBbox(anno, context.ocrBlocks) : anno;
         });
 }
@@ -435,7 +435,8 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         lineIndex: annotation.lineIndex,
         // Preserve new fields for debugging
         _immutable: true,
-        _page: annotation.page
+        _page: annotation.page,
+        _aiMatchStatus: annotation.aiMatchStatus // For transparency
     };
 
     return result;

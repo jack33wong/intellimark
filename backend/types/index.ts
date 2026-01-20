@@ -159,6 +159,8 @@ export interface MarkingInstructions {
     llmOutputTokens: number;
   };
   visualObservation?: string; // AI's description of the visual content
+  globalOffsetX?: number; // Physical page offset found via landmarks
+  globalOffsetY?: number; // Physical page offset found via landmarks
 }
 
 export interface ImageClassification {

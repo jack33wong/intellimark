@@ -2,39 +2,58 @@
 description: System design rules for the AI Marking System to ensure consistency and prevent accidental over-simplification.
 ---
 
-# AI Marking System Design Bible
-You MUST follow these rules when editing any files related to AI marking (e.g., MarkingInstructionService.ts, MarkingExecutor.ts, MarkingPipelineService.ts, or any prompt files).
+# AI Marking System Design Bible (v2.1)
+You MUST follow these rules when editing any files related to AI marking.
 
-## 1. Source of Truth (The Logic Layer)
-- **STUDENT WORK (STRUCTURED)** (passed as `classificationStudentWork`) is the absolute source of truth for the student's mathematical logic.
-- The AI must analyze the math in the *Logical Work* list to decide if a mark is earned.
-- **NEVER** trust raw OCR text over the structured classification lines for logical evaluation.
+## 1. Source of Truth (The "Rescue" Hierarchy)
+We use a Primary + Fallback system to determine if a student is correct.
 
-## 2. Positioning & ID Mapping (The Visual Layer)
-- **The "Match" Protocol**:
-    1. **Primary**: Find a **RAW OCR BLOCK** (`block_X_Y`) that contains the same value/content as the student's logical line. Map the annotation to that ID for precise positioning.
-    2. **Secondary (Fallback)**: If no OCR block matches, use the classification placeholder ID (`line_X`).
-- **Re-Homing Mandate**: The backend Sanitizer must actively "re-home" floating annotations (those matched to printed text or unanchored lines) back to their corresponding handwritten source in the Classification data.
+**TIER 1 (PRIMARY): STUDENT WORK (STRUCTURED)**
+- **Rule**: This Classification Transcript is the default source for grading logic. If it matches the Scheme, Award the Mark.
 
-## 3. Coordinate Systems (CRITICAL)
-- **Zero-Ambiguity Output**: The backend MUST convert all coordinates into **0-100 Percentages** (x: 50.5 = 50.5%) before sending them to the frontend.
-- **Input Handling**: Treat input coordinates as **Pixels** by default. Only scale them if they are explicitly detected as relative (0-1).
-- **Zone Enforcement**: Annotations for sub-questions (e.g., 10a, 10b) must be visually constrained to their respective semantic zones on the page. If an annotation drifts out of its zone, snap it back to the zone header.
+**TIER 2 (FALLBACK): RAW OCR BLOCKS (THE "RESCUE" LAYER)**
+- **Trigger**: Use this ONLY if the Classification Transcript is WRONG or MISSING but the student actually wrote the correct answer.
+- **Rule**: If Classification misses a correct answer but the RAW OCR BLOCKS clearly show it, award the mark. We give the student the benefit of the doubt if the OCR captured the ink correctly.
 
-## 4. Prompt Architecture (The "Chief Examiner" Framework)
-- **Immutable Headers**: Do NOT remove or simplify these markers. They provide essential context:
-    - `[GENERIC_GCSE_LOGIC]`: Contains the Mark Budgeting and "Guillotine" pruning logic.
-    - `[OFFICIAL SCHEME]`: Contains question-specific marking criteria.
-    - `[SUB-QUESTION X]`: Explicitly delimits nested sub-questions in the student work.
-- **No Over-Marking**: The system uses a "Capacity Pool". Annotations must be pruned to fit the total marks available.
+## 2. Data Ingestion Protocol (The "Unfiltered" Constraint)
+**THE UNRELIABLE TYPE CONSTRAINT**:
+- We CANNOT trust OCR type indicators (e.g., "handwriting" vs "printed").
+- **Consequence**: The Prompt will receive ALL OCR blocks (mixed student work and question text).
 
-## 5. Marking Heuristics
-- **The Guillotine**: If the AI finds more correct steps than marks available, it must drop the earliest/weakest method marks (M-marks) in favor of the final accuracy marks (A-marks).
-- **Atomic Marks**: The system prefers atomic marks (1 point each). Do not group multiple codes (e.g., "M1 A1") into a single annotation text field.
+**THE NOISE FILTER**:
+- The System ONLY removes structural noise: Headers, Footers, and Barcodes.
 
-## 6. Diagnostic Logging
-- **Visual Audit**: Logs must clearly indicate the "Re-homing" process (e.g., `🎯 Re-homed to "77/100"`).
-- **Coordinate Audit**: Logs must show the coordinate transformation to ensure Pixel-to-Percentage conversion is happening.
+**THE AI'S BURDEN**:
+- Since the system cannot filter printed text, YOU (The AI) are the filter.
+- You must use Semantic Judgment to distinguish between "Question Instructions" (Ignore) and "Student Answers" (Match).
 
----
-**Verdict**: This enhanced version is 100% aligned with the working system.
+## 3. The Match Protocols
+### A. Text Logic (The Block Mandate)
+- **APPLICABILITY**: Numbers, equations, and text-based logic.
+- **LAW**: You MUST find a physical `block_ID` for every match.
+
+**THE "INSTRUCTION BLINDNESS" RULE**:
+- **FORBIDDEN ANCHORS**: NEVER anchor a mark to a block that reads like Question Text (e.g., "Calculate...", "Draw...", "Explain...").
+- **VALID ANCHORS**: Only anchor to blocks that look like Student Work.
+- **PENALTY**: Linking a mark to a question header is a DESIGN VIOLATION.
+
+### B. Drawing Logic (Visual Sovereignty)
+- **APPLICABILITY**: Sketches, diagrams, graphs.
+- **LAW: FORCE VISUAL MODE**:
+    - For any drawing task, you MUST use `ocr_match_status: "VISUAL"`.
+    - **IGNORE TEXT**: Even if the student wrote labels inside the drawing, do NOT anchor to that text block.
+- **POSITIONING**:
+    - **NO block_ID**: Do not return a `line_id`.
+    - **ESTIMATION**: You must visually estimate the drawing's bounding box (0-100%) and return it as `visual_position`.
+
+### C. Universal Golden Rules
+- **ATOMICITY**: One mark code per annotation (e.g., "B1", not "M1 A1").
+- **ONE-SHOT**: A list like "36 or 19" is single-use. Award ONE mark only.
+- **CONTEXT ISOLATION**: Respect page boundaries.
+- **ZERO-FEEDBACK**: Pure JSON. No chat.
+- **MARGIN BLINDNESS**: Ignore printed mark counts (e.g., `[3]`).
+- **GUILLOTINE**: Strict adherence to [MAX SCORE].
+
+## 4. Coordinate Systems
+- **Text**: `line_id` -> `block_ID` lookup.
+- **Visual**: `visual_position` -> AI Estimation.

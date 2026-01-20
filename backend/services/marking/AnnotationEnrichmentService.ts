@@ -15,10 +15,14 @@ export const enrichAnnotationsWithPositions = (
     pageDimensions?: Map<number, { width: number; height: number }>,
     classificationBlocks?: any[],
     task?: MarkingTask,
-    visualObservation?: string
+    visualObservation?: string,
+    globalOffsetX: number = 0,
+    globalOffsetY: number = 0,
+    semanticZones?: Record<string, { startY: number; endY: number; pageIndex: number; x: number }>
 ): EnrichedAnnotation[] => {
 
     console.log(`\n🔍 [ENRICH-START] Processing Q${questionId} | ${annotations.length} annotations`);
+    console.log(`   ⚓ [GLOBAL-OFFSET] Applying offsets: x=${globalOffsetX}, y=${globalOffsetY}`);
 
     // Helper: Find in Raw Classification Data (Percent 0-100)
     const findInClassification = (id: string) => {
@@ -49,9 +53,10 @@ export const enrichAnnotationsWithPositions = (
         let method = "NONE";
 
         const lineId = (anno as any).line_id || "";
+        const incomingStatus = (anno as any).ocr_match_status;
 
         // 📝 LOGGING: TRACK THE STARTING POINT
-        console.log(`\n👉 [ANNO ${idx}] "${anno.text}" (ID: ${lineId})`);
+        console.log(`\n👉 [ANNO ${idx}] "${anno.text}" (ID: ${lineId}) | Status In: ${incomingStatus || 'NONE'}`);
 
         // ---------------------------------------------------------
         // PATH 1: PHYSICAL MATCH (OCR Blocks)
@@ -123,8 +128,12 @@ export const enrichAnnotationsWithPositions = (
                 }
                 else if (match.bbox) {
                     pixelBbox = [...match.bbox] as [number, number, number, number];
-                    method = "VISUAL_PRECOMPUTED";
-                    console.log(`   ℹ️ [PATH: PRECOMPUTED] Trusted existing pixels.`);
+                    method = "PX_PRECOMPUTED";
+
+                    // Final scale safety: If we already have pixel-scale numbers, don't let anything shrink them
+                    if (pixelBbox[0] > 100 || pixelBbox[1] > 100) {
+                        console.log(`   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: ${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])}`);
+                    }
                 }
             }
         }
@@ -136,18 +145,59 @@ export const enrichAnnotationsWithPositions = (
             const dims = getPageDims(pageDimensions!, pageIndex);
             pixelBbox = [dims.width * 0.1, (dims.height * 0.1) + (idx * 60), 300, 50];
             method = "FALLBACK";
-            console.warn(`   🚨 [PATH: FALLBACK] Could not find coords. Stacking in margin.`);
+            console.warn(`   🚨 [PATH: FALLBACK] No coordinates found for ID: ${lineId}. Defaulting to margin.`);
+        }
+
+        // 🏗️ PHASE 4: APPLY GLOBAL OFFSET (LANDMARK ALIGNMENT)
+        // If we are using local classification coordinates (Visual/Unmatched),
+        // we MUST apply the global anchor offset (e.g. Question Header or Landmark label).
+        if (method !== "OCR_PHYSICAL" && method !== "FALLBACK") {
+            // 🏮 PER-ANNOTATION SCOPING: If this annotation has a subQuestion (e.g. "b"),
+            // we look for a matching landmark to get a more precise vertical anchor.
+            let specificOffsetX = globalOffsetX;
+            let specificOffsetY = globalOffsetY;
+
+            if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
+                const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
+                const subQ = subQRaw.replace(/^\d+/, '').replace(/[()\s]/g, '');
+
+                const match = semanticZones[subQ] || (subQ.length > 1 ? semanticZones[subQ.charAt(0)] : null);
+                if (match) {
+                    specificOffsetX = match.x || 0;
+                    specificOffsetY = match.startY || 0;
+                    console.log(`   ⚖️ [SCOPED-OFFSET] Annotation "${anno.text}" uses Landmark [${subQ}] (+${specificOffsetX}, +${specificOffsetY})`);
+                }
+            }
+
+            if (specificOffsetX !== 0 || specificOffsetY !== 0) {
+                console.log(`   🏗️ [OFFSET] Applying Anchor (+${specificOffsetX}, +${specificOffsetY})`);
+                pixelBbox[0] += specificOffsetX;
+                pixelBbox[1] += specificOffsetY;
+                console.log(`      Final Coord: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
+            }
         }
 
         // Final Sanity Check for Visibility
         if (pixelBbox[2] < 300) pixelBbox[2] = 300;
         if (pixelBbox[3] < 40) pixelBbox[3] = 40;
 
+        const isDrawing = (anno.text || '').includes('[DRAWING]') || (anno.reasoning && anno.reasoning.includes('[DRAWING]'));
+
+        // 🔥 FINAL ROBUST FIX: Preserve incoming status if it's already robust (Sovereignty)
+        let status = incomingStatus || (isDrawing ? "VISUAL" :
+            (lineId && (lineId.startsWith('block_') || lineId.startsWith('ocr_')) || method.includes('OCR')) ? "MATCHED" :
+                (method.includes('PERCENT') ? "VISUAL" : "UNMATCHED"));
+
+        // Ensure redirected marks stay VISUAL
+        if (lineId && lineId.startsWith('visual_redirect_')) {
+            status = "VISUAL";
+        }
+
         return {
             ...anno,
             bbox: pixelBbox,
             pageIndex: pageIndex,
-            ocr_match_status: method.includes('OCR') ? "MATCHED" : "UNMATCHED",
+            ocr_match_status: status,
             _debug_placement_method: method,
             visualObservation: visualObservation
         } as EnrichedAnnotation;
