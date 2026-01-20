@@ -100,31 +100,32 @@ export const enrichAnnotationsWithPositions = (
                 pageIndex = match.pageIndex ?? pageIndex;
                 const dims = getPageDims(pageDimensions!, pageIndex);
 
-                // 🕵️ DETECTIVE LOGIC: Is this a Percentage or a Pixel?
+                // 🔥 THE FIX: SCALE DETECTIVE V2
                 let usePercentageMath = false;
                 if (match.position && source === 'RAW_CLASS') usePercentageMath = true;
 
-                // 🔥 THE FIX: CHECK FOR SUSPICIOUSLY SMALL COORDINATES
-                if (match.bbox && match.bbox[0] < 100 && match.bbox[1] < 100 && dims.width > 500) {
-                    console.log(`   ⚠️ [DETECTIVE] Tiny coordinates found in ${source}. Assuming PERCENTAGE.`);
-                    console.log(`      Raw Values: ${JSON.stringify(match.bbox)} vs Page Width: ${dims.width}`);
+                // Some OCR sources (like the Interceptor or certain crops) use a 0-1000 scale.
+                // If coordinates are < 1000 AND the page width is large (e.g. > 1500), 
+                // it's almost certainly a percentage/normalized coordinate, not absolute pixels.
+                if (match.bbox && match.bbox[0] < 1000 && match.bbox[1] < 1000 && dims.width > 1200) {
+                    // One more check: if it was < 100, use 100 as denominator, else use 1000
+                    const denominator = (match.bbox[0] < 100 && match.bbox[1] < 100) ? 100 : 1000;
+                    console.log(`   ⚠️ [DETECTIVE] Normalized coords found (${Math.round(match.bbox[0])}, ${Math.round(match.bbox[1])}). Using ${denominator} scale.`);
                     usePercentageMath = true;
-                }
 
-                if (usePercentageMath) {
-                    // Use .position if available, otherwise assume bbox holds the percentages
-                    const input = match.position || { x: match.bbox[0], y: match.bbox[1], width: match.bbox[2], height: match.bbox[3] };
+                    if (usePercentageMath) {
+                        const input = match.position || { x: match.bbox[0], y: match.bbox[1], width: match.bbox[2], height: match.bbox[3] };
+                        const den = (input.x < 100) ? 100 : 1000;
 
-                    pixelBbox = [
-                        (input.x / 100) * dims.width,
-                        (input.y / 100) * dims.height,
-                        (input.width / 100) * dims.width,
-                        (input.height / 100) * dims.height
-                    ];
-                    method = "VISUAL_PERCENT_CALC";
-                    console.log(`   ✅ [PATH: VISUAL] Converted % to Pixels.`);
-                    console.log(`      Input %: ${input.x}%, ${input.y}%`);
-                    console.log(`      Output px: ${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])}`);
+                        pixelBbox = [
+                            (input.x / den) * dims.width,
+                            (input.y / den) * dims.height,
+                            (input.width / den) * dims.width,
+                            (input.height / den) * dims.height
+                        ];
+                        method = `VISUAL_NORM_${den}_CALC`;
+                        console.log(`   ✅ [PATH: VISUAL] Converted ${den} scale to Pixels.`);
+                    }
                 }
                 else if (match.bbox) {
                     pixelBbox = [...match.bbox] as [number, number, number, number];
