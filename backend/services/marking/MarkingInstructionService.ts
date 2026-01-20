@@ -616,7 +616,7 @@ export class MarkingInstructionService {
           pageIndex: anno.pageIndex,
           subQuestion: anno.subQuestion,
           visual_position: anno.visual_position,
-          line_id: anno.line_id, // Unified Standard
+          line_id: anno.line_id || anno.lineId, // Unified Standard
           student_text: anno.student_text,
           classification_text: anno.classification_text,
           action: anno.action,

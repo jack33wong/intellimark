@@ -199,3 +199,33 @@ database_persistence                0.2s (1%)
 💳 Deducted 0.50 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1768927164595), remaining: 426.36
 💳 Deducted 0.0050 credits (session: sub-1768927164595) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 ✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1768927164595
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs

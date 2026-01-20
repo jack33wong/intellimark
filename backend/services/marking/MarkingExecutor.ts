@@ -327,16 +327,44 @@ export async function executeMarkingForQuestion(
     }
 
     // =========================================================================
+    // 🛡️ PHASE 0: PRE-PROCESSING (Explode Clumped Annotations)
+    // =========================================================================
+    // If AI returns { text: "B2 B2 B2" }, split it early so Phase 1 & 2 can handle atoms.
+    const explodedAnnotations: any[] = [];
+    (markingResult.annotations || []).forEach((anno: any) => {
+      const cleaned = (anno.text || '').replace(/,/g, ' ').trim();
+      const parts = cleaned.split(/\s+/);
+
+      // Check if it's a clump of marks (e.g., "B1 B1", "M1 A1")
+      if (parts.length > 1 && parts.every(p => /^[A-Z]+\d+$/.test(p))) {
+        console.warn(`   ⚠️ [CLUMP-SPLIT] Splitting "${anno.text}" into ${parts.length} atoms early.`);
+        parts.forEach(part => {
+          explodedAnnotations.push({
+            ...anno,
+            text: part,
+            // Ensure ID is unique for each atom if it was a redirect
+            line_id: anno.line_id?.startsWith('visual_redirect_')
+              ? `${anno.line_id}_${Math.random().toString(36).substr(2, 5)}`
+              : (anno.line_id || anno.lineId)
+          });
+        });
+      } else {
+        explodedAnnotations.push(anno);
+      }
+    });
+
+    // =========================================================================
     // 🔄 PHASE 1: LOGICAL RE-HOMING (ID Correction)
     // =========================================================================
     console.log(`\n🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q${questionId}`);
 
     // Fix IDs and resolve handwritten locks BEFORE calculating final positions
-    let correctedAnnotations = (markingResult.annotations || []).map(anno => {
+    let correctedAnnotations = explodedAnnotations.map(anno => {
       // 1. Skip if already robustly linked to a line_ ID
-      if (anno.line_id?.startsWith('line_')) return anno;
+      const currentId = anno.line_id || anno.lineId || "";
+      if (currentId.startsWith('line_')) return anno;
 
-      const sourceStep = stepsDataForMapping.find(s => s.line_id === anno.line_id || s.globalBlockId === anno.line_id);
+      const sourceStep = stepsDataForMapping.find(s => s.line_id === currentId || s.globalBlockId === currentId);
 
       // 2. Resolve Page Index
       if (sourceStep && sourceStep.pageIndex !== undefined) {
@@ -534,31 +562,7 @@ export async function executeMarkingForQuestion(
 
     console.log(`✅ [ANNOTATION-AUDIT] Complete\n`);
 
-    // =========================================================================
-    // 🛡️ PHASE 4: SANITIZATION (Explode Clumped Annotations)
-    // =========================================================================
-    // If AI returns { text: "B2 B2 B2" }, splits it into 3 annotations
-    const sanitizedAnnotations: EnrichedAnnotation[] = [];
-
-    enrichedAnnotations.forEach(anno => {
-      // Check if text looks like "B2 B2" or "M1 A1" or "B2, B2"
-      const cleaned = (anno.text || '').replace(/,/g, ' ').trim();
-      const parts = cleaned.split(/\s+/);
-
-      if (parts.length > 1 && parts.every(p => /^[A-Z]+\d+$/.test(p))) {
-        console.warn(`⚠️ DETECTED CLUMPED ANNOTATION: "${anno.text}". Splitting into ${parts.length} atoms...`);
-
-        // Create a separate annotation for each part
-        parts.forEach(part => {
-          sanitizedAnnotations.push({
-            ...anno,
-            text: part, // "B2"
-          });
-        });
-      } else {
-        sanitizedAnnotations.push(anno);
-      }
-    });
+    const sanitizedAnnotations = enrichedAnnotations;
 
     // =========================================================================
     // 🧮 PHASE 5: ROBUST SCORE CALCULATION
