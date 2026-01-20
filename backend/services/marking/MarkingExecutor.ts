@@ -356,7 +356,7 @@ export async function executeMarkingForQuestion(
 
     // 🕵️ PROMPT LOGGING (V25 Troubleshooting)
     console.log(`\n🤖 [G0-PROMPT] Full AI Marking Context for Q${questionId}:`);
-    console.log(`   --- SYSTEM PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.systemPrompt || 'N/A'}`);
+    // console.log(`   --- SYSTEM PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.systemPrompt || 'N/A'}`); // V26: Disabled by user request
     console.log(`   --- USER PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.userPrompt || 'N/A'}`);
     console.log(`   --- END PROMPT ---\n`);
 

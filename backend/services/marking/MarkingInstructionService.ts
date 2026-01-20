@@ -594,7 +594,8 @@ export class MarkingInstructionService {
             };
           } else {
             // Fallback: Just detach to avoid highlighting the header
-            return { ...anno, line_id: null, ocr_match_status: "VISUAL" };
+            // V26 Fix: Preserve the AI's intended status (e.g. MATCHED) instead of forcing VISUAL
+            return { ...anno, line_id: null, ocr_match_status: anno.ocr_match_status || "MATCHED" };
           }
         }
         return anno;
@@ -1029,9 +1030,9 @@ ${output.trim()}
       console.log(`${BOLD}${BLUE}[AI MARKING] Q${questionNumber}${RESET}`);
       console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
 
-      // Log SYSTEM PROMPT (ENABLED for diagnostics)
-      console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
-      console.log(systemPrompt); // Log FULL system prompt for debugging
+      // Log SYSTEM PROMPT (DISABLED by user request in V26)
+      // console.log(`${BOLD}${CYAN}## SYSTEM PROMPT${RESET}`);
+      // console.log(systemPrompt); 
       console.log(`${BOLD}${BLUE}------------------------------------------------------------${RESET}`);
 
       // Split userPrompt into sections for cleaner logging
