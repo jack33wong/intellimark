@@ -108,24 +108,18 @@ export const enrichAnnotationsWithPositions = (
                 // If coordinates are < 1000 AND the page width is large (e.g. > 1500), 
                 // it's almost certainly a percentage/normalized coordinate, not absolute pixels.
                 if (match.bbox && match.bbox[0] < 1000 && match.bbox[1] < 1000 && dims.width > 1200) {
-                    // One more check: if it was < 100, use 100 as denominator, else use 1000
-                    const denominator = (match.bbox[0] < 100 && match.bbox[1] < 100) ? 100 : 1000;
-                    console.log(`   ⚠️ [DETECTIVE] Normalized coords found (${Math.round(match.bbox[0])}, ${Math.round(match.bbox[1])}). Using ${denominator} scale.`);
-                    usePercentageMath = true;
+                    const den = (match.bbox[0] <= 100 && match.bbox[1] <= 100) ? 100 : 1000;
+                    console.log(`   ⚠️ [DETECTIVE] Detected ${den}-scale normalized coords (${Math.round(match.bbox[0])}, ${Math.round(match.bbox[1])})`);
 
-                    if (usePercentageMath) {
-                        const input = match.position || { x: match.bbox[0], y: match.bbox[1], width: match.bbox[2], height: match.bbox[3] };
-                        const den = (input.x < 100) ? 100 : 1000;
-
-                        pixelBbox = [
-                            (input.x / den) * dims.width,
-                            (input.y / den) * dims.height,
-                            (input.width / den) * dims.width,
-                            (input.height / den) * dims.height
-                        ];
-                        method = `VISUAL_NORM_${den}_CALC`;
-                        console.log(`   ✅ [PATH: VISUAL] Converted ${den} scale to Pixels.`);
-                    }
+                    const input = match.position || { x: match.bbox[0], y: match.bbox[1], width: match.bbox[2], height: match.bbox[3] };
+                    pixelBbox = [
+                        (input.x / den) * dims.width,
+                        (input.y / den) * dims.height,
+                        (input.width / den) * dims.width,
+                        (input.height / den) * dims.height
+                    ];
+                    method = `VISUAL_NORM_${den}_CALC`;
+                    console.log(`   ✅ [PATH: VISUAL] Converted ${den} scale to Pixels.`);
                 }
                 else if (match.bbox) {
                     pixelBbox = [...match.bbox] as [number, number, number, number];
@@ -174,10 +168,12 @@ export const enrichAnnotationsWithPositions = (
             // and we have a large offset being applied, it's highly likely the coordinate is ALREADY global.
             // Heuristic: If pixelBbox.y + offset > Page Height, something is wrong.
             const dims = getPageDims(pageDimensions!, pageIndex);
-            const isAlreadyGlobal = pixelBbox[1] > 200 && (pixelBbox[1] + specificOffsetY) > (dims.height * 0.9);
+            // 🔥 DOUBLE-OFFSET PROTECTION: If the base pixelBbox Y is already significant,
+            // and it's close to the target landmark Y, adding them will double-globalize it.
+            const isAlreadyGlobal = pixelBbox[1] > (specificOffsetY - 150) && pixelBbox[1] > 200;
 
-            if (isAlreadyGlobal) {
-                console.log(`   🛡️ [OFFSET-BYPASS] Base Y (${Math.round(pixelBbox[1])}) looks already global. Skipping Anchor (+${specificOffsetY})`);
+            if (isAlreadyGlobal && specificOffsetY > 0) {
+                console.log(`   🛡️ [OFFSET-BYPASS] Base Y (${Math.round(pixelBbox[1])}) is already near/past Landmark Y (${specificOffsetY}). Skipping Anchor.`);
             }
             else if (specificOffsetX !== 0 || specificOffsetY !== 0) {
                 console.log(`   🏗️ [OFFSET] Applying Anchor (+${specificOffsetX}, +${specificOffsetY}) to base (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
@@ -198,9 +194,10 @@ export const enrichAnnotationsWithPositions = (
             (lineId && (lineId.startsWith('block_') || lineId.startsWith('ocr_')) || method.includes('OCR')) ? "MATCHED" :
                 (method.includes('PERCENT') ? "VISUAL" : "UNMATCHED"));
 
-        // Ensure redirected marks stay VISUAL
+        // Ensure redirected marks that are NOT drawings stay MATCHED (V23)
         if (lineId && lineId.startsWith('visual_redirect_')) {
-            status = "VISUAL";
+            // Respect the status passed from MarkingInstructionService (now MATCHED)
+            status = incomingStatus || "VISUAL";
         }
 
         return {

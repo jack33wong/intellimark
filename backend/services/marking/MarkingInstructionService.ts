@@ -587,7 +587,7 @@ export class MarkingInstructionService {
             return {
               ...anno,
               line_id: `visual_redirect_${Date.now()}_${Math.random()}`,
-              ocr_match_status: "VISUAL",
+              ocr_match_status: "MATCHED",
               visual_position: newPos,
               reasoning: `[System: Redirected to Handwriting] ${anno.reasoning}`
             };
