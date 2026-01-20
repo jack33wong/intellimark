@@ -101,6 +101,7 @@ export default (isGeneric: boolean = false) => {
 * For drawings, sketches, or diagrams, you **MUST** use \`ocr_match_status: "VISUAL"\`.
 * **NO MATCHING:** Do NOT generate a \`block_ID\` or \`line_id\` for drawing marks.
 * **ESTIMATION:** Manually extract the drawing's location from the PROVIDED SOURCE IMAGES and populate \`visual_position\` with percentage bounding box (0-100).
+* **MULTI-PAGE RULE:** If a question spans multiple pages, you MUST include the 0-indexed page index 'p' in the keyword (e.g. **[POSITION: x=75, y=20, p=1]** for Page 2).
 * Prepend keyword **[DRAWING]** to reasoning for visual marks.
 
 ---

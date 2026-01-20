@@ -112,6 +112,7 @@ export interface AIPosition {
     readonly y: number;
     readonly width: number;
     readonly height: number;
+    readonly pageIndex?: number;
 }
 
 /**

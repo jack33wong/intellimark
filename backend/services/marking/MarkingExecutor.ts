@@ -342,7 +342,8 @@ export async function executeMarkingForQuestion(
           explodedAnnotations.push({
             ...anno,
             text: part,
-            // Ensure ID is unique for each atom if it was a redirect
+            // V25 Fix: Copy match status and ensure ID is preserved
+            ocr_match_status: anno.ocr_match_status,
             line_id: anno.line_id?.startsWith('visual_redirect_')
               ? `${anno.line_id}_${Math.random().toString(36).substr(2, 5)}`
               : (anno.line_id || anno.lineId)
@@ -352,6 +353,12 @@ export async function executeMarkingForQuestion(
         explodedAnnotations.push(anno);
       }
     });
+
+    // 🕵️ PROMPT LOGGING (V25 Troubleshooting)
+    console.log(`\n🤖 [G0-PROMPT] Full AI Marking Context for Q${questionId}:`);
+    console.log(`   --- SYSTEM PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.systemPrompt || 'N/A'}`);
+    console.log(`   --- USER PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.userPrompt || 'N/A'}`);
+    console.log(`   --- END PROMPT ---\n`);
 
     // =========================================================================
     // 🔄 PHASE 1: LOGICAL RE-HOMING (ID Correction)

@@ -137,15 +137,17 @@ function parseAIPosition(
         }
     }
 
-    // 4. Try [POSITION] tag parsing
+    // 4. Try [POSITION] tag parsing (V25: Added pageIndex support)
     const lookupText = anno.classification_text || anno.student_text;
     if (!aiPosition && lookupText) {
-        const positionMatch = lookupText.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?\]/i);
+        // Supported formats: [POSITION: x=10, y=20] or [POSITION: x=10, y=20, p=1]
+        const positionMatch = lookupText.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?(?:,\s*(?:p|page)=([\d.]+))?\]/i);
         if (positionMatch) {
             const x = parseFloat(positionMatch[1]);
             const y = parseFloat(positionMatch[2]);
+            const p = positionMatch[3] ? parseInt(positionMatch[3], 10) : undefined;
             if (!isNaN(x) && !isNaN(y)) {
-                aiPosition = { x, y, width: 10, height: 5 };
+                aiPosition = { x, y, width: 10, height: 5, pageIndex: p };
             }
         }
     }
@@ -201,16 +203,18 @@ export function createAnnotationFromAI(
     aiAnnotation: RawAIAnnotation,
     context?: AIContext
 ): ImmutableAnnotation {
+    const aiPosition = parseAIPosition(aiAnnotation, context);
+
     const page: PageCoordinates = {
-        // FIX: Reverted default to 0. Rely on AI prompt to provide pageIndex.
-        relative: aiAnnotation.pageIndex !== undefined
-            ? RelativePageIndex.from(aiAnnotation.pageIndex)
-            : undefined,
+        // V25 Fix: If [POSITION] tag has explicit p=X, trust it over the generic JSON pageIndex
+        relative: (aiPosition?.pageIndex !== undefined)
+            ? RelativePageIndex.from(aiPosition.pageIndex)
+            : (aiAnnotation.pageIndex !== undefined
+                ? RelativePageIndex.from(aiAnnotation.pageIndex)
+                : undefined),
         global: GlobalPageIndex.from(0), // Not yet mapped
         source: 'ai'
     };
-
-    const aiPosition = parseAIPosition(aiAnnotation, context);
 
     return {
         id: generateAnnotationId(),
@@ -391,17 +395,14 @@ export function processAnnotations(
  * Used during migration period for backward compatibility
  */
 export function toLegacyFormat(annotation: ImmutableAnnotation): any {
-    // Determine match status
-    // Priority: AI's status > Computed status
-    let matchStatus = 'MATCHED';
+    // Determine match status (V25 Safety Fix)
+    // Priority: AI's Explicit Status > Computed status
+    let matchStatus = annotation.aiMatchStatus || 'MATCHED';
 
-    if (annotation.aiMatchStatus) {
-        // Trust AI's original status (MATCHED, VISUAL, UNMATCHED)
-        matchStatus = annotation.aiMatchStatus;
-    } else {
-        // Legacy fallback: Detect visual annotations by presence of aiPosition without bbox
+    // If NO explicit AI status, use legacy fallback heuristics
+    if (!annotation.aiMatchStatus) {
         if (annotation.aiPosition && !annotation.bbox) {
-            matchStatus = 'VISUAL'; // Drawing annotation
+            matchStatus = 'VISUAL'; // Drawing annotation fallback
         }
     }
 

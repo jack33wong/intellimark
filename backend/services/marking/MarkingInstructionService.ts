@@ -190,6 +190,7 @@ export interface MarkingInputs {
 
 export class MarkingInstructionService {
   private static hasLoggedDebugPrompt = false;
+  public static lastFullPrompt: { systemPrompt: string; userPrompt: string } | null = null;
 
   public static resetDebugLog() {
     MarkingInstructionService.hasLoggedDebugPrompt = false;
@@ -1012,8 +1013,12 @@ ${output.trim()}
     // but once we log one, we set a flag to prevent others.
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
-    // AI MARKING USER PROMPT DEBUG LOG
-    const shouldLogPrompt = false; // DISABLED for diagnostics
+    // AI MARKING USER PROMPT DEBUG LOG (V25: Re-enabled by user request)
+    const shouldLogPrompt = true;
+
+    // Store for traceback/troubleshooting
+    MarkingInstructionService.lastFullPrompt = { systemPrompt, userPrompt };
+
     if (shouldLogPrompt) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
