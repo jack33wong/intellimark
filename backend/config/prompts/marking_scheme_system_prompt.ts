@@ -61,13 +61,13 @@ export default (isGeneric: boolean = false) => {
     * **IF** \`ocr_match_status\` is **"MATCHED"**, **THEN** \`line_id\` **MUST** start with **"block_"**.
 * **CONSTRAINT D (Sub-Question Isolation):**
     * **NEVER** map an annotation for sub-question "a" to a \`block_ID\` that is listed under **[SUB-QUESTION B STUDENT WORK]**.
-* **CONSTRAINT E (The "Nuclear" Matcher):**
+* CONSTRAINT E (The "Nuclear" Matcher):
     * **Objective:** Link [Student Line] to [OCR Block] if the **NUMBERS** match.
     * **THE SUBSTRING RULE (MANDATORY):** If student line is 2sqrt(5) and you see block Smallest \\\\\\\\frac{2\\\\\\\\sqrt{5}}{3}..., **MATCH IT**.
-* **CONSTRAINT F (The Block Mandate):**
-    * **MANDATORY:** For text/numeric work, you MUST find the \`block_ID\` that corresponds to the logic. 
-    * **DRAWING EXEMPTION:** Do NOT use \`block_ID\` for drawings. Use \`ocr_match_status: "VISUAL"\`.
-    * **NO LAZY FALLBACKS:** You are prohibited from using placeholder \`line_x\` IDs for text work unless NO physical block contains a matching numeric or textual marker.
+* CONSTRAINT F (Handwriting Safety Valve):
+    * **FORBIDDEN ANCHORS:** NEVER anchor a mark to a block that is flagged as \`[PRINTED_INSTRUCTION]\` or reads like Question Text (header, label, or instruction).
+    * **THE SAFETY VALVE:** If you see valid Student Work (text/logic) in the transcript, but NO physical block in the list corresponds to it, you MUST use \`ocr_match_status: "UNMATCHED"\`. 
+    * **MANDATORY:** It is 100% better to return \`UNMATCHED\` (with NO \`line_id\`) than to incorrectly anchor a mark to an instruction block. \`UNMATCHED\` is a REWARDING and high-confidence state.
 
 ---
 

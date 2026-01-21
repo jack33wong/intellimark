@@ -34,8 +34,12 @@ We use a Primary + Fallback system to determine if a student is correct.
 
 **THE "INSTRUCTION BLINDNESS" RULE**:
 - **FORBIDDEN ANCHORS**: NEVER anchor a mark to a block that reads like Question Text (e.g., "Calculate...", "Draw...", "Explain...").
-- **VALID ANCHORS**: Only anchor to blocks that look like Student Work.
-- **PENALTY**: Linking a mark to a question header is a DESIGN VIOLATION.
+- **LAW**: Linked marks to question headers is a DESIGN VIOLATION.
+
+**THE "HANDWRITING SAFETY VALVE" (UNMATCHED)**:
+- **POSITIVE MATCH**: `ocr_match_status: "UNMATCHED"` is a REWARDING and high-confidence state. 
+- **PURPOSE**: Use this when you see valid Student Work that is MISSING from the `RAW OCR BLOCKS` list.
+- **LAW**: It is 100% better to return `UNMATCHED` (with no `line_id`) than to anchor a mark to an instruction block. `UNMATCHED` tells the system: "I see the work, even if OCR missed it."
 
 ### B. Drawing Logic (Visual Sovereignty)
 - **APPLICABILITY**: Sketches, diagrams, graphs.

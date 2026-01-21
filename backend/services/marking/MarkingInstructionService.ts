@@ -628,6 +628,26 @@ export class MarkingInstructionService {
       (normalizedScheme.marks.length > 0 || (normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0));
 
     const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '');
+
+    // Upstream Strategy: Inject Classification IDs into the OCR pool
+    if (sanitizedBlocks && classificationStudentWork) {
+      try {
+        const studentWork = JSON.parse(classificationStudentWork);
+        const steps = studentWork.steps || [];
+        steps.forEach((step: any, idx: number) => {
+          const lineId = `line_${idx + 1}`;
+          if (!sanitizedBlocks.some(b => b.id === lineId)) {
+            sanitizedBlocks.push({
+              id: lineId,
+              text: step.text,
+              pageIndex: step.pageIndex || 0,
+              isHandwritten: true
+            });
+          }
+        });
+      } catch (e) { }
+    }
+
     let systemPrompt: string;
     let userPrompt: string;
     let schemeText: string | undefined;
