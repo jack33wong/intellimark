@@ -138,9 +138,18 @@ export class MarkingPositioningService {
 
         // 4. "Smart Sub-Question Anchor" (OCR Block Fallback)
         if (offsetX === 0 && offsetY === 0 && rawOcrBlocks && rawOcrBlocks.length > 0) {
+            console.log(`\n🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...`);
+            console.log(`   👉 QuestionDetection Box: ${targetQuestionObject?.box ? 'Found' : 'undefined'}`);
+
             const subQ = String(inputQuestionNumber || '').replace(/^\d+/, '');
+            const baseQ = String(inputQuestionNumber || '').replace(/\D/g, '');
             const subQRegex = new RegExp(`^\\(?${subQ}[).]?`, 'i');
+            const baseQRegex = new RegExp(`^Q?${baseQ}[.:]?`, 'i');
+
             let anchorBlock = rawOcrBlocks.find((b: any) => subQ && subQRegex.test(b.text));
+            if (!anchorBlock) {
+                anchorBlock = rawOcrBlocks.find((b: any) => baseQ && baseQRegex.test(b.text));
+            }
             if (!anchorBlock) anchorBlock = rawOcrBlocks[0];
 
             if (anchorBlock) {
@@ -148,6 +157,7 @@ export class MarkingPositioningService {
                 if (bCoords) {
                     offsetX = bCoords.x || 0;
                     offsetY = bCoords.y || 0;
+                    console.log(`   🔍 [COORD-DEBUG] Using Sub-Question Anchor [${anchorBlock.id || anchorBlock.globalBlockId}] "${anchorBlock.text.substring(0, 20)}..." for Offset: x=${Math.round(offsetX)}, y=${Math.round(offsetY)}`);
                 }
             }
         }
