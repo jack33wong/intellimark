@@ -6,98 +6,15 @@
 import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
 import type { ModelType, MarkingTask, EnrichedAnnotation, MathBlock } from '../../types/index.js';
+import type { QuestionResult } from '../../types/marking.js';
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 import UsageTracker from '../../utils/UsageTracker.js';
+import { MarkingPositioningService } from './MarkingPositioningService.js';
 
-export interface QuestionResult {
-  questionNumber: number | string;
-  score: any;
-  annotations: EnrichedAnnotation[];
-  feedback?: string;
-  usageTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  confidence?: number;
-  mathpixCalls?: number;
-  markingScheme?: any;
-  studentWork?: string;
-  promptMarkingScheme?: string;
-  classificationBlocks?: any[];
-  questionText?: string;
-  databaseQuestionText?: string;
-  pageIndex?: number;
-  sourceImageIndices?: number[];
-  overallPerformanceSummary?: string;
-  cleanedOcrText?: string;
-}
 
-// --- 1. ROBUST ZONE DETECTOR ---
-// Scans raw OCR blocks to find coordinates of headers like (a), (b)(i), etc.
-function detectSemanticZones(rawBlocks: any[], pageHeight: number) {
-  const zones: Record<string, { startY: number; endY: number; pageIndex: number; x: number }> = {};
 
-  // 🔥 FIX: Sort by pageIndex FIRST, then by Y position
-  const sortedBlocks = [...rawBlocks].sort((a, b) => {
-    if (a.pageIndex !== b.pageIndex) return (a.pageIndex || 0) - (b.pageIndex || 0);
-    return (a.coordinates?.y || 0) - (b.coordinates?.y || 0);
-  });
 
-  // Matches: "10a", "(a)", "a)", "b(i)", "(ii)", "``` (b)(i)"
-  const landmarkRegex = /^[^\w\(\)]*(\d*[a-z]+|[ivx]+|[\(][a-zivx]+[\)])/i;
-
-  let currentLabel: string | null = null;
-  let currentStartY = 0;
-  let currentPageIndex = 0;
-
-  console.log("🔍 [ZONE SCAN] Scanning blocks for landmarks...");
-
-  sortedBlocks.forEach((block) => {
-    const text = (block.text || '').trim();
-    const blockPage = block.pageIndex || 0;
-
-    if (text.length < 100) {
-      const match = text.match(landmarkRegex);
-      if (match) {
-        const cleanLabel = match[1].replace(/[\d\(\)\.\s`]/g, '').toLowerCase();
-
-        if (/^[a-z]$|^[a-z]?[ivx]{1,4}$/.test(cleanLabel)) {
-          console.log(`   📍 Found Landmark: "${cleanLabel}" at Page ${blockPage}, Y=${Math.round(block.coordinates?.y || 0)}`);
-
-          if (currentLabel) {
-            // Close previous zone (handle page wrap if needed)
-            const endY = (blockPage === currentPageIndex) ? (block.coordinates?.y || 0) : pageHeight;
-            zones[currentLabel] = {
-              startY: currentStartY,
-              endY,
-              pageIndex: currentPageIndex,
-              x: zones[currentLabel]?.x || 0 // Preserve previous x if closing
-            };
-          }
-          currentLabel = cleanLabel;
-          currentStartY = block.coordinates?.y || 0;
-          currentPageIndex = blockPage;
-
-          // Store start X for this landmark
-          const startX = block.coordinates?.x || 0;
-          zones[currentLabel] = { startY: currentStartY, endY: pageHeight, pageIndex: currentPageIndex, x: startX };
-        }
-      }
-    }
-  });
-
-  // Close final zone
-  if (currentLabel) {
-    zones[currentLabel] = {
-      startY: currentStartY,
-      endY: pageHeight,
-      pageIndex: currentPageIndex,
-      x: zones[currentLabel]?.x || 0
-    };
-  }
-
-  return zones;
-}
 
 export async function executeMarkingForQuestion(
   task: MarkingTask,
@@ -275,7 +192,7 @@ export async function executeMarkingForQuestion(
       pageIndex: (block as any).pageIndex ?? 0
     }));
 
-    const semanticZones = detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones);
+    const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones);
     console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
     const rawOcrBlocks = task.mathBlocks.map((block, idx) => ({
@@ -354,11 +271,6 @@ export async function executeMarkingForQuestion(
       }
     });
 
-    // 🕵️ PROMPT LOGGING (V25 Troubleshooting)
-    console.log(`\n🤖 [G0-PROMPT] Full AI Marking Context for Q${questionId}:`);
-    // console.log(`   --- SYSTEM PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.systemPrompt || 'N/A'}`); // V26: Disabled by user request
-    console.log(`   --- USER PROMPT ---\n${MarkingInstructionService.lastFullPrompt?.userPrompt || 'N/A'}`);
-    console.log(`   --- END PROMPT ---\n`);
 
     // =========================================================================
     // 🔄 PHASE 1: LOGICAL RE-HOMING (ID Correction)
