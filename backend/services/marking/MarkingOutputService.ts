@@ -1,5 +1,6 @@
 import type { StandardizedPage, PageOcrResult } from '../../types/markingRouter.js';
-import type { QuestionResult, EnrichedAnnotation } from './MarkingExecutor.js';
+import type { QuestionResult } from '../../types/marking.js';
+import type { EnrichedAnnotation } from '../../types/index.js';
 import { SVGOverlayService } from './svgOverlayService.js';
 import { ImageStorageService } from '../imageStorageService.js';
 import { calculateOverallScore, calculateQuestionFirstPageScores, buildClassificationPageToSubQuestionMap, buildPageToQuestionNumbersMap, getQuestionSortValue } from './MarkingHelpers.js';

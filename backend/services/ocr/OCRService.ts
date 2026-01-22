@@ -32,6 +32,7 @@ export interface OCRResult {
     confidence: number;
   }>;
   mathBlocks: MathBlock[];
+  blocks?: any[];
   processingTime: number;
   rawResponse?: any;
   usage?: { mathpixCalls: number };
@@ -542,6 +543,7 @@ export class OCRService {
           /do\s+not\s+write\s+(in\s+)?this\s+area/i,  // "Do not write in this area" / "Do not write this area"
           /^bar\s*code$/i,                              // "Bar code" or "Barcode" (exact match)
           /^page\s+\d+$/i,                              // "Page 7" (exact match with number)
+          /\\\( \_+ \\\)|_+/                            // Underscore noise (handwriting placeholders)
         ];
 
         for (const pattern of knownMetadataPatterns) {

@@ -81,8 +81,11 @@ export class MarkingPromptService {
         );
 
         if (normalizedScheme.isGeneric || hasGenericSignature) {
+            let genericHeader = `\n[GENERIC_GCSE_LOGIC]`;
+            if (normalizedScheme.totalMarks) genericHeader += ` [MAX SCORE: ${normalizedScheme.totalMarks}]`;
+
             return `
-[GENERIC_GCSE_LOGIC]
+${genericHeader}
 > [INSTRUCTION]: You are the CHIEF EXAMINER.
 > 1. **GET BUDGET**: Search for "(Total X marks)".
 > 2. **SOLVE & MARK**: Award marks for valid steps.

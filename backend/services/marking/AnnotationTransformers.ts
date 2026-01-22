@@ -35,7 +35,9 @@ export interface RawAIAnnotation {
         height: number;
     };
     line_id?: string;
+    lineId?: string; // Support both casing
     student_text?: string;
+    studentText?: string; // Support both casing
     classification_text?: string;
     action?: string;
     reasoning?: string;
@@ -232,13 +234,13 @@ export function createAnnotationFromAI(
         subQuestion: aiAnnotation.subQuestion,
         page,
         aiPosition,
-        lineId: aiAnnotation.line_id, // Unified Standard
+        lineId: aiAnnotation.line_id || aiAnnotation.lineId, // Unified Standard
         ocrSource: undefined,
         hasLineData: undefined,
         action: aiAnnotation.action,
         reasoning: aiAnnotation.reasoning,
         aiMatchStatus: aiAnnotation.ocr_match_status, // Preserve AI's match status
-        studentText: aiAnnotation.student_text, // NEW: Preserve for UNMATCHED classification matching
+        studentText: aiAnnotation.student_text || aiAnnotation.studentText, // NEW: Preserve for UNMATCHED classification matching
         classificationText: aiAnnotation.classification_text, // NEW: Preserve alternative text source
         lineIndex: aiAnnotation.line_index, // NEW: Preserve for classification line mapping
         bbox: aiAnnotation.bbox as BoundingBox | undefined // NEW: Preserve pre-calculated bbox
@@ -441,8 +443,9 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         reasoning: annotation.reasoning,
         ocr_match_status: matchStatus,
         // Preserve classification matching fields for UNMATCHED annotations
-        studentText: annotation.studentText,
-        classificationText: annotation.classificationText,
+        student_text: annotation.studentText || '', // [CRITICAL FIX] Restore snake_case for Logs & DB
+        studentText: annotation.studentText || '',  // Keep camelCase for JS compatibility if needed
+        classification_text: annotation.classificationText,
         lineIndex: annotation.lineIndex,
         // Preserve new fields for debugging
         _immutable: true,

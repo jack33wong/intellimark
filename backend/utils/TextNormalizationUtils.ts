@@ -58,7 +58,7 @@ export function normalizeTextForComparison(text: string | null | undefined): str
     .replace(/\\mathbf\{([^}]+)\}/g, '$1') // Remove \mathbf{} (e.g., \mathbf{A} → A)
     .replace(/\\mathit\{([^}]+)\}/g, '$1') // Remove \mathit{}
     .replace(/\\text\{([^}]+)\}/g, '$1') // Remove \text{}
-    .replace(/\\/g, '') // Remove any remaining backslashes
+    .replace(/\\/g, '') // Remove backslashes but KEEP the command names (e.g. "frac", "sqrt")
     .replace(/\{|\}/g, '') // Remove braces
     .replace(/\$+/g, '') // Remove $ signs
 
@@ -361,4 +361,52 @@ export function compareSubQuestionParts(partA: string | null | undefined, partB:
 
   // Fallback to standard string compare
   return pA.localeCompare(pB);
+}
+
+/**
+ * Clean and truncate question text for use as a session title.
+ * Removes AI markers, generic prefixes, and normalizes spacing.
+ * 
+ * @param text - Extracted question text
+ * @param mode - 'Question' or 'Marking'
+ * @param maxLength - Maximum length (default 30)
+ * @returns Cleaned and truncated title
+ */
+export function generateGenericTitleFromText(text: string | undefined, mode: 'Question' | 'Marking', maxLength: number = 30): string {
+  if (!text || !text.trim()) {
+    return `${mode} - ${new Date().toLocaleDateString()}`;
+  }
+
+  let cleaned = text.trim();
+
+  // CLEANUP: Remove AI-generated markers and markdown (e.g. :::your-work, **Question 6**)
+  cleaned = cleaned.replace(/:::[^\s\n]+/g, '');
+  cleaned = cleaned.replace(/\*\*/g, '').replace(/###/g, '').trim();
+
+  // Remove User-Specific Generic Prefixes
+  const genericPrefixes = [
+    'Unknown General Generic Question (N/A)',
+    'Unknown General Generic Question',
+    'General Generic Question'
+  ];
+  genericPrefixes.forEach(prefix => {
+    if (cleaned.startsWith(prefix)) {
+      cleaned = cleaned.replace(prefix, '').trim();
+    }
+  });
+
+  // Handle cases where extraction failed after cleaning
+  const lower = cleaned.toLowerCase();
+  if (!cleaned || lower.includes('unable to extract') || lower.includes('no text detected') || lower.includes('extraction failed')) {
+    return `${mode} - ${new Date().toLocaleDateString()}`;
+  }
+
+  // Ensure newlines are replaced with spaces for clean title
+  cleaned = cleaned.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (cleaned.length > maxLength) {
+    cleaned = cleaned.substring(0, maxLength) + '...';
+  }
+
+  return `${mode} - ${cleaned}`;
 }

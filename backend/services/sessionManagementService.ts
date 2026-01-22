@@ -19,7 +19,7 @@ import type {
   SessionStats,
   CreateSessionData
 } from '../types/sessionManagement.js';
-import type { QuestionResult } from './marking/MarkingExecutor.js';
+import type { QuestionResult } from '../types/marking.js';
 import type { Express } from 'express';
 
 // Interfaces moved from DatabasePersistenceService

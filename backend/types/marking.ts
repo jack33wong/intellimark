@@ -99,4 +99,5 @@ export interface QuestionResult {
     sourceImageIndices?: number[];
     overallPerformanceSummary?: string;
     cleanedOcrText?: string;
+    rawAnnotations?: any[];
 }

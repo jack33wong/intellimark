@@ -36,7 +36,8 @@ import type { StandardizedPage, PageOcrResult } from '../../types/markingRouter.
 
 import { OCRService } from '../ocr/OCRService.js';
 import { ClassificationService } from './ClassificationService.js';
-import { executeMarkingForQuestion, QuestionResult, createMarkingTasksFromClassification } from './MarkingExecutor.js';
+import type { QuestionResult } from '../../types/marking.js';
+import { executeMarkingForQuestion, createMarkingTasksFromClassification } from './MarkingExecutor.js';
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { QuestionModeHandlerService } from './QuestionModeHandlerService.js';
 import { ModeSplitService } from './ModeSplitService.js';
@@ -1184,6 +1185,47 @@ export class MarkingPipelineService {
                 // The pipeline no longer eagerly re-tags blocks here.
                 // ==============================================================================
 
+                // ========================= CLASSIFICATION DATA MERGE =========================
+                // CRITICAL: Attach classification results to page objects so logs can find them
+                // This enables the "Unified Lookup" for transparency reporting
+                console.log(`🔍 [MERGE-DEBUG] attempting to merge classification results into ${allPagesOcrData.length} pages`);
+                allPagesOcrData.forEach(page => {
+                    // FIND ALL MATCHES (not just one)
+                    const matches = allClassificationResults.filter(r => r.pageIndex === page.pageIndex);
+
+                    if (matches.length > 0) {
+                        // Aggregate all questions from all matches
+                        const allQuestions = matches.flatMap(m => m.result.questions || []);
+                        const uniqueQuestions = [...allQuestions]; // Could add dedup logic if needed, but usually distinct tasks
+
+                        console.log(`   ✅ [MERGE-DEBUG] Page ${page.pageIndex} merged with ${matches.length} results (Total Qs: ${uniqueQuestions.length})`);
+
+                        // Construct a merged result
+                        (page as any).classificationResult = {
+                            questions: uniqueQuestions
+                        };
+                    } else {
+                        console.warn(`   ⚠️ [MERGE-DEBUG] Page ${page.pageIndex} has NO matching classification result (Available indices: ${allClassificationResults.map(r => r.pageIndex).join(',')})`);
+                    }
+                });
+                // ==============================================================================
+
+                // ========================= ASSIGN GLOBAL IDs TO OCR BLOCKS =========================
+                // Pre-assign stable IDs so MarkingExecutor and Transparency Report match perfectly
+                console.log(`🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...`);
+                allPagesOcrData.forEach(page => {
+                    if (page.ocrData && page.ocrData.mathBlocks) {
+                        page.ocrData.mathBlocks.forEach((b: any, idx: number) => {
+                            // Format: p{Page}_ocr_{Index}
+                            // This ensures that even if MarkingExecutor filters the list, the ID remains stable (e.g. p0_ocr_5)
+                            if (!b.globalBlockId) {
+                                b.globalBlockId = `p${page.pageIndex}_ocr_${idx + 1}`;
+                            }
+                        });
+                    }
+                });
+                // ===================================================================================
+
                 markingTasks = createMarkingTasksFromClassification(
                     classificationResult,
                     allPagesOcrData,
@@ -1708,6 +1750,84 @@ export class MarkingPipelineService {
 
             // --- Performance Summary ---
             const totalProcessingTime = Date.now() - startTime;
+
+            // Gather all blocks (OCR + Classification) for the transparency report
+            const allOcrBlocks = allPagesOcrData.flatMap(page => {
+                let ocrIdx = 0;
+                const blocks: any[] = [];
+
+                // 1. Mathpix/Vision Blocks
+                if (page.ocrData?.mathBlocks) {
+                    page.ocrData.mathBlocks.forEach((b: any) => {
+                        // GLOBAL RESCUE ID: p{PageIndex}_ocr_{Index}
+                        const globalRescueId = `p${page.pageIndex}_ocr_${ocrIdx++}`;
+
+                        // Use globalBlockId if it exists (highly preferred), otherwise use our new global format.
+                        // We do NOT use the old "block_..." format anymore to avoid collision ambiguity.
+                        blocks.push({ ...b, id: b.globalBlockId || globalRescueId });
+                    });
+                }
+                if (page.ocrData?.blocks) {
+                    page.ocrData.blocks.forEach((b: any) => {
+                        const globalRescueId = `p${page.pageIndex}_ocr_${ocrIdx++}`;
+                        blocks.push({ ...b, id: b.globalBlockId || globalRescueId });
+                    });
+                }
+
+                // 2. Classification Blocks (CRITICAL: These are the citations AI usually makes)
+                if (page.classificationResult?.questions) {
+                    console.log(`🔍 [LOG-DEBUG] Found classificationResult for page ${page.pageIndex} with ${page.classificationResult.questions.length} questions`);
+
+                    // Reset or continue an index? Ideally continue if we want global uniqueness, but per-page reset with standard IDs is safer if AI resets.
+                    // However, AI cites "line_1", "line_13" globally?
+                    // Let's assume global sequential for the page context.
+                    let logLineIdx = 1;
+
+                    // Recursive helper to gather lines from any depth
+                    const gatherLines = (node: any, parentBaseQNum: string) => {
+                        // 1. Gather lines from current node
+                        if (node.studentWorkLines) {
+                            node.studentWorkLines.forEach((l: any) => {
+                                // AUTO-SYNTHESIZE ID if missing
+                                const isSynthesized = !l.id && !l.lineId;
+
+                                // GLOBAL ID: p{Page}_q{Question}_line_{Index}
+                                // We now have parentBaseQNum passed down!
+                                const pIdx = l.pageIndex ?? node.pageIndex ?? page.pageIndex;
+                                const synthesizedId = `p${pIdx}_q${parentBaseQNum}_line_${logLineIdx++}`;
+
+                                // If l.id exists, it MIGHT be the new global ID we just set in MarkingExecutor, 
+                                // OR it might be a weak "line_1" from an old pass.
+                                // We check if it matches the global pattern.
+                                let validId = l.id || l.lineId;
+
+                                // If ID is missing or "weak" (just line_X), synthesize a robust one
+                                if (!validId || validId.startsWith('line_')) {
+                                    validId = synthesizedId;
+                                }
+                                blocks.push({ text: l.text, id: validId, metadata: { isSynthesized } });
+                            });
+                        }
+                        // 2. Recurse into subQuestions
+                        if (node.subQuestions && Array.isArray(node.subQuestions)) {
+                            node.subQuestions.forEach((child: any) => gatherLines(child, parentBaseQNum));
+                        }
+                    };
+
+                    // Start traversal for each top-level question
+                    page.classificationResult.questions.forEach((q: any) => {
+                        const baseQNum = q.questionNumber ? q.questionNumber.toString().replace(/\D/g, '') : '0';
+                        gatherLines(q, baseQNum);
+                    });
+                } else {
+                    console.warn(`⚠️ [LOG-DEBUG] No classificationResult for page ${page.pageIndex} in allPagesOcrData`);
+                }
+                return blocks;
+            });
+
+            console.log(`🔍 [LOG-DEBUG] Total transparency blocks gathered: ${allOcrBlocks.length}`);
+            console.log(`🔍 [LOG-DEBUG] Block IDs: ${allOcrBlocks.map(b => b.id).join(', ')}`);
+
             logAnnotationSummary(allQuestionResults, markingTasks);
             logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
             console.log(usageTracker.getSummary(actualModel));

@@ -1,6 +1,6 @@
 import type { ModelType } from '../../types/index.js';
 import type { StandardizedPage } from '../../types/markingRouter.js';
-import type { QuestionResult } from './MarkingExecutor.js';
+import type { QuestionResult } from '../../types/marking.js';
 import { SessionManagementService } from '../sessionManagementService.js';
 import { GradeBoundaryService } from './GradeBoundaryService.js';
 import { MarkingServiceLocator } from './MarkingServiceLocator.js';

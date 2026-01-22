@@ -7,8 +7,12 @@ import { questionDetectionService } from './questionDetectionService.js';
 import { createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
-import type { QuestionResult } from './MarkingExecutor.js';
-import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
+import type { QuestionResult } from '../../types/marking.js';
+import {
+  getBaseQuestionNumber,
+  normalizeSubQuestionPart,
+  generateGenericTitleFromText
+} from '../../utils/TextNormalizationUtils.js';
 
 // Simple step logging helper
 export function createStepLogger(totalSteps: number, startStep: number = 0) {
@@ -67,37 +71,8 @@ export function getShortSubjectName(qualification: string): string {
 
 // Common function to generate session titles for non-past-paper images
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
-  // console.log('[TITLE DEBUG] generateNonPastPaperTitle called. Input text length:', extractedQuestionText?.length, 'Mode:', mode);
-  // console.log('[TITLE DEBUG] Raw input text:', extractedQuestionText ? extractedQuestionText.substring(0, 100) + '...' : 'undefined');
-
-  if (extractedQuestionText && extractedQuestionText.trim()) {
-    let questionText = extractedQuestionText.trim();
-
-    // CLEANUP: Remove AI-generated markers and markdown (e.g. :::your-work, **Question 6**)
-    questionText = questionText.replace(/:::[^\s\n]+/g, '');
-    questionText = questionText.replace(/\*\*/g, '').replace(/###/g, '').trim();
-
-    // Handle cases where extraction failed after cleaning
-    if (!questionText ||
-      questionText.toLowerCase().includes('unable to extract') ||
-      questionText.toLowerCase().includes('no text detected') ||
-      questionText.toLowerCase().includes('extraction failed')) {
-      return `${mode} - ${new Date().toLocaleDateString()}`;
-    }
-
-    // Use the truncated question text directly
-    // Ensure newlines are replaced with spaces for clean title
-    const cleanText = questionText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-    const truncatedText = cleanText.length > 30
-      ? cleanText.substring(0, 30) + '...'
-      : cleanText;
-    const result = `${mode} - ${truncatedText}`;
-    return result;
-  } else {
-    // Fallback when no question text is extracted
-    const result = `${mode} - ${new Date().toLocaleDateString()}`;
-    return result;
-  }
+  // Use shared utility for consistent title generation
+  return generateGenericTitleFromText(extractedQuestionText, mode, 30);
 }
 
 // Helper function to setup progress tracker for question mode
@@ -370,14 +345,54 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
   });
 }
 
+
 // Helper function to generate session title
 export function generateSessionTitle(questionDetection: any, extractedQuestionText: string, mode: 'Question' | 'Marking'): string {
   if (questionDetection?.found && questionDetection.match) {
     let { board, paperCode, examSeries, questionNumber } = questionDetection.match;
     if (board === 'Pearson Edexcel') board = 'Edexcel';
-    return `${examSeries} ${paperCode} ${board} Q${questionNumber}`;
+
+    // Feature: Shorten subject names in title (e.g. Mathematics -> Maths)
+    // Sometimes 'Mathematics' appears in paperCode or we append it. 
+    // Here we just apply a general cleanup to the final string.
+    let title = `${examSeries} ${paperCode} ${board} Q${questionNumber}`;
+    title = title.replace(/Mathematics/gi, 'Maths');
+    return title;
   }
   return generateNonPastPaperTitle(extractedQuestionText, mode);
+}
+
+/**
+ * SANITIZE AI ID
+ * Purpose: Cleans up "hallucinated" formatting from the AI.
+ * * Scenarios handled:
+ * 1. "p0_q12_line_1"       -> "p0_q12_line_1" (Perfect)
+ * 2. "p 0 _ q 12 _ line_1" -> "p0_q12_line_1" (Space hallucination)
+ * 3. "line_1"              -> "line_1" (Legacy fallback, though discouraged)
+ */
+export function sanitizeAiLineId(rawId: string | undefined): string | null {
+  if (!rawId || typeof rawId !== 'string') return null;
+
+  // 1. Strip all whitespace (tabs, spaces, newlines)
+  const cleanId = rawId.replace(/\s+/g, '');
+
+  // 2. Validation Regex
+  // Matches: 
+  // - p{digits}_q{digits/chars}_line_{digits}  (Standard Structured)
+  // - p{digits}_ocr_{digits}                   (Standard Rescue)
+  // - block_{digits}_{digits}                  (Legacy/Instruction blocks)
+  const validPattern = /^(p\d+_q[\w]+_line_\d+|p\d+_ocr_\d+|block_\d+_\d+|line_\d+)$/;
+
+  if (validPattern.test(cleanId)) {
+    return cleanId;
+  }
+
+  // 3. Fallback: If AI returns just "line_1" but we needed "p0_q12_line_1",
+  // we cannot auto-guess the prefix here safely. 
+  // Better to return the clean ID and let the lookup fail (UNMATCHED) 
+  // than to guess wrong and violate "Instruction Blindness".
+
+  return cleanId;
 }
 
 // Helper function to get suggested follow-ups
@@ -1575,4 +1590,84 @@ export function logDetectionAudit(detectionResults: any[]): void {
   });
 
   console.log('------------------------------------------------------------------------------------------------------------------------------------\n');
+}
+/**
+ * Generates a diagnostic table comparing Student Work vs. AI Selection vs. Actual OCR Content
+ */
+export function generateDiagnosticTable(
+  annotations: any[],
+  ocrBlocks: any[]
+): string {
+  const headers = [
+    "Q#".padEnd(6),
+    "Student Work".padEnd(20),
+    "Status".padEnd(10), // New Field
+    "AI ID".padEnd(12),
+    "OCR Content (The Truth)".padEnd(30), // The Lookup
+    "Verdict".padEnd(20)
+  ];
+
+  let table = `\n📊 [DIAGNOSTIC] VERIFICATION CHECKLIST\n`;
+  table += `-${"-".repeat(headers.join(" | ").length)}\n`;
+  table += `${headers.join(" | ")}\n`;
+  table += `-${"-".repeat(headers.join(" | ").length)}\n`;
+
+  // Helper to verify if a match is "Desperate" (Integer Rule)
+  const isDesperate = (student: string, ocr: string) => {
+    const s = student.trim();
+    const o = ocr.trim();
+    // Logic: If student is number, OCR must contain it fully
+    if (/^\d+$/.test(s) && o !== s) return true;
+    return false;
+  };
+
+  annotations.forEach(anno => {
+    const subQ = `[${anno.subQuestion || '?'}]`.padEnd(6);
+    // Handle both casing (student_text from AI, studentText from internal)
+    const rawStudentText = anno.student_text || anno.meta?.studentText || anno.studentText || "";
+    const studentWork = (rawStudentText.length > 18
+      ? rawStudentText.substring(0, 15) + "..."
+      : rawStudentText).padEnd(20);
+
+    const status = (anno.ocr_match_status || "UNKNOWN").padEnd(10);
+    const aiId = (anno.line_id || "---").padEnd(12);
+
+    // 🔍 THE LOOKUP: Find what p0_ocr_6 actually says
+    let ocrContentRaw = "---";
+    if (anno.line_id) {
+      const block = ocrBlocks.find(b => b.id === anno.line_id);
+      if (block) {
+        ocrContentRaw = block.text;
+      } else {
+        ocrContentRaw = "❌ (ID NOT FOUND)";
+      }
+    }
+
+    const ocrContent = (ocrContentRaw.length > 28
+      ? ocrContentRaw.substring(0, 25) + "..."
+      : ocrContentRaw).replace(/\n/g, " ").padEnd(30);
+
+    // ⚖️ THE VERDICT LOGIC
+    let verdict = "";
+    if (anno.ocr_match_status === "UNMATCHED") {
+      verdict = "🛡️ SAFETY (Good)";
+    } else if (anno.ocr_match_status === "MATCHED") {
+      if (ocrContentRaw === "---" || ocrContentRaw.includes("NOT FOUND")) {
+        verdict = "⚠️ HALLUCINATION";
+      } else if (isDesperate(rawStudentText, ocrContentRaw)) {
+        verdict = "❌ DESPERATE MATCH";
+      } else {
+        verdict = "✅ SUCCESS";
+      }
+    } else if (anno.ocr_match_status === "VISUAL") {
+      verdict = "🎨 VISUAL OK";
+    } else {
+      verdict = "❓ UNKNOWN";
+    }
+
+    table += `${subQ} | ${studentWork} | ${status} | ${aiId} | ${ocrContent} | ${verdict}\n`;
+  });
+
+  table += `-${"-".repeat(headers.join(" | ").length)}\n`;
+  return table;
 }

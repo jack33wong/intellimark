@@ -85,6 +85,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       setInitialLoading(false);
       return;
     }
+    const startTime = performance.now();
+    console.log(`[PERF] Sidebar: Starting initializeSessions for user ${user.uid}`);
     setInitialLoading(true);
     setHasMore(true);
     try {
@@ -100,12 +102,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (activeTab === 'question') messageType = 'Question';
 
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken, undefined, messageType as any) as MarkingHistoryResponse;
+      const endTime = performance.now();
+      console.log(`[PERF] Sidebar: getMarkingHistoryFromSessions took ${(endTime - startTime).toFixed(2)}ms for 50 records`);
+
       if (response.success && response.sessions) {
         setChatSessions(response.sessions);
         if (response.sessions.length < 50) {
           setHasMore(false);
         }
-        response.sessions.forEach(session => simpleSessionService.updateSidebarSession(session));
+        simpleSessionService.updateSidebarSessionsBatch(response.sessions);
       } else {
         console.error('Failed to load chat sessions');
       }
@@ -113,6 +118,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       console.error('Failed to load chat sessions:', error);
     } finally {
       setInitialLoading(false);
+      const totalTime = performance.now() - startTime;
+      console.log(`[PERF] Sidebar: initializeSessions total time: ${totalTime.toFixed(2)}ms`);
     }
   }, [user?.uid, getAuthToken, activeTab]);
 
@@ -133,6 +140,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const loadMoreSessions = useCallback(async () => {
     if (!user?.uid || isLoadingMore || !hasMore || initialLoading) return;
 
+    const startTime = performance.now();
+    console.log(`[PERF] Sidebar: Starting loadMoreSessions`);
     setIsLoadingMore(true);
     try {
       const authToken = await getAuthToken();
@@ -146,6 +155,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (activeTab === 'question') messageType = 'Question';
 
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken, lastUpdatedAt as any, messageType as any) as MarkingHistoryResponse;
+      const endTime = performance.now();
+      console.log(`[PERF] Sidebar: getMarkingHistoryFromSessions (more) took ${(endTime - startTime).toFixed(2)}ms`);
 
       if (response.success && response.sessions) {
         if (response.sessions.length < 50) {
@@ -160,12 +171,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           return [...prev, ...uniqueNewSessions];
         });
 
-        response.sessions.forEach(session => simpleSessionService.updateSidebarSession(session));
+        simpleSessionService.updateSidebarSessionsBatch(response.sessions);
       }
     } catch (error) {
       console.error('Failed to load more sessions:', error);
     } finally {
       setIsLoadingMore(false);
+      const totalTime = performance.now() - startTime;
+      console.log(`[PERF] Sidebar: loadMoreSessions total time: ${totalTime.toFixed(2)}ms`);
     }
   }, [user?.uid, isLoadingMore, hasMore, initialLoading, chatSessions, getAuthToken, activeTab]);
 

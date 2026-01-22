@@ -11,6 +11,8 @@ import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 import UsageTracker from '../../utils/UsageTracker.js';
 import { MarkingPositioningService } from './MarkingPositioningService.js';
+import { sanitizeAiLineId, generateDiagnosticTable } from './MarkingHelpers.js';
+import { sanitizeAnnotations } from './MarkingSanitizer.js';
 
 
 
@@ -99,8 +101,8 @@ export async function executeMarkingForQuestion(
             (bbox[3] / 1000) * h
           ];
         }
-        // Percentage Scale Check (0-100) - For drawings or legacy classification
-        else if (bbox[0] < 100 && bbox[1] < 100 && (bbox[0] !== 0 || bbox[1] !== 0) && (ocrSource === 'classification' || result.content.includes('[DRAWING]'))) {
+        // Percentage Scale Check (0-100)
+        else if (bbox[0] < 100 && bbox[1] < 100 && (bbox[0] !== 0 || bbox[1] !== 0)) {
           bbox = [
             (bbox[0] / 100) * w,
             (bbox[1] / 100) * h,
@@ -110,7 +112,7 @@ export async function executeMarkingForQuestion(
         }
 
         return {
-          line_id: (result as any).sequentialId || `line_${stepIndex + 1}`,
+          line_id: (result as any).sequentialId || `p${pageIdx}_q${questionId}_line_${stepIndex + 1}`,
           pageIndex: pageIdx,
           globalBlockId: result.blockId,
           text: result.content,
@@ -134,7 +136,7 @@ export async function executeMarkingForQuestion(
           const blockPageIndex = (block as any).pageIndex ?? task.sourcePages[0] ?? 0;
 
           return {
-            line_id: `ocr_${ocrIdx + 1}`,
+            line_id: `p${blockPageIndex}_ocr_${ocrIdx + 1}`,
             pageIndex: blockPageIndex as number,
             globalBlockId: blockId as string,
             text: normalizedText,
@@ -150,7 +152,7 @@ export async function executeMarkingForQuestion(
       stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
         const rawText = block.mathpixLatex || block.googleVisionText || '';
         return {
-          line_id: `line_${stepIndex + 1}`,
+          line_id: `p${((block as any).pageIndex ?? task.sourcePages[0] ?? 0)}_q${questionId}_line_${stepIndex + 1}`,
           pageIndex: ((block as any).pageIndex ?? task.sourcePages[0] ?? 0) as number,
           globalBlockId: (block as any).globalBlockId as string | undefined,
           text: normalizeLaTeXSingleLetter(rawText),
@@ -176,7 +178,8 @@ export async function executeMarkingForQuestion(
       task.aiSegmentationResults.forEach((result, index) => {
         const clean = result.content.replace(/\s+/g, ' ').trim();
         if (clean && clean !== '--') {
-          ocrTextForPrompt += `${index + 1}. [${(result as any).sequentialId}] ${clean}\n`;
+          // ID Hidden: Force AI to look for IDs in RAW OCR BLOCKS (Rescue Layer)
+          ocrTextForPrompt += `${index + 1}. ${clean}\n`;
         }
       });
     }
@@ -195,18 +198,45 @@ export async function executeMarkingForQuestion(
     const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones);
     console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
-    const rawOcrBlocks = task.mathBlocks.map((block, idx) => ({
-      id: (block as any).globalBlockId,
-      text: block.mathpixLatex || block.googleVisionText || '',
-      pageIndex: (block as any).pageIndex ?? 0,
-      coordinates: block.coordinates,
-      isHandwritten: !!block.isHandwritten,
-      subQuestions: (block as any).subQuestions
-    }));
+    const rawOcrBlocks = task.mathBlocks.map((block, idx) => {
+      const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx + 1}`;
+      return {
+        ...block,
+        id: globalId,
+        text: block.mathpixLatex || block.googleVisionText || '',
+        pageIndex: (block as any).pageIndex ?? 0,
+        coordinates: block.coordinates,
+        isHandwritten: !!block.isHandwritten,
+        subQuestions: (block as any).subQuestions
+      };
+    });
+
+    // [DEBUG] Verify ID Generation Strategy
+    console.log('\n🔍 [ID-VERIFICATION] Checking Target IDs for Prompt Generation:');
+    console.log(`   👉 Question: Q${questionId} (Page ${task.sourcePages[0] ?? '?'})`);
+
+    // Check first 3 Structured Targets (Tier 1)
+    if (stepsDataForMapping.length > 0) {
+      console.log(`   ✅ Structured Targets (First 3 of ${stepsDataForMapping.length}):`);
+      stepsDataForMapping.slice(0, 3).forEach((t, i) => {
+        console.log(`      [${i}] ID: "${t.line_id}" | Text: "${(t.text || '').substring(0, 20)}..."`);
+      });
+    } else {
+      console.log('   ⚠️ No Structured Targets found.');
+    }
+
+    // Check first 3 Raw OCR Targets (Rescue Layer)
+    if (rawOcrBlocks && rawOcrBlocks.length > 0) {
+      console.log(`   ✅ Rescue Layer Targets (First 3 of ${rawOcrBlocks.length}):`);
+      rawOcrBlocks.slice(0, 3).forEach((t, i) => {
+        console.log(`      [${i}] ID: "${t.id}" | Text: "${(t.text || '').substring(0, 20)}..."`);
+      });
+    }
+    console.log('------------------------------------------------------------------\n');
 
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
-    const markingResult = await MarkingInstructionService.executeMarking({
+    const markingInputs = {
       imageData: task.imageData || '',
       images: task.images,
       model: model,
@@ -235,9 +265,31 @@ export async function executeMarkingForQuestion(
       sourceImageIndices: task.sourcePages,
       tracker: tracker,
       generalMarkingGuidance: task.markingScheme?.generalMarkingGuidance
-    });
+    };
+
+    const markingResult = await MarkingInstructionService.executeMarking(markingInputs);
+
+    // =========================================================================
+    // 🛡️ THE IRON DOME (Sanitization)
+    // Before we do ANYTHING else, we scrub the result for False Positives.
+    // =========================================================================
+    if (markingResult.annotations) {
+      markingResult.annotations = sanitizeAnnotations(
+        markingResult.annotations,
+        markingInputs.processedImage.rawOcrBlocks
+      );
+    }
+    // =========================================================================
+
+    // ✅ DIAGNOSTIC: Truth vs. Hallucination Table
+    console.log(generateDiagnosticTable(
+      markingResult.annotations || [],
+      markingInputs.processedImage.rawOcrBlocks
+    ));
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
+
+    const rawAnnotationsFromAI = JSON.parse(JSON.stringify(markingResult.annotations || []));
 
     if (!markingResult || !markingResult.annotations || !markingResult.studentScore) {
       throw new Error(`MarkingInstructionService returned invalid data for Q${questionId}`);
@@ -279,11 +331,16 @@ export async function executeMarkingForQuestion(
 
     // Fix IDs and resolve handwritten locks BEFORE calculating final positions
     let correctedAnnotations = explodedAnnotations.map(anno => {
-      // 1. Skip if already robustly linked to a line_ ID
-      const currentId = anno.line_id || anno.lineId || "";
-      if (currentId.startsWith('line_')) return anno;
+      // 1. Sanitize AI-provided ID
+      // This strips hallucinations like "p 0 _ q 12" -> "p0_q12"
+      const currentId = sanitizeAiLineId(anno.line_id || anno.lineId || "");
+      anno.line_id = currentId; // Update annotation with clean ID
 
       const sourceStep = stepsDataForMapping.find(s => s.line_id === currentId || s.globalBlockId === currentId);
+
+      // [REVERT V32] No longer skip line_ IDs. Allow them to flow into fuzzy snapping
+      // so we use Mathpix block coordinates instead of Gemini percentage coordinates.
+      // if (currentId.startsWith('line_')) return anno;
 
       // 2. Resolve Page Index
       if (sourceStep && sourceStep.pageIndex !== undefined) {
@@ -333,6 +390,7 @@ export async function executeMarkingForQuestion(
 
             if (betterMatch) {
               console.log(`      🎯 SUCCESS: Re-homed "${anno.text}" to "${betterMatch.text}" (ID: ${betterMatch.line_id})`);
+              (anno as any).aiMatchedId = currentId; // Preserve original ID (e.g., line_13) for transparency
               anno.line_id = betterMatch.line_id;
               anno.pageIndex = betterMatch.pageIndex;
               // Do NOT pre-fill bbox here, let Enrichment service resolve it fresh from the ID
@@ -525,7 +583,8 @@ export async function executeMarkingForQuestion(
       studentWork: (markingResult as any).cleanedOcrText || task.classificationStudentWork,
       databaseQuestionText: task.markingScheme?.databaseQuestionText || task.questionText,
       promptMarkingScheme: (markingResult as any).schemeTextForPrompt,
-      overallPerformanceSummary: (markingResult as any).overallPerformanceSummary
+      overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
+      rawAnnotations: rawAnnotationsFromAI
     };
 
   } catch (error) {
@@ -619,17 +678,37 @@ export function createMarkingTasksFromClassification(
     const allNodes = flattenQuestionTree(q);
 
     allNodes.forEach((node: any) => {
+      // ✅ POPULATE CLASSIFICATION BLOCKS (For Global Offset Calculation)
+      const nodeBox = node.box || node.region || node.rect || node.coordinates;
+      if (nodeBox) {
+        group.classificationBlocks.push({
+          id: `class_block_${baseQNum}_${node.part || 'main'}`,
+          text: node.text || '',
+          box: nodeBox,
+          pageIndex: node.pageIndex ?? currentQPageIndex
+        });
+      }
+
       if (node.studentWorkLines) {
-        node.studentWorkLines.forEach((l: any) => {
+        node.studentWorkLines.forEach((l: any, lineIdx: number) => {
           if (l.text === '[DRAWING]') return;
           const pIdx = l.pageIndex ?? node.pageIndex ?? currentQPageIndex;
           l.pageIndex = pIdx;
+
+          // GLOBAL ID: p{Page}_q{Question}_line_{Index}
+          const globalId = `p${pIdx}_q${baseQNum}_line_${lineIdx + 1}`;
+
+          // Update the line object itself (MANDATORY OVERRIDE)
+          l.id = globalId;
+          l.lineId = globalId;
+
           group.aiSegmentationResults.push({
             content: l.text,
             source: 'classification',
-            blockId: `classification_${baseQNum}_${node.part || 'main'}_${l.id || globalIdCounter.val++}`,
-            lineData: l,
-            sequentialId: l.id,
+            // Use the global ID for the blockId as well for consistency
+            blockId: globalId, // EXPLICIT Global ID
+            lineData: { ...l, id: globalId, lineId: globalId }, // Spread + Explicit Override to prevent shadowing
+            sequentialId: globalId, // EXPLICIT Global ID
             subQuestionLabel: node.part || 'main'
           });
         });
@@ -648,8 +727,9 @@ export function createMarkingTasksFromClassification(
               height: (node.studentDrawingPosition.height / 100) * pageDim.height
             };
           }
+          const lineGlobalId = `p${pIdx}_q${baseQNum}_line_drawing`;
           const line = {
-            id: `line_${globalIdCounter.val++}`,
+            id: lineGlobalId, // Global ID for drawing
             text: "[DRAWING]",
             pageIndex: pIdx,
             position: pos
@@ -658,9 +738,9 @@ export function createMarkingTasksFromClassification(
           group.aiSegmentationResults.push({
             content: "[DRAWING]",
             source: "classification",
-            blockId: `classification_drawing_${line.id}`,
+            blockId: lineGlobalId, // EXPLICIT Global ID
             lineData: line,
-            sequentialId: line.id,
+            sequentialId: lineGlobalId, // EXPLICIT Global ID
             subQuestionLabel: node.part || 'main'
           });
         }
@@ -688,7 +768,7 @@ export function createMarkingTasksFromClassification(
       if (pageOcr?.ocrData?.mathBlocks) {
         pageOcr.ocrData.mathBlocks.forEach((b: any) => {
           b.pageIndex = pageIndex;
-          b.globalBlockId = `block_${pageIndex}_${ocrIdx++}`;
+          b.globalBlockId = `p${pageIndex}_ocr_${ocrIdx++}`;
           allOcrBlocks.push(b);
         });
       }
@@ -703,9 +783,7 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    group.aiSegmentationResults.forEach((seg: any, idx: number) => {
-      seg.sequentialId = `line_${idx + 1}`;
-    });
+    // Global IDs (p0_q12_line_1) are now preserved. 
 
     let promptMainWork = "";
     let currentHeader = "";
@@ -717,7 +795,8 @@ export function createMarkingTasksFromClassification(
           promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
           currentHeader = seg.subQuestionLabel;
         }
-        promptMainWork += `${index + 1}. [${seg.sequentialId}] ${clean}\n`;
+        // ID Hidden: Force AI to look for IDs in RAW OCR BLOCKS (Rescue Layer)
+        promptMainWork += `${index + 1}. ${clean}\n`;
       }
     });
 

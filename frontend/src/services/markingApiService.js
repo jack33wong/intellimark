@@ -828,6 +828,51 @@ class SimpleSessionService {
     this.triggerSessionUpdate(session);
   }
 
+  updateSidebarSessionsBatch = (sessions) => {
+    if (!sessions || !Array.isArray(sessions)) return;
+
+    this.setState(prevState => {
+      const newSidebarSessions = [...prevState.sidebarSessions];
+
+      sessions.forEach(session => {
+        if (!session || (session.id && session.id.startsWith('temp-'))) return;
+
+        const existingIndex = newSidebarSessions.findIndex(s => s.id === session.id);
+        const existingSession = existingIndex > -1 ? newSidebarSessions[existingIndex] : {};
+        const mergedData = { ...existingSession, ...session };
+
+        const lightweightSession = {
+          id: mergedData.id,
+          title: mergedData.title,
+          messageType: mergedData.messageType,
+          createdAt: mergedData.createdAt,
+          updatedAt: mergedData.updatedAt || new Date().toISOString(),
+          favorite: mergedData.favorite,
+          pinned: mergedData.pinned,
+          rating: mergedData.rating,
+          lastMessage: (mergedData.messages && Array.isArray(mergedData.messages))
+            ? (mergedData.messages.slice().reverse().find(m => m.content && !m.isProcessing) || mergedData.lastMessage || null)
+            : (mergedData.lastMessage || null)
+        };
+
+        if (existingIndex > -1) {
+          newSidebarSessions[existingIndex] = lightweightSession;
+        } else {
+          newSidebarSessions.push(lightweightSession);
+        }
+      });
+
+      // Sort and slice
+      const sortedSessions = newSidebarSessions.sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      }).slice(0, this.MAX_SIDEBAR_SESSIONS);
+
+      return { sidebarSessions: sortedSessions };
+    });
+  }
+
   updateSession = async (sessionId, updates) => {
     try {
       const response = await apiClient.put(`/api/messages/session/${sessionId}`, updates);

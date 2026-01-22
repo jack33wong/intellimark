@@ -1,7 +1,8 @@
 import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import type { NormalizedMarkingScheme, MarkingInputs, MarkingExecutionResult } from '../../types/marking.js';
 import { getPrompt } from '../../config/prompts.js';
-import { normalizeLatexDelimiters, sanitizeOcrArtifacts } from '../../utils/TextNormalizationUtils.js';
+import { normalizeLatexDelimiters, sanitizeOcrArtifacts, normalizeTextForComparison, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
+import * as stringSimilarity from 'string-similarity';
 import { MarkingPromptService } from './MarkingPromptService.js';
 import { MarkingResultParser } from './MarkingResultParser.js';
 import { MarkingPositioningService } from './MarkingPositioningService.js';
@@ -21,8 +22,6 @@ import {
   fromLegacyFormat
 } from './AnnotationTransformers.js';
 // ========================================================================================
-
-
 
 // ========================= START: NORMALIZATION FUNCTION =========================
 function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
@@ -156,8 +155,6 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
 // Import the formatting function from prompts.ts
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
-
-
 export class MarkingInstructionService {
   private static hasLoggedDebugPrompt = false;
   public static lastFullPrompt: { systemPrompt: string; userPrompt: string } | null = null;
@@ -166,33 +163,175 @@ export class MarkingInstructionService {
     MarkingInstructionService.hasLoggedDebugPrompt = false;
   }
 
-
+  /**
+   * Helper to extract Y coordinate safely from various block formats
+   * 
+   */
+  private static getBlockY(block: any): number | null {
+    if (!block) return null;
+    if (block.coordinates?.y !== undefined) return block.coordinates.y;
+    if (block.box) {
+      if (Array.isArray(block.box) && block.box.length > 1) return block.box[1]; // [x, y, w, h]
+      if (block.box.y !== undefined) return block.box.y;
+    }
+    if (block.geometry?.y !== undefined) return block.geometry.y;
+    return null;
+  }
 
   /**
    * DATA INGESTION PROTOCOL
    * We ONLY tag blocks. We DO NOT delete them or sever links.
    * This respects the "Trust AI" design.
    */
-  private static sanitizeOcrBlocks(blocks: any[], questionText: string | null): any[] {
+  private static sanitizeOcrBlocks(blocks: any[], questionText: string | null, baseQNum?: string): any[] {
     if (!blocks || !Array.isArray(blocks)) return [];
+
+    // =====================================================================
+    // 🛡️ ZONE FILTERING (Vertical Slicing)
+    // =====================================================================
+    // Logic: Find "Q12". Find next "Q[x]". Delete everything outside.
+
+    let yStart = 0;
+    let yEnd = Number.MAX_VALUE; // Default to bottom of page
+    const qLandmarkRegex = /^Q\s*(\d+)/i;
+
+    // Pre-calculate Y for all blocks to avoid repeated lookups
+    const blocksWithY = blocks.map(b => ({ ...b, _y: MarkingInstructionService.getBlockY(b) || 0 }));
+
+    if (baseQNum) {
+      // 1. Sort blocks by Y to ensure reliable linear scanning
+      const sortedBlocks = [...blocksWithY].sort((a, b) => a._y - b._y);
+
+      // 2. Find the Current Question Header (e.g., "Q12")
+      const currentHeaderBlock = sortedBlocks.find(b => {
+        // Robust text access for landmark checking
+        const content = b.text || b.mathpixLatex || b.latex || b.content || '';
+        const m = content.match(qLandmarkRegex);
+        // Match "12" against "12"
+        return m && m[1] === baseQNum;
+      });
+
+      if (currentHeaderBlock) {
+        yStart = currentHeaderBlock._y - 10; // Buffer up (include header)
+      }
+
+      // 3. Find the NEXT Question Header (Any Q[number] that appears physically below)
+      if (yStart > 0) {
+        const nextHeaderBlock = sortedBlocks.find(b => {
+          // Robust text access
+          const content = b.text || b.mathpixLatex || b.latex || b.content || '';
+
+          // Must be physically below the start + small buffer
+          if (b._y <= yStart + 50) return false;
+
+          // Must match Q[digit]
+          const m = content.match(qLandmarkRegex);
+          if (!m) return false;
+
+          // Exclude the current question number (e.g. repeated "Q12" label)
+          return m[1] !== baseQNum;
+        });
+
+        if (nextHeaderBlock) {
+          yEnd = nextHeaderBlock._y - 10; // Buffer up (exclude next header)
+        }
+      }
+    }
+    // =====================================================================
+
     const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normalizedQText = normalize(questionText || '');
-    const structuralNoiseRegex = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn/i;
+    const structuralNoiseRegex = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn|\\\( \_+ \\\)|_+/i;
     const instructionKeywordRegex = /^[\W\d_]*[a-z]?[\W\d_]*(Draw|Calculate|Explain|Show that|Work out|Write down|Describe|Complete|Label|Sketch|Plot|Construct)\b/i;
 
-    return blocks.map(b => {
-      if (b.text && structuralNoiseRegex.test(b.text)) return null;
-      if (b.text && b.text.length < 2 && !/\d/.test(b.text) && !/[a-zA-Z]/.test(b.text)) return null;
+    return blocksWithY.map(b => {
+      // 1. Apply Vertical Zone Filter
+      if (b._y < yStart) return null; // Too high (Previous Question)
+      if (b._y >= yEnd) return null;  // Too low (Next Question)
+
+      // 2. Data Normalization (Fix "Rubbish Log")
+      // Ensure 'text' property is populated for the AI and Logger
+      const content = b.text || b.mathpixLatex || b.latex || b.content || '';
+
+      if (!content || structuralNoiseRegex.test(content)) return null;
+
+      // Filter other question landmarks (Redundant safety check)
+      if (baseQNum) {
+        const landmarkMatch = content.match(qLandmarkRegex);
+        if (landmarkMatch && landmarkMatch[1] !== baseQNum) return null;
+      }
+
+      if (content.length < 2 && !/\d/.test(content) && !/[a-zA-Z]/.test(content)) return null;
 
       let isLikelyInstruction = false;
-      if (b.text && b.text.length > 8 && normalizedQText.includes(normalize(b.text))) isLikelyInstruction = true;
-      if (!isLikelyInstruction && b.text && instructionKeywordRegex.test(b.text)) isLikelyInstruction = true;
+      const normalizedBText = normalize(content);
+      if (content.length > 8 && normalizedBText.length > 3 && normalizedQText.includes(normalizedBText)) isLikelyInstruction = true;
+      if (!isLikelyInstruction && content && instructionKeywordRegex.test(content)) isLikelyInstruction = true;
+
+      // Cleaned Block with Populated Text (NO Regex Tagging)
+      const cleanedBlock = { ...b, text: content };
+      delete (cleanedBlock as any)._y; // Clean up temp property
 
       if (isLikelyInstruction) {
-        return { ...b, text: `${b.text} [PRINTED_INSTRUCTION]` };
+        return { ...cleanedBlock, text: `${content} [PRINTED_INSTRUCTION]` };
       }
-      return b;
+      return cleanedBlock;
     }).filter(b => b !== null);
+  }
+
+  private static extractLiveQuestion(blocks: any[], baseQNum: string): string {
+    let questionTextBlocks: string[] = [];
+    let foundStart = false;
+    const qLandmarkRegex = new RegExp(`^Q\\s*${baseQNum}`, 'i');
+
+    for (const b of blocks) {
+      const text = (b.text || b.mathpixLatex || '').trim(); // Robust access
+      if (!text) continue;
+
+      if (qLandmarkRegex.test(text)) {
+        foundStart = true;
+        const content = text.replace(qLandmarkRegex, '').replace(/^[.\s:]+/, '').trim();
+        if (content) questionTextBlocks.push(content);
+        continue;
+      }
+
+      if (foundStart) {
+        if (text.startsWith('Q') && /^\d+/.test(text.substring(1))) break;
+        if (b.isHandwritten) break;
+        if (text.includes('[PRINTED_INSTRUCTION]')) {
+          questionTextBlocks.push(text.replace('[PRINTED_INSTRUCTION]', '').trim());
+        } else {
+          questionTextBlocks.push(text);
+        }
+        if (questionTextBlocks.length >= 5) break;
+      }
+    }
+    return questionTextBlocks.join(' ').trim();
+  }
+
+  // ... (Remaining helper methods unchanged)
+  private static extractBudgetFromBlocks(blocks: any[], baseQNum?: string): number | null {
+    let active = !baseQNum;
+    const qLandmarkRegex = baseQNum ? new RegExp(`^Q\\s*${baseQNum}`, 'i') : null;
+
+    for (const b of blocks) {
+      const text = (b.text || '');
+      if (qLandmarkRegex && qLandmarkRegex.test(text)) active = true;
+      if (!active) continue;
+
+      const match = text.match(/\(Total\s+(\d+)\s+marks\)/i) || text.match(/(\d+)\s+marks/i);
+      if (match) return parseInt(match[1]);
+    }
+    return null;
+  }
+
+  private static calculateBasicSimilarity(s1: string, s2: string): number {
+    if (!s1 || !s2) return 0;
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    const n1 = norm(s1);
+    const n2 = norm(s2);
+    if (!n1 || !n2) return 0;
+    return stringSimilarity.compareTwoStrings(n1, n2);
   }
 
   private static formatGeneralMarkingGuidance(guidance: any): string {
@@ -205,12 +344,11 @@ export class MarkingInstructionService {
       guidance.generalPrinciples.forEach((p: string) => formatted += `- ${p}\n`);
       formatted += '\n';
     }
-    // (logic remains same for other parts if needed, but following snippet's lead)
     return formatted;
   }
 
   /**
-   * Execute complete marking flow - moved from LLMOrchestrator
+   * Execute complete marking flow
    */
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & {
     usage?: { llmTokens: number };
@@ -219,45 +357,26 @@ export class MarkingInstructionService {
     schemeTextForPrompt?: string;
     overallPerformanceSummary?: string;
   }> {
-    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker } = inputs;
-
-    // Debug log removed
-
-
-    // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
+    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker, allowedPageUnion } = inputs;
 
     try {
-      // Get cleaned OCR data from OCRPipeline (now includes all OCR cleanup)
       let cleanDataForMarking = (processedImage as any).cleanDataForMarking;
-      // ========================= START OF FIX =========================
-      // Use the plain text OCR text that was passed in, not the JSON format from OCR service
-      const rawOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText;
-
-      // Sanitize immediately to remove alignment artifacts (SYSTEMATIC FIX)
+      // Robustly get raw OCR text
+      const rawOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText || '';
       const cleanedOcrText = sanitizeOcrArtifacts(rawOcrText);
 
-      // ========================== END OF FIX ==========================
-      const unifiedLookupTable = (processedImage as any).unifiedLookupTable;
-
       if (!cleanDataForMarking || !cleanDataForMarking.steps || cleanDataForMarking.steps.length === 0) {
-        // For pure drawing questions (like Q21 graph transformations), there may be no OCR text
-        // Allow marking to proceed with empty steps - the AI will evaluate based on image only
         console.log('[MARKING INSTRUCTION] No OCR steps found - proceeding with image-only marking');
         cleanDataForMarking = { steps: [], rawOcrText: '' };
       }
 
-      // Step 1: Generate raw annotations from cleaned OCR text
-      // Normalize the marking scheme data to a standard format
-      // CRITICAL: Ensure questionDetection only contains the current question's scheme
-      // If it's an array or contains multiple schemes, extract only the one for this question
       let questionDetectionForNormalization = questionDetection;
       if (questionDetection && Array.isArray(questionDetection)) {
-        // If it's an array, find the one matching the current question
         const currentQNum = inputQuestionNumber || 'Unknown';
         questionDetectionForNormalization = questionDetection.find((q: any) =>
           q.questionNumber === currentQNum ||
           String(q.questionNumber || '').replace(/[a-z]/i, '') === String(currentQNum).replace(/[a-z]/i, '')
-        ) || questionDetection[0]; // Fallback to first if not found
+        ) || questionDetection[0];
       }
 
       const normalizedScheme = normalizeMarkingScheme(questionDetectionForNormalization);
@@ -267,11 +386,8 @@ export class MarkingInstructionService {
       const classificationBlocks = (processedImage as any).classificationBlocks;
       const subQuestionMetadata = (processedImage as any).subQuestionMetadata;
 
-      // =======================================================================
-      // 🔍 [COORD-DEBUG] LOGGING BLOCK
-      // =======================================================================
+      // Debugs
       console.log(`\n🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...`);
-
       let debugQBox = null;
       if (questionDetectionForNormalization) {
         debugQBox = questionDetectionForNormalization.region ||
@@ -288,7 +404,6 @@ export class MarkingInstructionService {
       } else {
         console.log(`   ⚠️ ClassificationBlocks array is empty.`);
       }
-      // =======================================================================
 
       let offsetX = 0;
       let offsetY = 0;
@@ -311,7 +426,6 @@ export class MarkingInstructionService {
         offsetY
       );
 
-      // Build position map from studentWorkLines for fast lookup during enrichment
       const positionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
       if (studentWorkLines.length > 0) {
         studentWorkLines.forEach(line => {
@@ -319,35 +433,33 @@ export class MarkingInstructionService {
         });
       }
 
-
       const annotationData = await this.generateFromOCR(
         model,
-        cleanedOcrText, // Use the plain text directly instead of JSON
-        normalizedScheme, // Pass the normalized scheme instead of raw questionDetection
-        questionDetection?.match, // Pass exam info for logging
-        questionText, // Pass question text from fullExamPapers
-        rawOcrBlocks, // Pass raw OCR blocks for enhanced marking
-        classificationStudentWork, // Pass classification student work for enhanced marking
-        inputQuestionNumber, // Pass question number (may include sub-question part)
-        subQuestionMetadata, // Pass sub-question metadata for grouped sub-questions
-        inputs.generalMarkingGuidance, // Pass general marking guidance
-        _imageData, // Pass image data for edge cases where Drawing Classification failed
-        images, // Pass array of images for multi-page questions
-        positionMap, // Pass position map for line-to-position lookup
-        sourceImageIndices, // Pass source image indices for multi-page context
-        inputs.subQuestionPageMap, // NEW: Pass sub-question page map hint
-        tracker  // Pass tracker for auto-recording
+        cleanedOcrText,
+        normalizedScheme,
+        questionDetection?.match,
+        questionText,
+        rawOcrBlocks,
+        classificationStudentWork,
+        inputQuestionNumber,
+        subQuestionMetadata,
+        inputs.generalMarkingGuidance,
+        _imageData,
+        images,
+        positionMap,
+        sourceImageIndices,
+        inputs.subQuestionPageMap,
+        allowedPageUnion,
+        tracker,
+        cleanDataForMarking.steps
       );
 
-      // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
       if (!annotationData.annotations || !Array.isArray(annotationData.annotations)) {
         throw new Error('AI failed to generate valid annotations array');
       }
 
-
       if (annotationData.annotations.length === 0) {
-        console.warn(`[MARKING INSTRUCTION] ⚠️ AI returned 0 annotations - likely no valid student work or wrong blocks assigned`);
-        // Return empty annotations instead of throwing - allows pipeline to continue
+        console.warn(`[MARKING INSTRUCTION] ⚠️ AI returned 0 annotations`);
         return {
           annotations: [],
           usage: {
@@ -369,27 +481,20 @@ export class MarkingInstructionService {
       );
 
       const correctedAnnotations = annotationData.annotations.map((anno: any) => {
-        // If AI linked to an Instruction Block...
         if (anno.line_id && forbiddenBlockIds.has(anno.line_id)) {
           console.log(`   🛡️ [REDIRECT] Intercepted link to Instruction [${anno.line_id}]`);
 
-          // Try to find the student line that matches the annotation text
           const studentText = (anno.student_text || anno.text || '').trim();
           let bestMatchKey = null;
 
-          // 1. Strict Exact Match (Priority)
           if (positionMap.has(studentText)) {
             bestMatchKey = studentText;
           } else {
-            // 2. Strict Fuzzy (Only allow if length is identical or contained without extra digits)
-            // Prevents "0.4" matching "0.45"
             for (const [key, _] of positionMap.entries()) {
-              // Check for exact substring match
               if (key.includes(studentText) || studentText.includes(key)) {
-                // REJECTION RULE: If numeric, lengths must differ by 0 to avoid precision drift
                 const isNumeric = /^\d+(\.\d+)?$/.test(studentText) && /^\d+(\.\d+)?$/.test(key);
                 if (isNumeric && Math.abs(key.length - studentText.length) > 0) {
-                  continue; // Skip "0.4" vs "0.45"
+                  continue;
                 }
                 bestMatchKey = key;
                 break;
@@ -401,8 +506,6 @@ export class MarkingInstructionService {
             const newPos = positionMap.get(bestMatchKey);
             console.log(`      ↳ Redirected to Student Line "${bestMatchKey}" at (${newPos?.x}, ${newPos?.y})`);
 
-            // Mutate to Visual at Correct Position
-            // IMPORTANT: Using a unique line_id to bypass the downstream Spatial Sanitizer/Zone Snap logic
             return {
               ...anno,
               line_id: `visual_redirect_${Date.now()}_${Math.random()}`,
@@ -411,35 +514,30 @@ export class MarkingInstructionService {
               reasoning: `[System: Redirected to Handwriting] ${anno.reasoning}`
             };
           } else {
-            // Fallback: Just detach to avoid highlighting the header
-            // V26 Fix: Preserve the AI's intended status (e.g. MATCHED) instead of forcing VISUAL
             return { ...anno, line_id: null, ocr_match_status: anno.ocr_match_status || "MATCHED" };
           }
         }
         return anno;
       });
 
-      // ========================= NEW: IMMUTABLE ANNOTATION PIPELINE =========================
-      // Replace legacy mutable enrichment with type-safe immutable pipeline
-
+      // Immutable Pipeline
       const rawAiAnnotations: RawAIAnnotation[] = correctedAnnotations.map((anno: any) => {
         return {
           text: anno.text,
           pageIndex: anno.pageIndex,
           subQuestion: anno.subQuestion,
           visual_position: anno.visual_position,
-          line_id: anno.line_id || anno.lineId, // Unified Standard
+          line_id: anno.line_id || anno.lineId,
           student_text: anno.student_text,
           classification_text: anno.classification_text,
           action: anno.action,
           reasoning: anno.reasoning,
           line_index: anno.line_index,
-          ocr_match_status: anno.ocr_match_status, // NEW: Preserve AI's match status
-          bbox: anno.bbox // NEW: Preserve pre-calculated bbox
+          ocr_match_status: anno.ocr_match_status,
+          bbox: anno.bbox
         };
       });
 
-      // Use immutable annotation pipeline for page index safety
       const immutableAnnotations = MarkingInstructionService.processAnnotationsImmutable(
         rawAiAnnotations,
         sourceImageIndices || [0],
@@ -447,24 +545,15 @@ export class MarkingInstructionService {
         studentWorkLines
       );
 
-      // Convert back to plain objects (now preserves studentText, lineIndex, classificationText)
       const enrichedAnnotations = MarkingInstructionService.convertToLegacyFormat(immutableAnnotations);
 
-      // ======================================================================================
-
-      // 3. Stack overlapping visual annotations (Q11 fix)
-      // Import the helper (assumes it's exported)
       const { applyVisualStacking } = await import('./AnnotationTransformers.js');
       const stackedAnnotations = applyVisualStacking(enrichedAnnotations);
-
-      // FIX: Sort annotations by step_id sequence (Robust Numeric Sort)
-      // Ensures reading order (e.g., block_1_4, block_1_5, block_1_6)
 
       stackedAnnotations.sort((a: any, b: any) => {
         const idA = a.line_id || '';
         const idB = b.line_id || '';
 
-        // Extract numbers block_{page}_{index} or line_{index}
         const matchA = idA.match(/block_(\d+)_(\d+)/);
         const matchB = idB.match(/block_(\d+)_(\d+)/);
 
@@ -492,36 +581,18 @@ export class MarkingInstructionService {
       };
     } catch (error) {
       console.error('❌ Marking flow failed:', error);
-      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
-      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-
-      // Throw the real error instead of failing silently
       throw new Error(`Marking flow failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  /**
-   * NEW: Process annotations using immutable page index architecture
-   * 
-   * This is the new type-safe approach that prevents coordinate system confusion.
-   * Returns ImmutableAnnotation[] which can be converted to legacy format if needed.
-   *
-   * @param aiAnnotations - Raw annotations from AI response
-   * @param sourcePages - Global page indices for mapping
-   * @param ocrBlocks - OCR blocks for bbox enrichment (optional)
-   * @param studentWorkLines - Student work lines for drawing fallback (optional)
-   * @returns Fully processed immutable annotations
-   */
+  // ... (processAnnotationsImmutable, convertToLegacyFormat, replaceCaoWithAnswer, replaceCaoInScheme unchanged) ...
   static processAnnotationsImmutable(
     aiAnnotations: RawAIAnnotation[],
     sourcePages: readonly number[],
     ocrBlocks?: readonly OCRBlock[],
     studentWorkLines?: Array<{ text: string, position?: any }>
   ): readonly ImmutableAnnotation[] {
-    // Convert numbers to branded GlobalPageIndex types
     const typedSourcePages = sourcePages.map(p => GlobalPageIndex.from(p));
-
-    // Run immutable transformation pipeline
     const immutableAnnotations = processAnnotations(
       aiAnnotations,
       {
@@ -530,35 +601,15 @@ export class MarkingInstructionService {
         studentWorkLines
       }
     );
-
     return immutableAnnotations;
   }
 
-  /**
-   * NEW: Helper to convert immutable annotations back to legacy format
-   * Used for backward compatibility during migration
-   */
   static convertToLegacyFormat(
     immutableAnnotations: readonly ImmutableAnnotation[]
   ): any[] {
     return immutableAnnotations.map(toLegacyFormat);
   }
 
-  // Use shared normalization helper from TextNormalizationUtils
-
-  /**
-   * Formats the marking scheme into a concise text-based format for the AI prompt.
-   * Handles both single questions and grouped sub-questions.
-   * Format:
-   * [Label] [MAX: X]
-   * - Mark: Criteria
-   */
-  /*
-   * Helper to replace "cao" with the actual answer value if available.
-   * Performs a case-insensitive, whole-word replacement:
-   * "A1: cao" -> "A1: 21"
-   * "B1: cao (must be positive)" -> "B1: 21 (must be positive)"
-   */
   private static replaceCaoWithAnswer(markText: string, normalizedScheme: NormalizedMarkingScheme, subKey?: string): string {
     if (!markText) return '';
     const caoRegex = /\bcao\b/i;
@@ -574,10 +625,6 @@ export class MarkingInstructionService {
     return markText;
   }
 
-  /**
-   * Mutates the normalizedScheme in-place to replace 'cao' with actual answers.
-   * This ensures consistency between the prompt and the persisted marking logic.
-   */
   private static replaceCaoInScheme(normalizedScheme: NormalizedMarkingScheme): void {
     if (normalizedScheme.subQuestionMarks) {
       Object.keys(normalizedScheme.subQuestionMarks).forEach(subQ => {
@@ -590,15 +637,12 @@ export class MarkingInstructionService {
         }
       });
     }
-    // ... (main marks logic)
     if (normalizedScheme.marks) {
       normalizedScheme.marks.forEach((m: any) => {
         if (m.answer) m.answer = this.replaceCaoWithAnswer(m.answer, normalizedScheme);
       });
     }
   }
-
-
 
   static async generateFromOCR(
     model: ModelType,
@@ -611,42 +655,28 @@ export class MarkingInstructionService {
     inputQuestionNumber?: string,
     subQuestionMetadata?: { hasSubQuestions: boolean; subQuestions: Array<{ part: string; text?: string }>; subQuestionNumbers?: string[] },
     generalMarkingGuidance?: any,
-    imageData?: string, // Image data for edge cases where Drawing Classification failed
-    images?: string[], // Array of images for multi-page questions
-    positionMap?: Map<string, { x: number; y: number; width: number; height: number }>, // NEW: Position map for drawing fallback
-    sourceImageIndices?: number[], // NEW: Source image indices for drawing fallback
-    subQuestionPageMap?: Record<string, number[]>, // NEW: Explicit mapping of sub-question part -> pageIndex(es)
-    allowedPageUnion?: number[], // NEW: Union of all pages for the main question
-    tracker?: any // NEW: UsageTracker for tracking LLM tokens
+    imageData?: string,
+    images?: string[],
+    positionMap?: Map<string, { x: number; y: number; width: number; height: number }>,
+    sourceImageIndices?: number[],
+    subQuestionPageMap?: Record<string, number[]>,
+    allowedPageUnion?: number[],
+    tracker?: any,
+    cleanStudentWorkSteps?: any[]
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
     const formattedOcrText = MarkingPromptService.formatOcrTextForPrompt(ocrText);
     const formattedGeneralGuidance = MarkingPromptService.formatGeneralMarkingGuidance(generalMarkingGuidance);
     const { AI_PROMPTS } = await import('../../config/prompts.js');
 
+    const currentQNum = inputQuestionNumber || normalizedScheme?.questionNumber || 'Unknown';
+    const baseQNum = String(currentQNum).replace(/[a-z]/i, '');
+    const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '', baseQNum);
+
+    // ❌ REMOVED INJECTION LOGIC
+
     const hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
       (normalizedScheme.marks.length > 0 || (normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0));
-
-    const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '');
-
-    // Upstream Strategy: Inject Classification IDs into the OCR pool
-    if (sanitizedBlocks && classificationStudentWork) {
-      try {
-        const studentWork = JSON.parse(classificationStudentWork);
-        const steps = studentWork.steps || [];
-        steps.forEach((step: any, idx: number) => {
-          const lineId = `line_${idx + 1}`;
-          if (!sanitizedBlocks.some(b => b.id === lineId)) {
-            sanitizedBlocks.push({
-              id: lineId,
-              text: step.text,
-              pageIndex: step.pageIndex || 0,
-              isHandwritten: true
-            });
-          }
-        });
-      } catch (e) { }
-    }
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -660,8 +690,8 @@ export class MarkingInstructionService {
       schemeText = MarkingPromptService.formatMarkingSchemeForPrompt(normalizedScheme);
 
       let structuredQuestionText = '';
-      const currentQNum = inputQuestionNumber || normalizedScheme.questionNumber || 'Unknown';
-      const baseQNum = String(currentQNum).replace(/[a-z]/i, '');
+      const liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
+
       if (questionText) structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
       if (normalizedScheme.subQuestionTexts) {
         Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
@@ -678,7 +708,7 @@ export class MarkingInstructionService {
         schemeText,
         classificationStudentWork || 'No student work provided',
         sanitizedBlocks,
-        structuredQuestionText.trim() || questionText || 'No question text provided',
+        structuredQuestionText.trim() || questionText || liveQuestion || classificationStudentWork || 'No question text provided',
         subQuestionPageMap as any,
         formattedGeneralGuidance,
         normalizedScheme.isGeneric === true
@@ -689,8 +719,27 @@ export class MarkingInstructionService {
       userPrompt = basicPrompt.user(formattedOcrText, classificationStudentWork || 'No student work provided');
     }
 
-    const questionNumber = inputQuestionNumber || normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
-    MarkingPromptService.logFullPrompt(questionNumber, systemPrompt, userPrompt);
+    const logUserPrompt = process.env.LOG_AI_MARKING_USER_PROMPT === 'true';
+    const logSystemPrompt = process.env.LOG_AI_MARKING_SYSTEM_PROMPT === 'true';
+    const logResponse = process.env.LOG_AI_MARKING_RESPONSE === 'true';
+
+    if (logUserPrompt || logSystemPrompt) {
+      console.log('\n🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:');
+      console.log('==================================================================');
+      if (logSystemPrompt) {
+        console.log('SYSTEM PROMPT:\n', systemPrompt);
+        if (logUserPrompt) console.log('------------------------------------------------------------------');
+      } else {
+        console.log('SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)');
+        if (logUserPrompt) console.log('------------------------------------------------------------------');
+      }
+
+      if (logUserPrompt) {
+        console.log('USER PROMPT:\n', userPrompt);
+      }
+      console.log('==================================================================\n');
+    }
+
     MarkingInstructionService.lastFullPrompt = { systemPrompt, userPrompt };
 
     const { ModelProvider } = await import('../../utils/ModelProvider.js');
@@ -709,6 +758,14 @@ export class MarkingInstructionService {
       }
     } else {
       res = await ModelProvider.callText(systemPrompt, userPrompt, model, true, tracker, 'marking');
+    }
+
+    if (logResponse) {
+      console.log('\n========================================');
+      console.log('[LOG-DEBUG] Raw AI MARKING JSON Response');
+      console.log('----------------------------------------');
+      console.log(res.content);
+      console.log('========================================\n');
     }
 
     const jsonString = MarkingResultParser.extractJsonFromResponse(res.content);

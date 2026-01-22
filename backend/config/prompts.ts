@@ -154,11 +154,18 @@ Do NOT search for work on other pages for these sub-questions, even if you see a
 ` : ''}
  
 ## RAW OCR BLOCKS
-Use these IDs to map the student's work. Match them yourself based on the content.
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
 
 ${rawOcrBlocks && rawOcrBlocks.length > 0 ? (
           rawOcrBlocks.map(b => `[${b.id}]: "${b.text.replace(/\n/g, ' ')}"`).join('\n')
         ) : 'No raw OCR blocks available.'}
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
 `,
     },
 

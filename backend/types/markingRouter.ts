@@ -20,6 +20,7 @@ export interface PageOcrResult {
   pageIndex: number;
   ocrData: OCRResult;
   classificationText?: string;
+  classificationResult?: any; // NEW: For accessing detailed question/sub-question structure
 }
 
 // Types for segmentation

@@ -729,15 +729,16 @@ export class FirestoreService {
         sessionsRef = sessionsRef.startAfter(lastUpdatedAt);
       }
 
-      sessionsRef = sessionsRef.limit(limit);
-
+      const fetchStart = Date.now();
       const snapshot = await sessionsRef.get();
+      const fetchDuration = Date.now() - fetchStart;
 
       if (snapshot.empty) {
         return [];
       }
 
       const sessions = [];
+      const processStart = Date.now();
 
       for (const doc of snapshot.docs) {
         const sessionData = doc.data();
@@ -774,7 +775,6 @@ export class FirestoreService {
           messages: unifiedMessages.map((msg: any) => {
             // HYDRATION: Ensure progressData exists for AI messages (same as getUnifiedSession)
             if (msg.role === 'assistant' && !msg.progressData) {
-              // Robust detection for marking messages (check score or explicit type)
               const isMarkingMessage = msg.studentScore ||
                 msg.type === 'marking_annotated' ||
                 msg.type === 'marking_original';
@@ -785,8 +785,21 @@ export class FirestoreService {
                 msg.progressData = createChatProgressData(true);
               }
             }
-            return msg;
-          }), // Include the actual messages array
+            // Optimization: Strip heavy fields (annotations, ocrResult, markingData) from list view
+            return {
+              id: msg.id || msg.messageId,
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              imageLink: msg.imageLink,
+              imageDataArray: msg.imageDataArray,
+              originalFileName: msg.originalFileName,
+              type: msg.type,
+              studentScore: msg.studentScore,
+              detectedQuestion: msg.detectedQuestion,
+              progressData: msg.progressData
+            };
+          }),
           detectedQuestion: sessionData.detectedQuestion || null, // Include detectedQuestion for Library page
           lastMessage: lastMessage ? {
             content: lastMessage.content,
@@ -807,6 +820,9 @@ export class FirestoreService {
         const timeB = new Date(b.updatedAt || 0).getTime();
         return timeB - timeA; // Descending order
       });
+
+      const processDuration = Date.now() - processStart;
+      console.log(`[PERF] getUserUnifiedSessions: Fetch ${fetchDuration}ms, Process ${processDuration}ms for ${sessions.length} docs`);
 
       return sessions;
     } catch (error) {

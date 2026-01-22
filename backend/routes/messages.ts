@@ -765,12 +765,16 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
       });
     }
 
+    const startTime = Date.now();
     const sessions = await FirestoreService.getUserUnifiedSessions(userId, limit, lastUpdatedAt, messageType);
+    const duration = Date.now() - startTime;
+    console.log(`[PERF] GET /sessions/${userId} took ${duration}ms for ${sessions.length} sessions (limit: ${limit})`);
 
     return res.json({
       success: true,
       sessions,
-      count: sessions.length
+      count: sessions.length,
+      perfMs: duration
     });
   } catch (error) {
     console.error('Failed to get user UnifiedSessions:', error);

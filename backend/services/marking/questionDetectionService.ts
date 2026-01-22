@@ -8,14 +8,15 @@
  */
 
 import { getFirestore } from '../../config/firebase.js';
-import { normalizeTextForComparison, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
+import { normalizeTextForComparison, normalizeSubQuestionPart, generateGenericTitleFromText } from '../../utils/TextNormalizationUtils.js';
 import * as stringSimilarity from 'string-similarity';
 
 // --- Constants ---
 const COMMON_STOP_WORDS = new Set([
   'the', 'and', 'is', 'in', 'it', 'of', 'to', 'for', 'a', 'an', 'on', 'with', 'at', 'by',
   'from', 'up', 'down', 'out', 'that', 'this', 'write', 'down', 'answer', 'total', 'marks', 'question', 'show', 'give', 'your', 'reason', 'explain', 'state',
-  'describe', 'value', 'table', 'graph', 'grid', 'space', 'left', 'blank'
+  'describe', 'value', 'table', 'graph', 'grid', 'space', 'left', 'blank',
+  'work', 'find', 'calculate', 'solve', 'simplify', 'evaluate', 'complete', 'fill', 'draw', 'label'
 ]);
 
 // Semantic mapping for LaTeX commands to English keywords
@@ -436,7 +437,8 @@ export class QuestionDetectionService {
       clean = clean.replace(regex, ` ${replacement} `);
     });
 
-    clean = clean.replace(/\\[a-z]+/g, ' ').replace(/[^a-z0-9\s]/g, '').trim();
+    // FIX: Don't strip unknown LaTeX commands, just remove the backslash so they count as keywords (e.g. "alpha", "beta")
+    clean = clean.replace(/\\/g, ' ').replace(/[^a-z0-9\s]/g, '').trim();
     return new Set(clean.split(/\s+/).filter(w => w.length > 3 && !COMMON_STOP_WORDS.has(w)));
   }
 
@@ -600,14 +602,28 @@ export class QuestionDetectionService {
       // LOG THE FUZZY ATTEMPT
       if (matchRate > 0.45) {
         // console.log(`[SIMILARITY DEBUG] Fuzzy Rate: ${matchRate.toFixed(2)} (${matches}/${shorterKeys.size})`);
-        // console.log(`[SIMILARITY DEBUG] Matched: [${matchedWords.join(', ')}]`);
-        if (missingWords.length > 0) {
-          // console.log(`[SIMILARITY DEBUG] Missing: [${missingWords.slice(0, 5).join(', ')}${missingWords.length > 5 ? '...' : ''}]`);
-        }
       }
 
-      if (matchRate >= 0.80) return 0.98;
-      if (matchRate >= 0.60) return 0.85;
+      // FAILURE ANALYSIS (2025-01-21):
+      // A 100% match on 3 common math keys (e.g. "fraction", "root", "form") is NOT enough to prove identity.
+      // Small generic questions (e.g. "Work out the value") often strip down to just these few keys.
+      // We must require a minimum complexity (key count) to trust a pure keyword containment match.
+      const MIN_KEYS_FOR_OVERRIDE = 5;
+
+      if (shorterKeys.size < MIN_KEYS_FOR_OVERRIDE) {
+        // console.log(`[SIMILARITY SAFETY] Key count (${shorterKeys.size}) < ${MIN_KEYS_FOR_OVERRIDE}. Ignoring containment override.`);
+        // Fall through to Dice Coefficient
+      } else {
+        if (matchRate >= 0.80) {
+          // [SENIOR PROTOCOL] Log why we are returning a high score
+          console.log(`[SIMILARITY OVERRIDE] 98% because MatchRate=${matchRate.toFixed(2)} in Keys=[${Array.from(shorterKeys).join(',')}]`);
+          return 0.98;
+        }
+        if (matchRate >= 0.60) {
+          console.log(`[SIMILARITY OVERRIDE] 85% because MatchRate=${matchRate.toFixed(2)}`);
+          return 0.85;
+        }
+      }
     }
 
     // 3. Fallback to Dice
@@ -758,7 +774,8 @@ export function buildExamPaperStructure(detectionResults: any[]) {
         // paperTitle logic consolidated
         paperTitle: `${board} ${subject} ${code} (${series})${tier ? ` ${tier}` : ''}`,
         questions: [],
-        totalMarks: 0
+        totalMarks: 0,
+        isGeneric: match.isGeneric === true || match.paperCode === 'Generic Question'
       });
     }
 
@@ -810,6 +827,14 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
 
   if (examPapers.length === 0) {
     return `${mode} - ${new Date().toLocaleDateString()}`;
+  }
+
+  // NEW: Handle Generic Case (Bypass Ugly Structured Title)
+  // If ALL papers are generic, use the question text for a cleaner title
+  const allGeneric = examPapers.length > 0 && examPapers.every(p => p.isGeneric);
+  if (allGeneric && detectionResults.length > 0) {
+    const firstQText = detectionResults[0].question?.text || '';
+    return generateGenericTitleFromText(firstQText, mode);
   }
 
   // Paper Title: Use the first paper's details

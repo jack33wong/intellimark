@@ -51,6 +51,7 @@ export const enrichAnnotationsWithPositions = (
         let pixelBbox: [number, number, number, number] = [0, 0, 0, 0];
         let pageIndex = (anno as any).pageIndex ?? defaultPageIndex;
         let method = "NONE";
+        let match: any = null;
 
         const lineId = (anno as any).line_id || "";
         const incomingStatus = (anno as any).ocr_match_status;
@@ -62,15 +63,15 @@ export const enrichAnnotationsWithPositions = (
         // PATH 1: PHYSICAL MATCH (OCR Blocks)
         // ---------------------------------------------------------
         if (lineId.startsWith('block_')) {
-            const ocrBlock = findInSteps(lineId);
-            if (ocrBlock && ocrBlock.bbox && (ocrBlock.bbox[0] !== 0 || ocrBlock.bbox[1] !== 0)) {
-                pixelBbox = [...ocrBlock.bbox] as [number, number, number, number];
-                pageIndex = ocrBlock.pageIndex ?? pageIndex;
+            match = findInSteps(lineId);
+            if (match && match.bbox && (match.bbox[0] !== 0 || match.bbox[1] !== 0)) {
+                pixelBbox = [...match.bbox] as [number, number, number, number];
+                pageIndex = match.pageIndex ?? pageIndex;
                 method = "OCR_PHYSICAL";
 
                 // 📝 LOGGING: PROVE OCR IS INTACT
                 console.log(`   ✅ [PATH: OCR] Found Mathpix Block. Passing coords INTACT.`);
-                console.log(`      Input:  ${JSON.stringify(ocrBlock.bbox)}`);
+                console.log(`      Input:  ${JSON.stringify(match.bbox)}`);
                 console.log(`      Output: ${JSON.stringify(pixelBbox)}`);
             }
         }
@@ -79,7 +80,7 @@ export const enrichAnnotationsWithPositions = (
         // PATH 2: VISUAL MATCH (Classification Lines)
         // ---------------------------------------------------------
         if (method === "NONE") {
-            let match = findInClassification(lineId);
+            match = findInClassification(lineId);
             let source = 'RAW_CLASS';
 
             if (!match) {
@@ -125,28 +126,30 @@ export const enrichAnnotationsWithPositions = (
                     pixelBbox = [...match.bbox] as [number, number, number, number];
                     method = "PX_PRECOMPUTED";
 
-                    // Final scale safety: If we already have pixel-scale numbers, don't let anything shrink them
-                    if (pixelBbox[0] > 100 || pixelBbox[1] > 100) {
-                        console.log(`   ℹ️ [PATH: PRECOMPUTED] Preserve pixel scale: ${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])}`);
+                    // 🔥 CRITICAL FIX: The "Precomputed" values might actually be RAW PERCENTAGES (0-100).
+                    // If they are suspicious (e.g. < 100), we MUST force them through the scaling detective.
+                    // This fixes the regression where "matched" items appeared at top-left.
+                    if (pixelBbox[0] < 100 && pixelBbox[1] < 100 && dims.width > 200) {
+                        console.log(`   ⚠️ [SCALING-CORRECTION] "Matched" coords are suspicious (${Math.round(pixelBbox[0])},${Math.round(pixelBbox[1])}). Treating as PERCENTAGE.`);
+                        const den = 100;
+                        pixelBbox = [
+                            (pixelBbox[0] / den) * dims.width,
+                            (pixelBbox[1] / den) * dims.height,
+                            (pixelBbox[2] / den) * dims.width,
+                            (pixelBbox[3] / den) * dims.height
+                        ];
+                        method = "PX_PRECOMPUTED_SCALED"; // CHANGED: Mark as Precomputed so we trust it
                     }
                 }
             }
         }
 
-        // ---------------------------------------------------------
-        // PATH 3: PANIC FALLBACK
-        // ---------------------------------------------------------
-        if (method === "NONE" || (pixelBbox[0] === 0 && pixelBbox[1] === 0)) {
-            const dims = getPageDims(pageDimensions!, pageIndex);
-            pixelBbox = [dims.width * 0.1, (dims.height * 0.1) + (idx * 60), 300, 50];
-            method = "FALLBACK";
-            console.warn(`   🚨 [PATH: FALLBACK] No coordinates found for ID: ${lineId}. Defaulting to margin.`);
-        }
-
         // 🏗️ PHASE 4: APPLY GLOBAL OFFSET (LANDMARK ALIGNMENT)
-        // If we are using local classification coordinates (Visual/Unmatched),
-        // we MUST apply the global anchor offset (e.g. Question Header or Landmark label).
-        if (method !== "OCR_PHYSICAL" && method !== "FALLBACK") {
+        // 🛡️ MATCH SOVEREIGNTY (The "Perfect Match" Protection):
+        // If we found a physical OCR match or a pre-computed pixel match, we trust it implicitly.
+        // Do NOT apply global offsets or effective scaling to these high-confidence anchors.
+        // NOW INCLUDES "PX_PRECOMPUTED_SCALED" to protect our newly scaled matches from shifting.
+        if (method !== "OCR_PHYSICAL" && method !== "PX_PRECOMPUTED" && method !== "PX_PRECOMPUTED_SCALED" && method !== "FALLBACK") {
             // 🏮 PER-ANNOTATION SCOPING: If this annotation has a subQuestion (e.g. "b"),
             // we look for a matching landmark to get a more precise vertical anchor.
             let specificOffsetX = globalOffsetX;
@@ -210,6 +213,8 @@ export const enrichAnnotationsWithPositions = (
             pageIndex: pageIndex,
             ocr_match_status: status as any,
             line_id: lineId, // Explicitly preserve ID for logs
+            matchedText: (match as any)?.text || (match as any)?.lineText || "",
+            aiMatchedText: (anno as any).student_text || (anno as any).studentText || (anno as any).studentWork || "",
             _debug_placement_method: method,
             visualObservation: visualObservation
         } as EnrichedAnnotation;

@@ -351,7 +351,12 @@ export class MarkingSchemeOrchestrationService {
     let dominantPaper: string | null = null;
     const totalVotes = Array.from(paperCounts.values()).reduce((a, b) => a + b, 0);
     for (const [title, count] of paperCounts.entries()) {
-      if (count / totalVotes >= 0.8) { dominantPaper = title; break; }
+      // FIX V41: Only enforce consensus if we have meaningful agreement (>1 question)
+      // or if this single paper accounts for the majority of specific questions on the page
+      if (count / totalVotes >= 0.8 && (count > 1 || paperCounts.size === 1)) {
+        dominantPaper = title;
+        break;
+      }
     }
 
     if (dominantPaper && (paperCounts.size > 1 || detectionStats.notDetected > 0)) {
@@ -404,6 +409,7 @@ export class MarkingSchemeOrchestrationService {
           confidence: 0,
           marks: detectedMarks,
           parentQuestionMarks: detectedMarks,
+          isGeneric: true, // NEW: Explicitly flag as generic
           markingScheme: {
             questionMarks: {
               marks: sequentialRubric,
@@ -412,7 +418,9 @@ export class MarkingSchemeOrchestrationService {
             generalMarkingGuidance: GENERIC_EXAMINER_INSTRUCTION
           }
         };
-        item.detectionResult.found = true;
+        // [FIX] Setting found to false ensures this is treated as a non-past paper 
+        // in session titles and metadata, while still allowing the generic marking scheme to be used.
+        item.detectionResult.found = false;
       }
     }
 
