@@ -519,11 +519,17 @@ export class MarkingSchemeOrchestrationService {
           } else {
             const key = Object.keys(subPartsSource).find(k => {
               const kNorm = normalizeSubQuestionPart(k);
-              const isMatch = k === fullQNum || k === normalizedSubLabel || kNorm === normalizedSubLabel || k.toLowerCase().endsWith(normalizedSubLabel);
+              const isMatch = k === fullQNum || k === normalizedSubLabel || kNorm === normalizedSubLabel ||
+                k.toLowerCase().endsWith(normalizedSubLabel) || normalizedSubLabel.endsWith(kNorm) || kNorm.endsWith(normalizedSubLabel);
               // console.log(`[MERGE DEBUG] Checking DB Key "${k}" (Norm: "${kNorm}") against Target "${normalizedSubLabel}" (Full: "${fullQNum}") -> Match: ${isMatch}`);
               return isMatch;
             });
             if (key) targetScheme = subPartsSource[key];
+          }
+
+          if (!targetScheme && parentScheme.marks) {
+            console.log(`[MERGE INFO] Falling back to Parent Scheme for Q${fullQNum} (Label: ${normalizedSubLabel})`);
+            targetScheme = parentScheme;
           }
 
           if (!targetScheme) {
