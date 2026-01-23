@@ -1370,44 +1370,75 @@ export class MarkingPipelineService {
                                                 for (const [sq, annos] of groups.entries()) {
                                                     const subBudget = subQuestionBudgets[sq] ?? 99; // Default high if unknown
 
-                                                    const validAnnos = annos.filter(a => a.action === 'tick' || a.action === 'mark' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0));
+                                                    // Sort by priority (A > B > M)
+                                                    annos.sort((a: any, b: any) => {
+                                                        const pA = priorityMap[(a.text || '').charAt(0).toUpperCase()] || 0;
+                                                        const pB = priorityMap[(b.text || '').charAt(0).toUpperCase()] || 0;
+                                                        return pB - pA;
+                                                    });
 
-                                                    if (validAnnos.length > subBudget) {
-                                                        console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} exceeded budget! Found ${validAnnos.length}, Budget ${subBudget}. Executing cut...`);
+                                                    const kept: any[] = [];
+                                                    let currentSubScore = 0;
 
-                                                        // Sort by priority (A > B > M)
-                                                        annos.sort((a: any, b: any) => {
-                                                            const pA = priorityMap[(a.text || '').charAt(0).toUpperCase()] || 0;
-                                                            const pB = priorityMap[(b.text || '').charAt(0).toUpperCase()] || 0;
-                                                            return pB - pA;
-                                                        });
+                                                    annos.forEach(a => {
+                                                        const isAwarded = a.action === 'tick' || a.action === 'mark' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0);
+                                                        if (!isAwarded) {
+                                                            kept.push(a);
+                                                            return;
+                                                        }
 
-                                                        const kept = annos.slice(0, subBudget);
-                                                        const cut = annos.slice(subBudget);
-                                                        console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} Kept: ${kept.map((a: any) => a.text).join(',')} | Cut: ${cut.map((a: any) => a.text).join(',')}`);
-                                                        finalizedAnnotations.push(...kept);
-                                                    } else {
-                                                        finalizedAnnotations.push(...annos);
+                                                        // Extract value (e.g., B2 is 2 marks)
+                                                        const val = parseInt((a.text || '').replace(/\D/g, '') || '1');
+
+                                                        if (currentSubScore + val <= subBudget) {
+                                                            kept.push(a);
+                                                            currentSubScore += val;
+                                                        } else if (currentSubScore < subBudget) {
+                                                            // Partial credit if applicable, or just cap it
+                                                            // For now, we cut the annotation if it would blow the budget
+                                                            console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} Cutting mark '${a.text}' to stay within budget ${subBudget}`);
+                                                        } else {
+                                                            // Budget full
+                                                            // console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} Section full. Cutting excess mark: ${a.text}`);
+                                                        }
+                                                    });
+
+                                                    if (kept.length < annos.length) {
+                                                        console.log(`[GUILLOTINE] Q${task.questionNumber}${sq} exceeded budget! Kept ${kept.length}/${annos.length}, Budget ${subBudget}.`);
                                                     }
+                                                    finalizedAnnotations.push(...kept);
                                                 }
 
                                                 // 3. Final Global Guillotine (just in case sum of subs > total)
-                                                const ticks = finalizedAnnotations.filter(a => a.action === 'tick' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0));
-                                                if (totalBudget > 0 && ticks.length > totalBudget) {
+                                                const currentTotalTicks = finalizedAnnotations.filter(a => a.action === 'tick' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0)).length;
+                                                if (totalBudget > 0 && currentTotalTicks > totalBudget) {
                                                     console.log(`[GUILLOTINE] Q${task.questionNumber} GLOBAL exceeded budget! Total ${totalBudget}. Executing final cut...`);
+                                                    // Note: This logic is slightly simplified and assumes 1 mark per annotation for global cut
+                                                    // For robust multi-mark handling, we'd need to iterate and count values similar to the loop above
                                                     finalizedAnnotations.sort((a, b) => {
                                                         const pA = priorityMap[(a.text || '').charAt(0).toUpperCase()] || 0;
                                                         const pB = priorityMap[(b.text || '').charAt(0).toUpperCase()] || 0;
                                                         return pB - pA;
                                                     });
-                                                    finalizedAnnotations = finalizedAnnotations.slice(0, totalBudget);
+
+                                                    let runningGlobal = 0;
+                                                    const globalKept: any[] = [];
+                                                    finalizedAnnotations.forEach(a => {
+                                                        const val = parseInt((a.text || '').replace(/\D/g, '') || '1');
+                                                        const isAwarded = a.action === 'tick' || a.action === 'mark' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0);
+                                                        if (!isAwarded || (runningGlobal + val <= totalBudget)) {
+                                                            globalKept.push(a);
+                                                            if (isAwarded) runningGlobal += val;
+                                                        }
+                                                    });
+                                                    finalizedAnnotations = globalKept;
                                                 }
 
                                                 result.annotations = finalizedAnnotations;
 
                                                 // 4. Recalculate score
-                                                // Only recalculate if we actually cut something, otherwise trust the Executor's score
-                                                const countsChanged = finalizedAnnotations.length < anyAnnotations.length;
+                                                // Always recalculate score if we have a budget to ensure consistency
+                                                const countsChanged = true;
 
                                                 if (countsChanged) {
                                                     const newAwarded = finalizedAnnotations.reduce((sum: number, a: any) => {

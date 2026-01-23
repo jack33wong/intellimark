@@ -198,18 +198,30 @@ export async function executeMarkingForQuestion(
     const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones);
     console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
-    const rawOcrBlocks = task.mathBlocks.map((block, idx) => {
-      const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx + 1}`;
-      return {
-        ...block,
-        id: globalId,
-        text: block.mathpixLatex || block.googleVisionText || '',
-        pageIndex: (block as any).pageIndex ?? 0,
-        coordinates: block.coordinates,
-        isHandwritten: !!block.isHandwritten,
-        subQuestions: (block as any).subQuestions
-      };
-    });
+    // BIBLE §2 COMPLIANCE: "Receive ALL OCR blocks"
+    // We must merge Structured Targets (Tier 1) and Rescue Blocks (Tier 2)
+    // into a single reference list for the AI to choose from.
+    const rawOcrBlocks = [
+      ...stepsDataForMapping.map(s => ({
+        id: s.line_id,
+        text: s.text,
+        pageIndex: s.pageIndex,
+        coordinates: s.bbox ? { x: s.bbox[0], y: s.bbox[1], width: s.bbox[2], height: s.bbox[3] } : undefined,
+        isHandwritten: true
+      })),
+      ...task.mathBlocks.map((block, idx) => {
+        const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx + 1}`;
+        return {
+          ...block,
+          id: globalId,
+          text: block.mathpixLatex || block.googleVisionText || '',
+          pageIndex: (block as any).pageIndex ?? 0,
+          coordinates: block.coordinates,
+          isHandwritten: !!block.isHandwritten,
+          subQuestions: (block as any).subQuestions
+        };
+      })
+    ];
 
     // [DEBUG] Verify ID Generation Strategy
     console.log('\n🔍 [ID-VERIFICATION] Checking Target IDs for Prompt Generation:');
@@ -406,6 +418,11 @@ export async function executeMarkingForQuestion(
     // =========================================================================
     const defaultPageIndex = (task.sourcePages && task.sourcePages.find(p => p !== 0)) ?? task.sourcePages?.[0] ?? 0;
 
+    console.log(`🔍 [PIPELINE-PROOF] Incoming Annotation Count: ${correctedAnnotations.length}`);
+    if (correctedAnnotations.length > 0) {
+      console.log(`   👉 IDs: ${correctedAnnotations.map(a => a.line_id || 'null').join(', ')}`);
+    }
+
     let enrichedAnnotations = enrichAnnotationsWithPositions(
       correctedAnnotations,
       stepsDataForMapping,
@@ -427,6 +444,21 @@ export async function executeMarkingForQuestion(
 
     enrichedAnnotations.forEach(anno => {
       let isAnchored = false; // TRACKER: Did we successfully place this?
+
+      // BIBLE §3B & §4 COMPLIANCE
+      // If the AI found a mark but couldn't anchor it (no line_id),
+      // we must trust the AI's semantic subQuestion intent over spatial heuristics.
+      if (!anno.line_id || anno.ocr_match_status === 'UNMATCHED') {
+        if (anno.subQuestion) {
+          console.log(`      🛡️ [BIBLE-COMPLIANCE] Trusting AI subQuestion '${anno.subQuestion}' for Ghost Mark`);
+        } else {
+          // Only fall back to spatial guessing if the AI was silent
+          const zones = Object.entries(semanticZones || {}).map(([label, data]) => ({ label, ...data }));
+          const guessedSubQ = zones[0]?.label || "unknown";
+          console.log(`      🛡️ [BIBLE-COMPLIANCE] AI silent on subQuestion. Defaulting Ghost Mark to '${guessedSubQ}'`);
+          anno.subQuestion = guessedSubQ;
+        }
+      }
 
       // A. ZONE ENFORCEMENT
       // 🛡️ CRITICAL FIX: NEVER Move a "MATCHED" OCR Annotation OR a "VISUAL/REDIRECTED" mark
@@ -676,7 +708,8 @@ export function createMarkingTasksFromClassification(
         baseQNum: baseQNum,
         sourceImageIndices: sourceImageIndices,
         aiSegmentationResults: [],
-        subQuestionPageMap: {}
+        subQuestionPageMap: {},
+        lineCounter: 1 // 🛠️ BUG FIX: Question-wide counter to prevent ID collisions
       });
     } else {
       const group = questionGroups.get(groupingKey);
@@ -703,13 +736,14 @@ export function createMarkingTasksFromClassification(
       }
 
       if (node.studentWorkLines) {
-        node.studentWorkLines.forEach((l: any, lineIdx: number) => {
+        node.studentWorkLines.forEach((l: any) => {
           if (l.text === '[DRAWING]') return;
           const pIdx = l.pageIndex ?? node.pageIndex ?? currentQPageIndex;
           l.pageIndex = pIdx;
 
           // GLOBAL ID: p{Page}_q{Question}_line_{Index}
-          const globalId = `p${pIdx}_q${baseQNum}_line_${lineIdx + 1}`;
+          // 🛠️ BUG FIX: Use group.lineCounter instead of per-node lineIdx to prevent collisions
+          const globalId = `p${pIdx}_q${baseQNum}_line_${group.lineCounter++}`;
 
           // Update the line object itself (MANDATORY OVERRIDE)
           l.id = globalId;
@@ -740,9 +774,10 @@ export function createMarkingTasksFromClassification(
               height: (node.studentDrawingPosition.height / 100) * pageDim.height
             };
           }
-          const lineGlobalId = `p${pIdx}_q${baseQNum}_line_drawing`;
+          // 🛠️ BUG FIX: Unique ID for drawings across sub-questions
+          const lineGlobalId = `p${pIdx}_q${baseQNum}_line_drawing_${group.lineCounter++}`;
           const line = {
-            id: lineGlobalId, // Global ID for drawing
+            id: lineGlobalId, // Unique ID for drawing
             text: "[DRAWING]",
             pageIndex: pIdx,
             position: pos

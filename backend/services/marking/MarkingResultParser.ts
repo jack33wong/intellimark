@@ -167,31 +167,16 @@ export class MarkingResultParser {
                 return anno;
             });
 
-            // 3. Merge redundant annotations
-            const merged: any[] = [];
-            const seen = new Map<string, any>();
-            parsedResponse.annotations.forEach((anno: any) => {
-                const key = `${anno.line_id}_${anno.action}`;
-                if (seen.has(key)) {
-                    const existing = seen.get(key);
-                    const existingCodes = existing.text ? existing.text.trim().split(/\s+/) : [];
-                    const newCodes = anno.text ? anno.text.trim().split(/\s+/) : [];
-                    const combined = Array.from(new Set([...existingCodes, ...newCodes])).join(' ');
-                    existing.text = combined;
-                    if (anno.reasoning && !existing.reasoning.includes(anno.reasoning)) {
-                        existing.reasoning += ` | ${anno.reasoning}`;
-                    }
-                } else {
-                    seen.set(key, anno);
-                    merged.push(anno);
-                }
-            });
-            parsedResponse.annotations = merged;
+            // 3. Merging Disabled (Option A)
+            // We now allow multiple annotations to share the same line_id and action
+            // to support cascading marks (e.g. M1 and A1 on the same line).
+            // No changes needed here, just removing the previous merging logic.
         }
 
-        // 4. Strict Mark Limit Enforcement
+        // 4. Strict Mark Limit Enforcement (DISABLED - Using Pipeline Guillotine)
         if (normalizedScheme && parsedResponse.annotations) {
-            this.enforceMarkLimits(parsedResponse, normalizedScheme, inputQuestionNumber);
+            console.log(`🛡️ [PIPELINE-SAFETY] Skipping early limit enforcement for Q${inputQuestionNumber}. Trusting downstream Guillotine.`);
+            // this.enforceMarkLimits(parsedResponse, normalizedScheme, inputQuestionNumber);
         }
 
         // =====================================================================

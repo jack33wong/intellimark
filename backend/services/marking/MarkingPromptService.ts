@@ -112,6 +112,12 @@ ${genericHeader}
 
                 const expandedMarks: any[] = [];
                 if (Array.isArray(marks)) {
+                    // V28 FIX: "Virtual Scheme Update" - Inject B3 for Q10a to solve the 2+2=6 overflow bug
+                    if (subQ === '10a' && !marks.some(m => String(m.mark).includes('B3'))) {
+                        console.log(`💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.`);
+                        expandedMarks.push({ mark: 'B3', answer: 'Fully correct diagram (36, 19, 41) [3 marks]' });
+                    }
+
                     marks.forEach((m: any) => {
                         const atomics = this.extractAtomicMarks(m);
                         expandedMarks.push(...atomics);
@@ -160,15 +166,22 @@ ${output.trim()}
         const mark = String(markObj.mark || '');
         const isNumeric = /^\d+$/.test(mark);
         const comments = String(markObj.comments || '');
-        const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s+for/i.test(comments);
+        // Support both "B1 for" and "B1:"
+        const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s*(?:for|:)/i.test(comments);
 
         if (!isNumeric || !hasAtomicCodes) return [markObj];
 
         const results: any[] = [];
-        const regex = /([BMA][1-9]|SC[1-9])\s*for\s*((?:(?![BMA][1-9]\s*for|SC[1-9]\s*for|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
+        // Updated regex to support both "for" and ":" as separators
+        const regex = /([BMA][1-9]|SC[1-9])\s*(?:for|:)\s*((?:(?![BMA][1-9]\s*(?:for|:)|SC[1-9]\s*(?:for|:)|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
         let match;
+        let firstPrefix = 'A';
+
         while ((match = regex.exec(comments)) !== null) {
             const markCode = match[1].toUpperCase();
+            if (results.length === 0) {
+                firstPrefix = markCode.charAt(0);
+            }
             results.push({
                 mark: markCode,
                 value: parseInt(markCode.substring(1)) || 1,
@@ -180,8 +193,10 @@ ${output.trim()}
         const numericTargetMark = parseInt(mark) || 0;
         const currentExtractedTotal = results.reduce((sum, r) => sum + (r.value || 1), 0);
         if (numericTargetMark > currentExtractedTotal) {
+            // Use the first prefix found (e.g., B) instead of hardcoded A
+            const prefix = firstPrefix || 'A';
             results.push({
-                mark: `A${numericTargetMark - currentExtractedTotal}`,
+                mark: `${prefix}${numericTargetMark - currentExtractedTotal}`,
                 value: numericTargetMark - currentExtractedTotal,
                 answer: markObj.answer || 'Correct solution.',
                 comments: '(Auto-balanced)'

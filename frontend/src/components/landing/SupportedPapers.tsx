@@ -237,8 +237,14 @@ const SupportedPapers: React.FC = () => {
                 <div className="papers-display">
                     {boards.map((board, i) => (
                         <div key={i} className="board-section">
-                            <div className="board-main-header">
+                            <div className="board-main-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', textAlign: 'center' }}>
                                 <span className="board-logo-pill">{board.name} ({board.code})</span>
+                                <a
+                                    href={`/mark-${board.name.toLowerCase().includes('edexcel') ? 'edexcel' : board.name.toLowerCase()}-gcse-maths-past-papers`}
+                                    style={{ color: '#7f00ff', fontWeight: 600, fontSize: '0.9rem', textDecoration: 'none' }}
+                                >
+                                    Try the {board.name.toLowerCase().includes('edexcel') ? 'Edexcel' : board.name} {board.code} AI Marking Tool →
+                                </a>
                             </div>
 
                             <div className="board-content-scroll">
@@ -273,7 +279,7 @@ const SupportedPapers: React.FC = () => {
                     A-Level Further Maths support coming in Summer 2026.
                 </p>
             </div>
-        </section>
+        </section >
     );
 };
 
