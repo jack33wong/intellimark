@@ -95,9 +95,9 @@
 }
 
 .hero-static-description {
-    font-size: 1.45rem;
+    font-size: 1.65rem;
     color: var(--text-secondary);
-    max-width: 350px;
+    max-width: 500px;
     margin: 6px 0 0 0;
     line-height: 1.4;
     opacity: 0;
@@ -124,8 +124,8 @@
 /* The colored circle from Google Ads reference */
 .hero-circle-bg {
     position: absolute;
-    width: 550px;
-    height: 550px;
+    width: 500px;
+    height: 500px;
     border-radius: 50%;
     z-index: 0;
     transition: background-color 0.8s ease;
@@ -133,7 +133,7 @@
 
 .hero-floating-frame {
     position: relative;
-    width: 450px;
+    width: 300px;
     aspect-ratio: 1;
     background: white;
     border-radius: 32px;

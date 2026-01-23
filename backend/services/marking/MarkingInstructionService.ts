@@ -69,10 +69,10 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     // [Sub-question logic]
     let marksWithAnswers: string[] | undefined = undefined;
     if (input.subQuestionAnswers && Array.isArray(input.subQuestionAnswers) && input.subQuestionAnswers.length > 0) {
-      const validAnswers = input.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
+      const validAnswers = input.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '');
       if (validAnswers.length > 0) marksWithAnswers = validAnswers;
     } else if (questionMarksData?.subQuestionAnswers && Array.isArray(questionMarksData.subQuestionAnswers)) {
-      const validAnswers = questionMarksData.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
+      const validAnswers = questionMarksData.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '');
       if (validAnswers.length > 0) marksWithAnswers = validAnswers;
     }
 
@@ -152,8 +152,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
 }
 // ========================== END: NORMALIZATION FUNCTION ==========================
 
-// Import the formatting function from prompts.ts
-import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
+// Formatting logic is now handled via MarkingPromptService directly.
 
 export class MarkingInstructionService {
   private static hasLoggedDebugPrompt = false;
@@ -346,9 +345,9 @@ export class MarkingInstructionService {
     return formatted;
   }
 
-  // Local helper to format scheme using the imported utility
+  // Local helper to format scheme using the original prompt service
   private static formatMarkingSchemeForPrompt(scheme: NormalizedMarkingScheme): string {
-    return formatMarkingSchemeAsBullets(JSON.stringify(scheme), scheme.subQuestionNumbers, scheme.marksWithAnswers);
+    return MarkingPromptService.formatMarkingSchemeForPrompt(scheme);
   }
 
   /**

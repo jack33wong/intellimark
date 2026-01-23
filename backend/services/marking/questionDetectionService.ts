@@ -61,6 +61,7 @@ export interface MarkingSchemeMatch {
     subject?: string;
   };
   questionMarks?: any;
+  allQuestions?: any; // NEW: Full paper context for prefix lookup
   totalQuestions: number;
   totalMarks: number;
   confidence?: number;
@@ -725,6 +726,7 @@ export class QuestionDetectionService {
           id: markingScheme.id,
           examDetails,
           questionMarks,
+          allQuestions: markingScheme.questions, // NEW: Full paper context
           totalQuestions: markingScheme.totalQuestions || 0,
           totalMarks: markingScheme.totalMarks || 0,
           confidence: overallScore,

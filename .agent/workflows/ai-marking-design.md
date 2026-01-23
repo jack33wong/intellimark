@@ -103,3 +103,18 @@ ZERO-FEEDBACK: Pure JSON. No chat.
 MARGIN BLINDNESS: Ignore printed mark counts (e.g., [3]).
 
 GUILLOTINE: Strict adherence to [MAX SCORE].
+
+6. Marking Scheme Retrieval Strategy (The Simple Path)
+DESIGN PRINCIPLE: Direct Lookup > Complex Reconstruction.
+
+LAW: No "Label Reconstruction":
+- The backend MUST NOT try to manually re-slice or re-assemble marking schemes based on text matching logic for sub-question labels.
+
+THE PIPELINE:
+1. INPUT: Detection Text (e.g., "10b(ii)").
+2. MATCH: Search DB for Full Exam Paper + Question.
+3. RETRIEVE: Pull the pre-structured marking scheme directly from the matched Question record.
+4. ORDER: Use the natural order of the retrieved scheme.
+5. DELEGATE: Pass the scheme to the AI Prompt as-is.
+
+PROHIBITION: Do not add extra layers of logic to "verify" if the retrieved scheme matches the detected text label-by-label. Trust the DB Match.
