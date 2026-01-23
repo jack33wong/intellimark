@@ -293,7 +293,9 @@ export class SVGOverlayService {
 
     // --- DEBUG BORDER (Development Env Only) ---
     // If running in development mode, draw a color-coded dashed box around the student work.
-    if (process.env.NODE_ENV === 'development') {
+    const isDebugMode = process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER === 'true' ||
+      (process.env.NODE_ENV === 'development' && process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER !== 'false');
+    if (isDebugMode) {
       let statusLabel = 'm';
       let debugBorderColor = 'blue';
       if (isDrawing) {
