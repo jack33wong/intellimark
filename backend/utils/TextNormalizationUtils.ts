@@ -163,10 +163,10 @@ export function sanitizeOcrArtifacts(text: string | null | undefined): string {
 export function getBaseQuestionNumber(questionNumber: string | null | undefined): string {
   if (!questionNumber) return '';
   const qNumStr = String(questionNumber);
-  // Extract leading digits (more reliable than removing letters)
-  // Examples: "12ii" -> "12", "12iii" -> "12", "2a" -> "2", "21" -> "21", "Q12ii" -> "12"
-  const match = qNumStr.match(/^\d+/);
-  return match ? match[0] : '';
+  // Extract leading digits, optionally skipping a 'Q' or 'q' prefix
+  // Examples: "12ii" -> "12", "2a" -> "2", "Q12ii" -> "12", "q21" -> "21"
+  const match = qNumStr.match(/^(?:q|question)?\s*(\d+)/i);
+  return match ? match[1] : '';
 }
 
 /**

@@ -348,7 +348,7 @@ export class MarkingInstructionService {
 
   // Local helper to format scheme using the imported utility
   private static formatMarkingSchemeForPrompt(scheme: NormalizedMarkingScheme): string {
-    return formatMarkingSchemeAsBullets(JSON.stringify(scheme));
+    return formatMarkingSchemeAsBullets(JSON.stringify(scheme), scheme.subQuestionNumbers, scheme.marksWithAnswers);
   }
 
   /**

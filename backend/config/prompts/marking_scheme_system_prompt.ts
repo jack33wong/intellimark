@@ -92,7 +92,7 @@ ${section6}
     {
       "line_id": "String|null",
       "action": "tick|cross",
-      "text": "String",
+      "text": "String (Mark Code: M1, A1, B1, etc. NEVER put the student's numerical answer here)",
       "student_text": "String",
       "classification_text": "String",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",

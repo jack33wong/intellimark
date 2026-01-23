@@ -8,7 +8,7 @@
  */
 
 import { getFirestore } from '../../config/firebase.js';
-import { normalizeTextForComparison, normalizeSubQuestionPart, generateGenericTitleFromText } from '../../utils/TextNormalizationUtils.js';
+import { normalizeTextForComparison, normalizeSubQuestionPart, generateGenericTitleFromText, getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 import * as stringSimilarity from 'string-similarity';
 
 // --- Constants ---
@@ -686,11 +686,13 @@ export class QuestionDetectionService {
       if (overallScore > 0.7) {
         let questionMarks = null;
         if (!examPaperMatch.questionNumber || !markingScheme.questions) return null;
-        const qNum = String(examPaperMatch.questionNumber).trim().replace(/^0+/, '');
+        const rawQNum = String(examPaperMatch.questionNumber || '').trim();
+        const baseNum = getBaseQuestionNumber(rawQNum);
 
+        // Use either the original qNum or the baseNum for lookup
+        const qNum = rawQNum.replace(/^q\s*/i, '').replace(/^0+/, '');
         const questions = markingScheme.questions;
-        const baseNum = qNum.match(/^\d+/)?.[0] || qNum;
-        const mainQ = questions[qNum];
+        const mainQ = questions[qNum] || questions[baseNum];
 
         if (mainQ && (mainQ.sub_questions || mainQ.subQuestions || mainQ.parts)) {
           questionMarks = mainQ;

@@ -436,23 +436,25 @@ export async function executeMarkingForQuestion(
       const isVisual = anno.ocr_match_status === 'VISUAL' || String(anno.line_id || '').startsWith('visual_redirect_');
 
       if (anno.subQuestion && anno.bbox && semanticZones && anno.ocr_match_status !== 'MATCHED' && !isVisual) {
-        // Clean SubQ: "10(a)" -> "a", "(b)(i)" -> "bi"
-        let subQ = anno.subQuestion.replace(/^\d+/, '').replace(/[()\s]/g, '').toLowerCase();
+        // Clean SubQ: "10(a)" -> "10a", "(b)(i)" -> "bi"
+        let fullSubQ = anno.subQuestion.replace(/[()\s]/g, '').toLowerCase();
+        let partOnlySubQ = anno.subQuestion.replace(/^\d+/, '').replace(/[()\s]/g, '').toLowerCase();
 
-        // Try Exact Match (e.g. "a")
-        let targetZone = semanticZones[subQ];
+        // Strategy: Try Full Match first (e.g. "10a"), then 'q' prefixed (e.g. "q10"), then Part Match (e.g. "a")
+        let targetZone = semanticZones[fullSubQ] || semanticZones[`q${fullSubQ}`] || semanticZones[partOnlySubQ];
 
-        // Try Recursive Fallback (e.g. "bi" -> "b")
-        if (!targetZone && subQ.length > 1) {
-          targetZone = semanticZones[subQ.charAt(0)]; // "b" from "bi"
+        // Try Recursive Fallback for parts (e.g. "bi" -> "b")
+        if (!targetZone && partOnlySubQ.length > 1) {
+          targetZone = semanticZones[partOnlySubQ.charAt(0)]; // "b" from "bi"
         }
 
         if (targetZone) {
           const currentY = anno.bbox[1];
+          const subQToLog = fullSubQ || partOnlySubQ;
           // If annotation is drifting (or falling back), snap it.
           // We trust the zone even if the AI is slightly off.
           if (currentY < targetZone.startY || currentY > targetZone.endY || (anno.bbox[0] === 0)) {
-            console.log(`      🛡️ [ZONE SNAP] "${anno.text}" snapped to ${subQ} (Y=${Math.round(targetZone.startY)})`);
+            console.log(`      🛡️ [ZONE SNAP] "${anno.text}" snapped to ${subQToLog} (Y=${Math.round(targetZone.startY)})`);
 
             // FORCE SNAP TO HEADER
             anno.bbox[1] = targetZone.startY + 50; // Header + Padding
