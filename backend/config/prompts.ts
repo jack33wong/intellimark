@@ -533,8 +533,24 @@ export function formatMarkingSchemeAsBullets(
         let subQMarks: any[] = [];
 
         if (hasSubQuestionMarks) {
-          // Use sub-question-specific marks from mapping (e.g., "3a" -> [P1, P1, P1, A1], "3b" -> [C1])
-          const subQMarksForThisQ = scheme.subQuestionMarks[subQNum];
+          // 1. Direct Match (e.g., "10a" -> "10a")
+          let subQMarksForThisQ = scheme.subQuestionMarks[subQNum];
+
+          // 2. Normalized Fallback (e.g., "10bbi" -> "10b(i)")
+          if (!subQMarksForThisQ) {
+            const normalize = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const targetNorm = normalize(subQNum);
+            const foundKey = Object.keys(scheme.subQuestionMarks).find(k => {
+              const kNorm = normalize(k);
+              // Match if normalized strings are equal OR if one is a suffix of the other (for redundant prefixes like 10bbi)
+              return kNorm === targetNorm ||
+                (targetNorm.length > 2 && kNorm.length > 1 && (targetNorm.endsWith(kNorm) || kNorm.endsWith(targetNorm)));
+            });
+            if (foundKey) {
+              subQMarksForThisQ = scheme.subQuestionMarks[foundKey];
+            }
+          }
+
           if (Array.isArray(subQMarksForThisQ) && subQMarksForThisQ.length > 0) {
             subQMarks = subQMarksForThisQ;
           } else {
