@@ -491,7 +491,7 @@ export function fromLegacyFormat(legacyAnno: any): ImmutableAnnotation {
  */
 export function applyVisualStacking(annotations: any[]): any[] {
     const POSITION_THRESHOLD = 5; // % difference to consider "same position"
-    const STACK_OFFSET_Y = 12; // % height to shift down
+    const STACK_OFFSET_Y = 2; // % height to shift down (V29: Reduced from 12 to 2 for tighter multi-ticks)
 
     // Group by page
     const byPage = new Map<number, any[]>();

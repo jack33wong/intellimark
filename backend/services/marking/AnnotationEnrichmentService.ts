@@ -147,9 +147,10 @@ export const enrichAnnotationsWithPositions = (
         // 🏗️ PHASE 4: APPLY GLOBAL OFFSET (LANDMARK ALIGNMENT)
         // 🛡️ MATCH SOVEREIGNTY (The "Perfect Match" Protection):
         // If we found a physical OCR match or a pre-computed pixel match, we trust it implicitly.
-        // Do NOT apply global offsets or effective scaling to these high-confidence anchors.
-        // NOW INCLUDES "PX_PRECOMPUTED_SCALED" to protect our newly scaled matches from shifting.
-        if (method !== "OCR_PHYSICAL" && method !== "PX_PRECOMPUTED" && method !== "PX_PRECOMPUTED_SCALED" && method !== "FALLBACK") {
+        // V29: Explicitly bypass offset for Global Mapper IDs (p0_q...) as requested by user.
+        const isGlobalMapperId = lineId && lineId.startsWith('p0_q');
+
+        if (method !== "OCR_PHYSICAL" && method !== "PX_PRECOMPUTED" && method !== "PX_PRECOMPUTED_SCALED" && method !== "FALLBACK" && !isGlobalMapperId) {
             // 🏮 PER-ANNOTATION SCOPING: If this annotation has a subQuestion (e.g. "b"),
             // we look for a matching landmark to get a more precise vertical anchor.
             let specificOffsetX = globalOffsetX;
