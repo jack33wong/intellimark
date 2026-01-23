@@ -26,13 +26,6 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000 // limit each IP to 1000 requests per windowMs (increased for development)
-});
-app.use(limiter);
-
 // CORS configuration
 app.use(cors({
   origin: [
@@ -46,6 +39,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000 // limit each IP to 1000 requests per windowMs (increased for development)
+});
+app.use(limiter);
 
 
 // (Body parsing moved to individual routes to prevent interference with Multer)

@@ -165,8 +165,7 @@ export class MarkingInstructionService {
 
   /**
    * Helper to extract Y coordinate safely from various block formats
-   * 
-   */
+   * */
   private static getBlockY(block: any): number | null {
     if (!block) return null;
     if (block.coordinates?.y !== undefined) return block.coordinates.y;
@@ -347,6 +346,11 @@ export class MarkingInstructionService {
     return formatted;
   }
 
+  // Local helper to format scheme using the imported utility
+  private static formatMarkingSchemeForPrompt(scheme: NormalizedMarkingScheme): string {
+    return formatMarkingSchemeAsBullets(JSON.stringify(scheme));
+  }
+
   /**
    * Execute complete marking flow
    */
@@ -473,14 +477,28 @@ export class MarkingInstructionService {
       }
 
       // =======================================================================
-      // 🔧 FIX 2: SMART REDIRECTOR (Exact Match Priority)
+      // 🔧 FIX: GHOST IDENTITY & SMART REDIRECTOR
       // =======================================================================
       const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '');
       const forbiddenBlockIds = new Set(
         sanitizedBlocks.filter(b => b.text.includes('[PRINTED_INSTRUCTION]')).map(b => b.id)
       );
 
-      const correctedAnnotations = annotationData.annotations.map((anno: any) => {
+      const correctedAnnotations = annotationData.annotations.map((anno: any, index: number) => {
+
+        // 1. GHOST PROTECTION: Give every Unmatched mark a UNIQUE ID
+        // This prevents the system from merging "M1, M1, M1" into just one "M1".
+        // It also ensures they pass checks that require a truthy line_id string.
+        if (!anno.line_id || anno.ocr_match_status === "UNMATCHED") {
+          return {
+            ...anno,
+            // Generate a unique ID so downstream filters treat this as a distinct mark
+            line_id: `ghost_${inputQuestionNumber || 'q'}_${index}_${Date.now()}`,
+            ocr_match_status: "UNMATCHED"
+          };
+        }
+
+        // 2. INSTRUCTION REDIRECT (Existing Logic)
         if (anno.line_id && forbiddenBlockIds.has(anno.line_id)) {
           console.log(`   🛡️ [REDIRECT] Intercepted link to Instruction [${anno.line_id}]`);
 
@@ -514,7 +532,12 @@ export class MarkingInstructionService {
               reasoning: `[System: Redirected to Handwriting] ${anno.reasoning}`
             };
           } else {
-            return { ...anno, line_id: null, ocr_match_status: anno.ocr_match_status || "MATCHED" };
+            // Fallback to Ghost if redirection fails
+            return {
+              ...anno,
+              line_id: `ghost_redirect_${index}_${Date.now()}`,
+              ocr_match_status: "UNMATCHED"
+            };
           }
         }
         return anno;
@@ -665,7 +688,7 @@ export class MarkingInstructionService {
     cleanStudentWorkSteps?: any[]
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
     const formattedOcrText = MarkingPromptService.formatOcrTextForPrompt(ocrText);
-    const formattedGeneralGuidance = MarkingPromptService.formatGeneralMarkingGuidance(generalMarkingGuidance);
+    const formattedGeneralGuidance = this.formatGeneralMarkingGuidance(generalMarkingGuidance);
     const { AI_PROMPTS } = await import('../../config/prompts.js');
 
     const currentQNum = inputQuestionNumber || normalizedScheme?.questionNumber || 'Unknown';
@@ -686,8 +709,8 @@ export class MarkingInstructionService {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;
 
-      MarkingPromptService.replaceCaoInScheme(normalizedScheme);
-      schemeText = MarkingPromptService.formatMarkingSchemeForPrompt(normalizedScheme);
+      this.replaceCaoInScheme(normalizedScheme);
+      schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
 
       let structuredQuestionText = '';
       const liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);

@@ -12,6 +12,7 @@ import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
 import ApiClient from '../../services/apiClient';
+import ConfigService from '../../services/configService';
 import ConfirmationModal from '../common/ConfirmationModal';
 import { mobileUploadService } from '../../services/MobileUploadService';
 import { FileHandoff } from './FileHandoff';
@@ -123,10 +124,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const response = await ApiClient.get('/api/config/exam-metadata');
-        if (response.data) {
-          setMetadata(response.data);
-        }
+        const data = await ConfigService.getExamMetadata();
+        setMetadata(data);
       } catch (error) {
         console.error('Failed to fetch exam metadata:', error);
       }

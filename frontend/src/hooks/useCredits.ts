@@ -19,10 +19,12 @@ const globalCreditCache: {
     credits: UserCredits | null;
     loaded: boolean;
     timestamp: number;
+    inProgressPromise: Promise<UserCredits | null> | null;
 } = {
     credits: null,
     loaded: false,
-    timestamp: 0
+    timestamp: 0,
+    inProgressPromise: null
 };
 
 export const useCredits = () => {
@@ -43,9 +45,8 @@ export const useCredits = () => {
         const requestId = Date.now();
         lastRequestIdRef.current = requestId;
 
-        // Use cache if not force and less than 1 minute old
-        if (!force && globalCreditCache.loaded && (Date.now() - globalCreditCache.timestamp < 60000)) {
-            // Even if using cache, ensure we aren't overwriting a newer request if one started
+        // 1. Check cache (only if not forcing and no promise in progress)
+        if (!force && !globalCreditCache.inProgressPromise && globalCreditCache.loaded && (Date.now() - globalCreditCache.timestamp < 60000)) {
             if (lastRequestIdRef.current === requestId) {
                 setCredits(globalCreditCache.credits);
                 setLoading(false);
@@ -53,31 +54,63 @@ export const useCredits = () => {
             return;
         }
 
-        try {
+        // 2. Dedup parallel requests (REBUILT: Works for both force and non-force)
+        if (globalCreditCache.inProgressPromise) {
+            // IF we are already loading, just wait for that one to finish
+            // This prevents the 2ms burst seen on mount
             setLoading(true);
+            try {
+                const data = await globalCreditCache.inProgressPromise;
+                if (lastRequestIdRef.current === requestId) {
+                    setCredits(data);
+                    setError(null);
+                }
+            } catch (err: any) {
+                if (lastRequestIdRef.current === requestId) {
+                    setError(err.message);
+                }
+            } finally {
+                if (lastRequestIdRef.current === requestId) {
+                    setLoading(false);
+                }
+            }
+            return;
+        }
+
+        const performFetch = async () => {
             const timestamp = Date.now();
             const response = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}?t=${timestamp}`, {
                 cache: 'no-store'
             });
 
-            // Prevent race conditions: ignore if a newer request has started
-            if (lastRequestIdRef.current !== requestId) {
-                return;
+            if (!response.ok) {
+                let errorMsg = 'Failed to fetch credits';
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorMsg;
+                } catch (e) {
+                    // response body might not be JSON
+                }
+                throw new Error(errorMsg);
             }
 
-            if (response.ok) {
-                const data = await response.json();
+            const data = await response.json();
+            globalCreditCache.credits = data;
+            globalCreditCache.loaded = true;
+            globalCreditCache.timestamp = Date.now();
+            return data;
+        };
 
-                if (lastRequestIdRef.current === requestId) {
-                    setCredits(data);
-                    globalCreditCache.credits = data;
-                    globalCreditCache.loaded = true;
-                    globalCreditCache.timestamp = Date.now();
-                    setError(null);
-                }
-            } else {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to fetch credits');
+        try {
+            setLoading(true);
+            const fetchPromise = performFetch();
+            globalCreditCache.inProgressPromise = fetchPromise;
+
+            const data = await fetchPromise;
+
+            if (lastRequestIdRef.current === requestId) {
+                setCredits(data);
+                setError(null);
             }
         } catch (err: any) {
             if (lastRequestIdRef.current === requestId) {
@@ -85,14 +118,22 @@ export const useCredits = () => {
                 setError(err.message);
             }
         } finally {
+            globalCreditCache.inProgressPromise = null;
             if (lastRequestIdRef.current === requestId) {
                 setLoading(false);
             }
         }
     }, [user?.uid]);
 
+    const lastFetchedUidRef = useRef<string | null>(null);
+
     useEffect(() => {
-        fetchCredits();
+        // Only fetch automatically on mount or when UID actually changes
+        // Use globalCreditCache.loaded sparingly here to avoid loops on failure
+        if (user?.uid && user.uid !== lastFetchedUidRef.current) {
+            fetchCredits();
+            lastFetchedUidRef.current = user.uid;
+        }
 
         // Listen for events that should trigger a credit refresh
         const creditsRefreshUnsubscribe = EventManager.listen('refreshCredits', () => {
@@ -103,19 +144,11 @@ export const useCredits = () => {
             fetchCredits(true);
         });
 
-        // Also listen for the global header refresh key
-        const originalRefreshHeader = window.refreshHeaderSubscription;
-        window.refreshHeaderSubscription = () => {
-            if (originalRefreshHeader) originalRefreshHeader();
-            fetchCredits(true);
-        };
-
         return () => {
             creditsRefreshUnsubscribe();
             subscriptionUpdatedUnsubscribe();
-            window.refreshHeaderSubscription = originalRefreshHeader;
         };
-    }, [fetchCredits]);
+    }, [fetchCredits, user?.uid]);
 
     // Invalidate cache on auth change
     useEffect(() => {
@@ -129,12 +162,14 @@ export const useCredits = () => {
     const hasCredits = credits ? credits.remainingCredits > 0 : true; // Assume true if not loaded to prevent blocking
     const isNegative = credits ? credits.remainingCredits < 0 : false;
 
+    const refreshCredits = useCallback(() => fetchCredits(true), [fetchCredits]);
+
     return {
         credits,
         loading,
         error,
         hasCredits,
         isNegative,
-        refreshCredits: () => fetchCredits(true)
+        refreshCredits
     };
 };

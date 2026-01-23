@@ -490,12 +490,19 @@ export async function executeMarkingForQuestion(
     // Final Cleanup: Deduplication
     const bestMarks = new Set<string>();
     enrichedAnnotations.forEach(a => {
-      if (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0) bestMarks.add(a.subQuestion || 'main');
+      const text = (a.text || '').trim();
+      // Atomic Math Check
+      const isMath = /[\\{}=]/.test(text) || text.includes('sqrt');
+      const val = isMath ? 1 : (parseInt(text.replace(/\D/g, '') || '0'));
+      if (val > 0) bestMarks.add(a.subQuestion || 'main');
     });
 
     enrichedAnnotations = enrichedAnnotations.filter(anno => {
       const subQ = anno.subQuestion || 'main';
-      const isZero = parseInt((anno.text || '').replace(/\D/g, '') || '0') === 0;
+      const text = (anno.text || '').trim();
+      const isMath = /[\\{}=]/.test(text) || text.includes('sqrt');
+      const isZero = !isMath && (parseInt(text.replace(/\D/g, '') || '0') === 0);
+
       if (isZero && bestMarks.has(subQ)) {
         console.log(`   🗑️ [DEDUPE] Dropping zero mark "${anno.text}" for ${subQ}`);
         return false;
@@ -542,32 +549,36 @@ export async function executeMarkingForQuestion(
     const sanitizedAnnotations = enrichedAnnotations;
 
     // =========================================================================
-    // 🧮 PHASE 5: ROBUST SCORE CALCULATION
+    // 🧮 PHASE 5: TRUSTED SCORE CALCULATION
     // =========================================================================
-    // Prevents "223" errors by ensuring we only sum distinct integers from all annotations
-    let recalculatedAwardedScore = 0;
-    sanitizedAnnotations.forEach(anno => {
-      // Extract all numbers from the text (e.g. "B2" -> [2], "M1" -> [1])
-      const matches = (anno.text || '').match(/\d+/g);
-      if (matches) {
-        // Sum them up safely for this specific annotation
-        const annotationScore = matches.reduce((sum, val) => sum + parseInt(val, 10), 0);
-        recalculatedAwardedScore += annotationScore;
+    // We explicitly TRUST the score from the Parser (MarkingResultParser).
+    // It already handles Atomic Math, Mark Capping, and Generic Mode logic.
+    // DO NOT use regex here - it accidentally sums LaTeX numbers like \sqrt{27}.
+    const parsedScore: any = parseScore(markingResult.studentScore);
+
+    // [OPTIONAL] Sanity Check: If Parser said 0 but we have ticks, force at least count of ticks
+    if (parsedScore.awardedMarks === 0 && sanitizedAnnotations.length > 0) {
+      const hasTicks = sanitizedAnnotations.some(a =>
+        (a.action && !a.action.includes('cross')) ||
+        (a.text && !a.text.includes('0') && !a.text.toLowerCase().includes('lost'))
+      );
+      if (hasTicks) {
+        // Safe fallback: 1 mark per valid annotation, capped at total
+        const count = sanitizedAnnotations.filter(a => !a.action?.includes('cross')).length;
+        const budget = parsedScore.totalMarks || (task.markingScheme?.totalMarks ? Number(task.markingScheme.totalMarks) : 99);
+        parsedScore.awardedMarks = Math.min(count, budget);
       }
-    });
-
-    const parsedScore = parseScore(markingResult.studentScore);
-
-    // Override awarded score with our robust calculation
-    parsedScore.awardedMarks = recalculatedAwardedScore;
+    }
 
     // CRITICAL: Final safety net for totalMarks denominator
-    // If the AI returns 0 or missing totalMarks, fallback to the known total from the scheme
     if (parsedScore.totalMarks === 0 && task.markingScheme?.totalMarks) {
       parsedScore.totalMarks = Number(task.markingScheme.totalMarks);
     }
 
-    console.log(`[SCORE DEBUG] Q${questionId}: rawScore=${JSON.stringify(markingResult.studentScore)}, parsedAwarded=${parsedScore.awardedMarks}, parsedTotal=${parsedScore.totalMarks}, schemeTotal=${task.markingScheme?.totalMarks}`);
+    // Final score consistency
+    parsedScore.scoreText = `${parsedScore.awardedMarks}/${parsedScore.totalMarks}`;
+
+    console.log(`[SCORE DEBUG] Q${questionId}: rawScore=${JSON.stringify(markingResult.studentScore)}, finalAwarded=${parsedScore.awardedMarks}, finalTotal=${parsedScore.totalMarks}, schemeTotal=${task.markingScheme?.totalMarks}`);
 
     return {
       questionNumber: questionId,

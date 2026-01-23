@@ -8,6 +8,9 @@ import SubscriptionService from '../../services/subscriptionService';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import ConfirmationModal from '../common/ConfirmationModal';
 import SEO from '../common/SEO';
+import ConfigService from '../../services/configService';
+import { useCredits } from '../../hooks/useCredits';
+import { useSubscription } from '../../hooks/useSubscription';
 import './SubscriptionPage.css';
 import '../credits.css';
 
@@ -31,10 +34,15 @@ const SubscriptionPage: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [internalLoading, setInternalLoading] = useState(true);
   const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; ultra: number } | null>(null);
   const [dynamicPlans, setDynamicPlans] = useState<any>(null); // Store fetched pricing
   const [creditError, setCreditError] = useState<string | null>(null);
+
+  const { credits: userCredits } = useCredits();
+  const { subscription: boundSubscription, loading: subLoading } = useSubscription();
+
+  const loading = internalLoading || subLoading;
 
   // Confirmation Modal State
   const [confirmationData, setConfirmationData] = useState<{
@@ -64,11 +72,7 @@ const SubscriptionPage: React.FC = () => {
   useEffect(() => {
     const fetchCreditConfig = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/config/credits`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch credit config: ${response.status}`);
-        }
-        const data = await response.json();
+        const data = await ConfigService.getCreditConfig();
         setPlanCredits(data.planCredits);
       } catch (error) {
         console.error('Error fetching credit config:', error);
@@ -77,7 +81,7 @@ const SubscriptionPage: React.FC = () => {
         setConfirmationData({
           isOpen: true,
           title: 'Credit Configuration Error',
-          message: `Cannot fetch credit values from backend server.\n\nError: ${errorMsg}\n\nPlease ensure:\n1. Backend server is running\n2. /api/config/credits endpoint is registered\n3. Backend .env.local has credit variables set`,
+          message: `Cannot fetch credit values from backend server.\n\nError: ${errorMsg}`,
           confirmText: 'Understood',
           variant: 'danger',
           showCancel: false,
@@ -88,13 +92,8 @@ const SubscriptionPage: React.FC = () => {
 
     const fetchPricing = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/plans`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.plans) {
-            setDynamicPlans(data.plans);
-          }
-        }
+        const data = await ConfigService.getPricing();
+        setDynamicPlans(data);
       } catch (error) {
         console.error('Error fetching dynamic pricing:', error);
       }
@@ -104,39 +103,18 @@ const SubscriptionPage: React.FC = () => {
     fetchPricing();
   }, []);
 
-  // Fetch current subscription
+  // Sync current subscription with hooks
   useEffect(() => {
-    const fetchSubscription = async () => {
-      if (!user?.uid) {
-        setLoading(false);
-        return;
+    if (boundSubscription) {
+      const mergedSubscription = { ...boundSubscription };
+      if (userCredits) {
+        (mergedSubscription as any).credits = userCredits;
       }
-      try {
-        const response = await SubscriptionService.getUserSubscription(user.uid);
-        const subscription = response.subscription;
-
-        // Fetch credits if subscription exists
-        if (subscription) {
-          try {
-            const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
-            if (creditsResponse.ok) {
-              const creditsData = await creditsResponse.json();
-              (subscription as any).credits = creditsData;
-            }
-          } catch (creditsError) {
-            console.error('Error fetching credits:', creditsError);
-          }
-        }
-
-        setCurrentSubscription(subscription);
-      } catch (error) {
-        console.error('Error fetching subscription:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSubscription();
-  }, [user]);
+      setCurrentSubscription(mergedSubscription);
+    } else {
+      setCurrentSubscription(null);
+    }
+  }, [boundSubscription, userCredits]);
 
   // Cancel scheduled plan change
   const handleCancelSchedule = async () => {
@@ -682,9 +660,7 @@ const SubscriptionPage: React.FC = () => {
 
   // Refresh Header data when subscription changes
   const refreshHeaderData = () => {
-    if (typeof window.refreshHeaderSubscription === 'function') {
-      window.refreshHeaderSubscription();
-    }
+    EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
   };
 
   // Handle billing cycle change
@@ -835,7 +811,7 @@ const SubscriptionPage: React.FC = () => {
                       £{plan.price}
                     </>
                   ) : (
-                    <span className="price-loading">£...</span>
+                    <span className="price-subLoading || loading">£...</span>
                   )}
                   <span className="upgrade-plan-period"> / {billingCycle === 'monthly' ? 'month' : 'year'}</span>
                 </div>

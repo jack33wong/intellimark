@@ -7,6 +7,8 @@ import API_CONFIG from '../config/api';
 const API_BASE = API_CONFIG.BASE_URL;
 
 class MarkingHistoryService {
+  static inFlightRequests = new Map();
+
   /**
    * Get marking history from sessions for a specific user
    * @param {string} userId - The user ID
@@ -15,56 +17,67 @@ class MarkingHistoryService {
    * @returns {Promise<Object>} The marking history data from sessions
    */
   static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null, lastUpdatedAt = null, messageType = null) {
-    try {
-      // Use new messages API instead of old chat API
-      let url = `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
-      if (lastUpdatedAt && lastUpdatedAt !== 'undefined' && lastUpdatedAt !== 'null') {
-        url += `&lastUpdatedAt=${encodeURIComponent(lastUpdatedAt)}`;
-      }
-      if (messageType && messageType !== 'all') {
-        url += `&messageType=${encodeURIComponent(messageType)}`;
-      }
+    const requestKey = `${userId}-${limit}-${lastUpdatedAt}-${messageType}`;
 
-
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-
-      // Add authorization header if token is provided
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      // Check if the response has sessions array
-      const sessions = result.sessions || result;
-
-      // Filter sessions that contain any messages (be more inclusive)
-      const markingSessions = sessions.filter(session =>
-        session.messages?.length > 0
-      );
-
-      return {
-        success: true,
-        userId: userId,
-        sessions: markingSessions,
-        total: markingSessions.length,
-        limit: limit
-      };
-    } catch (error) {
-      console.error('Error fetching marking history from sessions:', error);
-      throw error;
+    if (this.inFlightRequests.has(requestKey)) {
+      return this.inFlightRequests.get(requestKey);
     }
+
+    const fetchPromise = (async () => {
+      try {
+        // Use new messages API instead of old chat API
+        let url = `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
+        if (lastUpdatedAt && lastUpdatedAt !== 'undefined' && lastUpdatedAt !== 'null') {
+          url += `&lastUpdatedAt=${encodeURIComponent(lastUpdatedAt)}`;
+        }
+        if (messageType && messageType !== 'all') {
+          url += `&messageType=${encodeURIComponent(messageType)}`;
+        }
+
+
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+
+        // Add authorization header if token is provided
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        // Check if the response has sessions array
+        const sessions = result.sessions || result;
+
+        // Filter sessions that contain any messages OR have a lastMessage preview
+        // This is necessary because optimized sessions return messages as an empty array
+        const markingSessions = sessions.filter(session =>
+          (session.messages && session.messages.length > 0) || session.lastMessage
+        );
+
+        return {
+          success: true,
+          userId: userId,
+          sessions: markingSessions,
+          total: markingSessions.length,
+          limit: limit
+        };
+      } finally {
+        this.inFlightRequests.delete(requestKey);
+      }
+    })();
+
+    this.inFlightRequests.set(requestKey, fetchPromise);
+    return fetchPromise;
   }
 
   /**

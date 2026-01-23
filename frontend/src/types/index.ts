@@ -13,7 +13,24 @@ export type DetectedQuestion = components['schemas']['DetectedQuestion'];
 export type UnifiedMessage = components['schemas']['UnifiedMessage'] & {
     contextQuestionId?: string;
 };
-export type UnifiedSession = components['schemas']['UnifiedSession'];
+export type UnifiedSession = components['schemas']['UnifiedSession'] & {
+    lastMessagePreview?: {
+        content: string;
+        role: string;
+        timestamp: string;
+        createdAt?: string;
+    };
+    imagesPreview?: Array<{
+        src: string;
+        role: string;
+    }>;
+    lastMessage?: {
+        content: string;
+        role: string;
+        timestamp: string;
+        createdAt?: string;
+    };
+};
 export type MarkHomeworkRequest = components['schemas']['MarkHomeworkRequest'];
 export type MarkHomeworkResponse = components['schemas']['MarkHomeworkResponse'];
 export type ChatRequest = components['schemas']['ChatRequest'] & {

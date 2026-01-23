@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * getAuthToken: ALWAYS returns a fresh token from SDK.
    * If forceRefresh is true, it forces a network call to Google.
    */
-  const getAuthToken = async (forceRefresh: boolean = false): Promise<string | null> => {
+  const getAuthToken = React.useCallback(async (forceRefresh: boolean = false): Promise<string | null> => {
     if (auth?.currentUser) {
       try {
         // This is the core of "Seamless Auth". getIdToken(false) returns cached token if valid,
@@ -91,20 +91,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     }
     return null;
-  };
+  }, []);
 
-  const logout = async (): Promise<void> => {
+  const logout = React.useCallback(async (): Promise<void> => {
     if (!auth) return;
     // Emit logout event immediately before Firebase signOut
     EventManager.dispatch(EVENT_TYPES.USER_LOGGED_OUT, {});
     await signOut(auth);
-  };
+  }, []);
 
-  const isAdmin = (): boolean => {
+  const isAdmin = React.useCallback((): boolean => {
     return !!user?.isAdmin;
-  }
+  }, [user]);
 
-  const emailPasswordSignup = async (email: string, pass: string, name: string) => {
+  const emailPasswordSignup = React.useCallback(async (email: string, pass: string, name: string) => {
     if (!auth) return { success: false, message: "Auth not initialized" };
     try {
       await createUserWithEmailAndPassword(auth, email, pass);
@@ -112,9 +112,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       return { success: false, message: error.message };
     }
-  };
+  }, []);
 
-  const emailPasswordSignin = async (email: string, pass: string) => {
+  const emailPasswordSignin = React.useCallback(async (email: string, pass: string) => {
     if (!auth) return { success: false, message: "Auth not initialized" };
     try {
       await signInWithEmailAndPassword(auth, email, pass);
@@ -122,9 +122,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       return { success: false, message: error.message };
     }
-  };
+  }, []);
 
-  const value: AuthContextType = {
+  const value = React.useMemo(() => ({
     user,
     loading,
     isAdmin,
@@ -132,7 +132,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     emailPasswordSignup,
     emailPasswordSignin,
-  };
+  }), [user, loading, isAdmin, getAuthToken, logout, emailPasswordSignup, emailPasswordSignin]);
 
   return (
     <AuthContext.Provider value={value}>

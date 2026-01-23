@@ -87,9 +87,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     if (currentSession && !currentSession.id?.startsWith('temp-')) {
       // Wait 1 second for Firestore to save credit deduction
       setTimeout(() => {
-        if (typeof window.refreshHeaderSubscription === 'function') {
-          window.refreshHeaderSubscription();
-        }
+        import('../../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+          EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
+        });
       }, 1000);
     }
   }, [currentSession?.id]);

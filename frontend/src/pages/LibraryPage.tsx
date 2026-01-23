@@ -161,11 +161,9 @@ const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
         return; // Skip if no images
       }
 
-      // Find studentScore from assistant message
-      const assistantMessage = session.messages?.find(
-        m => m.role === 'assistant' && m.studentScore
-      );
-      const studentScore = assistantMessage?.studentScore;
+      // Find studentScore from session (denormalized) OR fallback to assistant message
+      const studentScore = (session as any).studentScore ||
+        session.messages?.find(m => m.role === 'assistant' && m.studentScore)?.studentScore;
 
       // Only include studentScore if all required fields are present
       const validStudentScore = studentScore &&

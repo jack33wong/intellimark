@@ -17,7 +17,8 @@ export interface UseSubscriptionResult {
 const globalCache = {
     subscription: null as UserSubscription | null,
     loaded: false,
-    timestamp: 0
+    timestamp: 0,
+    inProgressPromise: null as Promise<UserSubscription | null> | null
 };
 
 export const useSubscription = (): UseSubscriptionResult => {
@@ -34,25 +35,56 @@ export const useSubscription = (): UseSubscriptionResult => {
             return;
         }
 
-        try {
+        // 1. Use cache if valid (1 minute)
+        if (!globalCache.inProgressPromise && globalCache.loaded && (Date.now() - globalCache.timestamp < 60000)) {
+            setSubscription(globalCache.subscription);
+            setLoading(false);
+            return;
+        }
+
+        // 2. Dedup parallel requests
+        if (globalCache.inProgressPromise) {
             setLoading(true);
+            try {
+                const sub = await globalCache.inProgressPromise;
+                setSubscription(sub);
+                setError(null);
+            } catch (err: any) {
+                setError(err.message || 'Failed to fetch subscription');
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
+        const performFetch = async () => {
             const response = await SubscriptionService.getUserSubscription(user.uid);
             if (response.hasSubscription && response.subscription) {
-                setSubscription(response.subscription);
-                // Update cache
                 globalCache.subscription = response.subscription;
                 globalCache.loaded = true;
                 globalCache.timestamp = Date.now();
+                return response.subscription;
             } else {
-                setSubscription(null);
                 globalCache.subscription = null;
                 globalCache.loaded = true;
+                globalCache.timestamp = Date.now();
+                return null;
             }
+        };
+
+        try {
+            setLoading(true);
+            const fetchPromise = performFetch();
+            globalCache.inProgressPromise = fetchPromise;
+
+            const sub = await fetchPromise;
+            setSubscription(sub);
             setError(null);
         } catch (err: any) {
             console.error('Error fetching subscription:', err);
             setError(err.message || 'Failed to fetch subscription');
         } finally {
+            globalCache.inProgressPromise = null;
             setLoading(false);
         }
     };

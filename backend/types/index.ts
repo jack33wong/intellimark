@@ -429,6 +429,22 @@ export interface UnifiedSession {
 
   // Exam-level question detection (matches UnifiedMessage.detectedQuestion)
   detectedQuestion?: DetectedQuestion;
+
+  // Optimized previews for list views
+  lastMessagePreview?: {
+    content: string;
+    role: string;
+    timestamp: string;
+  };
+  imagesPreview?: Array<{
+    src: string;
+    role: string;
+  }>;
+  lastMessage?: {
+    content: string;
+    role: string;
+    timestamp: string;
+  };
 }
 
 

@@ -69,6 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const isInitializingRef = useRef(false);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -85,8 +86,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       setInitialLoading(false);
       return;
     }
+
+    if (isInitializingRef.current) {
+      console.log(`[PERF] Sidebar: initializeSessions already in progress, skipping.`);
+      return;
+    }
+
     const startTime = performance.now();
     console.log(`[PERF] Sidebar: Starting initializeSessions for user ${user.uid}`);
+    isInitializingRef.current = true;
     setInitialLoading(true);
     setHasMore(true);
     try {
@@ -94,6 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (!authToken) {
         console.error('Authentication token not available.');
         setInitialLoading(false);
+        isInitializingRef.current = false;
         return;
       }
 
@@ -117,6 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
     } finally {
+      isInitializingRef.current = false;
       setInitialLoading(false);
       const totalTime = performance.now() - startTime;
       console.log(`[PERF] Sidebar: initializeSessions total time: ${totalTime.toFixed(2)}ms`);

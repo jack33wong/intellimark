@@ -94,6 +94,20 @@ export class MarkingResultParser {
     ): any {
         if (!parsedResponse) return null;
 
+        // =====================================================================
+        // 🔧 FIX 1: GHOST MARK PROTECTION
+        // Ensure UNMATCHED marks have unique IDs so they survive deduplication.
+        // =====================================================================
+        if (parsedResponse.annotations) {
+            parsedResponse.annotations.forEach((anno: any, index: number) => {
+                if (!anno.line_id || anno.ocr_match_status === 'UNMATCHED') {
+                    const uniqueSuffix = `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
+                    anno.line_id = `ghost_${uniqueSuffix}`;
+                    anno.ocr_match_status = 'UNMATCHED';
+                }
+            });
+        }
+
         // 1. Mapper Truth Consistency (Page Assignments)
         if (subQuestionPageMap && Object.keys(subQuestionPageMap).length > 0 && parsedResponse.annotations) {
             parsedResponse.annotations.forEach((anno: any) => {
@@ -122,23 +136,18 @@ export class MarkingResultParser {
         // 2. Data Sanitization & Deduplication
         if (parsedResponse.annotations) {
             parsedResponse.annotations = parsedResponse.annotations.map((anno: any) => {
-                // ID normalization
                 const aiId = anno.line_id || anno.step_id || anno.lineId;
                 if (aiId) {
                     anno.line_id = aiId;
                     anno.step_id = aiId;
                 }
-
-                // Student text cleaning
                 if (anno.student_text) {
                     anno.student_text = anno.student_text.replace(/&/g, ' ').replace(/\\/g, '').replace(/\s+/g, ' ').trim();
                 }
-
-                // Null string safety
                 if (anno.action === 'null') anno.action = '';
                 if (anno.text === 'null') anno.text = '';
 
-                // Mark code deduplication (zero-value codes only)
+                // Mark code deduplication
                 if (anno.text && typeof anno.text === 'string') {
                     const codes = anno.text.trim().split(/\s+/);
                     const processedCodes: string[] = [];
@@ -158,7 +167,7 @@ export class MarkingResultParser {
                 return anno;
             });
 
-            // 3. Merge redundant annotations for the same step (e.g. Q8 stability)
+            // 3. Merge redundant annotations
             const merged: any[] = [];
             const seen = new Map<string, any>();
             parsedResponse.annotations.forEach((anno: any) => {
@@ -185,21 +194,57 @@ export class MarkingResultParser {
             this.enforceMarkLimits(parsedResponse, normalizedScheme, inputQuestionNumber);
         }
 
-        // 5. Score Recalculation & Budget Resolution
+        // =====================================================================
+        // 🔧 FIX 2: ATOMIC MATH SCORING
+        // PREVENTS "968/4" BUG by treating Math as atomic "1 mark".
+        // =====================================================================
         if (parsedResponse.studentScore) {
             let awarded = 0;
             parsedResponse.annotations.forEach((anno: any) => {
                 const text = (anno.text || '').trim();
                 const action = (anno.action || '').toLowerCase();
-                if (text && (action === 'tick' || action === 'mark' || /^[BMAPC][1-9]$/i.test(action))) {
-                    const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
-                    tokens.forEach((token: string) => {
-                        const code = token.split(/[^a-zA-Z0-9]/)[0];
-                        if (code && !code.endsWith('0') && /^[BMAPC][1-9]$/i.test(code)) {
-                            const val = parseInt(code.match(/(\d+)$/)?.[1] || '1', 10);
-                            awarded += val;
+
+                const isPositive = text && (action === 'tick' || action === 'mark' || !action.includes('cross'));
+
+                if (isPositive) {
+                    // CHECK 1: IS IT MATH/LATEX?
+                    // If the WHOLE string contains LaTeX syntax or math operators, we stop immediately.
+                    // We assume it is a "visual tick" worth 1 mark.
+                    if (/[\\{}=\^_\(\)]/.test(text) || text.includes('sqrt') || text.includes('frac')) {
+                        awarded += 1;
+                    }
+                    else {
+                        // CHECK 2: PARSE AS CODES
+                        // Only now do we split by spaces/punctuation
+                        const tokens = text.split(/[\s,|+]+/).filter((t: string) => t.length > 0);
+                        let foundCode = false;
+                        let lineScore = 0;
+
+                        tokens.forEach((token: string) => {
+                            const clean = token.replace(/[^a-zA-Z0-9]/g, ''); // strip punctuation
+
+                            // Regex for standard codes: M1, A2, B3, or integers like 1, 2
+                            if (/^[BMAPC][1-9]\d*$/i.test(clean)) {
+                                // CASE A: Explicit Mark Code (e.g. B2, M1) - TRUST THE NUMBER
+                                const val = parseInt(clean.match(/\d+$/)?.[0] || '1', 10);
+                                lineScore += val;
+                                foundCode = true;
+                            } else if (/^[1-9]\d*$/.test(clean)) {
+                                // CASE B: Raw Number (e.g. 27). 
+                                // To avoid "Total Trap", we treat raw isolation numbers as 1 mark (standard tick).
+                                // Only exception: if it's 1 or 2, maybe we allow it? Let's be safe and cap at 1.
+                                lineScore += 1;
+                                foundCode = true;
+                            }
+                        });
+
+                        if (foundCode) {
+                            awarded += lineScore;
+                        } else {
+                            // If it's just text "Correct" or "Good", count as 1 mark
+                            awarded += 1;
                         }
-                    });
+                    }
                 }
             });
 
@@ -239,27 +284,38 @@ export class MarkingResultParser {
             }
         });
 
+        // 🔧 FIX 3: Loose Check for Generic Mode
+        const isLooseMode = marksList.length === 0 || normalizedScheme.isGeneric;
+
         const validAnnos: any[] = [];
         const usage = new Map<string, number>();
         parsedResponse.annotations.forEach((anno: any) => {
             const tokens = (anno.text || '').trim().split(/[\s,|+]+/).filter(t => t.length > 0);
             const valid: string[] = [];
-            tokens.forEach(t => {
-                const code = t.split(/[^a-zA-Z0-9]/)[0];
-                const count = usage.get(code) || 0;
-                const limit = limitMap.get(code) || (code.endsWith('0') ? 99 : 0);
 
-                if (count < limit) {
-                    valid.push(t);
-                    usage.set(code, count + 1);
-                } else if (/^[BMAPC][1-9]$/i.test(code) && floatingPool > 0) {
-                    const val = parseInt(code.match(/(\d+)$/)?.[1] || '1', 10);
-                    if (floatingPool >= val) {
+            const isMathText = tokens.some(t => /[\\=\d]/.test(t) && !/^[BMAPC]\d+$/.test(t));
+
+            if (isLooseMode || isMathText) {
+                valid.push(...tokens);
+            } else {
+                tokens.forEach(t => {
+                    const code = t.split(/[^a-zA-Z0-9]/)[0];
+                    const count = usage.get(code) || 0;
+                    const limit = limitMap.get(code) || (code.endsWith('0') ? 99 : 0);
+
+                    if (count < limit) {
                         valid.push(t);
-                        floatingPool -= val;
+                        usage.set(code, count + 1);
+                    } else if (/^[BMAPC][1-9]$/i.test(code) && floatingPool > 0) {
+                        const val = parseInt(code.match(/(\d+)$/)?.[1] || '1', 10);
+                        if (floatingPool >= val) {
+                            valid.push(t);
+                            floatingPool -= val;
+                        }
                     }
-                }
-            });
+                });
+            }
+
             if (valid.length > 0) {
                 anno.text = valid.join(' ');
                 validAnnos.push(anno);

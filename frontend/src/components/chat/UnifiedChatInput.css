@@ -195,20 +195,22 @@
 }
 
 /* Main Upload Input Bar Styles */
-.main-upload-input-bar {
+.followup-chat-input-bar.first-time {
   position: relative;
   top: 0;
   left: 0;
   transform: none;
   background: transparent;
   padding: 0;
-  margin: 0 auto;
-  margin-top: 0;
-  width: 80%;
+  margin: 32px auto 0;
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Chat Input Bar for Chat Mode - Position at Bottom, Respecting Sidebar */
-.chat-mode .main-upload-input-bar {
+.followup-chat-input-bar.follow-up-bottom {
   position: fixed;
   bottom: 0;
   left: 280px;
@@ -216,11 +218,12 @@
   right: 0;
   top: auto;
   background: var(--background-gray-main);
-  padding: 12px 16px;
+  padding: 16px 24px;
   margin: 0;
   width: auto;
   z-index: 100;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--border-primary);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
 }
 
 /* Mobile responsive - input bar takes full width when sidebar is hidden */
@@ -255,7 +258,7 @@
     font-size: 16px;
   }
 
-  .chat-mode .main-upload-input-bar {
+  .followup-chat-input-bar.follow-up-bottom {
     left: 0;
     /* Full width on mobile */
   }
@@ -609,10 +612,12 @@
 }
 
 .followup-chat-input-bar .followup-upload-button:disabled {
-  background: #374151;
-  color: #6b7280;
+  background: var(--background-white-main);
+  color: var(--text-tertiary);
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  filter: grayscale(1);
 }
 
 /* Text Input */

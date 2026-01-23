@@ -18,23 +18,20 @@ import {
   LayoutDashboard,
   Menu
 } from 'lucide-react';
-import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
 import './Header.css';
 import '../credits.css';
 import { useCredits } from '../../hooks/useCredits';
+import { useSubscription } from '../../hooks/useSubscription';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileClosing, setIsProfileClosing] = useState(false);
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
-  const [userSubscription, setUserSubscription] = useState(null);
   const { credits: userCredits } = useCredits();
+  const { subscription: userSubscription, loading: subscriptionLoading } = useSubscription();
 
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-
-  const [refreshKey, setRefreshKey] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [avatarError, setAvatarError] = useState(false);
@@ -43,33 +40,9 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
 
 
-  // Fetch user subscription data
-  useEffect(() => {
-    const fetchUserSubscription = async () => {
-      if (!user?.uid) return;
-      setSubscriptionLoading(true);
-      try {
-        const response = await SubscriptionService.getUserSubscription(user.uid);
-        setUserSubscription(response.subscription);
-      } catch (error) {
-        console.error('Error fetching user subscription:', error);
-      } finally {
-        setSubscriptionLoading(false);
-      }
-    };
 
-    fetchUserSubscription();
-  }, [user?.uid, refreshKey]);
 
-  // Expose refresh function globally for other components to trigger
-  useEffect(() => {
-    window.refreshHeaderSubscription = () => {
-      setRefreshKey(prev => prev + 1);
-    };
-    return () => {
-      delete window.refreshHeaderSubscription;
-    };
-  }, []);
+
 
   // Check for subscription success parameter and create subscription record
   useEffect(() => {

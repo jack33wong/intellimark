@@ -135,7 +135,11 @@ export const MarkingPageProvider = ({
     };
   }, [apiProcessor]);
 
-  const [state, dispatch] = useReducer(markingPageReducer, initialState);
+  const [state, dispatch] = useReducer(markingPageReducer, undefined, () => ({
+    ...initialState,
+    selectedModel: getSavedModel(),
+    visibleTableIds: new Set(),
+  }));
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive, isGlobalSplit } = state;
 
   const lastSyncedSessionId = useRef(null);
@@ -385,16 +389,6 @@ export const MarkingPageProvider = ({
     }
   }, [user, isNegative, getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
 
-  useEffect(() => {
-    if (selectedMarkingResult) {
-      loadSession(selectedMarkingResult);
-      dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
-    } else {
-      clearSession();
-      dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
-      dispatch({ type: 'EXIT_SPLIT_MODE' });
-    }
-  }, [selectedMarkingResult, loadSession, clearSession]);
 
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
@@ -717,7 +711,6 @@ export const MarkingPageProvider = ({
     isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,
     visibleTableIds: state.visibleTableIds,
-    isNegative,
     isNegative,
     setShowCreditsModal,
     setSidebarOpen,

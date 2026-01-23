@@ -1406,16 +1406,34 @@ export class MarkingPipelineService {
                                                 result.annotations = finalizedAnnotations;
 
                                                 // 4. Recalculate score
-                                                const newAwarded = finalizedAnnotations.reduce((sum: number, a: any) => {
-                                                    if (a.action === 'tick' || a.action === 'mark') {
-                                                        const val = parseInt((a.text || '').replace(/\D/g, '') || '0') || 1;
-                                                        return sum + val;
-                                                    }
-                                                    return sum;
-                                                }, 0);
+                                                // Only recalculate if we actually cut something, otherwise trust the Executor's score
+                                                const countsChanged = finalizedAnnotations.length < anyAnnotations.length;
 
-                                                result.score.awardedMarks = newAwarded;
-                                                result.score.scoreText = `${newAwarded}/${result.score.totalMarks}`;
+                                                if (countsChanged) {
+                                                    const newAwarded = finalizedAnnotations.reduce((sum: number, a: any) => {
+                                                        if (a.action === 'tick' || a.action === 'mark') {
+                                                            const text = (a.text || '').trim();
+                                                            // ATOMIC MATH FIX: Treat math as 1 mark, avoid "27" error from \sqrt{27}
+                                                            const isMath = /[\\{}=\^_\(\)]/.test(text) || text.includes('sqrt') || text.includes('frac');
+
+                                                            let val = 1;
+                                                            if (!isMath) {
+                                                                const clean = text.replace(/[^a-zA-Z0-9]/g, '');
+                                                                if (/^[BMAPC][1-9]\d*$/i.test(clean)) {
+                                                                    val = parseInt(clean.match(/\d+$/)?.[0] || '1', 10);
+                                                                } else {
+                                                                    // Raw numbers or plain text are 1 mark
+                                                                    val = 1;
+                                                                }
+                                                            }
+                                                            return sum + val;
+                                                        }
+                                                        return sum;
+                                                    }, 0);
+
+                                                    result.score.awardedMarks = newAwarded;
+                                                    result.score.scoreText = `${newAwarded}/${result.score.totalMarks}`;
+                                                }
 
                                                 if (finalizedAnnotations.length < anyAnnotations.length && result.feedback) {
                                                     result.feedback += ` (Note: ${anyAnnotations.length - finalizedAnnotations.length} excess marks removed to fit budget)`;

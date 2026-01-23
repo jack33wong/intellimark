@@ -34,7 +34,19 @@ export const hasImage = (message: UnifiedMessage): boolean => {
  * @returns SessionImage[] - Array of session images
  */
 export const getSessionImages = (session: UnifiedSession | null): SessionImage[] => {
-  if (!session?.messages) {
+  if (!session?.messages || session.messages.length === 0) {
+    if (session?.imagesPreview && Array.isArray(session.imagesPreview)) {
+      const sessionId = session.id || `unknown-${Date.now()}`;
+      return session.imagesPreview.map((img: any, index: number) => ({
+        id: `preview-${sessionId}-${index}`,
+        src: img.src,
+        filename: `preview-${index}`,
+        messageId: 'preview',
+        messageRole: img.role || 'assistant',
+        messageType: 'preview',
+        alt: 'Session preview image'
+      }));
+    }
     return [];
   }
 
