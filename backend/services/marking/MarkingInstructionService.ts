@@ -557,6 +557,8 @@ export class MarkingInstructionService {
           reasoning: anno.reasoning,
           line_index: anno.line_index,
           ocr_match_status: anno.ocr_match_status,
+          linked_ocr_id: anno.linked_ocr_id,
+          linkedOcrId: anno.linkedOcrId,
           bbox: anno.bbox
         };
       });

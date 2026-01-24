@@ -15,7 +15,7 @@ export class MarkingPositioningService {
             return (a.coordinates?.y || 0) - (b.coordinates?.y || 0);
         });
 
-        const landmarkRegex = /^[^\w\(\)]*(Q?\d*[a-z]+|[ivx]+|[\(][a-zivx]+[\)]|Q\d+)/i;
+        const landmarkRegex = /^[^\w\(\)]*((?:Q?\d*[a-z]+|[ivx]+|[\(][a-zivx]+[\)]|Q\d+)+)/i;
         let currentLabel: string | null = null;
         let currentStartY = 0;
         let currentPageIndex = 0;
@@ -31,8 +31,8 @@ export class MarkingPositioningService {
                 if (match) {
                     const cleanLabel = match[1].replace(/[\(\)\.\s`]/g, '').toLowerCase();
 
-                    // VALID LANDMARKS: letters (a), roman (iv), or question numbers (q12)
-                    if (/^[a-z]$|^[a-z]?[ivx]{1,4}$|^q\d+$/.test(cleanLabel)) {
+                    // VALID LANDMARKS: letters (a), roman (iv), combined (bi), or question numbers (q12)
+                    if (/^[a-z]+$|^[a-z]+[ivx]+$|^[ivx]+$|^q\d+$/.test(cleanLabel)) {
                         console.log(`   📍 Found Landmark: "${cleanLabel}" at Page ${blockPage}, Y=${Math.round(block.coordinates?.y || 0)}`);
 
                         if (currentLabel) {

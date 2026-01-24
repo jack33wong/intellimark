@@ -28,8 +28,8 @@ export function sanitizeAnnotations(
         // If not, KEEP THE MARK but set to UNMATCHED.
         // We prioritize linked_ocr_id which is the physical evidence ID.
         // Support both underscore and camelCase from AI
-        const linkedId = anno.linked_ocr_id || anno.linkedOcrId || anno.linked_id;
-        const searchId = linkedId || anno.line_id;
+        // [V28 FIX] Prioritize physical linked ID over classification line_id
+        const searchId = anno.linked_ocr_id || anno.linkedOcrId || anno.linked_id || (anno.line_id?.startsWith('p') && anno.line_id?.includes('_ocr_') ? anno.line_id : null);
 
         if (!searchId) {
             return { ...anno, ocr_match_status: 'UNMATCHED' };

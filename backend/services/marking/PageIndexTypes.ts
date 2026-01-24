@@ -185,6 +185,13 @@ export interface ImmutableAnnotation {
     readonly aiMatchStatus?: string;
 
     /**
+     * ID of the OCR block this annotation is linked to.
+     * This is used when an annotation is derived from an OCR block,
+     * but its primary `lineId` might refer to a specific line within that block.
+     */
+    readonly linkedOcrId?: string;
+
+    /**
      * Student text from AI response (for UNMATCHED classification matching)
      * Used to find the corresponding line in classificationBlocks.studentWorkLines
      */

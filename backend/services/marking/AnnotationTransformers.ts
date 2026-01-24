@@ -43,6 +43,8 @@ export interface RawAIAnnotation {
     reasoning?: string;
     line_index?: number;
     ocr_match_status?: string; // NEW: Preserve AI's match status
+    linked_ocr_id?: string;    // NEW: Physical link ID
+    linkedOcrId?: string;      // NEW: Physical link ID (camelCase)
     bbox?: [number, number, number, number]; // NEW: Preserve pre-calculated bbox
 }
 
@@ -240,6 +242,7 @@ export function createAnnotationFromAI(
         action: aiAnnotation.action,
         reasoning: aiAnnotation.reasoning,
         aiMatchStatus: aiAnnotation.ocr_match_status, // Preserve AI's match status
+        linkedOcrId: aiAnnotation.linked_ocr_id || aiAnnotation.linkedOcrId, // Buffer the physical link
         studentText: aiAnnotation.student_text || aiAnnotation.studentText, // NEW: Preserve for UNMATCHED classification matching
         classificationText: aiAnnotation.classification_text, // NEW: Preserve alternative text source
         lineIndex: aiAnnotation.line_index, // NEW: Preserve for classification line mapping
@@ -437,6 +440,8 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         lineId: annotation.lineId, // Unified (Preferred)
         line_id: annotation.lineId, // Unified (Compatibility)
         step_id: annotation.lineId, // Legacy mapping
+        linked_ocr_id: annotation.linkedOcrId, // [V28 FIX] Restore physical link
+        linkedOcrId: annotation.linkedOcrId,   // [V28 FIX] Restore physical link
         ocrSource: annotation.ocrSource,
         hasLineData: annotation.hasLineData,
         action: annotation.action,

@@ -205,7 +205,7 @@ export async function executeMarkingForQuestion(
     // and bypass the precise Mathpix coordinates.
     const rawOcrBlocks = [
       ...task.mathBlocks.map((block, idx) => {
-        const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx + 1}`;
+        const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx}`;
         return {
           ...block,
           id: globalId,
@@ -533,9 +533,11 @@ export async function executeMarkingForQuestion(
       // ONLY RUN THIS IF NOT ANCHORED BY A ZONE
       if (!isAnchored && anno.bbox && (anno.bbox[0] === 0 || anno.ocr_match_status === 'UNMATCHED')) {
         // Find a "Working Example" (Any matched block on this page)
+        // CRITICAL: Only tether to a neighbor within the SAME sub-question zone
         const workingExample = enrichedAnnotations.find(a =>
           a.pageIndex === anno.pageIndex &&
           a.ocr_match_status === 'MATCHED' &&
+          a.subQuestion === anno.subQuestion &&
           a !== anno
         );
 
