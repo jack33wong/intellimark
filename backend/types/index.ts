@@ -141,6 +141,7 @@ export interface Annotation {
   visual_position?: { x: number; y: number; width: number; height: number }; // AI-estimated position for visual elements
   lineId?: string; // Unified identifier
   line_id?: string; // Unified identifier (AI compat)
+  linked_ocr_id?: string; // Explicit Mathpix Block ID verified by AI
   pageIndex?: number; // Page index for multi-page annotations
   visualObservation?: string; // AI's description of the visual content
 }

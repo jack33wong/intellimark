@@ -101,7 +101,25 @@ export const enrichAnnotationsWithPositions = (
         // ---------------------------------------------------------
         // PATH 1: PHYSICAL MATCH (OCR Blocks)
         // ---------------------------------------------------------
-        if (lineId.startsWith('block_')) {
+        // ---------------------------------------------------------
+        // PATH 1: PHYSICAL MATCH (OCR Blocks)
+        // ---------------------------------------------------------
+
+        // 🛡️ DETECTIVE FIX: Check linked_ocr_id FIRST (Restored Links)
+        if (incomingStatus === "MATCHED" && (anno as any).linked_ocr_id) {
+            const linkedBlock = findInSteps((anno as any).linked_ocr_id);
+            if (linkedBlock && linkedBlock.bbox) {
+                match = linkedBlock;
+                pixelBbox = [...match.bbox] as [number, number, number, number];
+                pageIndex = match.pageIndex ?? pageIndex;
+                method = "LINKED_OCR_RESTORED";
+
+                console.log(`   ✅ [PATH: RESTORED] Snapped to linked_ocr_id '${(anno as any).linked_ocr_id}'`);
+                console.log(`      Output: ${JSON.stringify(pixelBbox)}`);
+            }
+        }
+
+        if (method === "NONE" && lineId.startsWith('block_')) {
             match = findInSteps(lineId);
             if (match && match.bbox && (match.bbox[0] !== 0 || match.bbox[1] !== 0)) {
                 pixelBbox = [...match.bbox] as [number, number, number, number];
@@ -167,8 +185,11 @@ export const enrichAnnotationsWithPositions = (
 
                     // 🔥 CRITICAL FIX: The "Precomputed" values might actually be RAW PERCENTAGES (0-100).
                     // If they are suspicious (e.g. < 100), we MUST force them through the scaling detective.
-                    // This fixes the regression where "matched" items appeared at top-left.
-                    if (pixelBbox[0] < 100 && pixelBbox[1] < 100 && dims.width > 200) {
+                    // EXCEPTION: If the source is Classification (p0_q...), assume 1000-scale (Gemini Standard).
+                    // We check if it's NOT a global mapper ID to apply this.
+                    const isLegacySource = !lineId || !lineId.startsWith('p0_q');
+
+                    if (isLegacySource && pixelBbox[0] < 100 && pixelBbox[1] < 100 && dims.width > 200) {
                         console.log(`   ⚠️ [SCALING-CORRECTION] "Matched" coords are suspicious (${Math.round(pixelBbox[0])},${Math.round(pixelBbox[1])}). Treating as PERCENTAGE.`);
                         const den = 100;
                         pixelBbox = [
@@ -177,7 +198,23 @@ export const enrichAnnotationsWithPositions = (
                             (pixelBbox[2] / den) * dims.width,
                             (pixelBbox[3] / den) * dims.height
                         ];
-                        method = "PX_PRECOMPUTED_SCALED"; // CHANGED: Mark as Precomputed so we trust it
+                        method = "PX_PRECOMPUTED_SCALED";
+                    }
+                    // For Gemini/Classification IDs (p0_q...), if < 100, it's virtually always 0-1000 scale (just near top/left).
+                    // We DO NOT want to treat Y=46 as Y=46% (Page Bottom). We want Y=46/1000 (Page Top).
+                    else if (!isLegacySource && pixelBbox[0] < 1000 && pixelBbox[1] < 1000) {
+                        // Ensure it's treated as 1000-scale if not already
+                        const den = 1000;
+                        // Check if we haven't scaled yet (raw values < 1000 on a large page)
+                        if (pixelBbox[0] < 200 && dims.width > 1000) {
+                            console.log(`   ⚖️ [CLASS-SCALE] Treating small integer coords (${pixelBbox[0]},${pixelBbox[1]}) as 1000-scale.`);
+                            pixelBbox = [
+                                (pixelBbox[0] / den) * dims.width,
+                                (pixelBbox[1] / den) * dims.height,
+                                (pixelBbox[2] / den) * dims.width,
+                                (pixelBbox[3] / den) * dims.height
+                            ];
+                        }
                     }
                 }
             }
@@ -187,7 +224,9 @@ export const enrichAnnotationsWithPositions = (
         // 🛡️ MATCH SOVEREIGNTY (The "Perfect Match" Protection):
         // If we found a physical OCR match or a pre-computed pixel match, we trust it implicitly.
         // V31: Coordinate Normalization Fix as requested by user.
-        const isGlobalMapperId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_q');
+        // 🔥 CRITICAL FIX: If we restored the link via Deterministic Linker (LINKED_OCR_RESTORED),
+        // we have PHYSICAL OCR coordinates. We must NOT subtract the global offset again.
+        const isGlobalMapperId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_q') && method !== 'LINKED_OCR_RESTORED';
         const isMathpixId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_ocr');
 
         if (isGlobalMapperId) {
@@ -209,10 +248,10 @@ export const enrichAnnotationsWithPositions = (
                 method = "PX_SNAP_MATCH";
             }
         }
-        else if (isMathpixId || method === "OCR_PHYSICAL" || method === "PX_PRECOMPUTED" || method === "PX_PRECOMPUTED_SCALED" || method === "FALLBACK") {
+        else if (isMathpixId || method === "OCR_PHYSICAL" || method === "LINKED_OCR_RESTORED" || method === "PX_PRECOMPUTED" || method === "PX_PRECOMPUTED_SCALED" || method === "FALLBACK") {
             // ✅ TYPE 1B (Local Match): Standard Mathpix block or precomputed.
             // These are already relative to the question crop. Keep as is.
-            console.log(`   🛡️ [MATCH-SOVEREIGNTY] Local/Relative ID '${lineId}' detected. Skipping all offsets.`);
+            console.log(`   🛡️ [MATCH-SOVEREIGNTY] Local/Relative ID '${lineId}' (Method: ${method}) detected. Skipping all offsets.`);
         }
         else {
             // ✅ TYPE 2 (Unmatched): Use Classification + Landmark Transform

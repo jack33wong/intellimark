@@ -11,11 +11,12 @@ export class MarkingOutputService {
     /**
      * Generates the final output for the marking process.
      * Handles:
-     * 1. Score Calculation
-     * 2. Annotation Grouping
-     * 3. Page Sorting (Metadata -> Question Number -> Page Number)
-     * 4. Annotation Drawing (SVG Overlay)
-     * 5. Image Upload (for authenticated users)
+     * 1. Hybrid Resolution (Coordinate Snapping) [NEW]
+     * 2. Score Calculation
+     * 3. Annotation Grouping
+     * 4. Page Sorting (Metadata -> Question Number -> Page Number)
+     * 5. Annotation Drawing (SVG Overlay)
+     * 6. Image Upload (for authenticated users)
      */
     static async generateOutput(
         standardizedPages: StandardizedPage[],
@@ -37,6 +38,77 @@ export class MarkingOutputService {
         updatedQuestionResults: QuestionResult[];
         sortedStandardizedPages: StandardizedPage[];
     }> {
+
+        // ========================= HYBRID RESOLUTION: FIX COORDINATE DRIFT =========================
+        // 🔧 FIX: Post-process annotations to snap fuzzy/semantic IDs to precise/physical Mathpix blocks.
+        // This solves the "Split Brain" problem where AI picks a Semantic ID (meaning) but we need Physical Geometry (pixels).
+        console.log('🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...');
+
+        allQuestionResults.forEach(qr => {
+            if (qr.annotations) {
+                qr.annotations.forEach(annotation => {
+                    // 1. Resolve Target ID: 
+                    // Priority A: 'linked_ocr_id' (The AI explicitly linked a Semantic ID to a Physical Block)
+                    // Priority B: 'line_id' (The AI selected a Physical Block directly)
+                    const targetId = annotation.linked_ocr_id ||
+                        (annotation.line_id && annotation.line_id.startsWith('p0_ocr') ? annotation.line_id : null);
+
+                    if (targetId) {
+                        // 2. Find the Physical Block in allPagesOcrData
+                        let preciseBlock: any = null;
+
+                        // Optimization: Check the page index associated with the annotation first
+                        const targetPageIdx = annotation.pageIndex;
+                        const pageData = allPagesOcrData.find(p => p.pageIndex === targetPageIdx);
+
+                        if (pageData) {
+                            if (pageData.ocrData?.mathBlocks) {
+                                preciseBlock = pageData.ocrData.mathBlocks.find((b: any) => b.id === targetId || b.globalBlockId === targetId);
+                            }
+                            if (!preciseBlock && pageData.ocrData?.blocks) {
+                                preciseBlock = pageData.ocrData.blocks.find((b: any) => b.id === targetId || b.globalBlockId === targetId);
+                            }
+                        }
+
+                        // Fallback: Search all pages if not found (e.g. cross-page reference)
+                        if (!preciseBlock) {
+                            for (const p of allPagesOcrData) {
+                                if (p.ocrData?.mathBlocks) {
+                                    preciseBlock = p.ocrData.mathBlocks.find((b: any) => b.id === targetId || b.globalBlockId === targetId);
+                                    if (preciseBlock) break;
+                                }
+                                if (p.ocrData?.blocks) {
+                                    preciseBlock = p.ocrData.blocks.find((b: any) => b.id === targetId || b.globalBlockId === targetId);
+                                    if (preciseBlock) break;
+                                }
+                            }
+                        }
+
+                        if (preciseBlock && preciseBlock.box) {
+                            // 3. SNAP: Overwrite visual_position with Precise Mathpix Geometry
+                            // Mathpix coordinates are typically absolute relative to the page image size.
+                            // This bypasses any fuzzy estimation or offset calculation errors.
+                            console.log(`🧲 [SNAP] Snapping annotation ${annotation.line_id} to physical block ${targetId}`);
+
+                            annotation.visual_position = {
+                                x: preciseBlock.box.x,
+                                y: preciseBlock.box.y,
+                                width: preciseBlock.box.width,
+                                height: preciseBlock.box.height
+                            };
+
+                            // Mark as snapped for debugging/transparency
+                            (annotation as any)._snappedToPhysical = true;
+                        } else {
+                            // console.warn(`⚠️ [SNAP] Could not find physical block for ID: ${targetId}`);
+                        }
+                    }
+                });
+            }
+        });
+        // ===========================================================================================
+
+
         // --- Calculate Overall Score and Per-Page Scores ---
         const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(allQuestionResults);
         const questionFirstPageScores = calculateQuestionFirstPageScores(allQuestionResults, classificationResult);
@@ -58,8 +130,6 @@ export class MarkingOutputService {
                 }
             });
         });
-
-
 
 
         // --- Determine First Page After Sorting (for total score placement) ---
@@ -215,11 +285,6 @@ export class MarkingOutputService {
             }
 
             // CRITICAL FIX: Trust the mapper's classification
-            // If mapper said it's metadata, DON'T override even if we detect question numbers
-            // (Front pages often contain spurious numbers like "Total Marks: 80")
-            // Only override metadata status if:
-            // 1. Questions were detected, AND
-            // 2. Mapper did NOT classify as metadata/frontPage
             if (lowestQ !== Infinity && mapperCategory !== 'metadata' && mapperCategory !== 'frontPage') {
                 isLikelyMetadata = false;
             }
@@ -241,7 +306,6 @@ export class MarkingOutputService {
             if (!a.isMetadataPage && b.isMetadataPage) return 1;
 
             // NEW: Prioritize Detected Question Order (Logical Ground Truth)
-            // This ensures Page 23 (containing Q18) is sorted after Q17, not at the end.
             const aHasQuestions = a.lowestQuestionNumber !== Infinity;
             const bHasQuestions = b.lowestQuestionNumber !== Infinity;
 
@@ -252,7 +316,6 @@ export class MarkingOutputService {
             }
 
             // Fallback: Physical Page Number Sorting (Filename sequence)
-            // Use this for pages without detected question numbers or within the same question
             if (a.pageNumber !== null && b.pageNumber !== null) {
                 return a.pageNumber - b.pageNumber;
             }

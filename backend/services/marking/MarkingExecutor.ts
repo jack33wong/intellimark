@@ -178,8 +178,9 @@ export async function executeMarkingForQuestion(
       task.aiSegmentationResults.forEach((result, index) => {
         const clean = result.content.replace(/\s+/g, ' ').trim();
         if (clean && clean !== '--') {
-          // ID Hidden: Force AI to look for IDs in RAW OCR BLOCKS (Rescue Layer)
-          ocrTextForPrompt += `${index + 1}. ${clean}\n`;
+          // ID VISIBLE: Inject explicit ID for strict copy-pasting
+          const idTag = (result as any).sequentialId ? `[ID: ${(result as any).sequentialId}] ` : `${index + 1}. `;
+          ocrTextForPrompt += `${idTag}${clean}\n`;
         }
       });
     }
@@ -293,7 +294,24 @@ export async function executeMarkingForQuestion(
       markingInputs.processedImage.rawOcrBlocks
     ));
 
-    sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
+    // =========================================================================
+    // 🧮 DETERMINISTIC LINKER (The Proper Fix)
+    // Runs AFTER sanitization to authoritatively restore valid links.
+    // =========================================================================
+    if (markingResult.annotations) {
+      console.log("🧮 [DETERMINISTIC-LINK] Running post-sanitization verification...");
+
+      const pageDims = task.pageDimensions?.get(task.sourcePages?.[0] || 0);
+      const pageHeight = pageDims?.height || 2000;
+
+      markingResult.annotations = resolveLinksWithZones(
+        markingResult.annotations,
+        markingInputs.processedImage.landmarks,
+        markingInputs.processedImage.rawOcrBlocks,
+        pageHeight
+      );
+    }
+    // =========================================================================
 
     const rawAnnotationsFromAI = JSON.parse(JSON.stringify(markingResult.annotations || []));
 
@@ -837,8 +855,10 @@ export function createMarkingTasksFromClassification(
           promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
           currentHeader = seg.subQuestionLabel;
         }
-        // ID Hidden: Force AI to look for IDs in RAW OCR BLOCKS (Rescue Layer)
-        promptMainWork += `${index + 1}. ${clean}\n`;
+        // ID VISIBLE: Inject explicit ID for strict copy-pasting
+        // If sequentialId is missing (unlikely), fallback to index
+        const idTag = seg.sequentialId ? `[ID: ${seg.sequentialId}] ` : `${index + 1}. `;
+        promptMainWork += `${idTag}${clean}\n`;
       }
     });
 
@@ -898,4 +918,205 @@ function parseScore(scoreInput: any): { awardedMarks: number; totalMarks: number
     awardedMarks: isNaN(numericValue) ? 0 : numericValue,
     totalMarks: 0
   };
+}
+
+/**
+ * Deterministic Linker (Smart Mode):
+ * 1. Audits the AI's link. If valid, keeps it.
+ * 2. If invalid (or missing), hunts for the correct link using strict Zone + Value logic.
+ */
+function resolveLinksWithZones(
+  annotations: any[],
+  landmarks: { label: string; y: number }[],
+  allOcrBlocks: any[],
+  pageHeight: number
+): any[] {
+
+  return annotations.map(anno => {
+    // 1. SKIP VISUAL annotations (Trust AI for drawings)
+    if (anno.ocr_match_status === "VISUAL") return anno;
+
+    // 2. DEFINE THE ZONE
+    // Robust matching for subQuestion labels (e.g. "10a" -> "a")
+    const clean = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanSubQ = clean(anno.subQuestion || '');
+
+    let zone: { startY: number; endY: number };
+    let currentLandmark = landmarks.find(l => cleanSubQ.endsWith(clean(l.label))) ||
+      landmarks.find(l => cleanSubQ.startsWith(clean(l.label)));
+
+    // If no specific landmark found, check if it's the FIRST sub-question (e.g. 'a', 'ai').
+    // If so, default to Start of Page/Question (Y=0).
+    if (!currentLandmark) {
+      const firstPart = ['a', 'ai', 'i', '1'].includes(cleanSubQ) || cleanSubQ.endsWith('a') || cleanSubQ.endsWith('ai');
+      if (firstPart) {
+        console.log(`      📍 [ZONE-DEFAULT] No landmark for '${anno.subQuestion}', defaulting to Start (Y=0).`);
+        zone = { startY: 0, endY: landmarks[0]?.y || pageHeight };
+        // Mock landmark to prevent crash downstream
+        currentLandmark = { label: 'START', y: 0 };
+      } else {
+        console.log(`      ⚠️ [ZONE-SKIP] No landmark found for '${anno.subQuestion}'`);
+        return anno; // Skip this annotation if no landmark and not a recognized first sub-question
+      }
+    } else {
+      // Find next landmark to define bottom of zone
+      const currentIdx = landmarks.indexOf(currentLandmark);
+      const nextLandmark = landmarks[currentIdx + 1];
+
+      zone = {
+        startY: Math.max(0, currentLandmark.y - 50), // Buffer for inline/tall content
+        endY: nextLandmark ? nextLandmark.y : pageHeight
+      };
+    }
+
+    // =========================================================================
+    // 🕵️ STEP A: AUDIT THE AI'S CHOICE (Trust but Verify)
+    // =========================================================================
+    if (anno.ocr_match_status === "MATCHED" && anno.linked_ocr_id) {
+      const aiChosenBlock = allOcrBlocks.find(b => b.id === anno.linked_ocr_id);
+
+      if (aiChosenBlock) {
+        const blockY = aiChosenBlock.coordinates?.y ??
+          (Array.isArray(aiChosenBlock.bbox) ? aiChosenBlock.bbox[1] :
+            Array.isArray(aiChosenBlock.box) ? aiChosenBlock.box[1] :
+              aiChosenBlock.box?.y) ?? 0;
+        const inZone = blockY >= zone.startY && blockY <= zone.endY;
+        const textMatch = isExactValueMatch(aiChosenBlock.text, anno.student_text || anno.text);
+
+        if (inZone && textMatch) {
+          // ✅ AI was Correct. Keep it.
+          // console.log(`   ⚖️ [AI-AUDIT-PASS] Keeping valid link for '${anno.student_text}'`);
+          return anno;
+        } else {
+          console.log(`   ⚖️ [AI-AUDIT-FAIL] AI linked '${anno.student_text}' to block ${aiChosenBlock.id} ("${aiChosenBlock.text}"), but it failed validation (Zone: ${inZone}, Text: ${textMatch}). Overriding...`);
+          // Fall through to Step B to find the REAL match
+        }
+      }
+    }
+
+    // =========================================================================
+    // 🦅 STEP B: DETERMINISTIC HUNT (The Override)
+    // AI failed or was unmatched. We search for the correct block ourselves.
+    // =========================================================================
+
+    // 1. Spatial Filter (Get candidates in the Zone)
+    const candidates = allOcrBlocks.filter(block => {
+      const y = block.coordinates?.y ??
+        (Array.isArray(block.bbox) ? block.bbox[1] :
+          Array.isArray(block.box) ? block.box[1] :
+            block.box?.y) ?? 0;
+      return y >= zone.startY && y <= zone.endY;
+    });
+
+    console.log(`      📍 [ZONE-TRACE] Anno '${anno.subQuestion || '?'}' -> Landmark '${currentLandmark.label}' (Y=${zone.startY}-${zone.endY}). Candidates: ${candidates.length}`);
+
+    // 🔍 CANDIDATE DUMP
+    if (candidates.length > 0) {
+      console.log(`      🧐 [CANDIDATES-DUMP] Zone ${currentLandmark.label}:`);
+      candidates.forEach(c => {
+        const y = c.coordinates?.y ??
+          (Array.isArray(c.bbox) ? c.bbox[1] :
+            Array.isArray(c.box) ? c.box[1] :
+              c.box?.y) ?? 0;
+        console.log(`         - [${c.id}] (Y=${y}) Text: "${c.text}"`);
+      });
+    }
+
+    // 2. Semantic Match (Find exact or fuzzy text)
+    const match = candidates.find(block => isExactValueMatch(block.text, anno.student_text || anno.text));
+
+    if (match) {
+      console.log(`   ✅ [LINK-RESTORED] Found correct match for '${anno.student_text || anno.text}' -> Block ${match.id} (Zone ${currentLandmark.label})`);
+      return {
+        ...anno,
+        ocr_match_status: "MATCHED",
+        linked_ocr_id: match.id,
+        reasoning: `${anno.reasoning} [System Verified: Found in Zone ${currentLandmark.label}]`
+      };
+    } else {
+      // 3. No match found in the correct zone.
+      // If AI had a bad match, we must kill it (False Positive).
+      if (anno.ocr_match_status === "MATCHED") {
+        console.log(`   🚫 [LINK-KILLED] '${anno.student_text}' was falsely matched by AI. No valid OCR found in Zone ${currentLandmark.label} (${zone.startY}-${zone.endY}). Resetting to UNMATCHED.`);
+        // Log candidates for debugging
+        console.log(`      Candidates in zone: ${candidates.map(c => `[${c.id}: ${c.text}]`).join(', ')}`);
+        return { ...anno, ocr_match_status: "UNMATCHED", linked_ocr_id: null };
+      }
+      return anno;
+    }
+  });
+}
+
+/**
+ * Calculates the Levenshtein distance between two strings.
+ * @param s1 The first string.
+ * @param s2 The second string.
+ * @returns The Levenshtein distance.
+ */
+function levenshteinDistance(s1: string, s2: string): number {
+  const m = s1.length;
+  const n = s2.length;
+  const dp: number[][] = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) {
+    dp[i][0] = i;
+  }
+  for (let j = 0; j <= n; j++) {
+    dp[0][j] = j;
+  }
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = (s1[i - 1] === s2[j - 1]) ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,      // Deletion
+        dp[i][j - 1] + 1,      // Insertion
+        dp[i - 1][j - 1] + cost // Substitution
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function isExactValueMatch(ocrText: string, studentText: string): boolean {
+  if (!studentText) return false;
+
+  // Aggressive Normalization: 
+  // 1. Remove LaTeX commands (e.g. \times, \frac)
+  // 2. Remove non-alphanumeric chars
+  const normalize = (str: string) => {
+    let s = str.toLowerCase();
+    // Remove LaTeX commands (backslash + letters)
+    s = s.replace(/\\[a-z]+/g, '');
+    // Remove non-alphanumeric
+    return s.replace(/[^a-z0-9]/g, '');
+  };
+
+  const cleanOcr = normalize(ocrText);
+  const cleanStudent = normalize(studentText);
+
+  // 1. Exact Inclusion
+  if (cleanOcr.includes(cleanStudent)) return true;
+
+  // 2. Fuzzy Match (Levenshtein) - Spatial Confidence allows this
+  // Only apply if strings are non-trivial (>3 chars)
+  if (cleanStudent.length > 3) {
+    const dist = levenshteinDistance(cleanStudent, cleanOcr);
+    const threshold = cleanStudent.length <= 5 ? 1 : 2; // Tolerate 1 error for short, 2 for long
+
+    // If OCR is much longer, we check if student text matches a SUBSTRING of OCR fuzzily?
+    // For now, strict distance on the normalized content is safer.
+    if (dist <= threshold) {
+      console.log(`      ✨ [FUZZY-MATCH] '${cleanStudent}' ~= '${cleanOcr}' (Dist: ${dist})`);
+      return true;
+    }
+  }
+
+  // 3. Strict Integer Safety
+  if (/^\d+$/.test(cleanStudent)) {
+    const regex = new RegExp(`\\b${cleanStudent}\\b`);
+    return regex.test(ocrText);
+  }
+
+  return false;
 }

@@ -454,7 +454,8 @@ export class MarkingInstructionService {
         inputs.subQuestionPageMap,
         allowedPageUnion,
         tracker,
-        cleanDataForMarking.steps
+        cleanDataForMarking.steps,
+        (processedImage as any).landmarks || [] // Pass landmarks for Sanitization Layer
       );
 
       if (!annotationData.annotations || !Array.isArray(annotationData.annotations)) {
@@ -651,7 +652,8 @@ export class MarkingInstructionService {
     subQuestionPageMap?: Record<string, number[]>,
     allowedPageUnion?: number[],
     tracker?: any,
-    cleanStudentWorkSteps?: any[]
+    cleanStudentWorkSteps?: any[],
+    landmarks?: Array<{ label: string; y: number }>
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
     const formattedOcrText = MarkingPromptService.formatOcrTextForPrompt(ocrText);
     const formattedGeneralGuidance = this.formatGeneralMarkingGuidance(generalMarkingGuidance);
@@ -759,6 +761,9 @@ export class MarkingInstructionService {
 
     const jsonString = MarkingResultParser.extractJsonFromResponse(res.content);
     let parsedResponse = MarkingResultParser.repairJson(jsonString);
+
+
+
     parsedResponse = MarkingResultParser.postProcessMarkingResponse(parsedResponse, normalizedScheme, subQuestionPageMap || {}, inputQuestionNumber || '');
 
     if (!parsedResponse || !parsedResponse.annotations) {
