@@ -228,15 +228,17 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
 export function logAnnotationSummary(allQuestionResults: QuestionResult[], markingTasks: any[]) {
   // ========================== ANNOTATION SUMMARY ==========================
   console.log('\n📊 [ANNOTATION SUMMARY]');
-  console.log('----------------------------------------------------------------------');
-  console.log('| Q#       | Score | Marks Awarded           | Match Status              |');
-  console.log('|----------|-------|-------------------------|---------------------------|');
+  console.log('-----------------------------------------------------------------------------------------');
+  console.log('| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |');
+  console.log('|----------|-------|-------------------------|----------------------------------------|');
 
   const sortedResults = allQuestionResults;
 
   // Helper to calc stats for a list of annotations
   const calcStats = (list: any[]) => {
     let m = 0, v = 0, u = 0, s = 0;
+    let ai_m = 0; // AI Raw Matches
+
     list.forEach((a: any) => {
       // Logic mirrored from MarkingExecutor match statuses
       if (a.ocr_match_status === 'VISUAL') v++;
@@ -244,8 +246,11 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) s++;
       else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) m++;
       else m++; // Default to match if it has reliable bbox
+
+      // Count AI Raw Matches (if available)
+      if ((a as any).ai_raw_status === 'MATCHED') ai_m++;
     });
-    return { m, v, u, s };
+    return { m, v, u, s, ai_m };
   };
 
   sortedResults.forEach(result => {
@@ -271,9 +276,9 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
     // Calculate Main Status
     const stats = calcStats(questionAnns);
-    const statusStr = `M:${stats.m} V:${stats.v} U:${stats.u} S:${stats.s}`;
+    const statusStr = `AI:${stats.ai_m}/${questionAnns.length} → M:${stats.m} U:${stats.u}`;
 
-    console.log(`| ${coloredQNum} | ${paddedScore} | ${mainMarks.padEnd(23)} | ${statusStr.padEnd(25)} |`);
+    console.log(`| ${coloredQNum} | ${paddedScore} | ${mainMarks.padEnd(23)} | ${statusStr.padEnd(38)} |`);
 
     // 2. Prepare Sub-Question Rows
     // Group annotations by sub-question label
@@ -336,12 +341,13 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
         // Calculate Sub Status
         const subStats = calcStats(subAnnsMap.get(key) || []);
-        const subStatusStr = `M:${subStats.m} V:${subStats.v} U:${subStats.u} S:${subStats.s}`;
+        const subTotalCount = (subAnnsMap.get(key) || []).length;
+        const subStatusStr = `AI:${subStats.ai_m}/${subTotalCount} → M:${subStats.m} U:${subStats.u}`;
 
-        console.log(`| ${coloredLabel} | ${subScoreStr.padEnd(5)} | ${subMarks.padEnd(23)} | ${subStatusStr.padEnd(25)} |`);
+        console.log(`| ${coloredLabel} | ${subScoreStr.padEnd(5)} | ${subMarks.padEnd(23)} | ${subStatusStr.padEnd(38)} |`);
       });
     }
-    console.log('|----------|-------|-------------------------|---------------------------|');
+    console.log('|----------|-------|-------------------------|----------------------------------------|');
   });
 }
 
@@ -1594,16 +1600,20 @@ export function logDetectionAudit(detectionResults: any[]): void {
 /**
  * Generates a diagnostic table comparing Student Work vs. AI Selection vs. Actual OCR Content
  */
+/**
+ * Generates a diagnostic table comparing Student Work vs. AI Selection vs. Actual OCR Content
+ * [UPDATED DESIGN]: Focuses on the Lifecycle of the annotation (AI -> Pipeline -> Final)
+ */
 export function generateDiagnosticTable(
   annotations: any[],
   ocrBlocks: any[]
 ): string {
   const headers = [
-    "Q#".padEnd(6),
-    "Student Work".padEnd(20),
-    "Status".padEnd(10), // New Field
-    "AI ID".padEnd(12),
-    "OCR Content (The Truth)".padEnd(30), // The Lookup
+    "Q#".padEnd(4),
+    "Student Snippet".padEnd(20),
+    "AI Status".padEnd(10),
+    "Pipeline Action".padEnd(25),
+    "Final Status".padEnd(12),
     "Verdict".padEnd(20)
   ];
 
@@ -1612,60 +1622,52 @@ export function generateDiagnosticTable(
   table += `${headers.join(" | ")}\n`;
   table += `-${"-".repeat(headers.join(" | ").length)}\n`;
 
-  // Helper to verify if a match is "Desperate" (Integer Rule)
-  const isDesperate = (student: string, ocr: string) => {
-    const s = student.trim();
-    const o = ocr.trim();
-    // Logic: If student is number, OCR must contain it fully
-    if (/^\d+$/.test(s) && o !== s) return true;
-    return false;
-  };
-
   annotations.forEach(anno => {
-    const subQ = `[${anno.subQuestion || '?'}]`.padEnd(6);
-    // Handle both casing (student_text from AI, studentText from internal)
+    // 1. Q Number
+    const subQ = `[${anno.subQuestion || '?'}]`.padEnd(4);
+
+    // 2. Student Snippet (First 20 chars)
     const rawStudentText = anno.student_text || anno.meta?.studentText || anno.studentText || "";
-    const studentWork = (rawStudentText.length > 18
+    const studentSnippet = (rawStudentText.length > 18
       ? rawStudentText.substring(0, 15) + "..."
-      : rawStudentText).padEnd(20);
+      : rawStudentText).replace(/\n/g, ' ').padEnd(20);
 
-    const status = (anno.ocr_match_status || "UNKNOWN").padEnd(10);
-    const aiId = (anno.line_id || "---").padEnd(12);
+    // 3. AI Status (Raw)
+    // If we didn't capture it (old code path), assume it was MATCHED if it ever arrived here
+    const aiStatusRaw = (anno as any).ai_raw_status || 'UNKNOWN';
+    const aiStatus = aiStatusRaw.padEnd(10);
+    const aiColor = aiStatusRaw === 'MATCHED' ? '\x1b[32m' : '\x1b[31m'; // Green/Red console codes don't render in string buffer but logic stands
 
-    // 🔍 THE LOOKUP: Find what p0_ocr_6 actually says
-    let ocrContentRaw = "---";
-    if (anno.line_id) {
-      const block = ocrBlocks.find(b => b.id === anno.line_id);
-      if (block) {
-        ocrContentRaw = block.text;
+    // 4. Final Status
+    const finalStatusRaw = anno.ocr_match_status || "UNMATCHED";
+    const finalStatus = finalStatusRaw.padEnd(12);
+
+    // 5. Pipeline Action Inference
+    let action = "---";
+    if (aiStatusRaw === 'MATCHED' && finalStatusRaw === 'UNMATCHED') {
+      action = "🛡️ IRON DOME REJECT";
+    } else if (aiStatusRaw === 'MATCHED' && finalStatusRaw === 'MATCHED') {
+      // Check if ID changed?
+      // For now, simpler logic:
+      if ((anno.reasoning || '').includes('System Verified')) {
+        action = "🔧 LINKER RESTORED";
+      } else if ((anno.reasoning || '').includes('Fuzzy')) {
+        action = "✨ FUZZY ACCEPT";
       } else {
-        ocrContentRaw = "❌ (ID NOT FOUND)";
+        action = "✅ PASSED";
       }
+    } else if (aiStatusRaw === 'UNMATCHED' && finalStatusRaw === 'MATCHED') {
+      action = "✨ LINKER RESCUE";
     }
+    action = action.padEnd(25);
 
-    const ocrContent = (ocrContentRaw.length > 28
-      ? ocrContentRaw.substring(0, 25) + "..."
-      : ocrContentRaw).replace(/\n/g, " ").padEnd(30);
-
-    // ⚖️ THE VERDICT LOGIC
+    // 6. Verdict / Comment
     let verdict = "";
-    if (anno.ocr_match_status === "UNMATCHED") {
-      verdict = "🛡️ SAFETY (Good)";
-    } else if (anno.ocr_match_status === "MATCHED") {
-      if (ocrContentRaw === "---" || ocrContentRaw.includes("NOT FOUND")) {
-        verdict = "⚠️ HALLUCINATION";
-      } else if (isDesperate(rawStudentText, ocrContentRaw)) {
-        verdict = "❌ DESPERATE MATCH";
-      } else {
-        verdict = "✅ SUCCESS";
-      }
-    } else if (anno.ocr_match_status === "VISUAL") {
-      verdict = "🎨 VISUAL OK";
-    } else {
-      verdict = "❓ UNKNOWN";
-    }
+    if (finalStatusRaw === 'UNMATCHED') verdict = "SAFETY (Hidden)";
+    else if (finalStatusRaw === 'MATCHED') verdict = `Linked: ${anno.linked_ocr_id || '---'}`;
+    else if (finalStatusRaw === 'VISUAL') verdict = "Visual Only";
 
-    table += `${subQ} | ${studentWork} | ${status} | ${aiId} | ${ocrContent} | ${verdict}\n`;
+    table += `${subQ} | ${studentSnippet} | ${aiStatus} | ${action} | ${finalStatus} | ${verdict}\n`;
   });
 
   table += `-${"-".repeat(headers.join(" | ").length)}\n`;

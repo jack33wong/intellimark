@@ -26,14 +26,19 @@ export function sanitizeAnnotations(
 
         // 2. CHECK: Does the ID exist?
         // If not, KEEP THE MARK but set to UNMATCHED.
-        if (!anno.line_id) {
+        // We prioritize linked_ocr_id which is the physical evidence ID.
+        // Support both underscore and camelCase from AI
+        const linkedId = anno.linked_ocr_id || anno.linkedOcrId || anno.linked_id;
+        const searchId = linkedId || anno.line_id;
+
+        if (!searchId) {
             return { ...anno, ocr_match_status: 'UNMATCHED' };
         }
 
-        const block = ocrBlocks.find((b: any) => b.id === anno.line_id);
+        const block = ocrBlocks.find((b: any) => b.id === searchId);
         if (!block) {
-            console.warn(`⚠️ [IRON DOME] Block ID '${anno.line_id}' not found. Switching to UNMATCHED.`);
-            return { ...anno, ocr_match_status: 'UNMATCHED', line_id: null };
+            console.warn(`⚠️ [IRON DOME] Block ID '${searchId}' not found in OCR list. Switching to UNMATCHED.`);
+            return { ...anno, ocr_match_status: 'UNMATCHED', line_id: null, linked_ocr_id: null, linkedOcrId: null };
         }
 
         // 3. DIGIT FIDELITY CHECK

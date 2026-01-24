@@ -301,6 +301,12 @@ export async function executeMarkingForQuestion(
     if (markingResult.annotations) {
       console.log("🧮 [DETERMINISTIC-LINK] Running post-sanitization verification...");
 
+      // 1. Capture AI Status Map (ID -> Status)
+      const aiStatusMap = new Map<string, string>();
+      (markingResult.annotations || []).forEach((a: any) => {
+        if (a.line_id) aiStatusMap.set(a.line_id, a.ocr_match_status);
+      });
+
       const pageDims = task.pageDimensions?.get(task.sourcePages?.[0] || 0);
       const pageHeight = pageDims?.height || 2000;
 
@@ -310,6 +316,14 @@ export async function executeMarkingForQuestion(
         markingInputs.processedImage.rawOcrBlocks,
         pageHeight
       );
+
+      // 2. Restore AI Raw Status (Survive Object Replacement)
+      markingResult.annotations.forEach((a: any) => {
+        if (a.line_id && aiStatusMap.has(a.line_id)) {
+          a.ai_raw_status = aiStatusMap.get(a.line_id);
+        }
+        if (!a.ai_raw_status) a.ai_raw_status = 'UNKNOWN';
+      });
     }
     // =========================================================================
 
@@ -948,7 +962,10 @@ function resolveLinksWithZones(
     // If no specific landmark found, check if it's the FIRST sub-question (e.g. 'a', 'ai').
     // If so, default to Start of Page/Question (Y=0).
     if (!currentLandmark) {
-      const firstPart = ['a', 'ai', 'i', '1'].includes(cleanSubQ) || cleanSubQ.endsWith('a') || cleanSubQ.endsWith('ai');
+      // Check if it's the FIRST sub-question part (e.g. 'a', 'ai') OR a raw Question Number (e.g. '10', '2').
+      const isNumeric = /^\d+$/.test(cleanSubQ);
+      const firstPart = isNumeric || ['a', 'ai', 'i', '1'].includes(cleanSubQ) || cleanSubQ.endsWith('a') || cleanSubQ.endsWith('ai');
+
       if (firstPart) {
         console.log(`      📍 [ZONE-DEFAULT] No landmark for '${anno.subQuestion}', defaulting to Start (Y=0).`);
         zone = { startY: 0, endY: landmarks[0]?.y || pageHeight };
@@ -969,11 +986,19 @@ function resolveLinksWithZones(
       };
     }
 
+    // Preserve original AI status for logging/debugging
+    if (!(anno as any).ai_raw_status) {
+      (anno as any).ai_raw_status = anno.ocr_match_status;
+    }
+
     // =========================================================================
     // 🕵️ STEP A: AUDIT THE AI'S CHOICE (Trust but Verify)
     // =========================================================================
-    if (anno.ocr_match_status === "MATCHED" && anno.linked_ocr_id) {
-      const aiChosenBlock = allOcrBlocks.find(b => b.id === anno.linked_ocr_id);
+    // Support both underscore and camelCase from AI. Also check if line_id itself is physical.
+    const physicalId = anno.linked_ocr_id || anno.linkedOcrId || (anno.line_id?.startsWith('p') && anno.line_id?.includes('_ocr_') ? anno.line_id : null);
+
+    if (anno.ocr_match_status === "MATCHED" && physicalId) {
+      const aiChosenBlock = allOcrBlocks.find(b => b.id === physicalId);
 
       if (aiChosenBlock) {
         const blockY = aiChosenBlock.coordinates?.y ??
@@ -983,9 +1008,12 @@ function resolveLinksWithZones(
         const inZone = blockY >= zone.startY && blockY <= zone.endY;
         const textMatch = isExactValueMatch(aiChosenBlock.text, anno.student_text || anno.text);
 
-        if (inZone && textMatch) {
-          // ✅ AI was Correct. Keep it.
-          // console.log(`   ⚖️ [AI-AUDIT-PASS] Keeping valid link for '${anno.student_text}'`);
+        if (inZone) {
+          // ✅ SPATIAL SOVEREIGNTY: If AI ID is in the valid Zone, TRUST IT.
+          // This bypasses OCR typos (e.g. "anites" vs "counters") generically.
+          if (!textMatch) {
+            console.log(`   🛡️ [SPATIAL-TRUST] Text mismatch ('${anno.student_text}' vs '${aiChosenBlock.text}') ignored because ID '${aiChosenBlock.id}' is in Zone ${currentLandmark.label}.`);
+          }
           return anno;
         } else {
           console.log(`   ⚖️ [AI-AUDIT-FAIL] AI linked '${anno.student_text}' to block ${aiChosenBlock.id} ("${aiChosenBlock.text}"), but it failed validation (Zone: ${inZone}, Text: ${textMatch}). Overriding...`);
@@ -1079,43 +1107,44 @@ function levenshteinDistance(s1: string, s2: string): number {
 }
 
 function isExactValueMatch(ocrText: string, studentText: string): boolean {
-  if (!studentText) return false;
+  if (!studentText || !ocrText) return false;
 
-  // Aggressive Normalization: 
-  // 1. Remove LaTeX commands (e.g. \times, \frac)
-  // 2. Remove non-alphanumeric chars
-  const normalize = (str: string) => {
-    let s = str.toLowerCase();
-    // Remove LaTeX commands (backslash + letters)
-    s = s.replace(/\\[a-z]+/g, '');
-    // Remove non-alphanumeric
-    return s.replace(/[^a-z0-9]/g, '');
-  };
+  // Aggressive Normalization
+  const clean = (str: string) => str.toLowerCase()
+    .replace(/[\s\\]/g, '') // remove spaces and backslashes
+    .replace(/frac|sqrt|times|div|rightarrow|Rightarrow|approx/g, '') // strip latex commands
+    .replace(/[(){}\[\]\/]/g, ''); // strip brackets and FORWARD SLASHES
 
-  const cleanOcr = normalize(ocrText);
-  const cleanStudent = normalize(studentText);
+  const sClean = clean(studentText);
+  const oClean = clean(ocrText);
 
-  // 1. Exact Inclusion
-  if (cleanOcr.includes(cleanStudent)) return true;
+  // 1. Exact Match (Normalized)
+  if (sClean === oClean) return true;
+  if (oClean.includes(sClean)) return true; // Containment fallback
 
-  // 2. Fuzzy Match (Levenshtein) - Spatial Confidence allows this
-  // Only apply if strings are non-trivial (>3 chars)
-  if (cleanStudent.length > 3) {
-    const dist = levenshteinDistance(cleanStudent, cleanOcr);
-    const threshold = cleanStudent.length <= 5 ? 1 : 2; // Tolerate 1 error for short, 2 for long
+  // 2. [NEW] NUMERIC FIDELITY CHECK
+  // If the numbers match EXACTLY, we can be much more lenient with the words.
+  const sDigits = sClean.replace(/[^0-9]/g, '');
+  const oDigits = oClean.replace(/[^0-9]/g, '');
 
-    // If OCR is much longer, we check if student text matches a SUBSTRING of OCR fuzzily?
-    // For now, strict distance on the normalized content is safer.
-    if (dist <= threshold) {
-      console.log(`      ✨ [FUZZY-MATCH] '${cleanStudent}' ~= '${cleanOcr}' (Dist: ${dist})`);
+  if (sDigits.length > 0 && sDigits === oDigits) {
+    const dist = levenshteinDistance(sClean, oClean);
+    // Allow up to 40% of the string to be different if digits match
+    const lenientThreshold = Math.max(3, Math.ceil(sClean.length * 0.4));
+    if (dist <= lenientThreshold) {
+      console.log(`      ✨ [NUMERIC-PASS] "${studentText}" ~= "${ocrText}" (Digits ${sDigits} match, Dist: ${dist}/${lenientThreshold})`);
       return true;
     }
   }
 
-  // 3. Strict Integer Safety
-  if (/^\d+$/.test(cleanStudent)) {
-    const regex = new RegExp(`\\b${cleanStudent}\\b`);
-    return regex.test(ocrText);
+  // 3. Fuzzy Match (Levenshtein) for typos (e.g. 5/3 vs 3/3)
+  // Only allow strict edit distance based on length
+  const dist = levenshteinDistance(sClean, oClean);
+  const allowedEdits = sClean.length < 5 ? 0 : sClean.length < 10 ? 1 : 2;
+
+  if (dist <= allowedEdits) {
+    console.log(`      ✨ [FUZZY-MATCH] "${studentText}" ~= "${ocrText}" (Dist: ${dist}, Allowed: ${allowedEdits})`);
+    return true;
   }
 
   return false;

@@ -230,13 +230,9 @@ export const enrichAnnotationsWithPositions = (
         const isMathpixId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_ocr');
 
         if (isGlobalMapperId) {
-            // 🧮 CONVERSION FIX: Global Page -> Local Question
-            // The frontend expects coordinates relative to the Question Box (Y=0 is Q start).
-            // Logic: Subtract the ROOT offsets (globalOffsetX/Y) to normalize.
-            console.log(`   🧮 [COORD-FIX] Global Mapper ID '${lineId}' detected. Subtracting ROOT offset (+${globalOffsetX}, +${globalOffsetY}) to make relative.`);
-            pixelBbox[0] -= globalOffsetX;
-            pixelBbox[1] -= globalOffsetY;
-            console.log(`      Final Relative Coord: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
+            // ✅ [REVERTED] Subtraction logic was causing negative coordinates.
+            // We trust the absolute page pixel calculation or the subsequent snap/offset.
+            console.log(`   🛡️ [MATCH-SOVEREIGNTY] Global Mapper ID '${lineId}' detected. Skipping subtraction.`);
 
             // 🧲 THE MAGNET FIX: Snap to Precise OCR if nearby
             const roughBox = { x: pixelBbox[0], y: pixelBbox[1], width: pixelBbox[2], height: pixelBbox[3] };
