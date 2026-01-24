@@ -49,7 +49,7 @@ export class MarkingPromptService {
 
         if (normalizedScheme.subQuestionMarks) {
             Object.keys(normalizedScheme.subQuestionMarks).forEach(key => {
-                const marks = normalizedScheme.subQuestionMarks[key];
+                const marks = normalizedScheme.subQuestionMarks![key];
                 if (Array.isArray(marks)) {
                     marks.forEach((mark: any) => {
                         if (typeof mark.answer === 'string' && mark.answer.toLowerCase() === 'cao') {
@@ -61,13 +61,29 @@ export class MarkingPromptService {
         }
     }
 
-    private static resolveCao(markText: string, normalizedScheme: NormalizedMarkingScheme, subKey?: string): string {
-        if (!markText || markText.toLowerCase() !== 'cao') return markText;
+    public static resolveCao(markText: string, normalizedScheme: NormalizedMarkingScheme, subKey?: string): string {
+        if (!markText) return markText;
+        const caoRegex = /\bcao\b/i;
+        if (!caoRegex.test(markText)) return markText;
+
+        let replacement: string | undefined;
         if (subKey && normalizedScheme.subQuestionAnswersMap && normalizedScheme.subQuestionAnswersMap[subKey]) {
-            return normalizedScheme.subQuestionAnswersMap[subKey];
+            replacement = normalizedScheme.subQuestionAnswersMap[subKey];
         }
-        if (normalizedScheme.questionLevelAnswer) {
-            return normalizedScheme.questionLevelAnswer;
+
+        if (!replacement && subKey) {
+            const label = subKey.replace(/^\d+/, '');
+            if (label && normalizedScheme.subQuestionAnswersMap && normalizedScheme.subQuestionAnswersMap[label]) {
+                replacement = normalizedScheme.subQuestionAnswersMap[label];
+            }
+        }
+
+        if (!replacement && normalizedScheme.questionLevelAnswer) {
+            replacement = normalizedScheme.questionLevelAnswer;
+        }
+
+        if (replacement) {
+            return markText.replace(caoRegex, replacement);
         }
         return markText;
     }
@@ -119,7 +135,7 @@ ${genericHeader}
                     }
 
                     marks.forEach((m: any) => {
-                        const atomics = this.extractAtomicMarks(m);
+                        const atomics = this.extractAtomicMarks(m, normalizedScheme, subQ);
                         expandedMarks.push(...atomics);
                     });
                 }
@@ -136,7 +152,7 @@ ${genericHeader}
 
             const expandedMarks: any[] = [];
             normalizedScheme.marks.forEach((m: any) => {
-                const atomics = this.extractAtomicMarks(m);
+                const atomics = this.extractAtomicMarks(m, normalizedScheme);
                 expandedMarks.push(...atomics);
             });
 
@@ -162,14 +178,19 @@ ${output.trim()}
 `.trim();
     }
 
-    private static extractAtomicMarks(markObj: any): any[] {
+    private static extractAtomicMarks(markObj: any, normalizedScheme?: NormalizedMarkingScheme, subKey?: string): any[] {
         const mark = String(markObj.mark || '');
         const isNumeric = /^\d+$/.test(mark);
         const comments = String(markObj.comments || '');
         // Support both "B1 for" and "B1:"
         const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s*(?:for|:)/i.test(comments);
 
-        if (!isNumeric || !hasAtomicCodes) return [markObj];
+        if (!isNumeric || !hasAtomicCodes) {
+            if (normalizedScheme && markObj.answer) {
+                markObj.answer = this.resolveCao(markObj.answer, normalizedScheme, subKey);
+            }
+            return [markObj];
+        }
 
         const results: any[] = [];
         // Updated regex to support both "for" and ":" as separators
@@ -182,10 +203,16 @@ ${output.trim()}
             if (results.length === 0) {
                 firstPrefix = markCode.charAt(0);
             }
+
+            let answerText = match[2].trim().replace(/\n+/g, ' ');
+            if (normalizedScheme) {
+                answerText = this.resolveCao(answerText, normalizedScheme, subKey);
+            }
+
             results.push({
                 mark: markCode,
                 value: parseInt(markCode.substring(1)) || 1,
-                answer: match[2].trim().replace(/\n+/g, ' '),
+                answer: answerText,
                 comments: ''
             });
         }
@@ -195,10 +222,16 @@ ${output.trim()}
         if (numericTargetMark > currentExtractedTotal) {
             // Use the first prefix found (e.g., B) instead of hardcoded A
             const prefix = firstPrefix || 'A';
+
+            let balancedAnswer = markObj.answer || 'Correct solution.';
+            if (normalizedScheme) {
+                balancedAnswer = this.resolveCao(balancedAnswer, normalizedScheme, subKey);
+            }
+
             results.push({
                 mark: `${prefix}${numericTargetMark - currentExtractedTotal}`,
                 value: numericTargetMark - currentExtractedTotal,
-                answer: markObj.answer || 'Correct solution.',
+                answer: balancedAnswer,
                 comments: '(Auto-balanced)'
             });
         }

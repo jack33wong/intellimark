@@ -421,14 +421,20 @@ export class MarkingSchemeOrchestrationService {
       const subQuestionMarksMap: any = {};
       const subQuestionNumbers: string[] = [];
       const subQuestionAnswers: string[] = [];
+      const subQuestionAnswersMap: Record<string, string> = {};
+
+      const baseNumRegex = new RegExp(`^${baseQuestionNumber}([^0-9]|$)`, 'i');
 
       Object.keys(allPaperQuestions).forEach(key => {
-        if (key.startsWith(baseQuestionNumber)) {
+        if (baseNumRegex.test(key)) {
           const partMarks = allPaperQuestions[key].marks || allPaperQuestions[key];
           subQuestionMarksMap[key] = partMarks;
           subQuestionNumbers.push(key);
           const ans = allPaperQuestions[key].answer;
-          if (ans) subQuestionAnswers.push(`(${key}) ${ans}`);
+          if (ans) {
+            subQuestionAnswers.push(`(${key}) ${ans}`);
+            subQuestionAnswersMap[key] = ans;
+          }
           console.log(`   ✅ Matched Part: ${key} (${partMarks.length || 0} marks)`);
         }
       });
@@ -442,7 +448,11 @@ export class MarkingSchemeOrchestrationService {
       }
 
       markingSchemesMap.set(uniqueKey, {
-        questionMarks: { marks: parentScheme?.marks || parentScheme, subQuestionMarks: subQuestionMarksMap },
+        questionMarks: {
+          marks: parentScheme?.marks || parentScheme,
+          subQuestionMarks: subQuestionMarksMap,
+          subQuestionAnswersMap: subQuestionAnswersMap
+        },
         totalMarks: masterMatch.marks || 0, parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
         questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
         subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,

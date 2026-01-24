@@ -198,17 +198,11 @@ export async function executeMarkingForQuestion(
     const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones);
     console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
-    // BIBLE §2 COMPLIANCE: "Receive ALL OCR blocks"
-    // We must merge Structured Targets (Tier 1) and Rescue Blocks (Tier 2)
-    // into a single reference list for the AI to choose from.
+    // BIBLE §2 COMPLIANCE (REFINED): "Isolate Rescue Layer"
+    // To ensure "Perfect Placement", the AI must ONLY see raw geometric IDs (p0_ocr...) 
+    // in the Rescue Layer. If we include semantic IDs (p0_q...), the AI will pick them 
+    // and bypass the precise Mathpix coordinates.
     const rawOcrBlocks = [
-      ...stepsDataForMapping.map(s => ({
-        id: s.line_id,
-        text: s.text,
-        pageIndex: s.pageIndex,
-        coordinates: s.bbox ? { x: s.bbox[0], y: s.bbox[1], width: s.bbox[2], height: s.bbox[3] } : undefined,
-        isHandwritten: true
-      })),
       ...task.mathBlocks.map((block, idx) => {
         const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx + 1}`;
         return {

@@ -4,8 +4,47 @@ const getPageDims = (pageDimensions: Map<number, any>, idx: number) => {
     if (pageDimensions?.has(idx)) return pageDimensions.get(idx);
     // Fallback logic for single page documents
     if (pageDimensions?.size === 1) return pageDimensions.values().next().value;
-    return { width: 1000, height: 1400 };
+    return { width: 1000, height: 1000 };
 };
+
+/**
+ * 🧲 THE MAGNET FIX: Find the precise OCR block that overlaps significantly with a rough estimate.
+ */
+function findOverlappingOCRBlock(
+    target: { x: number; y: number; width: number; height: number },
+    ocrBlocks: any[]
+): any | null {
+    let bestMatch = null;
+    let maxIntersection = 0;
+
+    for (const block of ocrBlocks) {
+        if (!block.bbox) continue;
+
+        const bx = block.bbox[0];
+        const by = block.bbox[1];
+        const bw = block.bbox[2];
+        const bh = block.bbox[3];
+
+        // Calculate Intersection Area
+        const x_overlap = Math.max(0, Math.min(target.x + target.width, bx + bw) - Math.max(target.x, bx));
+        const y_overlap = Math.max(0, Math.min(target.y + target.height, by + bh) - Math.max(target.y, by));
+        const intersectionArea = x_overlap * y_overlap;
+
+        // If it overlaps significantly, pick it
+        if (intersectionArea > 0 && intersectionArea > maxIntersection) {
+            maxIntersection = intersectionArea;
+            bestMatch = block;
+        }
+    }
+
+    // Only snap if the overlap is meaningful (e.g., covers > 30% of the target)
+    const targetArea = target.width * target.height;
+    if (targetArea > 0 && (maxIntersection / targetArea) > 0.3) {
+        return bestMatch;
+    }
+
+    return null;
+}
 
 export const enrichAnnotationsWithPositions = (
     annotations: Annotation[],
@@ -147,19 +186,43 @@ export const enrichAnnotationsWithPositions = (
         // 🏗️ PHASE 4: APPLY GLOBAL OFFSET (LANDMARK ALIGNMENT)
         // 🛡️ MATCH SOVEREIGNTY (The "Perfect Match" Protection):
         // If we found a physical OCR match or a pre-computed pixel match, we trust it implicitly.
-        // V29: Explicitly bypass offset for Global Mapper IDs (p0_q...) as requested by user.
-        const isGlobalMapperId = lineId && lineId.startsWith('p0_q');
+        // V31: Coordinate Normalization Fix as requested by user.
+        const isGlobalMapperId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_q');
+        const isMathpixId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_ocr');
 
-        if (method !== "OCR_PHYSICAL" && method !== "PX_PRECOMPUTED" && method !== "PX_PRECOMPUTED_SCALED" && method !== "FALLBACK" && !isGlobalMapperId) {
-            // 🏮 PER-ANNOTATION SCOPING: If this annotation has a subQuestion (e.g. "b"),
-            // we look for a matching landmark to get a more precise vertical anchor.
+        if (isGlobalMapperId) {
+            // 🧮 CONVERSION FIX: Global Page -> Local Question
+            // The frontend expects coordinates relative to the Question Box (Y=0 is Q start).
+            // Logic: Subtract the ROOT offsets (globalOffsetX/Y) to normalize.
+            console.log(`   🧮 [COORD-FIX] Global Mapper ID '${lineId}' detected. Subtracting ROOT offset (+${globalOffsetX}, +${globalOffsetY}) to make relative.`);
+            pixelBbox[0] -= globalOffsetX;
+            pixelBbox[1] -= globalOffsetY;
+            console.log(`      Final Relative Coord: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
+
+            // 🧲 THE MAGNET FIX: Snap to Precise OCR if nearby
+            const roughBox = { x: pixelBbox[0], y: pixelBbox[1], width: pixelBbox[2], height: pixelBbox[3] };
+            const preciseBlock = findOverlappingOCRBlock(roughBox, stepsDataForMapping);
+
+            if (preciseBlock) {
+                console.log(`   🧲 [SNAP] Snapped fuzzy ID '${lineId}' to precise OCR block '${preciseBlock.id}'`);
+                pixelBbox = [...preciseBlock.bbox] as [number, number, number, number];
+                method = "PX_SNAP_MATCH";
+            }
+        }
+        else if (isMathpixId || method === "OCR_PHYSICAL" || method === "PX_PRECOMPUTED" || method === "PX_PRECOMPUTED_SCALED" || method === "FALLBACK") {
+            // ✅ TYPE 1B (Local Match): Standard Mathpix block or precomputed.
+            // These are already relative to the question crop. Keep as is.
+            console.log(`   🛡️ [MATCH-SOVEREIGNTY] Local/Relative ID '${lineId}' detected. Skipping all offsets.`);
+        }
+        else {
+            // ✅ TYPE 2 (Unmatched): Use Classification + Landmark Transform
+            // Calculate scoping offsets (Landmark Alignment)
             let specificOffsetX = globalOffsetX;
             let specificOffsetY = globalOffsetY;
 
             if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
                 const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
                 const subQ = subQRaw.replace(/^\d+/, '').replace(/[()\s]/g, '');
-
                 const match = semanticZones[subQ] || (subQ.length > 1 ? semanticZones[subQ.charAt(0)] : null);
                 if (match) {
                     specificOffsetX = match.x || 0;
@@ -168,13 +231,8 @@ export const enrichAnnotationsWithPositions = (
                 }
             }
 
-            // 🔥 DOUBLE-OFFSET PROTECTION: If the base pixelBbox is already "large" (e.g. y > 200),
-            // and we have a large offset being applied, it's highly likely the coordinate is ALREADY global.
-            // Heuristic: If pixelBbox.y + offset > Page Height, something is wrong.
+            // 🔥 DOUBLE-OFFSET PROTECTION logic
             const dims = getPageDims(pageDimensions!, pageIndex);
-            // 🔥 DOUBLE-OFFSET PROTECTION Refinement (V24):
-            // If the match was found via Scale Detective (VISUAL_NORM_..._CALC), 
-            // it is DEFINITIVELY relative to a crop and MUST receive the offset.
             const isScaleDetective = method.includes('CALC');
             const isAlreadyGlobal = !isScaleDetective && pixelBbox[1] > (specificOffsetY - 150) && pixelBbox[1] > 200;
 
@@ -206,7 +264,7 @@ export const enrichAnnotationsWithPositions = (
             status = incomingStatus || (isDrawing ? "VISUAL" : "MATCHED");
         }
 
-        console.log(`   🏁 [FINAL] ID: ${lineId} | Status: ${status} | Method: ${method}`);
+        console.log(`   🏁 [FINAL] ID: ${lineId} | Status: ${status} | Method: ${method} | Coord: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
 
         return {
             ...anno,

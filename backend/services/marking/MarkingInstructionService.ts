@@ -632,39 +632,6 @@ export class MarkingInstructionService {
     return immutableAnnotations.map(toLegacyFormat);
   }
 
-  private static replaceCaoWithAnswer(markText: string, normalizedScheme: NormalizedMarkingScheme, subKey?: string): string {
-    if (!markText) return '';
-    const caoRegex = /\bcao\b/i;
-    if (caoRegex.test(markText)) {
-      let replacement: string | undefined;
-      if (normalizedScheme.subQuestionAnswersMap && subKey) {
-        replacement = normalizedScheme.subQuestionAnswersMap[subKey];
-        if (!replacement) replacement = normalizedScheme.subQuestionAnswersMap[subKey.replace(/^\d+/, '')];
-      }
-      if (!replacement && normalizedScheme.questionLevelAnswer) replacement = normalizedScheme.questionLevelAnswer;
-      if (replacement) return markText.replace(caoRegex, replacement);
-    }
-    return markText;
-  }
-
-  private static replaceCaoInScheme(normalizedScheme: NormalizedMarkingScheme): void {
-    if (normalizedScheme.subQuestionMarks) {
-      Object.keys(normalizedScheme.subQuestionMarks).forEach(subQ => {
-        let marks = normalizedScheme.subQuestionMarks![subQ];
-        if (!Array.isArray(marks) && (marks as any).marks) marks = (marks as any).marks;
-        if (Array.isArray(marks)) {
-          marks.forEach((m: any) => {
-            if (m.answer) m.answer = this.replaceCaoWithAnswer(m.answer, normalizedScheme, subQ);
-          });
-        }
-      });
-    }
-    if (normalizedScheme.marks) {
-      normalizedScheme.marks.forEach((m: any) => {
-        if (m.answer) m.answer = this.replaceCaoWithAnswer(m.answer, normalizedScheme);
-      });
-    }
-  }
 
   static async generateFromOCR(
     model: ModelType,
@@ -708,7 +675,7 @@ export class MarkingInstructionService {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;
 
-      this.replaceCaoInScheme(normalizedScheme);
+      MarkingPromptService.replaceCaoInScheme(normalizedScheme);
       schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
 
       let structuredQuestionText = '';
