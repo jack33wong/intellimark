@@ -219,9 +219,9 @@ export function createAnnotationFromAI(
         // V27: Priority: 1. Ground Truth from ID, 2. [POSITION] tag, 3. JSON pageIndex
         relative: (groundTruthPage !== undefined)
             ? RelativePageIndex.from(groundTruthPage)
-            : ((aiPosition?.pageIndex !== undefined)
+            : ((aiPosition?.pageIndex != null)
                 ? RelativePageIndex.from(aiPosition.pageIndex)
-                : (aiAnnotation.pageIndex !== undefined
+                : (aiAnnotation.pageIndex != null
                     ? RelativePageIndex.from(aiAnnotation.pageIndex)
                     : undefined)),
         global: GlobalPageIndex.from(0), // Not yet mapped

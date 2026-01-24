@@ -151,9 +151,21 @@ export class ModeSplitService {
 
         if (hasMarkingData && hasQuestionData) {
             mode = 'mixed';
+            // CRITICAL FIX: In mixed mode, we MUST keep ALL pages for the marking pipeline.
+            // If we filter, we lose questions that were incorrectly categorized as questionOnly by the mapper.
             finalPages = markingPages;
             finalClassificationResults = markingClassificationResults;
-            console.log('🔀 [MODE ROUTING] Mixed mode - using marking structures for pipeline');
+
+            // Re-check: are these missing pages?
+            if (finalPages.length < standardizedPages.length) {
+                console.log(`📡 [MODE-SPLIT] Mixed mode detected. Preserving ALL ${standardizedPages.length} pages for marking flow.`);
+                finalPages = standardizedPages;
+                // We must use the original classification results (re-ordered) for the marking flow
+                // to ensure every page index is represented.
+                finalClassificationResults = allClassificationResults;
+            }
+
+            console.log('🔀 [MODE ROUTING] Mixed mode - using comprehensive structures for pipeline');
         } else if (hasMarkingData) {
             mode = 'marking';
             finalPages = markingPages;

@@ -583,6 +583,14 @@ export class MarkingPipelineService {
                         r.result.category = 'questionAnswer';
                     }
                 });
+            } else if (nonMetadataPages.length > 2 && (studentWorkPages.length / nonMetadataPages.length) > 0.5) {
+                // NEW: 50% Safety Rule
+                console.log(`🚀 [OVERRIDE] 50% Rule Triggered: ${studentWorkPages.length}/${nonMetadataPages.length} pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.`);
+                allClassificationResults.forEach(r => {
+                    if (r.result?.category === 'questionOnly') {
+                        r.result.category = 'questionAnswer';
+                    }
+                });
             }
 
             // Override 2: FrontPage → questionOnly when no actual student work exists
@@ -1442,21 +1450,28 @@ export class MarkingPipelineService {
 
                                                 if (countsChanged) {
                                                     const newAwarded = finalizedAnnotations.reduce((sum: number, a: any) => {
-                                                        if (a.action === 'tick' || a.action === 'mark') {
-                                                            const text = (a.text || '').trim();
-                                                            // ATOMIC MATH FIX: Treat math as 1 mark, avoid "27" error from \sqrt{27}
-                                                            const isMath = /[\\{}=\^_\(\)]/.test(text) || text.includes('sqrt') || text.includes('frac');
+                                                        const isAwardedAction = a.action === 'tick' || a.action === 'mark';
+                                                        const text = (a.text || '').trim();
 
-                                                            let val = 1;
-                                                            if (!isMath) {
-                                                                const clean = text.replace(/[^a-zA-Z0-9]/g, '');
-                                                                if (/^[BMAPC][1-9]\d*$/i.test(clean)) {
-                                                                    val = parseInt(clean.match(/\d+$/)?.[0] || '1', 10);
-                                                                } else {
-                                                                    // Raw numbers or plain text are 1 mark
-                                                                    val = 1;
-                                                                }
+                                                        // ATOMIC MATH FIX: Treat math as 1 mark, avoid "27" error from \sqrt{27}
+                                                        const isMath = /[\\{}=\^_\(\)]/.test(text) || text.includes('sqrt') || text.includes('frac');
+
+                                                        let val = 1;
+                                                        if (!isMath) {
+                                                            const clean = text.replace(/[^a-zA-Z0-9]/g, '');
+                                                            if (/^[BMAPC][1-9]\d*$/i.test(clean)) {
+                                                                val = parseInt(clean.match(/\d+$/)?.[0] || '1', 10);
+                                                            } else {
+                                                                // Raw numbers or plain text are 1 mark
+                                                                val = 1;
                                                             }
+                                                        }
+
+                                                        // Logic: Award if explicit tick AND positive value OR if no action but valid mark code (e.g. M1)
+                                                        // This handles both "visual" ticks and "logical" marks from the AI.
+                                                        const shouldAward = isAwardedAction || (val > 0 && !a.action);
+
+                                                        if (shouldAward) {
                                                             return sum + val;
                                                         }
                                                         return sum;

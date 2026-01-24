@@ -918,12 +918,29 @@ export class SessionManagementService {
       (dbAiMessage as any).studentScore = studentScore;
     }
 
-    // CRITICAL FIX: Expose allQuestionResults for SubjectMarkingResultService
-    // This ensures granular results (3/3) are available for the dashboard,
-    // overriding the stale schema default (20/40).
+    // ==================================================================================
+    // [FIRESTORE SIZE OPTIMIZATION] - The Trimming Layer
+    // Strip redundant and massive objects from allQuestionResults before persistence.
+    // These are redundant because 'markingContext' contains the distilled summary.
+    // ==================================================================================
     if (allQuestionResults && allQuestionResults.length > 0) {
-      (dbAiMessage as any).allQuestionResults = allQuestionResults;
+      const trimmedResults = allQuestionResults.map(qr => {
+        // Create a copy without the heavy OCR fields
+        // [SAFETY] Keep 'markingScheme' as requested, only strip the data-heavy ones
+        const {
+          classificationBlocks,
+          cleanedOcrText,
+          rawAnnotations,
+          ...rest
+        } = qr;
+        return rest;
+      });
+      (dbAiMessage as any).allQuestionResults = trimmedResults;
     }
+
+    // [SIZE OPTIMIZATION] Explicitly remove markingSchemesMap - it's massive and redundant
+    // The distilled logic survives in 'markingContext'
+    delete (dbAiMessage as any).markingSchemesMap;
 
     // Add grade if provided
     if (grade) {
