@@ -49,6 +49,10 @@
     }
 }
 
+.hero-highlight-blue {
+    color: var(--text-brand)
+}
+
 .hero-main-subtitle {
     width: 100%;
     font-size: 1.25rem;

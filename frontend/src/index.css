@@ -129,6 +129,9 @@ html {
   --text-katex: #5eb92d;
   --background-mask: var(--background-mask-black);
   --chat-user: white;
+
+  /* --- Fonts --- */
+  --page-title-font: "LibreBaskerville, Georgia, Cambria, ui-serif, Times New Roman, Times, serif";
 }
 
 @keyframes breathe {
@@ -307,7 +310,7 @@ code {
 
 /* Global Typography Classes */
 .features-h1 {
-  font-family: 'Instrument Serif', serif;
+  font-family: var(--page-title-font);
   font-size: 32px;
   font-weight: 600;
   line-height: 1.2;
@@ -322,7 +325,7 @@ code {
 }
 
 .features-h2 {
-  font-family: 'Instrument Serif', serif;
+  font-family: var(--page-title-font);
   font-size: 28px;
   font-weight: 600;
   line-height: 1.2;

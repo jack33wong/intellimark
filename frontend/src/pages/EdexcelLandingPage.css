@@ -20,7 +20,7 @@
 }
 
 .edexcel-hero-title {
-    font-family: 'Instrument Serif', serif;
+    font-family: var(--page-title-font);
     font-size: clamp(2.5rem, 8vw, 4rem);
     line-height: 1.1;
     color: #1a1a1a;
@@ -109,7 +109,7 @@
 }
 
 .edexcel-section-title {
-    font-family: 'Instrument Serif', serif;
+    font-family: var(--page-title-font);
     font-size: clamp(2rem, 5vw, 3rem);
     color: #1a1a1a;
     margin-bottom: 24px;

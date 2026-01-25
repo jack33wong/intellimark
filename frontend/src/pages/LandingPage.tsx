@@ -126,7 +126,7 @@ const LandingPage: React.FC = () => {
             <section className="landing-section landing-section-hero">
                 <div className="landing-hero-content">
 
-                    <h1 className="hero-main-title">AI Marking that reads your handwriting <br></br><span style={{ color: '#1a93fe' }}>Exactly like an Examiner</span></h1>
+                    <h1 className="hero-main-title">AI Marking that reads your handwriting <br></br><span className="hero-highlight-blue">Exactly like an Examiner</span></h1>
                     <p className="hero-main-subtitle">Upload your handwritten maths papers and get an instant grade. Our AI follows your working out step-by-step to find the method marks a normal AI would miss.</p>
 
                     <div className="hero-cta-group">
