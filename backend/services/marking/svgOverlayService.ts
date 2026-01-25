@@ -109,7 +109,8 @@ export class SVGOverlayService {
     imageDimensions: ImageDimensions,
     scoreToDraw?: { scoreText: string } | { scoreText: string }[],
     totalScoreText?: string,
-    hasMetaPage?: boolean
+    hasMetaPage?: boolean,
+    semanticZones?: any[]
   ): Promise<string> {
     try {
       const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
@@ -127,7 +128,7 @@ export class SVGOverlayService {
       const burnWidth = imageMetadata.width || imageDimensions.width;
       const burnHeight = imageMetadata.height || imageDimensions.height;
 
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones);
       const svgBuffer = Buffer.from(svgOverlay);
 
       const burnedImageBuffer = await sharp(uprightImageBuffer)
@@ -146,9 +147,9 @@ export class SVGOverlayService {
   // SVG GENERATION LOGIC
   // =========================================================================
 
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[]): string {
     const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
-    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
+    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && (!semanticZones || semanticZones.length === 0)) {
       return '';
     }
 
@@ -156,6 +157,33 @@ export class SVGOverlayService {
     const scaleY = actualHeight / originalDimensions.height;
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
+
+    // --- SUB-QUESTION ZONES DEBUG BORDER (Optional) ---
+    const drawZones = process.env.DRAW_SUBQUESTION_ZONES === 'true' || process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER === 'true';
+    console.log(`🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: ${process.env.DRAW_SUBQUESTION_ZONES}, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: ${process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER}, finalDraw: ${drawZones}, Count: ${semanticZones ? (Array.isArray(semanticZones) ? semanticZones.length : Object.keys(semanticZones).length) : 0}`);
+
+    if (drawZones && semanticZones) {
+      const zonesToDraw = Array.isArray(semanticZones) ? semanticZones :
+        Object.entries(semanticZones).flatMap(([label, list]) => (list as any[]).map(z => ({ ...z, label })));
+
+      if (zonesToDraw.length > 0) {
+        zonesToDraw.forEach(zone => {
+          const szX = (zone.x || 0) * scaleX;
+          const szY = (zone.startY || 0) * scaleY;
+          const szW = actualWidth - szX - (50 * scaleX);
+          const szH = (zone.endY - zone.startY) * scaleY;
+
+          svg += `<rect x="${szX}" y="${szY}" width="${szW}" height="${szH}" 
+                        fill="rgba(255, 0, 0, 0.05)" stroke="rgba(255, 0, 0, 0.4)" stroke-width="2" stroke-dasharray="8,4" />`;
+
+          // Background for the label to make it readable over handwriting (Scaled to text length)
+          const labelText = zone.label.toUpperCase();
+          const labelBgWidth = Math.max(40, labelText.length * 10 + 10);
+          svg += `<rect x="${szX}" y="${szY}" width="${labelBgWidth}" height="24" fill="rgba(255, 0, 0, 0.8)" />`;
+          svg += `<text x="${szX + 5}" y="${szY + 18}" font-family="Arial" font-size="14" font-weight="bold" fill="white">${labelText}</text>`;
+        });
+      }
+    }
 
     if (annotations && annotations.length > 0) {
       // 1. Group Logic (Split Blocks)

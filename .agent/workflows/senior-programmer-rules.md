@@ -28,3 +28,11 @@ All agents and developers MUST follow these rules specifically for "Fix" and "De
 
 **HONEST DEBUGGING**:
 - **Unmatched is Unmatched**: If status is `UNMATCHED`, do NOT log an associated OCR text block. It is confusing and misleading. Show the **Reasoning** instead.
+## 4. Git & Code Authority (No Assumptions)
+**NO AUTO-COMMITS**:
+- **Rule**: Automated `git commit` or `git push` is strictly FORBIDDEN.
+- **Enforcement**: You must always ask the user to review changes and perform git operations manually or explicitly approve a git command.
+
+**STRICT PLAN APPROVAL**:
+- **Rule**: Never execute code changes until the `implementation_plan.md` has been explicitly approved by the user.
+- **Goal**: Prevent regressions by ensuring the technical approach is validated before the codebase is modified.

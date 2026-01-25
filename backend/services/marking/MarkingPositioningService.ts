@@ -1,65 +1,16 @@
+import { MarkingZoneService } from './MarkingZoneService.js';
+
 /**
  * Service dedicated to calculating coordinate offsets, landmark grounding, 
  * and globalizing student work line positions.
  */
 export class MarkingPositioningService {
     /**
-     * Scans raw OCR blocks to find coordinates of headers like (a), (b)(i), etc.
+     * Scans raw OCR blocks to find coordinates of headers/questions based on providing sub-question text.
+     * @param expectedQuestions List of sub-questions with their label and full question text (e.g. [{label: '10a', text: '100 people were asked...' }])
      */
-    public static detectSemanticZones(rawBlocks: any[], pageHeight: number) {
-        const zones: Record<string, { startY: number; endY: number; pageIndex: number; x: number }> = {};
-        if (!rawBlocks || rawBlocks.length === 0) return zones;
-
-        const sortedBlocks = [...rawBlocks].sort((a, b) => {
-            if (a.pageIndex !== b.pageIndex) return (a.pageIndex || 0) - (b.pageIndex || 0);
-            return (a.coordinates?.y || 0) - (b.coordinates?.y || 0);
-        });
-
-        const landmarkRegex = /^[^\w\(\)]*((?:Q?\d*[a-z]+|[ivx]+|[\(][a-zivx]+[\)]|Q\d+)+)/i;
-        let currentLabel: string | null = null;
-        let currentStartY = 0;
-        let currentPageIndex = 0;
-
-        console.log("🔍 [ZONE SCAN] Scanning blocks for landmarks...");
-
-        sortedBlocks.forEach((block) => {
-            const text = (block.text || '').trim();
-            const blockPage = block.pageIndex || 0;
-
-            if (text.length < 100) {
-                const match = text.match(landmarkRegex);
-                if (match) {
-                    const cleanLabel = match[1].replace(/[\(\)\.\s`]/g, '').toLowerCase();
-
-                    // VALID LANDMARKS: letters (a), roman (iv), combined (bi), or question numbers (q12)
-                    if (/^[a-z]+$|^[a-z]+[ivx]+$|^[ivx]+$|^q\d+$/.test(cleanLabel)) {
-                        console.log(`   📍 Found Landmark: "${cleanLabel}" at Page ${blockPage}, Y=${Math.round(block.coordinates?.y || 0)}`);
-
-                        if (currentLabel) {
-                            const endY = (blockPage === currentPageIndex) ? (block.coordinates?.y || 0) : pageHeight;
-                            zones[currentLabel] = {
-                                startY: currentStartY,
-                                endY,
-                                pageIndex: currentPageIndex,
-                                x: zones[currentLabel]?.x || 0
-                            };
-                        }
-                        currentLabel = cleanLabel;
-                        currentStartY = block.coordinates?.y || 0;
-                        currentPageIndex = blockPage;
-
-                        const startX = block.coordinates?.x || 0;
-                        zones[currentLabel] = { startY: currentStartY, endY: pageHeight, pageIndex: currentPageIndex, x: startX };
-                    }
-                }
-            }
-        });
-
-        if (currentLabel) {
-            zones[currentLabel].endY = pageHeight;
-        }
-
-        return zones;
+    public static detectSemanticZones(rawBlocks: any[], pageHeight: number, expectedQuestions?: Array<{ label: string; text: string }>) {
+        return MarkingZoneService.detectSemanticZones(rawBlocks, pageHeight, expectedQuestions);
     }
 
     /**

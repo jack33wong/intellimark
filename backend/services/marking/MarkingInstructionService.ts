@@ -184,68 +184,16 @@ export class MarkingInstructionService {
   private static sanitizeOcrBlocks(blocks: any[], questionText: string | null, baseQNum?: string): any[] {
     if (!blocks || !Array.isArray(blocks)) return [];
 
-    // =====================================================================
-    // 🛡️ ZONE FILTERING (Vertical Slicing)
-    // =====================================================================
-    // Logic: Find "Q12". Find next "Q[x]". Delete everything outside.
-
-    let yStart = 0;
-    let yEnd = Number.MAX_VALUE; // Default to bottom of page
-    const qLandmarkRegex = /^Q\s*(\d+)/i;
-
     // Pre-calculate Y for all blocks to avoid repeated lookups
     const blocksWithY = blocks.map(b => ({ ...b, _y: MarkingInstructionService.getBlockY(b) || 0 }));
-
-    if (baseQNum) {
-      // 1. Sort blocks by Y to ensure reliable linear scanning
-      const sortedBlocks = [...blocksWithY].sort((a, b) => a._y - b._y);
-
-      // 2. Find the Current Question Header (e.g., "Q12")
-      const currentHeaderBlock = sortedBlocks.find(b => {
-        // Robust text access for landmark checking
-        const content = b.text || b.mathpixLatex || b.latex || b.content || '';
-        const m = content.match(qLandmarkRegex);
-        // Match "12" against "12"
-        return m && m[1] === baseQNum;
-      });
-
-      if (currentHeaderBlock) {
-        yStart = currentHeaderBlock._y - 10; // Buffer up (include header)
-      }
-
-      // 3. Find the NEXT Question Header (Any Q[number] that appears physically below)
-      if (yStart > 0) {
-        const nextHeaderBlock = sortedBlocks.find(b => {
-          // Robust text access
-          const content = b.text || b.mathpixLatex || b.latex || b.content || '';
-
-          // Must be physically below the start + small buffer
-          if (b._y <= yStart + 50) return false;
-
-          // Must match Q[digit]
-          const m = content.match(qLandmarkRegex);
-          if (!m) return false;
-
-          // Exclude the current question number (e.g. repeated "Q12" label)
-          return m[1] !== baseQNum;
-        });
-
-        if (nextHeaderBlock) {
-          yEnd = nextHeaderBlock._y - 10; // Buffer up (exclude next header)
-        }
-      }
-    }
-    // =====================================================================
 
     const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normalizedQText = normalize(questionText || '');
     const structuralNoiseRegex = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn|\\\( \_+ \\\)|_+/i;
     const instructionKeywordRegex = /^[\W\d_]*[a-z]?[\W\d_]*(Draw|Calculate|Explain|Show that|Work out|Write down|Describe|Complete|Label|Sketch|Plot|Construct)\b/i;
+    const qLandmarkRegex = /^Q\s*(\d+)/i;
 
     return blocksWithY.map(b => {
-      // 1. Apply Vertical Zone Filter
-      if (b._y < yStart) return null; // Too high (Previous Question)
-      if (b._y >= yEnd) return null;  // Too low (Next Question)
 
       // 2. Data Normalization (Fix "Rubbish Log")
       // Ensure 'text' property is populated for the AI and Logger

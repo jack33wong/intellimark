@@ -198,6 +198,20 @@ export class MarkingOutputService {
 
             // Only call service if there's something to draw
             if (annotationsForThisPage.length > 0 || scoresToDraw || totalScoreToDraw) {
+                // Collect semantic zones for this page to draw debug borders if enabled
+                const zonesForThisPage: any[] = [];
+                allQuestionResults.forEach(qr => {
+                    if (qr.semanticZones) {
+                        Object.entries(qr.semanticZones).forEach(([label, zones]: [string, any]) => {
+                            zones.forEach((z: any) => {
+                                if (z.pageIndex === pageIndex) {
+                                    zonesForThisPage.push({ ...z, label });
+                                }
+                            });
+                        });
+                    }
+                });
+
                 try {
                     return await SVGOverlayService.burnSVGOverlayServerSide(
                         page.imageData,
@@ -205,7 +219,8 @@ export class MarkingOutputService {
                         imageDimensions,
                         scoresToDraw,
                         totalScoreToDraw,
-                        hasMetaPage
+                        hasMetaPage,
+                        zonesForThisPage
                     );
                 } catch (drawError) {
                     console.error(`❌ [ANNOTATION] Failed to draw annotations on page ${pageIndex}:`, drawError);

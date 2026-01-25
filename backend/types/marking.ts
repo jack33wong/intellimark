@@ -100,4 +100,5 @@ export interface QuestionResult {
     overallPerformanceSummary?: string;
     cleanedOcrText?: string;
     rawAnnotations?: any[];
+    semanticZones?: any;
 }

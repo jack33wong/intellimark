@@ -41,9 +41,9 @@ export function sanitizeAnnotations(
             return { ...anno, ocr_match_status: 'UNMATCHED', line_id: null, linked_ocr_id: null, linkedOcrId: null };
         }
 
-        // 3. DIGIT FIDELITY CHECK
-        // Logic: If the student answer implies numbers that aren't in the block, it's a false match.
-        // We VETO the LINK, but we KEEP THE MARK.
+        // 3. DIGIT FIDELITY CHECK (LENIENT V4)
+        // Philosophy: We keep the link (even if text is messy) to preserve the X/Y coordinates.
+        // We let the downstream "Spatial Sovereignty" logic decide if the link is valid.
         const studentText = (anno.student_text || anno.studentText || "").toString();
         const ocrText = block.text.toString();
 
@@ -51,17 +51,11 @@ export function sanitizeAnnotations(
 
         for (const digit of studentDigits) {
             if (!ocrText.includes(digit)) {
-                console.log(`🛡️ [IRON DOME] BLOCKED False Positive!`);
-                console.log(`   ❌ Student has digit '${digit}' ("${studentText}")`);
-                console.log(`   ❌ OCR Block MISSES digit '${digit}' ("${ocrText}")`);
-                console.log(`   👉 Action: UNLINK (Keep Mark, remove ID)`);
-
-                return {
-                    ...anno,
-                    ocr_match_status: 'UNMATCHED',
-                    line_id: null, // Sever the link
-                    reasoning: `${anno.reasoning} [SYSTEM: Linked removed due to mismatch]`
-                };
+                console.log(`🛡️ [IRON DOME V4] Text Mismatch Found! (Student: "${studentText}", OCR: "${ocrText}")`);
+                console.log(`   👉 Action: PRESERVING LINK for positional integrity. (ID: ${searchId})`);
+                // [V4 FIX] We no longer sever the link here. 
+                // We keep it so the X/Y coordinates flow through.
+                break;
             }
         }
 

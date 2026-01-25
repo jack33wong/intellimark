@@ -1643,21 +1643,21 @@ export function generateDiagnosticTable(
     const finalStatus = finalStatusRaw.padEnd(12);
 
     // 5. Pipeline Action Inference
-    let action = "---";
-    if (aiStatusRaw === 'MATCHED' && finalStatusRaw === 'UNMATCHED') {
-      action = "🛡️ IRON DOME REJECT";
-    } else if (aiStatusRaw === 'MATCHED' && finalStatusRaw === 'MATCHED') {
-      // Check if ID changed?
-      // For now, simpler logic:
-      if ((anno.reasoning || '').includes('System Verified')) {
-        action = "🔧 LINKER RESTORED";
-      } else if ((anno.reasoning || '').includes('Fuzzy')) {
-        action = "✨ FUZZY ACCEPT";
-      } else {
-        action = "✅ PASSED";
+    let action = (anno as any)._pipeline_action || "---";
+    if (action === "---") {
+      if (aiStatusRaw === 'MATCHED' && finalStatusRaw === 'UNMATCHED') {
+        action = "🛡️ IRON DOME REJECT";
+      } else if (aiStatusRaw === 'MATCHED' && finalStatusRaw === 'MATCHED') {
+        if ((anno.reasoning || '').includes('System Verified')) {
+          action = "🔧 LINKER RESTORED";
+        } else if ((anno.reasoning || '').includes('Fuzzy')) {
+          action = "✨ FUZZY ACCEPT";
+        } else {
+          action = "✅ PASSED";
+        }
+      } else if (aiStatusRaw === 'UNMATCHED' && finalStatusRaw === 'MATCHED') {
+        action = "✨ LINKER RESCUE";
       }
-    } else if (aiStatusRaw === 'UNMATCHED' && finalStatusRaw === 'MATCHED') {
-      action = "✨ LINKER RESCUE";
     }
     action = action.padEnd(25);
 

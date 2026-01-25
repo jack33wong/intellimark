@@ -189,6 +189,20 @@ export async function executeMarkingForQuestion(
     const primaryPageDims = task.pageDimensions?.get(task.sourcePages?.[0] || 0);
     const pageHeightForZones = primaryPageDims?.height || 2000;
 
+    // [NEW] Extract expected sub-questions with texts to guide text-driven zone detection
+    const schemeObj = task.markingScheme as any;
+    const subQuestionLabels = schemeObj?.subQuestionMaxScores ? Object.keys(schemeObj.subQuestionMaxScores) :
+      schemeObj?.allQuestions ? Object.keys(schemeObj.allQuestions) :
+        Object.keys(task.markingScheme || {});
+
+    const expectedQuestions = subQuestionLabels.map(label => {
+      // Find the corresponding text from subQuestionTexts if available
+      const questionText = (schemeObj?.subQuestionTexts?.[label]) || (schemeObj?.allQuestions?.[label]) || "";
+      return { label, text: questionText };
+    }).filter(q => q.label.length > 0 && !['id', 'examdetails', 'totalquestions', 'totalmarks', 'confidence', 'generalmarkingguidance'].includes(q.label.toLowerCase()));
+
+    console.log(`🔍 [ZONE SCAN] Targeting ${expectedQuestions.length} sub-questions for Q${questionId}`);
+
     // Create temp blocks list for zone detection
     const rawOcrBlocksForZones = task.mathBlocks.map((block) => ({
       text: block.mathpixLatex || block.googleVisionText || '',
@@ -196,7 +210,7 @@ export async function executeMarkingForQuestion(
       pageIndex: (block as any).pageIndex ?? 0
     }));
 
-    const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones);
+    const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones, expectedQuestions);
     console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
     // BIBLE §2 COMPLIANCE (REFINED): "Isolate Rescue Layer"
@@ -256,14 +270,16 @@ export async function executeMarkingForQuestion(
         classificationStudentWork: ocrTextForPrompt,
         classificationBlocks: task.classificationBlocks,
         subQuestionMetadata: task.subQuestionMetadata,
-        landmarks: Object.entries(semanticZones).map(([label, data]) => ({
-          label,
-          y: data.startY,
-          x: data.x,
-          top: data.startY,
-          left: data.x,
-          pageIndex: data.pageIndex
-        }))
+        landmarks: Object.entries(semanticZones).flatMap(([label, zones]) =>
+          zones.map(data => ({
+            label,
+            y: data.startY,
+            x: data.x,
+            top: data.startY,
+            left: data.x,
+            pageIndex: data.pageIndex
+          }))
+        )
       } as any,
       questionDetection: task.markingScheme,
       questionText: task.markingScheme?.databaseQuestionText || null,
@@ -449,9 +465,22 @@ export async function executeMarkingForQuestion(
       console.log(`   👉 IDs: ${correctedAnnotations.map(a => a.line_id || 'null').join(', ')}`);
     }
 
+    // MERGE RESCUE LAYER: Combine segmented steps with raw OCR blocks to prevent data loss during positioning.
+    const combinedLookupBlocks = [
+      ...stepsDataForMapping,
+      ...rawOcrBlocks.map(block => ({
+        line_id: (block as any).id,
+        pageIndex: (block as any).pageIndex,
+        text: block.text,
+        cleanedText: block.text,
+        bbox: [block.coordinates?.x || 0, block.coordinates?.y || 0, block.coordinates?.width || 0, block.coordinates?.height || 0] as [number, number, number, number],
+        isHandwritten: block.isHandwritten
+      }))
+    ];
+
     let enrichedAnnotations = enrichAnnotationsWithPositions(
       correctedAnnotations,
-      stepsDataForMapping,
+      combinedLookupBlocks,
       String(questionId),
       defaultPageIndex,
       task.pageDimensions,
@@ -494,36 +523,65 @@ export async function executeMarkingForQuestion(
       const isVisual = anno.ocr_match_status === 'VISUAL' || String(anno.line_id || '').startsWith('visual_redirect_');
 
       if (anno.subQuestion && anno.bbox && semanticZones && anno.ocr_match_status !== 'MATCHED' && !isVisual) {
-        // Clean SubQ: "10(a)" -> "10a", "(b)(i)" -> "bi"
-        let fullSubQ = anno.subQuestion.replace(/[()\s]/g, '').toLowerCase();
-        let partOnlySubQ = anno.subQuestion.replace(/^\d+/, '').replace(/[()\s]/g, '').toLowerCase();
+        // [V28 FIX] Clean SubQ and handle suffix-aware landmark matching
+        const clean = (s: string) => s.replace(/[()\s]/g, '').toLowerCase();
+        let fullSubQ = clean(anno.subQuestion);
+        let partOnlySubQ = clean(anno.subQuestion.replace(/^\d+/, ''));
 
-        // Strategy: Try Full Match first (e.g. "10a"), then 'q' prefixed (e.g. "q10"), then Part Match (e.g. "a")
-        let targetZone = semanticZones[fullSubQ] || semanticZones[`q${fullSubQ}`] || semanticZones[partOnlySubQ];
+        // Strategy: Look for all matching zones (Full match, q-prefix, or Suffix match)
+        // [V28 ENHANCEMENT] Prioritize longest suffix match (e.g. 'ii' over 'i')
+        const allZoneKeys = Object.keys(semanticZones);
+        let bestSuffixKey = "";
+        for (const key of allZoneKeys) {
+          if (partOnlySubQ.endsWith(key) && key.length > bestSuffixKey.length) {
+            bestSuffixKey = key;
+          }
+        }
 
-        // Try Recursive Fallback for parts (e.g. "bi" -> "b")
+        const possibleZones = (semanticZones[fullSubQ] || [])
+          .concat(semanticZones[`q${fullSubQ}`] || [])
+          .concat(semanticZones[partOnlySubQ] || [])
+          .concat(bestSuffixKey ? (semanticZones[bestSuffixKey] || []) : []);
+
+        if (possibleZones.length > 0) {
+          console.log(`      🧪 [ZONE-MATCH] ${anno.subQuestion}: Full='${fullSubQ}', Part='${partOnlySubQ}', BestSuffix='${bestSuffixKey}'. Found ${possibleZones.length} zones.`);
+        }
+
+        // Pick the BEST zone if multiple exist (Pick one that contains current Y, or first one)
+        const currentY = anno.bbox[1];
+        let targetZone = possibleZones.find(z => currentY >= z.startY && currentY <= z.endY) || possibleZones[0];
+
+        // Try Recursive Fallback for parents (e.g. "bi" -> "b") if NO matching suffix zone found
         if (!targetZone && partOnlySubQ.length > 1) {
-          targetZone = semanticZones[partOnlySubQ.charAt(0)]; // "b" from "bi"
+          const parentKey = partOnlySubQ.charAt(0);
+          const parentZones = semanticZones[parentKey];
+          if (parentZones && parentZones.length > 0) {
+            targetZone = parentZones[0];
+            console.log(`      ⚖️ [ZONE-FALLBACK] ${anno.subQuestion} fell back to parent '${parentKey}'`);
+          }
         }
 
         if (targetZone) {
-          const currentY = anno.bbox[1];
           const subQToLog = fullSubQ || partOnlySubQ;
           // If annotation is drifting (or falling back), snap it.
-          // We trust the zone even if the AI is slightly off.
           if (currentY < targetZone.startY || currentY > targetZone.endY || (anno.bbox[0] === 0)) {
-            console.log(`      🛡️ [ZONE SNAP] "${anno.text}" snapped to ${subQToLog} (Y=${Math.round(targetZone.startY)})`);
+            console.log(`      🛡️ [ZONE SNAP] "${anno.text}" snapped to ${subQToLog} (Y=${Math.round(targetZone.startY)}) using landmark zone.`);
 
             // FORCE SNAP TO HEADER
-            anno.bbox[1] = targetZone.startY + 50; // Header + Padding
+            // [V28 FIX] Cap padding to 50% of zone height if zone is tiny (prevents dropping into next Q)
+            const zoneHeight = targetZone.endY - targetZone.startY;
+            // Use 40% padding up to 50px, but for narrow zones (< 60px), use a fixed 2px to avoid bleeding.
+            const safePadding = zoneHeight > 60 ? Math.min(50, zoneHeight * 0.4) : 2;
+
+            anno.bbox[1] = targetZone.startY + safePadding;
             anno.pageIndex = targetZone.pageIndex;
+            // [V31 FIX] Removed hardcoded 150 snap which was causing X-coordinate collisions between different sub-questions.
+            // anno.bbox[0] will now preserve its relative position from the classification layer.
 
-            // If X is missing, give it a default indentation
-            if (anno.bbox[0] < 100) anno.bbox[0] = 150;
-
-            isAnchored = true; // MARK AS SAFE
+            (anno as any)._pipeline_action = "SPATIAL SNAP";
+            isAnchored = true;
           } else {
-            // It is already inside the correct zone
+            (anno as any)._pipeline_action = "ZONE VERIFIED";
             isAnchored = true;
           }
         }
@@ -545,6 +603,7 @@ export async function executeMarkingForQuestion(
           console.log(`      ⚓ [TETHER] Anchoring floater "${anno.text}" to context neighbor "${workingExample.text}"`);
           anno.bbox[0] = workingExample.bbox[0];
           anno.bbox[1] = workingExample.bbox[1] + 50;
+          (anno as any)._pipeline_action = "TETHER";
         }
       }
     });
@@ -657,7 +716,8 @@ export async function executeMarkingForQuestion(
       databaseQuestionText: task.markingScheme?.databaseQuestionText || task.questionText,
       promptMarkingScheme: (markingResult as any).schemeTextForPrompt,
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
-      rawAnnotations: rawAnnotationsFromAI
+      rawAnnotations: rawAnnotationsFromAI,
+      semanticZones: semanticZones
     };
 
   } catch (error) {
@@ -943,63 +1003,75 @@ function parseScore(scoreInput: any): { awardedMarks: number; totalMarks: number
  */
 function resolveLinksWithZones(
   annotations: any[],
-  landmarks: { label: string; y: number }[],
+  landmarks: { label: string; y: number; pageIndex?: number }[],
   allOcrBlocks: any[],
   pageHeight: number
 ): any[] {
 
   return annotations.map(anno => {
+    // 0. Preserve original AI status for logging/debugging
+    if (!(anno as any).ai_raw_status) {
+      (anno as any).ai_raw_status = anno.ocr_match_status;
+    }
+
     // 1. SKIP VISUAL annotations (Trust AI for drawings)
     if (anno.ocr_match_status === "VISUAL") return anno;
 
     // 2. DEFINE THE ZONE
     // Robust matching for subQuestion labels (e.g. "10a" -> "a")
-    const clean = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const clean = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const cleanSubQ = clean(anno.subQuestion || '');
 
     let zone: { startY: number; endY: number };
-    let currentLandmark = landmarks.find(l => cleanSubQ.endsWith(clean(l.label))) ||
-      landmarks.find(l => cleanSubQ.startsWith(clean(l.label)));
+
+    // [V28 ENHANCEMENT] Multi-char suffix aware filter
+    const allMatchingLandmarks = landmarks.filter(l => cleanSubQ.endsWith(clean(l.label)) || cleanSubQ.startsWith(clean(l.label)));
+
+    // Sort by label length (DESC) to favor "ii" over "i"
+    const matchingLandmarks = allMatchingLandmarks.sort((a, b) => b.label.length - a.label.length);
+
+    // [V28 FIX] Pick the BEST landmark if multiple exist.
+    const originalY = anno.bbox[1];
+    let currentLandmark = matchingLandmarks.find((l, idx) => {
+      const next = landmarks[landmarks.indexOf(l) + 1];
+      const start = Math.max(0, l.y - 50);
+      const end = next ? next.y : pageHeight;
+      return originalY >= start && originalY <= end;
+    }) || matchingLandmarks[0];
+
+    if (currentLandmark && matchingLandmarks.length > 1) {
+      console.log(`      🎯 [LINK-ZONE-TRACE] SubQ '${anno.subQuestion}' matched multiple landmarks. Best Fit: '${currentLandmark.label}'`);
+    }
 
     // If no specific landmark found, check if it's the FIRST sub-question (e.g. 'a', 'ai').
-    // If so, default to Start of Page/Question (Y=0).
     if (!currentLandmark) {
-      // Check if it's the FIRST sub-question part (e.g. 'a', 'ai') OR a raw Question Number (e.g. '10', '2').
       const isNumeric = /^\d+$/.test(cleanSubQ);
       const firstPart = isNumeric || ['a', 'ai', 'i', '1'].includes(cleanSubQ) || cleanSubQ.endsWith('a') || cleanSubQ.endsWith('ai');
 
       if (firstPart) {
         console.log(`      📍 [ZONE-DEFAULT] No landmark for '${anno.subQuestion}', defaulting to Start (Y=0).`);
         zone = { startY: 0, endY: landmarks[0]?.y || pageHeight };
-        // Mock landmark to prevent crash downstream
         currentLandmark = { label: 'START', y: 0 };
       } else {
         console.log(`      ⚠️ [ZONE-SKIP] No landmark found for '${anno.subQuestion}'`);
-        return anno; // Skip this annotation if no landmark and not a recognized first sub-question
+        return anno;
       }
     } else {
-      // Find next landmark to define bottom of zone
       const currentIdx = landmarks.indexOf(currentLandmark);
       const nextLandmark = landmarks[currentIdx + 1];
 
       zone = {
-        startY: Math.max(0, currentLandmark.y - 50), // Buffer for inline/tall content
-        endY: nextLandmark ? nextLandmark.y : pageHeight
+        startY: Math.max(0, currentLandmark.y - 50),
+        endY: (nextLandmark && nextLandmark.pageIndex === currentLandmark.pageIndex) ? nextLandmark.y : pageHeight
       };
     }
 
-    // Preserve original AI status for logging/debugging
-    if (!(anno as any).ai_raw_status) {
-      (anno as any).ai_raw_status = anno.ocr_match_status;
-    }
-
     // =========================================================================
-    // 🕵️ STEP A: AUDIT THE AI'S CHOICE (Trust but Verify)
+    // 🛡️ IRON DOME: SIMPLE ZONE PROTECTION
     // =========================================================================
-    // Support both underscore and camelCase from AI. Also check if line_id itself is physical.
     const physicalId = anno.linked_ocr_id || anno.linkedOcrId || (anno.line_id?.startsWith('p') && anno.line_id?.includes('_ocr_') ? anno.line_id : null);
 
-    if (anno.ocr_match_status === "MATCHED" && physicalId) {
+    if (physicalId) {
       const aiChosenBlock = allOcrBlocks.find(b => b.id === physicalId);
 
       if (aiChosenBlock) {
@@ -1007,73 +1079,27 @@ function resolveLinksWithZones(
           (Array.isArray(aiChosenBlock.bbox) ? aiChosenBlock.bbox[1] :
             Array.isArray(aiChosenBlock.box) ? aiChosenBlock.box[1] :
               aiChosenBlock.box?.y) ?? 0;
+
         const inZone = blockY >= zone.startY && blockY <= zone.endY;
-        const textMatch = isExactValueMatch(aiChosenBlock.text, anno.student_text || anno.text);
 
-        if (inZone) {
-          // ✅ SPATIAL SOVEREIGNTY: If AI ID is in the valid Zone, TRUST IT.
-          // This bypasses OCR typos (e.g. "anites" vs "counters") generically.
-          if (!textMatch) {
-            console.log(`   🛡️ [SPATIAL-TRUST] Text mismatch ('${anno.student_text}' vs '${aiChosenBlock.text}') ignored because ID '${aiChosenBlock.id}' is in Zone ${currentLandmark.label}.`);
-          }
-          return anno;
-        } else {
-          console.log(`   ⚖️ [AI-AUDIT-FAIL] AI linked '${anno.student_text}' to block ${aiChosenBlock.id} ("${aiChosenBlock.text}"), but it failed validation (Zone: ${inZone}, Text: ${textMatch}). Overriding...`);
-          // Fall through to Step B to find the REAL match
+        if (!inZone && (anno.ocr_match_status === "MATCHED" || (anno as any)._pipeline_action === "AI PRECISE (V4)")) {
+          console.log(`   ⚖️ [IRON-DOME-VETO] AI linked '${anno.student_text}' to block ${aiChosenBlock.id}, but it is at Y=${Math.round(blockY)}, outside Zone ${currentLandmark.label} (${Math.round(zone.startY)}-${Math.round(zone.endY)}). Overriding to UNMATCHED.`);
+
+          return {
+            ...anno,
+            ocr_match_status: "UNMATCHED",
+            linked_ocr_id: null,
+            _pipeline_action: "IRON DOME VETO"
+          };
+        } else if (inZone) {
+          console.log(`   ✅ [IRON-DOME-PASS] AI link to ${aiChosenBlock.id} is within Zone ${currentLandmark.label}`);
         }
+      } else {
+        console.warn(`   ⚠️ [IRON-DOME-MISS] AI pointed to ID '${physicalId}' but it was not found in the lookup table.`);
       }
     }
 
-    // =========================================================================
-    // 🦅 STEP B: DETERMINISTIC HUNT (The Override)
-    // AI failed or was unmatched. We search for the correct block ourselves.
-    // =========================================================================
-
-    // 1. Spatial Filter (Get candidates in the Zone)
-    const candidates = allOcrBlocks.filter(block => {
-      const y = block.coordinates?.y ??
-        (Array.isArray(block.bbox) ? block.bbox[1] :
-          Array.isArray(block.box) ? block.box[1] :
-            block.box?.y) ?? 0;
-      return y >= zone.startY && y <= zone.endY;
-    });
-
-    console.log(`      📍 [ZONE-TRACE] Anno '${anno.subQuestion || '?'}' -> Landmark '${currentLandmark.label}' (Y=${zone.startY}-${zone.endY}). Candidates: ${candidates.length}`);
-
-    // 🔍 CANDIDATE DUMP
-    if (candidates.length > 0) {
-      console.log(`      🧐 [CANDIDATES-DUMP] Zone ${currentLandmark.label}:`);
-      candidates.forEach(c => {
-        const y = c.coordinates?.y ??
-          (Array.isArray(c.bbox) ? c.bbox[1] :
-            Array.isArray(c.box) ? c.box[1] :
-              c.box?.y) ?? 0;
-        console.log(`         - [${c.id}] (Y=${y}) Text: "${c.text}"`);
-      });
-    }
-
-    // 2. Semantic Match (Find exact or fuzzy text)
-    const match = candidates.find(block => isExactValueMatch(block.text, anno.student_text || anno.text));
-
-    if (match) {
-      console.log(`   ✅ [LINK-RESTORED] Found correct match for '${anno.student_text || anno.text}' -> Block ${match.id} (Zone ${currentLandmark.label})`);
-      return {
-        ...anno,
-        ocr_match_status: "MATCHED",
-        linked_ocr_id: match.id,
-        reasoning: `${anno.reasoning} [System Verified: Found in Zone ${currentLandmark.label}]`
-      };
-    } else {
-      // 3. No match found in the correct zone.
-      // If AI had a bad match, we must kill it (False Positive).
-      if (anno.ocr_match_status === "MATCHED") {
-        console.log(`   🚫 [LINK-KILLED] '${anno.student_text}' was falsely matched by AI. No valid OCR found in Zone ${currentLandmark.label} (${zone.startY}-${zone.endY}). Resetting to UNMATCHED.`);
-        // Log candidates for debugging
-        console.log(`      Candidates in zone: ${candidates.map(c => `[${c.id}: ${c.text}]`).join(', ')}`);
-        return { ...anno, ocr_match_status: "UNMATCHED", linked_ocr_id: null };
-      }
-      return anno;
-    }
+    return anno;
   });
 }
 
