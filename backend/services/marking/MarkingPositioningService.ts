@@ -1,4 +1,5 @@
 import { MarkingZoneService } from './MarkingZoneService.js';
+import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 
 /**
  * Service dedicated to calculating coordinate offsets, landmark grounding, 
@@ -32,8 +33,11 @@ export class MarkingPositioningService {
         // 1. Try Classification Block (Primary Source)
         if (classificationBlocks && classificationBlocks.length > 0) {
             const sample = classificationBlocks[0];
-            offsetX = sample.box?.x || sample.x || sample.coordinates?.x || 0;
-            offsetY = sample.box?.y || sample.y || sample.coordinates?.y || 0;
+            const rawBox = sample.box || sample.coordinates || { x: sample.x, y: sample.y, width: 0, height: 0 };
+            // Assume 1000px fallback if specific dims not available yet in this context
+            const pixelBox = CoordinateTransformationService.ensurePixels(rawBox, 2000, 3000, `OFFSET-CLASS`);
+            offsetX = pixelBox.x;
+            offsetY = pixelBox.y;
         }
 
         // 2. Fallback: Question Detection (Global Position)
@@ -51,8 +55,9 @@ export class MarkingPositioningService {
             }
 
             if (qBox) {
-                offsetX = qBox.x || 0;
-                offsetY = qBox.y || 0;
+                const pixelBox = CoordinateTransformationService.ensurePixels(qBox, 2000, 3000, `OFFSET-DETECTION`);
+                offsetX = pixelBox.x;
+                offsetY = pixelBox.y;
             }
         }
 
@@ -82,8 +87,9 @@ export class MarkingPositioningService {
                 }
 
                 if (match) {
-                    offsetY = match.y || match.top || 0;
-                    offsetX = match.x || match.left || 0;
+                    const pixelBox = CoordinateTransformationService.ensurePixels(match, 2000, 3000, `OFFSET-LANDMARK`);
+                    offsetX = pixelBox.x;
+                    offsetY = pixelBox.y;
                 }
             }
         }
@@ -107,8 +113,9 @@ export class MarkingPositioningService {
             if (anchorBlock) {
                 const bCoords = anchorBlock.coordinates || anchorBlock.box || anchorBlock.geometry?.boundingBox;
                 if (bCoords) {
-                    offsetX = bCoords.x || 0;
-                    offsetY = bCoords.y || 0;
+                    const pixelBox = CoordinateTransformationService.ensurePixels(bCoords, 2000, 3000, `OFFSET-ANCHOR`);
+                    offsetX = pixelBox.x;
+                    offsetY = pixelBox.y;
                     console.log(`   🔍 [COORD-DEBUG] Using Sub-Question Anchor [${anchorBlock.id || anchorBlock.globalBlockId}] "${anchorBlock.text.substring(0, 20)}..." for Offset: x=${Math.round(offsetX)}, y=${Math.round(offsetY)}`);
                 }
             }
@@ -152,7 +159,20 @@ export class MarkingPositioningService {
                             position: { x: blockOffsetX, y: blockOffsetY, width: 100, height: 40 }
                         };
                     }
-                    return line;
+                    // If position exists, we assume it's already been scaled or we scale it here
+                    const pos = line.position;
+                    const dims = { width: 2000, height: 3000 }; // Fallback
+                    const pixelBox = CoordinateTransformationService.ensurePixels(pos, dims.width, dims.height, `GLOBAL-LINE`);
+
+                    return {
+                        ...line,
+                        position: {
+                            x: pixelBox.x + blockOffsetX,
+                            y: pixelBox.y + blockOffsetY,
+                            width: pixelBox.width,
+                            height: pixelBox.height
+                        }
+                    };
                 };
 
                 if (block.studentWorkLines && Array.isArray(block.studentWorkLines)) {

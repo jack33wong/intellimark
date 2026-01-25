@@ -29,14 +29,15 @@
 }
 
 .hero-headlines-wrapper {
-    height: 50px;
+    height: 60px;
     overflow: hidden;
     position: relative;
     width: 100%;
 }
 
 .hero-headline {
-    font-size: 2.5rem;
+    font-family: LibreBaskerville, Georgia, Cambria, ui-serif, Times New Roman, Times, serif;
+    font-size: 2.2rem;
     font-weight: 800;
     margin: 0;
     position: absolute;
@@ -45,8 +46,8 @@
     transform: translateY(100%);
     transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
     white-space: nowrap;
-    line-height: 1;
-    letter-spacing: -0.04em;
+    line-height: 1.0;
+    letter-spacing: 0.02em;
 }
 
 .hero-headline.active {

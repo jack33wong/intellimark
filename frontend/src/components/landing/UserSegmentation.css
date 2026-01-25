@@ -11,8 +11,8 @@
 }
 
 .segmentation-title {
-    font-family: 'Instrument Serif', serif;
-    font-size: 3.5rem;
+    font-family: LibreBaskerville, Georgia, Cambria, ui-serif, Times New Roman, Times, serif;
+    font-size: 2.5rem;
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 64px;

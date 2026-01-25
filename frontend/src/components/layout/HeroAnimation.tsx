@@ -16,23 +16,23 @@ interface AnimationStep {
 
 const STEPS: AnimationStep[] = [
     {
-        headline: "1. Spatial Mapping",
-        subheadline: "0.1mm accuracy. We map every ink stroke to its exact X/Y coordinate for flawlessly precise marking.",
+        headline: "1. Handwriting Recognition",
+        subheadline: "We see exactly where you wrote your numbers. Even if your handwriting is messy, our AI tracks your full method to award you every mark you deserve.",
         image: step1Img
     },
     {
-        headline: "2. Logic Chain Analysis",
-        subheadline: "Our AI traces your multi-step logic chain in real-time, identifying the exact point of error.",
+        headline: "2. Step-by-Step Checking",
+        subheadline: "Our AI traces your working out just like a teacher, finding exactly where you made a mistake so you can fix it.",
         image: step2Img
     },
     {
-        headline: "3. The 'Red Pen' Edge",
-        subheadline: "Visual proof. See examiner annotations appear directly on your specific handwritten equations.",
+        headline: "3. Examiner-Style Feedback",
+        subheadline: "Visual proof. See 'Red Pen' annotations appear directly on your own handwritten equations with 99.2% accuracy.",
         image: redPenImg
     },
     {
-        headline: "4. Official Protocol",
-        subheadline: "Marks awarded based on 2026 Exam Board schemas for Edexcel, AQA, and OCR.",
+        headline: "4. Official Grade Boundaries",
+        subheadline: "Get an instant, reliable grade based on the latest 2026 marking standards for Edexcel, AQA, and OCR.",
         image: step4Img
     }
 ];

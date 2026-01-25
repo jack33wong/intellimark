@@ -1,4 +1,5 @@
 import type { Annotation, EnrichedAnnotation, MarkingTask } from '../../types/index.js';
+import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 
 const getPageDims = (pageDimensions: Map<number, any>, idx: number) => {
     if (pageDimensions?.has(idx)) return pageDimensions.get(idx);
@@ -65,7 +66,7 @@ export const enrichAnnotationsWithPositions = (
 
     // Helper: Find in Raw Classification Data (Percent 0-100)
     const findInClassification = (id: string) => {
-        if (!classificationBlocks) return null;
+        if (!classificationBlocks || classificationBlocks.length === 0) return null;
         for (const block of classificationBlocks) {
             if (block.studentWorkLines) {
                 const match = block.studentWorkLines.find((l: any) => l.id === id);
@@ -90,223 +91,133 @@ export const enrichAnnotationsWithPositions = (
     const positionCounters = new Map<string, number>();
 
     return annotations.map((anno, idx) => {
-        let pixelBbox: [number, number, number, number] = [0, 0, 0, 0];
         let pageIndex = (anno as any).pageIndex ?? defaultPageIndex;
         let method = "NONE";
-        let match: any = null;
+        let rawBox: any = null;
+        let forceLandmark = false;
 
         const lineId = (anno as any).line_id || "";
-        const incomingStatus = (anno as any).ocr_match_status;
+        const incomingStatus = (anno as any).ocr_match_status || "UNMATCHED";
 
-        // 📝 LOGGING: TRACK THE STARTING POINT
-        console.log(`\n👉 [ANNO ${idx}] "${anno.text}" (ID: ${lineId}) | Status In: ${incomingStatus || 'NONE'}`);
+        console.log(`\n👉 [ANNO ${idx}] "${anno.text}" (ID: ${lineId}) | Status In: ${incomingStatus}`);
 
         // ---------------------------------------------------------
-        // PATH 1: PHYSICAL MATCH (Linked OCR Block)
+        // PATH 1: PHYSICAL MATCH (High Confidence OCR)
         // ---------------------------------------------------------
-        if ((incomingStatus === "MATCHED" || (anno as any)._pipeline_action === "AI PRECISE (V4)") && (anno as any).linked_ocr_id) {
-            const linkedBlock = findInSteps((anno as any).linked_ocr_id);
-            if (linkedBlock && linkedBlock.bbox) {
-                match = linkedBlock;
-                pixelBbox = [...match.bbox] as [number, number, number, number];
+        if (incomingStatus === "MATCHED" || (anno as any)._pipeline_action === "AI PRECISE (V4)") {
+            const linkedId = (anno as any).linked_ocr_id || lineId;
+            const matchInSteps = findInSteps(linkedId);
+            if (matchInSteps && matchInSteps.bbox) {
+                rawBox = { ...matchInSteps, x: matchInSteps.bbox[0], y: matchInSteps.bbox[1], width: matchInSteps.bbox[2], height: matchInSteps.bbox[3] };
+                pageIndex = matchInSteps.pageIndex ?? pageIndex;
+                method = "PHYSICAL_MATCH";
+            }
+        }
+
+        // ---------------------------------------------------------
+        // PATH 2: SMART SNAP (Handwriting Fidelity & Rectification)
+        // ---------------------------------------------------------
+        if (!rawBox && lineId && lineId.startsWith('p0_q')) {
+            const match = findInSteps(lineId) || findInClassification(lineId);
+            if (match && (match.bbox || match.box || match.position)) {
+                const sourceBox = match.bbox || match.box || match.position;
+                rawBox = Array.isArray(sourceBox)
+                    ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3] }
+                    : sourceBox;
                 pageIndex = match.pageIndex ?? pageIndex;
-                method = "LINKER_OCR_RESTORED";
-
-                console.log(`   ✅ [PATH: RESTORED] Snapped to linked_ocr_id '${(anno as any).linked_ocr_id}'`);
+                method = "SMART_SNAP";
             }
         }
 
         // ---------------------------------------------------------
-        // PATH 2: CLASSIFICATION MATCH (Classification ID)
+        // PATH 3: EMERGENCY LANDMARK (Data Absence Fallback)
         // ---------------------------------------------------------
-        const isGlobalMapperId = lineId && typeof lineId === 'string' && lineId.startsWith('p0_q') && method !== 'LINKER_OCR_RESTORED';
+        if (!rawBox) {
+            method = "EMERGENCY";
+            forceLandmark = true;
+        }
 
-        if (method === "NONE" && isGlobalMapperId) {
-            match = findInClassification(lineId);
-            if (match) {
-                const rawBox = match.box || match.bbox || match.position;
-                if (rawBox) {
-                    pageIndex = match.pageIndex ?? pageIndex;
-                    const dims = getPageDims(pageDimensions!, pageIndex);
+        // 🏗️ RESOLVE LANDMARKS & OFFSETS
+        const dims = getPageDims(pageDimensions!, pageIndex);
+        let offsetX = 0;
+        let offsetY = 0;
+        let clamping: any = undefined;
 
-                    const rx = Array.isArray(rawBox) ? rawBox[0] : (rawBox.x ?? 0);
-                    const ry = Array.isArray(rawBox) ? rawBox[1] : (rawBox.y ?? 0);
-                    const rw = Array.isArray(rawBox) ? rawBox[2] : (rawBox.width ?? 0);
-                    const rh = Array.isArray(rawBox) ? rawBox[3] : (rawBox.height ?? 0);
+        if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
+            const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
+            const subQ = subQRaw.replace(/^\d+/, '').replace(/[()\s]/g, '');
 
-                    // SCALE TO PAGE DIMENSIONS (0-100 -> Pixels)
-                    // If raw coords are small (< 101), they are almost certainly percentages.
-                    const den = (rx <= 100 && ry <= 100) ? 100 : 1;
+            const allZoneKeys = Object.keys(semanticZones);
+            let bestSuffixKey = "";
+            for (const key of allZoneKeys) {
+                if (subQ.endsWith(key) && key.length > bestSuffixKey.length) {
+                    bestSuffixKey = key;
+                }
+            }
 
-                    pixelBbox = [
-                        (rx / den) * dims.width,
-                        (ry / den) * dims.height,
-                        (rw / den) * dims.width,
-                        (rh / den) * dims.height
-                    ];
-                    method = "PX_SNAP_MATCH";
-                    (anno as any)._pipeline_action = "PX SNAP";
-                    console.log(`   🧲 [SNAP] Scaled Classification Block (${den} -> Pixels): (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])}) on Page ${pageIndex} (${dims.width}x${dims.height})`);
+            const matchingZones = (semanticZones[subQ] || [])
+                .concat(bestSuffixKey ? (semanticZones[bestSuffixKey] || []) : [])
+                .concat(subQ.length > 1 ? (semanticZones[subQ.charAt(0)] || []) : []);
+
+            if (matchingZones.length > 0) {
+                const zone = matchingZones[0];
+                clamping = { startY: zone.startY, endY: zone.endY };
+
+                // 🛡️ [RECTIFICATION] Snap-Back Logic: If Snap is out of zone, snap to the opposite boundary to ensure legal placement.
+                if (method === "SMART_SNAP") {
+                    const tempBox = CoordinateTransformationService.ensurePixels(rawBox, dims.width, dims.height);
+                    if (tempBox.y < zone.startY || tempBox.y > zone.endY) {
+                        const isDropped = tempBox.y > zone.endY;
+
+                        // IF DROPPED (too low) -> SNAP TO TOP (Lowest Y)
+                        // IF POPPED (too high) -> SNAP TO BOTTOM (Highest Y)
+                        const rectifiedY = isDropped ? zone.startY : zone.endY;
+                        const label = isDropped ? "LOWEST (TOP)" : "HIGHEST (BOTTOM)";
+
+                        console.log(`   🛡️ [RECTIFICATION] Q${questionId}${subQ} Snap at ${Math.round(tempBox.y)}px rectified to ${label} of zone (${rectifiedY}px). Preserving X.`);
+
+                        rawBox = {
+                            x: tempBox.x,
+                            y: rectifiedY,
+                            width: tempBox.width,
+                            height: tempBox.height,
+                            unit: 'pixels'
+                        };
+                    }
+                }
+
+                if (method === "EMERGENCY" || (method === "NONE" && forceLandmark)) {
+                    if (method === "NONE") method = "EMERGENCY";
+                    offsetX = zone.x || globalOffsetX;
+                    offsetY = zone.startY || globalOffsetY;
+                    rawBox = { x: 0, y: 0, width: 8, height: 4, unit: 'percentage' };
+                    console.log(`   📍 [LANDMARK] Applying emergency anchor (${Math.round(offsetX)}, ${Math.round(offsetY)}) for SubQ '${subQ}'`);
                 }
             }
         }
 
-        // ---------------------------------------------------------
-        // PATH 3: STEPS MATCH (Generic line_id fallback)
-        // ---------------------------------------------------------
-        if (method === "NONE") {
-            match = findInSteps(lineId);
-            if (match && match.bbox) {
-                pixelBbox = [...match.bbox] as [number, number, number, number];
-                pageIndex = match.pageIndex ?? pageIndex;
-                method = "OCR_PHYSICAL";
-                (anno as any)._pipeline_action = "OCR MATCH";
-            }
-        }
-
-        // 🏗️ PHASE 4: GLOBAL TRANSFORMS (Landmarks & Snapping)
-        if (isGlobalMapperId) {
-            // MAGNET FIX: If we have a classification position but a PHYSICAL block overlaps it, snap to physical.
-            if (method === "PX_SNAP_MATCH") {
-                const roughBox = { x: pixelBbox[0], y: pixelBbox[1], width: pixelBbox[2], height: pixelBbox[3] };
-                const preciseOcrBlock = findOverlappingOCRBlock(roughBox, stepsDataForMapping);
-                if (preciseOcrBlock) {
-                    console.log(`   🧲 [SNAP] Snapped '${lineId}' to precise OCR block '${preciseOcrBlock.id}'`);
-                    pixelBbox = [...preciseOcrBlock.bbox] as [number, number, number, number];
-                }
-            }
-
-            // LANDMARK PINNING (For unmatched marks or drifting marks)
-            if (method !== "OCR_PHYSICAL" && method !== "LINKER_OCR_RESTORED") {
-                let specificOffsetX = globalOffsetX;
-                let specificOffsetY = globalOffsetY;
-
-                if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
-                    const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
-                    const subQ = subQRaw.replace(/^\d+/, '').replace(/[()\s]/g, '');
-
-                    // Suffix-aware landmark matching
-                    const allZoneKeys = Object.keys(semanticZones);
-                    let bestSuffixKey = "";
-                    for (const key of allZoneKeys) {
-                        if (subQ.endsWith(key) && key.length > bestSuffixKey.length) {
-                            bestSuffixKey = key;
-                        }
-                    }
-
-                    const matchingZones = (semanticZones[subQ] || [])
-                        .concat(bestSuffixKey ? (semanticZones[bestSuffixKey] || []) : [])
-                        .concat(subQ.length > 1 ? (semanticZones[subQ.charAt(0)] || []) : []);
-
-                    if (matchingZones.length > 0) {
-                        const currentY = pixelBbox[1];
-                        const bestZone = matchingZones.find(z => currentY >= z.startY && currentY <= z.endY) || matchingZones[0];
-
-                        // [DRIFT FIX] Allow landmark X offset if AI's X is very small (near 0)
-                        // This fixes cases where classification IDs are correctly identified but poorly placed.
-                        const skipLandmarkX = method === "LINKER_OCR_RESTORED"; // Only skip for high-confidence physical matches
-
-                        if (pixelBbox[0] < 200 && !skipLandmarkX) {
-                            specificOffsetX = bestZone.x || 0;
-                            console.log(`   📍 [LANDMARK-X] Applying landmark X-offset (+${Math.round(specificOffsetX)}) because AI X (${Math.round(pixelBbox[0])}) is near left edge.`);
-                        } else {
-                            specificOffsetX = 0;
-                        }
-
-                        // Always check if we need a Y offset to get into the zone
-                        const inZone = currentY >= bestZone.startY && currentY <= bestZone.endY;
-
-                        // [V32 ENFORCEMENT] Force-clamp even matched links if they are drift-prone
-                        if (!inZone || method === "PX_SNAP_MATCH") {
-                            specificOffsetY = bestZone.startY || 0;
-                            (anno as any)._pipeline_action = "LANDMARK PIN";
-
-                            // If it's a classification snap, we ALSO need to clamp the pixel coords to the zone
-                            if (method === "PX_SNAP_MATCH" || !inZone) {
-                                const safePad = (bestZone.endY - bestZone.startY) > 60 ? 15 : 2;
-                                pixelBbox[1] = Math.max(bestZone.startY + safePad, Math.min(pixelBbox[1], bestZone.endY - 20));
-                                console.log(`   🛡️ [PINNING] Forced SubQ '${anno.subQuestion}' inside zone [${Math.round(bestZone.startY)}-${Math.round(bestZone.endY)}]. Target Y: ${Math.round(pixelBbox[1])}`);
-                            }
-                        }
-                    }
-                }
-
-                // [V32 SCALE-FIX] Ensure any coordinates sitting at (0-100) are globally scaled to pixels
-                // This is a safety layer for marks that bypassed scaling earlier.
-                if (pixelBbox[0] <= 100 && pixelBbox[1] <= 100 && pixelBbox[2] < 50) {
-                    const dims = getPageDims(pageDimensions!, pageIndex);
-                    pixelBbox[0] = (pixelBbox[0] / 100) * dims.width;
-                    pixelBbox[1] = (pixelBbox[1] / 100) * dims.height;
-                    pixelBbox[2] = (pixelBbox[2] / 100) * dims.width;
-                    pixelBbox[3] = (pixelBbox[3] / 100) * dims.height;
-                    console.log(`   🧮 [SCALE-SAFETY] Auto-scaled raw % coords to Pixels: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
-                }
-
-                // [REFINED] Apply offset with double-offset protection and SAFE PADDING
-                let zoneStart = specificOffsetY;
-                let zoneEnd = specificOffsetY + 200; // Default fallback
-
-                if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
-                    const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
-                    const subQ = subQRaw.replace(/^\d+/, '').replace(/[()\s]/g, '');
-                    const zones = (semanticZones as any)[subQ];
-                    if (zones && zones.length > 0) {
-                        zoneStart = zones[0].startY;
-                        zoneEnd = zones[0].endY;
-                    }
-                }
-
-                const isAlreadyInZone = pixelBbox[1] >= (zoneStart - 50) && pixelBbox[1] <= (zoneEnd + 50);
-
-                if (!isAlreadyInZone && (specificOffsetX !== 0 || specificOffsetY !== 0)) {
-                    const zoneHeight = zoneEnd - zoneStart;
-                    // [V31 FIX] Narrow Zone Contentment: If zone is tiny, use minimal padding (2px)
-                    const safePadding = zoneHeight > 60 ? Math.min(50, zoneHeight * 0.4) : 2;
-
-                    pixelBbox[0] += specificOffsetX;
-                    pixelBbox[1] += specificOffsetY + safePadding;
-
-                    // [V31 FIX] Hard Containment: Caps Y to ensure it doesn't bleed into next zone
-                    if (pixelBbox[1] > (zoneEnd - 15)) {
-                        pixelBbox[1] = Math.max(zoneStart + 5, zoneEnd - 25);
-                        console.log(`   🛡️ [CONTAINMENT] Annotation "${anno.text}" capped to stay within zone [${Math.round(zoneStart)}-${Math.round(zoneEnd)}]. New Y: ${Math.round(pixelBbox[1])}`);
-                    }
-                    if (pixelBbox[1] < zoneStart) {
-                        pixelBbox[1] = zoneStart + 5;
-                        console.log(`   🛡️ [CONTAINMENT] Annotation "${anno.text}" raised to stay within zone floor. New Y: ${Math.round(pixelBbox[1])}`);
-                    }
-
-                    console.log(`   🏗️ [OFFSET] Applied Offset (${specificOffsetX}, ${specificOffsetY}) + Safe Padding (${Math.round(safePadding)})`);
-                }
-            }
-        }
-
-        // [STAKING-FIX] Add vertical offset for coordinates sharing the same physical/logical source
-        // This ensures that B3 M1 M1 marks for the same line don't overlap.
+        // [STAKING-FIX] Calculate stacking BEFORE the universal gate
         const anchorKey = (anno as any).linked_ocr_id || lineId || "default";
         const count = positionCounters.get(anchorKey) || 0;
         positionCounters.set(anchorKey, count + 1);
+        const stackingOffset = count > 0 ? count * 35 : 0;
 
-        if (count > 0) {
-            const stackingOffset = count * 35;
-            pixelBbox[1] += stackingOffset;
-            console.log(`   📚 [STACKING] Applied vertical offset of ${stackingOffset}px for anchor "${anchorKey}" (Occurence #${count + 1})`);
-        }
+        // 🏁 THE UNIVERSAL GATE
+        const pixelBox = CoordinateTransformationService.resolvePixels(
+            rawBox,
+            dims.width,
+            dims.height,
+            { offsetX, offsetY: offsetY + stackingOffset, clamping, context: `${method}-${lineId}` }
+        );
 
-        // Final Sanitization
-        if (pixelBbox[2] < 30) pixelBbox[2] = 100; // Min width for cross/tick
-        if (pixelBbox[3] < 30) pixelBbox[3] = 40;
-
-        const isDrawing = (anno.text || '').includes('[DRAWING]') || (anno.reasoning && (anno.reasoning as any).includes('[DRAWING]'));
-        let status = incomingStatus || (isDrawing ? "VISUAL" : "UNMATCHED");
-
-        console.log(`   🏁 [FINAL] ID: ${lineId} | Status: ${status} | Coord: (${Math.round(pixelBbox[0])}, ${Math.round(pixelBbox[1])})`);
+        if (count > 0) console.log(`   📚 [STACKING] #${count} Share anchor -> Offset +${stackingOffset}px`);
+        console.log(`   🏁 [ENRICH-DEBUG] ID: ${lineId} | Method: ${method} | FinalPixel: (${Math.round(pixelBox.x)}, ${Math.round(pixelBox.y)})`);
 
         return {
             ...anno,
-            bbox: pixelBbox,
+            bbox: [pixelBox.x, pixelBox.y, pixelBox.width, pixelBox.height],
             pageIndex: pageIndex,
-            ocr_match_status: status as any,
+            ocr_match_status: incomingStatus as any,
             _debug_placement_method: method
         } as EnrichedAnnotation;
     });

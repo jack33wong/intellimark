@@ -10,6 +10,7 @@ import type { QuestionResult } from '../../types/marking.js';
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 import UsageTracker from '../../utils/UsageTracker.js';
+import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 import { MarkingPositioningService } from './MarkingPositioningService.js';
 import { sanitizeAiLineId, generateDiagnosticTable } from './MarkingHelpers.js';
 import { sanitizeAnnotations } from './MarkingSanitizer.js';
@@ -91,25 +92,7 @@ export async function executeMarkingForQuestion(
 
         const ocrSource = result.source || 'classification';
 
-        // Gemini Scale Check (0-1000)
-        // If values are <= 1000 AND image is clearly larger than 1000px, assume Gemini Scale.
-        if (bbox[0] <= 1000 && bbox[1] <= 1000 && bbox[2] <= 1000 && bbox[3] <= 1000 && (w > 1000 || h > 1000) && (bbox[0] !== 0 || bbox[1] !== 0)) {
-          bbox = [
-            (bbox[0] / 1000) * w,
-            (bbox[1] / 1000) * h,
-            (bbox[2] / 1000) * w,
-            (bbox[3] / 1000) * h
-          ];
-        }
-        // Percentage Scale Check (0-100)
-        else if (bbox[0] < 100 && bbox[1] < 100 && (bbox[0] !== 0 || bbox[1] !== 0)) {
-          bbox = [
-            (bbox[0] / 100) * w,
-            (bbox[1] / 100) * h,
-            (bbox[2] / 100) * w,
-            (bbox[3] / 100) * h
-          ];
-        }
+        // NO-OP: Delayed Transformation (Keep relative units for Prompt)
 
         return {
           line_id: (result as any).sequentialId || `p${pageIdx}_q${questionId}_line_${stepIndex + 1}`,
@@ -263,7 +246,11 @@ export async function executeMarkingForQuestion(
       model: model,
       processedImage: {
         ocrText: ocrTextForPrompt,
-        boundingBoxes: stepsDataForMapping.map(step => ({ x: step.bbox[0], y: step.bbox[1], width: step.bbox[2], height: step.bbox[3], text: step.text })),
+        boundingBoxes: stepsDataForMapping.map(step => {
+          const stepPageDims = task.pageDimensions?.get(step.pageIndex) || { width: 1000, height: 1000 };
+          const ppt = CoordinateTransformationService.toPPT(step.bbox, stepPageDims.width, stepPageDims.height);
+          return { x: ppt.x, y: ppt.y, width: ppt.width, height: ppt.height, text: step.text };
+        }),
         cleanDataForMarking: { steps: stepsDataForMapping },
         cleanedOcrText: ocrTextForPrompt,
         rawOcrBlocks: rawOcrBlocks,
@@ -467,15 +454,32 @@ export async function executeMarkingForQuestion(
 
     // MERGE RESCUE LAYER: Combine segmented steps with raw OCR blocks to prevent data loss during positioning.
     const combinedLookupBlocks = [
-      ...stepsDataForMapping,
-      ...rawOcrBlocks.map(block => ({
-        line_id: (block as any).id,
-        pageIndex: (block as any).pageIndex,
-        text: block.text,
-        cleanedText: block.text,
-        bbox: [block.coordinates?.x || 0, block.coordinates?.y || 0, block.coordinates?.width || 0, block.coordinates?.height || 0] as [number, number, number, number],
-        isHandwritten: block.isHandwritten
-      }))
+      ...stepsDataForMapping.map(s => {
+        const isClassification = s.ocrSource === 'classification' || (s.line_id && s.line_id.includes('_line_'));
+        return {
+          ...s,
+          unit: isClassification ? 'percentage' : 'pixels',
+          _source: isClassification ? 'CLASSIFICATION' : 'SEGMENTED'
+        };
+      }),
+      ...rawOcrBlocks.map(block => {
+        const blockPageIdx = (block as any).pageIndex ?? 0;
+        return {
+          line_id: (block as any).id,
+          pageIndex: blockPageIdx,
+          text: block.text,
+          cleanedText: block.text,
+          bbox: [
+            block.coordinates?.x || 0,
+            block.coordinates?.y || 0,
+            block.coordinates?.width || 0,
+            block.coordinates?.height || 0
+          ] as [number, number, number, number],
+          unit: 'pixels', // CRITICAL: Preserve raw Mathpix coordinate fidelity
+          _source: 'RESCUE_RAW',
+          isHandwritten: block.isHandwritten
+        };
+      })
     ];
 
     let enrichedAnnotations = enrichAnnotationsWithPositions(
@@ -493,120 +497,10 @@ export async function executeMarkingForQuestion(
     ).filter(anno => (anno.text || '').trim() !== '');
 
     // =========================================================================
-    // 🛡️ PHASE 3: SPATIAL SANITIZATION (Zone Snapping & Safety Nets)
+    // 🛡️ ENRICHMENT COMPLETE
+    // All spatial logic (Snapping, Clamping, Stacking) is now handled by 
+    // AnnotationEnrichmentService. No further spatial mutation allowed.
     // =========================================================================
-    console.log(`\n🔍 [ANNOTATION-AUDIT] Phase 3: Spatial Sanitization for Q${questionId}`);
-
-    enrichedAnnotations.forEach(anno => {
-      let isAnchored = false; // TRACKER: Did we successfully place this?
-
-      // BIBLE §3B & §4 COMPLIANCE
-      // If the AI found a mark but couldn't anchor it (no line_id),
-      // we must trust the AI's semantic subQuestion intent over spatial heuristics.
-      if (!anno.line_id || anno.ocr_match_status === 'UNMATCHED') {
-        if (anno.subQuestion) {
-          console.log(`      🛡️ [BIBLE-COMPLIANCE] Trusting AI subQuestion '${anno.subQuestion}' for Ghost Mark`);
-        } else {
-          // Only fall back to spatial guessing if the AI was silent
-          const zones = Object.entries(semanticZones || {}).map(([label, data]) => ({ label, ...data }));
-          const guessedSubQ = zones[0]?.label || "unknown";
-          console.log(`      🛡️ [BIBLE-COMPLIANCE] AI silent on subQuestion. Defaulting Ghost Mark to '${guessedSubQ}'`);
-          anno.subQuestion = guessedSubQ;
-        }
-      }
-
-      // A. ZONE ENFORCEMENT
-      // 🛡️ CRITICAL FIX: NEVER Move a "MATCHED" OCR Annotation OR a "VISUAL/REDIRECTED" mark
-      // If Mathpix found the text exactly, we trust Mathpix's coordinates 100%.
-      // If the system redirected the mark to handwriting for precision, we trust that too.
-      // We ONLY apply Zone Snapping to "UNMATCHED" or "FALLBACK" annotations.
-      const isVisual = anno.ocr_match_status === 'VISUAL' || String(anno.line_id || '').startsWith('visual_redirect_');
-
-      if (anno.subQuestion && anno.bbox && semanticZones && anno.ocr_match_status !== 'MATCHED' && !isVisual) {
-        // [V28 FIX] Clean SubQ and handle suffix-aware landmark matching
-        const clean = (s: string) => s.replace(/[()\s]/g, '').toLowerCase();
-        let fullSubQ = clean(anno.subQuestion);
-        let partOnlySubQ = clean(anno.subQuestion.replace(/^\d+/, ''));
-
-        // Strategy: Look for all matching zones (Full match, q-prefix, or Suffix match)
-        // [V28 ENHANCEMENT] Prioritize longest suffix match (e.g. 'ii' over 'i')
-        const allZoneKeys = Object.keys(semanticZones);
-        let bestSuffixKey = "";
-        for (const key of allZoneKeys) {
-          if (partOnlySubQ.endsWith(key) && key.length > bestSuffixKey.length) {
-            bestSuffixKey = key;
-          }
-        }
-
-        const possibleZones = (semanticZones[fullSubQ] || [])
-          .concat(semanticZones[`q${fullSubQ}`] || [])
-          .concat(semanticZones[partOnlySubQ] || [])
-          .concat(bestSuffixKey ? (semanticZones[bestSuffixKey] || []) : []);
-
-        if (possibleZones.length > 0) {
-          console.log(`      🧪 [ZONE-MATCH] ${anno.subQuestion}: Full='${fullSubQ}', Part='${partOnlySubQ}', BestSuffix='${bestSuffixKey}'. Found ${possibleZones.length} zones.`);
-        }
-
-        // Pick the BEST zone if multiple exist (Pick one that contains current Y, or first one)
-        const currentY = anno.bbox[1];
-        let targetZone = possibleZones.find(z => currentY >= z.startY && currentY <= z.endY) || possibleZones[0];
-
-        // Try Recursive Fallback for parents (e.g. "bi" -> "b") if NO matching suffix zone found
-        if (!targetZone && partOnlySubQ.length > 1) {
-          const parentKey = partOnlySubQ.charAt(0);
-          const parentZones = semanticZones[parentKey];
-          if (parentZones && parentZones.length > 0) {
-            targetZone = parentZones[0];
-            console.log(`      ⚖️ [ZONE-FALLBACK] ${anno.subQuestion} fell back to parent '${parentKey}'`);
-          }
-        }
-
-        if (targetZone) {
-          const subQToLog = fullSubQ || partOnlySubQ;
-          // If annotation is drifting (or falling back), snap it.
-          if (currentY < targetZone.startY || currentY > targetZone.endY || (anno.bbox[0] === 0)) {
-            console.log(`      🛡️ [ZONE SNAP] "${anno.text}" snapped to ${subQToLog} (Y=${Math.round(targetZone.startY)}) using landmark zone.`);
-
-            // FORCE SNAP TO HEADER
-            // [V28 FIX] Cap padding to 50% of zone height if zone is tiny (prevents dropping into next Q)
-            const zoneHeight = targetZone.endY - targetZone.startY;
-            // Use 40% padding up to 50px, but for narrow zones (< 60px), use a fixed 2px to avoid bleeding.
-            const safePadding = zoneHeight > 60 ? Math.min(50, zoneHeight * 0.4) : 2;
-
-            anno.bbox[1] = targetZone.startY + safePadding;
-            anno.pageIndex = targetZone.pageIndex;
-            // [V31 FIX] Removed hardcoded 150 snap which was causing X-coordinate collisions between different sub-questions.
-            // anno.bbox[0] will now preserve its relative position from the classification layer.
-
-            (anno as any)._pipeline_action = "SPATIAL SNAP";
-            isAnchored = true;
-          } else {
-            (anno as any)._pipeline_action = "ZONE VERIFIED";
-            isAnchored = true;
-          }
-        }
-      }
-
-      // B. SAFETY NET (Working Example Anchor)
-      // ONLY RUN THIS IF NOT ANCHORED BY A ZONE
-      if (!isAnchored && anno.bbox && (anno.bbox[0] === 0 || anno.ocr_match_status === 'UNMATCHED')) {
-        // Find a "Working Example" (Any matched block on this page)
-        // CRITICAL: Only tether to a neighbor within the SAME sub-question zone
-        const workingExample = enrichedAnnotations.find(a =>
-          a.pageIndex === anno.pageIndex &&
-          a.ocr_match_status === 'MATCHED' &&
-          a.subQuestion === anno.subQuestion &&
-          a !== anno
-        );
-
-        if (workingExample && workingExample.bbox) {
-          console.log(`      ⚓ [TETHER] Anchoring floater "${anno.text}" to context neighbor "${workingExample.text}"`);
-          anno.bbox[0] = workingExample.bbox[0];
-          anno.bbox[1] = workingExample.bbox[1] + 50;
-          (anno as any)._pipeline_action = "TETHER";
-        }
-      }
-    });
 
     // Final Cleanup: Deduplication
     const bestMarks = new Set<string>();
