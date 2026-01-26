@@ -141,6 +141,7 @@ ${!isGeneric ? `
 > - Discover the actual total marks from the student paper (e.g. "Total 4 marks").
 > - ONLY return annotations for the marks actually identified/needed.
 > - Do NOT generate filler annotations to "coverage" the entire M1-M8 pool.
+> - [CRITICAL CONSTRAINT] STRUCTURE FIDELITY: You MUST use the provided Question Number (e.g. "12") as the key. DO NOT split into "12a", "12b" unless those labels are EXPLICITLY printed in the Question Text. If implicit, use "12".
 `}
 
 ## STUDENT WORK (STRUCTURED)

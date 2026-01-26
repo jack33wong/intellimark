@@ -153,6 +153,10 @@ export class SVGOverlayService {
       return '';
     }
 
+    // ⚡ [MERGE-FIX] Auto-Merge overlapping annotations (e.g. "M1" + "M1" -> "M1 M1")
+    // This cleans up the UI when multiple marks land on the same spot.
+    annotations = this.mergeOverlappingAnnotations(annotations, actualWidth, actualHeight);
+
     const scaleX = actualWidth / originalDimensions.width;
     const scaleY = actualHeight / originalDimensions.height;
 
@@ -657,5 +661,46 @@ export class SVGOverlayService {
     const underline2 = `<line x1="${underlineStartX}" y1="${underlineY2}" x2="${underlineEndX}" y2="${underlineY2}" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
 
     return text + underline1 + underline2;
+  }
+
+  /**
+   * Helper: Merge overlapping annotations based on Student Work ID (line_id)
+   * if they are same student work, stack it.
+   */
+  private static mergeOverlappingAnnotations(annotations: Annotation[], width: number, height: number): Annotation[] {
+    if (!annotations || annotations.length < 2) return annotations;
+
+    // console.log(`🔍 [SVG-MERGE] Checking ${annotations.length} annotations for overlap (ID-BASED).`);
+
+    const mergedInfos = new Map<string, Annotation>();
+    const standalone: Annotation[] = [];
+
+    // Group by line_id + action
+    // If line_id is missing, treat as standalone (no merge)
+    for (const anno of annotations) {
+      const lineId = (anno as any).line_id;
+      const action = anno.action;
+
+      if (!lineId) {
+        standalone.push(anno);
+        continue;
+      }
+
+      const key = `${lineId}|${action}`;
+
+      if (mergedInfos.has(key)) {
+        // Stack it!
+        const existing = mergedInfos.get(key)!;
+        const newText = [existing.text, anno.text].filter(t => t).join(' ');
+
+        // console.log(`      ✨ [STACK] Merging for ID ${lineId}: "${existing.text}" + "${anno.text}" -> "${newText}"`);
+
+        mergedInfos.set(key, { ...existing, text: newText });
+      } else {
+        mergedInfos.set(key, anno);
+      }
+    }
+
+    return [...standalone, ...mergedInfos.values()];
   }
 }

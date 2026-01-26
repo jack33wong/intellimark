@@ -61,8 +61,6 @@ export const enrichAnnotationsWithPositions = (
     semanticZones?: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number }>>
 ): EnrichedAnnotation[] => {
 
-    console.log(`\n🔍 [ENRICH-START] Processing Q${questionId} | ${annotations.length} annotations`);
-    console.log(`   ⚓ [GLOBAL-OFFSET] Applying offsets: x=${globalOffsetX}, y=${globalOffsetY}`);
 
     // Helper: Find in Raw Classification Data (Percent 0-100)
     const findInClassification = (id: string) => {
@@ -99,7 +97,6 @@ export const enrichAnnotationsWithPositions = (
         const lineId = (anno as any).line_id || "";
         const incomingStatus = (anno as any).ocr_match_status || "UNMATCHED";
 
-        console.log(`\n👉 [ANNO ${idx}] "${anno.text}" (ID: ${lineId}) | Status In: ${incomingStatus}`);
 
         // ---------------------------------------------------------
         // PATH 1: PHYSICAL MATCH (High Confidence OCR)
@@ -145,7 +142,8 @@ export const enrichAnnotationsWithPositions = (
 
         if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
             const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
-            const subQ = subQRaw.replace(/^\d+/, '').replace(/[()\s]/g, '');
+            // 🛡️ [PARSING-FIX] Do NOT strip leading digits. "12" should remain "12" to match zone "12".
+            const subQ = subQRaw.replace(/[()\s]/g, '');
 
             const allZoneKeys = Object.keys(semanticZones);
             let bestSuffixKey = "";
@@ -169,12 +167,17 @@ export const enrichAnnotationsWithPositions = (
                     if (tempBox.y < zone.startY || tempBox.y > zone.endY) {
                         const isDropped = tempBox.y > zone.endY;
 
-                        // IF DROPPED (too low) -> SNAP TO TOP (Lowest Y)
-                        // IF POPPED (too high) -> SNAP TO BOTTOM (Highest Y)
-                        const rectifiedY = isDropped ? zone.startY : zone.endY;
-                        const label = isDropped ? "LOWEST (TOP)" : "HIGHEST (BOTTOM)";
+                        // IF DROPPED (too low) -> SNAP TO BOTTOM (Highest Y) - HEIGHT (to fit inside)
+                        // IF POPPED (too high) -> SNAP TO TOP (Lowest Y)
 
-                        console.log(`   🛡️ [RECTIFICATION] Q${questionId}${subQ} Snap at ${Math.round(tempBox.y)}px rectified to ${label} of zone (${rectifiedY}px). Preserving X.`);
+                        // [PADDING-FIX] User requested padding based on block height.
+                        // If we snap Y to endY, the block hangs OUTSIDE. We must subtract height.
+                        const padding = isDropped ? (tempBox.height || 20) : 0;
+                        const rectifiedY = isDropped ? (zone.endY - padding) : zone.startY;
+
+                        const label = isDropped ? "HIGHEST (BOTTOM - HEIGHT)" : "LOWEST (TOP)";
+
+                        // console.log(`   🛡️ [RECTIFICATION] Q${questionId}${subQ} Snap at ${Math.round(tempBox.y)}px rectified to ${label} of zone (${rectifiedY}px). Preserving X.`);
 
                         rawBox = {
                             x: tempBox.x,
@@ -210,8 +213,6 @@ export const enrichAnnotationsWithPositions = (
             { offsetX, offsetY: offsetY + stackingOffset, clamping, context: `${method}-${lineId}` }
         );
 
-        if (count > 0) console.log(`   📚 [STACKING] #${count} Share anchor -> Offset +${stackingOffset}px`);
-        console.log(`   🏁 [ENRICH-DEBUG] ID: ${lineId} | Method: ${method} | FinalPixel: (${Math.round(pixelBox.x)}, ${Math.round(pixelBox.y)})`);
 
         return {
             ...anno,

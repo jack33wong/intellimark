@@ -173,18 +173,51 @@ export async function executeMarkingForQuestion(
     const pageHeightForZones = primaryPageDims?.height || 2000;
 
     // [NEW] Extract expected sub-questions with texts to guide text-driven zone detection
+    // ✅ [ZONE STRUCTURE ENHANCEMENT] 
+    // We synchronize the physical question structure (Classification) with the zone detector.
+    // Non-past-papers often have generic marking schemes, but the classification data contains the real physical labels (Q12, Q13, etc).
+    let classificationExpected: Array<{ label: string; text: string }> = deriveExpectedQuestionsFromClassification(task);
+
     const schemeObj = task.markingScheme as any;
     const subQuestionLabels = schemeObj?.subQuestionMaxScores ? Object.keys(schemeObj.subQuestionMaxScores) :
       schemeObj?.allQuestions ? Object.keys(schemeObj.allQuestions) :
         Object.keys(task.markingScheme || {});
 
-    const expectedQuestions = subQuestionLabels.map(label => {
+    // [GARBAGE FILTER] Explicit blacklist of internal keys to prevent Zone Detector confusion
+    const IGNORED_KEYS = [
+      'id', 'examdetails', 'totalquestions', 'totalmarks', 'confidence', 'generalmarkingguidance',
+      'questionmarks', 'parentquestionmarks', 'questionnumber', 'questiondetection', 'databasequestiontext',
+      'subquestionnumbers', 'subquestionanswers', 'isgeneric', 'sourceimageindex', 'classificationblocks',
+      'aisegmentationresults', 'subquestionmetadata', 'linecounter', 'pageindex'
+    ];
+
+    const schemeExpected = subQuestionLabels.map(label => {
       // Find the corresponding text from subQuestionTexts if available
       const questionText = (schemeObj?.subQuestionTexts?.[label]) || (schemeObj?.allQuestions?.[label]) || "";
       return { label, text: questionText };
-    }).filter(q => q.label.length > 0 && !['id', 'examdetails', 'totalquestions', 'totalmarks', 'confidence', 'generalmarkingguidance'].includes(q.label.toLowerCase()));
+    }).filter(q => q.label.length > 0 && !IGNORED_KEYS.includes(q.label.toLowerCase()));
+
+    // ✅ [DATASOURCE STRATEGY] SINGLE SOURCE OF TRUTH
+    let expectedQuestions: Array<{ label: string; text: string }> = [];
+
+    if (schemeExpected.length > 0) {
+      // PAST PAPER MODE: Database/Scheme is King.
+      // We explicitly IGNORE classificationExpected to prevent "Greedy Parent" conflicts (e.g. 'b' vs 'bi').
+      console.log(`   🏛️ [ZONE-STRATEGY] Past Paper Detected (DB Schema Available). Using ${schemeExpected.length} DB-verified zones.`);
+      expectedQuestions = schemeExpected;
+    } else {
+      // GENERIC MODE: Classification is the only source.
+      console.log(`   🤖 [ZONE-STRATEGY] Generic Question Detected. Using ${classificationExpected.length} Classification-derived zones.`);
+      expectedQuestions = classificationExpected;
+    }
 
     console.log(`🔍 [ZONE SCAN] Targeting ${expectedQuestions.length} sub-questions for Q${questionId}`);
+
+    // [DEBUG-USER-REQUEST] Inspect what we are sending for Zone Creation (Critical for Past Paper comparison)
+    console.log(`   🏗️ [ZONE-INPUT] Expected Questions Payload:`);
+    expectedQuestions.forEach((q, idx) => {
+      console.log(`      [${idx}] Label: "${q.label}" | Text: "${(q.text || '').substring(0, 30)}..."`);
+    });
 
     // Create temp blocks list for zone detection
     const rawOcrBlocksForZones = task.mathBlocks.map((block) => ({
@@ -368,7 +401,6 @@ export async function executeMarkingForQuestion(
     // =========================================================================
     // 🔄 PHASE 1: LOGICAL RE-HOMING (ID Correction)
     // =========================================================================
-    console.log(`\n🔍 [ANNOTATION-AUDIT] Phase 1: ID Correction for Q${questionId}`);
 
     // Fix IDs and resolve handwritten locks BEFORE calculating final positions
     let correctedAnnotations = explodedAnnotations.map(anno => {
@@ -447,10 +479,6 @@ export async function executeMarkingForQuestion(
     // =========================================================================
     const defaultPageIndex = (task.sourcePages && task.sourcePages.find(p => p !== 0)) ?? task.sourcePages?.[0] ?? 0;
 
-    console.log(`🔍 [PIPELINE-PROOF] Incoming Annotation Count: ${correctedAnnotations.length}`);
-    if (correctedAnnotations.length > 0) {
-      console.log(`   👉 IDs: ${correctedAnnotations.map(a => a.line_id || 'null').join(', ')}`);
-    }
 
     // MERGE RESCUE LAYER: Combine segmented steps with raw OCR blocks to prevent data loss during positioning.
     const combinedLookupBlocks = [
@@ -559,7 +587,6 @@ export async function executeMarkingForQuestion(
     });
     // =================================================================================
 
-    console.log(`✅ [ANNOTATION-AUDIT] Complete\n`);
 
     const sanitizedAnnotations = enrichedAnnotations;
 
@@ -645,6 +672,13 @@ export function createMarkingTasksFromClassification(
 
   if (!classificationResult?.questions) return tasks;
 
+  // [DEBUG-USER-REQUEST] Raw Classification Dump
+  if (process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
+    console.log('\n🔍 [RAW-CLASSIFICATION-DUMP] Full JSON Response:', JSON.stringify(classificationResult, null, 2));
+  }
+
+  console.log(`\n📋 [METADATA-PERSISTENCE] Processing ${classificationResult.questions.length} questions from classification...`);
+
   const questionGroups = new Map<string, any>();
 
   for (const q of classificationResult.questions) {
@@ -691,7 +725,8 @@ export function createMarkingTasksFromClassification(
         sourceImageIndices: sourceImageIndices,
         aiSegmentationResults: [],
         subQuestionPageMap: {},
-        lineCounter: 1 // 🛠️ BUG FIX: Question-wide counter to prevent ID collisions
+        subQuestionMetadata: { hasSubQuestions: false, subQuestions: [] }, // NEW: Metadata container
+        lineCounter: 1
       });
     } else {
       const group = questionGroups.get(groupingKey);
@@ -703,18 +738,53 @@ export function createMarkingTasksFromClassification(
     const currentQPageIndex = anchorMainPage;
     (q as any).pageIndex = currentQPageIndex;
 
+    // ✅ [SMART-SNAP FIX]: Persist the RAW question object (with studentWorkLines) 
+    // This allows AnnotationEnrichmentService to look up geometry using line_ids.
+    group.classificationBlocks.push(q);
+
     const allNodes = flattenQuestionTree(q);
 
     allNodes.forEach((node: any) => {
-      // ✅ POPULATE CLASSIFICATION BLOCKS (For Global Offset Calculation)
+      // ✅ POPULATE CLASSIFICATION BLOCKS (For Global Offset Calculation & Zone Creation)
+      // Standardize ID: class_block_{baseQNum}_{part}
+      const blockId = `class_block_${baseQNum}_${node.part || 'main'}`;
       const nodeBox = node.box || node.region || node.rect || node.coordinates;
+
+      // ✅ [OFFSET SAFETY]: Only add to classificationBlocks if it has a valid box.
+      // This prevents legacy offset logic from crashing on box-less worksheet headers.
       if (nodeBox) {
         group.classificationBlocks.push({
-          id: `class_block_${baseQNum}_${node.part || 'main'}`,
+          id: blockId,
+          blockId: blockId,
           text: node.text || '',
           box: nodeBox,
-          pageIndex: node.pageIndex ?? currentQPageIndex
+          pageIndex: node.pageIndex ?? currentQPageIndex,
+          part: node.part || 'main'
         });
+      }
+
+      // ✅ [LABELS PERSISTENCE]: Always add to subQuestionMetadata for zone detection
+      // [GARBAGE FILTER] Explicit blacklist of internal keys to prevent Zone Detector confusion
+      const IGNORED_METADATA_KEYS = [
+        'id', 'examdetails', 'totalquestions', 'totalmarks', 'confidence', 'generalmarkingguidance',
+        'questionmarks', 'parentquestionmarks', 'questionnumber', 'questiondetection', 'databasequestiontext',
+        'subquestionnumbers', 'subquestionanswers', 'isgeneric', 'sourceimageindex', 'classificationblocks',
+        'aisegmentationresults', 'subquestionmetadata', 'linecounter', 'pageindex'
+      ];
+
+      if (node.part && node.part !== 'main') {
+        const isGarbage = IGNORED_METADATA_KEYS.includes(node.part.toLowerCase());
+
+        if (!isGarbage) {
+          group.subQuestionMetadata.hasSubQuestions = true;
+          group.subQuestionMetadata.subQuestions.push({
+            part: node.part,
+            text: node.text || ''
+          });
+        }
+      } else if (!node.part || node.part === 'main') {
+        // Parent metadata
+        (group.subQuestionMetadata as any).mainText = node.text || '';
       }
 
       if (node.studentWorkLines) {
@@ -840,6 +910,7 @@ export function createMarkingTasksFromClassification(
 
     tasks.push({
       questionNumber: baseQNum,
+      questionText: group.mainQuestion.text, // ✅ [CRITICAL FIX] Pass question text to task
       mathBlocks: allOcrBlocks,
       markingScheme: group.markingScheme,
       sourcePages: group.sourceImageIndices,
@@ -901,6 +972,12 @@ function resolveLinksWithZones(
   allOcrBlocks: any[],
   pageHeight: number
 ): any[] {
+  // 🛡️ [CRITICAL] Sort landmarks by Y to ensure "Next Landmark" logic works physically.
+  // This prevents inverted zones (Start > End) if landmarks are ingested out of order.
+  landmarks = landmarks.sort((a, b) => {
+    if (a.pageIndex !== b.pageIndex) return (a.pageIndex || 0) - (b.pageIndex || 0);
+    return a.y - b.y;
+  });
 
   return annotations.map(anno => {
     // 0. Preserve original AI status for logging/debugging
@@ -1070,4 +1147,59 @@ function isExactValueMatch(ocrText: string, studentText: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * STANDALONE HELPER: Extracts physical question structure (labels and text) from Classification data.
+ * Used to guide zone detection for non-past-papers where marking schemes are generic.
+ */
+function deriveExpectedQuestionsFromClassification(task: MarkingTask): Array<{ label: string; text: string }> {
+  console.log(`\n📐 [LABELS-SYNC] Analyzing Question Q${task.questionNumber}...`);
+
+  // [DEBUG] Check input sources
+  if (task.subQuestionMetadata) {
+    console.log(`   🔍 [METADATA-INPUT] Found subQuestionMetadata: hasSubQuestions=${task.subQuestionMetadata.hasSubQuestions}, Count=${task.subQuestionMetadata.subQuestions.length}`);
+  } else {
+    console.log(`   ⚠️ [METADATA-INPUT] subQuestionMetadata is missing or empty.`);
+  }
+
+  const classificationExpected: Array<{ label: string; text: string }> = [];
+
+  // 1. From subQuestionMetadata (Primary source for AI-detected parts)
+  // [RECURSIVE-FIX] Traverse deeply to find LEAF nodes (e.g. bi, bii) instead of stopping at parents (b)
+  const traverse = (nodes: any[]) => {
+    nodes.forEach(qs => {
+      if (qs.subQuestions && qs.subQuestions.length > 0) {
+        traverse(qs.subQuestions);
+      } else {
+        // Leaf node - add strictly
+        if (qs.part) classificationExpected.push({ label: qs.part, text: qs.text || "" });
+      }
+    });
+  };
+
+  if (task.subQuestionMetadata?.subQuestions) {
+    traverse(task.subQuestionMetadata.subQuestions);
+  }
+
+  // 2. From classificationBlocks (Secondary source)
+  // Only add if not already present (leaves already added by traversal)
+  if (task.classificationBlocks) {
+    task.classificationBlocks.forEach(cb => {
+      const part = (cb as any).part || (cb as any).blockId?.split('_').pop();
+      if (part && part !== 'main' && !classificationExpected.some(q => q.label === part)) {
+        classificationExpected.push({ label: part, text: cb.text || "" });
+      }
+    });
+  }
+
+  // 3. Fallback: Base Question (Essential for past papers)
+  const baseNum = String(task.questionNumber).replace(/\D/g, '');
+  if (baseNum && !classificationExpected.some(q => q.label === baseNum)) {
+    classificationExpected.push({ label: baseNum, text: task.questionText || "" });
+  }
+
+  console.log(`   👉 [LABELS-OUTPUT] Derived ${classificationExpected.length} labels for targeting:`, classificationExpected.map(q => q.label).join(', '));
+
+  return classificationExpected.filter(q => q.label.length > 0);
 }

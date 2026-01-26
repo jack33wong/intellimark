@@ -81,6 +81,19 @@ export class MarkingZoneService {
             let endY = pageHeight;
             if (next && next.pageIndex === current.pageIndex) {
                 endY = next.startY;
+            } else {
+                // 🛡️ [ZONE-CONSTRAINT] If no expected question follows, scan for ANY physical Question Header (e.g. "Q13")
+                // to prevent the zone from consuming the rest of the page.
+                const nextPhysicalHeader = sortedBlocks.find(b =>
+                    b.pageIndex === current.pageIndex &&
+                    (b.coordinates?.y || 0) > (current.startY + 50) && // Must be below current
+                    /^Q\s*\d+/i.test(b.text || '') // Looks like "Q13" or "Q 13"
+                );
+
+                if (nextPhysicalHeader) {
+                    endY = nextPhysicalHeader.coordinates?.y || pageHeight;
+                    console.log(`   🛑 [ZONE-CUT] Zone ${current.label} capped at physical header "${nextPhysicalHeader.text}" (Y=${endY})`);
+                }
             }
 
             zones[current.label] = [{

@@ -100,7 +100,9 @@ export class MarkingResultParser {
         // =====================================================================
         if (parsedResponse.annotations) {
             parsedResponse.annotations.forEach((anno: any, index: number) => {
-                if (!anno.line_id || anno.ocr_match_status === 'UNMATCHED') {
+                // 🛡️ [SMART-SNAP FIX] Only ghost if ID is explicitly missing.
+                // UNMATCHED status is valid for Smart Snap (Classification Position) so we must preserve the ID.
+                if (!anno.line_id || anno.line_id === 'null') {
                     const uniqueSuffix = `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
                     anno.line_id = `ghost_${uniqueSuffix}`;
                     anno.ocr_match_status = 'UNMATCHED';

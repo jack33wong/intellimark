@@ -177,51 +177,89 @@ export class MarkingInstructionService {
   }
 
   /**
-   * DATA INGESTION PROTOCOL
-   * We ONLY tag blocks. We DO NOT delete them or sever links.
-   * This respects the "Trust AI" design.
+   * DATA INGESTION PROTOCOL (FIXED)
+   * Uses "Fence Post" logic to spatially isolate the current question.
+   * Prevents "Q13" text from leaking into "Q12" prompts.
    */
   private static sanitizeOcrBlocks(blocks: any[], questionText: string | null, baseQNum?: string): any[] {
     if (!blocks || !Array.isArray(blocks)) return [];
 
-    // Pre-calculate Y for all blocks to avoid repeated lookups
-    const blocksWithY = blocks.map(b => ({ ...b, _y: MarkingInstructionService.getBlockY(b) || 0 }));
+    // 1. Pre-calculate Y and Sort (Crucial for reading order)
+    // We sort physically so we can determine what comes "before" or "after".
+    const sortedBlocks = blocks.map(b => ({
+      ...b,
+      _y: MarkingInstructionService.getBlockY(b) || 0,
+      _cleanText: (b.text || b.mathpixLatex || b.latex || b.content || '').trim()
+    })).sort((a, b) => a._y - b._y);
 
+    const qLandmarkRegex = /^Q\s*(\d+)/i;
+
+    // 2. Establish Spatial Fences (The "Iron Dome" for Text)
+    let minValidY = 0;
+    let maxValidY = Number.MAX_SAFE_INTEGER;
+
+    if (baseQNum) {
+      // Pass 1: Find Fence Posts
+      for (const b of sortedBlocks) {
+        const match = b._cleanText.match(qLandmarkRegex);
+        if (match) {
+          const foundNum = match[1]; // e.g., "12", "13"
+
+          if (foundNum === baseQNum) {
+            // : Start Fence found at Q12
+            // Allow a tiny fuzz factor (e.g., 5px) for text on the same line
+            minValidY = b._y - 5;
+          }
+          else if (minValidY !== 0 && b._y > minValidY) {
+            // : End Fence found at Q13
+            // We found a header BELOW our current question. This is the cutoff.
+            // We stop at the first header we see after ours.
+            if (b._y < maxValidY) maxValidY = b._y;
+          }
+        }
+      }
+    }
+
+    // 3. Filtering & Tagging Pass
     const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normalizedQText = normalize(questionText || '');
     const structuralNoiseRegex = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn|\\\( \_+ \\\)|_+/i;
     const instructionKeywordRegex = /^[\W\d_]*[a-z]?[\W\d_]*(Draw|Calculate|Explain|Show that|Work out|Write down|Describe|Complete|Label|Sketch|Plot|Construct)\b/i;
-    const qLandmarkRegex = /^Q\s*(\d+)/i;
 
-    return blocksWithY.map(b => {
+    return sortedBlocks.map(b => {
+      // --- SPATIAL FILTERING ---
+      // If the block is physically above Q12 or below Q13, kill it.
+      if (b._y < minValidY || b._y >= maxValidY) return null;
 
-      // 2. Data Normalization (Fix "Rubbish Log")
-      // Ensure 'text' property is populated for the AI and Logger
-      const content = b.text || b.mathpixLatex || b.latex || b.content || '';
+      const content = b._cleanText; // Use pre-cleaned text
 
+      // --- CONTENT FILTERING ---
       if (!content || structuralNoiseRegex.test(content)) return null;
 
-      // Filter other question landmarks (Redundant safety check)
-      if (baseQNum) {
-        const landmarkMatch = content.match(qLandmarkRegex);
-        if (landmarkMatch && landmarkMatch[1] !== baseQNum) return null;
-      }
+      // Filter ANY Question Header that isn't ours (Redundant safety for "Q13")
+      const landmarkMatch = content.match(qLandmarkRegex);
+      if (landmarkMatch && landmarkMatch[1] !== baseQNum) return null;
 
+      // Filter noise (single letters, unless it's a sub-part label like "(a)")
       if (content.length < 2 && !/\d/.test(content) && !/[a-zA-Z]/.test(content)) return null;
 
+      // --- INSTRUCTION TAGGING ---
       let isLikelyInstruction = false;
       const normalizedBText = normalize(content);
+
+      // Match against DB Text
       if (content.length > 8 && normalizedBText.length > 3 && normalizedQText.includes(normalizedBText)) isLikelyInstruction = true;
+      // Match against Keywords
       if (!isLikelyInstruction && content && instructionKeywordRegex.test(content)) isLikelyInstruction = true;
 
-      // Cleaned Block with Populated Text (NO Regex Tagging)
-      const cleanedBlock = { ...b, text: content };
-      delete (cleanedBlock as any)._y; // Clean up temp property
+      // Clean up temp props
+      const { _y, _cleanText, ...cleanBlock } = b;
+      const finalBlock = { ...cleanBlock, text: content };
 
       if (isLikelyInstruction) {
-        return { ...cleanedBlock, text: `${content} [PRINTED_INSTRUCTION]` };
+        return { ...finalBlock, text: `${content} [PRINTED_INSTRUCTION]` };
       }
-      return cleanedBlock;
+      return finalBlock;
     }).filter(b => b !== null);
   }
 
@@ -437,7 +475,7 @@ export class MarkingInstructionService {
         // 1. GHOST PROTECTION: Give every Unmatched mark a UNIQUE ID
         // This prevents the system from merging "M1, M1, M1" into just one "M1".
         // It also ensures they pass checks that require a truthy line_id string.
-        if (!anno.line_id || anno.ocr_match_status === "UNMATCHED") {
+        if (!anno.line_id || anno.line_id === 'null' || anno.line_id === 'undefined') {
           return {
             ...anno,
             // Generate a unique ID so downstream filters treat this as a distinct mark
