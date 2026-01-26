@@ -79,7 +79,8 @@ Compare the **Student Text** vs **OCR Block Text**.
 ## 5. JSON STRUCTURE & CONSTRAINTS
 
 * **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
-* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs, if text is missing, use \`ocr_match_status: "VISUAL"\` and \`line_id: null\`.
+* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs, if a \`[DRAWING]\` ID is provided in the Transcript, you MUST use that \`line_id\` and set \`ocr_match_status: "VISUAL"\`.
+* **Constraint C (MATCH-SAFE):** If the drawing is missing or unidentifiable, set \`ocr_match_status: "UNMATCHED"\` and \`line_id: null\`.
 
 ## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
 
@@ -103,9 +104,8 @@ Compare the **Student Text** vs **OCR Block Text**.
       "linked_ocr_id": "String (The p0_ocr_... ID or null)",
       "reasoning": "String",
       "subQuestion": "String (e.g. '10a', '10bi')",
-      "pageIndex": "Integer",
-      "line_index": "Integer",
-      "visual_position": { "x": 0, "y": 0, "width": 0, "height": 0 }
+      "pageIndex": "Integer (Extract from ID: p0 -> 0, p1 -> 1)",
+      "line_index": "Integer (Extract from ID: line_1 -> 1, line_2 -> 2)"
     }
   ],
   "studentScore": {

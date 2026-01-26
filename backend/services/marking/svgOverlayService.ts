@@ -171,20 +171,27 @@ export class SVGOverlayService {
         Object.entries(semanticZones).flatMap(([label, list]) => (list as any[]).map(z => ({ ...z, label })));
 
       if (zonesToDraw.length > 0) {
-        zonesToDraw.forEach(zone => {
+        const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
+
+        zonesToDraw.forEach((zone, idx) => {
           const szX = (zone.x || 0) * scaleX;
           const szY = (zone.startY || 0) * scaleY;
           const szW = actualWidth - szX - (50 * scaleX);
           const szH = (zone.endY - zone.startY) * scaleY;
 
+          console.log(`   🎨 [ZONE-SVG-DRAW] [#${idx}] Label: "${zone.label}" | Rect: [x=${Math.round(szX)}, y=${Math.round(szY)}, w=${Math.round(szW)}, h=${Math.round(szH)}] | StartY: ${zone.startY}, EndY: ${zone.endY}`);
+
           svg += `<rect x="${szX}" y="${szY}" width="${szW}" height="${szH}" 
                         fill="rgba(255, 0, 0, 0.05)" stroke="rgba(255, 0, 0, 0.4)" stroke-width="2" stroke-dasharray="8,4" />`;
 
-          // Background for the label to make it readable over handwriting (Scaled to text length)
+          // Background for the label to make it readable (Scaled to fontScaleFactor)
           const labelText = zone.label.toUpperCase();
-          const labelBgWidth = Math.max(40, labelText.length * 10 + 10);
-          svg += `<rect x="${szX}" y="${szY}" width="${labelBgWidth}" height="24" fill="rgba(255, 0, 0, 0.8)" />`;
-          svg += `<text x="${szX + 5}" y="${szY + 18}" font-family="Arial" font-size="14" font-weight="bold" fill="white">${labelText}</text>`;
+          const fontSize = Math.max(28, Math.round(36 * fontScaleFactor));
+          const labelHeight = Math.max(48, Math.round(56 * fontScaleFactor));
+          const labelBgWidth = Math.max(80, labelText.length * (fontSize * 0.7) + 20);
+
+          svg += `<rect x="${szX}" y="${szY}" width="${labelBgWidth}" height="${labelHeight}" fill="rgba(255, 0, 0, 0.8)" />`;
+          svg += `<text x="${szX + (5 * fontScaleFactor)}" y="${szY + (labelHeight * 0.75)}" font-family="Arial" font-size="${fontSize}" font-weight="bold" fill="white">${labelText}</text>`;
         });
       }
     }

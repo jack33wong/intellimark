@@ -127,6 +127,24 @@ export const enrichAnnotationsWithPositions = (
         }
 
         // ---------------------------------------------------------
+        // PATH 2.5: VISUAL SNAP (Drawing Fallback)
+        // ---------------------------------------------------------
+        if (!rawBox && incomingStatus === "VISUAL") {
+            const drawingMatch = stepsDataForMapping.find(s =>
+                (s.line_id && s.line_id.includes('_drawing_')) ||
+                (s.text && s.text.includes('[DRAWING]'))
+            );
+            if (drawingMatch) {
+                const sourceBox = drawingMatch.bbox || drawingMatch.box || drawingMatch.position;
+                rawBox = Array.isArray(sourceBox)
+                    ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3] }
+                    : sourceBox;
+                pageIndex = drawingMatch.pageIndex ?? pageIndex;
+                method = "VISUAL_SNAP";
+            }
+        }
+
+        // ---------------------------------------------------------
         // PATH 3: EMERGENCY LANDMARK (Data Absence Fallback)
         // ---------------------------------------------------------
         if (!rawBox) {
@@ -193,8 +211,11 @@ export const enrichAnnotationsWithPositions = (
                     if (method === "NONE") method = "EMERGENCY";
                     offsetX = zone.x || globalOffsetX;
                     offsetY = zone.startY || globalOffsetY;
-                    rawBox = { x: 0, y: 0, width: 8, height: 4, unit: 'percentage' };
-                    console.log(`   📍 [LANDMARK] Applying emergency anchor (${Math.round(offsetX)}, ${Math.round(offsetY)}) for SubQ '${subQ}'`);
+
+                    // 🛡️ [SNAP-FALLBACK] Use AI's visual estimate if available (legacy compatibility), otherwise fallback to (0,0)
+                    rawBox = (anno as any).visual_position || (anno as any).bbox || { x: 0, y: 0, width: 8, height: 4, unit: 'percentage' };
+
+                    console.log(`   📍 [LANDMARK] Applying emergency anchor (${Math.round(offsetX)}, ${Math.round(offsetY)}) for SubQ '${subQ}' using ${rawBox === (anno as any).visual_position ? 'AI Visual Pos' : (rawBox === (anno as any).bbox ? 'AI BBox' : 'Legacy (0,0)')}`);
                 }
             }
         }

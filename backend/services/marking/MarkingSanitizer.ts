@@ -6,9 +6,9 @@
  */
 export function sanitizeAnnotations(
     rawAnnotations: any[],
-    ocrBlocks: any[]
+    ocrBlocks: any[],
+    instructionHeatMap?: Set<string>
 ): any[] {
-    console.log('🛡️ [IRON DOME V3] Scanning for False Positives...');
 
     if (!Array.isArray(rawAnnotations) || rawAnnotations.length === 0) {
         return [];
@@ -41,6 +41,14 @@ export function sanitizeAnnotations(
             return { ...anno, ocr_match_status: 'UNMATCHED', line_id: null, linked_ocr_id: null, linkedOcrId: null };
         }
 
+        // 2.5 FORBIDDEN BLOCK CHECK (Heat Map)
+        // If the AI linked to an OCR block that we've identified as Question Text or Instructions,
+        // we SEVER the link immediately. This forces the system to use the handwriting ID
+        // (line_id) or the zone anchor instead.
+        if (instructionHeatMap?.has(searchId)) {
+            return { ...anno, ocr_match_status: 'UNMATCHED', line_id: anno.line_id, linked_ocr_id: null, linkedOcrId: null };
+        }
+
         // 3. DIGIT FIDELITY CHECK (LENIENT V4)
         // Philosophy: We keep the link (even if text is messy) to preserve the X/Y coordinates.
         // We let the downstream "Spatial Sovereignty" logic decide if the link is valid.
@@ -51,10 +59,7 @@ export function sanitizeAnnotations(
 
         for (const digit of studentDigits) {
             if (!ocrText.includes(digit)) {
-                console.log(`🛡️ [IRON DOME V4] Text Mismatch Found! (Student: "${studentText}", OCR: "${ocrText}")`);
-                console.log(`   👉 Action: PRESERVING LINK for positional integrity. (ID: ${searchId})`);
-                // [V4 FIX] We no longer sever the link here. 
-                // We keep it so the X/Y coordinates flow through.
+                // [V4 FIX] We no longer sever the link here for non-instruction blocks.
                 break;
             }
         }

@@ -10,8 +10,13 @@ export class MarkingPositioningService {
      * Scans raw OCR blocks to find coordinates of headers/questions based on providing sub-question text.
      * @param expectedQuestions List of sub-questions with their label and full question text (e.g. [{label: '10a', text: '100 people were asked...' }])
      */
-    public static detectSemanticZones(rawBlocks: any[], pageHeight: number, expectedQuestions?: Array<{ label: string; text: string }>) {
-        return MarkingZoneService.detectSemanticZones(rawBlocks, pageHeight, expectedQuestions);
+    public static detectSemanticZones(
+        rawBlocks: any[],
+        pageHeight: number,
+        expectedQuestions?: Array<{ label: string; text: string }>,
+        nextQuestionText?: string // [SEMANTIC-STOP]
+    ) {
+        return MarkingZoneService.detectSemanticZones(rawBlocks, pageHeight, expectedQuestions, nextQuestionText);
     }
 
     /**

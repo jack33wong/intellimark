@@ -1840,7 +1840,6 @@ export class MarkingPipelineService {
 
                 // 2. Classification Blocks (CRITICAL: These are the citations AI usually makes)
                 if (page.classificationResult?.questions) {
-                    console.log(`🔍 [LOG-DEBUG] Found classificationResult for page ${page.pageIndex} with ${page.classificationResult.questions.length} questions`);
 
                     // Reset or continue an index? Ideally continue if we want global uniqueness, but per-page reset with standard IDs is safer if AI resets.
                     // However, AI cites "line_1", "line_13" globally?
@@ -1889,8 +1888,6 @@ export class MarkingPipelineService {
                 return blocks;
             });
 
-            console.log(`🔍 [LOG-DEBUG] Total transparency blocks gathered: ${allOcrBlocks.length}`);
-            console.log(`🔍 [LOG-DEBUG] Block IDs: ${allOcrBlocks.map(b => b.id).join(', ')}`);
 
             logAnnotationSummary(allQuestionResults, markingTasks);
             logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');

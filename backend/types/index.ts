@@ -699,6 +699,7 @@ export interface MarkingTask {
   formattedOcrText?: string; // Formatted OCR text for context
   questionText?: string; // Detected question text
   databaseQuestionText?: string; // Text from database match
+  nextQuestionText?: string; // [SEMANTIC-STOP] Lookahead text for zone termination
   classificationBlocks?: Array<{  // Original classification blocks with position data (for Q18-style accumulated questions)
     text: string;
     pageIndex: number;

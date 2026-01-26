@@ -1,102 +1,100 @@
 export class MarkingZoneService {
 
-    /**
-     * Scans raw OCR blocks to find coordinates using Full-String Similarity.
-     * This handles OCR errors in labels (e.g., '(f)' vs '(i)') by letting the 
-     * accuracy of the question text compensate for the label error.
-     */
     public static detectSemanticZones(
         rawBlocks: any[],
         pageHeight: number,
-        expectedQuestions?: Array<{ label: string; text: string }>
+        expectedQuestions?: Array<{ label: string; text: string }>,
+        nextQuestionText?: string,
+        questionId?: string
     ) {
-        const zones: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number }>> = {};
+        // Output structure
+        const zones: Record<string, Array<{ label: string; startY: number; endY: number; pageIndex: number; x: number }>> = {};
 
         if (!rawBlocks || !expectedQuestions) return zones;
 
-        // 1. Sort blocks physically
+        // 1. Sort blocks
         const sortedBlocks = [...rawBlocks].sort((a, b) => {
-            if (a.pageIndex !== b.pageIndex) return (a.pageIndex || 0) - (b.pageIndex || 0);
-            return (a.coordinates?.y || 0) - (b.coordinates?.y || 0);
+            const pageDiff = (a.pageIndex || 0) - (b.pageIndex || 0);
+            if (pageDiff !== 0) return pageDiff;
+            return MarkingZoneService.getY(a) - MarkingZoneService.getY(b);
         });
 
-        // 2. Sequential Scanning State
         let minSearchY = 0;
         let currentSearchPage = sortedBlocks[0]?.pageIndex || 0;
-        const detectedLandmarks: Array<{ label: string; startY: number; pageIndex: number; x: number }> = [];
+        const detectedLandmarks: Array<{ key: string; label: string; startY: number; pageIndex: number; x: number }> = [];
 
-        // 3. Iterate through expected questions
+        // 2. Find Zone STARTS
         for (const eq of expectedQuestions) {
-
-            // Construct the "Master String" to search for.
-            // e.g. "bi write down the probability that this person"
-            // We combine the Label + The first 40 chars of text (enough to be unique, short enough to avoid layout issues)
-            const cleanLabel = eq.label.replace(/^\d+/, '').toLowerCase().trim(); // "10bi" -> "bi"
-            const searchTarget = this.normalize(`${cleanLabel} ${eq.text}`).substring(0, 50);
-
-            let bestBlock: any = null;
-            let bestSimilarity = 0;
-
-            // Scan blocks
-            for (const block of sortedBlocks) {
-                // FORCE ORDER: Skip blocks physically above the previous question
-                if (block.pageIndex < currentSearchPage) continue;
-                if (block.pageIndex === currentSearchPage && (block.coordinates?.y || 0) < minSearchY) continue;
-
-                // Compare "Block Text" vs "Target String"
-                // We combine current block + next block to handle line-breaks
-                const blockText = this.normalize(block.text || "");
-
-                const similarity = this.calculateSimilarity(searchTarget, blockText);
-
-                if (similarity > bestSimilarity) {
-                    bestSimilarity = similarity;
-                    bestBlock = block;
-                }
+            let finalKey = eq.label;
+            if (questionId && !eq.label.startsWith(questionId)) {
+                finalKey = `${questionId}${eq.label}`;
             }
 
-            // Threshold: 0.4 (40%) similarity is usually enough if the text is unique.
-            // e.g. "(f) write down..." vs "(i) write down..." is ~90% similar.
-            if (bestBlock && bestSimilarity > 0.4) {
+            // ✅ ROBUST SEARCH: Passes "6a" (Full Label) and "6" (Parent Label) implicitly logic
+            const match = this.findBestBlock(
+                sortedBlocks,
+                eq.label,
+                eq.text,
+                currentSearchPage,
+                minSearchY,
+                `Start-${finalKey}`
+            );
+
+            if (match) {
                 detectedLandmarks.push({
+                    key: finalKey,
                     label: eq.label,
-                    startY: bestBlock.coordinates?.y,
-                    pageIndex: bestBlock.pageIndex,
-                    x: bestBlock.coordinates?.x
+                    startY: MarkingZoneService.getY(match.block),
+                    pageIndex: match.block.pageIndex,
+                    x: MarkingZoneService.getX(match.block)
                 });
 
-                // Update constraints for next loop
-                currentSearchPage = bestBlock.pageIndex;
-                minSearchY = bestBlock.coordinates?.y + 10;
+                currentSearchPage = match.block.pageIndex;
+                minSearchY = MarkingZoneService.getY(match.block) + 10;
 
-                console.log(`✅ [MATCH] ${eq.label} found. Similarity: ${(bestSimilarity * 100).toFixed(0)}%`);
+                console.log(`✅ [MATCH] ${finalKey} found on P${match.block.pageIndex} (Sim: ${(match.similarity * 100).toFixed(0)}%)`);
+            } else {
+                console.warn(`⚠️ [MISSING] Failed to find start for: ${finalKey}`);
             }
         }
 
-        // 4. Build Zones
+        // 3. Find Zone ENDS
         for (let i = 0; i < detectedLandmarks.length; i++) {
             const current = detectedLandmarks[i];
             const next = detectedLandmarks[i + 1];
 
             let endY = pageHeight;
+            let cutReason = "Page Bottom (Default)";
+
             if (next && next.pageIndex === current.pageIndex) {
                 endY = next.startY;
-            } else {
-                // 🛡️ [ZONE-CONSTRAINT] If no expected question follows, scan for ANY physical Question Header (e.g. "Q13")
-                // to prevent the zone from consuming the rest of the page.
-                const nextPhysicalHeader = sortedBlocks.find(b =>
-                    b.pageIndex === current.pageIndex &&
-                    (b.coordinates?.y || 0) > (current.startY + 50) && // Must be below current
-                    /^Q\s*\d+/i.test(b.text || '') // Looks like "Q13" or "Q 13"
-                );
+                cutReason = `Next Sibling (${next.key})`;
+            }
+            else {
+                if (nextQuestionText) {
+                    const stopMatch = this.findBestBlock(
+                        sortedBlocks,
+                        "",
+                        nextQuestionText,
+                        current.pageIndex,
+                        current.startY + 50,
+                        `Stop-For-${current.key}`
+                    );
 
-                if (nextPhysicalHeader) {
-                    endY = nextPhysicalHeader.coordinates?.y || pageHeight;
-                    console.log(`   🛑 [ZONE-CUT] Zone ${current.label} capped at physical header "${nextPhysicalHeader.text}" (Y=${endY})`);
+                    if (stopMatch) {
+                        if (stopMatch.block.pageIndex > current.pageIndex) {
+                            endY = pageHeight;
+                            cutReason = `Next Question is on P${stopMatch.block.pageIndex} (Fill Page)`;
+                        } else {
+                            endY = MarkingZoneService.getY(stopMatch.block);
+                            cutReason = `Next Question Text (Sim: ${(stopMatch.similarity * 100).toFixed(0)}%)`;
+                        }
+                    }
                 }
             }
 
-            zones[current.label] = [{
+            zones[current.key] = [{
+                label: current.key,
                 startY: current.startY,
                 endY: endY,
                 pageIndex: current.pageIndex,
@@ -104,25 +102,174 @@ export class MarkingZoneService {
             }];
         }
 
+        console.log(`🗺️ [ZONE-GEN] Final Keys: ${Object.keys(zones).join(', ')}`);
         return zones;
     }
 
-    // --- HELPER: String Normalization ---
-    // Removes non-alphanumeric noise to make comparison "Fuzzy" by default
+    // ---------------------------------------------------------
+    // 🛠️ MULTI-VIEW BLOCK FINDER (Updated for Parent Anchors)
+    // ---------------------------------------------------------
+    private static findBestBlock(
+        sortedBlocks: any[],
+        labelRaw: string,
+        textRaw: string,
+        minPage: number,
+        minY: number,
+        debugContext: string
+    ): { block: any, similarity: number } | null {
+
+        const label = this.normalize(labelRaw);
+        const text = this.normalize(textRaw);
+
+        const targetFull = `${label}${text}`;
+        const targetContent = text;
+        const targetSkeleton = this.mathSkeleton(textRaw);
+
+        // Extract "Parent Label" (e.g. "6a" -> "6")
+        // Matches leading digits
+        const parentMatch = labelRaw.match(/^(\d+)/);
+        const parentLabel = parentMatch ? parentMatch[1] : null;
+
+        let bestBlock: any = null;
+        let bestSimilarity = 0;
+
+        for (const block of sortedBlocks) {
+            const blockY = MarkingZoneService.getY(block);
+            const blockPage = block.pageIndex || 0;
+
+            if (blockPage < minPage) continue;
+            if (blockPage === minPage && blockY < minY) continue;
+
+            const blockTextRaw = block.text || "";
+            const blockNorm = this.normalize(blockTextRaw);
+            const blockSkeleton = this.mathSkeleton(blockTextRaw);
+
+            // --- ANCHOR STRATEGY ---
+            let anchorBonus = 0;
+
+            if (labelRaw.length > 0) {
+                // 1. Exact Anchor (Starts with "6a")
+                const exactRegex = new RegExp(`^${this.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
+                if (exactRegex.test(blockTextRaw.trim())) {
+                    anchorBonus = 0.3;
+                }
+                // 2. ✅ PARENT ANCHOR (Starts with "6") - New Fix!
+                else if (parentLabel) {
+                    const parentRegex = new RegExp(`^${this.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i');
+                    if (parentRegex.test(blockTextRaw.trim())) {
+                        anchorBonus = 0.25; // High confidence for Parent ID
+                    }
+                }
+            }
+
+            // --- MULTI-VIEW SCORING ---
+            const simFull = this.calculateSimilarity(targetFull, blockNorm);
+            const simContent = this.calculateSimilarity(targetContent, blockNorm);
+            const simSkeleton = this.calculateSimilarity(targetSkeleton, blockSkeleton);
+
+            const maxSim = Math.max(simFull, simContent, simSkeleton);
+            const finalScore = maxSim + anchorBonus;
+
+            if (finalScore > bestSimilarity) {
+                bestSimilarity = finalScore;
+                bestBlock = block;
+            }
+        }
+
+        // Standard threshold 0.4.
+        // With anchorBonus 0.25, even a 0.15 text match will pass.
+        return (bestBlock && bestSimilarity > 0.4) ? { block: bestBlock, similarity: bestSimilarity } : null;
+    }
+
+    /**
+     * NEW: Generates a Set of IDs for blocks that match the question text or instructions.
+     * This "Heat Map" is used by Iron Dome to prevent bad anchors.
+     */
+    public static generateInstructionHeatMap(
+        rawBlocks: any[],
+        expectedQuestions?: Array<{ label: string; text: string }>,
+        nextQuestionText?: string
+    ): Set<string> {
+        const heatMap = new Set<string>();
+        if (!rawBlocks) return heatMap;
+
+        const targets = expectedQuestions?.map(q => ({ label: q.label, text: q.text })).filter(t => !!t.text) || [];
+
+        for (const block of rawBlocks) {
+            const blockText = block.text || "";
+            const normBlock = this.normalize(blockText);
+            const skelBlock = this.mathSkeleton(blockText);
+
+            // Check against each question target
+            for (const target of targets) {
+                const normTarget = this.normalize(target.text);
+                const skelTarget = this.mathSkeleton(target.text);
+
+                const simContent = this.calculateSimilarity(normTarget, normBlock);
+                const simSkeleton = this.calculateSimilarity(skelTarget, skelBlock);
+
+                // ALSO Check Label (Massive boost if block starts with "(a)" or "6a")
+                let anchorBoost = 0;
+                if (target.label) {
+                    const exactRegex = new RegExp(`^\\(?${this.escapeRegExp(target.label)}[\\s\\.\\)]`, 'i');
+                    if (exactRegex.test(blockText.trim())) anchorBoost = 0.3;
+                }
+
+                if (Math.max(simContent, simSkeleton) + anchorBoost > 0.4) {
+                    const id = block.id || block.globalBlockId || block.blockId;
+                    if (id) {
+                        heatMap.add(id);
+                    }
+                    break;
+                }
+            }
+
+            // Check against Next Question Text (Stop Signal)
+            if (nextQuestionText) {
+                const normStop = this.normalize(nextQuestionText);
+                const simStop = this.calculateSimilarity(normStop, normBlock);
+                if (simStop > 0.4) {
+                    const id = block.id || block.globalBlockId || block.blockId;
+                    if (id) {
+                        heatMap.add(id);
+                    }
+                }
+            }
+        }
+        return heatMap;
+    }
+
+    // --- HELPERS ---
+
     private static normalize(text: string): string {
         return (text || '')
             .toLowerCase()
-            .replace(/[^a-z0-9]/g, ''); // Remove spaces, parens, dots
+            .replace(/\\(quad|mathrm|text|bf|it|tiny|small)/g, '')
+            .replace(/[^a-z0-9]/g, '');
     }
 
-    // --- HELPER: Dice Coefficient Similarity ---
-    // Compares how many bigrams (2-letter pairs) are shared between strings.
-    // "hello" -> "he", "el", "ll", "lo"
+    private static mathSkeleton(text: string): string {
+        return (text || '')
+            .toLowerCase()
+            .replace(/\\[a-zA-Z]+/g, '')
+            .replace(/[^a-z0-9]/g, '');
+    }
+
+    private static getY(block: any): number {
+        return Array.isArray(block.coordinates) ? block.coordinates[1] : (block.coordinates?.y || 0);
+    }
+
+    private static getX(block: any): number {
+        return Array.isArray(block.coordinates) ? block.coordinates[0] : (block.coordinates?.x || 0);
+    }
+
+    private static escapeRegExp(string: string): string {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     private static calculateSimilarity(target: string, input: string): number {
         if (!target || !input) return 0;
-
-        // If input is much shorter than target, it's likely noise or a page number
-        if (input.length < target.length * 0.2) return 0;
+        if (target.length > 5 && input.length < target.length * 0.2) return 0;
 
         const getBigrams = (str: string) => {
             const bigrams = new Set<string>();
@@ -132,15 +279,12 @@ export class MarkingZoneService {
             return bigrams;
         };
 
-        const targetBigrams = getBigrams(target);
-        const inputBigrams = getBigrams(input);
+        const tB = getBigrams(target);
+        const iB = getBigrams(input);
 
         let intersection = 0;
-        targetBigrams.forEach(bg => {
-            if (inputBigrams.has(bg)) intersection++;
-        });
+        tB.forEach(bg => { if (iB.has(bg)) intersection++; });
 
-        // Dice Coefficient Formula: (2 * intersection) / (len1 + len2)
-        return (2 * intersection) / (targetBigrams.size + inputBigrams.size);
+        return (2 * intersection) / (tB.size + iB.size);
     }
 }

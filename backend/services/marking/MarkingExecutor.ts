@@ -14,6 +14,7 @@ import { CoordinateTransformationService } from './CoordinateTransformationServi
 import { MarkingPositioningService } from './MarkingPositioningService.js';
 import { sanitizeAiLineId, generateDiagnosticTable } from './MarkingHelpers.js';
 import { sanitizeAnnotations } from './MarkingSanitizer.js';
+import { MarkingZoneService } from './MarkingZoneService.js';
 
 
 
@@ -178,37 +179,95 @@ export async function executeMarkingForQuestion(
     // Non-past-papers often have generic marking schemes, but the classification data contains the real physical labels (Q12, Q13, etc).
     let classificationExpected: Array<{ label: string; text: string }> = deriveExpectedQuestionsFromClassification(task);
 
-    const schemeObj = task.markingScheme as any;
-    const subQuestionLabels = schemeObj?.subQuestionMaxScores ? Object.keys(schemeObj.subQuestionMaxScores) :
-      schemeObj?.allQuestions ? Object.keys(schemeObj.allQuestions) :
-        Object.keys(task.markingScheme || {});
-
     // [GARBAGE FILTER] Explicit blacklist of internal keys to prevent Zone Detector confusion
     const IGNORED_KEYS = [
       'id', 'examdetails', 'totalquestions', 'totalmarks', 'confidence', 'generalmarkingguidance',
       'questionmarks', 'parentquestionmarks', 'questionnumber', 'questiondetection', 'databasequestiontext',
       'subquestionnumbers', 'subquestionanswers', 'isgeneric', 'sourceimageindex', 'classificationblocks',
-      'aisegmentationresults', 'subquestionmetadata', 'linecounter', 'pageindex'
+      'aisegmentationresults', 'subquestionmetadata', 'linecounter', 'pageindex',
+      'subquestionmaxscores', 'subquestiontexts' // [FIX] Prevent meta keys from becoming zones
     ];
 
-    const schemeExpected = subQuestionLabels.map(label => {
-      // Find the corresponding text from subQuestionTexts if available
-      const questionText = (schemeObj?.subQuestionTexts?.[label]) || (schemeObj?.allQuestions?.[label]) || "";
-      return { label, text: questionText };
-    }).filter(q => q.label.length > 0 && !IGNORED_KEYS.includes(q.label.toLowerCase()));
+    const schemeObj = task.markingScheme as any;
+    // [DS-FIX] 1. TRUST DATABASE LIST (Don't guess specific keys)
+    // Preference: subQuestionMaxScores (if structured) -> allQuestions (list) -> NO FALLBACK to raw keys (prevents meta-garbage)
+    const subQuestionLabels = schemeObj?.subQuestionMaxScores ? Object.keys(schemeObj.subQuestionMaxScores) :
+      schemeObj?.allQuestions ? Object.keys(schemeObj.allQuestions) :
+        []; // If no explicit list, return empty (force fallback to Classification or Block-based matching)
+
+    const schemeExpected = subQuestionLabels
+      .map(rawLabel => {
+        // [SYNC-FIX] Normalize to Full Label (e.g. "a" -> "3a")
+        // SAFE-APPEND: If it already starts with questionId, keep it. Otherwise, prefix it.
+        const label = rawLabel.startsWith(String(questionId)) ? rawLabel : `${questionId}${rawLabel}`;
+        return label;
+      })
+      .filter(label => {
+        // [SAFE-RECOVERY] Only include labels related to this questionId
+        // This prevents "pollution" from other questions if the scheme is shared
+        const base = label.replace(/\D/g, '');
+        return base === String(questionId) || label.startsWith(String(questionId));
+      })
+      .map(label => {
+        // Find the raw key in schemeObj. AllQuestions or subQuestionTexts
+        // Try both the prefixed and original labels to find the text
+        const rawLabel = label.startsWith(String(questionId)) ? label.substring(String(questionId).length) : label;
+        const questionText = (schemeObj?.subQuestionTexts?.[label]) || (schemeObj?.allQuestions?.[label]) ||
+          (schemeObj?.subQuestionTexts?.[rawLabel]) || (schemeObj?.allQuestions?.[rawLabel]) || "";
+        return { label, text: questionText };
+      }).filter(q => q.label.length > 0 && !IGNORED_KEYS.includes(q.label.toLowerCase()));
 
     // ✅ [DATASOURCE STRATEGY] SINGLE SOURCE OF TRUTH
-    let expectedQuestions: Array<{ label: string; text: string }> = [];
+    let expectedQuestions: Array<{ label: string; text: string; targetPageIndex?: number }> = [];
 
     if (schemeExpected.length > 0) {
       // PAST PAPER MODE: Database/Scheme is King.
-      // We explicitly IGNORE classificationExpected to prevent "Greedy Parent" conflicts (e.g. 'b' vs 'bi').
       console.log(`   🏛️ [ZONE-STRATEGY] Past Paper Detected (DB Schema Available). Using ${schemeExpected.length} DB-verified zones.`);
-      expectedQuestions = schemeExpected;
+
+      // [MAPPER-TRUTH] Enrich with Page Index from Classification Blocks
+      expectedQuestions = schemeExpected.map(q => {
+        // Find matching block
+        const matchBlock = task.classificationBlocks?.find(cb => {
+          const cbPart = (cb as any).part || (cb as any).blockId?.split('_').pop();
+          // Support both direct match (3a === 3a) and stripped match (a === a)
+          const qPartOnly = q.label.startsWith(String(questionId)) ? q.label.substring(String(questionId).length) : q.label;
+          return cbPart === q.label || cbPart === qPartOnly;
+        });
+
+        if (matchBlock && (matchBlock as any).pageIndex !== undefined) {
+          return { ...q, targetPageIndex: (matchBlock as any).pageIndex };
+        }
+        return q;
+      });
+
     } else {
-      // GENERIC MODE: Classification is the only source.
-      console.log(`   🤖 [ZONE-STRATEGY] Generic Question Detected. Using ${classificationExpected.length} Classification-derived zones.`);
-      expectedQuestions = classificationExpected;
+      // GENERIC MODE OR FALLBACK
+      // If Database returned nothing (e.g. Q4 had no sub-qs list), verify against Classification Blocks
+      // The Mapper found "Q4" block? Use it.
+
+      // Try to rebuild from Classification Blocks if Scheme failed
+      const blockDerived = task.classificationBlocks
+        ?.filter(cb => (cb as any).questionNumber === questionId || (cb as any).part)
+        .map(cb => {
+          let label = (cb as any).part || questionId;
+          const qNumRegex = /^[a-z]{1,2}$/i;
+          if (label !== questionId && (qNumRegex.test(label) || label.length === 1)) {
+            label = `${questionId}${label}`;
+          }
+          return {
+            label,
+            text: (cb as any).text || "",
+            targetPageIndex: (cb as any).pageIndex
+          };
+        });
+
+      if (blockDerived && blockDerived.length > 0) {
+        console.log(`   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found ${blockDerived.length} blocks.`);
+        expectedQuestions = blockDerived;
+      } else {
+        console.log(`   🤖 [ZONE-STRATEGY] Generic Loop. Using ${classificationExpected.length} Classification-derived zones.`);
+        expectedQuestions = classificationExpected;
+      }
     }
 
     console.log(`🔍 [ZONE SCAN] Targeting ${expectedQuestions.length} sub-questions for Q${questionId}`);
@@ -226,12 +285,48 @@ export async function executeMarkingForQuestion(
       pageIndex: (block as any).pageIndex ?? 0
     }));
 
-    const semanticZones = MarkingPositioningService.detectSemanticZones(rawOcrBlocksForZones, pageHeightForZones, expectedQuestions);
+    // [SEMANTIC-STOP] Resolve Next Question Text for Zone Termination
+    // 1. Prioritize Physical Lookahead injected during task creation
+    let nextQuestionText = task.nextQuestionText;
+
+    if (!nextQuestionText) {
+      // 2. Fallback to Physical Order from Classification Buttons (Mapper)
+      const blocks = task.classificationBlocks || [];
+      const currentBlockIdx = blocks.findIndex(b =>
+        (b as any).questionNumber === questionId ||
+        (b as any).part === questionId ||
+        (b as any).subQuestions?.some((sq: any) => sq.part === questionId || sq.questionNumber === questionId)
+      );
+
+      if (currentBlockIdx !== -1 && currentBlockIdx < blocks.length - 1) {
+        const nextBlock = blocks[currentBlockIdx + 1];
+        nextQuestionText = (nextBlock as any).text;
+        console.log(`   🛑 [SEMANTIC-STOP] Resolved Next Q (Mapper): ${(nextBlock as any).part || (nextBlock as any).questionNumber} -> "${(nextQuestionText || '').substring(0, 20)}..."`);
+      } else {
+        // 3. Fallback to DB Scheme if Mapper fails (e.g. generic catch-all bucket)
+        const allQs = schemeObj?.allQuestions ? Object.keys(schemeObj.allQuestions) : [];
+        const currentIdx = allQs.indexOf(String(questionId));
+        if (currentIdx !== -1 && currentIdx < allQs.length - 1) {
+          const nextQ = allQs[currentIdx + 1];
+          nextQuestionText = (schemeObj.allQuestions[nextQ] || schemeObj.subQuestionTexts?.[nextQ] || "");
+          console.log(`   🛑 [SEMANTIC-STOP] Resolved Next Q (DB): ${nextQ} -> "${(nextQuestionText || '').substring(0, 20)}..."`);
+        }
+      }
+    } else {
+      console.log(`   🛑 [SEMANTIC-STOP] Using Lookahead Signal: "${nextQuestionText.substring(0, 20)}..."`);
+    }
+
+    const semanticZones = MarkingPositioningService.detectSemanticZones(
+      rawOcrBlocksForZones,
+      pageHeightForZones,
+      expectedQuestions,
+      nextQuestionText // <--- PASS THE STOP SIGNAL
+    );
     console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
     // BIBLE §2 COMPLIANCE (REFINED): "Isolate Rescue Layer"
-    // To ensure "Perfect Placement", the AI must ONLY see raw geometric IDs (p0_ocr...) 
-    // in the Rescue Layer. If we include semantic IDs (p0_q...), the AI will pick them 
+    // To ensure "Perfect Placement", the AI must ONLY see raw geometric IDs (p0_ocr...)
+    // in the Rescue Layer. If we include semantic IDs (p0_q...), the AI will pick them
     // and bypass the precise Mathpix coordinates.
     const rawOcrBlocks = [
       ...task.mathBlocks.map((block, idx) => {
@@ -317,9 +412,22 @@ export async function executeMarkingForQuestion(
     // Before we do ANYTHING else, we scrub the result for False Positives.
     // =========================================================================
     if (markingResult.annotations) {
+      // 🔥 NEW: Generate Instruction Heat Map to avoid anchoring marks to question text
+      let instructionHeatMap: Set<string> | undefined;
+      try {
+        instructionHeatMap = MarkingZoneService.generateInstructionHeatMap(
+          markingInputs.processedImage.rawOcrBlocks,
+          expectedQuestions,
+          nextQuestionText
+        );
+      } catch (e) {
+        console.warn(`⚠️ [MARKING-EXECUTOR] Failed to generate instruction heat map:`, e);
+      }
+
       markingResult.annotations = sanitizeAnnotations(
         markingResult.annotations,
-        markingInputs.processedImage.rawOcrBlocks
+        markingInputs.processedImage.rawOcrBlocks,
+        instructionHeatMap
       );
     }
     // =========================================================================
@@ -858,7 +966,7 @@ export function createMarkingTasksFromClassification(
     return numA - numB;
   });
 
-  for (const [baseQNum, group] of sortedQuestionGroups) {
+  sortedQuestionGroups.forEach(([baseQNum, group], idx) => {
     let allOcrBlocks: MathBlock[] = [];
     group.sourceImageIndices.forEach((pageIndex: number) => {
       const pageOcr = allPagesOcrData.find(d => d.pageIndex === pageIndex);
@@ -883,8 +991,6 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // Global IDs (p0_q12_line_1) are now preserved. 
-
     let promptMainWork = "";
     let currentHeader = "";
     group.aiSegmentationResults.forEach((seg: any, index: number) => {
@@ -895,22 +1001,28 @@ export function createMarkingTasksFromClassification(
           promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
           currentHeader = seg.subQuestionLabel;
         }
-        // ID VISIBLE: Inject explicit ID for strict copy-pasting
-        // If sequentialId is missing (unlikely), fallback to index
         const idTag = seg.sequentialId ? `[ID: ${seg.sequentialId}] ` : `${index + 1}. `;
         promptMainWork += `${idTag}${clean}\n`;
       }
     });
 
     const questionImages: string[] = [];
-    group.sourceImageIndices.forEach((idx: number) => {
-      const page = standardizedPages.find(p => p.pageIndex === idx);
+    group.sourceImageIndices.forEach((imageIdx: number) => {
+      const page = standardizedPages.find(p => p.pageIndex === imageIdx);
       if (page?.imageData) questionImages.push(page.imageData);
     });
 
+    // [SEMANTIC-STOP] Lookahead for zone termination
+    let nextQuestionText: string | undefined;
+    const nextGroup = sortedQuestionGroups[idx + 1];
+    if (nextGroup) {
+      nextQuestionText = nextGroup[1].mainQuestion.text;
+    }
+
     tasks.push({
       questionNumber: baseQNum,
-      questionText: group.mainQuestion.text, // ✅ [CRITICAL FIX] Pass question text to task
+      questionText: group.mainQuestion.text,
+      nextQuestionText: nextQuestionText, // ✅ [STOP-SIGNAL] Correct Lookahead
       mathBlocks: allOcrBlocks,
       markingScheme: group.markingScheme,
       sourcePages: group.sourceImageIndices,
@@ -925,7 +1037,7 @@ export function createMarkingTasksFromClassification(
         subQuestions: group.subQuestions
       }
     });
-  }
+  });
 
   return tasks;
 }
@@ -1002,7 +1114,8 @@ function resolveLinksWithZones(
     const matchingLandmarks = allMatchingLandmarks.sort((a, b) => b.label.length - a.label.length);
 
     // [V28 FIX] Pick the BEST landmark if multiple exist.
-    const originalY = anno.bbox[1];
+    const b = anno.bbox || [0, 0, 0, 0];
+    const originalY = b[1];
     let currentLandmark = matchingLandmarks.find((l, idx) => {
       const next = landmarks[landmarks.indexOf(l) + 1];
       const start = Math.max(0, l.y - 50);
@@ -1166,14 +1279,20 @@ function deriveExpectedQuestionsFromClassification(task: MarkingTask): Array<{ l
   const classificationExpected: Array<{ label: string; text: string }> = [];
 
   // 1. From subQuestionMetadata (Primary source for AI-detected parts)
-  // [RECURSIVE-FIX] Traverse deeply to find LEAF nodes (e.g. bi, bii) instead of stopping at parents (b)
-  const traverse = (nodes: any[]) => {
+  // [RECURSIVE-FIX] Traverse deeply to find LEAF nodes (e.g. bi, bii) and preserve path
+  const traverse = (nodes: any[], parentPart: string = "") => {
     nodes.forEach(qs => {
+      const currentPart = qs.part || "";
       if (qs.subQuestions && qs.subQuestions.length > 0) {
-        traverse(qs.subQuestions);
+        // Recurse with current part as parent context
+        traverse(qs.subQuestions, currentPart);
       } else {
         // Leaf node - add strictly
-        if (qs.part) classificationExpected.push({ label: qs.part, text: qs.text || "" });
+        if (currentPart) {
+          // [SAFE-APPEND] Normalize to Full Label (e.g. "10bii")
+          const label = currentPart.startsWith(String(task.questionNumber)) ? currentPart : `${task.questionNumber}${currentPart}`;
+          classificationExpected.push({ label, text: qs.text || "" });
+        }
       }
     });
   };
@@ -1186,9 +1305,13 @@ function deriveExpectedQuestionsFromClassification(task: MarkingTask): Array<{ l
   // Only add if not already present (leaves already added by traversal)
   if (task.classificationBlocks) {
     task.classificationBlocks.forEach(cb => {
-      const part = (cb as any).part || (cb as any).blockId?.split('_').pop();
-      if (part && part !== 'main' && !classificationExpected.some(q => q.label === part)) {
-        classificationExpected.push({ label: part, text: cb.text || "" });
+      let part = (cb as any).part || (cb as any).blockId?.split('_').pop();
+      if (part && part !== 'main') {
+        // [SAFE-APPEND] Normalize to Full Label
+        const label = part.startsWith(String(task.questionNumber)) ? part : `${task.questionNumber}${part}`;
+        if (!classificationExpected.some(q => q.label === label)) {
+          classificationExpected.push({ label, text: cb.text || "" });
+        }
       }
     });
   }
