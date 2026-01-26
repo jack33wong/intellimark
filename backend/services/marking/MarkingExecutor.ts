@@ -149,12 +149,14 @@ export async function executeMarkingForQuestion(
     }
 
     // [DEBUG] Log available coordinate targets
-    console.log(`\n🔍 [MAPPING DEBUG] Available Classification Targets for Q${questionId}:`);
+    // console.log(`\n🔍 [MAPPING DEBUG] Available Classification Targets for Q${questionId}:`);
+    /*
     stepsDataForMapping.forEach((s, i) => {
       if (s.ocrSource === 'classification') {
         console.log(`   [${i}] ID: ${s.line_id} | Text: "${s.text}" | Handwriting: ${s.isHandwritten} | Box: [${s.bbox.map(n => Math.round(n)).join(',')}]`);
       }
     });
+    */
 
     // --- 2. PREPARE PROMPT ---
     let ocrTextForPrompt = task.classificationStudentWork || "Student's Work:\n";
@@ -222,7 +224,9 @@ export async function executeMarkingForQuestion(
 
     if (schemeExpected.length > 0) {
       // PAST PAPER MODE: Database/Scheme is King.
+      /*
       console.log(`   🏛️ [ZONE-STRATEGY] Past Paper Detected (DB Schema Available). Using ${schemeExpected.length} DB-verified zones.`);
+      */
 
       // [MAPPER-TRUTH] Enrich with Page Index from Classification Blocks
       expectedQuestions = schemeExpected.map(q => {
@@ -270,13 +274,16 @@ export async function executeMarkingForQuestion(
       }
     }
 
+    /*
     console.log(`🔍 [ZONE SCAN] Targeting ${expectedQuestions.length} sub-questions for Q${questionId}`);
-
+    */
     // [DEBUG-USER-REQUEST] Inspect what we are sending for Zone Creation (Critical for Past Paper comparison)
-    console.log(`   🏗️ [ZONE-INPUT] Expected Questions Payload:`);
+    // console.log(`   🏗️ [ZONE-INPUT] Expected Questions Payload:`);
+    /*
     expectedQuestions.forEach((q, idx) => {
-      console.log(`      [${idx}] Label: "${q.label}" | Text: "${(q.text || '').substring(0, 30)}..."`);
+      console.log(`      [${idx}] Label: "${q.label}" | Text: "${q.text.substring(0, 20)}..." | Page: ${q.targetPageIndex ?? '?'}`);
     });
+    */
 
     // Create temp blocks list for zone detection
     const rawOcrBlocksForZones = task.mathBlocks.map((block) => ({
@@ -301,7 +308,7 @@ export async function executeMarkingForQuestion(
       if (currentBlockIdx !== -1 && currentBlockIdx < blocks.length - 1) {
         const nextBlock = blocks[currentBlockIdx + 1];
         nextQuestionText = (nextBlock as any).text;
-        console.log(`   🛑 [SEMANTIC-STOP] Resolved Next Q (Mapper): ${(nextBlock as any).part || (nextBlock as any).questionNumber} -> "${(nextQuestionText || '').substring(0, 20)}..."`);
+        // console.log(`   🛑 [SEMANTIC-STOP] Resolved Next Q (Mapper): ${(nextBlock as any).part || (nextBlock as any).questionNumber} -> "${(nextQuestionText || '').substring(0, 20)}..."`);
       } else {
         // 3. Fallback to DB Scheme if Mapper fails (e.g. generic catch-all bucket)
         const allQs = schemeObj?.allQuestions ? Object.keys(schemeObj.allQuestions) : [];
@@ -309,11 +316,11 @@ export async function executeMarkingForQuestion(
         if (currentIdx !== -1 && currentIdx < allQs.length - 1) {
           const nextQ = allQs[currentIdx + 1];
           nextQuestionText = (schemeObj.allQuestions[nextQ] || schemeObj.subQuestionTexts?.[nextQ] || "");
-          console.log(`   🛑 [SEMANTIC-STOP] Resolved Next Q (DB): ${nextQ} -> "${(nextQuestionText || '').substring(0, 20)}..."`);
+          // console.log(`   🛑 [SEMANTIC-STOP] Resolved Next Q (DB): ${nextQ} -> "${(nextQuestionText || '').substring(0, 20)}..."`);
         }
       }
     } else {
-      console.log(`   🛑 [SEMANTIC-STOP] Using Lookahead Signal: "${nextQuestionText.substring(0, 20)}..."`);
+      // console.log(`   🛑 [SEMANTIC-STOP] Using Lookahead Signal: "${nextQuestionText.substring(0, 20)}..."`);
     }
 
     const semanticZones = MarkingPositioningService.detectSemanticZones(
@@ -322,7 +329,7 @@ export async function executeMarkingForQuestion(
       expectedQuestions,
       nextQuestionText // <--- PASS THE STOP SIGNAL
     );
-    console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
+    // console.log(`\n🔍 [ZONE DEBUG] Detected Semantic Zones:`, Object.keys(semanticZones).join(', '));
 
     // BIBLE §2 COMPLIANCE (REFINED): "Isolate Rescue Layer"
     // To ensure "Perfect Placement", the AI must ONLY see raw geometric IDs (p0_ocr...)
@@ -343,6 +350,7 @@ export async function executeMarkingForQuestion(
       })
     ];
 
+    /*
     // [DEBUG] Verify ID Generation Strategy
     console.log('\n🔍 [ID-VERIFICATION] Checking Target IDs for Prompt Generation:');
     console.log(`   👉 Question: Q${questionId} (Page ${task.sourcePages[0] ?? '?'})`);
@@ -365,6 +373,7 @@ export async function executeMarkingForQuestion(
       });
     }
     console.log('------------------------------------------------------------------\n');
+    */
 
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
@@ -432,11 +441,13 @@ export async function executeMarkingForQuestion(
     }
     // =========================================================================
 
+    /*
     // ✅ DIAGNOSTIC: Truth vs. Hallucination Table
     console.log(generateDiagnosticTable(
       markingResult.annotations || [],
       markingInputs.processedImage.rawOcrBlocks
     ));
+    */
 
     // =========================================================================
     // 🧮 DETERMINISTIC LINKER (The Proper Fix)
@@ -570,7 +581,7 @@ export async function executeMarkingForQuestion(
             }
 
             if (betterMatch) {
-              console.log(`      🎯 SUCCESS: Re-homed "${anno.text}" to "${betterMatch.text}" (ID: ${betterMatch.line_id})`);
+              // console.log(`      🎯 SUCCESS: Re-homed "${anno.text}" to "${betterMatch.text}" (ID: ${betterMatch.line_id})`);
               (anno as any).aiMatchedId = currentId; // Preserve original ID (e.g., line_13) for transparency
               anno.line_id = betterMatch.line_id;
               anno.pageIndex = betterMatch.pageIndex;
@@ -629,8 +640,8 @@ export async function executeMarkingForQuestion(
       (markingResult as any).visualObservation,
       (markingResult as any).globalOffsetX || 0,
       (markingResult as any).globalOffsetY || 0,
-      semanticZones // NEW: Pass landmarks for per-annotation scoping
-    ).filter(anno => (anno.text || '').trim() !== '');
+      semanticZones
+    ).filter((anno: any) => (anno.text || '').trim() !== '');
 
     // =========================================================================
     // 🛡️ ENRICHMENT COMPLETE
@@ -655,7 +666,7 @@ export async function executeMarkingForQuestion(
       const isZero = !isMath && (parseInt(text.replace(/\D/g, '') || '0') === 0);
 
       if (isZero && bestMarks.has(subQ)) {
-        console.log(`   🗑️ [DEDUPE] Dropping zero mark "${anno.text}" for ${subQ}`);
+        // console.log(`   🗑️ [DEDUPE] Dropping zero mark "${anno.text}" for ${subQ}`);
         return false;
       }
       return true;
@@ -782,10 +793,10 @@ export function createMarkingTasksFromClassification(
 
   // [DEBUG-USER-REQUEST] Raw Classification Dump
   if (process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
-    console.log('\n🔍 [RAW-CLASSIFICATION-DUMP] Full JSON Response:', JSON.stringify(classificationResult, null, 2));
+    // console.log('\n🔍 [RAW-CLASSIFICATION-DUMP] Full JSON Response:', JSON.stringify(classificationResult, null, 2));
   }
 
-  console.log(`\n📋 [METADATA-PERSISTENCE] Processing ${classificationResult.questions.length} questions from classification...`);
+  // console.log(`\n📋 [METADATA-PERSISTENCE] Processing ${classificationResult.questions.length} questions from classification...`);
 
   const questionGroups = new Map<string, any>();
 
@@ -1244,7 +1255,7 @@ function isExactValueMatch(ocrText: string, studentText: string): boolean {
     // Allow up to 40% of the string to be different if digits match
     const lenientThreshold = Math.max(3, Math.ceil(sClean.length * 0.4));
     if (dist <= lenientThreshold) {
-      console.log(`      ✨ [NUMERIC-PASS] "${studentText}" ~= "${ocrText}" (Digits ${sDigits} match, Dist: ${dist}/${lenientThreshold})`);
+      // console.log(`      ✨ [NUMERIC-PASS] "${studentText}" ~= "${ocrText}" (Digits ${sDigits} match, Dist: ${dist}/${lenientThreshold})`);
       return true;
     }
   }
@@ -1255,7 +1266,7 @@ function isExactValueMatch(ocrText: string, studentText: string): boolean {
   const allowedEdits = sClean.length < 5 ? 0 : sClean.length < 10 ? 1 : 2;
 
   if (dist <= allowedEdits) {
-    console.log(`      ✨ [FUZZY-MATCH] "${studentText}" ~= "${ocrText}" (Dist: ${dist}, Allowed: ${allowedEdits})`);
+    // console.log(`      ✨ [FUZZY-MATCH] "${studentText}" ~= "${ocrText}" (Dist: ${dist}, Allowed: ${allowedEdits})`);
     return true;
   }
 
@@ -1267,6 +1278,7 @@ function isExactValueMatch(ocrText: string, studentText: string): boolean {
  * Used to guide zone detection for non-past-papers where marking schemes are generic.
  */
 function deriveExpectedQuestionsFromClassification(task: MarkingTask): Array<{ label: string; text: string }> {
+  /*
   console.log(`\n📐 [LABELS-SYNC] Analyzing Question Q${task.questionNumber}...`);
 
   // [DEBUG] Check input sources
@@ -1275,6 +1287,7 @@ function deriveExpectedQuestionsFromClassification(task: MarkingTask): Array<{ l
   } else {
     console.log(`   ⚠️ [METADATA-INPUT] subQuestionMetadata is missing or empty.`);
   }
+  */
 
   const classificationExpected: Array<{ label: string; text: string }> = [];
 
@@ -1322,7 +1335,8 @@ function deriveExpectedQuestionsFromClassification(task: MarkingTask): Array<{ l
     classificationExpected.push({ label: baseNum, text: task.questionText || "" });
   }
 
-  console.log(`   👉 [LABELS-OUTPUT] Derived ${classificationExpected.length} labels for targeting:`, classificationExpected.map(q => q.label).join(', '));
+  // console.log(`   👉 [LABELS-OUTPUT] Derived ${classificationExpected.length} labels for targeting:`, classificationExpected.map(q => q.label).join(', '));
+  // console.log(`   👉 [LABELS-OUTPUT] Derived ${classificationExpected.length} labels for targeting:`, classificationExpected.map(q => q.label).join(', '));
 
   return classificationExpected.filter(q => q.label.length > 0);
 }

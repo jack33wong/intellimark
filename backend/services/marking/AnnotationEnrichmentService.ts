@@ -127,6 +127,23 @@ export const enrichAnnotationsWithPositions = (
         }
 
         // ---------------------------------------------------------
+        // PATH 2.1: COORDINATE SHIFT (The Missing Link)
+        // ---------------------------------------------------------
+        // If we are using Classification IDs (p0_q...), the coordinates
+        // are GLOBAL to the page (Percent 0-100). We must SHIFT them to be relative
+        // to the zone so that Clamping + Offset works correctly down the line.
+        if (method === "SMART_SNAP" && rawBox && rawBox.unit === 'percentage' && semanticZones) {
+            const subQ = (anno.subQuestion || "").toLowerCase();
+            const matchingZones = (semanticZones[subQ] || []);
+            if (matchingZones.length > 0) {
+                const zone = matchingZones[0];
+                const pageHeight = getPageDims(pageDimensions!, pageIndex).height || 2000;
+                // Shift Y to be relative to Zone Start
+                rawBox.y = rawBox.y - ((zone.startY / pageHeight) * 100);
+            }
+        }
+
+        // ---------------------------------------------------------
         // PATH 2.5: VISUAL SNAP (Drawing Fallback)
         // ---------------------------------------------------------
         if (!rawBox && incomingStatus === "VISUAL") {
@@ -212,17 +229,9 @@ export const enrichAnnotationsWithPositions = (
                     offsetX = zone.x || globalOffsetX;
                     offsetY = zone.startY || globalOffsetY;
 
-                    // 🛡️ [SNAP-FALLBACK] Use AI's visual estimate if available (legacy compatibility).
-                    // If it's a "ghost" with no position, we move it to the right margin (85%) and down slightly (10%)
-                    // so it doesn't overlap the question instruction text.
-                    const isGhost = (incomingStatus === 'UNMATCHED');
-                    const defaultX = isGhost ? 85 : 0;
-                    const defaultY = isGhost ? 10 : 0; // Push down 10% from top of zone
-                    rawBox = (anno as any).visual_position || (anno as any).bbox || { x: defaultX, y: defaultY, width: 4, height: 3, unit: 'percentage' };
-
-                    if (isGhost) method = "GHOST_MARGIN";
-
-                    console.log(`   📍 [LANDMARK] Applying emergency anchor (${Math.round(offsetX)}, ${Math.round(offsetY)}) for SubQ '${subQ}' using ${rawBox === (anno as any).visual_position ? 'AI Visual Pos' : (rawBox === (anno as any).bbox ? 'AI BBox' : 'Legacy (0,0)')}`);
+                    // [V29 FIX] Always trust AI visual position or bbox if available, even without classification ID.
+                    // DO NOT fallback to margin or (0,0) unless absolutely necessary.
+                    rawBox = (anno as any).visual_position || (anno as any).bbox || { x: 50, y: 50, width: 4, height: 3, unit: 'percentage' };
                 }
             }
         }
@@ -234,6 +243,10 @@ export const enrichAnnotationsWithPositions = (
         const stackingOffset = count > 0 ? count * 35 : 0;
 
         // 🏁 THE UNIVERSAL GATE
+        if (!rawBox) {
+            rawBox = (anno as any).visual_position || (anno as any).bbox || { x: 50, y: 50, width: 4, height: 3, unit: 'percentage' };
+        }
+
         const pixelBox = CoordinateTransformationService.resolvePixels(
             rawBox,
             dims.width,

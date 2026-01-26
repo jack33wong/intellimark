@@ -52,9 +52,9 @@ export class MarkingZoneService {
                 currentSearchPage = match.block.pageIndex;
                 minSearchY = MarkingZoneService.getY(match.block) + 10;
 
-                console.log(`✅ [MATCH] ${finalKey} found on P${match.block.pageIndex} (Sim: ${(match.similarity * 100).toFixed(0)}%)`);
+                // console.log(`✅ [MATCH] ${finalKey} found on P${match.block.pageIndex} (Sim: ${(match.similarity * 100).toFixed(0)}%)`);
             } else {
-                console.warn(`⚠️ [MISSING] Failed to find start for: ${finalKey}`);
+                // console.warn(`⚠️ [MISSING] Failed to find start for: ${finalKey}`);
             }
         }
 
@@ -102,7 +102,7 @@ export class MarkingZoneService {
             }];
         }
 
-        console.log(`🗺️ [ZONE-GEN] Final Keys: ${Object.keys(zones).join(', ')}`);
+        // console.log(`🗺️ [ZONE-GEN] Final Keys: ${Object.keys(zones).join(', ')}`);
         return zones;
     }
 

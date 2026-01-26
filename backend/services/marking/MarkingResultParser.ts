@@ -97,23 +97,6 @@ export class MarkingResultParser {
         // =====================================================================
         // 🔧 FIX 1: GHOST MARK PROTECTION
         // Ensure UNMATCHED marks have unique IDs so they survive deduplication.
-        // =====================================================================
-        if (parsedResponse.annotations) {
-            parsedResponse.annotations.forEach((anno: any, index: number) => {
-                // 🛡️ [SMART-SNAP FIX] Only ghost if ID is explicitly missing.
-                // UNMATCHED status is valid for Smart Snap (Classification Position) so we must preserve the ID.
-                if (!anno.line_id || anno.line_id === 'null') {
-                    const uniqueSuffix = `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
-                    anno.line_id = `ghost_${uniqueSuffix}`;
-                    anno.ocr_match_status = 'UNMATCHED';
-                    // 🔧 SAFETY: Clear coordinates for ghosts
-                    delete anno.visual_position;
-                    delete anno.aiPosition;
-                    delete anno.bbox;
-                }
-            });
-        }
-
         // 1. Mapper Truth Consistency (Page Assignments)
         if (subQuestionPageMap && Object.keys(subQuestionPageMap).length > 0 && parsedResponse.annotations) {
             parsedResponse.annotations.forEach((anno: any) => {
