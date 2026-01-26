@@ -146,26 +146,29 @@ export class MarkingZoneService {
 
             // --- ANCHOR STRATEGY ---
             let anchorBonus = 0;
+            let isAnchorMatch = false;
 
             if (labelRaw.length > 0) {
                 // 1. Exact Anchor (Starts with "6a")
                 const exactRegex = new RegExp(`^${this.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
                 if (exactRegex.test(blockTextRaw.trim())) {
                     anchorBonus = 0.3;
+                    isAnchorMatch = true;
                 }
                 // 2. ✅ PARENT ANCHOR (Starts with "6") - New Fix!
                 else if (parentLabel) {
                     const parentRegex = new RegExp(`^${this.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i');
                     if (parentRegex.test(blockTextRaw.trim())) {
                         anchorBonus = 0.25; // High confidence for Parent ID
+                        isAnchorMatch = true;
                     }
                 }
             }
 
             // --- MULTI-VIEW SCORING ---
-            const simFull = this.calculateSimilarity(targetFull, blockNorm);
-            const simContent = this.calculateSimilarity(targetContent, blockNorm);
-            const simSkeleton = this.calculateSimilarity(targetSkeleton, blockSkeleton);
+            const simFull = this.calculateSimilarity(targetFull, blockNorm, isAnchorMatch);
+            const simContent = this.calculateSimilarity(targetContent, blockNorm, isAnchorMatch);
+            const simSkeleton = this.calculateSimilarity(targetSkeleton, blockSkeleton, isAnchorMatch);
 
             const maxSim = Math.max(simFull, simContent, simSkeleton);
             const finalScore = maxSim + anchorBonus;
@@ -256,20 +259,34 @@ export class MarkingZoneService {
     }
 
     private static getY(block: any): number {
-        return Array.isArray(block.coordinates) ? block.coordinates[1] : (block.coordinates?.y || 0);
+        if (Array.isArray(block.coordinates)) return block.coordinates[1];
+        if (block.coordinates?.y != null) return block.coordinates.y;
+        if (Array.isArray(block.bbox)) return block.bbox[1];
+        if (Array.isArray(block.box_2d)) return block.box_2d[0]; // [ymin, xmin, ymax, xmax] pattern
+        return 0;
     }
 
     private static getX(block: any): number {
-        return Array.isArray(block.coordinates) ? block.coordinates[0] : (block.coordinates?.x || 0);
+        if (Array.isArray(block.coordinates)) return block.coordinates[0];
+        if (block.coordinates?.x != null) return block.coordinates.x;
+        if (Array.isArray(block.bbox)) return block.bbox[0];
+        if (Array.isArray(block.box_2d)) return block.box_2d[1];
+        return 0;
     }
 
     private static escapeRegExp(string: string): string {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    private static calculateSimilarity(target: string, input: string): number {
+    private static calculateSimilarity(target: string, input: string, isAnchorMatch: boolean = false): number {
         if (!target || !input) return 0;
-        if (target.length > 5 && input.length < target.length * 0.2) return 0;
+
+        // 🛡️ 20% LENGTH GUARD
+        // IF we have a confirmed Anchor Match (e.g. "17"), we SKIP this check.
+        // This allows a short block like "17 A ball..." (46 chars) to match a long target (266 chars).
+        if (!isAnchorMatch) {
+            if (target.length > 5 && input.length < target.length * 0.2) return 0;
+        }
 
         const getBigrams = (str: string) => {
             const bigrams = new Set<string>();
