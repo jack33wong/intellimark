@@ -495,8 +495,10 @@ export function fromLegacyFormat(legacyAnno: any): ImmutableAnnotation {
  * Used for Q11 messy annotations.
  */
 export function applyVisualStacking(annotations: any[]): any[] {
-    const POSITION_THRESHOLD = 5; // % difference to consider "same position"
-    const STACK_OFFSET_Y = 2; // % height to shift down (V29: Reduced from 12 to 2 for tighter multi-ticks)
+    // 🔧 PIXEL-AWARE FIX: Since these are enriched annotations in pixels,
+    // we need larger thresholds. 50px is about 2% of a standard page.
+    const POSITION_THRESHOLD = 50;
+    const STACK_OFFSET_Y = 60; // Shift down by ~60 pixels (roughly 2-3 lines)
 
     // Group by page
     const byPage = new Map<number, any[]>();
@@ -520,29 +522,21 @@ export function applyVisualStacking(annotations: any[]): any[] {
         for (let i = 0; i < pageAnns.length; i++) {
             const current = pageAnns[i];
 
-            // Skip if not visual or unmatched-with-box
-            if (!current.box_2d) {
-                // If no box, nothing to stack
-                continue;
-            }
+            // Resolve current box
+            const cBox = current.bbox || (current.visual_position ? [current.visual_position.x, current.visual_position.y] : null);
+            if (!cBox) continue;
 
             let stackLevel = 0;
 
             // Check against all PREVIOUS processed annotations on this page
             for (let j = 0; j < i; j++) {
                 const prev = pageAnns[j];
-                if (!prev.box_2d) continue;
+                const pBox = prev.bbox || (prev.visual_position ? [prev.visual_position.x, prev.visual_position.y] : null);
+                if (!pBox) continue;
 
                 // Check overlap
-                const cx = current.box_2d[0];
-                const cy = current.box_2d[1]; // Wait, box_2d is usually [x, y, w, h]? No, let's check legacy format.
-                // Legacy format in toLegacyFormat usually returns box_2d as [x, y, w, h] (percentages).
-
-                const px = prev.box_2d[0];
-                const py = prev.box_2d[1];
-
-                const xDiff = Math.abs(cx - px);
-                const yDiff = Math.abs(cy - py);
+                const xDiff = Math.abs(cBox[0] - pBox[0]);
+                const yDiff = Math.abs(cBox[1] - pBox[1]);
 
                 if (xDiff < POSITION_THRESHOLD && yDiff < POSITION_THRESHOLD) {
                     stackLevel++;
@@ -552,9 +546,11 @@ export function applyVisualStacking(annotations: any[]): any[] {
             // Apply Offset
             if (stackLevel > 0) {
                 // Shift Y down
-                current.box_2d[1] = current.box_2d[1] + (stackLevel * STACK_OFFSET_Y);
-                // Ensure it doesn't go off page
-                if (current.box_2d[1] > 95) current.box_2d[1] = 95;
+                if (current.bbox) {
+                    current.bbox[1] = (current.bbox[1] || 0) + (stackLevel * STACK_OFFSET_Y);
+                } else if (current.visual_position) {
+                    current.visual_position.y = (current.visual_position.y || 0) + (stackLevel * STACK_OFFSET_Y);
+                }
             }
         }
         result.push(...pageAnns);

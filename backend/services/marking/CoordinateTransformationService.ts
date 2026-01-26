@@ -68,11 +68,12 @@ export class CoordinateTransformationService {
             height: (box.height / den) * pageHeight
         };
 
-        // VERBOSE DEBUG LOGGING
+        /*
         console.log(`📐 [COORD-TRANSFORM][${context}]`);
         console.log(`   👉 Input:  [${coords.map(c => Math.round(c * 10) / 10).join(', ')}] units: ${unit}`);
         console.log(`   👉 Page:   ${pageWidth}x${pageHeight} | Denominator: ${den}`);
         console.log(`   🏁 Output: [${Math.round(result.x)}, ${Math.round(result.y)}] pixels`);
+        */
 
         return result;
     }
@@ -146,38 +147,42 @@ export class CoordinateTransformationService {
             clamping?: { startY: number; endY: number; pad?: number }
         } = {}
     ): PixelBox {
-        console.log(`\n🌀 [RESOLVE-DEBUG][${options.context || 'UNSET'}] START`);
+        // console.log(`\n🌀 [RESOLVE-DEBUG][${options.context || 'UNSET'}] START`);
 
         const rawCoords = Array.isArray(box) ? box : [box.x, box.y, box.width, box.height];
         const explicitUnit = (box as any).unit || (box as any)._unit;
         const detectedUnit = this.detectUnit(rawCoords);
         const finalUnit = explicitUnit || detectedUnit;
 
-        console.log(`   📦 Input: [${rawCoords.join(', ')}] | ExplicitUnit: ${explicitUnit || 'NONE'} | DetectedUnit: ${detectedUnit} -> Final: ${finalUnit}`);
+        // console.log(`   📦 Input: [${rawCoords.join(', ')}] | ExplicitUnit: ${explicitUnit || 'NONE'} | DetectedUnit: ${detectedUnit} -> Final: ${finalUnit}`);
 
         const pixelBox = this.ensurePixels(box, pageWidth, pageHeight, options.context);
 
-        console.log(`   📏 Pre-Offset Pixels: (${Math.round(pixelBox.x)}, ${Math.round(pixelBox.y)}) [${pixelBox.width}x${pixelBox.height}]`);
+        // console.log(`   📏 Pre-Offset Pixels: (${Math.round(pixelBox.x)}, ${Math.round(pixelBox.y)}) [${pixelBox.width}x${pixelBox.height}]`);
 
         // Apply Offsets
         let x = pixelBox.x + (options.offsetX || 0);
         let y = pixelBox.y + (options.offsetY || 0);
 
+        /*
         if (options.offsetX || options.offsetY) {
             console.log(`   ⚓ Applying Offsets: (+${options.offsetX || 0}, +${options.offsetY || 0}) -> New: (${Math.round(x)}, ${Math.round(y)})`);
         }
+        */
 
         // Optional Clamping
         if (options.clamping) {
             const { startY, endY, pad = 5 } = options.clamping;
             const originalY = y;
             y = Math.max(startY + pad, Math.min(y, endY - pad));
+            /*
             if (y !== originalY) {
                 console.log(`   🛡️ Clamped Y: ${Math.round(originalY)} -> ${Math.round(y)} (Range: ${startY}-${endY})`);
             }
+            */
         }
 
-        console.log(`   🏁 [RESOLVE-DEBUG][${options.context || 'UNSET'}] FINAL: (${Math.round(x)}, ${Math.round(y)})\n`);
+        // console.log(`   🏁 [RESOLVE-DEBUG][${options.context || 'UNSET'}] FINAL: (${Math.round(x)}, ${Math.round(y)})\n`);
 
         return {
             x,

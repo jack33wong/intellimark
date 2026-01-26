@@ -1353,7 +1353,7 @@ export class MarkingPipelineService {
                                             const scheme = task.markingScheme;
                                             // FIX: Use authoritative Total Marks from the result (resolved by MarkingInstructionService)
                                             const resultTotal = (result.score && result.score.totalMarks);
-                                            console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, SchemeTotal=${scheme?.totalMarks}, ResultTotal=${resultTotal}`);
+                                            // console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, SchemeTotal=${scheme?.totalMarks}, ResultTotal=${resultTotal}`);
 
                                             // [GUILLOTINE] Hard-Coded Post-Processing for All Questions
                                             // Ensure we strictly respect the budget, especially per sub-question.

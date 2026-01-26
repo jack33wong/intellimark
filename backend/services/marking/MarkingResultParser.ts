@@ -106,6 +106,10 @@ export class MarkingResultParser {
                     const uniqueSuffix = `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
                     anno.line_id = `ghost_${uniqueSuffix}`;
                     anno.ocr_match_status = 'UNMATCHED';
+                    // 🔧 SAFETY: Clear coordinates for ghosts
+                    delete anno.visual_position;
+                    delete anno.aiPosition;
+                    delete anno.bbox;
                 }
             });
         }
@@ -177,7 +181,7 @@ export class MarkingResultParser {
 
         // 4. Strict Mark Limit Enforcement (DISABLED - Using Pipeline Guillotine)
         if (normalizedScheme && parsedResponse.annotations) {
-            console.log(`🛡️ [PIPELINE-SAFETY] Skipping early limit enforcement for Q${inputQuestionNumber}. Trusting downstream Guillotine.`);
+            // console.log(`🛡️ [PIPELINE-SAFETY] Skipping early limit enforcement for Q${inputQuestionNumber}. Trusting downstream Guillotine.`);
             // this.enforceMarkLimits(parsedResponse, normalizedScheme, inputQuestionNumber);
         }
 

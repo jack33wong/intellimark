@@ -443,7 +443,7 @@ export async function executeMarkingForQuestion(
     // Runs AFTER sanitization to authoritatively restore valid links.
     // =========================================================================
     if (markingResult.annotations) {
-      console.log("🧮 [DETERMINISTIC-LINK] Running post-sanitization verification...");
+      // console.log("🧮 [DETERMINISTIC-LINK] Running post-sanitization verification...");
 
       // 1. Capture AI Status Map (ID -> Status)
       const aiStatusMap = new Map<string, string>();
@@ -728,7 +728,7 @@ export async function executeMarkingForQuestion(
     // Final score consistency
     parsedScore.scoreText = `${parsedScore.awardedMarks}/${parsedScore.totalMarks}`;
 
-    console.log(`[SCORE DEBUG] Q${questionId}: rawScore=${JSON.stringify(markingResult.studentScore)}, finalAwarded=${parsedScore.awardedMarks}, finalTotal=${parsedScore.totalMarks}, schemeTotal=${task.markingScheme?.totalMarks}`);
+    // console.log(`[SCORE DEBUG] Q${questionId}: rawScore=${JSON.stringify(markingResult.studentScore)}, finalAwarded=${parsedScore.awardedMarks}, finalTotal=${parsedScore.totalMarks}, schemeTotal=${task.markingScheme?.totalMarks}`);
 
     return {
       questionNumber: questionId,
@@ -1124,7 +1124,7 @@ function resolveLinksWithZones(
     }) || matchingLandmarks[0];
 
     if (currentLandmark && matchingLandmarks.length > 1) {
-      console.log(`      🎯 [LINK-ZONE-TRACE] SubQ '${anno.subQuestion}' matched multiple landmarks. Best Fit: '${currentLandmark.label}'`);
+      // console.log(`      🎯 [LINK-ZONE-TRACE] SubQ '${anno.subQuestion}' matched multiple landmarks. Best Fit: '${currentLandmark.label}'`);
     }
 
     // If no specific landmark found, check if it's the FIRST sub-question (e.g. 'a', 'ai').
@@ -1133,11 +1133,11 @@ function resolveLinksWithZones(
       const firstPart = isNumeric || ['a', 'ai', 'i', '1'].includes(cleanSubQ) || cleanSubQ.endsWith('a') || cleanSubQ.endsWith('ai');
 
       if (firstPart) {
-        console.log(`      📍 [ZONE-DEFAULT] No landmark for '${anno.subQuestion}', defaulting to Start (Y=0).`);
+        // console.log(`      📍 [ZONE-DEFAULT] No landmark for '${anno.subQuestion}', defaulting to Start (Y=0).`);
         zone = { startY: 0, endY: landmarks[0]?.y || pageHeight };
         currentLandmark = { label: 'START', y: 0 };
       } else {
-        console.log(`      ⚠️ [ZONE-SKIP] No landmark found for '${anno.subQuestion}'`);
+        // console.log(`      ⚠️ [ZONE-SKIP] No landmark found for '${anno.subQuestion}'`);
         return anno;
       }
     } else {
@@ -1167,7 +1167,7 @@ function resolveLinksWithZones(
         const inZone = blockY >= zone.startY && blockY <= zone.endY;
 
         if (!inZone && (anno.ocr_match_status === "MATCHED" || (anno as any)._pipeline_action === "AI PRECISE (V4)")) {
-          console.log(`   ⚖️ [IRON-DOME-VETO] AI linked '${anno.student_text}' to block ${aiChosenBlock.id}, but it is at Y=${Math.round(blockY)}, outside Zone ${currentLandmark.label} (${Math.round(zone.startY)}-${Math.round(zone.endY)}). Overriding to UNMATCHED.`);
+          // console.log(`   ⚖️ [IRON-DOME-VETO] AI linked '${anno.student_text}' to block ${aiChosenBlock.id}, but it is at Y=${Math.round(blockY)}, outside Zone ${currentLandmark.label} (${Math.round(zone.startY)}-${Math.round(zone.endY)}). Overriding to UNMATCHED.`);
 
           return {
             ...anno,
@@ -1176,7 +1176,7 @@ function resolveLinksWithZones(
             _pipeline_action: "IRON DOME VETO"
           };
         } else if (inZone) {
-          console.log(`   ✅ [IRON-DOME-PASS] AI link to ${aiChosenBlock.id} is within Zone ${currentLandmark.label}`);
+          // console.log(`   ✅ [IRON-DOME-PASS] AI link to ${aiChosenBlock.id} is within Zone ${currentLandmark.label}`);
         }
       } else {
         console.warn(`   ⚠️ [IRON-DOME-MISS] AI pointed to ID '${physicalId}' but it was not found in the lookup table.`);

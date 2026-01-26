@@ -376,6 +376,7 @@ export class MarkingInstructionService {
       const subQuestionMetadata = (processedImage as any).subQuestionMetadata;
 
       // Debugs
+      /*
       console.log(`\n🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...`);
       let debugQBox = null;
       if (questionDetectionForNormalization) {
@@ -387,12 +388,15 @@ export class MarkingInstructionService {
       } else {
         console.log(`   ⚠️ QuestionDetection object is missing or null.`);
       }
+      */
 
+      /*
       if (classificationBlocks && classificationBlocks.length > 0) {
         console.log(`   👉 ClassificationBlock[0]:`, classificationBlocks[0]);
       } else {
         console.log(`   ⚠️ ClassificationBlocks array is empty.`);
       }
+      */
 
       let offsetX = 0;
       let offsetY = 0;
@@ -421,6 +425,16 @@ export class MarkingInstructionService {
           positionMap.set(line.text, line.position);
         });
       }
+
+      const normalize = (val: any): string => {
+        if (!val) return '';
+        return String(val)
+          .toLowerCase()
+          .replace(/[\s,|+·*∙]+/g, '')   // Remove all spaces, punctuation, and common multiplication dots
+          .replace(/[×x✖⨯]/g, 'x')       // Standardize multiplication symbols (including various unicode ones)
+          .replace(/\.0+$/g, '')         // Normalize trailing zeros in numbers
+          .replace(/(\.\d+?)0+$/g, '$1'); // Normalize deep trailing zeros
+      };
 
       const annotationData = await this.generateFromOCR(
         model,
@@ -480,7 +494,11 @@ export class MarkingInstructionService {
             ...anno,
             // Generate a unique ID so downstream filters treat this as a distinct mark
             line_id: `ghost_${inputQuestionNumber || 'q'}_${index}_${Date.now()}`,
-            ocr_match_status: "UNMATCHED"
+            ocr_match_status: "UNMATCHED",
+            // 🔧 SAFETY: If it's a ghost, ensure it doesn't have coordinates that might be hallucinated
+            visual_position: undefined,
+            aiPosition: undefined,
+            bbox: undefined
           };
         }
 
@@ -489,17 +507,15 @@ export class MarkingInstructionService {
           console.log(`   🛡️ [REDIRECT] Intercepted link to Instruction [${anno.line_id}]`);
 
           const studentText = (anno.student_text || anno.text || '').trim();
+          const normalizedStudent = normalize(studentText);
           let bestMatchKey = null;
 
           if (positionMap.has(studentText)) {
             bestMatchKey = studentText;
           } else {
+            // Try normalized matching
             for (const [key, _] of positionMap.entries()) {
-              if (key.includes(studentText) || studentText.includes(key)) {
-                const isNumeric = /^\d+(\.\d+)?$/.test(studentText) && /^\d+(\.\d+)?$/.test(key);
-                if (isNumeric && Math.abs(key.length - studentText.length) > 0) {
-                  continue;
-                }
+              if (normalize(key) === normalizedStudent || normalize(key).includes(normalizedStudent) || normalizedStudent.includes(normalize(key))) {
                 bestMatchKey = key;
                 break;
               }
@@ -519,11 +535,19 @@ export class MarkingInstructionService {
             };
           } else {
             // Fallback to Ghost if redirection fails
-            return {
+            // 🔧 CRITICAL FIX: Delete coordinates so it doesn't stay on the Question Text
+            const ghostAnno = {
               ...anno,
               line_id: `ghost_redirect_${index}_${Date.now()}`,
-              ocr_match_status: "UNMATCHED"
+              ocr_match_status: "UNMATCHED",
             };
+
+            // Remove all positioning data so it becomes "floating" or hidden
+            delete ghostAnno.visual_position;
+            delete (ghostAnno as any).aiPosition;
+            delete (ghostAnno as any).bbox;
+
+            return ghostAnno;
           }
         }
         return anno;

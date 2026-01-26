@@ -55,7 +55,7 @@ export class MarkingPositioningService {
                 const parentQ = questionDetection.find((q: any) => String(q.questionNumber) === currentBase);
                 if (parentQ) {
                     qBox = parentQ.box || parentQ.region || parentQ.rect || parentQ.coordinates;
-                    console.log(`   🔍 [COORD-DEBUG] Inheriting Parent Q${currentBase} Box for Offset`);
+                    // console.log(`   🔍 [COORD-DEBUG] Inheriting Parent Q${currentBase} Box for Offset`);
                 }
             }
 
@@ -86,7 +86,7 @@ export class MarkingPositioningService {
                         const label = (firstL.label || "").toLowerCase();
                         if (["a", "i", "1"].includes(label)) {
                             match = firstL;
-                            console.log(`   [ANCHOR-FIX] Bridging Root Question '${inputQuestionNumber}' to First Child Landmark '${label}' at Y=${match.y || match.top}`);
+                            // console.log(`   [ANCHOR-FIX] Bridging Root Question '${inputQuestionNumber}' to First Child Landmark '${label}' at Y=${match.y || match.top}`);
                         }
                     }
                 }
@@ -101,8 +101,8 @@ export class MarkingPositioningService {
 
         // 4. "Smart Sub-Question Anchor" (OCR Block Fallback)
         if (offsetX === 0 && offsetY === 0 && rawOcrBlocks && rawOcrBlocks.length > 0) {
-            console.log(`\n🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...`);
-            console.log(`   👉 QuestionDetection Box: ${targetQuestionObject?.box ? 'Found' : 'undefined'}`);
+            // console.log(`\n🔍 [COORD-DEBUG] Inspecting Potential Offset Sources...`);
+            // console.log(`   👉 QuestionDetection Box: ${targetQuestionObject?.box ? 'Found' : 'undefined'}`);
 
             const subQ = String(inputQuestionNumber || '').replace(/^\d+/, '');
             const baseQ = String(inputQuestionNumber || '').replace(/\D/g, '');
@@ -121,7 +121,7 @@ export class MarkingPositioningService {
                     const pixelBox = CoordinateTransformationService.ensurePixels(bCoords, 2000, 3000, `OFFSET-ANCHOR`);
                     offsetX = pixelBox.x;
                     offsetY = pixelBox.y;
-                    console.log(`   🔍 [COORD-DEBUG] Using Sub-Question Anchor [${anchorBlock.id || anchorBlock.globalBlockId}] "${anchorBlock.text.substring(0, 20)}..." for Offset: x=${Math.round(offsetX)}, y=${Math.round(offsetY)}`);
+                    // console.log(`   🔍 [COORD-DEBUG] Using Sub-Question Anchor [${anchorBlock.id || anchorBlock.globalBlockId}] "${anchorBlock.text.substring(0, 20)}..." for Offset: x=${Math.round(offsetX)}, y=${Math.round(offsetY)}`);
                 }
             }
         }
