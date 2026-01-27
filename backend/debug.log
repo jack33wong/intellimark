@@ -12,17 +12,549 @@
    - Ultra Plan: 600 credits/month
 💳 Stripe initialized in TEST mode
 📚 Swagger UI available at /api-docs
-[PERF] getUserUnifiedSessions: Fetch 23788ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 23789ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 19117ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 19117ms for 50 sessions (limit: 50)
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.0095678, files: 1, bytes: 45678
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":506.05}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.1s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 1 pages...
+✅ [MAPPER] Map Pass complete in 1.69s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[venn,diagram,probability,these,people,chosen,random,person,visited,exactly,countries,france,given,they,also,spain]
+   ✅ Matched Part: 10bii (1 marks)
+   ✅ Matched Part: 10bi (1 marks)
+   ✅ Matched Part: 10a (1 marks)
+   📊 Final Map Keys: 10bii, 10bi, 10a
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Global Search
+   Pool Size: 108 papers, 2709 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 10   | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10a  | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10b  | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10bbi | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10bbii | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 5
+   Detected: 5/5
+   Not detected: 0
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+🔍 [MERGE-DEBUG] attempting to merge classification results into 1 pages
+   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 1)
+🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
+✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+[33m[POS-DEBUG] ⚠️ Q10 has classification info but MISSING rawBox! Text: "100 people were asked whether they had visited France (F) or Spain (S). 55 had visited France 60 had"[0m
+💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT:
+ You are an AI assistant that marks student work. Your task is to generate a single, valid JSON object.
+
+---
+
+## 1. THE PRIME DIRECTIVE: MANDATORY COMPLETION
+
+* **NEVER STOP EARLY:** You must process **EVERY** sub-question listed in the Marking Scheme.
+* **IGNORE SCORE LIMITS DURING SCANNING:** Do not stop marking just because the student has reached the maximum total score.
+    * If Q10a has [MAX: 3] but you see 5 valid reasons to tick, **RECORD THEM ALL**.
+    * We (the System) will cut the excess marks later.
+    * **CRITICAL:** If you fail to output an annotation for the last sub-question (e.g., 10bii), you fail the task.
+
+---
+
+## 2. THE LOGIC GATES (MARKING LOGIC)
+
+### GATE A: THE "HIGHLANDER" RULE (For "OR" Lists)
+* **CONTEXT:** Schemes often list alternatives like "36 or 19 or 41".
+* **THE RULE:** These are usually **MUTUALLY EXCLUSIVE**. You award the mark **ONCE**.
+* **CRITICAL EXCEPTION:** If the [MAX SCORE] is higher than the single mark line, combine marks (ignore Highlander).
+
+### GATE B: THE "DOMINO" RULE (Full Marks for Right Answer)
+* **THE LAW:** If the student has the correct answer worth 2+ marks (e.g. M1 + A1):
+    * You **MUST** output **MULTIPLE ANNOTATIONS** for that single line of text.
+    * **DO NOT** just give 1 mark and move on.
+
+### GATE C: THE "VISUAL INTERVENTION" (THE INVISIBLE INK RULE)
+* **CONTEXT:** Drawing questions (e.g., "Draw a box plot", "Shade the region") often have **NO TEXT** in the transcript.
+* **THE TRIGGER:** If a sub-question exists in the Scheme but has **NO matching lines** in the `STUDENT WORK` transcript:
+    1. **DO NOT** assume the student skipped it.
+    2. **LOOK AT THE IMAGE:** Scan the visual region for that question.
+    3. **FORCE AN ANNOTATION:** If you see a drawing, mark it using the specific "Visual Protocol" below.
+
+---
+
+## 3. MARKING SOVEREIGNTY & VISUAL PROTOCOLS
+
+* **PRIMARY TARGET:** You are marking the **STUDENT WORK (STRUCTURED)** transcript.
+* **ID DISCIPLINE:** The `line_id` field MUST be copied EXACTLY from the ID tags provided in the transcript.
+
+### THE "TOO NEAT" DRAWING PROTOCOL (CRITICAL)
+* **THE PROBLEM:** Student drawings (especially with rulers) can look like printed grid lines.
+* **THE RULE:** Treat the printed grid as a **BLANK CANVAS**.
+* **ASSUMPTION:** If you see **ANY** data representation (box plot, bar, cross, line) on the grid that matches the correct answer, **ASSUME IT IS STUDENT WORK**.
+    * **DO NOT** assume the grid came "pre-filled" with the correct answer.
+    * **DO NOT** fail the student because their drawing is "too perfect."
+
+---
+
+## 4. THE "ZERO TOLERANCE" LINKING PROTOCOL
+
+You must populate the `linked_ocr_id` field to show where the student wrote the answer.
+**You must operate in "SAFE MODE". Do not guess.**
+
+### THE MATCHING RULE: EXACT VALUE ONLY
+Compare the **Student Text** vs **OCR Block Text**.
+
+1.  **ISOLATED INTEGERS:**
+    * Student: "36" | OCR: "3" -> **REJECT** (Missing digit).
+    * Student: "36" | OCR: "136" -> **REJECT** (Extra digit / Substring risk).
+    * Student: "36" | OCR: "36" -> **MATCH**.
+2.  **FRACTIONS/MATH:**
+    * Student: "1/2" | OCR: "\frac{1}{2}" -> **MATCH** (Value is identical).
+    * Student: "77/100" | OCR: "19/60" -> **REJECT** (Different numbers).
+
+### THE OUTCOME
+* **IF EXACT MATCH FOUND:**
+    * Set `ocr_match_status: "MATCHED"`.
+    * Set `linked_ocr_id` to the ID.
+* **IF ANY DOUBT:**
+    * Set `ocr_match_status: "UNMATCHED"`.
+    * Set `linked_ocr_id: null`.
+
+---
+
+## 5. JSON STRUCTURE & CONSTRAINTS
+
+* **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
+* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs where text is missing:
+    * **MUST** use `line_id: null`.
+    * **MUST** use `ocr_match_status: "VISUAL"`.
+    * **COORDINATE RULE:** You **MUST** use **PERCENTAGES (0-100)** for `visual_position`.
+
+* **Constraint C (VISUAL STAGGERING):** [CRITICAL]
+    * **NEVER** stack multiple ticks at the exact same coordinate.
+    * If awarding multiple marks for one drawing (e.g., M1, M1, A1), you **MUST shift the x-position** for each one so they are distinct.
+    * **Bad:** {x:50, y:30}, {x:50, y:30}, {x:50, y:30} (System will delete duplicates).
+    * **Good:** {x:50, y:30}, {x:55, y:30}, {x:60, y:30}.
+    * **Targeting:** Place ticks roughly in the **CENTER (x: 50)** of the drawing area, not the left margin (x: 10).
+
+
+## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
+
+```json
+{
+  "meta": {
+    "question_total_marks": "Integer",
+    "raw_correct_steps_found": "Integer",
+    "steps_dropped_to_fit_budget": "Integer",
+    "isTotalEstimated": "Boolean"
+  },
+  "visualObservation": "String",
+  "annotations": [
+    {
+      "line_id": "String (MUST be p0_q... OR null)",
+      "action": "tick|cross",
+      "text": "String (CRITICAL: MUST contain ONLY the Mark Code, e.g. M1, A1, B1, C1, B2)",
+      "student_text": "String",
+      "classification_text": "String",
+      "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
+      "linked_ocr_id": "String (The p0_ocr_... ID or null)",
+      "reasoning": "String",
+      "subQuestion": "String",
+      "pageIndex": "Integer",
+      "line_index": "Integer",
+      "visual_position": { 
+          "x": "Integer (0-100 %)", 
+          "y": "Integer (0-100 %)", 
+          "width": "Integer (0-100 %)", 
+          "height": "Integer (0-100 %)" 
+      }
+    }
+  ],
+  "studentScore": {
+    "totalMarks": "Integer",
+    "awardedMarks": "Integer",
+    "scoreText": "String"
+  }
+}
+```
+
+**FINAL CHECKLIST:**
+1. Did I apply the Highlander Rule?
+2. Did I ensure `line_id` is a Classification ID (p0_q...) OR null for visuals?
+3. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
+4. Did I output an entry for the LAST sub-question?
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 10
+
+## QUESTION TEXT
+**[10]**: Venn diagram and probability. Complete the Venn diagram. One of these 100 people is chosen at random. Write down the probability that this person had visited exactly one of the countries. Write down the probability that this person had visited France given that they had also visited Spain.
+
+**[10a]**: 100 people were asked whether they had visited France (F) or Spain (S). 55 had visited France. 60 had visited Spain. 4 had not visited either country. Complete the Venn diagram.
+
+**[10bi]**: One of these 100 people is chosen at random. Write down the probability that this person had visited exactly one of the countries.
+
+**[10bii]**: Write down the probability that this person had visited France given that they had also visited Spain.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[10a] [MAX SCORE: 3]
+- B3: Fully correct diagram (36, 19, 41) [3 marks]
+- B3: Fully correct diagram or
+- B2: Any one of 36, 19, or 41 correctly placed 4 or
+- B1: the total of $F=55$ or for the total of $S=60$ or $F\cap S^{\prime}+(F\cap S)+F^{\prime}\cap S=96$ Do not accept a blank region as 0, for any marks we need to see a number in each region
+
+[10bi] [MAX SCORE: 2]
+- M1: their $(36+41)$ or 77
+- M1: $\frac{77}{100}$ or 0.77 or 77%
+
+[10bii] [MAX SCORE: 2]
+- B1: 0.19 ое ог or their60 k from their (a) and 0 < fraction < 1 (k is an integer)
+- B1: $\frac{19}{60}$ or 0.316 to 0.317 or 0.32
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p0_q10_line_1] 36
+[ID: p0_q10_line_2] 19
+[ID: p0_q10_line_3] 41
+[ID: p0_q10_line_4] 4
+
+[SUB-QUESTION bi]
+[ID: p0_q10_line_5] \frac{77}{100}
+
+[SUB-QUESTION bii]
+[ID: p0_q10_line_6] \frac{19}{60}
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "10"
+[p0_ocr_1]: "10100 people were asked whether they had visited France (F) or Spain (S)."
+[p0_ocr_2]: "- 55 had visited France"
+[p0_ocr_3]: "- 60 had visited Spain"
+[p0_ocr_4]: "- 4 had not visited either country."
+[p0_ocr_5]: "(a) Complete the Venn diagram. [PRINTED_INSTRUCTION]"
+[p0_ocr_6]: "3"
+[p0_ocr_7]: "(b) One of these 100 people is chosen at random."
+[p0_ocr_8]: "(f) Write down the probability that this person had visited exactly one of the countries. [PRINTED_INSTRUCTION]"
+[p0_ocr_9]: "``` (b)(i) ```"
+[p0_ocr_10]: "```  [2] ```"
+[p0_ocr_11]: "(ii) Write down the probability that this person had visited France given that they had also"
+[p0_ocr_12]: "visited Spain. [PRINTED_INSTRUCTION]"
+[p0_ocr_14]: "\( \frac{19}{60} \)"
+[p0_ocr_13]: "(ii)"
+[p0_ocr_15]: "2"
+[p0_ocr_16]: "© OCR 2023"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 7,
+    "raw_correct_steps_found": 7,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "The student has completed the Venn diagram with the numbers 36, 19, 41 and 4 in the correct regions. The student has written the fraction 77/100 for the probability in part (bi) and 19/60 in part (bii).",
+  "annotations": [
+    {
+      "line_id": "p0_q10_line_1",
+      "action": "tick",
+      "text": "B3",
+      "student_text": "36",
+      "classification_text": "36",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_6",
+      "reasoning": "The student has correctly placed 36 in the Venn diagram.",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_2",
+      "action": "tick",
+      "text": "B3",
+      "student_text": "19",
+      "classification_text": "19",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly placed 19 in the Venn diagram.",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_3",
+      "action": "tick",
+      "text": "B3",
+      "student_text": "41",
+      "classification_text": "41",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly placed 41 in the Venn diagram.",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 60,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_5",
+      "action": "tick",
+      "text": "M1",
+      "student_text": "\\frac{77}{100}",
+      "classification_text": "\\frac{77}{100}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has correctly written the fraction 77/100.",
+      "subQuestion": "bi",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_5",
+      "action": "tick",
+      "text": "M1",
+      "student_text": "\\frac{77}{100}",
+      "classification_text": "\\frac{77}{100}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has correctly written the fraction 77/100.",
+      "subQuestion": "bi",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_6",
+      "action": "tick",
+      "text": "B1",
+      "student_text": "\\frac{19}{60}",
+      "classification_text": "\\frac{19}{60}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly written the fraction 19/60.",
+      "subQuestion": "bii",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_6",
+      "action": "tick",
+      "text": "B1",
+      "student_text": "\\frac{19}{60}",
+      "classification_text": "\\frac{19}{60}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly written the fraction 19/60.",
+      "subQuestion": "bii",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 7,
+    "awardedMarks": 7,
+    "scoreText": "7/7"
+  }
+}
+```
+========================================
+
+   🎯 [ZONE-MATCH] SubQ: "a" | Mapped to Zone "10a": 98-467
+   🎯 [ZONE-MATCH] SubQ: "a" | Mapped to Zone "10a": 98-467
+   ⚖️ [IRON-DOME-VETO] Violation detected for a (ID: p0_ocr_14).
+      📍 Position: Y=672px | Allowed Zone: 98-467px
+   🎯 [ZONE-MATCH] SubQ: "a" | Mapped to Zone "10a": 98-467
+   ⚖️ [IRON-DOME-VETO] Violation detected for a (ID: p0_ocr_14).
+      📍 Position: Y=672px | Allowed Zone: 98-467px
+   🎯 [ZONE-MATCH] SubQ: "bi" | Mapped to Zone "10bi": 467-595
+   🎯 [ZONE-MATCH] SubQ: "bi" | Mapped to Zone "10bi": 467-595
+   🎯 [ZONE-MATCH] SubQ: "bii" | Mapped to Zone "10bii": 595-1080
+   🎯 [ZONE-MATCH] SubQ: "bii" | Mapped to Zone "10bii": 595-1080
+[GUILLOTINE] Q10a exceeded budget! Kept 1/3, Budget 3.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m9.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m9.2s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 10 ([37mQ10a, Q10b[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.0s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m10      [0m | 7/7   | B3, M1, M1, B1, B1      | AI:3/5 → M:3 U:2                       |
+| [90m  a     [0m | 3     | B3                      | AI:1/1 → M:1 U:0                       |
+| [90m  bi    [0m | 2     | M1, M1                  | AI:0/2 → M:0 U:2                       |
+| [90m  bii   [0m | 2     | B1, B1                  | AI:2/2 → M:2 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 21.4s
+Model Used: gemini-2.0-flash
+----------------------------
+marking                             9.2s (43%)
+classification                      6.8s (32%)
+ocr_processing                      1.9s (9%)
+question_detection                  1.1s (5%)
+output_generation                   1.0s (5%)
+performance_summary                 0.6s (3%)
+database_persistence                0.3s (1%)
+preprocessing                       0.1s (0%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 4 total
+   Total Tokens: 15,152 (12,744 in + 2,408 out)
+   Total Cost: $0.005953
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 2,631 tokens (1 requests) → $0.000284
+   • Classification (Marking Pass): 5,505 tokens (1 requests) → $0.000776
+   • Marking: 6,560 tokens (1 requests) → $0.001120
+   • Performance Summary: 456 tokens (1 requests) → $0.000057
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769550373533
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769550373533
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0059532000000000005
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.60 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769550373533), remaining: 505.45
+💳 Deducted 0.0060 credits (session: sub-1769550373533) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769550373533
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
 🚀 [MARKING] Controller started - Files: 21, Body Keys: model, aiMessageId
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 💳 [CREDIT CHECK] Estimated cost: 0.9444994000000001, files: 21, bytes: 8394994
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":596.52}
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":505.45}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
@@ -32,8 +564,8 @@
 [1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m4.7s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
 [MAPPER] Starting Map Pass for 21 pages...
-✅ [MAPPER] Map Pass complete in 65.01s. Mapped 21 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m154.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+✅ [MAPPER] Map Pass complete in 8.42s. Mapped 21 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m30.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🚀 [OVERRIDE] 90% Rule Triggered: 22/22 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -44,13 +576,13 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m154.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m30.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m90.2s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m6.9s[0m ([32m[1mMATHPIX[0m)
 [SIMILARITY OVERRIDE] 85% because MatchRate=0.60
 [SIMILARITY OVERRIDE] 85% because MatchRate=0.67
 [SIMILARITY OVERRIDE] 98% because MatchRate=0.80 in Keys=[times,ordinary,number,standard,form]
@@ -65,625 +597,3 @@
 [SIMILARITY OVERRIDE] 85% because MatchRate=0.68
 [DETECTION] 🏆 Relative Winner Accepted: 0.782 vs Runner-up 0.551
 [SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[there,students,class,teacher,going,choose,random,number,different,pairs]
-[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[start,2022,invested,some,money,savings,account,paid,compound,interest,each,year,added,then,took,2023,1000,there,293714,much,must,working]
-[SIMILARITY OVERRIDE] 98% because MatchRate=0.86 in Keys=[fully,fraction,a325a3,factorise,3k211k4,4x2x23x,x2x3]
-[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[functions,given,fraction,12x1,gx53x]
-[SIMILARITY OVERRIDE] 98% because MatchRate=0.95 in Keys=[ball,thrown,upwards,reaches,maximum,height,then,falls,bounces,repeatedly,after,bounce,next,given,hn1055hn,metres,what,does,reach]
-[DETECTION] 🏆 Relative Winner Accepted: 0.765 vs Runner-up 0.547
-[SIMILARITY OVERRIDE] 85% because MatchRate=0.60
-[SIMILARITY OVERRIDE] 98% because MatchRate=0.80 in Keys=[fraction,p588,times108,correct,significant,figures,times105,lower,bound,ordinary,number,nearest,integer,must,working]
-[SIMILARITY OVERRIDE] 85% because MatchRate=0.60
-[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[three,consecutive,terms,arithmetic,sequence,geometric,possible,values]
-[SIMILARITY OVERRIDE] 85% because MatchRate=0.78
-
-🔍 [ORCHESTRATOR DEBUG] Q1 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 1 (2 marks)
-   📊 Final Map Keys: 1
-
-🔍 [ORCHESTRATOR DEBUG] Q2 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 2ai (1 marks)
-   ✅ Matched Part: 2aii (1 marks)
-   ✅ Matched Part: 2b (2 marks)
-   📊 Final Map Keys: 2ai, 2aii, 2b
-
-🔍 [ORCHESTRATOR DEBUG] Q3 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 3a (1 marks)
-   ✅ Matched Part: 3b (2 marks)
-   📊 Final Map Keys: 3a, 3b
-
-🔍 [ORCHESTRATOR DEBUG] Q4 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 4 (4 marks)
-   📊 Final Map Keys: 4
-
-🔍 [ORCHESTRATOR DEBUG] Q5 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 5 (4 marks)
-   📊 Final Map Keys: 5
-
-🔍 [ORCHESTRATOR DEBUG] Q6 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 6a (2 marks)
-   ✅ Matched Part: 6b (2 marks)
-   📊 Final Map Keys: 6a, 6b
-
-🔍 [ORCHESTRATOR DEBUG] Q7 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 7 (4 marks)
-   📊 Final Map Keys: 7
-
-🔍 [ORCHESTRATOR DEBUG] Q8 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 8 (3 marks)
-   📊 Final Map Keys: 8
-
-🔍 [ORCHESTRATOR DEBUG] Q9 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 9 (3 marks)
-   📊 Final Map Keys: 9
-
-🔍 [ORCHESTRATOR DEBUG] Q10 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 10 (3 marks)
-   📊 Final Map Keys: 10
-
-🔍 [ORCHESTRATOR DEBUG] Q11 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 11a (3 marks)
-   ✅ Matched Part: 11b (2 marks)
-   📊 Final Map Keys: 11a, 11b
-
-🔍 [ORCHESTRATOR DEBUG] Q12 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 12 (2 marks)
-   📊 Final Map Keys: 12
-
-🔍 [ORCHESTRATOR DEBUG] Q13 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 13 (2 marks)
-   📊 Final Map Keys: 13
-
-🔍 [ORCHESTRATOR DEBUG] Q14 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 14 (4 marks)
-   📊 Final Map Keys: 14
-
-🔍 [ORCHESTRATOR DEBUG] Q15 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 15a (1 marks)
-   ✅ Matched Part: 15b (2 marks)
-   ✅ Matched Part: 15c (3 marks)
-   📊 Final Map Keys: 15a, 15b, 15c
-
-🔍 [ORCHESTRATOR DEBUG] Q16 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 16a (1 marks)
-   ✅ Matched Part: 16b (2 marks)
-   ✅ Matched Part: 16c (2 marks)
-   📊 Final Map Keys: 16a, 16b, 16c
-
-🔍 [ORCHESTRATOR DEBUG] Q17 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 17 (3 marks)
-   📊 Final Map Keys: 17
-
-🔍 [ORCHESTRATOR DEBUG] Q18 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 18 (5 marks)
-   📊 Final Map Keys: 18
-
-🔍 [ORCHESTRATOR DEBUG] Q19 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 19 (3 marks)
-   📊 Final Map Keys: 19
-
-🔍 [ORCHESTRATOR DEBUG] Q20 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 20a (2 marks)
-   ✅ Matched Part: 20b (5 marks)
-   📊 Final Map Keys: 20a, 20b
-
-🔍 [ORCHESTRATOR DEBUG] Q21 | Paper: 1MA1/3H
-   - MasterMatch Keys: board, qualification, paperCode, examSeries, tier, subject, questionNumber, subQuestionNumber, marks, parentQuestionMarks, confidence, paperTitle, examPaper, databaseQuestionText, subQuestionMaxScores, subQuestionTexts, isRescued, markingScheme
-   - MarkingScheme Keys: id, examDetails, questionMarks, allQuestions, totalQuestions, totalMarks, confidence, generalMarkingGuidance
-   - AllQuestions Keys: 1, 4, 5, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 21, 2ai, 2aii, 2b, 3a, 3b, 6a, 6b, 11a, 11b, 15a, 15b, 15c, 16a, 16b, 16c, 20a, 20b
-   ✅ Matched Part: 21 (4 marks)
-   📊 Final Map Keys: 21
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m169.8s[0m ([32m[1mQUESTION-DETECTION[0m)
-
-🔍 [DETECTION CONTEXT]
-   Strategy: Pearson Edexcel 1MA1/3H June 2024 Higher Tier
-   Pool Size: 1 papers, 21 total question candidates
-------------------------------------------------------------------------------------------------------------------------------------
-
-📋 [DETECTION AUDIT REPORT]
-------------------------------------------------------------------------------------------------------------------------------------
-| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
-------------------------------------------------------------------------------------------------------------------------------------
-| 1    | Find the highest common factor (HCF) of 63... | Edexcel GCSE 1MA1/3H June 2024 Q1                  | 0.649 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      ○ [0.649] 1MA1/3H Q1                     | Txt:0.82 Num:0.36 Str:0.50 Sem:PASS
-      ○ [0.304] 1MA1/3H Q16                    | Txt:0.24 Num:0.36 Str:0.50 Sem:FAIL
-      ○ [0.283] 1MA1/3H Q19                    | Txt:0.16 Num:0.45 Str:0.50 Sem:FAIL
-| 2ai  | Write 5.3 x 10' as an ordinary number.  53000 | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.929 | [32m✅ SUCCESS[0m      |
-| 2aii | Write 7.4 x 10 as an ordinary number.  0.0... | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.929 | [32m✅ SUCCESS[0m      |
-| 2b   | Calculate the value of 9.7 x 10+ 2.45 × 10... | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.929 | [32m✅ SUCCESS[0m      |
-| 3    | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
-      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
-      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
-| 3a   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
-      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
-      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
-| 3b   | The diagram shows a solid triangular prism... | Edexcel GCSE 1MA1/3H June 2024 Q3                  | 0.783 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.783] 1MA1/3H Q3                     | Txt:0.98 Num:0.17 Str:1.00 Sem:PASS
-      ○ [0.591] 8300/1F Q3                     | Txt:0.37 Num:0.50 Str:1.00 Sem:PASS
-      ○ [0.547] 8300/2H Q3                     | Txt:0.27 Num:0.50 Str:1.00 Sem:PASS
-| 4    | A company has 25000 workers. The number of... | Edexcel GCSE 1MA1/3H June 2024 Q4                  | 0.929 | [32m✅ SUCCESS[0m      |
-| 5    | Habib has two identical tins. He puts 600 ... | Edexcel GCSE 1MA1/3H June 2024 Q5                  | 0.895 | [32m✅ SUCCESS[0m      |
-| 6    | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.880 | [32m✅ SUCCESS[0m      |
-| 6a   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.880 | [32m✅ SUCCESS[0m      |
-| 6b   | Tim has two biased coins, coin A and coin ... | Edexcel GCSE 1MA1/3H June 2024 Q6                  | 0.880 | [32m✅ SUCCESS[0m      |
-| 7    | A paddling pool is in the shape of a cylin... | Edexcel GCSE 1MA1/3H June 2024 Q7                  | 0.866 | [32m✅ SUCCESS[0m      |
-| 8    | a = \begin{pmatrix} 3 \\ 2 \end{pmatrix} b... | Edexcel GCSE 1MA1/3H June 2024 Q8                  | 0.821 | [32m✅ SUCCESS[0m      |
-| 9    | The diagram shows a cube and a square-base... | Edexcel GCSE 1MA1/3H June 2024 Q9                  | 0.841 | [32m✅ SUCCESS[0m      |
-| 10   | There are only red counters and yellow cou... | Edexcel GCSE 1MA1/3H June 2024 Q10                 | 0.955 | [32m✅ SUCCESS[0m      |
-| 11   | Mina records the speeds, in mph, of some c... | Edexcel GCSE 1MA1/3H June 2024 Q11                 | 0.782 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.782] 1MA1/3H Q11                    | Txt:0.85 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.551] 1MA1/3H Q11                    | Txt:0.56 Num:0.00 Str:1.00 Sem:PASS
-      ○ [0.532] J560/05 Q11                    | Txt:0.51 Num:0.00 Str:1.00 Sem:PASS
-| 11a  | Mina records the speeds, in mph, of some c... | Edexcel GCSE 1MA1/3H June 2024 Q11                 | 0.782 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.782] 1MA1/3H Q11                    | Txt:0.85 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.551] 1MA1/3H Q11                    | Txt:0.56 Num:0.00 Str:1.00 Sem:PASS
-      ○ [0.532] J560/05 Q11                    | Txt:0.51 Num:0.00 Str:1.00 Sem:PASS
-| 11b  | Mina records the speeds, in mph, of some c... | Edexcel GCSE 1MA1/3H June 2024 Q11                 | 0.782 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.782] 1MA1/3H Q11                    | Txt:0.85 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.551] 1MA1/3H Q11                    | Txt:0.56 Num:0.00 Str:1.00 Sem:PASS
-      ○ [0.532] J560/05 Q11                    | Txt:0.51 Num:0.00 Str:1.00 Sem:PASS
-| 12   | The diagram shows triangle T drawn on a gr... | Edexcel GCSE 1MA1/3H June 2024 Q12                 | 0.833 | [32m✅ SUCCESS[0m      |
-| 13   | There are 30 students in a class. A teache... | Edexcel GCSE 1MA1/3H June 2024 Q13                 | 0.908 | [32m✅ SUCCESS[0m      |
-| 14   | At the start of 2022 Kim invested some mon... | Edexcel GCSE 1MA1/3H June 2024 Q14                 | 0.908 | [32m✅ SUCCESS[0m      |
-| 15a  | Simplify fully \frac{(a-3)^2}{5(a-3)}  \fr... | Edexcel GCSE 1MA1/3H June 2024 Q15                 | 0.981 | [32m✅ SUCCESS[0m      |
-| 15b  | Factorise 3k^2 + 11k - 4  (3k-1)(k+4)         | Edexcel GCSE 1MA1/3H June 2024 Q15                 | 0.981 | [32m✅ SUCCESS[0m      |
-| 15c  | Simplify fully \frac{4-x^2}{x^2+3x} \div \... | Edexcel GCSE 1MA1/3H June 2024 Q15                 | 0.981 | [32m✅ SUCCESS[0m      |
-| 16   | The functions f and g are given by f(x) = ... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.978 | [32m✅ SUCCESS[0m      |
-| 16a  | The functions f and g are given by f(x) = ... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.978 | [32m✅ SUCCESS[0m      |
-| 16b  | The functions f and g are given by f(x) = ... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.978 | [32m✅ SUCCESS[0m      |
-| 16c  | The functions f and g are given by f(x) = ... | Edexcel GCSE 1MA1/3H June 2024 Q16                 | 0.978 | [32m✅ SUCCESS[0m      |
-| 17   | A ball is thrown upwards and reaches a max... | Edexcel GCSE 1MA1/3H June 2024 Q17                 | 0.920 | [32m✅ SUCCESS[0m      |
-| 18   | ABCD is a quadrilateral. The area of trian... | Edexcel GCSE 1MA1/3H June 2024 Q18                 | 0.765 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.765] 1MA1/3H Q18                    | Txt:0.74 Num:0.52 Str:1.00 Sem:PASS
-      ○ [0.547] 1MA1/2H Q18                    | Txt:0.52 Num:0.05 Str:1.00 Sem:PASS
-      ○ [0.528] 1MA1/3H Q18                    | Txt:0.38 Num:0.24 Str:1.00 Sem:PASS
-| 19   | R = \\frac{P}{Q} P = 5.88 x 10" correct to... | Edexcel GCSE 1MA1/3H June 2024 Q19                 | 0.916 | [32m✅ SUCCESS[0m      |
-| 20   | x 4, x + 2 and 3x + 1 are three consecutiv... | Edexcel GCSE 1MA1/3H June 2024 Q20                 | 0.941 | [32m✅ SUCCESS[0m      |
-| 20a  | x 4, x + 2 and 3x + 1 are three consecutiv... | Edexcel GCSE 1MA1/3H June 2024 Q20                 | 0.941 | [32m✅ SUCCESS[0m      |
-| 20b  | x 4, x + 2 and 3x + 1 are three consecutiv... | Edexcel GCSE 1MA1/3H June 2024 Q20                 | 0.941 | [32m✅ SUCCESS[0m      |
-| 21   | The diagram shows a circle, radius r cm an... | Edexcel GCSE 1MA1/3H June 2024 Q21                 | 0.839 | [32m✅ SUCCESS[0m      |
-------------------------------------------------------------------------------------------------------------------------------------
-
-
-📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 36
-   Detected: 35/36
-   Not detected: 1
-   [HINT] Hint Used: "Global Search"
-   [HINT] Matched Papers: 108
-[DRAWING] Q3: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q3: Will pass image to Marking AI
-[DRAWING] Q6: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q6: Will pass image to Marking AI
-[DRAWING] Q8: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q8: Will pass image to Marking AI
-[DRAWING] Q11: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q11: Will pass image to Marking AI
-[DRAWING] Q12: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
-[DRAWING] Q12: Will pass image to Marking AI
-🔍 [MERGE-DEBUG] attempting to merge classification results into 21 pages
-   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 0)
-   ✅ [MERGE-DEBUG] Page 1 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 2 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 3 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 4 merged with 2 results (Total Qs: 2)
-   ✅ [MERGE-DEBUG] Page 5 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 6 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 7 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 8 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 9 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 10 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 11 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 12 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 13 merged with 2 results (Total Qs: 2)
-   ✅ [MERGE-DEBUG] Page 14 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 15 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 16 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 17 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 18 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 19 merged with 1 results (Total Qs: 1)
-   ✅ [MERGE-DEBUG] Page 20 merged with 1 results (Total Qs: 1)
-🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
-✅ createMarkingTasksFromClassification completed, created 21 marking task(s)
-[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 1
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "1" | Text: "Find the highest com..." | Page: 1
-✅ [MATCH] 1 found on P1 (Sim: 130%)
-   👉 [LABELS-OUTPUT] Derived 4 labels for targeting: 2ai, 2aii, 2b, 2
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "2a(i)" | Text: "Write $5.3 \times 10..." | Page: ?
-      [1] Label: "2a(ii)" | Text: "Write $7.4 \times 10..." | Page: ?
-      [2] Label: "2b" | Text: "Calculate the value ..." | Page: ?
-✅ [MATCH] 2a(i) found on P2 (Sim: 125%)
-✅ [MATCH] 2a(ii) found on P2 (Sim: 97%)
-✅ [MATCH] 2b found on P2 (Sim: 71%)
-   👉 [LABELS-OUTPUT] Derived 3 labels for targeting: 3a, 3b, 3
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "3a" | Text: "The diagram shows a ..." | Page: ?
-      [1] Label: "3b" | Text: "On the centimetre gr..." | Page: ?
-✅ [MATCH] 3a found on P3 (Sim: 63%)
-✅ [MATCH] 3b found on P4 (Sim: 99%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 4
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "4" | Text: "A company has 25000 ..." | Page: 4
-✅ [MATCH] 4 found on P4 (Sim: 76%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 5
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "5" | Text: "Habib has two identi..." | Page: 5
-✅ [MATCH] 5 found on P5 (Sim: 60%)
-   👉 [LABELS-OUTPUT] Derived 3 labels for targeting: 6a, 6b, 6
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "6a" | Text: "Tim has two biased c..." | Page: ?
-      [1] Label: "6b" | Text: "Tim throws coin A on..." | Page: ?
-✅ [MATCH] 6a found on P6 (Sim: 71%)
-✅ [MATCH] 6b found on P6 (Sim: 84%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 7
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "7" | Text: "A paddling pool is i..." | Page: 7
-✅ [MATCH] 7 found on P7 (Sim: 69%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 8
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "8" | Text: "a = \begin{pmatrix} ..." | Page: 8
-✅ [MATCH] 8 found on P8 (Sim: 81%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 9
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "9" | Text: "The diagram shows a ..." | Page: 9
-✅ [MATCH] 9 found on P9 (Sim: 95%)
-[GUILLOTINE] Q1 GLOBAL exceeded budget! Total 2. Executing final cut...
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 10
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "10" | Text: "There are only red c..." | Page: 10
-✅ [MATCH] 10 found on P10 (Sim: 86%)
-   👉 [LABELS-OUTPUT] Derived 3 labels for targeting: 11a, 11b, 11
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "11a" | Text: "Mina records the spe..." | Page: ?
-      [1] Label: "11b" | Text: "Mina also records th..." | Page: ?
-✅ [MATCH] 11a found on P11 (Sim: 76%)
-✅ [MATCH] 11b found on P11 (Sim: 62%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 12
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "12" | Text: "The diagram shows tr..." | Page: 12
-✅ [MATCH] 12 found on P12 (Sim: 95%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 13
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "13" | Text: "There are 30 student..." | Page: 13
-✅ [MATCH] 13 found on P13 (Sim: 77%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 14
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "14" | Text: "At the start of 2022..." | Page: 13
-✅ [MATCH] 14 found on P13 (Sim: 86%)
-   👉 [LABELS-OUTPUT] Derived 4 labels for targeting: 15a, 15b, 15c, 15
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "15a" | Text: "Simplify fully $\fra..." | Page: ?
-      [1] Label: "15b" | Text: "Factorise $3k^{2}+11..." | Page: ?
-      [2] Label: "15c" | Text: "Simplify fully $\fra..." | Page: ?
-✅ [MATCH] 15a found on P14 (Sim: 125%)
-✅ [MATCH] 15b found on P14 (Sim: 97%)
-✅ [MATCH] 15c found on P14 (Sim: 98%)
-   👉 [LABELS-OUTPUT] Derived 4 labels for targeting: 16a, 16b, 16c, 16
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "16a" | Text: "Find $f(-3)$..." | Page: ?
-      [1] Label: "16b" | Text: "Find $fg(1)$..." | Page: ?
-      [2] Label: "16c" | Text: "Find $g^{-1}(4)$..." | Page: ?
-✅ [MATCH] 16a found on P15 (Sim: 91%)
-✅ [MATCH] 16b found on P15 (Sim: 77%)
-✅ [MATCH] 16c found on P15 (Sim: 92%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 17
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "17" | Text: "A ball is thrown upw..." | Page: 16
-✅ [MATCH] 17 found on P16 (Sim: 89%)
-[GUILLOTINE] Q10 GLOBAL exceeded budget! Total 3. Executing final cut...
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 18
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "18" | Text: "ABCD is a quadrilate..." | Page: 17
-✅ [MATCH] 18 found on P17 (Sim: 63%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 19
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "19" | Text: "R = \\frac{P}{Q}
-P =..." | Page: 18
-✅ [MATCH] 19 found on P18 (Sim: 64%)
-   👉 [LABELS-OUTPUT] Derived 3 labels for targeting: 20a, 20b, 20
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "20a" | Text: "$x-4$, $x+2$ and $3x..." | Page: ?
-      [1] Label: "20b" | Text: "$y-4$, $y+2$ and $3y..." | Page: ?
-✅ [MATCH] 20a found on P19 (Sim: 88%)
-✅ [MATCH] 20b found on P19 (Sim: 83%)
-   👉 [LABELS-OUTPUT] Derived 1 labels for targeting: 21
-   🏛️ [ZONE-STRATEGY] Fallback to Mapper Truth. Found 1 blocks.
-   🏗️ [ZONE-INPUT] Expected Questions Payload:
-      [0] Label: "21" | Text: "The diagram shows a ..." | Page: 20
-✅ [MATCH] 21 found on P20 (Sim: 90%)
-[GUILLOTINE] Q19 GLOBAL exceeded budget! Total 3. Executing final cut...
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m98.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m98.7s[0m ([32m[1mAI-MARKING[0m)
-
-🔍 [RESULT VERIFICATION] Checking what will be combined:
-   📊 Marking Results: 20 questions
-   📝 Question Results: NO
-   ✅ Both modes triggered: NO
-🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
-[TOTAL TRAP] Q1: Scheme=2, AI=2, IsDefault=false -> FINAL=2
-[TOTAL TRAP] Q3: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q4: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Q5: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Q6: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Q7: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Q8: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q9: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q10: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q11: Scheme=5, AI=5, IsDefault=false -> FINAL=5
-[TOTAL TRAP] Q12: Scheme=2, AI=2, IsDefault=false -> FINAL=2
-[TOTAL TRAP] Q13: Scheme=2, AI=2, IsDefault=false -> FINAL=2
-[TOTAL TRAP] Q14: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Q15: Scheme=6, AI=6, IsDefault=false -> FINAL=6
-[TOTAL TRAP] Q16: Scheme=5, AI=5, IsDefault=false -> FINAL=5
-[TOTAL TRAP] Q17: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q18: Scheme=5, AI=5, IsDefault=false -> FINAL=5
-[TOTAL TRAP] Q19: Scheme=3, AI=3, IsDefault=false -> FINAL=3
-[TOTAL TRAP] Q20: Scheme=7, AI=7, IsDefault=false -> FINAL=7
-[TOTAL TRAP] Q21: Scheme=4, AI=4, IsDefault=false -> FINAL=4
-[TOTAL TRAP] Grand Total Possible Score: 76
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 2
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "3b" | Rect: [x=345, y=296, w=2084, h=1310] | StartY: 296, EndY: 1606
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "4" | Rect: [x=271, y=1551, w=2158, h=1957] | StartY: 1551, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 0
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "3a" | Rect: [x=197, y=214, w=2232, h=3294] | StartY: 214, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "1" | Rect: [x=249, y=660, w=2180, h=2848] | StartY: 660, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "5" | Rect: [x=252, y=280, w=2177, h=3228] | StartY: 280, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 2
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "6a" | Rect: [x=284, y=277, w=2145, h=1806] | StartY: 277, EndY: 2083
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "6b" | Rect: [x=354, y=2083, w=2075, h=1425] | StartY: 2083, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "8" | Rect: [x=367, y=477, w=2062, h=3031] | StartY: 477, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "7" | Rect: [x=236, y=274, w=2193, h=3234] | StartY: 274, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "9" | Rect: [x=269, y=280, w=2160, h=3228] | StartY: 280, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "10" | Rect: [x=334, y=291, w=2095, h=3217] | StartY: 291, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 2
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "11a" | Rect: [x=274, y=258, w=2155, h=1529] | StartY: 258, EndY: 1787
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "11b" | Rect: [x=334, y=1787, w=2095, h=1721] | StartY: 1787, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "12" | Rect: [x=318, y=285, w=2111, h=3223] | StartY: 285, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 2
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "13" | Rect: [x=285, y=269, w=2144, h=3239] | StartY: 269, EndY: 3508
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "14" | Rect: [x=271, y=1252, w=2158, h=2256] | StartY: 1252, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 3
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "16a" | Rect: [x=334, y=532, w=2095, h=707] | StartY: 532, EndY: 1239
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "16b" | Rect: [x=323, y=1239, w=2106, h=921] | StartY: 1239, EndY: 2160
-   🎨 [ZONE-SVG-DRAW] [#2] Label: "16c" | Rect: [x=334, y=2160, w=2095, h=1348] | StartY: 2160, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "17" | Rect: [x=323, y=274, w=2106, h=3234] | StartY: 274, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 3
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "15a" | Rect: [x=329, y=296, w=2100, h=751] | StartY: 296, EndY: 1047
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "15b" | Rect: [x=375, y=1047, w=2054, h=786] | StartY: 1047, EndY: 1833
-   🎨 [ZONE-SVG-DRAW] [#2] Label: "15c" | Rect: [x=378, y=1833, w=2051, h=1675] | StartY: 1833, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "18" | Rect: [x=312, y=1403, w=2117, h=2105] | StartY: 1403, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "19" | Rect: [x=367, y=658, w=2062, h=2850] | StartY: 658, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 2
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "20a" | Rect: [x=235, y=215, w=2194, h=1029] | StartY: 215, EndY: 1244
-   🎨 [ZONE-SVG-DRAW] [#1] Label: "20b" | Rect: [x=285, y=1244, w=2144, h=2264] | StartY: 1244, EndY: 3508
-🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: undefined, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: true, finalDraw: true, Count: 1
-   🎨 [ZONE-SVG-DRAW] [#0] Label: "21" | Rect: [x=288, y=236, w=2141, h=3272] | StartY: 236, EndY: 3508
-[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
-[32m✅ [LOGICAL RE-INDEXING] Re-indexed 20 questions and 21 pages.[0m
-[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 0 ([37mFRONT PAGE[32m) -> [2] Page 1 ([37mQ1[32m) -> [3] Page 3 ([37mQ3a[32m) -> [4] Page 4 ([37mQ3b, Q4[32m) -> [5] Page 5 ([37mQ5[32m) -> [6] Page 6 ([37mQ6a, Q6b[32m) -> [7] Page 7 ([37mQ7[32m) -> [8] Page 8 ([37mQ8[32m) -> [9] Page 9 ([37mQ9[32m) -> [10] Page 10 ([37mQ10[32m) -> [11] Page 11 ([37mQ11a, Q11b[32m) -> [12] Page 12 ([37mQ12[32m) -> [13] Page 13 ([37mQ13, Q14[32m) -> [14] Page 14 ([37mQ15a, Q15b, Q15c[32m) -> [15] Page 15 ([37mQ16a, Q16b, Q16c[32m) -> [16] Page 16 ([37mQ17[32m) -> [17] Page 17 ([37mQ18[32m) -> [18] Page 18 ([37mQ19[32m) -> [19] Page 19 ([37mQ20a, Q20b[32m) -> [20] Page 20 ([37mQ21[32m) -> [21] Page 2 ([37mQ2ai, Q2aii, Q2b[32m)[0m
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m17.5s[0m ([32m[1mOUTPUT-GENERATION[0m)
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-
-📊 [ANNOTATION SUMMARY]
------------------------------------------------------------------------------------------
-| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m1       [0m | 0/2   | A1, M1                  | AI:2/2 → M:2 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m3       [0m | 2/3   | C1, A1, M1              | AI:1/3 → M:1 U:2                       |
-| [90m  a     [0m | 1     | C1                      | AI:1/1 → M:1 U:0                       |
-| [90m  b     [0m | 2     | A1, M1                  | AI:0/2 → M:0 U:2                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m4       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m5       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m6       [0m | 4/4   | B1, B1, A1, M1          | AI:4/4 → M:4 U:0                       |
-| [90m  a     [0m | 2     | B1, B1                  | AI:2/2 → M:2 U:0                       |
-| [90m  b     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m7       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m8       [0m | 3/3   | A1, M1, M1              | AI:0/3 → M:0 U:3                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m9       [0m | 3/3   | A1, P1, P1              | AI:3/3 → M:3 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m10      [0m | 3/3   | M1, M1, M1              | AI:3/3 → M:3 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m11      [0m | 2/5   | C1, C1                  | AI:0/2 → M:0 U:2                       |
-| [90m  b     [0m | 2     | C1, C1                  | AI:0/2 → M:0 U:2                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m12      [0m | 4/2   | B2, B2                  | AI:0/2 → M:0 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m13      [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m14      [0m | 4/4   | A1, P1, P1, P1          | AI:2/4 → M:2 U:2                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m15      [0m | 6/6   | B1, A1, M1, A1, M1, M1  | AI:4/6 → M:4 U:2                       |
-| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
-| [90m  b     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
-| [90m  c     [0m | 3     | A1, M1, M1              | AI:1/3 → M:1 U:2                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m16      [0m | 5/5   | B1, A1, M1, A1, M1      | AI:3/5 → M:3 U:2                       |
-| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
-| [90m  b     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
-| [90m  c     [0m | 2     | A1, M1                  | AI:0/2 → M:0 U:2                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m17      [0m | 3/3   | A1, M1, M1              | AI:1/3 → M:1 U:2                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m18      [0m | 5/5   | A1, P1, P1, P1, P1      | AI:2/5 → M:2 U:3                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m19      [0m | 3/3   | A1, B1, B1              | AI:3/3 → M:3 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m20      [0m | 7/7   | A1, P1, A1, P1, P1, P1, P1 | AI:7/7 → M:7 U:0                       |
-| [90m  a     [0m | 2     | A1, P1                  | AI:2/2 → M:2 U:0                       |
-| [90m  b     [0m | 5     | A1, P1, P1, P1, P1      | AI:5/5 → M:5 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m21      [0m | 4/4   | P1, P1, P1, C1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-
-=== PERFORMANCE SUMMARY ===
-Total Processing Time: 568.6s
-Model Used: gemini-2.0-flash
-----------------------------
-question_detection                  169.8s (30%)
-classification                      154.8s (27%)
-marking                             98.7s (17%)
-ocr_processing                      90.2s (16%)
-database_persistence                17.5s (3%)
-output_generation                   17.5s (3%)
-preprocessing                       4.7s (1%)
-performance_summary                 1.1s (0%)
-============================
-
-
-📊 [UsageTracker] Summary:
-   Model: gemini-2.0-flash
-   API Requests: 44 total
-   Total Tokens: 293,609 (263,389 in + 30,220 out)
-   Total Cost: $0.121498
-   Mathpix OCR: 21 pages → $0.084000
-
-   Breakdown by Phase:
-   • Mapper (Map Pass): 7,067 tokens (1 requests) → $0.000929
-   • Classification (Marking Pass): 139,485 tokens (21 requests) → $0.017051
-   • Marking: 143,875 tokens (21 requests) → $0.020109
-   • Performance Summary: 3,182 tokens (1 requests) → $0.000338
-
-
-🏁 ========== UNIFIED PIPELINE END ==========
-🏁 ==========================================
-
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769447651135
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769447651135
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.12149760000000001
-🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 12.15 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769447651135), remaining: 584.37
-💳 Deducted 0.1215 credits (session: sub-1769447651135) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769447651135
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs

@@ -41,10 +41,15 @@ export class MarkingZoneService {
             );
 
             if (match) {
+                const blockY = MarkingZoneService.getY(match.block);
+                if (isNaN(blockY)) {
+                    console.log(`\x1b[31m[GETY-NaN] Q${questionId} matched block for ${eq.label} has NaN Y: ${JSON.stringify(match.block.coordinates || match.block.bbox)}\x1b[0m`);
+                }
+
                 detectedLandmarks.push({
                     key: finalKey,
                     label: eq.label,
-                    startY: MarkingZoneService.getY(match.block),
+                    startY: blockY,
                     pageIndex: match.block.pageIndex,
                     x: MarkingZoneService.getX(match.block)
                 });
@@ -71,6 +76,7 @@ export class MarkingZoneService {
                 cutReason = `Next Sibling (${next.key})`;
             }
             else {
+                // If there is no next sub-question on the same page, we MUST find a stop signal (next question text)
                 if (nextQuestionText) {
                     const stopMatch = this.findBestBlock(
                         sortedBlocks,
@@ -89,7 +95,15 @@ export class MarkingZoneService {
                             endY = MarkingZoneService.getY(stopMatch.block);
                             cutReason = `Next Question Text (Sim: ${(stopMatch.similarity * 100).toFixed(0)}%)`;
                         }
+                    } else {
+                        // [STRICT-VETO] No next sibling and no stop signal found on current page
+                        throw new Error(`[ZONE-REJECTION] Sub-question "${current.key}" has no clear ending. Next question text "${nextQuestionText.substring(0, 30)}..." was not found on Page ${current.pageIndex}.`);
                     }
+                } else {
+                    // No stop signal provided, and no next sibling on this or other pages.
+                    // This is the terminal sub-question of the task.
+                    endY = pageHeight;
+                    cutReason = "Terminal Sub-question (End of Task)";
                 }
             }
 
@@ -196,6 +210,13 @@ export class MarkingZoneService {
         const heatMap = new Set<string>();
         if (!rawBlocks) return heatMap;
 
+        const debugBuffer: string[] = [];
+        // [DEBUG-HEATMAP] Log specific blocks of interest
+        const targetBlocks = rawBlocks.filter(b => (b.text || "").includes("0.4"));
+        if (targetBlocks.length > 0) {
+            console.log(`\x1b[35m[HEATMAP-INPUT] Found ${targetBlocks.length} blocks with '0.4' in input: ${targetBlocks.map(b => b.id).join(', ')}\x1b[0m`);
+        }
+
         const targets = expectedQuestions?.map(q => ({ label: q.label, text: q.text })).filter(t => !!t.text) || [];
 
         for (const block of rawBlocks) {
@@ -217,13 +238,17 @@ export class MarkingZoneService {
                     const exactRegex = new RegExp(`^\\(?${this.escapeRegExp(target.label)}[\\s\\.\\)]`, 'i');
                     if (exactRegex.test(blockText.trim())) anchorBoost = 0.3;
                 }
-
                 if (Math.max(simContent, simSkeleton) + anchorBoost > 0.4) {
                     const id = block.id || block.globalBlockId || block.blockId;
                     if (id) {
                         heatMap.add(id);
+                        if (String(id).includes("p6_")) {
+                            debugBuffer.push(`\x1b[32m[ACCEPT] ${id.padEnd(10)} | Sim: ${simContent.toFixed(2)} | Target: "${target.label}" | Text: "${blockText.substring(0, 40)}..."\x1b[0m`);
+                        }
                     }
                     break;
+                } else if (String(block.id).includes("p6_")) {
+                    debugBuffer.push(`\x1b[31m[REJECT] ${String(block.id || 'NO-ID').padEnd(10)} | Sim: ${simContent.toFixed(2)} | Target: "${target.label}" | Text: "${blockText.substring(0, 40)}..."\x1b[0m`);
                 }
             }
 
@@ -239,6 +264,13 @@ export class MarkingZoneService {
                 }
             }
         }
+
+        if (debugBuffer.length > 0) {
+            console.log(`\n🔥 [HEAT MAP REPORT - Q6]`);
+            console.log(debugBuffer.join('\n'));
+            console.log(`--------------------------------------------------\n`);
+        }
+
         return heatMap;
     }
 

@@ -615,10 +615,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
           </div>
           <p className="chat-title-greeting">
-            Precision Spatial AI Marking
+            AI Marking for Handwritten GCSE Maths
           </p>
           <p className="chat-title-description">
-            Unlock method marks (M1) and board-aligned feedback with every scan.
+            Get instant grades and method marks (M1) for your AQA, Edexcel, or OCR past papers.
           </p>
         </div>
       )}
@@ -744,7 +744,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       ? "AI is processing..."
                       : mode === 'follow-up'
                         ? "Ask a follow-up question about your marks..."
-                        : "Search exam code (e.g., Edexcel June 2024 3H) to start your marking session..."
+                        : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"

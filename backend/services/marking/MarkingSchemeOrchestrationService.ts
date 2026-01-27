@@ -411,12 +411,7 @@ export class MarkingSchemeOrchestrationService {
       // CASE B: PAST PAPER (Prefix-First Strategy)
       const allPaperQuestions = masterMatch.markingScheme?.allQuestions || {};
 
-      console.log(`\n🔍 [ORCHESTRATOR DEBUG] Q${baseQuestionNumber} | Paper: ${paperCode}`);
-      console.log(`   - MasterMatch Keys: ${Object.keys(masterMatch).join(', ')}`);
-      if (masterMatch.markingScheme) {
-        console.log(`   - MarkingScheme Keys: ${Object.keys(masterMatch.markingScheme).join(', ')}`);
-        console.log(`   - AllQuestions Keys: ${Object.keys(masterMatch.markingScheme.allQuestions || {}).join(', ')}`);
-      }
+
 
       const subQuestionMarksMap: any = {};
       const subQuestionNumbers: string[] = [];

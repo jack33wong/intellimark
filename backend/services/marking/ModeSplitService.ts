@@ -125,16 +125,26 @@ export class ModeSplitService {
                 result: result.result ? {
                     ...result.result,
                     // Re-index questions array
-                    questions: result.result.questions?.map((q: any) => ({
-                        ...q,
-                        sourcePageIndex: newIdx >= 0 ? newIdx : q.sourcePageIndex,
-                        pageIndex: newIdx >= 0 ? newIdx : q.pageIndex,
-                        // Re-index blocks array inside each question
-                        blocks: q.blocks?.map((block: any) => ({
-                            ...block,
-                            pageIndex: newIdx >= 0 ? newIdx : block.pageIndex
-                        })) || q.blocks
-                    })) || result.result.questions
+                    questions: result.result.questions?.map((q: any) => {
+                        const qNewIdx = markingPages.findIndex(p => p.originalPageIndex === q.sourceImageIndex);
+                        return {
+                            ...q,
+                            sourceImageIndex: qNewIdx >= 0 ? qNewIdx : q.sourceImageIndex,
+                            sourceImageIndices: q.sourceImageIndices?.map((oldIdx: number) => {
+                                const foundIdx = markingPages.findIndex(p => p.originalPageIndex === oldIdx);
+                                return foundIdx >= 0 ? foundIdx : oldIdx;
+                            }) || q.sourceImageIndices,
+                            pageIndex: qNewIdx >= 0 ? qNewIdx : q.pageIndex,
+                            // Re-index blocks array inside each question
+                            blocks: q.blocks?.map((block: any) => {
+                                const blockFoundIdx = markingPages.findIndex(p => p.originalPageIndex === block.pageIndex);
+                                return {
+                                    ...block,
+                                    pageIndex: blockFoundIdx >= 0 ? blockFoundIdx : block.pageIndex
+                                };
+                            }) || q.blocks
+                        };
+                    }) || result.result.questions
                 } : result.result
             };
 

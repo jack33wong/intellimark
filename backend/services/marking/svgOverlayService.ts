@@ -164,7 +164,7 @@ export class SVGOverlayService {
 
     // --- SUB-QUESTION ZONES DEBUG BORDER (Optional) ---
     const drawZones = process.env.DRAW_SUBQUESTION_ZONES === 'true' || process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER === 'true';
-    console.log(`🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: ${process.env.DRAW_SUBQUESTION_ZONES}, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: ${process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER}, finalDraw: ${drawZones}, Count: ${semanticZones ? (Array.isArray(semanticZones) ? semanticZones.length : Object.keys(semanticZones).length) : 0}`);
+    // console.log(`🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: ${process.env.DRAW_SUBQUESTION_ZONES}, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: ${process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER}, finalDraw: ${drawZones}, Count: ${semanticZones ? (Array.isArray(semanticZones) ? semanticZones.length : Object.keys(semanticZones).length) : 0}`);
 
     if (drawZones && semanticZones) {
       const zonesToDraw = Array.isArray(semanticZones) ? semanticZones :
@@ -179,7 +179,7 @@ export class SVGOverlayService {
           const szW = actualWidth - szX - (50 * scaleX);
           const szH = (zone.endY - zone.startY) * scaleY;
 
-          console.log(`   🎨 [ZONE-SVG-DRAW] [#${idx}] Label: "${zone.label}" | Rect: [x=${Math.round(szX)}, y=${Math.round(szY)}, w=${Math.round(szW)}, h=${Math.round(szH)}] | StartY: ${zone.startY}, EndY: ${zone.endY}`);
+          // console.log(`   🎨 [ZONE-SVG-DRAW] [#${idx}] Label: "${zone.label}" | Rect: [x=${Math.round(szX)}, y=${Math.round(szY)}, w=${Math.round(szW)}, h=${Math.round(szH)}] | StartY: ${zone.startY}, EndY: ${zone.endY}`);
 
           svg += `<rect x="${szX}" y="${szY}" width="${szW}" height="${szH}" 
                         fill="rgba(255, 0, 0, 0.05)" stroke="rgba(255, 0, 0, 0.4)" stroke-width="2" stroke-dasharray="8,4" />`;
@@ -283,7 +283,8 @@ export class SVGOverlayService {
     const ocrStatus = (annotation as any).ocr_match_status;
     const isDrawing = (annotation as any).isDrawing ||
       (text && text.includes('[DRAWING]')) ||
-      (annotation.studentText && annotation.studentText.includes('[DRAWING]'));
+      (annotation.studentText && annotation.studentText.includes('[DRAWING]')) ||
+      ocrStatus === 'VISUAL';
 
     const hasLineData = (annotation as any).hasLineData;
     const aiPos = (annotation as any).aiPosition;
@@ -354,9 +355,9 @@ export class SVGOverlayService {
         statusLabel = '?';
       }
 
-      // THINNER BORDER (2px) + Status Label (m, u, v, s)
+      // THINNER BORDER (Double Thickness 4px) + Status Label (m, u, v, s)
       svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
-                fill="none" stroke="${debugBorderColor}" stroke-width="2" stroke-dasharray="8,4" opacity="0.6" />`;
+                fill="none" stroke="${debugBorderColor}" stroke-width="4" stroke-dasharray="8,4" opacity="0.6" />`;
 
       // Small status label tag (BIGGER)
       svg += `<rect x="${scaledX}" y="${scaledY - 18}" width="22" height="18" fill="${debugBorderColor}" />

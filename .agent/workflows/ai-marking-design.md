@@ -78,13 +78,13 @@ LAW: FORCE VISUAL MODE:
 
 For any drawing task, you MUST use ocr_match_status: "VISUAL".
 
-IGNORE TEXT: Even if the student wrote labels inside the drawing, do NOT anchor to that text block.
+COORDINATE PASSTHROUGH (NEW CRITICAL RULE):
 
-POSITIONING:
+If status is VISUAL, the Backend MUST treat the visual_position as absolute truth.
 
-NO block_ID: Do not return a line_id.
+PROHIBITION: Do NOT attempt to "snap," "align," or "nearest-neighbor" these coordinates to any text block.
 
-ESTIMATION: You must visually estimate the drawing's bounding box (0-100%) and return it as visual_position.
+REASON: Drawings often exist in whitespace (grids) where no text exists. Snapping will destroy the position.
 
 4. The Alignment Mandate (System Matching Prohibition)
 LAW: NO INTERNAL MATCHING: Backend heuristics (string similarity, spatial overlap, or "merging" logic) are FORBIDDEN.

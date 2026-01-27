@@ -27,18 +27,17 @@ export class CoordinateTransformationService {
     static detectUnit(coords: number[]): 'percentage' | 'ppt' | 'pixels' {
         const maxVal = Math.max(...coords);
 
-        // Logic: 
-        // < 101 -> Likely Percentages (0-100)
-        // < 1001 -> Likely Parts Per Thousand (0-1000)
-        // > 1000 -> Likely Raw Pixels
+        // FIX: Be extremely conservative with Percentages.
+        // Only assume percentage if values are small floats (0-1) OR if explicitly tagged.
+        // Assuming 0-100 is percentage is dangerous for pixel headers/margins.
 
-        if (maxVal <= 101) return 'percentage';
-        if (maxVal > 1001) return 'pixels';
+        // If you MUST guess 0-100:
+        if (maxVal <= 1) return 'percentage'; // 0.5 = 50%
 
-        // AMBIGUITY ZONE (101-1001): 
-        // This is where many images (720p, 764px wide etc) collide with PPT.
-        // Default to PPT for now, but we encourage passing explicit 'unit'.
-        return 'ppt';
+        // Use PPT (0-1000) as the default relative unit, it's safer.
+        if (maxVal <= 1000) return 'ppt';
+
+        return 'pixels';
     }
 
     /**
@@ -163,6 +162,14 @@ export class CoordinateTransformationService {
         // Apply Offsets
         let x = pixelBox.x + (options.offsetX || 0);
         let y = pixelBox.y + (options.offsetY || 0);
+
+        if (isNaN(x) || isNaN(y)) {
+            console.log(`\x1b[31m[RESOLVE-NaN] Context: ${options.context} | Pixels: (${pixelBox.x}, ${pixelBox.y}) | Offsets: (${options.offsetX}, ${options.offsetY})\x1b[0m`);
+        }
+
+        if (isNaN(x) || isNaN(y)) {
+            console.log(`\x1b[31m[RESOLVE-NaN] Context: ${options.context} | Pixels: (${pixelBox.x}, ${pixelBox.y}) | Offsets: (${options.offsetX}, ${options.offsetY})\x1b[0m`);
+        }
 
         /*
         if (options.offsetX || options.offsetY) {

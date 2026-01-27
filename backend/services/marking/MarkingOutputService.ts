@@ -86,20 +86,31 @@ export class MarkingOutputService {
 
                         if (preciseBlock && preciseBlock.box) {
                             // 3. SNAP: Overwrite visual_position with Precise Mathpix Geometry
-                            // Mathpix coordinates are typically absolute relative to the page image size.
-                            // This bypasses any fuzzy estimation or offset calculation errors.
-                            console.log(`🧲 [SNAP] Snapping annotation ${annotation.line_id} to physical block ${targetId}`);
+                            // [V41 FIX] MUST handle both Array box and Object box formats.
+                            const box = preciseBlock.box;
+                            const rawX = box.x ?? box.left ?? (Array.isArray(box) ? box[0] : 0);
+                            const rawY = box.y ?? box.top ?? (Array.isArray(box) ? box[1] : 0);
+                            const rawW = box.width ?? (Array.isArray(box) ? box[2] : box.w || 0);
+                            const rawH = box.height ?? (Array.isArray(box) ? box[3] : box.h || 0);
 
+                            const annotationPage = standardizedPages.find(p => p.pageIndex === annotation.pageIndex);
+                            const bw = annotationPage?.width || 2000;
+                            const bh = annotationPage?.height || 3000;
+
+                            // Assume pixels for physical blocks (conservative but safer)
                             annotation.visual_position = {
-                                x: preciseBlock.box.x,
-                                y: preciseBlock.box.y,
-                                width: preciseBlock.box.width,
-                                height: preciseBlock.box.height
+                                x: (rawX / bw) * 100,
+                                y: (rawY / bh) * 100,
+                                width: (rawW / bw) * 100,
+                                height: (rawH / bh) * 100
                             };
+
+                            console.log(`🧲 [SNAP] Snapping annotation ${annotation.line_id} to physical block ${targetId} (${Math.round(annotation.visual_position.y)}%)`);
 
                             // Mark as snapped for debugging/transparency
                             (annotation as any)._snappedToPhysical = true;
-                        } else {
+                        }
+                        else {
                             // console.warn(`⚠️ [SNAP] Could not find physical block for ID: ${targetId}`);
                         }
                     }

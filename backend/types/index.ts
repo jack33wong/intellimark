@@ -144,6 +144,7 @@ export interface Annotation {
   linked_ocr_id?: string; // Explicit Mathpix Block ID verified by AI
   pageIndex?: number; // Page index for multi-page annotations
   visualObservation?: string; // AI's description of the visual content
+  unit?: 'pixels' | 'percentage'; // Explicit unit for coordinate scaling
 }
 
 export interface MarkingInstructions {
@@ -739,4 +740,5 @@ export interface EnrichedAnnotation extends Annotation {
   ocr_match_status?: 'MATCHED' | 'UNMATCHED' | 'VISUAL' | 'FALLBACK';
   visualObservation?: string; // AI's description of the visual content
   visualPosition?: { x: number; y: number; width: number; height: number }; // Explicit visual position for drawings
+  unit?: 'pixels' | 'percentage'; // Explicit unit for coordinate scaling
 }

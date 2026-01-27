@@ -544,7 +544,9 @@ export class MarkingPipelineService {
             logClassificationComplete();
 
             // ========================= CATEGORY OVERRIDE (BEFORE SPLIT) =========================
-            // Override 1: Drawing-only pages → questionOnly
+            // [REMOVED] Override 1: Drawing-only pages → questionOnly
+            // User requested to preserve drawing detection even if text is minimal.
+            /*
             const questionAnswerPages = allClassificationResults.filter(r => r.result?.category === 'questionAnswer');
             if (questionAnswerPages.length > 0) {
                 const allWorkIsDrawingsOnly = questionAnswerPages.every(r => {
@@ -569,6 +571,7 @@ export class MarkingPipelineService {
                     });
                 }
             }
+            */
 
             // Override 3: 90% Student Work Rule
             // If >= 90% of the document has student work, treat the remaining questionOnly pages as student work too
@@ -1396,7 +1399,16 @@ export class MarkingPipelineService {
                                                         }
 
                                                         // Extract value (e.g., B2 is 2 marks)
-                                                        const val = parseInt((a.text || '').replace(/\D/g, '') || '1');
+                                                        // Extract value carefully. Default to 1.
+                                                        // Look for "M1", "A2" at start. Avoid "UQ (47)" -> 47.
+                                                        const match = (a.text || '').match(/^([A-Za-z]+)(\d+)/);
+                                                        let val = 1;
+                                                        if (match && match[2]) {
+                                                            val = parseInt(match[2]);
+                                                        } else {
+                                                            // Fallback: If no code found, assume 1 mark if tick/mark
+                                                            val = 1;
+                                                        }
 
                                                         if (currentSubScore + val <= subBudget) {
                                                             kept.push(a);
@@ -1432,7 +1444,13 @@ export class MarkingPipelineService {
                                                     let runningGlobal = 0;
                                                     const globalKept: any[] = [];
                                                     finalizedAnnotations.forEach(a => {
-                                                        const val = parseInt((a.text || '').replace(/\D/g, '') || '1');
+                                                        const match = (a.text || '').match(/^([A-Za-z]+)(\d+)/);
+                                                        let val = 1;
+                                                        if (match && match[2]) {
+                                                            val = parseInt(match[2]);
+                                                        } else {
+                                                            val = 1;
+                                                        }
                                                         const isAwarded = a.action === 'tick' || a.action === 'mark' || (parseInt((a.text || '').replace(/\D/g, '') || '0') > 0);
                                                         if (!isAwarded || (runningGlobal + val <= totalBudget)) {
                                                             globalKept.push(a);

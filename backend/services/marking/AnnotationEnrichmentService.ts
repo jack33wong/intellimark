@@ -64,17 +64,38 @@ export const enrichAnnotationsWithPositions = (
 
     // Helper: Find in Raw Classification Data (Percent 0-100)
     const findInClassification = (id: string) => {
-        if (!classificationBlocks || classificationBlocks.length === 0) return null;
+        if (!classificationBlocks) return null;
+        // const result = null; // This line was redundant
         for (const block of classificationBlocks) {
             if (block.studentWorkLines) {
                 const match = block.studentWorkLines.find((l: any) => l.id === id);
-                if (match) return { ...match, pageIndex: block.pageIndex ?? defaultPageIndex };
+                if (match) {
+                    const blockIdx = block.pageIndex ?? defaultPageIndex;
+                    const sourceBox = match.bbox || match.box || match.position;
+                    /*
+                    if (sourceBox && (isNaN(sourceBox[0]) || isNaN(sourceBox[1]))) {
+                        console.log(`\x1b[31m[CLASSIFICATION-FIND-NaN] Q${questionId} ID: ${id} matched block has NaN in bbox: ${JSON.stringify(sourceBox)}\x1b[0m`);
+                    }
+                    console.log(`\x1b[35m[CLASSIFICATION-FIND] ID: ${id} | Found Box: ${JSON.stringify(sourceBox)} | Page: ${blockIdx}\x1b[0m`);
+                    */
+                    return { ...match, pageIndex: blockIdx };
+                }
             }
             if (block.subQuestions) {
                 for (const sub of block.subQuestions) {
                     if (sub.studentWorkLines) {
                         const match = sub.studentWorkLines.find((l: any) => l.id === id);
-                        if (match) return { ...match, pageIndex: block.pageIndex ?? defaultPageIndex };
+                        if (match) {
+                            const blockIdx = block.pageIndex ?? defaultPageIndex;
+                            const sourceBox = match.bbox || match.box || match.position;
+                            /*
+                            if (sourceBox && (isNaN(sourceBox[0]) || isNaN(sourceBox[1]))) {
+                                console.log(`\x1b[31m[CLASSIFICATION-FIND-SUB-NaN] Q${questionId} ID: ${id} matched sub-block has NaN in bbox: ${JSON.stringify(sourceBox)}\x1b[0m`);
+                            }
+                            console.log(`\x1b[35m[CLASSIFICATION-FIND-SUB] ID: ${id} | Found Box: ${JSON.stringify(sourceBox)} | Page: ${blockIdx}\x1b[0m`);
+                            */
+                            return { ...match, pageIndex: blockIdx };
+                        }
                     }
                 }
             }
@@ -94,173 +115,201 @@ export const enrichAnnotationsWithPositions = (
         let rawBox: any = null;
         let forceLandmark = false;
 
-        const lineId = (anno as any).line_id || "";
+        let lineId = (anno as any).line_id || "";
         const incomingStatus = (anno as any).ocr_match_status || "UNMATCHED";
 
+        const rawVisualPos = (anno as any).visual_position || (anno as any).aiPosition || (anno as any).visualPosition;
+
+        // ==================================================================================
+        // 🛑 PATH 0: THE KILL SWITCH (VISUAL SOVEREIGNTY)
+        // ==================================================================================
+        if (incomingStatus === "VISUAL" && rawVisualPos) {
+            const safePageIndex = (pageIndex < 0) ? defaultPageIndex : pageIndex;
+            let dims = getPageDims(pageDimensions!, safePageIndex);
+            if (!dims || !dims.width || !dims.height) {
+                console.log(`[VISUAL-FIX-WARN] Dims missing for p${safePageIndex}. Using 1000x1000 fallback.`);
+                dims = { width: 1000, height: 1000 };
+            }
+
+            const vPos = rawVisualPos;
+            const pixelX = (vPos.x / 100) * dims.width;
+            const pixelY = (vPos.y / 100) * dims.height;
+            const pixelW = (vPos.width / 100) * dims.width;
+            const pixelH = (vPos.height / 100) * dims.height;
+
+            if (anno.subQuestion === "11a") {
+                console.log(`[VISUAL-FIX] Q11a Sovereignty Applied. AI: ${vPos.y}% -> Px: ${pixelY}. Method: PATH_0_BYPASS`);
+            }
+
+            return {
+                ...anno,
+                bbox: [pixelX, pixelY, pixelW, pixelH],
+                pageIndex: safePageIndex,
+                ocr_match_status: "VISUAL",
+                _debug_placement_method: "PATH_0_SOVEREIGNTY",
+                unit: 'pixels'
+            } as EnrichedAnnotation;
+        }
 
         // ---------------------------------------------------------
-        // PATH 1: PHYSICAL MATCH (High Confidence OCR)
+        // PATH 1: PHYSICAL MATCH
         // ---------------------------------------------------------
         if (incomingStatus === "MATCHED" || (anno as any)._pipeline_action === "AI PRECISE (V4)") {
             const linkedId = (anno as any).linked_ocr_id || lineId;
             const matchInSteps = findInSteps(linkedId);
             if (matchInSteps && matchInSteps.bbox) {
-                rawBox = { ...matchInSteps, x: matchInSteps.bbox[0], y: matchInSteps.bbox[1], width: matchInSteps.bbox[2], height: matchInSteps.bbox[3] };
+                rawBox = {
+                    x: matchInSteps.bbox[0], y: matchInSteps.bbox[1], width: matchInSteps.bbox[2], height: matchInSteps.bbox[3],
+                    unit: (matchInSteps as any).unit || 'pixels'
+                };
                 pageIndex = matchInSteps.pageIndex ?? pageIndex;
                 method = "PHYSICAL_MATCH";
             }
         }
 
         // ---------------------------------------------------------
-        // PATH 2: SMART SNAP (Handwriting Fidelity & Rectification)
+        // PATH 2: SMART SNAP
         // ---------------------------------------------------------
         if (!rawBox && lineId && lineId.startsWith('p0_q')) {
             const match = findInSteps(lineId) || findInClassification(lineId);
             if (match && (match.bbox || match.box || match.position)) {
                 const sourceBox = match.bbox || match.box || match.position;
+                const sourceUnit = (match as any).unit || 'pixels';
                 rawBox = Array.isArray(sourceBox)
-                    ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3] }
-                    : sourceBox;
+                    ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3], unit: sourceUnit }
+                    : { ...sourceBox, unit: sourceUnit };
                 pageIndex = match.pageIndex ?? pageIndex;
                 method = "SMART_SNAP";
             }
         }
 
         // ---------------------------------------------------------
-        // PATH 2.1: COORDINATE SHIFT (The Missing Link)
+        // PATH 2.5: AI VISUAL FALLBACK
         // ---------------------------------------------------------
-        // If we are using Classification IDs (p0_q...), the coordinates
-        // are GLOBAL to the page (Percent 0-100). We must SHIFT them to be relative
-        // to the zone so that Clamping + Offset works correctly down the line.
-        if (method === "SMART_SNAP" && rawBox && rawBox.unit === 'percentage' && semanticZones) {
-            const subQ = (anno.subQuestion || "").toLowerCase();
-            const matchingZones = (semanticZones[subQ] || []);
-            if (matchingZones.length > 0) {
-                const zone = matchingZones[0];
-                const pageHeight = getPageDims(pageDimensions!, pageIndex).height || 2000;
-                // Shift Y to be relative to Zone Start
-                rawBox.y = rawBox.y - ((zone.startY / pageHeight) * 100);
-            }
+        if (!rawBox && rawVisualPos) {
+            rawBox = { ...rawVisualPos, unit: 'percentage' };
+            (anno as any).ai_visual_position = rawBox;
+            method = "VISUAL_AI";
         }
 
         // ---------------------------------------------------------
-        // PATH 2.5: VISUAL SNAP (Drawing Fallback)
+        // PATH 3: EMERGENCY LANDMARK (Veto Handler)
         // ---------------------------------------------------------
-        if (!rawBox && incomingStatus === "VISUAL") {
-            const drawingMatch = stepsDataForMapping.find(s =>
-                (s.line_id && s.line_id.includes('_drawing_')) ||
-                (s.text && s.text.includes('[DRAWING]'))
-            );
-            if (drawingMatch) {
-                const sourceBox = drawingMatch.bbox || drawingMatch.box || drawingMatch.position;
-                rawBox = Array.isArray(sourceBox)
-                    ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3] }
-                    : sourceBox;
-                pageIndex = drawingMatch.pageIndex ?? pageIndex;
-                method = "VISUAL_SNAP";
-            }
+        // FIX: Explicitly handle UNMATCHED status (from Iron Dome Veto)
+        // This ensures we enter the zone processing logic below.
+        if (incomingStatus === "UNMATCHED") {
+            method = "EMERGENCY";
+            forceLandmark = true;
+            // IMPORTANT: We KEEP the rawBox from Path 2.5 (Visual AI) if it exists.
+            // We want "Classification X,Y" + "Zone Protect Y".
         }
 
-        // ---------------------------------------------------------
-        // PATH 3: EMERGENCY LANDMARK (Data Absence Fallback)
-        // ---------------------------------------------------------
         if (!rawBox) {
             method = "EMERGENCY";
             forceLandmark = true;
         }
 
-        // 🏗️ RESOLVE LANDMARKS & OFFSETS
         const dims = getPageDims(pageDimensions!, pageIndex);
         let offsetX = 0;
         let offsetY = 0;
-        let clamping: any = undefined;
+
+        // ✨ NEW: Universal Clamping Variable
+        let clampingOptions: { startY: number; endY: number; pad?: number } | undefined = undefined;
 
         if (semanticZones && (anno.subQuestion || (anno as any).sub_question)) {
             const subQRaw = (anno.subQuestion || (anno as any).sub_question || "").toLowerCase();
-            // 🛡️ [PARSING-FIX] Do NOT strip leading digits. "12" should remain "12" to match zone "12".
             const subQ = subQRaw.replace(/[()\s]/g, '');
 
             const allZoneKeys = Object.keys(semanticZones);
-            let bestSuffixKey = "";
-            for (const key of allZoneKeys) {
-                if (subQ.endsWith(key) && key.length > bestSuffixKey.length) {
-                    bestSuffixKey = key;
+            let bestZoneKey = "";
+
+            // 🛡️ [FIXED ZONE LOOKUP]: Correct Logic Order (Key ends with SubQ)
+            // Sort keys by length (descending) to match "10bii" before "10bi" if colliding
+            const sortedKeys = allZoneKeys.sort((a, b) => b.length - a.length);
+
+            for (const key of sortedKeys) {
+                const cleanKey = key.toLowerCase();
+                // 1. Exact: "10bi" === "10bi"
+                // 2. Suffix: "10bi".endsWith("bi") -> TRUE (Zone holds Question)
+                // 3. Prefix: "bi".startsWith("10bi") -> FALSE
+                if (cleanKey === subQ || cleanKey.endsWith(subQ) || subQ.endsWith(cleanKey)) {
+                    bestZoneKey = key;
+                    break;
                 }
             }
 
-            const matchingZones = (semanticZones[subQ] || [])
-                .concat(bestSuffixKey ? (semanticZones[bestSuffixKey] || []) : [])
-                .concat(subQ.length > 1 ? (semanticZones[subQ.charAt(0)] || []) : []);
+            const matchingZones = bestZoneKey ? semanticZones[bestZoneKey] : [];
 
             if (matchingZones.length > 0) {
                 const zone = matchingZones[0];
-                clamping = { startY: zone.startY, endY: zone.endY };
 
-                // 🛡️ [RECTIFICATION] Snap-Back Logic: If Snap is out of zone, snap to the opposite boundary to ensure legal placement.
-                if (method === "SMART_SNAP") {
-                    const tempBox = CoordinateTransformationService.ensurePixels(rawBox, dims.width, dims.height);
-                    if (tempBox.y < zone.startY || tempBox.y > zone.endY) {
-                        const isDropped = tempBox.y > zone.endY;
-
-                        // IF DROPPED (too low) -> SNAP TO BOTTOM (Highest Y) - HEIGHT (to fit inside)
-                        // IF POPPED (too high) -> SNAP TO TOP (Lowest Y)
-
-                        // [PADDING-FIX] User requested padding based on block height.
-                        // If we snap Y to endY, the block hangs OUTSIDE. We must subtract height.
-                        const padding = isDropped ? (tempBox.height || 20) : 0;
-                        const rectifiedY = isDropped ? (zone.endY - padding) : zone.startY;
-
-                        const label = isDropped ? "HIGHEST (BOTTOM - HEIGHT)" : "LOWEST (TOP)";
-
-                        // console.log(`   🛡️ [RECTIFICATION] Q${questionId}${subQ} Snap at ${Math.round(tempBox.y)}px rectified to ${label} of zone (${rectifiedY}px). Preserving X.`);
-
-                        rawBox = {
-                            x: tempBox.x,
-                            y: rectifiedY,
-                            width: tempBox.width,
-                            height: tempBox.height,
-                            unit: 'pixels'
-                        };
-                    }
+                if (isNaN(zone.startY)) {
+                    console.log(`\x1b[31m[ENRICH-NaN-DEBUG] Q${questionId} SubQ "${subQRaw}" matched zone with NaN startY. Method: ${method}, ID: ${lineId}\x1b[0m`);
                 }
 
-                if (method === "EMERGENCY" || (method === "NONE" && forceLandmark)) {
-                    if (method === "NONE") method = "EMERGENCY";
-                    offsetX = zone.x || globalOffsetX;
-                    offsetY = zone.startY || globalOffsetY;
+                // 🛡️ [CLAMPING]: Define strict boundaries
+                // This object is passed to resolvePixels to enforce "Zone Protect Y"
+                if (zone.startY !== undefined && zone.endY !== undefined) {
+                    clampingOptions = { startY: zone.startY, endY: zone.endY, pad: 5 };
+                }
 
-                    // [V29 FIX] Always trust AI visual position or bbox if available, even without classification ID.
-                    // DO NOT fallback to margin or (0,0) unless absolutely necessary.
-                    rawBox = (anno as any).visual_position || (anno as any).bbox || { x: 50, y: 50, width: 4, height: 3, unit: 'percentage' };
+                // [OFFSET LOGIC]
+                if (method === "EMERGENCY" || method === "VISUAL_AI" || (method === "NONE" && forceLandmark)) {
+                    if (method === "NONE") method = "EMERGENCY";
+
+                    // CRITICAL: If we have AI Visual Position (rawBox), we DO NOT add offsets (it's page relative).
+                    // We only add offsets if we are generating a default fallback box from scratch.
+                    if (rawBox && (rawBox as any).unit === 'percentage') {
+                        offsetX = 0;
+                        offsetY = 0;
+                        // The rawBox (visual_position) will be processed by resolvePixels
+                        // and CLAMPED by clampingOptions.
+                    } else if (!rawBox) {
+                        // True Emergency (No data): Use Zone Top
+                        offsetX = zone.x || globalOffsetX;
+                        offsetY = zone.startY || globalOffsetY;
+
+                        // Create a default box in the zone
+                        const fallbackBox = { x: 50, y: 50, width: 4, height: 3, unit: 'percentage' };
+                        rawBox = fallbackBox;
+                    }
                 }
             }
         }
 
-        // [STAKING-FIX] Calculate stacking BEFORE the universal gate
         const anchorKey = (anno as any).linked_ocr_id || lineId || "default";
         const count = positionCounters.get(anchorKey) || 0;
         positionCounters.set(anchorKey, count + 1);
         const stackingOffset = count > 0 ? count * 35 : 0;
 
-        // 🏁 THE UNIVERSAL GATE
         if (!rawBox) {
-            rawBox = (anno as any).visual_position || (anno as any).bbox || { x: 50, y: 50, width: 4, height: 3, unit: 'percentage' };
+            const fallbackBox = { x: 50, y: 50, width: 4, height: 3, unit: 'percentage' };
+            rawBox = rawVisualPos ? { ...rawVisualPos, unit: 'percentage' }
+                : (anno as any).bbox ? { ...(anno as any).bbox, unit: 'percentage' }
+                    : fallbackBox;
         }
 
+        // [FIX]: Pass 'clampingOptions' to reuse existing logic
+        // This effectively implements "Use Classification X,Y but Zone Protect Y"
         const pixelBox = CoordinateTransformationService.resolvePixels(
             rawBox,
             dims.width,
             dims.height,
-            { offsetX, offsetY: offsetY + stackingOffset, clamping, context: `${method}-${lineId}` }
+            {
+                offsetX,
+                offsetY: offsetY + stackingOffset,
+                context: `${method}-${lineId}`,
+                clamping: clampingOptions // <--- The Enforcer
+            }
         );
-
 
         return {
             ...anno,
             bbox: [pixelBox.x, pixelBox.y, pixelBox.width, pixelBox.height],
             pageIndex: pageIndex,
             ocr_match_status: incomingStatus as any,
-            _debug_placement_method: method
+            _debug_placement_method: method,
+            unit: 'pixels'
         } as EnrichedAnnotation;
     });
 };

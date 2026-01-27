@@ -39,6 +39,14 @@ export class MarkingPositioningService {
         if (classificationBlocks && classificationBlocks.length > 0) {
             const sample = classificationBlocks[0];
             const rawBox = sample.box || sample.coordinates || { x: sample.x, y: sample.y, width: 0, height: 0 };
+
+            // [DEBUG] Warn if classification block exists but rawBox is effectively empty
+            if (!sample.box && !sample.coordinates && (!sample.x && !sample.y)) {
+                // Log the text content to help identify if this is just noise
+                const textPreview = (sample.text || '').substring(0, 100).replace(/\n/g, ' ');
+                console.log(`\x1b[33m[POS-DEBUG] ⚠️ Q${inputQuestionNumber} has classification info but MISSING rawBox! Text: "${textPreview}"\x1b[0m`);
+            }
+
             // Assume 1000px fallback if specific dims not available yet in this context
             const pixelBox = CoordinateTransformationService.ensurePixels(rawBox, 2000, 3000, `OFFSET-CLASS`);
             offsetX = pixelBox.x;
@@ -97,6 +105,13 @@ export class MarkingPositioningService {
                     offsetY = pixelBox.y;
                 }
             }
+        }
+
+        // [DEBUG] Final Failure Log for (0,0) Case
+        if (offsetX === 0 && offsetY === 0) {
+            console.log(`\x1b[33m[POS-DEBUG] ⚠️ Missing Position for Q${inputQuestionNumber} -> (0,0).\x1b[0m`);
+            console.log(`\x1b[33m   - ClassBlocks: ${classificationBlocks?.length ?? 0}\x1b[0m`);
+            console.log(`\x1b[33m   - QuestionDetection: ${!!targetQuestionObject}\x1b[0m`);
         }
 
         // 4. "Smart Sub-Question Anchor" (OCR Block Fallback)

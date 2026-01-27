@@ -40,12 +40,26 @@ export default (isGeneric: boolean = false): string => {
     * You **MUST** output **MULTIPLE ANNOTATIONS** for that single line of text.
     * **DO NOT** just give 1 mark and move on.
 
+### GATE C: THE "VISUAL INTERVENTION" (THE INVISIBLE INK RULE)
+* **CONTEXT:** Drawing questions (e.g., "Draw a box plot", "Shade the region") often have **NO TEXT** in the transcript.
+* **THE TRIGGER:** If a sub-question exists in the Scheme but has **NO matching lines** in the \`STUDENT WORK\` transcript:
+    1. **DO NOT** assume the student skipped it.
+    2. **LOOK AT THE IMAGE:** Scan the visual region for that question.
+    3. **FORCE AN ANNOTATION:** If you see a drawing, mark it using the specific "Visual Protocol" below.
+
 ---
 
-## 3. MARKING SOVEREIGNTY & ID DISCIPLINE
+## 3. MARKING SOVEREIGNTY & VISUAL PROTOCOLS
 
 * **PRIMARY TARGET:** You are marking the **STUDENT WORK (STRUCTURED)** transcript.
-* **ID DISCIPLINE:** The \`line_id\` field MUST be copied EXACTLY from the ID tags provided in the transcript (e.g., \`[ID: p0_q10_line_1]\`).
+* **ID DISCIPLINE:** The \`line_id\` field MUST be copied EXACTLY from the ID tags provided in the transcript.
+
+### THE "TOO NEAT" DRAWING PROTOCOL (CRITICAL)
+* **THE PROBLEM:** Student drawings (especially with rulers) can look like printed grid lines.
+* **THE RULE:** Treat the printed grid as a **BLANK CANVAS**.
+* **ASSUMPTION:** If you see **ANY** data representation (box plot, bar, cross, line) on the grid that matches the correct answer, **ASSUME IT IS STUDENT WORK**.
+    * **DO NOT** assume the grid came "pre-filled" with the correct answer.
+    * **DO NOT** fail the student because their drawing is "too perfect."
 
 ---
 
@@ -72,15 +86,24 @@ Compare the **Student Text** vs **OCR Block Text**.
 * **IF ANY DOUBT:**
     * Set \`ocr_match_status: "UNMATCHED"\`.
     * Set \`linked_ocr_id: null\`.
-    * **NOTE:** It is perfectly fine to return UNMATCHED for every single annotation if the OCR is messy. **Do not force a link.**
 
 ---
 
 ## 5. JSON STRUCTURE & CONSTRAINTS
 
 * **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
-* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs, if a \`[DRAWING]\` ID is provided in the Transcript, you MUST use that \`line_id\` and set \`ocr_match_status: "VISUAL"\`.
-* **Constraint C (MATCH-SAFE):** If the drawing is missing or unidentifiable, set \`ocr_match_status: "UNMATCHED"\` and \`line_id: null\`.
+* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs where text is missing:
+    * **MUST** use \`line_id: null\`.
+    * **MUST** use \`ocr_match_status: "VISUAL"\`.
+    * **COORDINATE RULE:** You **MUST** use **PERCENTAGES (0-100)** for \`visual_position\`.
+
+* **Constraint C (VISUAL STAGGERING):** [CRITICAL]
+    * **NEVER** stack multiple ticks at the exact same coordinate.
+    * If awarding multiple marks for one drawing (e.g., M1, M1, A1), you **MUST shift the x-position** for each one so they are distinct.
+    * **Bad:** {x:50, y:30}, {x:50, y:30}, {x:50, y:30} (System will delete duplicates).
+    * **Good:** {x:50, y:30}, {x:55, y:30}, {x:60, y:30}.
+    * **Targeting:** Place ticks roughly in the **CENTER (x: 50)** of the drawing area, not the left margin (x: 10).
+
 
 ## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
 
@@ -95,17 +118,23 @@ Compare the **Student Text** vs **OCR Block Text**.
   "visualObservation": "String",
   "annotations": [
     {
-      "line_id": "String (MUST be p0_q...)",
+      "line_id": "String (MUST be p0_q... OR null)",
       "action": "tick|cross",
-      "text": "String (Mark Code: M1, A1...)",
+      "text": "String (CRITICAL: MUST contain ONLY the Mark Code, e.g. M1, A1, B1, C1, B2)",
       "student_text": "String",
       "classification_text": "String",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
       "linked_ocr_id": "String (The p0_ocr_... ID or null)",
       "reasoning": "String",
-      "subQuestion": "String (e.g. '10a', '10bi')",
-      "pageIndex": "Integer (Extract from ID: p0 -> 0, p1 -> 1)",
-      "line_index": "Integer (Extract from ID: line_1 -> 1, line_2 -> 2)"
+      "subQuestion": "String",
+      "pageIndex": "Integer",
+      "line_index": "Integer",
+      "visual_position": { 
+          "x": "Integer (0-100 %)", 
+          "y": "Integer (0-100 %)", 
+          "width": "Integer (0-100 %)", 
+          "height": "Integer (0-100 %)" 
+      }
     }
   ],
   "studentScore": {
@@ -118,7 +147,7 @@ Compare the **Student Text** vs **OCR Block Text**.
 
 **FINAL CHECKLIST:**
 1. Did I apply the Highlander Rule?
-2. Did I ensure \`line_id\` is a Classification ID (p0_q...)?
-3. **ZERO TOLERANCE CHECK:** If the OCR text is not the exact value of the student text, did I set status to **UNMATCHED**?
+2. Did I ensure \`line_id\` is a Classification ID (p0_q...) OR null for visuals?
+3. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
 4. Did I output an entry for the LAST sub-question?`;
 };

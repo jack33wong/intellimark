@@ -1005,14 +1005,14 @@ export function calculateOverallScore(
         ? resultTotal
         : (schemeTotal || resultTotal || 0);
 
-      console.log(`[TOTAL TRAP] Q${baseQNum}: Scheme=${schemeTotal}, AI=${resultTotal}, IsDefault=${isDefaultScheme} -> FINAL=${qTotalMarks}`);
+      // console.log(`[TOTAL TRAP] Q${baseQNum}: Scheme=${schemeTotal}, AI=${resultTotal}, IsDefault=${isDefaultScheme} -> FINAL=${qTotalMarks}`);
 
       baseQuestionToTotalMarks.set(baseQNum, qTotalMarks);
     }
   });
 
   const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
-  console.log(`[TOTAL TRAP] Grand Total Possible Score: ${totalPossibleScore}`);
+  // console.log(`[TOTAL TRAP] Grand Total Possible Score: ${totalPossibleScore}`);
   const overallScoreText = `${overallScore}/${totalPossibleScore}`;
 
   return {
