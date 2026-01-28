@@ -120,8 +120,8 @@ Compare the **Student Text** vs **OCR Block Text**.
     {
       "line_id": "String (MUST be p0_q... OR null)",
       "action": "tick|cross",
-      "text": "String (CRITICAL: MUST contain ONLY the Mark Code, e.g. M1, A1, B1, C1, B2)",
-      "student_text": "String",
+      "text": "String (CRITICAL: Mark Code. Use M1/A1 for awarded, M0/A0 for unawarded. e.g. M1, A0, B1, M0)",
+      "student_text": "String (CRITICAL: If evaluating a DRAWING/DIAGRAM, MUST start with '[DRAWING]' followed by description/coordinates. Otherwise, transcribed text.)",
       "classification_text": "String",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
       "linked_ocr_id": "String (The p0_ocr_... ID or null)",

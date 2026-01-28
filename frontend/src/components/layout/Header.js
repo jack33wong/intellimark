@@ -23,6 +23,7 @@ import './Header.css';
 import '../credits.css';
 import { useCredits } from '../../hooks/useCredits';
 import { useSubscription } from '../../hooks/useSubscription';
+import SubscriptionService from '../../services/subscriptionService';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -30,7 +31,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const { credits: userCredits } = useCredits();
-  const { subscription: userSubscription, loading: subscriptionLoading } = useSubscription();
+  const { subscription: userSubscription, loading: subscriptionLoading, setSubscription: setUserSubscription } = useSubscription();
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();

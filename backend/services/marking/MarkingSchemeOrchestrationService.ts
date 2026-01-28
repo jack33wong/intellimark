@@ -434,10 +434,22 @@ export class MarkingSchemeOrchestrationService {
         }
       });
 
+      // Prepare Final Max Scores Map (Start with existing or empty)
+      const finalSubQuestionMaxScores = masterMatch.subQuestionMaxScores ? { ...masterMatch.subQuestionMaxScores } : {};
+
       if (Object.keys(subQuestionMarksMap).length === 0) {
         console.log(`   ⚠️ No parts matched prefix "${baseQuestionNumber}". Falling back to MasterMatch marks.`);
         subQuestionMarksMap[masterMatch.questionNumber] = parentScheme.marks || parentScheme;
         subQuestionNumbers.push(masterMatch.questionNumber);
+
+        // 🔧 SIMPLE QUESTION FIX: Manually inject the max score for this flat question
+        if (masterMatch.marks) {
+          finalSubQuestionMaxScores[masterMatch.questionNumber] = masterMatch.marks;
+        } else {
+          // If somehow missing (e.g. Generic), we permit the naive sum downstream? No, we removed it. 
+          // We must define it.
+          finalSubQuestionMaxScores[masterMatch.questionNumber] = 0; // Will trigger generic handling or be overwritten
+        }
       } else {
         console.log(`   📊 Final Map Keys: ${Object.keys(subQuestionMarksMap).join(', ')}`);
       }
@@ -451,7 +463,7 @@ export class MarkingSchemeOrchestrationService {
         totalMarks: masterMatch.marks || 0, parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
         questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
         subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,
-        subQuestionMaxScores: masterMatch.subQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,
+        subQuestionMaxScores: finalSubQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,
         isGeneric: false, generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex
       });
     }

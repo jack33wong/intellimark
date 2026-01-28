@@ -6,6 +6,7 @@ import { UserSubscription } from '../types/payment';
 
 export interface UseSubscriptionResult {
     subscription: UserSubscription | null;
+    setSubscription: React.Dispatch<React.SetStateAction<UserSubscription | null>>;
     planId: 'free' | 'pro' | 'ultra';
     loading: boolean;
     error: string | null;
@@ -136,6 +137,7 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     return {
         subscription,
+        setSubscription, // 🛠️ Expose setter for components that need to manually update state (e.g. Header)
         planId,
         loading,
         error,

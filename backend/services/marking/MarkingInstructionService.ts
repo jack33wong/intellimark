@@ -106,16 +106,10 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       }
     }
     if (!subQuestionMaxScores && subQuestionMarks) {
-      subQuestionMaxScores = {};
-      for (const [key, marks] of Object.entries(subQuestionMarks)) {
-        let mArr: any[] = [];
-        if (Array.isArray(marks)) mArr = marks;
-        else if ((marks as any).marks) mArr = (marks as any).marks;
-        const total = mArr.reduce((sum, m) => sum + (Number(m.value) || 1), 0);
-        subQuestionMaxScores[key] = total;
-        const suffix = key.replace(/^\d+/, '');
-        if (suffix && suffix !== key) subQuestionMaxScores[suffix] = total;
-      }
+      // 🛡️ FAIL FAST: Do NOT try to sum the array items.
+      // Summing is dangerous because it treats "OR" blocks as marks (e.g. 3 + OR + 3 = 7).
+      // We must demand explicit max scores from the upstream Orchestrator.
+      throw new Error(`[CRITICAL] Missing subQuestionMaxScores for questions: ${Object.keys(subQuestionMarks).join(', ')}. System refuses to guess.`);
     }
 
     return {

@@ -76,7 +76,10 @@ const sanitizeStudentWork = (text: string) => {
 };
 
 const WorkContent = ({ content, reason, MarkdownMathRenderer, showBullet }: { content: string, reason?: string, MarkdownMathRenderer?: any, showBullet: boolean }) => {
-    const isDrawing = content.includes('[DRAWING]');
+    // ROBUST CHECK: Look for tag OR strong keywords in reasoning if work is missing/placeholder
+    const isDrawing = content.includes('[DRAWING]') ||
+        ((!content || content.trim() === '--' || content.trim() === '-') &&
+            /drawn|plotted|graph|diagram|sketch|box plot/i.test(reason || ''));
     const [expanded, setExpanded] = React.useState(false);
 
     if (isDrawing) {

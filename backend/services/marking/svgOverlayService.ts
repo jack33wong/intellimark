@@ -367,7 +367,7 @@ export class SVGOverlayService {
     if (action === 'tick' || action === 'cross' || action === 'write') {
       let symbol = action === 'tick' ? '✓' : (action === 'cross' ? '✗' : (text && text.length < 5 ? text : '✎'));
       const reasoning = (annotation as any).reasoning;
-      svg += this.createSymbolAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, symbol, text, reasoning, actualWidth, actualHeight, classificationText);
+      svg += this.createSymbolAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, symbol, text, reasoning, actualWidth, actualHeight, classificationText, isDebugMode);
     } else if (action === 'circle') {
       svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
     } else if (action === 'underline') {
@@ -391,7 +391,8 @@ export class SVGOverlayService {
     reasoning: string | undefined,
     actualWidth: number,
     actualHeight: number,
-    classificationText?: string
+    classificationText?: string,
+    isDebugMode: boolean = false
   ): string {
     const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
 
@@ -530,7 +531,7 @@ export class SVGOverlayService {
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX += markingCodeWidth + 10;
         }
-        if (displayClassText) {
+        if (displayClassText && isDebugMode) {
           svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="#0000ff" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
         }
@@ -544,7 +545,7 @@ export class SVGOverlayService {
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX -= (markingCodeWidth + 10);
         }
-        if (displayClassText) {
+        if (displayClassText && isDebugMode) {
           svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="#0000ff" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
         }

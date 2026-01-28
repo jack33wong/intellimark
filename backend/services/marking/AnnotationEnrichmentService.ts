@@ -36,6 +36,12 @@ export const enrichAnnotationsWithPositions = (
         const lineId = (anno as any).line_id;
         const rawVisualPos = (anno as any).visual_position || (anno as any).aiPosition;
 
+        // 🛡️ ORPHAN RESCUE: Handle "Unmatched" marks with no handwriting source
+        if (status === "UNMATCHED" && !lineId && rawVisualPos) {
+            console.warn(`[RESCUE] Annotation ${anno.subQuestion} is UNMATCHED with no line_id. Promoting to VISUAL using AI coordinates.`);
+            status = "VISUAL";
+        }
+
         // 2. SELECT SOURCE
         if (status === "MATCHED" && targetId) {
             // [PATH A] MATCHED -> Use Text ID

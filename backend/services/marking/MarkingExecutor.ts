@@ -515,18 +515,6 @@ export async function executeMarkingForQuestion(
       if (val > 0) bestMarks.add(a.subQuestion || 'main');
     });
 
-    enrichedAnnotations = enrichedAnnotations.filter(anno => {
-      const subQ = anno.subQuestion || 'main';
-      const text = (anno.text || '').trim();
-      const isMath = /[\\{}=]/.test(text) || text.includes('sqrt');
-      const isZero = !isMath && (parseInt(text.replace(/\D/g, '') || '0') === 0);
-
-      if (isZero && bestMarks.has(subQ)) {
-        return false;
-      }
-      return true;
-    });
-
     enrichedAnnotations.forEach(anno => {
       const pIdx = anno.pageIndex ?? task.sourcePages?.[0] ?? 0;
       let dims = task.pageDimensions?.get(pIdx);
