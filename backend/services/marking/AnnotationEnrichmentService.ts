@@ -9,6 +9,65 @@ const getPageDims = (pageDimensions: Map<number, any>, idx: number) => {
     return { width: 1000, height: 1000 };
 };
 
+// Helper: Check if two mark codes are "The Same Type"
+// e.g. "M1" and "M0" are equivalent (Method Mark type)
+// e.g. "A1" and "M0" are NOT equivalent (Accuracy vs Method)
+const areMarkCodesEquivalent = (tickCode: string, crossCode: string): boolean => {
+    // 1. Strict Match (e.g. "M1" hides "M1")
+    if (tickCode === crossCode) return true;
+
+    // 2. Zero-Code Matching (e.g. "M1" hides "M0")
+    const tickType = tickCode.charAt(0).toUpperCase();
+    const crossType = crossCode.charAt(0).toUpperCase();
+
+    // Check if the cross is a "Zero" version (ends in 0) AND types match
+    if (crossCode.endsWith('0') && tickType === crossType) {
+        return true;
+    }
+
+    return false;
+};
+
+// Logic: Hide Crosses ONLY if a Tick of the SAME CODE exists on the same line
+const applyPositiveDominance = (annotations: EnrichedAnnotation[]): EnrichedAnnotation[] => {
+    // 1. Map lines to their Awarded Marks (Ticks)
+    const lineTicksMap = new Map<string, string[]>();
+
+    annotations.forEach(anno => {
+        // Use linked_ocr_id as it is already resolved in the enriched loop
+        const lineId = anno.linked_ocr_id;
+        if (lineId && anno.action === 'tick' && (anno.text || anno.classification_text)) {
+            if (!lineTicksMap.has(lineId)) {
+                lineTicksMap.set(lineId, []);
+            }
+            const markText = anno.text || anno.classification_text || "";
+            lineTicksMap.get(lineId)?.push(markText);
+        }
+    });
+
+    // 2. Filter out Crosses that are dominated by an equivalent Tick
+    return annotations.filter(anno => {
+        const lineId = anno.linked_ocr_id;
+        const markText = anno.text || anno.classification_text;
+        if (anno.action === 'cross' && lineId && markText) {
+            const ticksOnThisLine = lineTicksMap.get(lineId);
+
+            if (ticksOnThisLine) {
+                // Check if ANY tick on this line is "Equivalent" to this cross
+                const hasDominantTick = ticksOnThisLine.some(tickCode =>
+                    areMarkCodesEquivalent(tickCode, markText)
+                );
+
+                if (hasDominantTick) {
+                    // HIDE THIS CROSS (Positive Dominance)
+                    return false;
+                }
+            }
+        }
+        return true; // Keep everything else
+    });
+};
+
 export const enrichAnnotationsWithPositions = (
     annotations: Annotation[],
     stepsDataForMapping: any[],
@@ -27,7 +86,6 @@ export const enrichAnnotationsWithPositions = (
     const findInData = (id: string) => stepsDataForMapping.find(s => s.line_id === id || s.globalBlockId === id || s.id === id);
 
     const enriched = annotations.map((anno, idx) => {
-        // ... existing logic ...
         let pageIndex = (anno as any).pageIndex ?? defaultPageIndex;
         let method = "NONE";
         let rawBox: any = null;
@@ -69,6 +127,7 @@ export const enrichAnnotationsWithPositions = (
                 const match = findInData(lineId);
                 if (match) {
                     const sourceBox = match.bbox || match.position;
+                    // FIX: Ensure we respect the source unit (often 'percentage' for classification blocks)
                     const unit = match.unit || 'pixels';
 
                     rawBox = Array.isArray(sourceBox)
@@ -103,6 +162,7 @@ export const enrichAnnotationsWithPositions = (
         if (semanticZones) {
             const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
             if (zone) {
+                // Clamp unless it's a direct text match (which we trust implicitly)
                 if (status !== "MATCHED") {
                     if (pixelBox.y < zone.startY) {
                         pixelBox.y = zone.startY;
@@ -115,37 +175,40 @@ export const enrichAnnotationsWithPositions = (
         }
 
         // 5. HYDRATION (Pointer vs Value Strategy - Single Source of Truth)
-        // Resolve input pointers (AI raw: line_id)
-        const lineIdPointer = (anno as any).line_id;
+        // Resolve input pointers. Use line_id OR targetId (whichever was used for positioning)
+        const activePointer = lineId || targetId;
         const contentDesc = (anno as any).contentDesc || (anno as any).content_desc;
 
         let studentText = "";
         let classText = (anno as any).classification_text || "";
 
-        if (lineIdPointer) {
-            // [PATH A] Text Pointer -> Hydrate from Ground Truth
-            const match = findInData(lineIdPointer);
+        if (activePointer) {
+            // [PATH A] Text/Handwriting Pointer -> Hydrate from Ground Truth
+            const match = findInData(activePointer);
             if (match) {
                 studentText = match.text || match.cleanedText || "";
                 classText = match.text || match.cleanedText || "";
 
-                // Enforce Rule: If we have a pointer, we don't need visual coordinates
+                // ✅ SAFE HYDRATION: We set debug method, but we DO NOT FORCE STATUS.
+                // Keeping status as 'UNMATCHED' allows the Collision Service to move it.
                 method = "POINTED_TEXT";
-                status = "MATCHED";
             } else {
-                // [STRICT] Don't guess. Log the specific missing ID.
-                console.warn(`🚨 [ORPHAN] AI returned line_id '${lineIdPointer}' which does not exist in source data.`);
-                status = "ORPHAN";
+                console.warn(`🚨 [ORPHAN] AI returned ID '${activePointer}' which does not exist in source data.`);
+                // We don't change status here to avoid breaking downstream flow, 
+                // but strictly speaking, this is a data integrity error.
             }
         } else {
             // [PATH B] Drawing/Visual Value
-            // Use the AI's description or fallback to reasoning
             const rawDesc = contentDesc || (anno as any).reasoning || "";
             const cleanDesc = rawDesc.replace('[DRAWING]', '').trim();
             studentText = cleanDesc ? `[DRAWING] ${cleanDesc}` : "[Drawing/Graph]";
 
+            // SIMPLIFIED: Drawings never show blue text overlays.
+            classText = "";
+
             method = "VISUAL_VALUE";
-            status = "VISUAL";
+            // Ensure status is VISUAL if we relied on visual coords
+            if (status === "UNMATCHED") status = "VISUAL";
         }
 
         return {
@@ -153,7 +216,7 @@ export const enrichAnnotationsWithPositions = (
             bbox: [pixelBox.x, pixelBox.y, pixelBox.width, pixelBox.height],
             pageIndex: pageIndex,
             ocr_match_status: status as any,
-            linked_ocr_id: lineIdPointer,
+            linked_ocr_id: activePointer,
             student_text: studentText,   // snake_case for DB/Logs
             studentText: studentText,    // camelCase for Frontend
             classification_text: classText,
@@ -163,7 +226,9 @@ export const enrichAnnotationsWithPositions = (
         } as EnrichedAnnotation;
     });
 
-    // 🚀 NEW: FINAL PHYSICS PASS
-    // This runs AFTER the basic Zone Clamping to fix local overlaps
-    return AnnotationCollisionService.resolveCollisions(enriched, semanticZones);
+    // 🚀 Apply Refined Positive Dominance Filter
+    const cleanAnnotations = applyPositiveDominance(enriched);
+
+    // Then apply physics to whatever remains
+    return AnnotationCollisionService.resolveCollisions(cleanAnnotations, semanticZones);
 };

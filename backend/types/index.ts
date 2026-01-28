@@ -136,7 +136,9 @@ export interface Annotation {
   reasoning?: string; // Optional explanation/rationale
   ocr_match_status?: 'MATCHED' | 'FALLBACK' | 'UNMATCHED' | 'VISUAL'; // Status of OCR matching
   studentText?: string; // Student work text selected by AI
+  student_text?: string; // Student work text selected by AI (snake_case)
   classificationText?: string; // Text from classification
+  classification_text?: string; // Text from classification (snake_case)
   subQuestion?: string; // Sub-question identifier (e.g., "a", "b", "i")
   visual_position?: { x: number; y: number; width: number; height: number }; // AI-estimated position for visual elements
   lineId?: string; // Unified identifier
@@ -741,4 +743,6 @@ export interface EnrichedAnnotation extends Annotation {
   visualObservation?: string; // AI's description of the visual content
   visualPosition?: { x: number; y: number; width: number; height: number }; // Explicit visual position for drawings
   unit?: 'pixels' | 'percentage'; // Explicit unit for coordinate scaling
+  student_text?: string;
+  classification_text?: string;
 }

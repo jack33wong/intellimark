@@ -1147,6 +1147,17 @@
   color: var(--text-primary);
 }
 
+.split-mode .context-chip {
+  max-width: 100%;
+}
+
+.split-mode .context-chip .chip-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
 
 .context-chip-close {
   border: none;

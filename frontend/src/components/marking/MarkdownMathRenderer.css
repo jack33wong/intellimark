@@ -56,6 +56,10 @@ ul {
   }
 }
 
+.split-mode .markdown-math-renderer {
+  padding: 0 12px;
+}
+
 
 /* --- Math and Variable Styling --- */
 

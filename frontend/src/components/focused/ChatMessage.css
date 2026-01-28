@@ -170,6 +170,16 @@
   font-size: 1.0em;
 }
 
+/* Split Mode Overrides: Reduce horizontal padding when space is halved */
+.split-mode .chat-message.assistant .chat-message-bubble {
+  padding: 0px 12px;
+}
+
+.split-mode .chat-message.assistant .chat-message-image,
+.split-mode .chat-message.assistant .homework-annotated-image {
+  padding-left: 0px;
+}
+
 .chat-message.assistant .markdown-math-renderer.has-your-work {
   background: var(--background-nav);
   border-radius: 10px;
@@ -188,6 +198,18 @@
   background: var(--background-nav);
   margin-top: 8px;
   position: relative;
+}
+
+.split-mode .has-your-work-outer-container {
+  padding: 24px 16px 40px;
+  margin-left: 8px;
+  margin-right: 8px;
+}
+
+.split-mode .has-your-work-outer-container {
+  padding: 24px 16px 40px;
+  margin-left: 8px;
+  margin-right: 8px;
 }
 
 .chat-message.assistant .chat-message-bubble:hover {
@@ -305,6 +327,10 @@
 /* Add left padding for assistant annotated images */
 .chat-message.assistant .homework-annotated-image {
   padding-left: 25px;
+}
+
+.split-mode .chat-message.assistant .homework-annotated-image {
+  padding-left: 0px;
 }
 
 .chat-message-image-error {
@@ -445,7 +471,6 @@
 
 
 
-/* AI Performance Summary Styling */
 .ai-performance-summary {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
   border-left: 4px solid var(--text-brand);
@@ -460,6 +485,13 @@
   font-weight: 500;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
   transition: all 0.3s ease;
+}
+
+.split-mode .ai-performance-summary {
+  margin-left: 12px;
+  margin-right: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
 }
 
 .ai-performance-summary:hover {

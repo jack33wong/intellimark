@@ -197,44 +197,7 @@ export class SVGOverlayService {
     }
 
     if (annotations && annotations.length > 0) {
-      // 1. Group Logic (Split Blocks)
-      const decisionMap = new Map<number, 'TRUST_AI' | 'TRUST_OCR'>();
-      let currentGroupStartIndex = -1;
-
-      annotations.forEach((anno, i) => {
-        const isSplitBlock = (anno as any).hasLineData === false;
-        if (isSplitBlock) {
-          if (currentGroupStartIndex === -1) {
-            currentGroupStartIndex = i;
-            const aiPos = (anno as any).aiPosition;
-            const [x, y, w, h] = anno.bbox;
-            let decision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR';
-
-            if (aiPos) {
-              const originalWidth = actualWidth / scaleX;
-              const originalHeight = actualHeight / scaleY;
-              const aiX_px = (aiPos.x / 100) * originalWidth;
-              const aiY_px = (aiPos.y / 100) * originalHeight - ((aiPos.height / 100) * originalHeight / 2);
-              const ocrCenterX = x + w / 2;
-              const ocrCenterY = y + h / 2;
-              const aiCenterX = aiX_px + ((aiPos.width / 100) * originalWidth) / 2;
-              const aiCenterY = aiY_px + ((aiPos.height / 100) * originalHeight) / 2;
-
-              if (Math.sqrt(Math.pow(ocrCenterX - aiCenterX, 2) + Math.pow(ocrCenterY - aiCenterY, 2)) < 100) {
-                decision = 'TRUST_AI';
-              }
-            }
-            decisionMap.set(i, decision);
-          } else {
-            decisionMap.set(i, decisionMap.get(currentGroupStartIndex) || 'TRUST_OCR');
-          }
-        } else {
-          currentGroupStartIndex = -1;
-          decisionMap.set(i, 'TRUST_OCR');
-        }
-      });
-
-      // 2. Y-Offset Logic
+      // 1. Y-Offset Logic (Stacking marks on the same bbox)
       const positionGroups = new Map<string, number[]>();
       annotations.forEach((anno, i) => {
         const key = `${anno.bbox[0].toFixed(1)},${anno.bbox[1].toFixed(1)},${anno.bbox[2].toFixed(1)},${anno.bbox[3].toFixed(1)}`;
@@ -256,9 +219,8 @@ export class SVGOverlayService {
 
       annotations.forEach((annotation, index) => {
         try {
-          const decision = decisionMap.get(index) || 'TRUST_OCR';
           const yOffset = offsets.get(index) || 0;
-          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, decision, yOffset);
+          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, yOffset);
         } catch (error) {
           console.error(`SVG Generation Error [Idx: ${index}]:`, error);
         }
@@ -274,8 +236,8 @@ export class SVGOverlayService {
     return svg + '</svg>';
   }
 
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, positionDecision: 'TRUST_AI' | 'TRUST_OCR', yOffset: number): string {
-    let [x, y, width, height] = annotation.bbox;
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, yOffset: number): string {
+    const [x, y, width, height] = annotation.bbox || [0, 0, 0, 0];
     const action = annotation.action;
     if (!action) return '';
 
@@ -285,34 +247,6 @@ export class SVGOverlayService {
       (text && text.includes('[DRAWING]')) ||
       (annotation.studentText && annotation.studentText.includes('[DRAWING]')) ||
       ocrStatus === 'VISUAL';
-
-    const hasLineData = (annotation as any).hasLineData;
-    const aiPos = (annotation as any).aiPosition;
-    let aiW_px = 0;
-
-    if (aiPos) {
-      const originalWidth = actualWidth / scaleX;
-      aiW_px = (aiPos.width / 100) * originalWidth;
-    }
-
-    const isMissingBbox = x === 0 && y === 0;
-
-    if (isMissingBbox && aiPos) {
-      const originalWidth = actualWidth / scaleX;
-      const originalHeight = actualHeight / scaleY;
-      x = (parseFloat(String(aiPos.x)) / 100) * originalWidth;
-      y = (parseFloat(String(aiPos.y)) / 100) * originalHeight;
-      width = (parseFloat(String(aiPos.width || "50")) / 100) * originalWidth;
-      height = (parseFloat(String(aiPos.height || "30")) / 100) * originalHeight;
-    } else {
-      if (aiW_px > 0 && (positionDecision === 'TRUST_AI' || isDrawing)) {
-        width = aiW_px;
-      }
-    }
-
-    const originalWidth = actualWidth / scaleX;
-    if (x < 0) x = 0;
-    if (x + width > originalWidth) x = Math.max(0, originalWidth - width);
 
     const scaledX = x * scaleX;
     const scaledY = (y * scaleY) + yOffset;
@@ -326,8 +260,7 @@ export class SVGOverlayService {
       if (availableHeight > 50 * fontScaleFactor) scaledHeight = availableHeight;
     }
 
-    const useAiPos = (hasLineData === false || ocrStatus === 'FALLBACK' || ocrStatus === 'UNMATCHED' || isMissingBbox) && aiPos;
-    const classificationText = useAiPos ? (annotation as any).classification_text : undefined;
+    const classificationText = (annotation as any).classification_text || (annotation as any).classificationText;
 
     let svg = '';
 
@@ -367,7 +300,7 @@ export class SVGOverlayService {
     if (action === 'tick' || action === 'cross' || action === 'write') {
       let symbol = action === 'tick' ? '✓' : (action === 'cross' ? '✗' : (text && text.length < 5 ? text : '✎'));
       const reasoning = (annotation as any).reasoning;
-      svg += this.createSymbolAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, symbol, text, reasoning, actualWidth, actualHeight, classificationText, isDebugMode);
+      svg += this.createSymbolAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, symbol, text, reasoning, actualWidth, actualHeight, classificationText);
     } else if (action === 'circle') {
       svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
     } else if (action === 'underline') {
@@ -391,8 +324,7 @@ export class SVGOverlayService {
     reasoning: string | undefined,
     actualWidth: number,
     actualHeight: number,
-    classificationText?: string,
-    isDebugMode: boolean = false
+    classificationText?: string
   ): string {
     const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
 
@@ -498,7 +430,7 @@ export class SVGOverlayService {
       const boxY = startY - reasoningSize + 5;
 
       reasoningBlockSVG += `<rect x="${boxX}" y="${boxY}" width="${maxLineWidth + 10}" height="${totalBlockHeight + 5}" 
-                              fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
+                               fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
 
       fallbackLines.forEach((line, i) => {
         reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="${anchor}" 
@@ -531,7 +463,8 @@ export class SVGOverlayService {
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX += markingCodeWidth + 10;
         }
-        if (displayClassText && isDebugMode) {
+        // SIMPLIFIED: Trust the Enrichment Service. If text is there, show it.
+        if (displayClassText) {
           svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="#0000ff" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
         }
@@ -545,7 +478,8 @@ export class SVGOverlayService {
                         font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
           currentX -= (markingCodeWidth + 10);
         }
-        if (displayClassText && isDebugMode) {
+        // SIMPLIFIED: Trust the Enrichment Service. If text is there, show it.
+        if (displayClassText) {
           svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="#0000ff" 
                         font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
         }

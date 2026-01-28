@@ -221,6 +221,11 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   -webkit-backdrop-filter: none !important;
 }
 
+.split-mode .follow-up-chat-input-container.follow-up-bottom .followup-chat-input-bar {
+  width: 95% !important;
+  max-width: none;
+}
+
 .follow-up-chat-input-container.follow-up-bottom .followup-single-line-container {
   padding: 4px 8px;
   /* More reduced padding */
@@ -610,6 +615,12 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   border: none;
   min-height: 0;
   /* Important for flex scrolling */
+}
+
+.split-mode .chat-messages {
+  padding-left: 12px;
+  padding-right: 12px;
+  width: 100%;
 }
 
 /* Scroll to Bottom Button - Centered relative to Chat Panel */
@@ -1279,6 +1290,10 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   width: 100%;
   /* Row separator if needed */
   background: var(--background-gray-main);
+}
+
+.split-mode .marking-header-ribbon-row {
+  padding: 0 12px;
 }
 
 .ribbon-wrapper-full-width {

@@ -139,6 +139,22 @@ export class SuggestedFollowUpService {
       throw new Error(`No configuration found for suggested follow-up mode: ${mode}`);
     }
 
+    // --- NEW: Static Response Override for Testing/Config (env.local) ---
+    if (mode === 'markingscheme' && process.env.MARKING_SCHEME_EXPLAIN_RESPONSE) {
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
+
+      progressTracker.completeCurrentStep();
+      progressTracker.finish();
+
+      return {
+        response: process.env.MARKING_SCHEME_EXPLAIN_RESPONSE,
+        apiUsed: 'Static Override (env.local)',
+        progressData: null,
+        usageTokens: 0
+      };
+    }
+
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
 
