@@ -410,3 +410,65 @@ export function generateGenericTitleFromText(text: string | undefined, mode: 'Qu
 
   return `${mode} - ${cleaned}`;
 }
+
+/**
+ * Converts LaTeX strings to readable plain text for display.
+ * Unlike normalizeTextForComparison, this preserves spaces and readability.
+ * 
+ * @param text - LaTeX string (e.g. "\frac{1}{2}")
+ * @returns Readable plain text (e.g. "1/2")
+ */
+export function latexToPlainText(text: string | null | undefined): string {
+  if (!text || typeof text !== 'string') return '';
+
+  let plain = text;
+
+  // 1. Delimiters
+  plain = plain.replace(/\\\(([^\\]*?)\\\)/g, '$1');
+  plain = plain.replace(/\\\[([^\\]*?)\\\]/g, '$1');
+  plain = plain.replace(/\$/g, '');
+
+  // 2. Common LaTeX commands to readable equivalents
+  plain = plain
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+    .replace(/\\times/g, '×')
+    .replace(/\\div/g, '÷')
+    .replace(/\\pm/g, '±')
+    .replace(/\\leq/g, '≤')
+    .replace(/\\geq/g, '≥')
+    .replace(/\\neq/g, '≠')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\degree/g, '°')
+    .replace(/\\sqrt\{([^}]+)\}/g, '√$1')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\alpha/g, 'α')
+    .replace(/\\beta/g, 'β')
+    .replace(/\\theta/g, 'θ')
+    .replace(/\\pi/g, 'π')
+    .replace(/\\sigma/g, 'σ')
+    .replace(/\\Delta/g, 'Δ')
+    .replace(/\\sum/g, 'Σ')
+    .replace(/\\infty/g, '∞');
+
+  // 3. Formatting commands
+  plain = plain
+    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+    .replace(/\\mathbf\{([^}]+)\}/g, '$1')
+    .replace(/\\mathit\{([^}]+)\}/g, '$1')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\\{/g, '{')
+    .replace(/\\\}/g, '}');
+
+  // 4. Superscripts and Subscripts (Simple conversion to Unicode if common, or keep ^/_)
+  // For SVG text, we'll use ^ and _ for now as Unicode mapping is complex for all digits
+  plain = plain
+    .replace(/\^\{([^}]+)\}/g, '^$1')
+    .replace(/_\{([^}]+)\}/g, '_$1');
+
+  // 5. Cleanup remaining backslashes and redundant braces
+  plain = plain
+    .replace(/\\/g, '')
+    .replace(/\{|\}/g, '');
+
+  return plain.trim();
+}

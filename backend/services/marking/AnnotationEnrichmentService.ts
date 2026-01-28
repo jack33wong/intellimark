@@ -2,6 +2,7 @@ import type { Annotation, EnrichedAnnotation, MarkingTask } from '../../types/in
 import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 import { ZoneUtils } from '../../utils/ZoneUtils.js';
 import { AnnotationCollisionService } from './AnnotationCollisionService.js';
+import { latexToPlainText } from '../../utils/TextNormalizationUtils.js';
 
 const getPageDims = (pageDimensions: Map<number, any>, idx: number) => {
     if (pageDimensions?.has(idx)) return pageDimensions.get(idx);
@@ -187,7 +188,7 @@ export const enrichAnnotationsWithPositions = (
             const match = findInData(activePointer);
             if (match) {
                 studentText = match.text || match.cleanedText || "";
-                classText = match.text || match.cleanedText || "";
+                classText = latexToPlainText(match.text || match.cleanedText || "");
 
                 // ✅ SAFE HYDRATION: We set debug method, but we DO NOT FORCE STATUS.
                 // Keeping status as 'UNMATCHED' allows the Collision Service to move it.
