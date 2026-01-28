@@ -25,27 +25,21 @@ import {
  * Raw annotation from AI response (before any processing)
  */
 export interface RawAIAnnotation {
-    text: string;
-    pageIndex?: number;  // Relative to images array
+    text: string;                 // Mark Code (M1, A0, etc.)
+    action: 'tick' | 'cross';
+    line_id: string | null;       // The Pointer
+    content_desc?: string;        // Optional (Drawings only)
+    reasoning?: string;
     subQuestion?: string;
-    visual_position?: {
+    pageIndex?: number;           // Relative page
+    visual_position?: {           // Optional (Drawings only)
         x: number;
         y: number;
         width: number;
         height: number;
     };
-    line_id?: string;
-    lineId?: string; // Support both casing
-    student_text?: string;
-    studentText?: string; // Support both casing
-    classification_text?: string;
-    action?: string;
-    reasoning?: string;
-    line_index?: number;
-    ocr_match_status?: string; // NEW: Preserve AI's match status
-    linked_ocr_id?: string;    // NEW: Physical link ID
-    linkedOcrId?: string;      // NEW: Physical link ID (camelCase)
-    bbox?: [number, number, number, number]; // NEW: Preserve pre-calculated bbox
+    ocr_match_status?: string;    // AI's internal status
+    linked_ocr_id?: string;       // Linked OCR block ID
 }
 
 export interface AIContext {
@@ -112,40 +106,11 @@ function parseAIPosition(
         }
     }
 
-    // 2. Try parsing [POSITION] JSON from text
-    if (!aiPosition && anno.student_text) {
-        const jsonMatch = anno.student_text.match(/\[POSITION\]\s*(\{.*?\})/);
-        if (jsonMatch) {
-            try {
-                const vp = JSON.parse(jsonMatch[1]);
-                if (typeof vp.x === 'number' && typeof vp.y === 'number') {
-                    let { x, y, width: w, height: h } = vp;
-                    w = w || 10; h = h || 5;
-                    aiPosition = { x, y, width: w, height: h };
-                }
-            } catch (e) { /* ignore */ }
-        }
-    }
-
-    // 3. Try line_index (Robust: Handles both 0-based and 1-based AI outputs)
-    if (!aiPosition && context?.studentWorkLines && typeof anno.line_index === 'number') {
-        // If AI returns 0, it means Index 0 (0-based)
-        // If AI returns 1, it means Index 0 (1-based) -> 1-1 = 0
-        const index = anno.line_index;
-        const line = (index === 0)
-            ? context.studentWorkLines[0]
-            : context.studentWorkLines[index - 1];
-
-        if (line?.position) {
-            aiPosition = line.position;
-        }
-    }
-
-    // 4. Try [POSITION] tag parsing (V25: Added pageIndex support)
-    const lookupText = anno.classification_text || anno.student_text;
-    if (!aiPosition && lookupText) {
+    // 2. Try [POSITION] tag parsing (V25: Added pageIndex support)
+    // Only used as fallback if visual_position is not in JSON
+    if (!aiPosition && anno.reasoning) {
         // Supported formats: [POSITION: x=10, y=20] or [POSITION: x=10, y=20, p=1]
-        const positionMatch = lookupText.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?(?:,\s*(?:p|page)=([\d.]+))?\]/i);
+        const positionMatch = anno.reasoning.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?(?:,\s*(?:p|page)=([\d.]+))?\]/i);
         if (positionMatch) {
             const x = parseFloat(positionMatch[1]);
             const y = parseFloat(positionMatch[2]);
@@ -156,33 +121,14 @@ function parseAIPosition(
         }
     }
 
-    // 5. DRAWING FALLBACK
-    // If drawing detected but no position, use default or look for drawing lines
-    const text = (anno.student_text || '').toLowerCase();
-    const classText = (anno.classification_text || '').toLowerCase();
-    const isDrawing = text.includes('[drawing]') || classText.includes('[drawing]');
+    // 3. DRAWING FALLBACK
+    // If drawing detected but no position, use default
+    const isDrawing = !anno.line_id && (anno.content_desc || (anno.reasoning || '').toLowerCase().includes('drawing'));
 
     if (!aiPosition && isDrawing) {
         // Filter out phantom drawings (cross/not required)
         if (anno.action === 'cross' || (anno.reasoning || '').toLowerCase().includes('not required')) {
             return undefined;
-        }
-
-        // Check drawing lines in context
-        if (context?.studentWorkLines) {
-            const drawingLine = context.studentWorkLines.find(l =>
-                l.text.includes('[DRAWING]') && l.text.includes('[POSITION')
-            );
-            if (drawingLine) {
-                const match = drawingLine.text.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?\]/i);
-                if (match) {
-                    const x = parseFloat(match[1]);
-                    const y = parseFloat(match[2]);
-                    if (!isNaN(x) && !isNaN(y)) {
-                        return { x, y, width: 10, height: 5 };
-                    }
-                }
-            }
         }
 
         // Default drawing box
@@ -236,17 +182,14 @@ export function createAnnotationFromAI(
         subQuestion: aiAnnotation.subQuestion,
         page,
         aiPosition,
-        lineId: aiAnnotation.line_id || aiAnnotation.lineId, // Unified Standard
+        lineId: aiAnnotation.line_id,
         ocrSource: undefined,
         hasLineData: undefined,
         action: aiAnnotation.action,
         reasoning: aiAnnotation.reasoning,
-        aiMatchStatus: aiAnnotation.ocr_match_status, // Preserve AI's match status
-        linkedOcrId: aiAnnotation.linked_ocr_id || aiAnnotation.linkedOcrId, // Buffer the physical link
-        studentText: aiAnnotation.student_text || aiAnnotation.studentText, // NEW: Preserve for UNMATCHED classification matching
-        classificationText: aiAnnotation.classification_text, // NEW: Preserve alternative text source
-        lineIndex: aiAnnotation.line_index, // NEW: Preserve for classification line mapping
-        bbox: aiAnnotation.bbox as BoundingBox | undefined // NEW: Preserve pre-calculated bbox
+        aiMatchStatus: aiAnnotation.ocr_match_status,
+        linkedOcrId: aiAnnotation.linked_ocr_id,
+        contentDesc: aiAnnotation.content_desc
     };
 }
 
@@ -447,15 +390,14 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         action: annotation.action,
         reasoning: annotation.reasoning,
         ocr_match_status: matchStatus,
-        // Preserve classification matching fields for UNMATCHED annotations
-        student_text: annotation.studentText || '', // [CRITICAL FIX] Restore snake_case for Logs & DB
-        studentText: annotation.studentText || '',  // Keep camelCase for JS compatibility if needed
-        classification_text: annotation.classificationText,
-        lineIndex: annotation.lineIndex,
+        // [PTR-V-VAL] These will be hydrated in the Enrichment Service
+        student_text: annotation.contentDesc || '',
+        studentText: annotation.contentDesc || '',
+        contentDesc: annotation.contentDesc,
         // Preserve new fields for debugging
         _immutable: true,
         _page: annotation.page,
-        _aiMatchStatus: annotation.aiMatchStatus // For transparency
+        _aiMatchStatus: annotation.aiMatchStatus
     };
 
     return result;

@@ -1,6 +1,7 @@
 import type { Annotation, EnrichedAnnotation, MarkingTask } from '../../types/index.js';
 import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 import { ZoneUtils } from '../../utils/ZoneUtils.js';
+import { AnnotationCollisionService } from './AnnotationCollisionService.js';
 
 const getPageDims = (pageDimensions: Map<number, any>, idx: number) => {
     if (pageDimensions?.has(idx)) return pageDimensions.get(idx);
@@ -25,7 +26,8 @@ export const enrichAnnotationsWithPositions = (
     // Helper: Lookup Text or Handwriting blocks
     const findInData = (id: string) => stepsDataForMapping.find(s => s.line_id === id || s.globalBlockId === id || s.id === id);
 
-    return annotations.map((anno, idx) => {
+    const enriched = annotations.map((anno, idx) => {
+        // ... existing logic ...
         let pageIndex = (anno as any).pageIndex ?? defaultPageIndex;
         let method = "NONE";
         let rawBox: any = null;
@@ -58,8 +60,6 @@ export const enrichAnnotationsWithPositions = (
         }
         else if (status === "VISUAL" && rawVisualPos) {
             // [PATH B] VISUAL -> Use AI Coords
-            // STRICT DESIGN: We trust these coords raw. If they are garbage (50% page), 
-            // we will let them be garbage pixels, and CLAMP them later.
             rawBox = { ...rawVisualPos, unit: 'percentage' };
             method = "VISUAL_COORDS";
         }
@@ -69,7 +69,6 @@ export const enrichAnnotationsWithPositions = (
                 const match = findInData(lineId);
                 if (match) {
                     const sourceBox = match.bbox || match.position;
-                    // FIX: Respect the unit from classification (likely 'percentage')
                     const unit = match.unit || 'pixels';
 
                     rawBox = Array.isArray(sourceBox)
@@ -82,7 +81,6 @@ export const enrichAnnotationsWithPositions = (
 
             // FAIL FAST
             if (!rawBox) {
-                const availableIds = stepsDataForMapping.slice(0, 5).map(s => s.line_id).join(', ');
                 throw new Error(`[RENDERER-FAIL] Annotation ${anno.subQuestion} is UNMATCHED and has no handwriting source (line_id: ${lineId}).`);
             }
         }
@@ -102,22 +100,13 @@ export const enrichAnnotationsWithPositions = (
         );
 
         // 4. STRICT ZONE CLAMPING (Universal)
-        // Applies to UNMATCHED (Handwriting) AND VISUAL (Drawings)
-        // We do NOT use "Smart" centering. We just Hard Clamp to the boundary.
         if (semanticZones) {
             const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
             if (zone) {
-                // ONLY Clamp if it's NOT a Direct Text Match
-                // (We trust OCR text locations implicitly, but we clamp everything else)
                 if (status !== "MATCHED") {
-
-                    // RULE: If Y is ABOVE zone start, Force to zone start.
                     if (pixelBox.y < zone.startY) {
                         pixelBox.y = zone.startY;
                     }
-
-                    // RULE: If Y is BELOW zone end, Force to zone end.
-                    // (Even if AI gave us 50% Page Height, we drag it all the way up/down to the edge)
                     if (zone.endY && pixelBox.y > zone.endY) {
                         pixelBox.y = Math.max(zone.startY, zone.endY - (pixelBox.height || 10));
                     }
@@ -125,14 +114,56 @@ export const enrichAnnotationsWithPositions = (
             }
         }
 
+        // 5. HYDRATION (Pointer vs Value Strategy - Single Source of Truth)
+        // Resolve input pointers (AI raw: line_id)
+        const lineIdPointer = (anno as any).line_id;
+        const contentDesc = (anno as any).contentDesc || (anno as any).content_desc;
+
+        let studentText = "";
+        let classText = (anno as any).classification_text || "";
+
+        if (lineIdPointer) {
+            // [PATH A] Text Pointer -> Hydrate from Ground Truth
+            const match = findInData(lineIdPointer);
+            if (match) {
+                studentText = match.text || match.cleanedText || "";
+                classText = match.text || match.cleanedText || "";
+
+                // Enforce Rule: If we have a pointer, we don't need visual coordinates
+                method = "POINTED_TEXT";
+                status = "MATCHED";
+            } else {
+                // [STRICT] Don't guess. Log the specific missing ID.
+                console.warn(`🚨 [ORPHAN] AI returned line_id '${lineIdPointer}' which does not exist in source data.`);
+                status = "ORPHAN";
+            }
+        } else {
+            // [PATH B] Drawing/Visual Value
+            // Use the AI's description or fallback to reasoning
+            const rawDesc = contentDesc || (anno as any).reasoning || "";
+            const cleanDesc = rawDesc.replace('[DRAWING]', '').trim();
+            studentText = cleanDesc ? `[DRAWING] ${cleanDesc}` : "[Drawing/Graph]";
+
+            method = "VISUAL_VALUE";
+            status = "VISUAL";
+        }
+
         return {
             ...anno,
             bbox: [pixelBox.x, pixelBox.y, pixelBox.width, pixelBox.height],
             pageIndex: pageIndex,
-            ocr_match_status: status,
-            linked_ocr_id: targetId,
+            ocr_match_status: status as any,
+            linked_ocr_id: lineIdPointer,
+            student_text: studentText,   // snake_case for DB/Logs
+            studentText: studentText,    // camelCase for Frontend
+            classification_text: classText,
+            classificationText: classText,
             _debug_placement_method: method,
             unit: 'pixels'
         } as EnrichedAnnotation;
     });
+
+    // 🚀 NEW: FINAL PHYSICS PASS
+    // This runs AFTER the basic Zone Clamping to fix local overlaps
+    return AnnotationCollisionService.resolveCollisions(enriched, semanticZones);
 };

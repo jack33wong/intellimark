@@ -176,8 +176,11 @@ export interface ImmutableAnnotation {
     /**
      * Reasoning provided by AI for the mark
      */
+    readonly classification_text?: string;
     readonly reasoning?: string;
-
+    readonly line_index?: number;
+    readonly content_desc?: string; // NEW: Drawing description
+    readonly ocr_match_status?: string; // NEW: Preserve AI's match status
     /**
      * AI's original match status (MATCHED, VISUAL, UNMATCHED)
      * Preserved from AI response to guide rendering decisions
@@ -192,22 +195,9 @@ export interface ImmutableAnnotation {
     readonly linkedOcrId?: string;
 
     /**
-     * Student text from AI response (for UNMATCHED classification matching)
-     * Used to find the corresponding line in classificationBlocks.studentWorkLines
+     * Pointer vs Value strategy: AI's description of visual content
      */
-    readonly studentText?: string;
-
-    /**
-     * Classification text from AI response
-     * Alternative text source when studentText not available
-     */
-    readonly classificationText?: string;
-
-    /**
-     * Line index from AI response (1-based)
-     * Used to map to classificationBlocks.studentWorkLines array
-     */
-    readonly lineIndex?: number;
+    readonly contentDesc?: string;
 }
 
 // ============================================================================

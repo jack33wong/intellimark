@@ -92,10 +92,12 @@ Compare the **Student Text** vs **OCR Block Text**.
 ## 5. JSON STRUCTURE & CONSTRAINTS
 
 * **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
-* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs where text is missing:
-    * **MUST** use \`line_id: null\`.
-    * **MUST** use \`ocr_match_status: "VISUAL"\`.
-    * **COORDINATE RULE:** You **MUST** use **PERCENTAGES (0-100)** for \`visual_position\`.
+* **Constraint B (COORDINATE ECONOMY):**
+    * **IF** you find a matching line of text/math (\`line_id\` is not null):
+        * You **MUST** set \`visual_position: null\`. Do not invent coordinates.
+    * **IF** you are marking a drawing/graph (no text line exists):
+        * You **MUST** set \`line_id: null\`.
+        * You **MUST** provide \`visual_position\` in PERCENTAGES (0-100).
 
 * **Constraint C (VISUAL STAGGERING):** [CRITICAL]
     * **NEVER** stack multiple ticks at the exact same coordinate.
@@ -118,22 +120,17 @@ Compare the **Student Text** vs **OCR Block Text**.
   "visualObservation": "String",
   "annotations": [
     {
-      "line_id": "String (MUST be p0_q... OR null)",
-      "action": "tick|cross",
-      "text": "String (CRITICAL: Mark Code. Use M1/A1 for awarded, M0/A0 for unawarded. e.g. M1, A0, B1, M0)",
-      "student_text": "String (CRITICAL: If evaluating a DRAWING/DIAGRAM, MUST start with '[DRAWING]' followed by description/coordinates. Otherwise, transcribed text.)",
-      "classification_text": "String",
+      "action": "tick|cross", // CRITICAL: Use 'tick' IF text is awarded (e.g. M1). Use 'cross' IF text is unawarded (e.g. M0).
+      "text": "String (CRITICAL: Mark Code. Use M1/A1 for awarded, M0/A0 for unawarded. e.g. M1, A0)",
+      "line_id": "String (The ID of the handwriting line being marked. NULL if marking a drawing/diagram)",
+      "content_desc": "String (OPTIONAL. Only use if marking a DRAWING to describe what was found, e.g. 'Box plot with median at 40'. For text, leave null.)",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
       "linked_ocr_id": "String (The p0_ocr_... ID or null)",
       "reasoning": "String",
       "subQuestion": "String",
       "pageIndex": "Integer",
-      "line_index": "Integer",
       "visual_position": { 
-          "x": "Integer (0-100 %)", 
-          "y": "Integer (0-100 %)", 
-          "width": "Integer (0-100 %)", 
-          "height": "Integer (0-100 %)" 
+          "x": "Integer", "y": "Integer", "width": "Integer", "height": "Integer"
       }
     }
   ],
