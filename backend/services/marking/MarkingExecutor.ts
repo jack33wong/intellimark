@@ -551,20 +551,25 @@ export async function executeMarkingForQuestion(
       }
     });
 
-    const sanitizedAnnotations = enrichedAnnotations;
+    let sanitizedAnnotations = enrichedAnnotations;
 
     const parsedScore: any = parseScore(markingResult.studentScore);
 
-    if (parsedScore.awardedMarks === 0 && sanitizedAnnotations.length > 0) {
-      const hasTicks = sanitizedAnnotations.some(a =>
-        (a.action && !a.action.includes('cross')) ||
-        (a.text && !a.text.includes('0') && !a.text.toLowerCase().includes('lost'))
-      );
-      if (hasTicks) {
-        const count = sanitizedAnnotations.filter(a => !a.action?.includes('cross')).length;
-        const budget = parsedScore.totalMarks || (task.markingScheme?.totalMarks ? Number(task.markingScheme.totalMarks) : 99);
-        parsedScore.awardedMarks = Math.min(count, budget);
-      }
+    // ---------------------------------------------------------
+    // 💀 THE GUILLOTINE: Strict Budget Enforcement
+    // ---------------------------------------------------------
+    // Regardless of what AI said, we recalculate and cut.
+    const strictResult = enforceStrictBudget(sanitizedAnnotations, task.markingScheme);
+
+    // Update Annotations (Survivors only)
+    sanitizedAnnotations = strictResult.annotations;
+
+    // Update Score (Recalculated)
+    parsedScore.awardedMarks = strictResult.awardedMarks;
+
+    // [DEBUG-GUILLOTINE] Log if we changed the score
+    if (parsedScore.awardedMarks !== Number(markingResult.studentScore?.awardedMarks)) {
+      console.log(`   ⚖️ [GUILLOTINE-FIX] Recalculated Score: ${markingResult.studentScore?.awardedMarks} -> ${parsedScore.awardedMarks} (Survivors: ${sanitizedAnnotations.length})`);
     }
 
     const debug11a = sanitizedAnnotations.filter(a => a.subQuestion === "11a");
@@ -897,6 +902,88 @@ function parseScore(scoreInput: any): { awardedMarks: number; totalMarks: number
     awardedMarks: isNaN(numericValue) ? 0 : numericValue,
     totalMarks: 0
   };
+}
+/**
+ * THE GUILLOTINE (Strict Budget Enforcement)
+ * 1. Parses mark values (e.g. "B2" -> 2, "M1" -> 1).
+ * 2. Groups by Sub-Question.
+ * 3. Cuts excess marks to enforce Max Score budgets.
+ */
+function enforceStrictBudget(
+  annotations: any[],
+  scheme: any
+): { annotations: any[], awardedMarks: number } {
+  const sanitizeValue = (text: string) => {
+    // Standard Codes: M1, A1, B2 -> Extract Number
+    const match = text.match(/[A-Z]+(\d+)/i);
+    if (match) return parseInt(match[1]);
+
+    // Fallback: Just numbers "2"
+    const num = parseInt(text.replace(/\D/g, ''));
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Group by Sub-Question
+  const buckets: Record<string, any[]> = {};
+  annotations.forEach(a => {
+    const key = a.subQuestion || 'main'; // Use 'main' if no sub-question
+    if (!buckets[key]) buckets[key] = [];
+    buckets[key].push(a);
+  });
+
+  let grandTotal = 0;
+  const survivorList: any[] = [];
+
+  Object.keys(buckets).forEach(subQ => {
+    const anns = buckets[subQ];
+
+    // Determine Budget for this Sub-Question
+    // 1. Try Scheme Lookup (If precise mapping exists)
+    // 2. Fallback: Parse from Scheme Text? 
+    // 3. Fallback: If "main" and only 1 Q, use TotalMarks.
+    // For now, if we lack granular budget, we assume INFINITE (or rely on TotalMarks later).
+    // BUT, for Q12 (Total 2), we know the limit.
+
+    let budget = 99; // Default open
+
+    // Attempt to find specific max score in scheme
+    // Schema structure varies, we try a few paths
+    if (scheme) {
+      // Path A: scheme.markBreakdown['12']
+      if (scheme.markBreakdown && scheme.markBreakdown[subQ]) {
+        budget = scheme.markBreakdown[subQ].maxScore || budget;
+      }
+      // Path B: scheme.subQuestions (Array)
+      else if (Array.isArray(scheme.subQuestions)) { // Typo fix: removed duplicate 'scheme'
+        const match = (scheme.subQuestions as any[]).find((sq: any) => sq.label === subQ || sq.questionNumber === subQ);
+        if (match && match.maxScore) budget = Number(match.maxScore);
+      }
+      // Path C: If this is the ONLY sub-question (e.g. "12" is main), use TotalMarks
+      else if (Object.keys(buckets).length === 1 && scheme.totalMarks) {
+        budget = Number(scheme.totalMarks);
+      }
+    }
+
+    // Calculate current breakdown
+    let currentVal = 0;
+    const survivors: any[] = [];
+
+    for (const ann of anns) {
+      const val = sanitizeValue(ann.text || "0");
+      if (currentVal + val <= budget) {
+        survivors.push(ann);
+        currentVal += val;
+      } else {
+        // [CUT] Exceeds budget
+        console.log(`   ✂️ [GUILLOTINE] Q${subQ}: Cutting annotation "${ann.text}" (Value: ${val}). Budget: ${budget}, Current: ${currentVal}`);
+      }
+    }
+
+    survivors.forEach(s => survivorList.push(s));
+    grandTotal += currentVal;
+  });
+
+  return { annotations: survivorList, awardedMarks: grandTotal };
 }
 
 /**
