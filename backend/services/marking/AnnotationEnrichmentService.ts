@@ -14,7 +14,7 @@ export const enrichAnnotationsWithPositions = (
     questionId: string,
     defaultPageIndex: number = 0,
     pageDimensions?: Map<number, { width: number; height: number }>,
-    classificationBlocks?: any[], // Unused, kept for signature compatibility
+    classificationBlocks?: any[], // Unused
     task?: MarkingTask,
     visualObservation?: string,
     globalOffsetX: number = 0,
@@ -22,7 +22,7 @@ export const enrichAnnotationsWithPositions = (
     semanticZones?: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number }>>
 ): EnrichedAnnotation[] => {
 
-    // Helper: Lookup Text or Handwriting blocks (Flat Array Search)
+    // Helper: Lookup Text or Handwriting blocks
     const findInData = (id: string) => stepsDataForMapping.find(s => s.line_id === id || s.globalBlockId === id || s.id === id);
 
     return annotations.map((anno, idx) => {
@@ -30,19 +30,18 @@ export const enrichAnnotationsWithPositions = (
         let method = "NONE";
         let rawBox: any = null;
 
-        // 1. READ STATUS (Trust Executor)
+        // 1. READ STATUS
         let status = (anno as any).ocr_match_status || "UNMATCHED";
         const targetId = (anno as any).linked_ocr_id;
         const lineId = (anno as any).line_id;
         const rawVisualPos = (anno as any).visual_position || (anno as any).aiPosition;
 
-        // 2. SELECT SOURCE (Strict Logic)
+        // 2. SELECT SOURCE
         if (status === "MATCHED" && targetId) {
             // [PATH A] MATCHED -> Use Text ID
             const match = findInData(targetId);
             if (match) {
                 const sourceBox = match.bbox || match.position;
-                // [FIX 1] Respect Upstream Unit
                 const unit = match.unit || 'pixels';
 
                 rawBox = Array.isArray(sourceBox)
@@ -53,6 +52,8 @@ export const enrichAnnotationsWithPositions = (
         }
         else if (status === "VISUAL" && rawVisualPos) {
             // [PATH B] VISUAL -> Use AI Coords
+            // STRICT DESIGN: We trust these coords raw. If they are garbage (50% page), 
+            // we will let them be garbage pixels, and CLAMP them later.
             rawBox = { ...rawVisualPos, unit: 'percentage' };
             method = "VISUAL_COORDS";
         }
@@ -62,26 +63,21 @@ export const enrichAnnotationsWithPositions = (
                 const match = findInData(lineId);
                 if (match) {
                     const sourceBox = match.bbox || match.position;
-                    // [FIX 1] Respect Upstream Unit (Likely 'percentage' for Handwriting)
+                    // FIX: Respect the unit from classification (likely 'percentage')
                     const unit = match.unit || 'pixels';
-
-                    // [DEBUG LOG] Show exactly what we found
-                    console.log(`[ENRICH-DEBUG] Q${anno.subQuestion} UNMATCHED | LineID: ${lineId} | Found: X=${sourceBox[0] ?? sourceBox.x}, Y=${sourceBox[1] ?? sourceBox.y}, UNIT=${unit}`);
 
                     rawBox = Array.isArray(sourceBox)
                         ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3], unit }
                         : { ...sourceBox, unit };
 
                     method = "ZONE_PROTECTED_HANDWRITING";
-                } else {
-                    console.warn(`[ENRICH-WARN] Q${anno.subQuestion} UNMATCHED | LineID: ${lineId} | NOT FOUND in stepsDataForMapping.`);
                 }
             }
 
-            // FAIL FAST: If UNMATCHED and no handwriting found -> CRASH.
+            // FAIL FAST
             if (!rawBox) {
                 const availableIds = stepsDataForMapping.slice(0, 5).map(s => s.line_id).join(', ');
-                throw new Error(`[RENDERER-FAIL] Annotation ${anno.subQuestion} is UNMATCHED and has no handwriting source (line_id: ${lineId}). Sample IDs: ${availableIds}...`);
+                throw new Error(`[RENDERER-FAIL] Annotation ${anno.subQuestion} is UNMATCHED and has no handwriting source (line_id: ${lineId}).`);
             }
         }
 
@@ -99,29 +95,26 @@ export const enrichAnnotationsWithPositions = (
             }
         );
 
-        if (method === "ZONE_PROTECTED_HANDWRITING") {
-            console.log(`[ENRICH-DEBUG] Q${anno.subQuestion} Resolved Pixels: X=${pixelBox.x}, Y=${pixelBox.y} (Page H=${dims.height})`);
-        }
-
-        // 4. APPLY ZONE PROTECTION (Post-Resolution)
-        // Now that we have absolute pixels, we can strictly enforce the Vertical Zone.
-        if (method === "ZONE_PROTECTED_HANDWRITING" && semanticZones) {
+        // 4. STRICT ZONE CLAMPING (Universal)
+        // Applies to UNMATCHED (Handwriting) AND VISUAL (Drawings)
+        // We do NOT use "Smart" centering. We just Hard Clamp to the boundary.
+        if (semanticZones) {
             const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
             if (zone) {
-                const originalY = pixelBox.y;
+                // ONLY Clamp if it's NOT a Direct Text Match
+                // (We trust OCR text locations implicitly, but we clamp everything else)
+                if (status !== "MATCHED") {
 
-                // RULE: If Y is ABOVE zone start, Force to zone start.
-                if (pixelBox.y < zone.startY) {
-                    pixelBox.y = zone.startY;
-                }
+                    // RULE: If Y is ABOVE zone start, Force to zone start.
+                    if (pixelBox.y < zone.startY) {
+                        pixelBox.y = zone.startY;
+                    }
 
-                // RULE: If Y is BELOW zone end, Force to zone end.
-                if (zone.endY && pixelBox.y > zone.endY) {
-                    pixelBox.y = Math.max(zone.startY, zone.endY - (pixelBox.height || 10));
-                }
-
-                if (pixelBox.y !== originalY) {
-                    console.log(`[ENRICH-DEBUG] Q${anno.subQuestion} CLAMPED Y: ${originalY} -> ${pixelBox.y} (Zone: ${zone.startY}-${zone.endY})`);
+                    // RULE: If Y is BELOW zone end, Force to zone end.
+                    // (Even if AI gave us 50% Page Height, we drag it all the way up/down to the edge)
+                    if (zone.endY && pixelBox.y > zone.endY) {
+                        pixelBox.y = Math.max(zone.startY, zone.endY - (pixelBox.height || 10));
+                    }
                 }
             }
         }

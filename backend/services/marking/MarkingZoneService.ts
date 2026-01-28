@@ -127,7 +127,7 @@ export class MarkingZoneService {
     }
 
     // ---------------------------------------------------------
-    // 🛠️ MULTI-VIEW BLOCK FINDER (Updated for Parent Anchors)
+    // 🛠️ MULTI-VIEW BLOCK FINDER (Updated for Suffix Anchors)
     // ---------------------------------------------------------
     private static findBestBlock(
         sortedBlocks: any[],
@@ -146,9 +146,9 @@ export class MarkingZoneService {
         const targetSkeleton = this.mathSkeleton(textRaw);
 
         // Extract "Parent Label" (e.g. "6a" -> "6")
-        // Matches leading digits
-        const parentMatch = labelRaw.match(/^(\d+)/);
-        const parentLabel = parentMatch ? parentMatch[1] : null;
+        const parentMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
+        const parentLabel = parentMatch ? parentMatch[1] : null;      // "6"
+        const subPartLabel = parentMatch ? parentMatch[2] : null;     // "a"
 
         let bestBlock: any = null;
         let bestSimilarity = 0;
@@ -169,19 +169,31 @@ export class MarkingZoneService {
             let isAnchorMatch = false;
 
             if (labelRaw.length > 0) {
-                // 1. Exact Anchor (Starts with "6a")
+                // 1. Exact Anchor (e.g. "6a")
                 const exactRegex = new RegExp(`^${this.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
+
+                // 2. Parent Anchor (e.g. "6")
+                const parentRegex = parentLabel ? new RegExp(`^${this.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i') : null;
+
+                // 3. [NEW] Suffix Anchor (e.g. "(a)" or "a)") matches "6a" target
+                // If we are looking for "3b", we should also accept "(b)" or "b)"
+                let suffixRegex: RegExp | null = null;
+                if (subPartLabel) {
+                    suffixRegex = new RegExp(`^\\(?${this.escapeRegExp(subPartLabel)}\\)(?:[\\s\\.]|$)`, 'i');
+                }
+
                 if (exactRegex.test(blockTextRaw.trim())) {
                     anchorBonus = 0.3;
                     isAnchorMatch = true;
                 }
-                // 2. ✅ PARENT ANCHOR (Starts with "6") - New Fix!
-                else if (parentLabel) {
-                    const parentRegex = new RegExp(`^${this.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i');
-                    if (parentRegex.test(blockTextRaw.trim())) {
-                        anchorBonus = 0.25; // High confidence for Parent ID
-                        isAnchorMatch = true;
-                    }
+                else if (suffixRegex && suffixRegex.test(blockTextRaw.trim())) {
+                    // [FIX] Found "(b)" when looking for "3b" -> STRONG MATCH
+                    anchorBonus = 0.25;
+                    isAnchorMatch = true;
+                }
+                else if (parentRegex && parentRegex.test(blockTextRaw.trim())) {
+                    anchorBonus = 0.20;
+                    isAnchorMatch = true;
                 }
             }
 
@@ -200,13 +212,11 @@ export class MarkingZoneService {
         }
 
         // Standard threshold 0.4.
-        // With anchorBonus 0.25, even a 0.15 text match will pass.
         return (bestBlock && bestSimilarity > 0.4) ? { block: bestBlock, similarity: bestSimilarity } : null;
     }
 
     /**
      * NEW: Generates a Set of IDs for blocks that match the question text or instructions.
-     * This "Heat Map" is used by Iron Dome to prevent bad anchors.
      */
     public static generateInstructionHeatMap(
         rawBlocks: any[],
