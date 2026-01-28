@@ -15,6 +15,7 @@ import { MarkingPositioningService } from './MarkingPositioningService.js';
 import { sanitizeAiLineId, generateDiagnosticTable } from './MarkingHelpers.js';
 import { sanitizeAnnotations } from './MarkingSanitizer.js';
 import { MarkingZoneService } from './MarkingZoneService.js';
+import { ZoneUtils } from '../../utils/ZoneUtils.js';
 
 export async function executeMarkingForQuestion(
   task: MarkingTask,
@@ -899,9 +900,10 @@ function parseScore(scoreInput: any): { awardedMarks: number; totalMarks: number
 }
 
 /**
- * Deterministic Linker (Smart Mode):
- * 1. Audits the AI's link. If valid, keeps it.
- * 2. If invalid (or missing), hunts for the correct link using strict Zone + Value logic.
+ * THE NORMALIZER (The Judge)
+ * 1. Validates AI intent against Physical Zones.
+ * 2. Resolves specific Target IDs (Text vs Handwriting).
+ * 3. Never passes ambiguity downstream.
  */
 function resolveLinksWithZones(
   annotations: any[],
@@ -910,107 +912,46 @@ function resolveLinksWithZones(
   pageHeight: number
 ): any[] {
 
-  // Flatten landmarks for search
-  let landmarks = Object.entries(semanticZones).flatMap(([label, zones]) =>
-    zones.map(data => ({
-      label,
-      y: data.startY,
-      endY: data.endY,
-      pageIndex: data.pageIndex
-    }))
-  );
-
-  // 🛡️ [CRITICAL] Sort landmarks physically
-  landmarks = landmarks.sort((a, b) => {
-    if (a.pageIndex !== b.pageIndex) return (a.pageIndex || 0) - (b.pageIndex || 0);
-    return a.y - b.y;
-  });
-
   return annotations.map(anno => {
+    // 1. Initialize
     if (!(anno as any).ai_raw_status) {
       (anno as any).ai_raw_status = anno.ocr_match_status;
     }
 
-    // 🚨 FIX: THE NULL-LINK TRAP
-    // If AI says "MATCHED" but provides NO ID, it's a hallucination or failure.
-    // Force it to "UNMATCHED" so it enters the Zone Protection (Emergency) path downstream.
-    const hasId = anno.linked_ocr_id || anno.linkedOcrId || (anno.line_id && !anno.line_id.startsWith('p'));
+    // 2. THE LAW: MATCHED REQUIRES AN ID
+    // If AI says "MATCHED" but gives NULL ID -> FORCE UNMATCHED.
+    const hasId = anno.linked_ocr_id || anno.linkedOcrId;
     if (anno.ocr_match_status === "MATCHED" && !hasId) {
-      console.log(`   🛡️ [IRON-DOME-TRAP] ${anno.subQuestion}: Status is MATCHED but ID is NULL. Downgrading to UNMATCHED to force Zone Protection.`);
+      console.log(`   🛡️ [IRON-DOME-TRAP] ${anno.subQuestion}: MATCHED with NULL ID. Demoting to UNMATCHED.`);
       anno.ocr_match_status = "UNMATCHED";
-      anno.line_id = null; // Clear the semantic line ID too to prevent bad Smart Snaps
     }
 
-    const clean = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const cleanSubQ = clean(anno.subQuestion || ''); // e.g. "bi"
-
+    // 3. ZONE CHECK (For Valid IDs)
+    const zoneData = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
     let zone: { startY: number; endY: number } | null = null;
-
-    // 🔍 [FIXED MATCHING LOGIC]
-    // 1. Exact Match: "10bi" === "10bi"
-    // 2. Container Match (Zone holds Question): "10bi".endsWith("bi") -> TRUE
-    // 3. Child Match (Question extends Zone): "10bi_1".startsWith("10bi") -> TRUE
-    const allMatchingLandmarks = landmarks.filter(l => {
-      const L = clean(l.label); // "10bi"
-      const Q = cleanSubQ;      // "bi"
-      return L === Q || L.endsWith(Q) || Q.startsWith(L);
-    });
-
-    // Sort to find best fit (shortest suffix match preferred to avoid "10bii" matching "ii" over "i")
-    const matchingLandmarks = allMatchingLandmarks.sort((a, b) => {
-      const La = clean(a.label);
-      const Lb = clean(b.label);
-      return La.length - Lb.length; // Prefer shorter/exact matches
-    });
-
-    if (matchingLandmarks.length > 0) {
-      const z = matchingLandmarks[0]; // Pick best fit
-      zone = { startY: z.y, endY: z.endY ?? pageHeight };
-      console.log(`   🎯 [ZONE-MATCH] SubQ: "${anno.subQuestion}" | Mapped to Zone "${z.label}": ${Math.round(z.y)}-${Math.round(z.endY ?? 0)}`);
-    } else {
-      console.log(`   ⚠️ [ZONE-MISS] No zone found for "${anno.subQuestion}" (Clean: ${cleanSubQ})`);
-      // Fallback for first question or generic headers if needed
-      return anno;
+    if (zoneData) {
+      zone = { startY: zoneData.startY, endY: zoneData.endY };
     }
 
-    // =========================================================================
-    // 🛡️ IRON DOME: STRICT ZONE PROTECTION
-    // =========================================================================
-    const physicalId = anno.linked_ocr_id || anno.linkedOcrId || (anno.line_id?.startsWith('p') && anno.line_id?.includes('_ocr_') ? anno.line_id : null);
+    // 4. IRON DOME VETO (Only check if we have an ID)
+    const physicalId = anno.linked_ocr_id || anno.linkedOcrId;
 
-    let markY: number | null = null;
-
-    if (physicalId) {
+    if (physicalId && zone) {
       const block = allOcrBlocks.find(b => b.id === physicalId);
       if (block) {
-        markY = block.coordinates?.y ??
-          (Array.isArray(block.bbox) ? block.bbox[1] :
-            Array.isArray(block.box) ? block.box[1] :
-              block.box?.y) ?? null;
-      }
-    } else if (anno.ocr_match_status === "VISUAL" && anno.visual_position?.y !== undefined) {
-      markY = (anno.visual_position.y / 100) * pageHeight;
-    }
-
-    if (markY !== null && zone) {
-      // 🛡️ [BUFFER] Add 5% tolerance to prevent vetoing borderline cases
-      const buffer = (zone.endY - zone.startY) * 0.05;
-      const inZone = markY >= (zone.startY - buffer) && markY <= (zone.endY + buffer);
-
-      if (!inZone) {
-        console.log(`   ⚖️ [IRON-DOME-VETO] Violation detected for ${anno.subQuestion} (ID: ${physicalId || 'VISUAL'}).`);
-        console.log(`      📍 Position: Y=${Math.round(markY)}px | Allowed Zone: ${Math.round(zone.startY)}-${Math.round(zone.endY)}px`);
-
-        return {
-          ...anno,
-          ocr_match_status: "UNMATCHED", // Force Unmatched so Enrichment uses offsets
-          linked_ocr_id: null,
-          _pipeline_action: "IRON DOME VETO (ZONE_MISMATCH)",
-          _iron_dome_veto: true
-        };
+        const markY = block.coordinates?.y ?? block.bbox?.[1];
+        if (markY !== null) {
+          const inZone = ZoneUtils.isPointInZone(markY, zoneData, 0.05);
+          if (!inZone) {
+            console.log(`   ⚖️ [IRON-DOME-VETO] ${anno.subQuestion}: ID ${physicalId} is OUT OF ZONE. Vetoing.`);
+            anno.ocr_match_status = "UNMATCHED";
+            anno.linked_ocr_id = null; // Strip the bad link
+          }
+        }
       }
     }
 
+    // 5. OUTPUT: Pure State. No Swapping. No Magic.
     return anno;
   });
 }

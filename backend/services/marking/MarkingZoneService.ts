@@ -96,8 +96,14 @@ export class MarkingZoneService {
                             cutReason = `Next Question Text (Sim: ${(stopMatch.similarity * 100).toFixed(0)}%)`;
                         }
                     } else {
-                        // [STRICT-VETO] No next sibling and no stop signal found on current page
-                        throw new Error(`[ZONE-REJECTION] Sub-question "${current.key}" has no clear ending. Next question text "${nextQuestionText.substring(0, 30)}..." was not found on Page ${current.pageIndex}.`);
+                        // ---------------------------------------------------------
+                        // [THE FIX] SOFT FALLBACK instead of CRASH
+                        // ---------------------------------------------------------
+                        console.warn(`⚠️ [ZONE-WARNING] Sub-question "${current.key}" has no clear ending. Next question text not found on this page. Defaulting to Page Bottom.`);
+
+                        // Default to the bottom of the page
+                        endY = pageHeight;
+                        cutReason = "Page Bottom (Fallback - Stop Signal Missing)";
                     }
                 } else {
                     // No stop signal provided, and no next sibling on this or other pages.
