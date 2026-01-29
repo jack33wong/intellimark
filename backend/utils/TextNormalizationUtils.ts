@@ -456,6 +456,7 @@ export function latexToPlainText(text: string | null | undefined): string {
     .replace(/\\mathbf\{([^}]+)\}/g, '$1')
     .replace(/\\mathit\{([^}]+)\}/g, '$1')
     .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\cancel\{([^}]+)\}/g, '$1')
     .replace(/\\\{/g, '{')
     .replace(/\\\}/g, '}');
 

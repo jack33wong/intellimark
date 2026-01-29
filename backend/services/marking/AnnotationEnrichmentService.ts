@@ -212,6 +212,12 @@ export const enrichAnnotationsWithPositions = (
             if (status === "UNMATCHED") status = "VISUAL";
         }
 
+        // 🛡️ REDUNDANCY PROTECTION: Don't show blue text if it is already MATCHED
+        // We only show blue overlays for UNMATCHED, FALLBACK, or VISUAL to explain layout.
+        if (status === "MATCHED") {
+            classText = "";
+        }
+
         return {
             ...anno,
             bbox: [pixelBox.x, pixelBox.y, pixelBox.width, pixelBox.height],

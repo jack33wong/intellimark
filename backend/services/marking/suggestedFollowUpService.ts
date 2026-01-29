@@ -139,22 +139,6 @@ export class SuggestedFollowUpService {
       throw new Error(`No configuration found for suggested follow-up mode: ${mode}`);
     }
 
-    // --- NEW: Static Response Override for Testing/Config (env.local) ---
-    if (mode === 'markingscheme' && process.env.MARKING_SCHEME_EXPLAIN_RESPONSE) {
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
-
-      progressTracker.completeCurrentStep();
-      progressTracker.finish();
-
-      return {
-        response: process.env.MARKING_SCHEME_EXPLAIN_RESPONSE,
-        apiUsed: 'Static Override (env.local)',
-        progressData: null,
-        usageTokens: 0
-      };
-    }
-
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
 
@@ -364,7 +348,12 @@ export class SuggestedFollowUpService {
         mode === 'modelanswer' ? singleQuestionNumber : undefined  // For model answer: pass question number
       );
 
-
+      // --- DEBUG LOGGING: Print Prompt ---
+      if (mode === 'markingscheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
+        console.log(`\n🔍 [DEBUG] MARKING SCHEME EXPLAIN PROMPT:`);
+        console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+        console.log(`--- USER ---\n${userPrompt}\n`);
+      }
 
       // Use ModelProvider directly with custom prompts
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
@@ -374,6 +363,12 @@ export class SuggestedFollowUpService {
         mode === 'markingscheme' ? 'markingScheme' : 'other';
 
       const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
+
+      // --- DEBUG LOGGING: Print Response ---
+      if (mode === 'markingscheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
+        console.log(`\n✅ [DEBUG] MARKING SCHEME EXPLAIN RESPONSE:`);
+        console.log(`${aiResult.content}\n`);
+      }
 
       // Get real API name based on model
       const getRealApiName = (modelName: string): string => {
