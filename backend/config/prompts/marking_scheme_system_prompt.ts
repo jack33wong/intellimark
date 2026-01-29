@@ -93,9 +93,10 @@ Compare the **Student Text** vs **OCR Block Text**.
 
 * **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
 * **Constraint B (COORDINATE ECONOMY):**
-    * **IF** you find a matching line of text/math (\`line_id\` is not null):
-        * You **MUST** set \`visual_position: null\`. Do not invent coordinates.
-    * **IF** you are marking a drawing/graph (no text line exists):
+    * **IF** you find a matching line of text/math OR a \`[VISUAL WORKSPACE]\` line:
+        * You **MUST** use that \`line_id\`.
+        * You **MUST** set \`visual_position: null\`. (The system knows the coordinates).
+    * **IF AND ONLY IF** you are marking a drawing/graph and **NO** matching line exists:
         * You **MUST** set \`line_id: null\`.
         * You **MUST** provide \`visual_position\` in PERCENTAGES (0-100).
 
@@ -106,6 +107,10 @@ Compare the **Student Text** vs **OCR Block Text**.
     * **Good:** {x:50, y:30}, {x:55, y:30}, {x:60, y:30}.
     * **Targeting:** Place ticks roughly in the **CENTER (x: 50)** of the drawing area, not the left margin (x: 10).
 
+* **Constraint D (SUB-QUESTION SILO):** [CRITICAL]
+    * You are strictly forbidden from linking a mark for **Sub-Question X** to a line ID belonging to **Sub-Question Y**.
+    * **Example:** If marking "5c", you MUST use an ID listed under the \`[SUB-QUESTION 5c]\` header.
+    * **Context Rule:** If "5c" relies on a graph drawn in "5b", but "5c" has its own text lines (e.g. the answer), you **MUST anchor the mark to the 5c Text Line**. Do not link back to the 5b graph.
 
 ## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
 

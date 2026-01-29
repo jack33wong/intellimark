@@ -148,11 +148,20 @@ export class SuggestedFollowUpService {
     // Use new clean structure if available, otherwise fall back to legacy
     const detectedQuestion = targetMessage.detectedQuestion;
 
-    // Helper to stringify marking scheme (handles both string and array formats)
+    // Helper to stringify marking scheme (handles text, array, and object formats)
     const stringifyMarkingScheme = (scheme: any): string => {
+      if (!scheme) return '';
       if (typeof scheme === 'string') return scheme;
-      if (Array.isArray(scheme)) {
-        return scheme.map((s: any) => `- ${s.mark || 'Mark'}: ${s.answer} ${s.comments ? `(${s.comments})` : ''}`).join('\n');
+
+      // Handle Object Wrapper (Sanitized Scheme) - extract the marks array
+      let marksArray = scheme;
+      if (!Array.isArray(scheme) && scheme.marks && Array.isArray(scheme.marks)) {
+        marksArray = scheme.marks;
+      }
+
+      // Case 1: Standard Array (or extracted array)
+      if (Array.isArray(marksArray)) {
+        return marksArray.map((s: any) => `- ${s.mark || 'Mark'}: ${s.answer} ${s.comments ? `(${s.comments})` : ''}`).join('\n');
       }
       return '';
     };
@@ -329,6 +338,11 @@ export class SuggestedFollowUpService {
         questionText = q.questionText;
         questionText = q.questionText;
         // markingScheme must be plain text (same format as sent to AI for marking instruction)
+        // DEBUG: Inspect raw marking scheme data
+        if (process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
+          console.log(`[DEBUG_FOLLOWUP] Raw marking scheme input for Q${q.questionNumber}:`, JSON.stringify(q.markingScheme, null, 2));
+        }
+
         markingScheme = stringifyMarkingScheme(q.markingScheme);
         if (!markingScheme && q.markingScheme) {
           console.warn(`[SINGLE QUESTION] Could not stringify marking scheme for Q${q.questionNumber}`);

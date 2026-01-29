@@ -793,10 +793,43 @@ export class SessionManagementService {
       };
     });
 
-    // Create detectedQuestion data from detection results for frontend display
+    // ==================================================================================
+    // [V2 CLEAN FIX] REUSE EXISTING WORKING DATA FROM ENGINE
+    // We stop relying on schema-based structure builders when we have actual engine results.
+    // This ensures markingScheme and questionText ARE THE STRINGS used in the AI prompt.
+    // ==================================================================================
     let detectedQuestion: any;
-    if (aiData.detectionResults && aiData.detectionResults.length > 0) {
-      // Use common function with detection results (Marking Mode)
+
+    if (allQuestionResults && allQuestionResults.length > 0) {
+      console.log(`[V2 CLEAN FIX] 🏗️ Building UI Structure directly from ${allQuestionResults.length} Engine Results...`);
+
+      // Calculate total marks from engine results
+      const syncTotal = allQuestionResults.reduce((sum, r) => sum + (r.totalMarks || r.marks || 0), 0);
+
+      // Build a simple flat exam paper structure
+      const questions = allQuestionResults.map(r => ({
+        questionNumber: String(r.questionNumber),
+        questionText: r.questionText || '',
+        markingScheme: r.markingScheme || '',
+        marks: r.totalMarks || r.marks || 0,
+        totalMarks: r.totalMarks || r.marks || 0
+      }));
+
+      detectedQuestion = {
+        found: true,
+        multipleExamPapers: false,
+        multipleQuestions: questions.length > 1,
+        totalMarks: syncTotal,
+        examPapers: [{
+          examPaperTitle: aiData.detectionResults?.[0]?.question?.paperTitle || "Annotated Paper",
+          totalMarks: syncTotal,
+          questions: questions
+        }]
+      };
+
+      console.log(`[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)`);
+    } else if (aiData.detectionResults && aiData.detectionResults.length > 0) {
+      // Fallback 1: Legacy detection results (e.g. if marking didn't run)
       const { examPapers, multipleExamPapers, totalMarks } = buildExamPaperStructure(aiData.detectionResults);
       detectedQuestion = {
         found: true,
@@ -806,10 +839,10 @@ export class SessionManagementService {
         examPapers
       };
     } else if (aiData.markingSchemesMap) {
-      // Fallback to legacy method if detection results not provided
+      // Fallback 2: Legacy marking schemes map
       detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(aiData.markingSchemesMap, aiData.globalQuestionText);
     } else {
-      // No detection data available
+      // Default: Empty
       detectedQuestion = {
         found: false,
         multipleExamPapers: false,
@@ -818,46 +851,7 @@ export class SessionManagementService {
         examPapers: []
       };
     }
-
     // ==================================================================================
-    // [SYNC FIX] SYNCHRONIZE UI STRUCTURE WITH ACTUAL ENGINE RESULTS
-    // The 'detectedQuestion' above is built from the SCHEMA (Default 20 marks).
-    // We MUST update it with the ACTUAL TOTALS found by the Marking Engine (e.g. 2 marks).
-    // ==================================================================================
-    if (detectedQuestion && detectedQuestion.examPapers && allQuestionResults && allQuestionResults.length > 0) {
-      // console.log(`[SYNC FIX] 🔄 Synchronizing UI Structure (Schema Defaults) with Engine Results (Actuals)...`);
-      let syncTotal = 0;
-
-      detectedQuestion.examPapers.forEach((paper: any) => {
-        if (paper.questions) {
-          paper.questions.forEach((q: any) => {
-            // Find matching result
-            const result = allQuestionResults.find((r: any) =>
-              // Match by Question Number (robust string match)
-              String(r.questionNumber).toLowerCase() === String(q.questionNumber).toLowerCase()
-            );
-
-            if (result && result.score) {
-              const oldTotal = q.totalMarks;
-              const newTotal = result.score.totalMarks;
-
-              // OVERWRITE the UI structure's total with the Engine's total
-              q.totalMarks = newTotal;
-
-              if (oldTotal !== newTotal) {
-                // console.log(`[SYNC FIX] ✅ Q${q.questionNumber}: Updated Total Available Marks from ${oldTotal} (Schema) -> ${newTotal} (Engine)`);
-              }
-            }
-            syncTotal += (q.totalMarks || 0);
-          });
-        }
-      });
-
-      // Update the Grand Total for the whole paper
-      const oldGrandTotal = detectedQuestion.totalMarks;
-      detectedQuestion.totalMarks = syncTotal;
-      // console.log(`[SYNC FIX] 🏁 Updated Grand Total from ${oldGrandTotal} -> ${syncTotal}`);
-    }
     // ==================================================================================
 
     // Aggregated Summaries Redesign: Distilled Data Pass

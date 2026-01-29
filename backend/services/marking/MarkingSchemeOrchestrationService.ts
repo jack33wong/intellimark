@@ -247,6 +247,24 @@ export class MarkingSchemeOrchestrationService {
 
       for (const question of group) {
         const effectiveResult = { ...groupDetectionResult };
+
+        // --- CLEANUP: Extract Clean Marking Scheme Array ---
+        // If we have a composite object (raw DB dump), parse it now to save only relevant data.
+        if (effectiveResult.found && effectiveResult.match?.markingScheme?.questionMarks?.isComposite) {
+          const qNum = question.questionNumber; // e.g. "5a"
+          const composite = effectiveResult.match.markingScheme.questionMarks;
+
+          if (qNum && composite.subQuestionMarks && composite.subQuestionMarks[qNum]) {
+            // found specific marks! Overwrite with simple array.
+            // This ensures DB stores [{ mark: 'B1', ... }] instead of the huge object.
+            effectiveResult.match.markingScheme.questionMarks = composite.subQuestionMarks[qNum].marks || [];
+          } else {
+            // Fallback: If specific marks are missing, default to empty to avoid saving "messy" data.
+            effectiveResult.match.markingScheme.questionMarks = [];
+          }
+        }
+        // ---------------------------------------------------
+
         if (effectiveResult.found && effectiveResult.match) {
           effectiveResult.message = `Matched via Group ${baseNum}`;
         }

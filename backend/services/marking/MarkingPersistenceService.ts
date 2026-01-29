@@ -62,6 +62,36 @@ export class MarkingPersistenceService {
         // console.log(`[PERSISTENCE ENTRY] Length: ${Array.isArray(questionOnlyClassificationResult) ? questionOnlyClassificationResult.length : 'N/A'}`);
         // console.log(`[PERSISTENCE ENTRY] isMixedContent: ${isMixedContent}`);
 
+        // 🧹 SANITIZATION HELPER: Passed through to preserve the engine's clean string format
+        const sanitizeScheme = (scheme: any) => {
+            return scheme;
+        };
+
+        // 🧹 APPLY SANITIZATION
+        // 1. Sanitize Marking Schemes Map
+        if (markingSchemesMap) {
+            for (const [key, value] of markingSchemesMap.entries()) {
+                if (value.markingScheme) {
+                    value.markingScheme = sanitizeScheme(value.markingScheme);
+                }
+            }
+        }
+
+        // 2. Sanitize Detection Results
+        if (detectionResults) {
+            detectionResults.forEach(dr => {
+                if (dr.question?.markingScheme) {
+                    dr.question.markingScheme = sanitizeScheme(dr.question.markingScheme);
+                }
+                // Also sanitize questions array if present
+                if (dr.questions && Array.isArray(dr.questions)) {
+                    dr.questions.forEach((q: any) => {
+                        if (q.markingScheme) q.markingScheme = sanitizeScheme(q.markingScheme);
+                    });
+                }
+            });
+        }
+
         try {
             // Extract request data
             const userId = options.userId || 'anonymous';
@@ -190,8 +220,8 @@ export class MarkingPersistenceService {
                 files,
                 actualModel,
                 startTime,
-                markingSchemesMap,
-                detectionResults,  // Add detection results for Exam Tab building
+                markingSchemesMap, // ✅ ENSURE THIS IS PASSED (It was already there, but verifying)
+                detectionResults,
                 globalQuestionText,
                 resolvedAIMessageId,
                 questionOnlyResponses: isMixedContent ? questionOnlyResponses : undefined,

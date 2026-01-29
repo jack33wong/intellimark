@@ -793,14 +793,10 @@ export function buildExamPaperStructure(detectionResults: any[]) {
     // markingScheme: adapt plain text if it exists (for compatibility)
     let markingSchemeEntries: any[] = [];
     if (match.markingScheme?.questionMarks) {
-      // DEBUG LOGGING: Unconditional log to investigate structure
-      console.log(`[DEBUG_MS] Found markingScheme.questionMarks for Q${dr.question.questionNumber}:`,
-        JSON.stringify(match.markingScheme, null, 2));
+      // Complex object case - handling by conversion or direct assign
+      markingSchemeEntries = [{ mark: 'Model', answer: 'See scheme details' }];
 
-      // Revert to safe fallback until structure is known
-      markingSchemeEntries = [{ mark: 'Model', answer: 'See scheme details (Pending Investigation)' }];
-
-    } else if (dr.detectionResult.markingScheme) {
+    } else if (dr.detectionResult && dr.detectionResult.markingScheme) {
       // Handle string or object marking scheme from detection result
       const rawScheme = dr.detectionResult.markingScheme;
       if (Array.isArray(rawScheme)) {

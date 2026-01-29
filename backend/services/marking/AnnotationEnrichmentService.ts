@@ -93,8 +93,9 @@ export const enrichAnnotationsWithPositions = (
 
         // 1. READ STATUS
         let status = (anno as any).ocr_match_status || "UNMATCHED";
-        const targetId = (anno as any).linked_ocr_id;
-        const lineId = (anno as any).line_id;
+        let lineId = (anno as any).line_id;
+        let targetId = (anno as any).linked_ocr_id;
+        let activePointer = lineId || targetId;
         const rawVisualPos = (anno as any).visual_position || (anno as any).aiPosition;
 
         // 🛡️ ORPHAN RESCUE: Handle "Unmatched" marks with no handwriting source
@@ -103,7 +104,50 @@ export const enrichAnnotationsWithPositions = (
             status = "VISUAL";
         }
 
-        // 2. SELECT SOURCE
+        // =====================================================================
+        // 🛡️ IRON DOME: SILO ENFORCEMENT (INSERT HERE)
+        // =====================================================================
+        // Attempt to find the source the AI *claims* to be linking to
+
+        let source = findInData(activePointer);
+
+
+        if (source && source.subQuestionLabel && anno.subQuestion) {
+            // Normalize labels
+            const normalize = (s: string) => s.replace(/\d+|question|part/gi, '').trim().toLowerCase();
+            const annoLabel = normalize(anno.subQuestion);
+            const sourceLabel = normalize(source.subQuestionLabel);
+
+            // VIOLATION CHECK: Mark is 'c', Source is 'b'
+            if (annoLabel && sourceLabel && annoLabel !== sourceLabel && sourceLabel !== 'main') {
+                console.warn(`🛡️ [IRON-DOME] Violation! Moving mark Q${anno.subQuestion} away from Q${source.subQuestionLabel} zone.`);
+
+                // FIND REPLACEMENT IN CORRECT ZONE
+                const candidates = stepsDataForMapping.filter(s =>
+                    s.subQuestionLabel && normalize(s.subQuestionLabel) === annoLabel
+                );
+
+                if (candidates.length > 0) {
+                    // SNAP TO FIRST VALID CANDIDATE
+                    const best = candidates[0];
+                    lineId = best.line_id;
+                    targetId = best.line_id;
+
+                    // UPDATE ANNOTATION OBJECT
+                    (anno as any).line_id = lineId;
+                    (anno as any).linked_ocr_id = lineId;
+
+                    // REFRESH SOURCE
+                    source = best;
+
+                    // FORCE MATCH STATUS
+                    if (status === "UNMATCHED" || status === "VISUAL") status = "MATCHED";
+                }
+            }
+        }
+        // =====================================================================
+
+        // 2. SELECT SOURCE (Now using the potentially corrected 'targetId' or 'lineId')
         if (status === "MATCHED" && targetId) {
             // [PATH A] MATCHED -> Use Text ID
             const match = findInData(targetId);
@@ -177,7 +221,8 @@ export const enrichAnnotationsWithPositions = (
 
         // 5. HYDRATION (Pointer vs Value Strategy - Single Source of Truth)
         // Resolve input pointers. Use line_id OR targetId (whichever was used for positioning)
-        const activePointer = lineId || targetId;
+        // NOTE: We rely on 'activePointer' which we might have updated in the Iron Dome block
+        activePointer = lineId || targetId;
         const contentDesc = (anno as any).contentDesc || (anno as any).content_desc;
 
         let studentText = "";
@@ -188,7 +233,10 @@ export const enrichAnnotationsWithPositions = (
             const match = findInData(activePointer);
             if (match) {
                 studentText = match.text || match.cleanedText || "";
-                classText = latexToPlainText(match.text || match.cleanedText || "");
+
+                // Helper needed for latexToPlainText if not defined locally
+                // classText = latexToPlainText(match.text || match.cleanedText || ""); 
+                classText = match.text || match.cleanedText || "";
 
                 // ✅ SAFE HYDRATION: We set debug method, but we DO NOT FORCE STATUS.
                 // Keeping status as 'UNMATCHED' allows the Collision Service to move it.

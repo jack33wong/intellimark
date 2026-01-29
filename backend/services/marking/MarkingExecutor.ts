@@ -3,9 +3,10 @@
  * Final Polish: Single Source of Truth for Zones
  */
 
+
 import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
-import type { ModelType, MarkingTask, EnrichedAnnotation, MathBlock } from '../../types/index.js';
+import { MarkingTask, MathBlock, ModelType } from "../../types/index.js";
 import type { QuestionResult } from '../../types/marking.js';
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
@@ -58,46 +59,76 @@ export async function executeMarkingForQuestion(
         let pageIdx = -1;
 
         const lineData = (result as any).lineData;
-        const coords = lineData?.coordinates || lineData?.position;
 
-        if (coords?.x != null && coords?.y != null) {
-          bbox = [coords.x, coords.y, coords.width, coords.height];
-          pageIdx = lineData?.pageIndex != null ? lineData.pageIndex : (task.sourcePages[0] || 0);
-        } else {
+        // 🛡️ [FIX 1]: ROBUST BBOX EXTRACTION
+        // Check every possible location where the box might be hiding
+        const rawSource = (result as any).bbox ||
+          (result as any).position ||
+          (result as any).lineData?.coordinates ||
+          (result as any).lineData?.box ||
+          (result as any).lineData?.region;
+
+        if (rawSource) {
+          // Normalize Object {x,y,w,h} to Array [x,y,w,h]
+          if (Array.isArray(rawSource) && rawSource.length === 4) {
+            bbox = rawSource as [number, number, number, number];
+          } else if (typeof rawSource.x === 'number') {
+            bbox = [rawSource.x, rawSource.y, rawSource.width, rawSource.height];
+          }
+        }
+        // Fallback: Try matching against OCR blocks if no direct box found
+        else {
           let matchingBlock = task.mathBlocks.find(block => {
-            const blockId = (block as any).globalBlockId || `${(block as any).pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
-            return blockId === result.blockId;
+            const blockId = (block as any).globalBlockId;
+            return blockId && blockId === result.blockId;
           });
 
           if (matchingBlock?.coordinates?.x != null) {
             bbox = [matchingBlock.coordinates.x, matchingBlock.coordinates.y, matchingBlock.coordinates.width, matchingBlock.coordinates.height];
-            pageIdx = (matchingBlock as any).pageIndex != null ? (matchingBlock as any).pageIndex : (task.sourcePages[0] || 0);
+            pageIdx = (matchingBlock as any).pageIndex ?? task.sourcePages[0];
           }
         }
 
-        if (pageIdx === -1 && lineData && typeof lineData.pageIndex === 'number') {
-          pageIdx = lineData.pageIndex;
-        }
-        if (pageIdx === -1) {
-          pageIdx = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
-        }
+        // Determine Page Index
+        if ((result as any).pageIndex !== undefined) pageIdx = (result as any).pageIndex;
+        if (pageIdx === -1 && lineData?.pageIndex !== undefined) pageIdx = lineData.pageIndex;
+        if (pageIdx === -1) pageIdx = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+
+        // 🛡️ [FIX 2]: ID DISCIPLINE
+        // Use the explicit 'line_id' from the task. DO NOT generate new IDs using stepIndex.
+        // Only fall back to generation if absolutely necessary.
+        const finalId = (result as any).line_id ||
+          (result as any).lineId ||
+          (result as any).id ||
+          (result as any).sequentialId ||
+          `p${pageIdx}_q${questionId}_line_${stepIndex + 1}`; // Last resort
 
         const ocrSource = result.source || 'classification';
 
         return {
-          line_id: (result as any).sequentialId || `p${pageIdx}_q${questionId}_line_${stepIndex + 1}`,
+          line_id: finalId, // ✅ Trust the Task Builder ID
           pageIndex: pageIdx,
-          globalBlockId: result.blockId,
+          globalBlockId: result.blockId || finalId,
           text: result.content,
-          lineId: result.blockId,
-          cleanedText: result.content.trim(),
+          lineId: finalId,
+          cleanedText: (result.content || '').trim(),
           bbox: bbox,
           ocrSource: ocrSource,
           isHandwritten: true,
-          unit: (result as any).source === 'classification' ? 'percentage' : 'pixels'
+          unit: (result as any).unit || ((result as any).source === 'classification' ? 'percentage' : 'pixels'),
+          // 🚨 CRITICAL FIX: Pass the label so Iron Dome knows which zone this is!
+          subQuestionLabel: (result as any).subQuestionLabel
         };
       }).filter((step) => {
-        if (step.text.includes('[DRAWING]')) return true;
+        // 1. Always keep visual placeholders
+        if (step.text.includes('[VISUAL WORKSPACE]') || step.text.includes('[DRAWING]')) return true;
+
+        // 2. 🛡️ ORPHAN PROTECTION: Keep line if it has a valid ID and text, 
+        // even if bbox is missing (0,0,0,0). 
+        // The Enrichment Service will clamp it to the Question Zone later.
+        if (step.line_id && step.text && step.text.trim().length > 0) return true;
+
+        // 3. Only delete empty noise
         return !(step.bbox[0] === 0 && step.bbox[1] === 0 && step.bbox[2] === 0 && step.bbox[3] === 0);
       });
 
@@ -572,6 +603,30 @@ export async function executeMarkingForQuestion(
 
     parsedScore.scoreText = `${parsedScore.awardedMarks}/${parsedScore.totalMarks}`;
 
+
+    // ---------------------------------------------------------
+    // 🧹 SANITIZATION: Clean db payload
+    // ---------------------------------------------------------
+    const cleanMarkingScheme: any = {};
+    if (task.markingScheme) {
+      const allowedKeys = [
+        'marks', 'totalMarks', 'questionNumber', 'questionLevelAnswer', 'marksWithAnswers',
+        'subQuestionNumbers', 'subQuestionMarks', 'subQuestionMaxScores', 'subQuestionAnswersMap',
+        'subQuestionTexts', 'hasAlternatives', 'alternativeMethod', 'parentQuestionMarks',
+        'isGeneric', 'guidance', 'subQuestionMetadata'
+      ];
+
+      allowedKeys.forEach(key => {
+        if ((task.markingScheme as any)[key] !== undefined) {
+          cleanMarkingScheme[key] = (task.markingScheme as any)[key];
+        }
+      });
+    }
+
+    // NEW: Capture the exact prompt texts
+    const finalPromptQuestionText = markingResult.promptQuestionText;
+    const finalPromptSchemeText = markingResult.schemeTextForPrompt;
+
     return {
       questionNumber: questionId,
       score: parsedScore,
@@ -582,10 +637,10 @@ export async function executeMarkingForQuestion(
       outputTokens: markingResult.usage?.llmOutputTokens || 0,
       mathpixCalls: 0,
       confidence: 0.9,
-      markingScheme: task.markingScheme,
+      markingScheme: finalPromptSchemeText || (typeof cleanMarkingScheme === 'string' ? cleanMarkingScheme : JSON.stringify(cleanMarkingScheme)), // [PERSISTENCE FIX] Force string
       studentWork: (markingResult as any).cleanedOcrText || task.classificationStudentWork,
       databaseQuestionText: task.markingScheme?.databaseQuestionText || task.questionText,
-      promptMarkingScheme: (markingResult as any).schemeTextForPrompt,
+      questionText: finalPromptQuestionText || task.questionText || '', // [PERSISTENCE FIX] Overwrite with prompt text
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
       rawAnnotations: rawAnnotationsFromAI,
       semanticZones: semanticZones // ✅ PASSED THROUGH
@@ -597,17 +652,13 @@ export async function executeMarkingForQuestion(
   }
 }
 
-// ... (flattenQuestionTree, createMarkingTasksFromClassification, parseScore remain unchanged) ...
-function flattenQuestionTree(node: any): any[] {
-  let list = [node];
+const flattenQuestionTree = (node: any, result: any[] = []) => {
+  result.push(node);
   if (node.subQuestions && Array.isArray(node.subQuestions)) {
-    node.subQuestions.forEach((sub: any) => {
-      sub.pageIndex = sub.pageIndex ?? node.pageIndex;
-      list = list.concat(flattenQuestionTree(sub));
-    });
+    node.subQuestions.forEach((child: any) => flattenQuestionTree(child, result));
   }
-  return list;
-}
+  return result;
+};
 
 export function createMarkingTasksFromClassification(
   classificationResult: any,
@@ -618,15 +669,12 @@ export function createMarkingTasksFromClassification(
   mapperResults?: any[]
 ): MarkingTask[] {
   const tasks: MarkingTask[] = [];
-  const globalIdCounter = { val: 1 };
 
   if (!classificationResult?.questions) return tasks;
 
-  if (process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
-  }
-
   const questionGroups = new Map<string, any>();
 
+  // 1. Group Questions
   for (const q of classificationResult.questions) {
     const baseQNum = getBaseQuestionNumber(String(q.questionNumber || ''));
     if (!baseQNum) continue;
@@ -634,6 +682,7 @@ export function createMarkingTasksFromClassification(
     const groupingKey = baseQNum;
     const sourceImageIndices = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
 
+    // Determine Anchor Page
     let anchorMainPage = sourceImageIndices[0] ?? 0;
     if (allPagesOcrData) {
       const snippet = q.text ? q.text.replace(/\n/g, ' ').substring(0, 25).trim() : null;
@@ -663,16 +712,14 @@ export function createMarkingTasksFromClassification(
     if (!questionGroups.has(groupingKey)) {
       questionGroups.set(groupingKey, {
         mainQuestion: q,
-        mainStudentWorkParts: [],
-        classificationBlocks: [],
-        subQuestions: [],
         markingScheme: markingScheme,
         baseQNum: baseQNum,
         sourceImageIndices: sourceImageIndices,
+        classificationBlocks: [],
         aiSegmentationResults: [],
-        subQuestionPageMap: {},
         subQuestionMetadata: { hasSubQuestions: false, subQuestions: [] },
-        lineCounter: 1
+        lineCounter: 1,
+        processedSubQuestions: new Set<string>()
       });
     } else {
       const group = questionGroups.get(groupingKey);
@@ -684,8 +731,6 @@ export function createMarkingTasksFromClassification(
     const currentQPageIndex = anchorMainPage;
     (q as any).pageIndex = currentQPageIndex;
 
-    group.classificationBlocks.push(q);
-
     const allNodes = flattenQuestionTree(q);
 
     allNodes.forEach((node: any) => {
@@ -695,7 +740,6 @@ export function createMarkingTasksFromClassification(
       if (nodeBox) {
         group.classificationBlocks.push({
           id: blockId,
-          blockId: blockId,
           text: node.text || '',
           box: nodeBox,
           pageIndex: node.pageIndex ?? currentQPageIndex,
@@ -703,87 +747,72 @@ export function createMarkingTasksFromClassification(
         });
       }
 
-      const IGNORED_METADATA_KEYS = [
-        'id', 'examdetails', 'totalquestions', 'totalmarks', 'confidence', 'generalmarkingguidance',
-        'questionmarks', 'parentquestionmarks', 'questionnumber', 'questiondetection', 'databasequestiontext',
-        'subquestionnumbers', 'subquestionanswers', 'isgeneric', 'sourceimageindex', 'classificationblocks',
-        'aisegmentationresults', 'subquestionmetadata', 'linecounter', 'pageindex'
-      ];
-
       if (node.part && node.part !== 'main') {
-        const isGarbage = IGNORED_METADATA_KEYS.includes(node.part.toLowerCase());
-
-        if (!isGarbage) {
+        const IGNORED = ['id', 'questionnumber', 'totalmarks'];
+        if (!IGNORED.includes(node.part.toLowerCase())) {
           group.subQuestionMetadata.hasSubQuestions = true;
           group.subQuestionMetadata.subQuestions.push({
             part: node.part,
             text: node.text || ''
           });
         }
-      } else if (!node.part || node.part === 'main') {
-        (group.subQuestionMetadata as any).mainText = node.text || '';
       }
 
-      if (node.studentWorkLines) {
+      // 3. Process Student Work Lines
+      let hasContent = false;
+      if (node.studentWorkLines && node.studentWorkLines.length > 0) {
         node.studentWorkLines.forEach((l: any) => {
           if (l.text === '[DRAWING]') return;
           const pIdx = l.pageIndex ?? node.pageIndex ?? currentQPageIndex;
-          l.pageIndex = pIdx;
-
           const globalId = `p${pIdx}_q${baseQNum}_line_${group.lineCounter++}`;
 
-          l.id = globalId;
-          l.lineId = globalId;
+          // 🛡️ CRITICAL FIX: Capture Position Data
+          // Try line box -> fallback to node box -> fallback to defaults
+          const positionData = l.box || l.region || nodeBox || { x: 0, y: 0, width: 0, height: 0, unit: 'percentage' };
 
           group.aiSegmentationResults.push({
             content: l.text,
             source: 'classification',
             blockId: globalId,
-            lineData: { ...l, id: globalId, lineId: globalId },
-            sequentialId: globalId,
-            subQuestionLabel: node.part || 'main'
+            line_id: globalId,
+            subQuestionLabel: node.part || 'main',
+            pageIndex: pIdx,
+            bbox: positionData, // ✅ PASSED TO RENDERER
+            position: positionData // ✅ PASSED TO RENDERER
           });
+          hasContent = true;
         });
       }
+
+      // 4. Handle Explicit Drawings
       if (node.hasStudentDrawing) {
-        if (!node.studentWorkLines) node.studentWorkLines = [];
-        if (!node.studentWorkLines.some((l: any) => l.text === '[DRAWING]')) {
-          const pIdx = node.pageIndex ?? currentQPageIndex;
-          const pageDim = pageDimensionsMap.get(pIdx);
-          let pos = { x: 0, y: 0, width: 0, height: 0 };
-          if (node.studentDrawingPosition && pageDim) {
-            pos = {
-              x: (node.studentDrawingPosition.x / 100) * pageDim.width,
-              y: (node.studentDrawingPosition.y / 100) * pageDim.height,
-              width: (node.studentDrawingPosition.width / 100) * pageDim.width,
-              height: (node.studentDrawingPosition.height / 100) * pageDim.height
-            };
-          }
-          const lineGlobalId = `p${pIdx}_q${baseQNum}_line_drawing_${group.lineCounter++}`;
-          const line = {
-            id: lineGlobalId,
-            text: "[DRAWING]",
-            pageIndex: pIdx,
-            position: pos
-          };
-          node.studentWorkLines.push(line);
-          group.aiSegmentationResults.push({
-            content: "[DRAWING]",
-            source: "classification",
-            blockId: lineGlobalId,
-            lineData: line,
-            sequentialId: lineGlobalId,
-            subQuestionLabel: node.part || 'main'
-          });
-        }
+        const pIdx = node.pageIndex ?? currentQPageIndex;
+        const globalId = `p${pIdx}_q${baseQNum}_visual_${group.lineCounter++}`;
+
+        // 🛡️ CRITICAL FIX: Use Node Box for Visual Placeholder
+        const visualPos = nodeBox || { x: 50, y: 50, width: 50, height: 50, unit: 'percentage' };
+
+        group.aiSegmentationResults.push({
+          content: "[VISUAL WORKSPACE]",
+          source: 'classification',
+          blockId: globalId,
+          line_id: globalId,
+          subQuestionLabel: node.part || 'main',
+          pageIndex: pIdx,
+          isVisualPlaceholder: true,
+          bbox: visualPos, // ✅ PASSED
+          position: visualPos // ✅ PASSED
+        });
+        hasContent = true;
+      }
+
+      if (hasContent && node.part) {
+        group.processedSubQuestions.add(node.part);
       }
     });
-
-    if (q.subQuestions) {
-      group.subQuestions.push(...q.subQuestions);
-    }
   }
 
+  // 2. Generate Tasks
   const sortedQuestionGroups = Array.from(questionGroups.entries()).sort((a, b) => {
     const numA = parseInt(String(a[0]).replace(/\D/g, '')) || 0;
     const numB = parseInt(String(b[0]).replace(/\D/g, '')) || 0;
@@ -791,11 +820,63 @@ export function createMarkingTasksFromClassification(
   });
 
   sortedQuestionGroups.forEach(([baseQNum, group], idx) => {
+
+    // 🚀 NEW LOGIC: Inject Missing Visual Placeholders
+    if (group.subQuestionMetadata.hasSubQuestions) {
+      group.subQuestionMetadata.subQuestions.forEach((sub: any) => {
+        const partLabel = sub.part;
+        if (!group.processedSubQuestions.has(partLabel)) {
+          const pageIdx = group.sourceImageIndices[0] || 0;
+          const placeholderId = `p${pageIdx}_q${baseQNum}_${partLabel}_visual_auto`;
+
+          // Try to find a classification block for this part to get coordinates
+          const matchingBlock = group.classificationBlocks.find((b: any) => b.part === partLabel);
+          const fallbackPos = matchingBlock?.box || { x: 50, y: 50, width: 50, height: 50, unit: 'percentage' };
+
+          group.aiSegmentationResults.push({
+            content: "[VISUAL WORKSPACE] (Refer to image)",
+            source: 'system-injection',
+            blockId: placeholderId,
+            line_id: placeholderId,
+            subQuestionLabel: partLabel,
+            pageIndex: pageIdx,
+            isVisualPlaceholder: true,
+            bbox: fallbackPos, // ✅ PASSED
+            position: fallbackPos // ✅ PASSED
+          });
+        }
+      });
+    }
+
+    // 3. Build Transcript
+    let promptMainWork = "";
+    let currentHeader = "";
+
+    group.aiSegmentationResults.sort((a: any, b: any) => {
+      if (a.subQuestionLabel === 'main') return -1;
+      if (b.subQuestionLabel === 'main') return 1;
+      return (a.subQuestionLabel || '').localeCompare(b.subQuestionLabel || '');
+    });
+
+    group.aiSegmentationResults.forEach((seg: any) => {
+      const clean = seg.content.replace(/\s+/g, ' ').trim();
+      const isContentValid = (clean.length > 0 && clean !== '--') || seg.isVisualPlaceholder;
+
+      if (isContentValid) {
+        if (seg.subQuestionLabel && seg.subQuestionLabel !== currentHeader && seg.subQuestionLabel !== 'main') {
+          promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
+          currentHeader = seg.subQuestionLabel;
+        }
+        const id = seg.line_id || seg.blockId || seg.sequentialId;
+        promptMainWork += `[ID: ${id}] ${clean}\n`;
+      }
+    });
+
+    // 4. Gather OCR
     let allOcrBlocks: MathBlock[] = [];
     group.sourceImageIndices.forEach((pageIndex: number) => {
       const pageOcr = allPagesOcrData.find(d => d.pageIndex === pageIndex);
       let ocrIdx = 0;
-
       if (pageOcr?.ocrData?.mathBlocks) {
         pageOcr.ocrData.mathBlocks.forEach((b: any) => {
           b.pageIndex = pageIndex;
@@ -803,31 +884,9 @@ export function createMarkingTasksFromClassification(
           allOcrBlocks.push(b);
         });
       }
-
-      if (pageOcr?.ocrData?.blocks) {
-        pageOcr.ocrData.blocks.forEach((b: any) => {
-          b.pageIndex = pageIndex;
-          b.globalBlockId = `block_${pageIndex}_${ocrIdx++}`;
-          allOcrBlocks.push(b);
-        });
-      }
     });
 
-    let promptMainWork = "";
-    let currentHeader = "";
-    group.aiSegmentationResults.forEach((seg: any, index: number) => {
-      const clean = seg.content.replace(/\s+/g, ' ').trim();
-      const isContentValid = clean.length > 0 && clean !== '--' && !/^[_\-\s]+$/.test(clean);
-      if (isContentValid) {
-        if (seg.subQuestionLabel && seg.subQuestionLabel !== currentHeader && seg.subQuestionLabel !== 'main') {
-          promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
-          currentHeader = seg.subQuestionLabel;
-        }
-        const idTag = seg.sequentialId ? `[ID: ${seg.sequentialId}] ` : `${index + 1}. `;
-        promptMainWork += `${idTag}${clean}\n`;
-      }
-    });
-
+    // 5. Build Final Task
     const questionImages: string[] = [];
     group.sourceImageIndices.forEach((imageIdx: number) => {
       const page = standardizedPages.find(p => p.pageIndex === imageIdx);
@@ -836,9 +895,7 @@ export function createMarkingTasksFromClassification(
 
     let nextQuestionText: string | undefined;
     const nextGroup = sortedQuestionGroups[idx + 1];
-    if (nextGroup) {
-      nextQuestionText = nextGroup[1].mainQuestion.text;
-    }
+    if (nextGroup) nextQuestionText = nextGroup[1].mainQuestion.text;
 
     tasks.push({
       questionNumber: baseQNum,
@@ -854,8 +911,8 @@ export function createMarkingTasksFromClassification(
       images: questionImages,
       aiSegmentationResults: group.aiSegmentationResults,
       subQuestionMetadata: {
-        hasSubQuestions: group.subQuestions.length > 0,
-        subQuestions: group.subQuestions
+        hasSubQuestions: group.subQuestionMetadata.hasSubQuestions,
+        subQuestions: group.subQuestionMetadata.subQuestions
       }
     });
   });

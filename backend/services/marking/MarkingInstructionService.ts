@@ -338,6 +338,7 @@ export class MarkingInstructionService {
     cleanedOcrText?: string;
     markingScheme?: any;
     schemeTextForPrompt?: string;
+    promptQuestionText?: string; // NEW: Expose the exact prompt text
     overallPerformanceSummary?: string;
   }> {
     const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker, allowedPageUnion } = inputs;
@@ -585,7 +586,7 @@ export class MarkingInstructionService {
     tracker?: any,
     cleanStudentWorkSteps?: any[],
     landmarks?: Array<{ label: string; y: number }>
-  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
+  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string; promptQuestionText?: string }> {
     const formattedOcrText = MarkingPromptService.formatOcrTextForPrompt(ocrText);
     const formattedGeneralGuidance = this.formatGeneralMarkingGuidance(generalMarkingGuidance);
     const { AI_PROMPTS } = await import('../../config/prompts.js');
@@ -604,6 +605,10 @@ export class MarkingInstructionService {
     let userPrompt: string;
     let schemeText: string | undefined;
 
+    // Lifted variables for return scope
+    let structuredQuestionText = '';
+    let liveQuestion = '';
+
     if (hasMarkingScheme && normalizedScheme) {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;
@@ -611,8 +616,7 @@ export class MarkingInstructionService {
       MarkingPromptService.replaceCaoInScheme(normalizedScheme);
       schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
 
-      let structuredQuestionText = '';
-      const liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
+      liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
 
       if (questionText) structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
       if (normalizedScheme.subQuestionTexts) {
@@ -712,7 +716,10 @@ export class MarkingInstructionService {
       markingScheme: normalizedScheme,
       schemeTextForPrompt: schemeText,
       studentScore: parsedResponse.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' },
-      visualObservation: parsedResponse.visualObservation
+      visualObservation: parsedResponse.visualObservation,
+      promptQuestionText: (hasMarkingScheme && normalizedScheme) ?
+        (structuredQuestionText.trim() || questionText || liveQuestion || classificationStudentWork || 'No question text provided') :
+        formattedOcrText
     };
   }
 }

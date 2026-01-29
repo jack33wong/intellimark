@@ -82,6 +82,9 @@ export interface CoreAnnotation {
 export interface QuestionResult {
     questionNumber: number | string;
     score: any;
+    marks?: number; // Added
+    totalMarks?: number; // Added
+    studentAnswer?: string; // Added (used in MarkingExecutor)
     annotations: EnrichedAnnotation[];
     feedback?: string;
     usageTokens?: number;
