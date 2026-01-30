@@ -588,7 +588,8 @@ export async function executeMarkingForQuestion(
         semanticZones, // <--- Passing the Full Object
         markingInputs.processedImage.rawOcrBlocks,
         pageHeight,
-        task.questionText || (task.markingScheme as any)?.databaseQuestionText || "" // <--- PASS IT HERE
+        task.questionText || (task.markingScheme as any)?.databaseQuestionText || "",
+        String(questionId) // <--- PASS IT HERE
       );
 
       markingResult.annotations.forEach((a: any) => {
@@ -1364,11 +1365,13 @@ function resolveLinksWithZones(
   semanticZones: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number; headerBlockId?: string }>>,
   allOcrBlocks: any[],
   pageHeight: number,
-  databaseQuestionText: string // <--- NEW PARAMETER
+  databaseQuestionText: string,
+  questionNumber: string // <--- NEW PARAMETER
 ): any[] {
 
   // Pre-compute the "Fingerprint" of the Question Text (e.g. "sophiedrivesadistance...")
   const questionFingerprint = normalizeForMatching(databaseQuestionText || "");
+  const cleanQNum = String(questionNumber).replace(/[^0-9a-zA-Z]/g, ''); // "22"
 
   return annotations.map(anno => {
     // 1. Initialize Status
@@ -1420,9 +1423,19 @@ function resolveLinksWithZones(
           }
         }
 
-        if (isHeader || isInstructionTag || isSemanticMatch) {
-          const reason = isHeader ? "Header ID" : isInstructionTag ? "Instruction Tag" : "Text Match";
-          console.log(`   🛡️ [SEMANTIC-VETO] ${anno.subQuestion}: Block ${physicalId} rejected. Reason: ${reason}`);
+        // GATE D: QUESTION NUMBER TRAP (The Q22 Fix)
+        let isQuestionLabel = false;
+        if (block.isHandwritten !== true) { // Only apply to Printed Text
+          const cleanBlockText = (block.text || '').replace(/[^0-9a-zA-Z]/g, '');
+          // Matches "22", "Q22", "22a" (if exactly equal to label)
+          if (cleanBlockText === cleanQNum || cleanBlockText === 'Q' + cleanQNum) {
+            isQuestionLabel = true;
+          }
+        }
+
+        if (isHeader || isInstructionTag || isSemanticMatch || isQuestionLabel) {
+          const reason = isHeader ? "Header ID" : isInstructionTag ? "Instruction Tag" : isQuestionLabel ? "Question Label" : "Text Match";
+          console.log(`   🛡️ [SEMANTIC-VETO] ${anno.subQuestion}: Block ${physicalId} ("${block.text}") rejected. Reason: ${reason}`);
 
           // 🚨 ACTION: SEVER THE LINK
           // We keep the mark (it might be valid M1), but we detach it from the text.
