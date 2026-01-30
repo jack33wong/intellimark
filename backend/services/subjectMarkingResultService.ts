@@ -85,16 +85,26 @@ export function convertMarkingResultToSubjectFormat(
     // Build question results from detailed Marking Results (Truth Source)
     // Avoids re-estimating from stale schema defaults (e.g. 20/40 issue)
     const questionResults: any[] = [];
-    const sourceResults = (markingMessage as any).allQuestionResults || (session as any).allQuestionResults;
+
+    // 1. Try markingContext (New Truth Source) - Most robust for persisted data
+    // 2. Fallback to allQuestionResults (Legacy/In-Memory)
+    const markingContext = (markingMessage as any).markingContext;
+    const sourceResults = markingContext?.questionResults || (markingMessage as any).allQuestionResults || (session as any).allQuestionResults;
 
     if (sourceResults && Array.isArray(sourceResults) && sourceResults.length > 0) {
       sourceResults.forEach((qr: any) => {
+        // Handle both MarkingContextQuestionResult and old QuestionResult formats
+        const qNum = qr.number || qr.questionNumber || '';
+        const awarded = qr.earnedMarks ?? qr.score?.awardedMarks ?? 0;
+        const total = qr.totalMarks ?? qr.score?.totalMarks ?? 0;
+        const text = qr.score?.scoreText || `${awarded}/${total}`;
+
         questionResults.push({
-          questionNumber: qr.questionNumber || '',
+          questionNumber: qNum,
           score: {
-            awardedMarks: qr.score?.awardedMarks || 0,
-            totalMarks: qr.score?.totalMarks || 0, // Trust the resolved budget (e.g. 3, not 20)
-            scoreText: qr.score?.scoreText || ''
+            awardedMarks: awarded,
+            totalMarks: total,
+            scoreText: text
           }
         });
       });

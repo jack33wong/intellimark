@@ -938,29 +938,15 @@ export class SessionManagementService {
       (dbAiMessage as any).studentScore = studentScore;
     }
 
-    // ==================================================================================
-    // [FIRESTORE SIZE OPTIMIZATION] - The Trimming Layer
-    // Strip redundant and massive objects from allQuestionResults before persistence.
-    // These are redundant because 'markingContext' contains the distilled summary.
-    // ==================================================================================
-    if (allQuestionResults && allQuestionResults.length > 0) {
-      const trimmedResults = allQuestionResults.map(qr => {
-        // Create a copy without the heavy OCR fields
-        // [SAFETY] Keep 'markingScheme' as requested, only strip the data-heavy ones
-        const {
-          classificationBlocks,
-          cleanedOcrText,
-          rawAnnotations,
-          ...rest
-        } = qr;
-        return rest;
-      });
-      (dbAiMessage as any).allQuestionResults = trimmedResults;
-    }
+    // [FIRESTORE SIZE OPTIMIZATION]
+    // We no longer persist 'allQuestionResults' because 'markingContext' contains the distilled summary.
+    // This significantly reduces the document size in Firestore.
+    // (allQuestionResults is still used in-memory for stats calculation before this point)
 
     // [SIZE OPTIMIZATION] Explicitly remove markingSchemesMap - it's massive and redundant
     // The distilled logic survives in 'markingContext'
     delete (dbAiMessage as any).markingSchemesMap;
+    delete (dbAiMessage as any).allQuestionResults; // Safety cleanup if it was somehow attached earlier
 
     // Add grade if provided
     if (grade) {
