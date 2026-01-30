@@ -165,6 +165,8 @@ export interface MarkingInstructions {
   visualObservation?: string; // AI's description of the visual content
   globalOffsetX?: number; // Physical page offset found via landmarks
   globalOffsetY?: number; // Physical page offset found via landmarks
+  promptQuestionText?: string; // The exact text sent to the AI for the question
+  promptMarkingScheme?: string; // The exact marking scheme text sent to the AI
 }
 
 export interface ImageClassification {
@@ -711,7 +713,16 @@ export interface MarkingTask {
     hasStudentDrawing?: boolean; // Propagate drawing flag
     studentWorkLines?: any[]; // Allow access to lines
   }>;
+  allClassificationBlocks?: Array<{ // [GLOBAL CONTEXT] Every landmark on the involved pages
+    id: string;
+    text: string;
+    box: any;
+    pageIndex: number;
+    part: string;
+    questionNumber?: string | number;
+  }>;
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  pageContext?: any[]; // [GLOBAL CONTEXT] Siblings/Neighbors on the same page for layout calculation
   questionsOnPage?: Map<number, string[]>; // Map of pageIndex -> sorted unique question numbers on that page
   imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
   images?: string[]; // Array of base64 images for multi-page questions

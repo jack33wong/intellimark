@@ -503,6 +503,26 @@ export class SessionManagementService {
     const dbSession = await FirestoreService.getUnifiedSession(currentSessionId);
     const dbSessionStats = dbSession?.sessionStats || this.createSessionStats(context);
 
+    // [V2 CLEAN FIX] 🏗️ Building UI Structure directly from Engine Results
+    // If we are in marking mode, we take the clean strings from allQuestionResults
+    // and jam them directly into the response message structure.
+    if (context.mode === 'Marking' && additionalData?.allQuestionResults) {
+      console.log(`[V2 CLEAN FIX] 🏗️ Building UI Structure directly from ${additionalData.allQuestionResults.length} Engine Results...`);
+      const responseAiMessage = responseMessages[1];
+      if (responseAiMessage) {
+        responseAiMessage.questionResponses = additionalData.allQuestionResults.map(qr => ({
+          questionNumber: String(qr.questionNumber || ''),
+          questionText: qr.questionText || '', // CLEAN STRING
+          markingScheme: qr.markingScheme || '', // CLEAN STRING
+          score: qr.score,
+          annotations: qr.annotations,
+          studentWork: qr.studentWork,
+          overallPerformanceSummary: qr.overallPerformanceSummary || qr.feedback
+        }));
+        console.log(`[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)`);
+      }
+    }
+
     return {
       id: currentSessionId,
       sessionId: currentSessionId, // ADDED: For backward compatibility and credit deduction

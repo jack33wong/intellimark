@@ -1,6 +1,38 @@
 import { MarkingZoneService } from './MarkingZoneService.js';
 import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 
+// 🛡️ [CRITICAL FIX] STRICT TEXT SANITIZER
+// Removes ALL numbers and symbols. Keeps ONLY words.
+export function normalizeText(text: string): string[] {
+    if (!text) return [];
+    return text
+        .replace(/\\[a-zA-Z]+/g, ' ')       // Strip LaTeX commands
+        .replace(/[^a-zA-Z\s]/g, '')        // 🚨 DELETE ALL NUMBERS (0-9) AND SYMBOLS
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(t => t.length > 2);         // Only keep words > 2 chars
+}
+
+export function verifyStrictMatch(dbText: string, ocrText: string): boolean {
+    if (!dbText || !ocrText) return false;
+
+    const dbTokens = normalizeText(dbText).slice(0, 15); // Fingerprint
+    const ocrTokens = normalizeText(ocrText);
+
+    if (dbTokens.length === 0) return false;
+
+    const matches = dbTokens.filter(t => ocrTokens.includes(t));
+    const confidence = matches.length / dbTokens.length;
+
+    // 🎯 STRICT THRESHOLD: 40% Word Overlap Required
+    return confidence >= 0.4;
+}
+
+// Legacy helper renamed/mapped for compatibility if needed, but we'll use verifyStrictMatch
+export function verifyMatch(dbText: string, ocrText: string): boolean {
+    return verifyStrictMatch(dbText, ocrText);
+}
+
 /**
  * Service dedicated to calculating coordinate offsets, landmark grounding, 
  * and globalizing student work line positions.

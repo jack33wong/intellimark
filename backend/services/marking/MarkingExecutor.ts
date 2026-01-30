@@ -308,11 +308,85 @@ export async function executeMarkingForQuestion(
       }
     }
 
-    // 🌟 SINGLE SOURCE OF TRUTH: CALCULATE ZONES ONCE
+    // [V4 GLOBAL CONTEXT FIX - ROBUST]
+    // 🛡️ CRITICAL: Do NOT filter by 'nodeBox'. 
+    // The PositioningService uses TEXT to find the zones. It does not need pre-existing boxes.
+    // We simply need to tell it "Q8 exists on this page" so it knows Q9 is NOT the first.
+
+    let allPageQuestions: Array<{ label: string; text: string; targetPageIndex: number }> = [];
+
+    // 1. Prefer PageContext (Injected by Coordinator) as it contains specific siblings
+    const contextSource = (task as any).pageContext && (task as any).pageContext.length > 0
+      ? (task as any).pageContext
+      : [];
+
+    if (contextSource.length > 0) {
+      console.log(`   🏗️ [ZONE-STRATEGY] Using Coordinator Context (${contextSource.length} siblings)`);
+
+      const targetPages = (task.sourcePages || []).map(p => Number(p));
+
+      contextSource.forEach((sib: any) => {
+        // Flatten to get sub-questions (e.g. 8a, 8b)
+        const nodes = flattenQuestionTree(sib);
+
+        nodes.forEach((node: any) => {
+          const pIdx = Number(node.pageIndex ?? sib.pageIndex ?? sib.sourceImageIndex ?? 0);
+
+          // Only include parts relevant to the current page(s)
+          if (targetPages.includes(pIdx)) {
+            // Normalize Label
+            let label = node.part || "";
+            const qNum = String(sib.questionNumber || "");
+
+            if (!label || label === 'main' || label.toLowerCase() === 'main') {
+              label = qNum;
+            } else {
+              // If part is just 'a', 'b', etc, prepend question number
+              const isSubPartOnly = /^[a-z]{1,2}$/i.test(label) && label.length <= 2;
+              if (isSubPartOnly && qNum && !label.startsWith(qNum)) {
+                label = `${qNum}${label}`;
+              }
+            }
+
+            // 🛡️ PUSH WITHOUT CHECKING BOXES
+            allPageQuestions.push({
+              label: label,
+              text: node.text || "",
+              targetPageIndex: pIdx
+            });
+          }
+        });
+      });
+    }
+    // 2. Fallback to Master Blocks (Legacy/Silo Mode)
+    else if (task.allClassificationBlocks && task.allClassificationBlocks.length > 0) {
+      allPageQuestions = task.allClassificationBlocks.map(cb => {
+        let label = (cb as any).part || "";
+        const qNum = String((cb as any).questionNumber || "");
+        if (!label || label === 'main' || label.toLowerCase() === 'main') label = qNum;
+        return {
+          label,
+          text: (cb as any).text || "",
+          targetPageIndex: Number((cb as any).pageIndex)
+        };
+      });
+    }
+
+    console.log(`   🌍 [ZONE-GLOBAL] Context for P${task.sourcePages?.[0]}: ${allPageQuestions.map(q => q.label).join(', ')}`);
+
+    // Merge specifically expected questions with general page neighbors for layout calculation
+    const contextualQuestions = [...expectedQuestions];
+    allPageQuestions.forEach(pq => {
+      if (!contextualQuestions.some(gq => gq.label === pq.label)) {
+        contextualQuestions.push(pq);
+      }
+    });
+
+    // 🌟 SINGLE SOURCE OF TRUTH: CALCULATE ZONES ONCE (with Global Context)
     const semanticZones = MarkingPositioningService.detectSemanticZones(
       rawOcrBlocksForZones,
       pageHeightForZones,
-      expectedQuestions,
+      contextualQuestions,
       nextQuestionText
     );
 
@@ -380,6 +454,47 @@ export async function executeMarkingForQuestion(
       })
     ];
 
+    // 🛡️ ZONE FILTERING: Ensure we ONLY send blocks that are inside the targeted Question Zone.
+    // This prevents Q8/Q9 text (Instruction Noise) from confusing the AI when marking Q7.
+    const currentLabels = expectedQuestions.length > 0 ? expectedQuestions.map(eq => eq.label) : [String(questionId)];
+    const taskZones = currentLabels.flatMap(label => semanticZones[label] || []);
+
+    // 🛡️ [FIX] EXECUTOR FILTER
+    // Only send blocks that are physically INSIDE the Q8 Zone.
+    const validBlocks = (rawOcrBlocks || []).filter((b, index) => {
+      const coords = b.coordinates || (b.bbox ? { x: b.bbox[0], y: b.bbox[1], width: b.bbox[2], height: b.bbox[3] } : null);
+      if (!coords) return false;
+
+      return taskZones.some(z => {
+        // A. ALWAYS Keep the Header
+        if (z.headerBlockId && (b.id === z.headerBlockId || b.globalBlockId === z.headerBlockId)) return true;
+
+        // B. [NEW] Contiguous Instruction Rescue
+        // Rescue blocks that are physically after the header but immediately follow it as instructions.
+        const headerIdx = rawOcrBlocks.findIndex(block => z.headerBlockId && (block.id === z.headerBlockId || block.globalBlockId === z.headerBlockId));
+
+        const isContiguousInstruction =
+          headerIdx !== -1 &&
+          index > headerIdx &&
+          index <= headerIdx + 3 && // Limit to immediate context
+          (b.isPrinted === true || (b.text && b.text.includes('[PRINTED_INSTRUCTION]'))) &&
+          (coords.y < z.endY); // 🛡️ Safety: Don't cross the border!
+
+        if (isContiguousInstruction) return true;
+
+        // C. Standard Strict Zone Containment
+        // Block must be physically BETWEEN the zone start and zone end.
+        const blockTop = coords.y;
+        const blockBottom = coords.y + (coords.height || 0);
+        const zoneStart = z.startY;
+        const zoneEnd = z.endY;
+
+        return b.pageIndex === z.pageIndex && blockTop >= (zoneStart - 5) && blockBottom <= (zoneEnd + 10);
+      });
+    });
+
+    const rawOcrText = validBlocks.map(b => `[${b.id || b.globalBlockId}]: "${b.text}"`).join('\n');
+
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
     const markingInputs = {
@@ -387,15 +502,15 @@ export async function executeMarkingForQuestion(
       images: task.images,
       model: model,
       processedImage: {
-        ocrText: ocrTextForPrompt,
+        ocrText: rawOcrText,
         boundingBoxes: stepsDataForMapping.map(step => {
           const stepPageDims = task.pageDimensions?.get(step.pageIndex) || { width: 1000, height: 1000 };
           const ppt = CoordinateTransformationService.toPPT(step.bbox, stepPageDims.width, stepPageDims.height);
           return { x: ppt.x, y: ppt.y, width: ppt.width, height: ppt.height, text: step.text };
         }),
         cleanDataForMarking: { steps: stepsDataForMapping },
-        cleanedOcrText: ocrTextForPrompt,
-        rawOcrBlocks: rawOcrBlocks,
+        cleanedOcrText: rawOcrText,
+        rawOcrBlocks: validBlocks,
         classificationStudentWork: ocrTextForPrompt,
         classificationBlocks: task.classificationBlocks,
         subQuestionMetadata: task.subQuestionMetadata,
@@ -427,7 +542,7 @@ export async function executeMarkingForQuestion(
       let instructionHeatMap: Set<string> | undefined;
       try {
         instructionHeatMap = MarkingZoneService.generateInstructionHeatMap(
-          markingInputs.processedImage.rawOcrBlocks,
+          validBlocks,
           expectedQuestions,
           nextQuestionText
         );
@@ -437,7 +552,7 @@ export async function executeMarkingForQuestion(
 
       markingResult.annotations = sanitizeAnnotations(
         markingResult.annotations,
-        markingInputs.processedImage.rawOcrBlocks,
+        validBlocks,
         instructionHeatMap
       );
     }
@@ -819,6 +934,9 @@ const flattenQuestionTree = (node: any, result: any[] = []) => {
   return result;
 };
 
+// =========================================================================
+// 🏛️ COORDINATOR LOGIC: Task Creation
+// =========================================================================
 export function createMarkingTasksFromClassification(
   classificationResult: any,
   allPagesOcrData: any[],
@@ -989,6 +1107,31 @@ export function createMarkingTasksFromClassification(
   }
 
   // =========================================================================
+  // PHASE 1.5: BUILD MASTER LANDMARKS (Global Page Context)
+  // =========================================================================
+  // We scan ALL questions once to build a page-indexed map of landmarks.
+  // This allows Q9 to see Q8 on the same page.
+  const masterLandmarks: Array<{ id: string; text: string; box: any; pageIndex: number; part: string; questionNumber: string | number }> = [];
+  for (const q of classificationResult.questions) {
+    const qBase = getBaseQuestionNumber(String(q.questionNumber || ''));
+    if (!qBase) continue;
+    const allNodes = flattenQuestionTree(q);
+    allNodes.forEach((node: any) => {
+      const nodeBox = node.box || node.region || node.rect || node.coordinates;
+      if (nodeBox) {
+        masterLandmarks.push({
+          id: `master_block_${qBase}_${node.part || 'main'}`,
+          text: node.text || '',
+          box: nodeBox,
+          pageIndex: node.pageIndex ?? q.sourceImageIndex ?? 0,
+          part: node.part || 'main',
+          questionNumber: qBase
+        });
+      }
+    });
+  }
+
+  // =========================================================================
   // PHASE 2: TASK GENERATION
   // =========================================================================
   const sortedQuestionGroups = Array.from(questionGroups.entries()).sort((a, b) => {
@@ -1037,7 +1180,15 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // --- 5. Final Task Assembly ---
+    // --- 5. Final Task Assembly (Coordinator Role) ---
+    // 🛡️ [GLOBAL CONTEXT]: We must provide each task with its "Neighbors" on the same pages.
+    // This breaks the "Lonely Task" silo and allows correct TVC zone snapping.
+    const siblingsOnSamePages = (classificationResult.questions || []).filter((otherQ: any) => {
+      const otherPages = (otherQ.sourceImageIndices || [otherQ.sourceImageIndex ?? 0]).map((p: any) => Number(p));
+      const currentPages = group.sourceImageIndices.map((p: any) => Number(p));
+      return otherPages.some(p => currentPages.includes(p));
+    });
+
     const questionImages: string[] = [];
     group.sourceImageIndices.forEach((imageIdx: number) => {
       const page = standardizedPages.find(p => p.pageIndex === imageIdx);
@@ -1057,7 +1208,9 @@ export function createMarkingTasksFromClassification(
       sourcePages: group.sourceImageIndices,
       classificationStudentWork: promptMainWork,
       classificationBlocks: group.classificationBlocks,
+      allClassificationBlocks: masterLandmarks.filter(l => group.sourceImageIndices.includes(l.pageIndex)),
       pageDimensions: pageDimensionsMap,
+      pageContext: siblingsOnSamePages,
       imageData: questionImages[0],
       images: questionImages,
       aiSegmentationResults: group.aiSegmentationResults,
@@ -1066,6 +1219,7 @@ export function createMarkingTasksFromClassification(
         subQuestions: group.subQuestionMetadata.subQuestions
       }
     });
+    console.log(`   🏛️ [COORD-DEBUG] Task Q${baseQNum}: Injected ${siblingsOnSamePages.length} siblings into pageContext`);
   });
 
   return tasks;

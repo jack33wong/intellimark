@@ -715,6 +715,7 @@ export class MarkingInstructionService {
       cleanedOcrText: ocrText,
       markingScheme: normalizedScheme,
       schemeTextForPrompt: schemeText,
+      promptMarkingScheme: schemeText,
       studentScore: parsedResponse.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' },
       visualObservation: parsedResponse.visualObservation,
       promptQuestionText: (hasMarkingScheme && normalizedScheme) ?
