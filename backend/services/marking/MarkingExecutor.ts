@@ -18,6 +18,21 @@ import { sanitizeAnnotations } from './MarkingSanitizer.js';
 import { MarkingZoneService } from './MarkingZoneService.js';
 import { ZoneUtils } from '../../utils/ZoneUtils.js';
 
+/**
+ * STRICT NORMALIZER (Reused from MarkingPositioningService)
+ * Removes numbers, symbols, and LaTeX. Keeps only words.
+ * Used to detect if a block is part of the Printed Question Text.
+ */
+function normalizeForMatching(text: string): string {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .replace(/\\[a-zA-Z]+/g, ' ')  // Strip LaTeX cmds
+    .replace(/[^a-z\s]/g, '')      // 🚨 STRIP NUMBERS & SYMBOLS
+    .replace(/\s+/g, ' ')          // Collapse whitespace
+    .trim();
+}
+
 export async function executeMarkingForQuestion(
   task: MarkingTask,
   res: any,
@@ -567,11 +582,13 @@ export async function executeMarkingForQuestion(
       const pageHeight = pageDims?.height || 2000;
 
       // 🛡️ [FIX]: PASS semanticZones DIRECTLY (Single Source of Truth)
+      // Updated to include 'questionText' for Semantic Veto
       markingResult.annotations = resolveLinksWithZones(
         markingResult.annotations,
         semanticZones, // <--- Passing the Full Object
         markingInputs.processedImage.rawOcrBlocks,
-        pageHeight
+        pageHeight,
+        task.questionText || (task.markingScheme as any)?.databaseQuestionText || "" // <--- PASS IT HERE
       );
 
       markingResult.annotations.forEach((a: any) => {
@@ -1344,46 +1361,79 @@ function enforceStrictBudget(
  */
 function resolveLinksWithZones(
   annotations: any[],
-  semanticZones: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number }>>,
+  semanticZones: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number; headerBlockId?: string }>>,
   allOcrBlocks: any[],
-  pageHeight: number
+  pageHeight: number,
+  databaseQuestionText: string // <--- NEW PARAMETER
 ): any[] {
 
+  // Pre-compute the "Fingerprint" of the Question Text (e.g. "sophiedrivesadistance...")
+  const questionFingerprint = normalizeForMatching(databaseQuestionText || "");
+
   return annotations.map(anno => {
-
-
-    // 1. Initialize
+    // 1. Initialize Status
     if (!(anno as any).ai_raw_status) {
       (anno as any).ai_raw_status = anno.ocr_match_status;
     }
 
     // 2. THE LAW: MATCHED REQUIRES AN ID
-    // If AI says "MATCHED" but gives NULL ID -> FORCE UNMATCHED.
     const hasId = anno.linked_ocr_id || anno.linkedOcrId;
     if (anno.ocr_match_status === "MATCHED" && !hasId) {
       console.log(`   🛡️ [IRON-DOME-TRAP] ${anno.subQuestion}: MATCHED with NULL ID. Demoting to UNMATCHED.`);
       anno.ocr_match_status = "UNMATCHED";
     }
 
-    // 3. ZONE CHECK (For Valid IDs)
+    // 3. ZONE LOOKUP
     const zoneData = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
     let zone: { startY: number; endY: number } | null = null;
     if (zoneData) {
       zone = { startY: zoneData.startY, endY: zoneData.endY };
     }
 
-    // 4. IRON DOME VETO (Only check if we have an ID)
+    // 4. PHYSICAL ID CHECK
     const physicalId = anno.linked_ocr_id || anno.linkedOcrId;
 
-    if (physicalId && zone) {
+    if (physicalId && zoneData) {
       const block = allOcrBlocks.find(b => b.id === physicalId);
+
       if (block) {
         const markY = block.coordinates?.y ?? block.bbox?.[1];
-        if (markY !== null) {
+
+        // =========================================================
+        // 🛡️ THE SEMANTIC VETO (Logic Reuse)
+        // =========================================================
+
+        // GATE A: HEADER ID MATCH
+        const isHeader = (physicalId === zoneData.headerBlockId);
+
+        // GATE B: EXPLICIT TAG MATCH
+        const isInstructionTag = (block.text || '').includes('[PRINTED_INSTRUCTION]');
+
+        // GATE C: SEMANTIC TEXT MATCH (The Heavy Logic)
+        // Does this block look like part of the Question Text?
+        let isSemanticMatch = false;
+        if (questionFingerprint.length > 10) {
+          const blockFingerprint = normalizeForMatching(block.text);
+          // If block is substantial (>5 chars) and exists inside the Question Text
+          if (blockFingerprint.length > 5 && questionFingerprint.includes(blockFingerprint)) {
+            isSemanticMatch = true;
+          }
+        }
+
+        if (isHeader || isInstructionTag || isSemanticMatch) {
+          const reason = isHeader ? "Header ID" : isInstructionTag ? "Instruction Tag" : "Text Match";
+          console.log(`   🛡️ [SEMANTIC-VETO] ${anno.subQuestion}: Block ${physicalId} rejected. Reason: ${reason}`);
+
+          // 🚨 ACTION: SEVER THE LINK
+          // We keep the mark (it might be valid M1), but we detach it from the text.
+          anno.ocr_match_status = "UNMATCHED";
+          anno.linked_ocr_id = null;
+        }
+        else if (markY !== null) {
+          // GATE D: SPATIAL CHECK (Iron Dome Standard)
           const inZone = ZoneUtils.isPointInZone(markY, zoneData, 0.05);
 
-          // 🛡️ [FIX]: Exception for Split-Page Visuals
-          // If it's a Visual Placeholder on the "Next Page" (e.g. Zone P0, Block P1), allow it.
+          // Exception for Split-Page Visuals
           const isVisualPlaceholder = (block.text || '').includes('VISUAL') || physicalId.includes('visual');
           const isNextPage = (block.pageIndex === (zoneData.pageIndex + 1));
 
@@ -1396,7 +1446,6 @@ function resolveLinksWithZones(
       }
     }
 
-    // 5. OUTPUT: Pure State. No Swapping. No Magic.
     return anno;
   });
 }

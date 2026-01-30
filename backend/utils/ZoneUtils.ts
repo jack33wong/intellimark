@@ -9,6 +9,7 @@ export interface SemanticZone {
     pageIndex: number;
     x?: number;
     label?: string; // Optional label for debugging
+    headerBlockId?: string; // NEW: The ID of the question label block
 }
 
 export type SemanticZoneMap = Record<string, SemanticZone[]>;

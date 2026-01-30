@@ -12,3 +12,314 @@
    - Ultra Plan: 600 credits/month
 💳 Stripe initialized in TEST mode
 📚 Swagger UI available at /api-docs
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.0901914, files: 1, bytes: 851914
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":281.78}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.2s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 1 pages...
+✅ [MAPPER] Map Pass complete in 1.74s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[sophie,drives,distance,kilometres,motorway,france,pays,euros,every,estimate,amount,part,underestimate,overestimate]
+   ✅ Matched Part: 5a (3 marks)
+   ✅ Matched Part: 5b (1 marks)
+   📊 Final Map Keys: 5a, 5b
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m1.0s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Global Search
+   Pool Size: 108 papers, 2709 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 5    | Sophie drives a distance of 513 kilometres... | Edexcel GCSE 1MA1/1H June 2024 Q5                  | 0.924 | [32m✅ SUCCESS[0m      |
+| 5a   | Sophie drives a distance of 513 kilometres... | Edexcel GCSE 1MA1/1H June 2024 Q5                  | 0.924 | [32m✅ SUCCESS[0m      |
+| 5b   | Sophie drives a distance of 513 kilometres... | Edexcel GCSE 1MA1/1H June 2024 Q5                  | 0.924 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 3
+   Detected: 3/3
+   Not detected: 0
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+🔍 [MERGE-DEBUG] attempting to merge classification results into 1 pages
+   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 1)
+🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
+   🏛️ [COORD-DEBUG] Task Q5: Injected 1 siblings into pageContext
+✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+   🏗️ [ZONE-STRATEGY] Using Coordinator Context (1 siblings)
+   🌍 [ZONE-GLOBAL] Context for P0: 5, 5a, 5b
+[ZONE-TVC] Deterministic Order: 5a(P0@259) -> 5b(P0@986)
+[ZONE-TVC] First on P0: Snapping 5a start to 0
+[33m[POS-DEBUG] ⚠️ Missing Position for Q5 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 5
+
+## QUESTION TEXT
+**[5]**: Sophie drives a distance of 513 kilometres on a motorway in France. She pays 0.81 euros for every 10 kilometres she drives. Work out an estimate for the total amount that Sophie pays. Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.
+
+**[5a]**: Work out an estimate for the total amount that Sophie pays.
+
+**[5b]**: Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.
+
+
+## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
+## GENERAL MARKING GUIDANCE
+> [!IMPORTANT]
+> **Precedence:** Specific notes for individual questions take precedence over this general guidance.
+
+### General Principles
+- All candidates must receive the same treatment (mark the last candidate the same way as the first).
+- Mark schemes should be applied positively; all available marks are designed to be awarded.
+- Examiners should be prepared to award zero marks if the response is not worthy of credit.
+- Where judgement is required, mark schemes provide the principles for awards, and guidance/exemplification is not exhaustive.
+- If you are in doubt about applying the mark scheme, send the response for review.
+
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[5a] [MAX SCORE: 3]
+- P1: for using a value rounded to 1sf in a calculation
+- P1: for a full process to find the total amount
+- A1: for a correct answer following through their correct rounded value(s)
+
+[5b] [MAX SCORE: 1]
+- C1: ft from (a) eg underestimate as numbers rounded down
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p0_q5_line_1] \frac{513}{10} \times 0.81 \approx \frac{500}{10} \times \frac{8}{10} = 40
+[ID: p0_q5_line_2] 40
+
+[SUB-QUESTION b]
+[ID: p0_q5_line_3] Underestimate, Cause I rounded down
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "5 Sophie drives a distance of 513 kilometres on a motorway in France."
+[p0_ocr_1]: "She pays 0.81 euros for every 10 kilometres she drives. [PRINTED_INSTRUCTION]"
+[p0_ocr_2]: "(a) Work out an estimate for the total amount that Sophie pays. [PRINTED_INSTRUCTION]"
+[p0_ocr_3]: "40"
+[p0_ocr_4]: "euros"
+[p0_ocr_5]: "(3)"
+[p0_ocr_6]: "(b) Is your answer to part (a) an underestimate or an overestimate?"
+[p0_ocr_7]: "Give a reason for your answer. [PRINTED_INSTRUCTION]"
+[p0_ocr_8]: "Underestimate, casse I rounded down"
+[p0_ocr_9]: "(1)"
+[p0_ocr_10]: "7"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 4,
+    "raw_correct_steps_found": 4,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p0_q5_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_0",
+      "reasoning": "513 and 0.81 rounded to 500 and 0.8 respectively",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p0_q5_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_0",
+      "reasoning": "Full process to find the total amount",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p0_q5_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_3",
+      "reasoning": "Correct answer following through their correct rounded value(s)",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "C1",
+      "line_id": "p0_q5_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_8",
+      "reasoning": "Underestimate as numbers rounded down",
+      "subQuestion": "b",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 4,
+    "scoreText": "4/4"
+  }
+}
+```
+========================================
+
+   🛡️ [SEMANTIC-VETO] a: Block p0_ocr_0 rejected. Reason: Text Match
+   🛡️ [SEMANTIC-VETO] a: Block p0_ocr_0 rejected. Reason: Text Match
+   📍 [PATH 3] Qa: Line "p0_q5_line_1" is UNMATCHED. Recovering position.
+      ↳ Final Box: [x:24.2, y:24, w:53, h:10]
+   📍 [PATH 3] Qa: Line "p0_q5_line_1" is UNMATCHED. Recovering position.
+      ↳ Final Box: [x:24.2, y:24, w:53, h:10]
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m5.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m5.7s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 7 ([37mQ5a[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.4s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m5       [0m | 4/4   | A1, P1, P1, C1          | AI:4/4 → M:2 U:2                       |
+| [90m  a     [0m | 3     | A1, P1, P1              | AI:3/3 → M:1 U:2                       |
+| [90m  b     [0m | 1     | C1                      | AI:1/1 → M:1 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 18.0s
+Model Used: gemini-2.0-flash
+----------------------------
+classification                      6.0s (34%)
+marking                             5.7s (32%)
+ocr_processing                      1.9s (11%)
+output_generation                   1.4s (8%)
+question_detection                  1.0s (6%)
+performance_summary                 0.9s (5%)
+database_persistence                0.3s (1%)
+preprocessing                       0.2s (1%)
+input_validation                    0.0s (0%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 4 total
+   Total Tokens: 18,490 (17,313 in + 1,177 out)
+   Total Cost: $0.005770
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
+   • Classification (Marking Pass): 6,746 tokens (1 requests) → $0.000813
+   • Marking: 7,149 tokens (1 requests) → $0.000902
+   • Performance Summary: 434 tokens (1 requests) → $0.000055
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769785823021
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769785823021
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0057701
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.58 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769785823021), remaining: 281.20
+💳 Deducted 0.0058 credits (session: sub-1769785823021) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769785823021
