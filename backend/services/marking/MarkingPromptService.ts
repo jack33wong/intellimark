@@ -119,11 +119,12 @@ ${genericHeader}
                 if (!Array.isArray(marks) && (marks as any).marks) marks = (marks as any).marks;
 
                 const subLabel = subQ.replace(/^\d+/, '');
-                const maxScore = normalizedScheme.subQuestionMaxScores ?
-                    (normalizedScheme.subQuestionMaxScores[subQ] ?? normalizedScheme.subQuestionMaxScores[subLabel]) : undefined;
+                const maxScore = (normalizedScheme.subQuestionMaxScores ?
+                    (normalizedScheme.subQuestionMaxScores[subQ] ?? normalizedScheme.subQuestionMaxScores[subLabel]) : undefined)
+                    || normalizedScheme.totalMarks || normalizedScheme.parentQuestionMarks;
 
                 output += `[${subQ}]`;
-                if (maxScore !== undefined) output += ` [MAX SCORE: ${maxScore}]`;
+                if (maxScore) output += ` [MAX SCORE: ${maxScore}]`;
                 output += '\n';
 
                 const expandedMarks: any[] = [];

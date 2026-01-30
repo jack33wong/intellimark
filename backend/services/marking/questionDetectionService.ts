@@ -435,7 +435,7 @@ export class QuestionDetectionService {
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
     const { paper, questionData, questionNumber, databaseText, score } = candidate;
     const meta = paper.metadata || {};
-    const parentMarks = questionData.marks || 0;
+    const parentMarks = questionData.marks ?? questionData.question_marks ?? questionData.total_marks ?? 0;
 
     const board = meta.exam_board || meta.board;
     const code = meta.exam_code || meta.code;
@@ -452,8 +452,9 @@ export class QuestionDetectionService {
       subQuestions.forEach((sq: any) => {
         const part = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
         if (part) {
-          if (sq.marks !== undefined) {
-            subQuestionMaxScores[String(part)] = Number(sq.marks);
+          const sqMarks = sq.marks ?? sq.question_marks ?? sq.total_marks;
+          if (sqMarks !== undefined) {
+            subQuestionMaxScores[String(part)] = Number(sqMarks);
           }
           if (sq.question_text || sq.text) {
             subQuestionTexts[String(part)] = sq.question_text || sq.text;
@@ -782,27 +783,28 @@ export function buildExamPaperStructure(detectionResults: any[]) {
     // Use database text if available
     const questionText = match.databaseQuestionText || dr.question.text || '';
 
-    // markingScheme: adapt plain text if it exists (for compatibility)
-    let markingSchemeEntries: any[] = [];
-    if (match.markingScheme?.questionMarks) {
-      // Complex object case - handling by conversion or direct assign
-      markingSchemeEntries = [{ mark: 'Model', answer: 'See scheme details' }];
+    // ==================================================================================
+    // [V2 CLEAN FIX] Standardize markingScheme as string
+    // We avoid the "See scheme details" placeholder and prefer the plain text scheme.
+    // ==================================================================================
+    let markingSchemeStr = '';
 
-    } else if (dr.detectionResult && dr.detectionResult.markingScheme) {
-      // Handle string or object marking scheme from detection result
-      const rawScheme = dr.detectionResult.markingScheme;
-      if (Array.isArray(rawScheme)) {
-        markingSchemeEntries = rawScheme;
-      } else if (typeof rawScheme === 'string') {
-        markingSchemeEntries = [{ mark: 'Model', answer: rawScheme }];
+    if (dr.detectionResult && dr.detectionResult.markingScheme) {
+      if (typeof dr.detectionResult.markingScheme === 'string') {
+        markingSchemeStr = dr.detectionResult.markingScheme;
+      } else if (Array.isArray(dr.detectionResult.markingScheme)) {
+        // Fallback: convert extracted array back to string if needed (should be rare in V2)
+        markingSchemeStr = dr.detectionResult.markingScheme.map((s: any) => `- ${s.mark || 'Mark'}: ${s.answer}`).join('\n');
       }
+    } else if (match.markingScheme?.markingSchemeText) {
+      markingSchemeStr = match.markingScheme.markingSchemeText;
     }
 
     paperGroup.questions.push({
       questionNumber: String(questionNumber),
       questionText: questionText,
       marks: marks,
-      markingScheme: markingSchemeEntries
+      markingScheme: markingSchemeStr
     });
 
     // Add to paper total marks

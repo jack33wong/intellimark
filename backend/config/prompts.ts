@@ -181,7 +181,12 @@ FINAL QUALITY CHECK (DO NOT IGNORE):
         // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
         // Fail-fast if it looks like JSON (old format)
         if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-          throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
+          try {
+            JSON.parse(schemeText);
+            throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
+          } catch (e) {
+            // Not valid JSON, proceed
+          }
         }
 
         const marksInfo = totalMarks ? `\n ** TOTAL MARKS:** ${totalMarks} ` : '';
@@ -243,14 +248,20 @@ Please generate a model answer that would receive full marks according to the ma
         // schemeText must be plain text (same format as stored in detectedQuestion)
         // Fail-fast if it looks like JSON (old format)
         if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-          throw new Error(`[MARKING SCHEME PROMPT]Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
+          try {
+            JSON.parse(schemeText);
+            // If valid JSON, throw error
+            throw new Error(`[MARKING SCHEME PROMPT]Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
+          } catch (e) {
+            // Not valid JSON (likely plain text starting with [Tag]), allow it
+          }
         }
 
         return `** QUESTION:**
-      ${questionText}
+${questionText}
 
-      ** MARKING SCHEME:**
-      ${schemeText}
+** MARKING SCHEME:**
+${schemeText}
 
 Provide a brief explanation of this marking scheme.Keep it simple and concise.`;
       }

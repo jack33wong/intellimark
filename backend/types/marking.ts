@@ -57,6 +57,7 @@ export interface MarkingExecutionResult extends MarkingInstructions {
     cleanedOcrText?: string;
     markingScheme?: any;
     schemeTextForPrompt?: string;
+    promptQuestionText?: string;
     overallPerformanceSummary?: string;
 }
 
@@ -95,6 +96,7 @@ export interface QuestionResult {
     markingScheme?: any;
     studentWork?: string;
     promptMarkingScheme?: string;
+    promptQuestionText?: string;
     classificationBlocks?: any[];
     questionText?: string;
     databaseQuestionText?: string;

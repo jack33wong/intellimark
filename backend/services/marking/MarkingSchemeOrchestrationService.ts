@@ -438,6 +438,9 @@ export class MarkingSchemeOrchestrationService {
 
       const baseNumRegex = new RegExp(`^${baseQuestionNumber}([^0-9]|$)`, 'i');
 
+      // Prepare Final Max Scores Map (Start with existing or empty)
+      const finalSubQuestionMaxScores = masterMatch.subQuestionMaxScores ? { ...masterMatch.subQuestionMaxScores } : {};
+
       Object.keys(allPaperQuestions).forEach(key => {
         if (baseNumRegex.test(key)) {
           const partMarks = allPaperQuestions[key].marks || allPaperQuestions[key];
@@ -448,12 +451,20 @@ export class MarkingSchemeOrchestrationService {
             subQuestionAnswers.push(`(${key}) ${ans}`);
             subQuestionAnswersMap[key] = ans;
           }
-          console.log(`   ✅ Matched Part: ${key} (${partMarks.length || 0} marks)`);
+
+          // [FIX] Propagate Max Score to the matched part
+          const partLabel = key.replace(/^\d+/, '');
+          if (!finalSubQuestionMaxScores[key]) {
+            const scoreMatch = masterMatch.subQuestionMaxScores?.[key] ?? masterMatch.subQuestionMaxScores?.[partLabel];
+            if (scoreMatch !== undefined) {
+              finalSubQuestionMaxScores[key] = scoreMatch;
+            } else if (typeof partMarks === 'number') {
+              finalSubQuestionMaxScores[key] = partMarks;
+            }
+          }
+          console.log(`   ✅ Matched Part: ${key} (${partMarks.length || 0} marks, Max: ${finalSubQuestionMaxScores[key] || '?'})`);
         }
       });
-
-      // Prepare Final Max Scores Map (Start with existing or empty)
-      const finalSubQuestionMaxScores = masterMatch.subQuestionMaxScores ? { ...masterMatch.subQuestionMaxScores } : {};
 
       if (Object.keys(subQuestionMarksMap).length === 0) {
         console.log(`   ⚠️ No parts matched prefix "${baseQuestionNumber}". Falling back to MasterMatch marks.`);
@@ -478,7 +489,8 @@ export class MarkingSchemeOrchestrationService {
           subQuestionMarks: subQuestionMarksMap,
           subQuestionAnswersMap: subQuestionAnswersMap
         },
-        totalMarks: masterMatch.marks || 0, parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
+        totalMarks: masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0,
+        parentQuestionMarks: masterMatch.parentQuestionMarks || masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0,
         questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
         subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,
         subQuestionMaxScores: finalSubQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,

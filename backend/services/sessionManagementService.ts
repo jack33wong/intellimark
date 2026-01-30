@@ -10,7 +10,7 @@ import { createUserMessage, createAIMessage, calculateMessageProcessingStats, ca
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
-import { buildExamPaperStructure, generateSessionTitleFromDetectionResults } from './marking/questionDetectionService.js';
+import { generateSessionTitleFromDetectionResults } from './marking/questionDetectionService.js';
 import type {
   SessionContext,
   MarkingSessionContext,
@@ -175,22 +175,22 @@ export class SessionManagementService {
   private static prepareMarkingAiMessage(context: MarkingSessionContext): any {
     const dbAiMessage = { ...context.aiMessage };
 
-    // Create detectedQuestion data from detection results for frontend display
-    if (context.detectionResults && context.detectionResults.length > 0) {
-      // Use common function with detection results (new way)
-      const { examPapers, multipleExamPapers, totalMarks } = buildExamPaperStructure(context.detectionResults);
-      dbAiMessage.detectedQuestion = {
-        found: true,
-        multipleExamPapers,
-        multipleQuestions: examPapers.some(ep => ep.questions.length > 1),
-        totalMarks,
-        examPapers
-      };
-    } else if (context.markingSchemesMap) {
-      // Fallback to legacy method if detection results not provided
-      const detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(context.markingSchemesMap, context.globalQuestionText);
-      dbAiMessage.detectedQuestion = detectedQuestion;
+    // ==================================================================================
+    // [V2 CLEAN PASS] PROTECTION RULE
+    // If the engine already built a clean-string structure, we respect it.
+    // ==================================================================================
+    if (dbAiMessage.detectedQuestion) {
+      return dbAiMessage;
     }
+
+    // Default: Empty if not provided by engine
+    dbAiMessage.detectedQuestion = {
+      found: false,
+      multipleExamPapers: false,
+      multipleQuestions: false,
+      totalMarks: 0,
+      examPapers: []
+    };
 
     return dbAiMessage;
   }
@@ -241,10 +241,7 @@ export class SessionManagementService {
             questionNumber: match.questionNumber || '',
             questionText: questionText,
             marks: match.marks || 0,
-            markingScheme: [{
-              mark: 'Model',
-              answer: plainTextMarkingScheme
-            }] // Adapt plain text to structured format
+            markingScheme: plainTextMarkingScheme // [V2 CLEAN FIX] Pure string, no wrapping
           }],
           totalMarks: match.marks || 0
         }];
@@ -829,13 +826,28 @@ export class SessionManagementService {
       const syncTotal = allQuestionResults.reduce((sum, r) => sum + (r.totalMarks || r.marks || 0), 0);
 
       // Build a simple flat exam paper structure
-      const questions = allQuestionResults.map(r => ({
-        questionNumber: String(r.questionNumber),
-        questionText: r.questionText || '',
-        markingScheme: r.markingScheme || '',
-        marks: r.totalMarks || r.marks || 0,
-        totalMarks: r.totalMarks || r.marks || 0
-      }));
+      const questions = allQuestionResults.map(r => {
+        // [V2 CLEAN FIX] 1. Select the best source (Prompt > DB)
+        let rawScheme = r.promptMarkingScheme || r.markingScheme || '';
+
+        // [V2 CLEAN FIX] 2. Apply cleanup (Remove Chief Examiner Preamble)
+        if (typeof rawScheme === 'string' && rawScheme.includes('[OFFICIAL SCHEME]')) {
+          rawScheme = rawScheme.split('[OFFICIAL SCHEME]')[1].trim();
+        }
+
+        return {
+          questionNumber: String(r.questionNumber),
+          questionText: r.promptQuestionText || r.questionText || '', // [V2 CLEAN FIX] Prioritize exact prompt text
+          markingScheme: rawScheme, // [V2 CLEAN FIX] Cleaned scheme
+
+          marks: r.marks ?? 0,
+          totalMarks: r.totalMarks ?? 0
+        };
+      });
+
+      // Extract metadata from first detection result if available
+      const firstDetection = aiData.detectionResults?.[0]?.detectionResult?.match || {};
+      const firstQuestionMetadata = aiData.detectionResults?.[0]?.question || {};
 
       detectedQuestion = {
         found: true,
@@ -843,26 +855,18 @@ export class SessionManagementService {
         multipleQuestions: questions.length > 1,
         totalMarks: syncTotal,
         examPapers: [{
-          examPaperTitle: aiData.detectionResults?.[0]?.question?.paperTitle || "Annotated Paper",
+          examBoard: firstDetection.board || '',
+          examCode: firstDetection.paperCode || '',
+          examSeries: firstDetection.examSeries || firstDetection.year || '',
+          tier: firstDetection.tier || '',
+          subject: firstDetection.subject || firstDetection.qualification || '',
+          paperTitle: firstDetection.paperTitle || firstQuestionMetadata.paperTitle || "Annotated Paper",
           totalMarks: syncTotal,
           questions: questions
         }]
       };
 
       console.log(`[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)`);
-    } else if (aiData.detectionResults && aiData.detectionResults.length > 0) {
-      // Fallback 1: Legacy detection results (e.g. if marking didn't run)
-      const { examPapers, multipleExamPapers, totalMarks } = buildExamPaperStructure(aiData.detectionResults);
-      detectedQuestion = {
-        found: true,
-        multipleExamPapers,
-        multipleQuestions: examPapers.some(ep => ep.questions.length > 1),
-        totalMarks,
-        examPapers
-      };
-    } else if (aiData.markingSchemesMap) {
-      // Fallback 2: Legacy marking schemes map
-      detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(aiData.markingSchemesMap, aiData.globalQuestionText);
     } else {
       // Default: Empty
       detectedQuestion = {
@@ -1016,311 +1020,6 @@ export class SessionManagementService {
     };
   }
 
-  /**
-   * Create detectedQuestion data from markingSchemesMap for frontend display
-   */
-  private static createDetectedQuestionFromMarkingSchemes(
-    markingSchemesMap: Map<string, any>,
-    globalQuestionText: string
-  ): any {
-    if (!markingSchemesMap || markingSchemesMap.size === 0) {
-      return {
-        found: false,
-        multipleExamPapers: false,
-        multipleQuestions: false,
-        totalMarks: 0,
-        examPapers: []
-      };
-    }
-
-    // Get the first (and usually only) marking scheme entry
-    const firstEntry = Array.from(markingSchemesMap.entries())[0];
-    if (!firstEntry) {
-      return {
-        found: false,
-        multipleExamPapers: false,
-        multipleQuestions: false,
-        totalMarks: 0,
-        examPapers: []
-      };
-    }
-
-    const [questionNumber, schemeData] = firstEntry;
-    const questionDetection = schemeData.questionDetection;
-
-    if (!questionDetection || !questionDetection.found) {
-      return {
-        found: false,
-        multipleExamPapers: false,
-        multipleQuestions: false,
-        totalMarks: schemeData.totalMarks || 0,
-        examPapers: []
-      };
-    }
-
-    const match = questionDetection.match;
-    if (!match) {
-      return {
-        found: false,
-        multipleExamPapers: false,
-        multipleQuestions: false,
-        totalMarks: schemeData.totalMarks || 0,
-        examPapers: []
-      };
-    }
-
-    // Handle multiple questions case - ENHANCED STRUCTURE WITH EXAM PAPER GROUPING
-    if (markingSchemesMap.size > 1) {
-      // Group questions by exam paper (board + code + year + tier)
-      const examPaperGroups = new Map<string, any>();
-
-      Array.from(markingSchemesMap.entries()).forEach(([qNum, data], index) => {
-        const questionDetection = data.questionDetection;
-        const match = questionDetection?.match;
-
-        if (!match) return; // Skip if no match data
-
-        const examBoard = match.board || '';
-        const examCode = match.paperCode || '';
-        const examSeries = match.examSeries || '';
-        const tier = match.tier || '';
-
-        // Create unique key for exam paper grouping
-        const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
-
-        if (!examPaperGroups.has(examPaperKey)) {
-          // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
-          // Fallback to markingScheme.examDetails.subject, then qualification
-          const markingScheme = data.questionDetection?.markingScheme;
-          const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
-            markingScheme?.examDetails?.subject ||
-            match.qualification ||
-            '';
-
-          examPaperGroups.set(examPaperKey, {
-            examBoard,
-            examCode,
-            examSeries,
-            tier,
-            subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
-            paperTitle: match ? `${match.board} ${actualSubject || match.qualification} ${match.paperCode} (${match.examSeries})` : '',
-            questions: [],
-            totalMarks: 0
-          });
-        }
-
-        const examPaper = examPaperGroups.get(examPaperKey);
-
-        let marksArray = data.questionMarks || [];
-
-        // Handle case where questionMarks might not be an array
-        if (!Array.isArray(marksArray)) {
-          if (marksArray && typeof marksArray === 'object') {
-            // Check for alternative methods structure
-            if (marksArray.hasAlternatives && marksArray.main && marksArray.main.marks) {
-              marksArray = marksArray.main.marks;
-            } else if (marksArray.marks) {
-              marksArray = marksArray.marks;
-            } else {
-              console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
-              marksArray = [];
-            }
-          } else {
-            console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
-            marksArray = [];
-          }
-        }
-
-        // Extract question text - use database question text (not classification text)
-        let questionTextForThisQ = '';
-
-        // Prioritize databaseQuestionText (from database), fallback to classification text
-        if (data.databaseQuestionText) {
-          questionTextForThisQ = data.databaseQuestionText;
-        } else if (data.questionText) {
-          questionTextForThisQ = data.questionText; // Fallback to classification text
-        } else if (data.questionDetection?.match?.databaseQuestionText) {
-          questionTextForThisQ = data.questionDetection.match.databaseQuestionText;
-        } else if (data.questionDetection?.questionText) {
-          questionTextForThisQ = data.questionDetection.questionText;
-        } else {
-          // Last fallback to global question text
-          questionTextForThisQ = globalQuestionText || '';
-        }
-
-        // Extract question number from key (e.g., "1_Pearson Edexcel_1MA1/1H" -> "1")
-        const extractedQNum = qNum.split('_')[0];
-
-        // Check if this is a grouped sub-question (has subQuestionNumbers array)
-        const hasSubQuestions = data.subQuestionNumbers && Array.isArray(data.subQuestionNumbers) && data.subQuestionNumbers.length > 0;
-        const subQuestionMarksMap = data.questionMarks?.subQuestionMarks;
-
-        // Calculate total marks for all sub-questions (if grouped) or use totalMarks (if single)
-        let totalMarksForQuestion = data.totalMarks || 0;
-        if (hasSubQuestions && subQuestionMarksMap && typeof subQuestionMarksMap === 'object') {
-          // Calculate total marks by summing all sub-question marks
-          totalMarksForQuestion = data.subQuestionNumbers.reduce((sum: number, subQNum: string) => {
-            const subQMarks = subQuestionMarksMap[subQNum] || [];
-            return sum + subQMarks.length; // Each mark is worth 1 point
-          }, 0);
-        }
-
-        // Convert marking scheme to plain text (FULL marking scheme for all sub-questions)
-        let plainTextMarkingScheme = '';
-        try {
-          // Create JSON structure that formatMarkingSchemeAsBullets expects
-          const schemeData: any = { marks: marksArray };
-
-          // Include sub-question marks mapping if available (for grouped sub-questions)
-          if (data.questionMarks?.subQuestionMarks && typeof data.questionMarks.subQuestionMarks === 'object') {
-            schemeData.subQuestionMarks = data.questionMarks.subQuestionMarks;
-          }
-
-          // Include question-level answer if available
-          if (data.questionMarks?.answer) {
-            schemeData.questionLevelAnswer = data.questionMarks.answer;
-          }
-
-          const schemeJson = JSON.stringify(schemeData, null, 2);
-          // Format with sub-question numbers and answers to get FULL marking scheme (all sub-questions combined)
-          plainTextMarkingScheme = formatMarkingSchemeAsBullets(
-            schemeJson,
-            data.subQuestionNumbers,
-            data.subQuestionAnswers
-          );
-        } catch (error) {
-          console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for Q${extractedQNum}:`, error);
-          plainTextMarkingScheme = '';
-        }
-
-        // Store ONE entry per question (not per sub-question) with FULL question text + FULL marking scheme
-        examPaper.questions.push({
-          questionNumber: extractedQNum, // Use base question number (e.g., "12", not "12(i)")
-          questionText: questionTextForThisQ, // FULL question text (main + all sub-questions)
-          marks: totalMarksForQuestion, // Total marks for all sub-questions
-          markingScheme: plainTextMarkingScheme // FULL marking scheme (all sub-questions combined, same format as sent to AI)
-        });
-        examPaper.totalMarks += totalMarksForQuestion;
-      });
-
-      // Convert to array and determine if multiple exam papers
-      const examPapers = Array.from(examPaperGroups.values());
-      const multipleExamPapers = examPapers.length > 1;
-
-      // Validate that we have at least one question in at least one exam paper
-      const hasQuestions = examPapers.some(ep => ep.questions && ep.questions.length > 0);
-      if (!hasQuestions) {
-        console.warn('[DETECTED QUESTION] No questions found in exam papers after processing');
-        return {
-          found: false,
-          multipleExamPapers: false,
-          multipleQuestions: false,
-          totalMarks: 0,
-          examPapers: []
-        };
-      }
-
-      // Calculate total marks across all questions
-      const totalMarks = Array.from(markingSchemesMap.values()).reduce((sum, data) => sum + (data.totalMarks || 0), 0);
-
-      return {
-        found: true,
-        multipleExamPapers,
-        multipleQuestions: true,
-        totalMarks,
-        examPapers
-      };
-    }
-
-    // Single question case - ENHANCED STRUCTURE
-    let singleMarkingScheme = schemeData.questionMarks || [];
-
-    // Handle case where questionMarks might not be an array
-    if (!Array.isArray(singleMarkingScheme)) {
-      // If it's an object with marks property, extract it
-      if (singleMarkingScheme && typeof singleMarkingScheme === 'object' && singleMarkingScheme.marks) {
-        singleMarkingScheme = singleMarkingScheme.marks;
-      } else {
-        console.warn(`[MARKING SCHEME] Invalid marks for single question`);
-        singleMarkingScheme = [];
-      }
-    }
-
-    // Extract question text - use database question text (not classification text)
-    let questionTextForSingleQ = '';
-    if (schemeData.databaseQuestionText) {
-      questionTextForSingleQ = schemeData.databaseQuestionText;
-    } else if (schemeData.questionText) {
-      questionTextForSingleQ = schemeData.questionText; // Fallback to classification text
-    } else if (questionDetection?.match?.databaseQuestionText) {
-      questionTextForSingleQ = questionDetection.match.databaseQuestionText;
-    } else {
-      questionTextForSingleQ = globalQuestionText || '';
-    }
-
-    // Convert marking scheme to plain text format (same as sent to AI)
-    let plainTextMarkingScheme = '';
-    try {
-      // Create JSON structure that formatMarkingSchemeAsBullets expects
-      const schemeDataForFormat: any = { marks: singleMarkingScheme };
-
-      // Include sub-question marks mapping if available
-      if (schemeData.questionMarks?.subQuestionMarks && typeof schemeData.questionMarks.subQuestionMarks === 'object') {
-        schemeDataForFormat.subQuestionMarks = schemeData.questionMarks.subQuestionMarks;
-      }
-
-      // Include question-level answer if available
-      if (schemeData.questionMarks?.answer) {
-        schemeDataForFormat.questionLevelAnswer = schemeData.questionMarks.answer;
-      }
-
-      const schemeJson = JSON.stringify(schemeDataForFormat, null, 2);
-      plainTextMarkingScheme = formatMarkingSchemeAsBullets(
-        schemeJson,
-        schemeData.subQuestionNumbers,
-        schemeData.subQuestionAnswers
-      );
-    } catch (error) {
-      console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for single question:`, error);
-      plainTextMarkingScheme = '';
-    }
-
-    // Create single question array for consistency
-    const questionsArray = [{
-      questionNumber: questionNumber.split('_')[0], // Extract just the question number
-      questionText: questionTextForSingleQ,
-      marks: schemeData.totalMarks || match.marks || 0,
-      markingScheme: plainTextMarkingScheme // Store as plain text (same format as sent to AI)
-    }];
-
-    // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
-    // Fallback to markingScheme.examDetails.subject, then qualification
-    const markingScheme = schemeData.questionDetection?.markingScheme;
-    const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
-      markingScheme?.examDetails?.subject ||
-      match.qualification ||
-      '';
-
-    // Create single exam paper structure
-    const examPapers = [{
-      examBoard: match.board || '',
-      examCode: match.paperCode || '',
-      examSeries: match.examSeries || '',
-      tier: match.tier || '',
-      subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
-      paperTitle: match ? `${match.board} ${actualSubject || match.qualification} ${match.paperCode} (${match.examSeries})` : '',
-      questions: questionsArray,
-      totalMarks: schemeData.totalMarks || match.marks || 0
-    }];
-
-    return {
-      found: true,
-      multipleExamPapers: false,
-      multipleQuestions: false,
-      totalMarks: schemeData.totalMarks || match.marks || 0,
-      examPapers
-    };
-  }
   /**
    * Generates a cohesive master performance summary based on distilled results of all questions.
    */

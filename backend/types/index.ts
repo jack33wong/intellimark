@@ -216,7 +216,7 @@ export interface DetectedQuestion {
       sourceImageIndex?: number; // Which image this question came from
 
       // Marking scheme for this specific question
-      markingScheme: Array<{
+      markingScheme: string | Array<{
         mark: string; // e.g., "M1", "A1", "P1"
         answer: string;
         comments?: string;

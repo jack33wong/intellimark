@@ -916,6 +916,9 @@ export async function executeMarkingForQuestion(
     }
 
     // NEW: Capture the exact prompt texts
+    console.log(`[DEBUG-EXECUTOR] markingResult.promptQuestionText:`, markingResult.promptQuestionText?.substring(0, 100));
+    console.log(`[DEBUG-EXECUTOR] markingResult.schemeTextForPrompt:`, markingResult.schemeTextForPrompt?.substring(0, 100));
+
     const finalPromptQuestionText = markingResult.promptQuestionText;
     const finalPromptSchemeText = markingResult.schemeTextForPrompt;
 
@@ -927,12 +930,16 @@ export async function executeMarkingForQuestion(
       usageTokens: markingResult.usage?.llmTokens || 0,
       inputTokens: markingResult.usage?.llmInputTokens || 0,
       outputTokens: markingResult.usage?.llmOutputTokens || 0,
+      marks: parsedScore.awardedMarks, // ✅ Top-level for DB
+      totalMarks: parsedScore.totalMarks, // ✅ Top-level for DB
       mathpixCalls: 0,
       confidence: 0.9,
       markingScheme: finalPromptSchemeText || (typeof cleanMarkingScheme === 'string' ? cleanMarkingScheme : JSON.stringify(cleanMarkingScheme)), // [PERSISTENCE FIX] Force string
       studentWork: (markingResult as any).cleanedOcrText || task.classificationStudentWork,
       databaseQuestionText: task.markingScheme?.databaseQuestionText || task.questionText,
       questionText: finalPromptQuestionText || task.questionText || '', // [PERSISTENCE FIX] Overwrite with prompt text
+      promptQuestionText: finalPromptQuestionText, // Explicitly pass through
+      promptMarkingScheme: finalPromptSchemeText, // Explicitly pass through
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
       rawAnnotations: rawAnnotationsFromAI,
       semanticZones: semanticZones // ✅ PASSED THROUGH

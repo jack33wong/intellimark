@@ -531,6 +531,8 @@ export class MarkingInstructionService {
         schemeTextForPrompt: annotationData.schemeTextForPrompt,
         overallPerformanceSummary: annotationData.overallPerformanceSummary,
         visualObservation: annotationData.visualObservation,
+        promptQuestionText: annotationData.promptQuestionText, // [FIX] Clean pass-through
+        promptMarkingScheme: annotationData.promptMarkingScheme, // [FIX] Clean pass-through
         globalOffsetX: offsetX,
         globalOffsetY: offsetY
       };
@@ -705,7 +707,10 @@ export class MarkingInstructionService {
       throw new Error('AI failed to generate valid annotations array');
     }
 
-    return {
+    // [DEBUG] Strict Prompt Text Trace
+    const finalPromptText = (hasMarkingScheme && normalizedScheme) ? structuredQuestionText : formattedOcrText;
+
+    const resultObj = {
       annotations: parsedResponse.annotations,
       usage: {
         llmTokens: res.usageTokens || 0,
@@ -718,9 +723,9 @@ export class MarkingInstructionService {
       promptMarkingScheme: schemeText,
       studentScore: parsedResponse.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' },
       visualObservation: parsedResponse.visualObservation,
-      promptQuestionText: (hasMarkingScheme && normalizedScheme) ?
-        (structuredQuestionText.trim() || questionText || liveQuestion || classificationStudentWork || 'No question text provided') :
-        formattedOcrText
+      promptQuestionText: finalPromptText
     };
+
+    return resultObj;
   }
 }

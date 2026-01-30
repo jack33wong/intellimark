@@ -303,22 +303,27 @@ export class SuggestedFollowUpService {
       let totalMarks: number | undefined;
       let questionCount: number | undefined;
 
-      questionCount = sortedAllQuestions.length;
+      // Deduplicate questions by number to prevent repetition (e.g. same question from multiple pages)
+      const uniqueQuestionsMap = new Map();
+      sortedAllQuestions.forEach(q => {
+        if (q.questionNumber && !uniqueQuestionsMap.has(q.questionNumber)) {
+          uniqueQuestionsMap.set(q.questionNumber, q);
+        }
+      });
+      const uniqueSortedQuestions = Array.from(uniqueQuestionsMap.values());
+
+      questionCount = uniqueSortedQuestions.length;
 
       // For multiple questions, format each separately in the prompt
-      if (sortedAllQuestions.length > 1) {
+      if (uniqueSortedQuestions.length > 1) {
         // Aggregate all question texts with clear separation (already sorted by question number)
-        questionText = sortedAllQuestions.map((q, index) => {
-          const separator = '\n\n---\n\n';
-          if (index === 0) {
-            return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
-          }
-          return `${separator}Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
-        }).join('\n\n');
+        questionText = uniqueSortedQuestions.map((q, index) => {
+          return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
+        }).join('\n\n---\n\n');
 
         // Aggregate all marking schemes (matches plain text requirement)
         // Format them with question labels for clarity (already sorted by question number)
-        const combinedSchemeText = sortedAllQuestions.map(q => {
+        const combinedSchemeText = uniqueSortedQuestions.map(q => {
           const schemeText = stringifyMarkingScheme(q.markingScheme);
           if (!schemeText && q.markingScheme) {
             console.warn(`[MULTI-QUESTION] Could not stringify marking scheme for Q${q.questionNumber} (type: ${typeof q.markingScheme})`);
@@ -329,13 +334,12 @@ export class SuggestedFollowUpService {
         markingScheme = combinedSchemeText;
 
         // Sum total marks across all questions
-        totalMarks = sortedAllQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
+        totalMarks = uniqueSortedQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
 
       } else {
         // Single question (use sorted array for consistency)
-        const q = sortedAllQuestions[0];
-        questionText = q.questionText;
+        const q = uniqueSortedQuestions[0];
         questionText = q.questionText;
         // markingScheme must be plain text (same format as sent to AI for marking instruction)
         // DEBUG: Inspect raw marking scheme data
@@ -352,8 +356,8 @@ export class SuggestedFollowUpService {
 
       const systemPrompt = getPrompt(`${config.promptKey}.system`);
       // For model answer mode, pass question number; for other modes (e.g., similar questions), pass questionCount
-      const singleQuestionNumber = mode === 'modelanswer' && sortedAllQuestions.length === 1
-        ? String(sortedAllQuestions[0].questionNumber || '')
+      const singleQuestionNumber = mode === 'modelanswer' && uniqueSortedQuestions.length === 1
+        ? String(uniqueSortedQuestions[0].questionNumber || '')
         : undefined;
       const userPrompt = getPrompt(`${config.promptKey}.user`,
         questionText,

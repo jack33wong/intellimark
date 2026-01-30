@@ -17,8 +17,8 @@
 🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.0901914, files: 1, bytes: 851914
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":281.78}
+💳 [CREDIT CHECK] Estimated cost: 0.0917837, files: 1, bytes: 867837
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":259.13}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
@@ -28,8 +28,8 @@
 [1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.2s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
 [MAPPER] Starting Map Pass for 1 pages...
-✅ [MAPPER] Map Pass complete in 1.74s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+✅ [MAPPER] Map Pass complete in 1.67s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m5.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -39,18 +39,18 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m5.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mMATHPIX[0m)
-[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[sophie,drives,distance,kilometres,motorway,france,pays,euros,every,estimate,amount,part,underestimate,overestimate]
-   ✅ Matched Part: 5a (3 marks)
-   ✅ Matched Part: 5b (1 marks)
-   📊 Final Map Keys: 5a, 5b
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m1.0s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.1s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.82 in Keys=[here,venn,diagram,number,chosen,random,universal,probability,fraction,numbers,101311141617]
+   ✅ Matched Part: 4a (1 marks, Max: 1)
+   ✅ Matched Part: 4b (2 marks, Max: 2)
+   📊 Final Map Keys: 4a, 4b
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -61,9 +61,9 @@
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 5    | Sophie drives a distance of 513 kilometres... | Edexcel GCSE 1MA1/1H June 2024 Q5                  | 0.924 | [32m✅ SUCCESS[0m      |
-| 5a   | Sophie drives a distance of 513 kilometres... | Edexcel GCSE 1MA1/1H June 2024 Q5                  | 0.924 | [32m✅ SUCCESS[0m      |
-| 5b   | Sophie drives a distance of 513 kilometres... | Edexcel GCSE 1MA1/1H June 2024 Q5                  | 0.924 | [32m✅ SUCCESS[0m      |
+| 4    | Here is a Venn diagram.                       | Edexcel GCSE 1MA1/1H June 2024 Q4                  | 0.891 | [32m✅ SUCCESS[0m      |
+| 4a   | Here is a Venn diagram.  Write down the nu... | Edexcel GCSE 1MA1/1H June 2024 Q4                  | 0.891 | [32m✅ SUCCESS[0m      |
+| 4b   | Here is a Venn diagram.  A number is chose... | Edexcel GCSE 1MA1/1H June 2024 Q4                  | 0.891 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -76,14 +76,14 @@
 🔍 [MERGE-DEBUG] attempting to merge classification results into 1 pages
    ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 1)
 🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
-   🏛️ [COORD-DEBUG] Task Q5: Injected 1 siblings into pageContext
+   🏛️ [COORD-DEBUG] Task Q4: Injected 1 siblings into pageContext
 ✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
 [1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
    🏗️ [ZONE-STRATEGY] Using Coordinator Context (1 siblings)
-   🌍 [ZONE-GLOBAL] Context for P0: 5, 5a, 5b
-[ZONE-TVC] Deterministic Order: 5a(P0@259) -> 5b(P0@986)
-[ZONE-TVC] First on P0: Snapping 5a start to 0
-[33m[POS-DEBUG] ⚠️ Missing Position for Q5 -> (0,0).[0m
+   🌍 [ZONE-GLOBAL] Context for P0: 4, 4a, 4b
+[ZONE-TVC] Deterministic Order: 4a(P0@667) -> 4b(P0@1074)
+[ZONE-TVC] First on P0: Snapping 4a start to 0
+[33m[POS-DEBUG] ⚠️ Missing Position for Q4 -> (0,0).[0m
 [33m   - ClassBlocks: 0[0m
 [33m   - QuestionDetection: true[0m
 
@@ -93,14 +93,14 @@ SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
 ------------------------------------------------------------------
 USER PROMPT:
  
-# MARKING TASK: Question 5
+# MARKING TASK: Question 4
 
 ## QUESTION TEXT
-**[5]**: Sophie drives a distance of 513 kilometres on a motorway in France. She pays 0.81 euros for every 10 kilometres she drives. Work out an estimate for the total amount that Sophie pays. Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.
+**[4]**: Here is a Venn diagram. [A Venn diagram shows a universal set $\mathcal{E}$ containing two overlapping circles, P and Q. Circle P only contains 12 and 15. The intersection, $P \cap Q$, contains 18. Circle Q only contains 10 and 14. The area outside both circles contains 11, 13, 16, 17.] Write down the numbers that are in set P' A number is chosen at random from the universal set, $\mathcal{E}$. Find the probability that this number is in the set $P\cup Q$.
 
-**[5a]**: Work out an estimate for the total amount that Sophie pays.
+**[4a]**: Write down the numbers that are in set P'
 
-**[5b]**: Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.
+**[4b]**: A number is chosen at random from the universal set, $\mathcal{E}$. Find the probability that this number is in the set $P\cup Q$.
 
 
 ## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
@@ -128,13 +128,12 @@ USER PROMPT:
 >    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
 
 [OFFICIAL SCHEME]
-[5a] [MAX SCORE: 3]
-- P1: for using a value rounded to 1sf in a calculation
-- P1: for a full process to find the total amount
-- A1: for a correct answer following through their correct rounded value(s)
+[4a] [MAX SCORE: 1]
+- B1: 10, 11, 13, 14, 16, 17
 
-[5b] [MAX SCORE: 1]
-- C1: ft from (a) eg underestimate as numbers rounded down
+[4b] [MAX SCORE: 2]
+- M1: for identification of 10, 12, 14, 15, 18 OR for $\frac{a}{9}$ where $1 \le a \le 8$, a an integer, OR for $\frac{5}{b}$ where $b > 5$, b an integer, OR for incorrect form, eg 5: 9
+- A1: oe
 
 
 > [!IMPORTANT]
@@ -146,28 +145,27 @@ USER PROMPT:
 ## STUDENT WORK (STRUCTURED)
 
 [SUB-QUESTION a]
-[ID: p0_q5_line_1] \frac{513}{10} \times 0.81 \approx \frac{500}{10} \times \frac{8}{10} = 40
-[ID: p0_q5_line_2] 40
+[ID: p0_q4_line_1] 10,13,11,14,16,17
 
 [SUB-QUESTION b]
-[ID: p0_q5_line_3] Underestimate, Cause I rounded down
+[ID: p0_q4_line_2] \frac{5}{9}
+[ID: p0_q4_line_3] 5/9
 
 
  
 ## RAW OCR BLOCKS
 Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
 
-[p0_ocr_0]: "5 Sophie drives a distance of 513 kilometres on a motorway in France."
-[p0_ocr_1]: "She pays 0.81 euros for every 10 kilometres she drives. [PRINTED_INSTRUCTION]"
-[p0_ocr_2]: "(a) Work out an estimate for the total amount that Sophie pays. [PRINTED_INSTRUCTION]"
-[p0_ocr_3]: "40"
-[p0_ocr_4]: "euros"
-[p0_ocr_5]: "(3)"
-[p0_ocr_6]: "(b) Is your answer to part (a) an underestimate or an overestimate?"
-[p0_ocr_7]: "Give a reason for your answer. [PRINTED_INSTRUCTION]"
-[p0_ocr_8]: "Underestimate, casse I rounded down"
-[p0_ocr_9]: "(1)"
-[p0_ocr_10]: "7"
+[p0_ocr_0]: "4 Here is a Venn diagram."
+[p0_ocr_1]: "(a) Write down the numbers that are in set \( P^{\prime} \) [PRINTED_INSTRUCTION]"
+[p0_ocr_2]: "10,13,11,14,16,17"
+[p0_ocr_3]: "(1)"
+[p0_ocr_4]: "A number is chosen at random from the universal set, \( \mathscr{E} \)"
+[p0_ocr_5]: "(b) Find the probability that this number is in the set \( P \cup Q \)"
+[p0_ocr_6]: "\frac{5}{9}"
+[p0_ocr_7]: "S"
+[p0_ocr_8]: "(2)"
+[p0_ocr_9]: "6"
 
 --------------------------------------------------
 FINAL QUALITY CHECK (DO NOT IGNORE):
@@ -178,86 +176,15 @@ FINAL QUALITY CHECK (DO NOT IGNORE):
 
 ==================================================================
 
-
-========================================
-[LOG-DEBUG] Raw AI MARKING JSON Response
-----------------------------------------
-```json
-{
-  "meta": {
-    "question_total_marks": 4,
-    "raw_correct_steps_found": 4,
-    "steps_dropped_to_fit_budget": 0,
-    "isTotalEstimated": false
-  },
-  "visualObservation": null,
-  "annotations": [
-    {
-      "action": "tick",
-      "text": "P1",
-      "line_id": "p0_q5_line_1",
-      "content_desc": null,
-      "ocr_match_status": "MATCHED",
-      "linked_ocr_id": "p0_ocr_0",
-      "reasoning": "513 and 0.81 rounded to 500 and 0.8 respectively",
-      "subQuestion": "a",
-      "pageIndex": 0,
-      "visual_position": null
-    },
-    {
-      "action": "tick",
-      "text": "P1",
-      "line_id": "p0_q5_line_1",
-      "content_desc": null,
-      "ocr_match_status": "MATCHED",
-      "linked_ocr_id": "p0_ocr_0",
-      "reasoning": "Full process to find the total amount",
-      "subQuestion": "a",
-      "pageIndex": 0,
-      "visual_position": null
-    },
-    {
-      "action": "tick",
-      "text": "A1",
-      "line_id": "p0_q5_line_2",
-      "content_desc": null,
-      "ocr_match_status": "MATCHED",
-      "linked_ocr_id": "p0_ocr_3",
-      "reasoning": "Correct answer following through their correct rounded value(s)",
-      "subQuestion": "a",
-      "pageIndex": 0,
-      "visual_position": null
-    },
-    {
-      "action": "tick",
-      "text": "C1",
-      "line_id": "p0_q5_line_3",
-      "content_desc": null,
-      "ocr_match_status": "MATCHED",
-      "linked_ocr_id": "p0_ocr_8",
-      "reasoning": "Underestimate as numbers rounded down",
-      "subQuestion": "b",
-      "pageIndex": 0,
-      "visual_position": null
-    }
-  ],
-  "studentScore": {
-    "totalMarks": 4,
-    "awardedMarks": 4,
-    "scoreText": "4/4"
-  }
-}
-```
-========================================
-
-   🛡️ [SEMANTIC-VETO] a: Block p0_ocr_0 rejected. Reason: Text Match
-   🛡️ [SEMANTIC-VETO] a: Block p0_ocr_0 rejected. Reason: Text Match
-   📍 [PATH 3] Qa: Line "p0_q5_line_1" is UNMATCHED. Recovering position.
-      ↳ Final Box: [x:24.2, y:24, w:53, h:10]
-   📍 [PATH 3] Qa: Line "p0_q5_line_1" is UNMATCHED. Recovering position.
-      ↳ Final Box: [x:24.2, y:24, w:53, h:10]
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m5.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m5.7s[0m ([32m[1mAI-MARKING[0m)
+[DEBUG-INSTRUCTION] structuredQuestionText len: 666
+[DEBUG-INSTRUCTION] finalPromptText len: 666
+[DEBUG-INSTRUCTION] finalPromptText PREVIEW: **[4]**: Here is a Venn diagram. [A Venn diagram shows a universal set $\mathcal{E}$ containing two 
+[DEBUG-INSTRUCTION] Returning result with promptQuestionText defined? true
+[DEBUG-EXECUTOR] markingResult.promptQuestionText: undefined
+[DEBUG-EXECUTOR] markingResult.schemeTextForPrompt: > [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to th
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m4.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m4.3s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
    📊 Marking Results: 1 questions
@@ -266,11 +193,11 @@ FINAL QUALITY CHECK (DO NOT IGNORE):
 🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
 [32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
 [32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
-[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 7 ([37mQ5a[32m)[0m
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.4s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 6 ([37mQ4a[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mOUTPUT-GENERATION[0m)
 [V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 [V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
 
@@ -278,48 +205,109 @@ FINAL QUALITY CHECK (DO NOT IGNORE):
 -----------------------------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
 |----------|-------|-------------------------|----------------------------------------|
-| [32m5       [0m | 4/4   | A1, P1, P1, C1          | AI:4/4 → M:2 U:2                       |
-| [90m  a     [0m | 3     | A1, P1, P1              | AI:3/3 → M:1 U:2                       |
-| [90m  b     [0m | 1     | C1                      | AI:1/1 → M:1 U:0                       |
+| [32m4       [0m | 3/3   | B1, A1, M1              | AI:3/3 → M:3 U:0                       |
+| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
+| [90m  b     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
 |----------|-------|-------------------------|----------------------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 18.0s
+Total Processing Time: 16.2s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      6.0s (34%)
-marking                             5.7s (32%)
-ocr_processing                      1.9s (11%)
-output_generation                   1.4s (8%)
-question_detection                  1.0s (6%)
-performance_summary                 0.9s (5%)
-database_persistence                0.3s (1%)
+classification                      5.5s (34%)
+marking                             4.3s (26%)
+ocr_processing                      3.1s (19%)
+output_generation                   1.1s (7%)
+question_detection                  0.7s (5%)
+performance_summary                 0.6s (3%)
 preprocessing                       0.2s (1%)
-input_validation                    0.0s (0%)
+database_persistence                0.2s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
    API Requests: 4 total
-   Total Tokens: 18,490 (17,313 in + 1,177 out)
-   Total Cost: $0.005770
+   Total Tokens: 18,369 (17,362 in + 1,007 out)
+   Total Cost: $0.005707
    Mathpix OCR: 1 pages → $0.004000
 
    Breakdown by Phase:
    • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
-   • Classification (Marking Pass): 6,746 tokens (1 requests) → $0.000813
-   • Marking: 7,149 tokens (1 requests) → $0.000902
-   • Performance Summary: 434 tokens (1 requests) → $0.000055
+   • Classification (Marking Pass): 6,711 tokens (1 requests) → $0.000799
+   • Marking: 7,097 tokens (1 requests) → $0.000858
+   • Performance Summary: 400 tokens (1 requests) → $0.000050
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769785823021
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769785823021
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0057701
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769798653175
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769798653175
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.005707
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.58 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769785823021), remaining: 281.20
-💳 Deducted 0.0058 credits (session: sub-1769785823021) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769785823021
+💳 Deducted 0.57 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769798653175), remaining: 258.56
+💳 Deducted 0.0057 credits (session: sub-1769798653175) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769798653175
+[DEBUG_FOLLOWUP] Raw marking scheme input for Q4: "[4a] [MAX SCORE: 1]\n- B1: 10, 11, 13, 14, 16, 17\n\n[4b] [MAX SCORE: 2]\n- M1: for identification of 10, 12, 14, 15, 18 OR for $\\frac{a}{9}$ where $1 \\le a \\le 8$, a an integer, OR for $\\frac{5}{b}$ where $b > 5$, b an integer, OR for incorrect form, eg 5: 9\n- A1: oe"
+
+🔍 [DEBUG] MARKING SCHEME EXPLAIN PROMPT:
+--- SYSTEM ---
+You are an AI that explains marking schemes for exam questions.
+
+Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
+Keep it concise and focus on the key marking points.
+Your response MUST be in markdown format.
+
+**IMPORTANT FORMATTING RULES:**
+1. **Parent-Child Grouping:**
+   - Always group sub-questions under their main Question Header.
+   - Example Structure:
+     **Question 4:**
+     - **a:** [Explanation]
+     - **b:** [Explanation]
+   - NEVER output a flat list (e.g., Q1, Q2, Q2a) if they belong together.
+
+2. **Ascending Order:**
+   - Respond to questions in strict ascending order (e.g., Q4, Q5).
+
+3. **Content:**
+   - Use simple language.
+   - Explain what M1, A1, B1 codes mean in context (e.g., "M1 for the method of...").
+   - Do NOT just copy the scheme text. Interpret it for a student.
+
+--- USER ---
+** QUESTION:**
+Here is a Venn diagram.
+
+** MARKING SCHEME:**
+[4a] [MAX SCORE: 1]
+- B1: 10, 11, 13, 14, 16, 17
+
+[4b] [MAX SCORE: 2]
+- M1: for identification of 10, 12, 14, 15, 18 OR for $\frac{a}{9}$ where $1 \le a \le 8$, a an integer, OR for $\frac{5}{b}$ where $b > 5$, b an integer, OR for incorrect form, eg 5: 9
+- A1: oe
+
+Provide a brief explanation of this marking scheme.Keep it simple and concise.
+
+
+✅ [DEBUG] MARKING SCHEME EXPLAIN RESPONSE:
+**Question 4:**
+- **a:** B1 means one mark is awarded for listing the numbers 10, 11, 13, 14, 16, and 17.
+- **b:**
+  - M1: One mark for identifying the numbers 10, 12, 14, 15, 18, OR for writing a fraction with 9 as the denominator and a number from 1 to 8 as the numerator, OR for writing a fraction with 5 as the numerator and a number greater than 5 as the denominator, OR for an incorrect form.
+  - A1: One mark for an answer that is correct, or equivalent to the correct answer.
+
+
+💳 Deducted 0.01 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769798653175), remaining: 258.55
+💳 Deducted 0.00 cost (session: sub-1769798653175, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
