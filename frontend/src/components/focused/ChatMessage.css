@@ -194,7 +194,7 @@
 .has-your-work-outer-container {
   border: 1px solid var(--border-main);
   border-radius: 10px;
-  padding: 50px 50px 80px;
+  padding: 24px 24px 40px;
   background: var(--background-nav);
   margin-top: 8px;
   position: relative;

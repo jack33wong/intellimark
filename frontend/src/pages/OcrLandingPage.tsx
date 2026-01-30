@@ -78,7 +78,7 @@ const OcrLandingPage: React.FC = () => {
                 <div className="ocr-feature-container">
                     <div className="ocr-feature-visual">
                         <div className="ocr-mockup-frame">
-                            <img src="/images/spatial_mapping_v3.png" alt="OCR Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
+                            <img src="/images/ocr_b_marks_v1.png" alt="OCR Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
                             <div className="ocr-badge-overlay">OCR J560 Logic Check</div>
                         </div>
                     </div>

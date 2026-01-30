@@ -5,8 +5,40 @@ import { PERMISSIONS, hasPermission } from '../config/permissions.js';
 import UsageTracker from '../utils/UsageTracker.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
+import axios from 'axios';
 
 export class MarkingController {
+    /**
+     * Proxies image download to bypass CORS and force attachment
+     */
+    public static async downloadImage(req: Request, res: Response): Promise<void> {
+        const imageUrl = req.query.url as string;
+        const filename = req.query.filename as string || 'download-image.jpg';
+
+        if (!imageUrl) {
+            res.status(400).send('Missing image URL');
+            return;
+        }
+
+        try {
+            console.log(`📡 [MARKING] Proxying download for: ${filename}`);
+            const response = await axios({
+                method: 'get',
+                url: imageUrl,
+                responseType: 'stream'
+            });
+
+            // Forward relevant headers
+            res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            // Pipe the stream
+            response.data.pipe(res);
+        } catch (error: any) {
+            console.error('❌ [MARKING] Download proxy failed:', error.message);
+            res.status(500).send('Failed to proxy image download');
+        }
+    }
     /**
      * Handles the marking request.
      * Sets up SSE, extracts parameters, and delegates to MarkingPipelineService.

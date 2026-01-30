@@ -115,4 +115,10 @@ router.post('/process',
   MarkingController.processMarkingRequest
 );
 
+/**
+ * GET /api/marking/download-image
+ * Proxies image downloads to force attachment and bypass CORS
+ */
+router.get('/download-image', MarkingController.downloadImage);
+
 export default router;

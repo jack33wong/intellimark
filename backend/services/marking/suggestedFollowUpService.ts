@@ -254,7 +254,7 @@ export class SuggestedFollowUpService {
             const userPrompt = getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr);
 
             // --- DEBUG LOGGING: Print Prompt ---
-            if (process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
+            if (process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') {
               console.log(`\n🔍 [DEBUG] MODEL ANSWER PROMPT (Group ${baseNum}):`);
               console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
               console.log(`--- USER ---\n${userPrompt}\n`);
@@ -267,7 +267,7 @@ export class SuggestedFollowUpService {
             const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
 
             // --- DEBUG LOGGING: Print Response ---
-            if (process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
+            if (process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') {
               console.log(`\n✅ [DEBUG] MODEL ANSWER RESPONSE (Group ${baseNum}):`);
               console.log(`${aiResult.content}\n`);
             }

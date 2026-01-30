@@ -454,7 +454,7 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   background: var(--background-gray-main) !important;
   flex-shrink: 0 !important;
   max-width: 1000px !important;
-  width: 80vw !important;
+  width: 100% !important;
   transform: translateY(0) !important;
   transition: transform 0.3s ease-out, opacity 0.3s ease-out !important;
   opacity: 1 !important;
@@ -608,7 +608,7 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   flex-direction: column;
   gap: 16px;
   max-width: 1100px;
-  width: 90vw;
+  width: 100%;
   margin: 0 auto;
   background: transparent;
   border-radius: 0;
