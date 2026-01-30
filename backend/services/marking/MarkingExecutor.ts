@@ -76,16 +76,39 @@ export async function executeMarkingForQuestion(
             bbox = [rawSource.x, rawSource.y, rawSource.width, rawSource.height];
           }
         }
-        // Fallback: Try matching against OCR blocks if no direct box found
+        // Fallback: Robust BBox Rescue
         else {
+          // 1. Try ID Match
           let matchingBlock = task.mathBlocks.find(block => {
             const blockId = (block as any).globalBlockId;
             return blockId && blockId === result.blockId;
           });
 
-          if (matchingBlock?.coordinates?.x != null) {
-            bbox = [matchingBlock.coordinates.x, matchingBlock.coordinates.y, matchingBlock.coordinates.width, matchingBlock.coordinates.height];
-            pageIdx = (matchingBlock as any).pageIndex ?? task.sourcePages[0];
+          // 2. If ID failed, try Fuzzy Text Match (Critical for 11c/11d)
+          if (!matchingBlock && result.content && result.content.length > 2) {
+            const cleanTarget = result.content.replace(/\s/g, '').toLowerCase();
+            matchingBlock = task.mathBlocks.find(block => {
+              const blockPage = (block as any).pageIndex ?? task.sourcePages[0];
+              // Only search on the correct page if we know it
+              if ((result as any).pageIndex !== undefined && blockPage !== (result as any).pageIndex) return false;
+
+              const raw = block.mathpixLatex || block.googleVisionText || '';
+              const cleanRaw = raw.replace(/\s/g, '').toLowerCase();
+              return cleanRaw.includes(cleanTarget) || cleanTarget.includes(cleanRaw);
+            });
+          }
+
+          if (matchingBlock && matchingBlock.coordinates) {
+            bbox = [
+              matchingBlock.coordinates.x,
+              matchingBlock.coordinates.y,
+              matchingBlock.coordinates.width,
+              matchingBlock.coordinates.height
+            ];
+            // If we found it on a specific page, update the page index
+            if ((matchingBlock as any).pageIndex !== undefined) {
+              pageIdx = (matchingBlock as any).pageIndex;
+            }
           }
         }
 
@@ -301,6 +324,47 @@ export async function executeMarkingForQuestion(
       });
     });
 
+
+    // =========================================================================
+    // 🛡️ [USER DESIGN FIX] CREATE BACKFILL ZONE FROM VISUAL VOID
+    // Requirement: If TaskBuilder injected a void, we MUST create a Zone.
+    //              Do not check if zone exists. FORCE IT.
+    // =========================================================================
+    stepsDataForMapping.forEach(step => {
+      // Look for the "Visual Void" we injected in TaskBuilder
+      if ((step as any).ocrSource === 'system-injection') {
+        const qLabel = (step as any).subQuestionLabel;
+        const pIdx = step.pageIndex;
+
+        // [DEBUG 1] Confirm we found the trigger
+        console.log(`🔍 [BACKFILL-DEBUG] Found Injection Step: ${qLabel} on P${pIdx}`);
+
+        let ceilingY = pageHeightForZones;
+        Object.values(semanticZones).flat().forEach(z => {
+          if (z.pageIndex === pIdx && z.startY < ceilingY && z.startY > 10 && z.label !== qLabel) {
+            ceilingY = z.startY;
+          }
+        });
+
+        // [DEBUG 2] Confirm the calculation
+        console.log(`   📏 [BACKFILL-DEBUG] Calculated Ceiling: ${ceilingY} (Page Height: ${pageHeightForZones})`);
+
+        if (!semanticZones[qLabel]) semanticZones[qLabel] = [];
+
+        semanticZones[qLabel].push({
+          label: qLabel,
+          pageIndex: pIdx,
+          startY: 0,
+          endY: ceilingY,
+          x: 0,
+          width: 100
+        } as any);
+
+        // [DEBUG 3] Confirm the push
+        console.log(`   ✅ [BACKFILL-DEBUG] Pushed Zone to semanticZones[${qLabel}]. Total Zones: ${semanticZones[qLabel].length}`);
+      }
+    });
+
     const rawOcrBlocks = [
       ...task.mathBlocks.map((block, idx) => {
         const globalId = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx}`;
@@ -431,17 +495,112 @@ export async function executeMarkingForQuestion(
       }
     });
 
+    // Track usage to stagger multiple marks on the same unmatched line (e.g., M1, A0)
+    // This prevents them from stacking directly on top of each other.
+    const unmatchedLineUsage: Record<string, number> = {};
+
     let correctedAnnotations = explodedAnnotations.map(anno => {
       const currentId = sanitizeAiLineId(anno.line_id || anno.lineId || "");
       anno.line_id = currentId;
 
       const sourceStep = stepsDataForMapping.find(s => s.line_id === currentId || s.globalBlockId === currentId);
 
-      if (sourceStep && sourceStep.pageIndex !== undefined) {
+      // 1. Standard Page Index Update (Iron Dome)
+      // 🛡️ [FIX] DRAWING FREEDOM
+      // For standard text, we trust the Source Step location (don't let AI hallucinate page).
+      // For DRAWINGS, the source might be the Question Text (P0) while the grid is on P1.
+      // So we ALLOW the AI to set the page index for drawings.
+      const isDrawingLine = sourceStep?.text === '[DRAWING]' || (sourceStep as any)?.content === '[DRAWING]' || (sourceStep as any)?.source === 'system-injection';
+
+      if (sourceStep && sourceStep.pageIndex !== undefined && !isDrawingLine) {
         if (anno.pageIndex !== sourceStep.pageIndex) anno.pageIndex = sourceStep.pageIndex;
-      } else if (task.sourcePages?.length === 1) {
+      } else if (task.sourcePages?.length === 1 && !isDrawingLine) {
         anno.pageIndex = task.sourcePages[0];
       }
+
+      // =======================================================================
+      // 🛡️ [PATH 3: UNMATCHED] CLASSIFICATION COORDINATE RECOVERY
+      // Principle: The system knows the coordinates. Use sourceStep.bbox.
+      // Rule: Honesty - Do NOT change 'UNMATCHED' status.
+      // =======================================================================
+      if (anno.ocr_match_status === 'UNMATCHED') {
+        // 1. We lookup the step using the ID
+        if (sourceStep && (sourceStep.bbox || (sourceStep as any).position)) {
+
+          const box: any = sourceStep.bbox || (sourceStep as any).position;
+
+          // Handle both Array [x,y,w,h] and Object {x,y,width,height}
+          let x = box.x !== undefined ? box.x : box[0];
+          let y = box.y !== undefined ? box.y : box[1];
+          let w = box.width !== undefined ? box.width : box[2];
+          let h = box.height !== undefined ? box.height : box[3];
+
+          // 🛡️ [FIX 3] UNIT NORMALIZATION (The "Top-Left" Killer)
+          // If x is 0.5 (Normalized), we need 50 (Percentage). 
+          // If x is 500 (Pixels), we leave it (assuming canvas is 1000).
+          // Heuristic: If values are small (< 1), assume Normalized 0-1.
+          const isNormalized = x <= 1 && y <= 1 && w <= 1 && h <= 1 && (x > 0 || y > 0);
+
+          if (isNormalized) {
+            console.log(`   ⚖️ [UNIT-FIX] Converting Normalized Coords to Percentage for ${currentId}`);
+            x *= 100;
+            y *= 100;
+            w *= 100;
+            h *= 100;
+          }
+
+          // 2. Stagger Logic (Prevent M1/A0 stacking on the exact same point)
+          const usageKey = currentId;
+          const usageCount = unmatchedLineUsage[usageKey] || 0;
+          unmatchedLineUsage[usageKey] = usageCount + 1;
+
+          // Stagger: 2% shift if using %, 15px if using pixels
+          const staggerAmount = isNormalized ? 2 : 15;
+          const staggerX = usageCount * staggerAmount;
+
+          console.log(`   📍 [PATH 3] Q${anno.subQuestion}: Line "${currentId}" is UNMATCHED. Recovering position.`);
+          console.log(`      ↳ Final Box: [x:${x}, y:${y}, w:${w}, h:${h}]`);
+
+          // 3. Populate visual_position (Contract Fulfilled)
+          // Center the mark and apply stagger.
+          anno.visual_position = {
+            x: x + (w / 2) + staggerX,
+            y: y + (h / 2),
+            width: isNormalized ? 2 : 10, // Use smaller width for %
+            height: isNormalized ? 2 : 10
+          };
+
+          // STATUS REMAINS 'UNMATCHED' (Honest Data)
+        } else {
+          // This confirms if the upstream fix worked or not
+          console.error(`   ❌ [CRITICAL] Q${anno.subQuestion}: Line "${currentId}" is UNMATCHED but has NO BOX data. Check TaskBuilder.`);
+        }
+      }
+      // =======================================================================
+
+      // =======================================================================
+      // 🛡️ [USER DESIGN FIX] IRON DOME PATCH
+      // Requirement: If Annotation is on P0, but Backfill Zone is on P1, SNAP IT.
+      // =======================================================================
+      const validZones = semanticZones[anno.subQuestion];
+      if (validZones) {
+        // Find the Backfilled Zone (The one on the highest page)
+        const targetZone = validZones.sort((a, b) => b.pageIndex - a.pageIndex)[0];
+
+        // Check: Is Mark on P0 (0) and Zone on P1 (1)?
+        if (targetZone && (anno.pageIndex || 0) < targetZone.pageIndex) {
+          const isVisual = (anno.ocr_match_status === 'VISUAL') ||
+            (anno.line_id === null) ||
+            (anno.text && ['M1', 'A1', 'B1'].includes(anno.text));
+
+          if (isVisual) {
+            console.log(`   🧲 [IRON-DOME-PATCH] Snapping Q${anno.subQuestion} from P${anno.pageIndex} -> P${targetZone.pageIndex}`);
+            anno.pageIndex = targetZone.pageIndex;
+            // We preserve visual_position (User Requirement)
+          }
+        }
+      }
+      // =======================================================================
 
       const isPrinted = !sourceStep || sourceStep.isHandwritten === false;
       if (isPrinted) {
@@ -674,7 +833,9 @@ export function createMarkingTasksFromClassification(
 
   const questionGroups = new Map<string, any>();
 
-  // 1. Group Questions
+  // =========================================================================
+  // PHASE 1: GROUPING & TRUTH TRACKING
+  // =========================================================================
   for (const q of classificationResult.questions) {
     const baseQNum = getBaseQuestionNumber(String(q.questionNumber || ''));
     if (!baseQNum) continue;
@@ -682,7 +843,7 @@ export function createMarkingTasksFromClassification(
     const groupingKey = baseQNum;
     const sourceImageIndices = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
 
-    // Determine Anchor Page
+    // --- Anchor Page Logic (Standard) ---
     let anchorMainPage = sourceImageIndices[0] ?? 0;
     if (allPagesOcrData) {
       const snippet = q.text ? q.text.replace(/\n/g, ' ').substring(0, 25).trim() : null;
@@ -719,6 +880,7 @@ export function createMarkingTasksFromClassification(
         aiSegmentationResults: [],
         subQuestionMetadata: { hasSubQuestions: false, subQuestions: [] },
         lineCounter: 1,
+        // ✅ KEY DATA: Tracks parts that have ACTUAL content found by Classifier
         processedSubQuestions: new Set<string>()
       });
     } else {
@@ -737,6 +899,7 @@ export function createMarkingTasksFromClassification(
       const blockId = `class_block_${baseQNum}_${node.part || 'main'}`;
       const nodeBox = node.box || node.region || node.rect || node.coordinates;
 
+      // 1. Store Block for Geometric Calculations
       if (nodeBox) {
         group.classificationBlocks.push({
           id: blockId,
@@ -747,6 +910,7 @@ export function createMarkingTasksFromClassification(
         });
       }
 
+      // 2. Metadata Extraction
       if (node.part && node.part !== 'main') {
         const IGNORED = ['id', 'questionnumber', 'totalmarks'];
         if (!IGNORED.includes(node.part.toLowerCase())) {
@@ -762,57 +926,71 @@ export function createMarkingTasksFromClassification(
       let hasContent = false;
       if (node.studentWorkLines && node.studentWorkLines.length > 0) {
         node.studentWorkLines.forEach((l: any) => {
-          if (l.text === '[DRAWING]') return;
+
           const pIdx = l.pageIndex ?? node.pageIndex ?? currentQPageIndex;
           const globalId = `p${pIdx}_q${baseQNum}_line_${group.lineCounter++}`;
 
-          // 🛡️ CRITICAL FIX: Capture Position Data
-          // Try line box -> fallback to node box -> fallback to defaults
-          const positionData = l.box || l.region || nodeBox || { x: 0, y: 0, width: 0, height: 0, unit: 'percentage' };
+          // =========================================================
+          // 🛠️ FIX 1: Q11 DRAWING RESTORATION (The "Drawing Flow")
+          // =========================================================
+          // We DO NOT filter this. We pass it downstream so Executor sees it on Page 1.
+          if (l.text === '[DRAWING]') {
+            group.aiSegmentationResults.push({
+              line_id: `visual_drawing_${baseQNum}_${group.lineCounter}`, // Distinct ID
+              content: '[DRAWING]',
+              source: 'classification',    // Honest Source
+              blockId: `drawing_${baseQNum}_${group.lineCounter}`,
+              subQuestionLabel: node.part || 'main',
+              pageIndex: pIdx,             // Uses the correct Page Index (e.g. Page 1)
+              // Use box if present, otherwise safe default for zone creation
+              bbox: l.box || l.position || nodeBox || { x: 0, y: 0, width: 100, height: 50 }
+            });
+            hasContent = true;
+            return; // Done with this item
+          }
+
+          // =========================================================
+          // 🛠️ FIX 2: Q2 POSITION RECOVERY (The "Data Clog")
+          // =========================================================
+          // Your logs proved the key is 'position'. We must grab it.
+          let rawBox = l.position || l.box || l.region || l.rect || l.coordinates;
+
+          // Fallback: If line has no box, INHERIT from the parent Node
+          if (!rawBox || (rawBox.x === 0 && rawBox.y === 0 && rawBox.width === 0)) {
+            rawBox = node.position || nodeBox;
+          }
+
+          const positionData = rawBox || { x: 0, y: 0, width: 0, height: 0, unit: 'percentage' };
 
           group.aiSegmentationResults.push({
+            line_id: globalId,
             content: l.text,
             source: 'classification',
             blockId: globalId,
-            line_id: globalId,
             subQuestionLabel: node.part || 'main',
             pageIndex: pIdx,
-            bbox: positionData, // ✅ PASSED TO RENDERER
-            position: positionData // ✅ PASSED TO RENDERER
+            // 🚨 THIS IS THE CRITICAL BRIDGE
+            bbox: positionData,
+            position: positionData
           });
           hasContent = true;
         });
       }
 
-      // 4. Handle Explicit Drawings
       if (node.hasStudentDrawing) {
-        const pIdx = node.pageIndex ?? currentQPageIndex;
-        const globalId = `p${pIdx}_q${baseQNum}_visual_${group.lineCounter++}`;
-
-        // 🛡️ CRITICAL FIX: Use Node Box for Visual Placeholder
-        const visualPos = nodeBox || { x: 50, y: 50, width: 50, height: 50, unit: 'percentage' };
-
-        group.aiSegmentationResults.push({
-          content: "[VISUAL WORKSPACE]",
-          source: 'classification',
-          blockId: globalId,
-          line_id: globalId,
-          subQuestionLabel: node.part || 'main',
-          pageIndex: pIdx,
-          isVisualPlaceholder: true,
-          bbox: visualPos, // ✅ PASSED
-          position: visualPos // ✅ PASSED
-        });
-        hasContent = true;
+        hasContent = true; // Found Drawing
       }
 
+      // ✅ TRUTH SETTING: If we found content, mark this part as "Processed".
       if (hasContent && node.part) {
         group.processedSubQuestions.add(node.part);
       }
     });
   }
 
-  // 2. Generate Tasks
+  // =========================================================================
+  // PHASE 2: TASK GENERATION
+  // =========================================================================
   const sortedQuestionGroups = Array.from(questionGroups.entries()).sort((a, b) => {
     const numA = parseInt(String(a[0]).replace(/\D/g, '')) || 0;
     const numB = parseInt(String(b[0]).replace(/\D/g, '')) || 0;
@@ -821,34 +999,7 @@ export function createMarkingTasksFromClassification(
 
   sortedQuestionGroups.forEach(([baseQNum, group], idx) => {
 
-    // 🚀 NEW LOGIC: Inject Missing Visual Placeholders
-    if (group.subQuestionMetadata.hasSubQuestions) {
-      group.subQuestionMetadata.subQuestions.forEach((sub: any) => {
-        const partLabel = sub.part;
-        if (!group.processedSubQuestions.has(partLabel)) {
-          const pageIdx = group.sourceImageIndices[0] || 0;
-          const placeholderId = `p${pageIdx}_q${baseQNum}_${partLabel}_visual_auto`;
-
-          // Try to find a classification block for this part to get coordinates
-          const matchingBlock = group.classificationBlocks.find((b: any) => b.part === partLabel);
-          const fallbackPos = matchingBlock?.box || { x: 50, y: 50, width: 50, height: 50, unit: 'percentage' };
-
-          group.aiSegmentationResults.push({
-            content: "[VISUAL WORKSPACE] (Refer to image)",
-            source: 'system-injection',
-            blockId: placeholderId,
-            line_id: placeholderId,
-            subQuestionLabel: partLabel,
-            pageIndex: pageIdx,
-            isVisualPlaceholder: true,
-            bbox: fallbackPos, // ✅ PASSED
-            position: fallbackPos // ✅ PASSED
-          });
-        }
-      });
-    }
-
-    // 3. Build Transcript
+    // --- 3. Build Transcript (Standard) ---
     let promptMainWork = "";
     let currentHeader = "";
 
@@ -872,8 +1023,8 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // 4. Gather OCR
-    let allOcrBlocks: MathBlock[] = [];
+    // --- 4. Gather OCR (Standard) ---
+    let allOcrBlocks: any[] = [];
     group.sourceImageIndices.forEach((pageIndex: number) => {
       const pageOcr = allPagesOcrData.find(d => d.pageIndex === pageIndex);
       let ocrIdx = 0;
@@ -886,7 +1037,7 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // 5. Build Final Task
+    // --- 5. Final Task Assembly ---
     const questionImages: string[] = [];
     group.sourceImageIndices.forEach((imageIdx: number) => {
       const page = standardizedPages.find(p => p.pageIndex === imageIdx);
@@ -1045,6 +1196,8 @@ function resolveLinksWithZones(
 ): any[] {
 
   return annotations.map(anno => {
+
+
     // 1. Initialize
     if (!(anno as any).ai_raw_status) {
       (anno as any).ai_raw_status = anno.ocr_match_status;
@@ -1074,10 +1227,16 @@ function resolveLinksWithZones(
         const markY = block.coordinates?.y ?? block.bbox?.[1];
         if (markY !== null) {
           const inZone = ZoneUtils.isPointInZone(markY, zoneData, 0.05);
-          if (!inZone) {
+
+          // 🛡️ [FIX]: Exception for Split-Page Visuals
+          // If it's a Visual Placeholder on the "Next Page" (e.g. Zone P0, Block P1), allow it.
+          const isVisualPlaceholder = (block.text || '').includes('VISUAL') || physicalId.includes('visual');
+          const isNextPage = (block.pageIndex === (zoneData.pageIndex + 1));
+
+          if (!inZone && !(isVisualPlaceholder && isNextPage)) {
             console.log(`   ⚖️ [IRON-DOME-VETO] ${anno.subQuestion}: ID ${physicalId} is OUT OF ZONE. Vetoing.`);
             anno.ocr_match_status = "UNMATCHED";
-            anno.linked_ocr_id = null; // Strip the bad link
+            anno.linked_ocr_id = null;
           }
         }
       }

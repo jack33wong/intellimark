@@ -105,51 +105,75 @@ export const enrichAnnotationsWithPositions = (
         }
 
         // =====================================================================
-        // 🛡️ IRON DOME: SILO ENFORCEMENT (INSERT HERE)
+        // 🛡️ IRON DOME: SILO & PAGE ENFORCEMENT
         // =====================================================================
-        // Attempt to find the source the AI *claims* to be linking to
-
         let source = findInData(activePointer);
 
-
         if (source && source.subQuestionLabel && anno.subQuestion) {
-            // Normalize labels
             const normalize = (s: string) => s.replace(/\d+|question|part/gi, '').trim().toLowerCase();
             const annoLabel = normalize(anno.subQuestion);
             const sourceLabel = normalize(source.subQuestionLabel);
 
-            // VIOLATION CHECK: Mark is 'c', Source is 'b'
-            if (annoLabel && sourceLabel && annoLabel !== sourceLabel && sourceLabel !== 'main') {
-                console.warn(`🛡️ [IRON-DOME] Violation! Moving mark Q${anno.subQuestion} away from Q${source.subQuestionLabel} zone.`);
+            // 1. DETERMINE TRUTH PAGE
+            let trueZonePage = -1;
+            if (semanticZones) {
+                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
+                if (zone) trueZonePage = zone.pageIndex;
+            }
 
-                // FIND REPLACEMENT IN CORRECT ZONE
-                const candidates = stepsDataForMapping.filter(s =>
+            // �️ [SMART OVERRIDE]: If Visual + P1 Candidate exists, Trust P1 over Zone Detector
+            if ((status === 'VISUAL' || (anno.text || '').includes('B')) && trueZonePage === 0) {
+                const p1Candidate = stepsDataForMapping.find(s =>
+                    s.subQuestionLabel && normalize(s.subQuestionLabel) === annoLabel && s.pageIndex === 1
+                );
+                if (p1Candidate) trueZonePage = 1;
+            }
+
+            // 2. DETECT VIOLATION
+            const labelMismatch = (annoLabel && sourceLabel && annoLabel !== sourceLabel && sourceLabel !== 'main');
+            const pageMismatch = (trueZonePage !== -1 && source.pageIndex !== undefined && source.pageIndex !== trueZonePage);
+
+            if (labelMismatch || pageMismatch) {
+                // 3. SEARCH REPLACEMENT
+                let candidates = stepsDataForMapping.filter(s =>
                     s.subQuestionLabel && normalize(s.subQuestionLabel) === annoLabel
                 );
 
+                // Prioritize Correct Page
+                if (pageMismatch) {
+                    const pageSpecific = candidates.filter(s => s.pageIndex === trueZonePage);
+                    if (pageSpecific.length > 0) candidates = pageSpecific;
+                }
+
                 if (candidates.length > 0) {
-                    // SNAP TO FIRST VALID CANDIDATE
+                    // Sort: Visuals first
+                    candidates.sort((a, b) => (a.text.includes('VISUAL') ? -1 : 1));
                     const best = candidates[0];
+
+                    // 4. SNAP & UPDATE
                     lineId = best.line_id;
                     targetId = best.line_id;
 
-                    // UPDATE ANNOTATION OBJECT
-                    (anno as any).line_id = lineId;
-                    (anno as any).linked_ocr_id = lineId;
+                    (anno as any).line_id = best.line_id;
+                    (anno as any).linked_ocr_id = best.line_id;
 
-                    // REFRESH SOURCE
-                    source = best;
+                    // 🚨 CRITICAL: Physically move the annotation to the new page
+                    (anno as any).pageIndex = best.pageIndex;
+                    pageIndex = best.pageIndex;
 
-                    // FORCE MATCH STATUS
-                    if (status === "UNMATCHED" || status === "VISUAL") status = "MATCHED";
+                    // 🚨 FIX: Don't force MATCHED. Keep VISUAL if it was VISUAL.
+                    if (status === "UNMATCHED") status = "MATCHED"; // Only promote if lost
+
+                    console.log(`✅ [IRON-DOME] Snapped mark to: ${lineId} (P${best.pageIndex})`);
                 }
             }
         }
         // =====================================================================
 
-        // 2. SELECT SOURCE (Now using the potentially corrected 'targetId' or 'lineId')
-        if (status === "MATCHED" && targetId) {
-            // [PATH A] MATCHED -> Use Text ID
+        // 2. SELECT SOURCE (Modified to allow VISUAL + ID)
+        // [FIX]: Allow VISUAL status to use Direct Link (Path A) if it has an ID
+        if ((status === "MATCHED" || status === "VISUAL") && targetId) {
+            // [PATH A] DIRECT LINK (Text OR Visual Placeholder)
             const match = findInData(targetId);
             if (match) {
                 const sourceBox = match.bbox || match.position;
@@ -162,7 +186,7 @@ export const enrichAnnotationsWithPositions = (
             }
         }
         else if (status === "VISUAL" && rawVisualPos) {
-            // [PATH B] VISUAL -> Use AI Coords
+            // [PATH B] VISUAL COORDS (Fallback)
             rawBox = { ...rawVisualPos, unit: 'percentage' };
             method = "VISUAL_COORDS";
         }
@@ -206,16 +230,25 @@ export const enrichAnnotationsWithPositions = (
         // 4. STRICT ZONE CLAMPING (Universal)
         if (semanticZones) {
             const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
-            if (zone) {
+
+            // 🛡️ [FIX]: PAGE-AWARE CLAMPING
+            // Only clamp if the annotation is on the SAME PAGE as the defined zone.
+            // This prevents P0 constraints (bottom of page) from dragging down P1 marks (top of page).
+            if (zone && zone.pageIndex === pageIndex) {
+
                 // Clamp unless it's a direct text match (which we trust implicitly)
                 if (status !== "MATCHED") {
                     if (pixelBox.y < zone.startY) {
                         pixelBox.y = zone.startY;
                     }
                     if (zone.endY && pixelBox.y > zone.endY) {
-                        pixelBox.y = Math.max(zone.startY, zone.endY - (pixelBox.height || 10));
+                        // Ensure we don't crush it to 0 height
+                        const safeTop = Math.max(zone.startY, zone.endY - (pixelBox.height || 10));
+                        pixelBox.y = safeTop;
                     }
                 }
+            } else if (zone && zone.pageIndex !== pageIndex) {
+                console.log(`   🔓 [ZONE-SKIP] Skipping clamping for Q${anno.subQuestion}. Anno P${pageIndex} != Zone P${zone.pageIndex}`);
             }
         }
 
@@ -229,18 +262,21 @@ export const enrichAnnotationsWithPositions = (
         let classText = (anno as any).classification_text || "";
 
         if (activePointer) {
-            // [PATH A] Text/Handwriting Pointer -> Hydrate from Ground Truth
+            // [PATH A] Text/Handwriting Pointer
             const match = findInData(activePointer);
             if (match) {
                 studentText = match.text || match.cleanedText || "";
-
-                // Helper needed for latexToPlainText if not defined locally
-                // classText = latexToPlainText(match.text || match.cleanedText || ""); 
                 classText = match.text || match.cleanedText || "";
 
-                // ✅ SAFE HYDRATION: We set debug method, but we DO NOT FORCE STATUS.
-                // Keeping status as 'UNMATCHED' allows the Collision Service to move it.
-                method = "POINTED_TEXT";
+                // 🛡️ [FIX]: HIDE BLUE TEXT FOR VISUAL PLACEHOLDERS
+                // If we snapped to a visual placeholder, don't show "[VISUAL WORKSPACE]" as blue text.
+                if (studentText.includes('VISUAL') || studentText.includes('DRAWING')) {
+                    classText = ""; // Hide overlay
+                    studentText = "[Drawing/Graph]"; // Friendly label
+                    method = "VISUAL_VALUE";
+                } else {
+                    method = "POINTED_TEXT";
+                }
             } else {
                 console.warn(`🚨 [ORPHAN] AI returned ID '${activePointer}' which does not exist in source data.`);
                 // We don't change status here to avoid breaking downstream flow, 

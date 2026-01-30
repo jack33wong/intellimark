@@ -1,0 +1,599 @@
+
+> ai-marking-backend@1.0.0 dev
+> cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
+
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.0095678, files: 1, bytes: 45678
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":506.05}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.1s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 1 pages...
+✅ [MAPPER] Map Pass complete in 1.69s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[venn,diagram,probability,these,people,chosen,random,person,visited,exactly,countries,france,given,they,also,spain]
+   ✅ Matched Part: 10bii (1 marks)
+   ✅ Matched Part: 10bi (1 marks)
+   ✅ Matched Part: 10a (1 marks)
+   📊 Final Map Keys: 10bii, 10bi, 10a
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Global Search
+   Pool Size: 108 papers, 2709 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 10   | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10a  | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10b  | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10bbi | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+| 10bbii | 100 people were asked whether they had vis... | OCR GCSE (9-1) J560/04 May 2023 Q10                | 0.801 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 5
+   Detected: 5/5
+   Not detected: 0
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+🔍 [MERGE-DEBUG] attempting to merge classification results into 1 pages
+   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 1)
+🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
+✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+[33m[POS-DEBUG] ⚠️ Q10 has classification info but MISSING rawBox! Text: "100 people were asked whether they had visited France (F) or Spain (S). 55 had visited France 60 had"[0m
+💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT:
+ You are an AI assistant that marks student work. Your task is to generate a single, valid JSON object.
+
+---
+
+## 1. THE PRIME DIRECTIVE: MANDATORY COMPLETION
+
+* **NEVER STOP EARLY:** You must process **EVERY** sub-question listed in the Marking Scheme.
+* **IGNORE SCORE LIMITS DURING SCANNING:** Do not stop marking just because the student has reached the maximum total score.
+    * If Q10a has [MAX: 3] but you see 5 valid reasons to tick, **RECORD THEM ALL**.
+    * We (the System) will cut the excess marks later.
+    * **CRITICAL:** If you fail to output an annotation for the last sub-question (e.g., 10bii), you fail the task.
+
+---
+
+## 2. THE LOGIC GATES (MARKING LOGIC)
+
+### GATE A: THE "HIGHLANDER" RULE (For "OR" Lists)
+* **CONTEXT:** Schemes often list alternatives like "36 or 19 or 41".
+* **THE RULE:** These are usually **MUTUALLY EXCLUSIVE**. You award the mark **ONCE**.
+* **CRITICAL EXCEPTION:** If the [MAX SCORE] is higher than the single mark line, combine marks (ignore Highlander).
+
+### GATE B: THE "DOMINO" RULE (Full Marks for Right Answer)
+* **THE LAW:** If the student has the correct answer worth 2+ marks (e.g. M1 + A1):
+    * You **MUST** output **MULTIPLE ANNOTATIONS** for that single line of text.
+    * **DO NOT** just give 1 mark and move on.
+
+### GATE C: THE "VISUAL INTERVENTION" (THE INVISIBLE INK RULE)
+* **CONTEXT:** Drawing questions (e.g., "Draw a box plot", "Shade the region") often have **NO TEXT** in the transcript.
+* **THE TRIGGER:** If a sub-question exists in the Scheme but has **NO matching lines** in the `STUDENT WORK` transcript:
+    1. **DO NOT** assume the student skipped it.
+    2. **LOOK AT THE IMAGE:** Scan the visual region for that question.
+    3. **FORCE AN ANNOTATION:** If you see a drawing, mark it using the specific "Visual Protocol" below.
+
+---
+
+## 3. MARKING SOVEREIGNTY & VISUAL PROTOCOLS
+
+* **PRIMARY TARGET:** You are marking the **STUDENT WORK (STRUCTURED)** transcript.
+* **ID DISCIPLINE:** The `line_id` field MUST be copied EXACTLY from the ID tags provided in the transcript.
+
+### THE "TOO NEAT" DRAWING PROTOCOL (CRITICAL)
+* **THE PROBLEM:** Student drawings (especially with rulers) can look like printed grid lines.
+* **THE RULE:** Treat the printed grid as a **BLANK CANVAS**.
+* **ASSUMPTION:** If you see **ANY** data representation (box plot, bar, cross, line) on the grid that matches the correct answer, **ASSUME IT IS STUDENT WORK**.
+    * **DO NOT** assume the grid came "pre-filled" with the correct answer.
+    * **DO NOT** fail the student because their drawing is "too perfect."
+
+---
+
+## 4. THE "ZERO TOLERANCE" LINKING PROTOCOL
+
+You must populate the `linked_ocr_id` field to show where the student wrote the answer.
+**You must operate in "SAFE MODE". Do not guess.**
+
+### THE MATCHING RULE: EXACT VALUE ONLY
+Compare the **Student Text** vs **OCR Block Text**.
+
+1.  **ISOLATED INTEGERS:**
+    * Student: "36" | OCR: "3" -> **REJECT** (Missing digit).
+    * Student: "36" | OCR: "136" -> **REJECT** (Extra digit / Substring risk).
+    * Student: "36" | OCR: "36" -> **MATCH**.
+2.  **FRACTIONS/MATH:**
+    * Student: "1/2" | OCR: "\frac{1}{2}" -> **MATCH** (Value is identical).
+    * Student: "77/100" | OCR: "19/60" -> **REJECT** (Different numbers).
+
+### THE OUTCOME
+* **IF EXACT MATCH FOUND:**
+    * Set `ocr_match_status: "MATCHED"`.
+    * Set `linked_ocr_id` to the ID.
+* **IF ANY DOUBT:**
+    * Set `ocr_match_status: "UNMATCHED"`.
+    * Set `linked_ocr_id: null`.
+
+---
+
+## 5. JSON STRUCTURE & CONSTRAINTS
+
+* **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
+* **Constraint B (VISUAL SOVEREIGNTY):** For Drawings/Graphs where text is missing:
+    * **MUST** use `line_id: null`.
+    * **MUST** use `ocr_match_status: "VISUAL"`.
+    * **COORDINATE RULE:** You **MUST** use **PERCENTAGES (0-100)** for `visual_position`.
+
+* **Constraint C (VISUAL STAGGERING):** [CRITICAL]
+    * **NEVER** stack multiple ticks at the exact same coordinate.
+    * If awarding multiple marks for one drawing (e.g., M1, M1, A1), you **MUST shift the x-position** for each one so they are distinct.
+    * **Bad:** {x:50, y:30}, {x:50, y:30}, {x:50, y:30} (System will delete duplicates).
+    * **Good:** {x:50, y:30}, {x:55, y:30}, {x:60, y:30}.
+    * **Targeting:** Place ticks roughly in the **CENTER (x: 50)** of the drawing area, not the left margin (x: 10).
+
+
+## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
+
+```json
+{
+  "meta": {
+    "question_total_marks": "Integer",
+    "raw_correct_steps_found": "Integer",
+    "steps_dropped_to_fit_budget": "Integer",
+    "isTotalEstimated": "Boolean"
+  },
+  "visualObservation": "String",
+  "annotations": [
+    {
+      "line_id": "String (MUST be p0_q... OR null)",
+      "action": "tick|cross",
+      "text": "String (CRITICAL: MUST contain ONLY the Mark Code, e.g. M1, A1, B1, C1, B2)",
+      "student_text": "String",
+      "classification_text": "String",
+      "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
+      "linked_ocr_id": "String (The p0_ocr_... ID or null)",
+      "reasoning": "String",
+      "subQuestion": "String",
+      "pageIndex": "Integer",
+      "line_index": "Integer",
+      "visual_position": { 
+          "x": "Integer (0-100 %)", 
+          "y": "Integer (0-100 %)", 
+          "width": "Integer (0-100 %)", 
+          "height": "Integer (0-100 %)" 
+      }
+    }
+  ],
+  "studentScore": {
+    "totalMarks": "Integer",
+    "awardedMarks": "Integer",
+    "scoreText": "String"
+  }
+}
+```
+
+**FINAL CHECKLIST:**
+1. Did I apply the Highlander Rule?
+2. Did I ensure `line_id` is a Classification ID (p0_q...) OR null for visuals?
+3. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
+4. Did I output an entry for the LAST sub-question?
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 10
+
+## QUESTION TEXT
+**[10]**: Venn diagram and probability. Complete the Venn diagram. One of these 100 people is chosen at random. Write down the probability that this person had visited exactly one of the countries. Write down the probability that this person had visited France given that they had also visited Spain.
+
+**[10a]**: 100 people were asked whether they had visited France (F) or Spain (S). 55 had visited France. 60 had visited Spain. 4 had not visited either country. Complete the Venn diagram.
+
+**[10bi]**: One of these 100 people is chosen at random. Write down the probability that this person had visited exactly one of the countries.
+
+**[10bii]**: Write down the probability that this person had visited France given that they had also visited Spain.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[10a] [MAX SCORE: 3]
+- B3: Fully correct diagram (36, 19, 41) [3 marks]
+- B3: Fully correct diagram or
+- B2: Any one of 36, 19, or 41 correctly placed 4 or
+- B1: the total of $F=55$ or for the total of $S=60$ or $F\cap S^{\prime}+(F\cap S)+F^{\prime}\cap S=96$ Do not accept a blank region as 0, for any marks we need to see a number in each region
+
+[10bi] [MAX SCORE: 2]
+- M1: their $(36+41)$ or 77
+- M1: $\frac{77}{100}$ or 0.77 or 77%
+
+[10bii] [MAX SCORE: 2]
+- B1: 0.19 ое ог or their60 k from their (a) and 0 < fraction < 1 (k is an integer)
+- B1: $\frac{19}{60}$ or 0.316 to 0.317 or 0.32
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p0_q10_line_1] 36
+[ID: p0_q10_line_2] 19
+[ID: p0_q10_line_3] 41
+[ID: p0_q10_line_4] 4
+
+[SUB-QUESTION bi]
+[ID: p0_q10_line_5] \frac{77}{100}
+
+[SUB-QUESTION bii]
+[ID: p0_q10_line_6] \frac{19}{60}
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "10"
+[p0_ocr_1]: "10100 people were asked whether they had visited France (F) or Spain (S)."
+[p0_ocr_2]: "- 55 had visited France"
+[p0_ocr_3]: "- 60 had visited Spain"
+[p0_ocr_4]: "- 4 had not visited either country."
+[p0_ocr_5]: "(a) Complete the Venn diagram. [PRINTED_INSTRUCTION]"
+[p0_ocr_6]: "3"
+[p0_ocr_7]: "(b) One of these 100 people is chosen at random."
+[p0_ocr_8]: "(f) Write down the probability that this person had visited exactly one of the countries. [PRINTED_INSTRUCTION]"
+[p0_ocr_9]: "``` (b)(i) ```"
+[p0_ocr_10]: "```  [2] ```"
+[p0_ocr_11]: "(ii) Write down the probability that this person had visited France given that they had also"
+[p0_ocr_12]: "visited Spain. [PRINTED_INSTRUCTION]"
+[p0_ocr_14]: "\( \frac{19}{60} \)"
+[p0_ocr_13]: "(ii)"
+[p0_ocr_15]: "2"
+[p0_ocr_16]: "© OCR 2023"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 7,
+    "raw_correct_steps_found": 7,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "The student has completed the Venn diagram with the numbers 36, 19, 41 and 4 in the correct regions. The student has written the fraction 77/100 for the probability in part (bi) and 19/60 in part (bii).",
+  "annotations": [
+    {
+      "line_id": "p0_q10_line_1",
+      "action": "tick",
+      "text": "B3",
+      "student_text": "36",
+      "classification_text": "36",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_6",
+      "reasoning": "The student has correctly placed 36 in the Venn diagram.",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_2",
+      "action": "tick",
+      "text": "B3",
+      "student_text": "19",
+      "classification_text": "19",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly placed 19 in the Venn diagram.",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_3",
+      "action": "tick",
+      "text": "B3",
+      "student_text": "41",
+      "classification_text": "41",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly placed 41 in the Venn diagram.",
+      "subQuestion": "a",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 60,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_5",
+      "action": "tick",
+      "text": "M1",
+      "student_text": "\\frac{77}{100}",
+      "classification_text": "\\frac{77}{100}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has correctly written the fraction 77/100.",
+      "subQuestion": "bi",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_5",
+      "action": "tick",
+      "text": "M1",
+      "student_text": "\\frac{77}{100}",
+      "classification_text": "\\frac{77}{100}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has correctly written the fraction 77/100.",
+      "subQuestion": "bi",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_6",
+      "action": "tick",
+      "text": "B1",
+      "student_text": "\\frac{19}{60}",
+      "classification_text": "\\frac{19}{60}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly written the fraction 19/60.",
+      "subQuestion": "bii",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "line_id": "p0_q10_line_6",
+      "action": "tick",
+      "text": "B1",
+      "student_text": "\\frac{19}{60}",
+      "classification_text": "\\frac{19}{60}",
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_14",
+      "reasoning": "The student has correctly written the fraction 19/60.",
+      "subQuestion": "bii",
+      "pageIndex": 0,
+      "line_index": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 7,
+    "awardedMarks": 7,
+    "scoreText": "7/7"
+  }
+}
+```
+========================================
+
+   🎯 [ZONE-MATCH] SubQ: "a" | Mapped to Zone "10a": 98-467
+   🎯 [ZONE-MATCH] SubQ: "a" | Mapped to Zone "10a": 98-467
+   ⚖️ [IRON-DOME-VETO] Violation detected for a (ID: p0_ocr_14).
+      📍 Position: Y=672px | Allowed Zone: 98-467px
+   🎯 [ZONE-MATCH] SubQ: "a" | Mapped to Zone "10a": 98-467
+   ⚖️ [IRON-DOME-VETO] Violation detected for a (ID: p0_ocr_14).
+      📍 Position: Y=672px | Allowed Zone: 98-467px
+   🎯 [ZONE-MATCH] SubQ: "bi" | Mapped to Zone "10bi": 467-595
+   🎯 [ZONE-MATCH] SubQ: "bi" | Mapped to Zone "10bi": 467-595
+   🎯 [ZONE-MATCH] SubQ: "bii" | Mapped to Zone "10bii": 595-1080
+   🎯 [ZONE-MATCH] SubQ: "bii" | Mapped to Zone "10bii": 595-1080
+[GUILLOTINE] Q10a exceeded budget! Kept 1/3, Budget 3.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m9.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m9.2s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 10 ([37mQ10a, Q10b[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.0s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m10      [0m | 7/7   | B3, M1, M1, B1, B1      | AI:3/5 → M:3 U:2                       |
+| [90m  a     [0m | 3     | B3                      | AI:1/1 → M:1 U:0                       |
+| [90m  bi    [0m | 2     | M1, M1                  | AI:0/2 → M:0 U:2                       |
+| [90m  bii   [0m | 2     | B1, B1                  | AI:2/2 → M:2 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 21.4s
+Model Used: gemini-2.0-flash
+----------------------------
+marking                             9.2s (43%)
+classification                      6.8s (32%)
+ocr_processing                      1.9s (9%)
+question_detection                  1.1s (5%)
+output_generation                   1.0s (5%)
+performance_summary                 0.6s (3%)
+database_persistence                0.3s (1%)
+preprocessing                       0.1s (0%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 4 total
+   Total Tokens: 15,152 (12,744 in + 2,408 out)
+   Total Cost: $0.005953
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 2,631 tokens (1 requests) → $0.000284
+   • Classification (Marking Pass): 5,505 tokens (1 requests) → $0.000776
+   • Marking: 6,560 tokens (1 requests) → $0.001120
+   • Performance Summary: 456 tokens (1 requests) → $0.000057
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769550373533
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769550373533
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0059532000000000005
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.60 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769550373533), remaining: 505.45
+💳 Deducted 0.0060 credits (session: sub-1769550373533) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769550373533
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 21, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.9444994000000001, files: 21, bytes: 8394994
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":505.45}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Multiple Images (21 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m4.7s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 21 pages...
+✅ [MAPPER] Map Pass complete in 8.42s. Mapped 21 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m30.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🚀 [OVERRIDE] 90% Rule Triggered: 22/22 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m30.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m6.9s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.60
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.67
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.80 in Keys=[times,ordinary,number,standard,form]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[diagram,shows,solid,triangular,prism,rana,trying,side,elevation,direction,arrow,here,centimetre,ranas,correct,height,below,plan,drawing]
+[DETECTION] 🏆 Relative Winner Accepted: 0.783 vs Runner-up 0.591
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[company,25000,workers,number,increases,rate,year,years]
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.89 in Keys=[habib,identical,tins,puts,grams,flour,into,fills,completely,density,06gcm3,salt,other,does,volume,filled,700cm3,must,working]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[biased,coins,coin,going,throw,both,probability,will,land,heads,tree,diagram,throws,once]
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.95 in Keys=[paddling,pool,shape,cylinder,radius,depth,empty,then,filled,water,rate,250cm3,second,number,minutes,takes,completely,correct,nearest,minute,must,working]
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.82 in Keys=[diagram,shows,cube,squarebased,pyramid,volume,equal,perpendicular,height,times,fraction]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[there,only,counters,yellow,number,green,blue,half,given,algebra]
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.68
+[DETECTION] 🏆 Relative Winner Accepted: 0.782 vs Runner-up 0.551
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[there,students,class,teacher,going,choose,random,number,different,pairs]
