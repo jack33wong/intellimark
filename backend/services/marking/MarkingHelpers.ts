@@ -40,33 +40,40 @@ export function createStepLogger(totalSteps: number, startStep: number = 0) {
 // Common function to convert full subject names to short forms
 export function getShortSubjectName(qualification: string): string {
   const subjectMap: { [key: string]: string } = {
-    'MATHEMATICS': 'MATHS',
-    'PHYSICS': 'PHYSICS',
-    'CHEMISTRY': 'CHEMISTRY',
-    'BIOLOGY': 'BIOLOGY',
-    'ENGLISH': 'ENGLISH',
-    'ENGLISH LITERATURE': 'ENG LIT',
-    'HISTORY': 'HISTORY',
-    'GEOGRAPHY': 'GEOGRAPHY',
-    'FRENCH': 'FRENCH',
-    'SPANISH': 'SPANISH',
-    'GERMAN': 'GERMAN',
-    'COMPUTER SCIENCE': 'COMP SCI',
-    'ECONOMICS': 'ECONOMICS',
-    'PSYCHOLOGY': 'PSYCHOLOGY',
-    'SOCIOLOGY': 'SOCIOLOGY',
-    'BUSINESS STUDIES': 'BUSINESS',
-    'ART': 'ART',
+    'MATHEMATICS': 'Maths',
+    'PHYSICS': 'Physics',
+    'CHEMISTRY': 'Chemistry',
+    'BIOLOGY': 'Biology',
+    'ENGLISH': 'English',
+    'ENGLISH LITERATURE': 'Eng Lit',
+    'HISTORY': 'History',
+    'GEOGRAPHY': 'Geography',
+    'FRENCH': 'French',
+    'SPANISH': 'Spanish',
+    'GERMAN': 'German',
+    'COMPUTER SCIENCE': 'Comp Sci',
+    'ECONOMICS': 'Economics',
+    'PSYCHOLOGY': 'Psychology',
+    'SOCIOLOGY': 'Sociology',
+    'BUSINESS STUDIES': 'Business',
+    'ART': 'Art',
     'DESIGN AND TECHNOLOGY': 'D&T',
-    'MUSIC': 'MUSIC',
+    'MUSIC': 'Music',
     'PHYSICAL EDUCATION': 'PE',
     // Handle reverse mappings for short forms that might be in database
-    'CHEM': 'CHEMISTRY',
-    'PHYS': 'PHYSICS'
+    'CHEM': 'Chemistry',
+    'PHYS': 'Physics'
   };
 
   const upperQualification = qualification.toUpperCase();
   return subjectMap[upperQualification] || qualification;
+}
+
+// Common function to convert full exam board names to short forms
+export function getShortExamBoard(board: string | undefined): string {
+  if (!board) return "";
+  if (board === 'Pearson Edexcel') return 'Edexcel';
+  return board;
 }
 
 // Common function to generate session titles for non-past-paper images
@@ -355,15 +362,15 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 // Helper function to generate session title
 export function generateSessionTitle(questionDetection: any, extractedQuestionText: string, mode: 'Question' | 'Marking'): string {
   if (questionDetection?.found && questionDetection.match) {
-    let { board, paperCode, examSeries, questionNumber } = questionDetection.match;
-    if (board === 'Pearson Edexcel') board = 'Edexcel';
+    const { board, examSeries, tier, subject, qualification } = questionDetection.match;
 
-    // Feature: Shorten subject names in title (e.g. Mathematics -> Maths)
-    // Sometimes 'Mathematics' appears in paperCode or we append it. 
-    // Here we just apply a general cleanup to the final string.
-    let title = `${examSeries} ${paperCode} ${board} Q${questionNumber}`;
-    title = title.replace(/Mathematics/gi, 'Maths');
-    return title;
+    // Pattern: Exam Series + Board Short + Subject Short + Tier
+    const seriesPart = examSeries || '';
+    const boardPart = getShortExamBoard(board);
+    const subjectPart = getShortSubjectName(subject || qualification || '');
+    const tierPart = tier ? `${tier}` : '';
+
+    return `${seriesPart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
   }
   return generateNonPastPaperTitle(extractedQuestionText, mode);
 }

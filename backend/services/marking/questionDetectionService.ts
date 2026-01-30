@@ -9,6 +9,7 @@
 
 import { getFirestore } from '../../config/firebase.js';
 import { normalizeTextForComparison, normalizeSubQuestionPart, generateGenericTitleFromText, getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
+import { getShortSubjectName, getShortExamBoard } from './MarkingHelpers.js';
 import * as stringSimilarity from 'string-similarity';
 
 // --- Constants ---
@@ -108,18 +109,6 @@ interface MatchCandidate {
 }
 
 // --- Utilities ---
-function getShortSubjectName(qualification: string): string {
-  const subjectMap: { [key: string]: string } = {
-    'MATHEMATICS': 'MATHS', 'PHYSICS': 'PHYSICS', 'CHEMISTRY': 'CHEMISTRY', 'BIOLOGY': 'BIOLOGY',
-    'ENGLISH': 'ENGLISH', 'ENGLISH LITERATURE': 'ENG LIT', 'HISTORY': 'HISTORY', 'GEOGRAPHY': 'GEOGRAPHY',
-    'FRENCH': 'FRENCH', 'SPANISH': 'SPANISH', 'GERMAN': 'GERMAN', 'COMPUTER SCIENCE': 'COMP SCI',
-    'ECONOMICS': 'ECONOMICS', 'PSYCHOLOGY': 'PSYCHOLOGY', 'SOCIOLOGY': 'SOCIOLOGY', 'BUSINESS STUDIES': 'BUSINESS',
-    'ART': 'ART', 'DESIGN AND TECHNOLOGY': 'D&T', 'MUSIC': 'MUSIC', 'PHYSICAL EDUCATION': 'PE',
-    'CHEM': 'CHEMISTRY', 'PHYS': 'PHYSICS'
-  };
-  return subjectMap[qualification.toUpperCase()] || qualification;
-}
-
 export function extractExamMetadata(match: ExamPaperMatch | null | undefined) {
   if (!match) return { examBoard: '', examCode: '', paperTitle: '', subject: '', tier: '', examSeries: '', questionNumber: '', subQuestionNumber: '', marks: undefined };
   return {
@@ -769,14 +758,17 @@ export function buildExamPaperStructure(detectionResults: any[]) {
       // Get subject from match
       const subject = match.subject || match.qualification || '';
 
+      const boardPart = getShortExamBoard(board);
+      const subjectPart = getShortSubjectName(subject || '');
+
       examPaperGroups.set(paperKey, {
         examBoard: board,
         examCode: code,
         examSeries: series,
         tier: tier,
         subject: subject,
-        // paperTitle logic consolidated
-        paperTitle: `${board} ${subject} ${code} (${series})${tier ? ` ${tier}` : ''}`,
+        // Pattern: Exam Series + Board Short + Subject Short + Tier
+        paperTitle: `${series} ${boardPart} ${subjectPart}${tier ? ` ${tier}` : ''}`.replace(/\s+/g, ' ').trim(),
         questions: [],
         totalMarks: 0,
         isGeneric: match.isGeneric === true || match.paperCode === 'Generic Question'
@@ -848,9 +840,12 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     return generateGenericTitleFromText(firstQText, mode);
   }
 
-  // Paper Title: Use the first paper's details
+  // Pattern: Exam Series + Board Short + Subject Short + Tier
   const p = examPapers[0];
-  const board = p.examBoard === 'Pearson Edexcel' ? 'Edexcel' : p.examBoard;
+  const seriesPart = p.examSeries || '';
+  const boardPart = getShortExamBoard(p.examBoard);
+  const subjectPart = getShortSubjectName(p.subject || '');
+  const tierPart = p.tier ? `${p.tier}` : '';
 
   // Question Range (Q1 to Q8)
   const qNums = p.questions
@@ -867,7 +862,8 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     }
   }
 
-  return `${board} ${p.subject} ${p.examCode} (${p.examSeries})${qRange} ${totalMarks} marks`;
+  const baseTitle = `${seriesPart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
+  return `${baseTitle}${qRange} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
 }
 
 /**

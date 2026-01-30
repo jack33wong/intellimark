@@ -5,7 +5,7 @@
  */
 
 import type { Request } from 'express';
-import { generateSessionTitle } from '../services/marking/MarkingHelpers.js';
+import { generateSessionTitle, getShortSubjectName, getShortExamBoard } from '../services/marking/MarkingHelpers.js';
 import { createUserMessage, createAIMessage, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
@@ -236,7 +236,7 @@ export class SessionManagementService {
           examSeries: match.examSeries || '',
           tier: match.tier || '',
           subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
-          paperTitle: match ? `${match.examSeries} ${match.paperCode} ${match.board === 'Pearson Edexcel' ? 'Edexcel' : match.board}` : '',
+          paperTitle: `${match.examSeries} ${getShortExamBoard(match.board)} ${getShortSubjectName(actualSubject)} ${match.tier || ''}`.replace(/\s+/g, ' ').trim(),
           questions: [{
             questionNumber: match.questionNumber || '',
             questionText: questionText,
@@ -330,9 +330,11 @@ export class SessionManagementService {
         // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
-          let { board, qualification, paperCode, examSeries, tier } = firstQuestionDetection.match;
-          if (board === 'Pearson Edexcel') board = 'Edexcel';
-          return `${examSeries} ${paperCode} ${board} ${questionNumberDisplay} ${totalMarks} marks`;
+          const { board, examSeries, tier, subject, qualification } = firstQuestionDetection.match;
+          const boardShort = getShortExamBoard(board);
+          const subjectShort = getShortSubjectName(subject || qualification || '');
+          const baseTitle = `${examSeries} ${boardShort} ${subjectShort} ${tier || ''}`.replace(/\s+/g, ' ').trim();
+          return `${baseTitle} ${questionNumberDisplay} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
         }
       }
     }

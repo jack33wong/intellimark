@@ -7,7 +7,7 @@ import type { Response } from 'express';
 import type { ModelType } from '../../types/index.js';
 import type { StandardizedPage } from '../../types/markingRouter.js';
 
-import { extractQuestionsFromClassification, convertMarkingSchemeToPlainText } from './MarkingHelpers.js';
+import { extractQuestionsFromClassification, convertMarkingSchemeToPlainText, getShortSubjectName, getShortExamBoard } from './MarkingHelpers.js';
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import { createAIMessage } from '../../utils/messageUtils.js';
@@ -234,7 +234,7 @@ export class QuestionModeHandlerService {
           markingScheme: markingSchemePlainText,
           examBoard: metadata.examBoard,
           examCode: metadata.examCode,
-          paperTitle: qd.detection.match ? `${qd.detection.match.examSeries} ${qd.detection.match.paperCode} ${qd.detection.match.board === 'Pearson Edexcel' ? 'Edexcel' : qd.detection.match.board}` : '',
+          paperTitle: qd.detection.match ? `${qd.detection.match.examSeries} ${getShortExamBoard(qd.detection.match.board)} ${getShortSubjectName(metadata.subject)} ${metadata.tier || ''}`.replace(/\s+/g, ' ').trim() : '',
           subject: metadata.subject, // ✅ From utility (always match.subject)
           tier: metadata.tier,
           examSeries: metadata.examSeries,
