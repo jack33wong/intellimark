@@ -144,6 +144,8 @@ export class MarkingPipelineService {
                 actualModel = model;
             }
 
+            const debugClassification = process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true';
+
             // Input Validation
             const logValidation = logStep('Input Validation', 'Validation');
             if (!files || files.length === 0) {
@@ -537,7 +539,7 @@ export class MarkingPipelineService {
             let allClassificationResults = await ClassificationService.classifyMultipleImages(
                 standardizedPages,
                 actualModel as ModelType,  // Cast to ModelType
-                false,  // debug (DISABLED)
+                debugClassification,  // debug (controlled by ENV)
                 usageTracker  // Pass tracker for auto-recording
             );
 

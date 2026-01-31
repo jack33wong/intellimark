@@ -1,4 +1,4 @@
-import { normalizeLatexDelimiters } from '../../utils/TextNormalizationUtils.js';
+import { normalizeLatexDelimiters, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
 import type { NormalizedMarkingScheme } from '../../types/marking.js';
 
 /**
@@ -119,8 +119,12 @@ ${genericHeader}
                 if (!Array.isArray(marks) && (marks as any).marks) marks = (marks as any).marks;
 
                 const subLabel = subQ.replace(/^\d+/, '');
+                const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
+
                 const maxScore = (normalizedScheme.subQuestionMaxScores ?
-                    (normalizedScheme.subQuestionMaxScores[subQ] ?? normalizedScheme.subQuestionMaxScores[subLabel]) : undefined)
+                    (normalizedScheme.subQuestionMaxScores[subQ] ??
+                        normalizedScheme.subQuestionMaxScores[subLabel] ??
+                        normalizedScheme.subQuestionMaxScores[normalizedSubLabel]) : undefined)
                     || normalizedScheme.totalMarks || normalizedScheme.parentQuestionMarks;
 
                 output += `[${subQ}]`;

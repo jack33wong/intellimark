@@ -248,16 +248,38 @@ export class MarkingSchemeOrchestrationService {
       for (const question of group) {
         const effectiveResult = { ...groupDetectionResult };
 
+        // [V28 FIX] DEEP CLONE MATCH to avoid shared state poisoning across sub-questions
+        if (effectiveResult.match) {
+          effectiveResult.match = { ...effectiveResult.match };
+          if (effectiveResult.match.markingScheme) {
+            effectiveResult.match.markingScheme = { ...effectiveResult.match.markingScheme };
+          }
+        }
+
         // --- CLEANUP: Extract Clean Marking Scheme Array ---
         // If we have a composite object (raw DB dump), parse it now to save only relevant data.
         if (effectiveResult.found && effectiveResult.match?.markingScheme?.questionMarks?.isComposite) {
-          const qNum = question.questionNumber; // e.g. "5a"
+          const qNum = question.questionNumber || effectiveResult.match.questionNumber; // e.g. "5a"
           const composite = effectiveResult.match.markingScheme.questionMarks;
 
           if (qNum && composite.subQuestionMarks && composite.subQuestionMarks[qNum]) {
-            // found specific marks! Overwrite with simple array.
-            // This ensures DB stores [{ mark: 'B1', ... }] instead of the huge object.
-            effectiveResult.match.markingScheme.questionMarks = composite.subQuestionMarks[qNum].marks || [];
+            // Found specific marks! Overwrite with simple array.
+            const partData = composite.subQuestionMarks[qNum];
+            effectiveResult.match.markingScheme.questionMarks = partData.marks || partData || [];
+
+            // [TRUTH BRIDGE] Override marks with the specific sub-question budget from DB
+            const partLabel = qNum.replace(/^\d+/, '');
+            const normalizedPart = normalizeSubQuestionPart(partLabel);
+
+            const specificMarks = effectiveResult.match.subQuestionMaxScores?.[qNum] ??
+              effectiveResult.match.subQuestionMaxScores?.[partLabel] ??
+              effectiveResult.match.subQuestionMaxScores?.[normalizedPart];
+
+            if (specificMarks !== undefined) {
+              console.log(`   🎯 [ORCHESTRATOR] Overriding Part ${qNum} Total: ${effectiveResult.match.marks} -> ${specificMarks}`);
+              effectiveResult.match.marks = specificMarks;
+              effectiveResult.match.parentQuestionMarks = specificMarks;
+            }
           } else {
             // Fallback: If specific marks are missing, default to empty to avoid saving "messy" data.
             effectiveResult.match.markingScheme.questionMarks = [];
@@ -453,16 +475,24 @@ export class MarkingSchemeOrchestrationService {
           }
 
           // [FIX] Propagate Max Score to the matched part
+          // Logic: 
+          // 1. Check full key (e.g. "2ai")
+          // 2. Check normalized part (e.g. "ai")
+          // 3. Fallback to part marks length if it's an array
           const partLabel = key.replace(/^\d+/, '');
-          if (!finalSubQuestionMaxScores[key]) {
-            const scoreMatch = masterMatch.subQuestionMaxScores?.[key] ?? masterMatch.subQuestionMaxScores?.[partLabel];
-            if (scoreMatch !== undefined) {
-              finalSubQuestionMaxScores[key] = scoreMatch;
-            } else if (typeof partMarks === 'number') {
-              finalSubQuestionMaxScores[key] = partMarks;
-            }
+          const normalizedPartLabel = normalizeSubQuestionPart(partLabel);
+
+          let dbScore = masterMatch.subQuestionMaxScores?.[key];
+          if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[partLabel];
+          if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[normalizedPartLabel];
+
+          if (dbScore !== undefined) {
+            finalSubQuestionMaxScores[key] = dbScore;
+          } else if (Array.isArray(partMarks)) {
+            finalSubQuestionMaxScores[key] = partMarks.length;
           }
-          console.log(`   ✅ Matched Part: ${key} (${partMarks.length || 0} marks, Max: ${finalSubQuestionMaxScores[key] || '?'})`);
+
+          console.log(`   ✅ Matched Part: ${key} (Truth Max: ${finalSubQuestionMaxScores[key] || '?'})`);
         }
       });
 

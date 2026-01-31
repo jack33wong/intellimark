@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import SEO from '../components/common/SEO';
 import './LegalPage.css';
 
 const TermsPage: React.FC = () => {
@@ -10,6 +11,11 @@ const TermsPage: React.FC = () => {
 
     return (
         <div className="legal-page-wrapper light-mode-forced">
+            <SEO
+                title="Terms of Service"
+                description="Read the terms and conditions for using AI Marking's automated marking services and platform."
+                canonical="https://aimarking.ai/terms"
+            />
             <div className="legal-container">
                 <Link to="/" className="back-home">
                     <ArrowLeft size={18} />

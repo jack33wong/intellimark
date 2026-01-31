@@ -147,13 +147,19 @@ export const MarkingPageProvider = ({
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
-      // If we are currently in split mode, keep it open but clear the images
-      if (state.splitModeImages) {
-        dispatch({ type: 'PREPARE_SPLIT_TRANSITION' });
+      // PROACTIVE: Load images from the result immediately if we are in split mode (or want to be)
+      const images = getSessionImages(selectedMarkingResult);
+      if (state.splitModeImages || (images && images.length > 0)) {
+        dispatch({
+          type: 'ENTER_SPLIT_MODE',
+          payload: { images: images || [], index: 0, isGlobal: true }
+        });
+        // Sync the ref now so the second useEffect knows we've already handled THIS session
+        lastSyncedSessionId.current = selectedMarkingResult.id;
       } else {
         dispatch({ type: 'EXIT_SPLIT_MODE' });
+        lastSyncedSessionId.current = null;
       }
-      lastSyncedSessionId.current = null;
 
       loadSession(selectedMarkingResult);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
@@ -161,6 +167,7 @@ export const MarkingPageProvider = ({
       clearSession();
       dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
       dispatch({ type: 'EXIT_SPLIT_MODE' });
+      lastSyncedSessionId.current = null;
     }
   }, [selectedMarkingResult, loadSession, clearSession]);
 
@@ -176,10 +183,8 @@ export const MarkingPageProvider = ({
       const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
 
       if (sessionChanged) {
-        // If we are in a focused split mode (!isGlobalSplit), try to preserve it
-        // Do NOT auto-upgrade to global split mode just because ID changed
-        if (!isGlobalSplit) {
-          lastSyncedSessionId.current = currentSession.id;
+        // SAFETY: If we are in the middle of a history transition, don't revert to old session data
+        if (selectedMarkingResult && currentSession.id !== selectedMarkingResult.id) {
           return;
         }
 

@@ -33,6 +33,55 @@ function normalizeForMatching(text: string): string {
     .trim();
 }
 
+/**
+ * RESCUE NORMALIZER
+ * Preserves numbers but standardizes multiplication symbols.
+ * Used for matching Student Answers to OCR Blocks.
+ */
+function normalizeForRescue(text: string): string {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, '')             // Remove spaces
+    .replace(/\\times/g, 'x')        // LaTeX \times -> x
+    .replace(/×/g, 'x')              // Unicode × -> x
+    .replace(/\*/g, 'x')             // Asterisk * -> x
+    .replace(/[^a-z0-9.]/g, '');     // Keep letters, numbers, dots. Strip brackets/latex junk.
+}
+
+/**
+ * ZONE MERGER
+ * Combines multiple zone segments for the same sub-question into one continuous region.
+ * Fixes issues where AI splits a question into "Header" and "Body" zones.
+ */
+function getEffectiveZone(subQuestion: string, zonesMap: any, pageIndex: number) {
+  const list = zonesMap[subQuestion];
+  if (!list || list.length === 0) return null;
+
+  // 1. Get all segments on the target page
+  // (We use pageIndex 0 as default if annotation has no page yet)
+  const pageZones = list.filter((z: any) => z.pageIndex === pageIndex);
+
+  if (pageZones.length === 0) {
+    // Fallback: If no zones on this page, return the first one found (legacy behavior)
+    return list[0];
+  }
+
+  if (pageZones.length === 1) return pageZones[0];
+
+  // 2. Merge them (Min Start -> Max End)
+  // This stitches the "Header Zone" and "Body Zone" together.
+  const startY = Math.min(...pageZones.map((z: any) => z.startY));
+  const endY = Math.max(...pageZones.map((z: any) => z.endY));
+
+  // Return a synthetic single zone
+  return {
+    ...pageZones[0],
+    startY,
+    endY
+  };
+}
+
 export async function executeMarkingForQuestion(
   task: MarkingTask,
   res: any,
@@ -405,6 +454,39 @@ export async function executeMarkingForQuestion(
       nextQuestionText
     );
 
+    // =========================================================================
+    // 🛡️ [FIX]: IMMEDIATE ZONE MERGING (The "Double Zone" Killer)
+    // =========================================================================
+    // If a question has multiple zones on the same page (e.g. Header + Body),
+    // merge them into a SINGLE zone immediately. This ensures the visual output
+    // and internal logic both see exactly one box.
+    Object.keys(semanticZones).forEach(key => {
+      const zones = semanticZones[key];
+      const mergedZones: any[] = [];
+      const byPage: Record<number, any[]> = {};
+
+      zones.forEach(z => {
+        if (!byPage[z.pageIndex]) byPage[z.pageIndex] = [];
+        byPage[z.pageIndex].push(z);
+      });
+
+      Object.keys(byPage).forEach(pIdxStr => {
+        const pIdx = Number(pIdxStr);
+        const pageZones = byPage[pIdx];
+        if (pageZones.length > 1) {
+          const startY = Math.min(...pageZones.map(z => z.startY));
+          const endY = Math.max(...pageZones.map(z => z.endY));
+          // Merge: Use metadata from the first zone, but extend the boundaries
+          mergedZones.push({ ...pageZones[0], startY, endY });
+        } else {
+          mergedZones.push(pageZones[0]);
+        }
+      });
+
+      semanticZones[key] = mergedZones;
+    });
+    // =========================================================================
+
     Object.entries(semanticZones).forEach(([key, zones]) => {
       zones.forEach(z => {
         if (isNaN(z.startY) || isNaN(z.endY)) {
@@ -416,41 +498,33 @@ export async function executeMarkingForQuestion(
 
     // =========================================================================
     // 🛡️ [USER DESIGN FIX] CREATE BACKFILL ZONE FROM VISUAL VOID
-    // Requirement: If TaskBuilder injected a void, we MUST create a Zone.
-    //              Do not check if zone exists. FORCE IT.
+    // 🛡️ [SIMPLE FIX]: ONE ZONE PER QUESTION PER PAGE.
+    // If Q2b already has a zone (the real one at the bottom), DO NOT add a backfill at the top.
     // =========================================================================
     stepsDataForMapping.forEach(step => {
-      // Look for the "Visual Void" we injected in TaskBuilder
       if ((step as any).ocrSource === 'system-injection') {
         const qLabel = (step as any).subQuestionLabel;
         const pIdx = step.pageIndex;
 
-        // [DEBUG 1] Confirm we found the trigger
-        console.log(`🔍 [BACKFILL-DEBUG] Found Injection Step: ${qLabel} on P${pIdx}`);
+        // CHECK: Only backfill if we have NO zones for this question
+        if (!semanticZones[qLabel] || semanticZones[qLabel].length === 0) {
 
-        let ceilingY = pageHeightForZones;
-        Object.values(semanticZones).flat().forEach(z => {
-          if (z.pageIndex === pIdx && z.startY < ceilingY && z.startY > 10 && z.label !== qLabel) {
-            ceilingY = z.startY;
-          }
-        });
+          console.log(`🔍 [BACKFILL] Injecting Zone for ${qLabel} on P${pIdx} (Was Empty)`);
+          let ceilingY = pageHeightForZones;
+          Object.values(semanticZones).flat().forEach(z => {
+            if (z.pageIndex === pIdx && z.startY < ceilingY && z.startY > 10 && z.label !== qLabel) {
+              ceilingY = z.startY;
+            }
+          });
 
-        // [DEBUG 2] Confirm the calculation
-        console.log(`   📏 [BACKFILL-DEBUG] Calculated Ceiling: ${ceilingY} (Page Height: ${pageHeightForZones})`);
-
-        if (!semanticZones[qLabel]) semanticZones[qLabel] = [];
-
-        semanticZones[qLabel].push({
-          label: qLabel,
-          pageIndex: pIdx,
-          startY: 0,
-          endY: ceilingY,
-          x: 0,
-          width: 100
-        } as any);
-
-        // [DEBUG 3] Confirm the push
-        console.log(`   ✅ [BACKFILL-DEBUG] Pushed Zone to semanticZones[${qLabel}]. Total Zones: ${semanticZones[qLabel].length}`);
+          if (!semanticZones[qLabel]) semanticZones[qLabel] = [];
+          semanticZones[qLabel].push({
+            label: qLabel, pageIndex: pIdx, startY: 0, endY: ceilingY, x: 0, width: 100
+          } as any);
+        } else {
+          // Debug log to confirm we are SKIPPING the monster zone creation
+          console.log(`🔍 [BACKFILL-SKIP] ${qLabel} already has ${semanticZones[qLabel].length} zones. Skipping injection to prevent overlap.`);
+        }
       }
     });
 
@@ -585,11 +659,12 @@ export async function executeMarkingForQuestion(
       // Updated to include 'questionText' for Semantic Veto
       markingResult.annotations = resolveLinksWithZones(
         markingResult.annotations,
-        semanticZones, // <--- Passing the Full Object
+        semanticZones,
         markingInputs.processedImage.rawOcrBlocks,
         pageHeight,
         task.questionText || (task.markingScheme as any)?.databaseQuestionText || "",
-        String(questionId) // <--- PASS IT HERE
+        String(questionId),
+        stepsDataForMapping
       );
 
       markingResult.annotations.forEach((a: any) => {
@@ -1373,7 +1448,8 @@ function resolveLinksWithZones(
   allOcrBlocks: any[],
   pageHeight: number,
   databaseQuestionText: string,
-  questionNumber: string // <--- NEW PARAMETER
+  questionNumber: string,
+  stepsDataForMapping: any[]
 ): any[] {
 
   // Pre-compute the "Fingerprint" of the Question Text (e.g. "sophiedrivesadistance...")
@@ -1393,15 +1469,78 @@ function resolveLinksWithZones(
       anno.ocr_match_status = "UNMATCHED";
     }
 
-    // 3. ZONE LOOKUP
-    const zoneData = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
-    let zone: { startY: number; endY: number } | null = null;
-    if (zoneData) {
-      zone = { startY: zoneData.startY, endY: zoneData.endY };
-    }
+    // 3. EFFECTIVE ZONE LOOKUP (Replaces basic findMatchingZone)
+    // We guess the page index is 0 (default) or use the annotation's page if known.
+    // Since Rescue happens before page assignment, we iterate to find the best fit if needed,
+    // but typically we can assume the question starts on the Primary Page.
+    const primaryPage = (anno as any).pageIndex ?? 0;
+    const zoneData = getEffectiveZone(anno.subQuestion, semanticZones, primaryPage);
 
-    // 4. PHYSICAL ID CHECK
-    const physicalId = anno.linked_ocr_id || anno.linkedOcrId;
+    let physicalId = anno.linked_ocr_id || anno.linkedOcrId;
+
+    // =========================================================
+    // 🛡️ [NEW] UNMATCHED RESCUE (The "Truth Bridge")
+    // =========================================================
+    // Condition: Status is UNMATCHED + We have a valid Zone
+    if (anno.ocr_match_status === "UNMATCHED" && zoneData && (anno.line_id || anno.lineId)) {
+
+      // A. LOOKUP REAL CONTENT (Fixes "M1" vs "3.42" mismatch)
+      const lineId = anno.line_id || anno.lineId;
+      const sourceStep = stepsDataForMapping.find(s => s.line_id === lineId || s.globalBlockId === lineId);
+      const realStudentContent = sourceStep ? sourceStep.text : (anno.text || anno.studentText || "");
+
+      // B. NORMALIZE
+      const targetText = normalizeForRescue(realStudentContent);
+
+      // C. SAFETY CHECKS (Avoid False Positives like "1" or "B1")
+      const isTooShort = targetText.length < 2;
+      // Risk: "b1", "1", "q2" - usually short alphanumerics are risky unless they are long numbers
+      const isRiskOfFalsePositive = targetText.length < 4 && /^[a-z]?[0-9]+$/.test(targetText);
+
+      if (!isTooShort && !isRiskOfFalsePositive) {
+        const candidates = allOcrBlocks.filter(b => {
+          // 1. SPATIAL CHECK (Now uses the MERGED zone)
+          const bY = b.coordinates?.y ?? b.bbox?.[1];
+          if (bY === undefined || !ZoneUtils.isPointInZone(bY, zoneData, 0.05)) return false;
+
+          // 2. [FIX] ASYMMETRIC MATCH CHECK
+          const bText = normalizeForRescue(b.text || "");
+
+          // A. OCR contains Student (e.g. OCR="Answer: 3.42", Student="3.42") -> SAFE
+          const ocrContainsStudent = bText.includes(targetText);
+
+          // B. Student contains OCR (e.g. Student="3.42x10", OCR="1") -> DANGEROUS
+          // Only allow if OCR block is long enough to be unique (not just "1" or "a")
+          const studentContainsOcr = targetText.includes(bText) && bText.length > 3;
+
+          return ocrContainsStudent || studentContainsOcr;
+        });
+
+        if (candidates.length > 0) {
+          // D. BEST BLOCK SELECTION
+          let bestBlock = candidates[0];
+
+          // Tie-Breaker: Use AI's hallucinated Y as a "hint"
+          if (candidates.length > 1) {
+            const aiY = sourceStep?.bbox?.[1] || sourceStep?.position?.y || 0;
+
+            bestBlock = candidates.sort((a, b) => {
+              const yA = a.coordinates?.y || 0;
+              const yB = b.coordinates?.y || 0;
+              return Math.abs(yA - aiY) - Math.abs(yB - aiY);
+            })[0];
+          }
+
+          console.log(`   🧲 [LINKER-RESCUE] ${anno.subQuestion}: Snapped UNMATCHED "${realStudentContent}" to Block ${bestBlock.id}`);
+
+          // APPLY FIX
+          physicalId = bestBlock.id;
+          anno.linked_ocr_id = bestBlock.id;
+          anno.ocr_match_status = "MATCHED"; // Upgrade status to fix position
+          anno.pageIndex = bestBlock.pageIndex;
+        }
+      }
+    }
 
     if (physicalId && zoneData) {
       const block = allOcrBlocks.find(b => b.id === physicalId);

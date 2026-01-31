@@ -435,7 +435,7 @@ export class QuestionDetectionService {
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
     const { paper, questionData, questionNumber, databaseText, score } = candidate;
     const meta = paper.metadata || {};
-    const parentMarks = questionData.marks ?? questionData.question_marks ?? questionData.total_marks ?? 0;
+    const parentMarks = questionData.marks ?? questionData.question_marks ?? questionData.max_marks ?? questionData.max_question_marks ?? questionData.total_marks ?? 0;
 
     const board = meta.exam_board || meta.board;
     const code = meta.exam_code || meta.code;
@@ -447,21 +447,36 @@ export class QuestionDetectionService {
     // Extract sub-question max scores AND texts from database JSON
     const subQuestionMaxScores: { [key: string]: number } = {};
     const subQuestionTexts: { [key: string]: string } = {};
-    const subQuestions = questionData.sub_questions || questionData.subQuestions || [];
-    if (Array.isArray(subQuestions)) {
-      subQuestions.forEach((sq: any) => {
-        const part = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.number;
-        if (part) {
-          const sqMarks = sq.marks ?? sq.question_marks ?? sq.total_marks;
-          if (sqMarks !== undefined) {
-            subQuestionMaxScores[String(part)] = Number(sqMarks);
-          }
-          if (sq.question_text || sq.text) {
-            subQuestionTexts[String(part)] = sq.question_text || sq.text;
-          }
+
+    const extractSubPartsRecursive = (subs: any[], parentPart: string = '') => {
+      if (!Array.isArray(subs)) return;
+
+      subs.forEach((sq: any) => {
+        const rawPart = sq.question_part || sq.part || sq.label || sq.sub_question_number || sq.question_number || sq.number || '';
+        if (!rawPart) return;
+
+        // Normalization: "(i)" -> "i", "a" -> "a"
+        const cleanPart = normalizeSubQuestionPart(String(rawPart));
+        const fullPart = parentPart ? `${parentPart}${cleanPart}` : cleanPart;
+
+        const sqMarks = sq.marks ?? sq.question_marks ?? sq.max_marks ?? sq.max_question_marks ?? sq.total_marks;
+        if (sqMarks !== undefined) {
+          subQuestionMaxScores[fullPart] = Number(sqMarks);
+        }
+        if (sq.question_text || sq.text || sq.questionText) {
+          subQuestionTexts[fullPart] = sq.question_text || sq.text || sq.questionText;
+        }
+
+        // Recursive call for nested sub-questions
+        const nestedSubs = sq.sub_questions || sq.subQuestions || sq.parts || [];
+        if (nestedSubs.length > 0) {
+          extractSubPartsRecursive(nestedSubs, fullPart);
         }
       });
-    }
+    };
+
+    const subQuestions = questionData.sub_questions || questionData.subQuestions || [];
+    extractSubPartsRecursive(subQuestions);
 
     return {
       board: board,

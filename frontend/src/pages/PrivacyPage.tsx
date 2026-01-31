@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import SEO from '../components/common/SEO';
 import './LegalPage.css';
 
 const PrivacyPage: React.FC = () => {
@@ -10,6 +11,11 @@ const PrivacyPage: React.FC = () => {
 
     return (
         <div className="legal-page-wrapper light-mode-forced">
+            <SEO
+                title="Privacy Policy"
+                description="Learn how AI Marking collects, uses, and protects your personal information when using our automated marking services."
+                canonical="https://aimarking.ai/privacy"
+            />
             <div className="legal-container">
                 <Link to="/" className="back-home">
                     <ArrowLeft size={18} />

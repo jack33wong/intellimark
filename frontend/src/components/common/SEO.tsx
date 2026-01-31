@@ -41,11 +41,11 @@ const SEO: React.FC<SEOProps> = ({
     url = url || "https://aimarking.ai";
 
     // Strip 'www.' to enforce non-www domain
-    url = url.replace('https://www.aimarking.ai', 'https://aimarking.ai');
+    url = url.replace(/https?:\/\/www\.aimarking\.ai/g, 'https://aimarking.ai');
 
     // ENFORCE NON-WWW IMAGE
     let ogImage = image || "https://aimarking.ai/og-image.png";
-    ogImage = ogImage.replace('https://www.aimarking.ai', 'https://aimarking.ai');
+    ogImage = ogImage.replace(/https?:\/\/www\.aimarking\.ai/g, 'https://aimarking.ai');
 
     return (
         <Helmet>

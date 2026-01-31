@@ -307,8 +307,10 @@ ${pageHints}
         }
         const cleanContent = this.cleanGeminiResponse(content);
         // [DEBUG] Log the classification response per task - ENABLED
-        // console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
-        // console.log(cleanContent); // Full response (User Request)
+        if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
+          console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
+          console.log(cleanContent); // Full response (User Request)
+        }
 
         parsed = this.parseJsonWithSanitization(cleanContent);
 
@@ -544,7 +546,7 @@ ${pageHints}
 
       // Normal Gemini call for all other files
       const validatedModel = validateModel(model);
-      return await this.callGeminiForClassification(imageData, systemPrompt, userPrompt, validatedModel);
+      return await this.callGeminiForClassification(imageData, systemPrompt, userPrompt, validatedModel, debug);
     } catch (error) {
       // Check if this is our validation error (fail fast)
       if (error instanceof Error && error.message.includes('Unsupported model')) {
@@ -636,7 +638,8 @@ ${pageHints}
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.0-flash'
+    model: ModelType = 'gemini-2.0-flash',
+    debug: boolean = false
   ): Promise<ClassificationResult> {
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
@@ -655,6 +658,12 @@ ${pageHints}
       const result = await response.json() as any;
       const content = await this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
+
+      if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
+        console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Raw Response:\x1b[0m`);
+        console.log(cleanContent);
+      }
+
       const sanitizedContent = this.parseJsonWithSanitization(cleanContent, true); // true = return string for parseGeminiResponse
       const finalResult = await this.parseGeminiResponse(sanitizedContent, result, model);
 

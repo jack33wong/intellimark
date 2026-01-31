@@ -987,16 +987,16 @@ export function calculateOverallScore(
   const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
 
   // For total marks: Use parent marks from database (marking scheme) - single source of truth
-  // Group by base question number and only count parent marks once per base question
-  const baseQuestionToTotalMarks = new Map<string, number>();
+  // Group by EXACT question number (e.g. "5a", "5b") and only count once per unique question part.
+  const questionToTotalMarks = new Map<string, number>();
 
   allQuestionResults.forEach((qr, index) => {
-    const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
-
-
+    // [V28 FIX] Group by full question number (e.g. "12a") instead of base number ("12")
+    // This allows sub-questions 12a, 12b to sum up correctly (2+2=4 instead of squashing to 2)
+    const fullQNum = String(qr.questionNumber || index);
 
     // Only set if not already set (first occurrence wins)
-    if (!baseQuestionToTotalMarks.has(baseQNum)) {
+    if (!questionToTotalMarks.has(fullQNum)) {
       // Use detected total marks from marking scheme instead of parent marks
       // EXCEPTION: In Generic Mode with the 20/40 mark fallback, trust the AI's discovered total (qr.score) if available!
       const isGeneric = qr.markingScheme?.isGeneric;
@@ -1012,13 +1012,11 @@ export function calculateOverallScore(
         ? resultTotal
         : (schemeTotal || resultTotal || 0);
 
-      // console.log(`[TOTAL TRAP] Q${baseQNum}: Scheme=${schemeTotal}, AI=${resultTotal}, IsDefault=${isDefaultScheme} -> FINAL=${qTotalMarks}`);
-
-      baseQuestionToTotalMarks.set(baseQNum, qTotalMarks);
+      questionToTotalMarks.set(fullQNum, qTotalMarks);
     }
   });
 
-  const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
+  const totalPossibleScore = Array.from(questionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
   // console.log(`[TOTAL TRAP] Grand Total Possible Score: ${totalPossibleScore}`);
   const overallScoreText = `${overallScore}/${totalPossibleScore}`;
 

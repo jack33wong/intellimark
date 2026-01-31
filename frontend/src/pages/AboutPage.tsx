@@ -13,8 +13,8 @@ const AboutPage: React.FC = () => {
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": "AI Marking",
-        "url": "https://www.aimarking.ai",
-        "logo": "https://www.aimarking.ai/logo.png",
+        "url": "https://aimarking.ai",
+        "logo": "https://aimarking.ai/logo.png",
         "description": "AI Marking provides spatial logic assessment for GCSE and A-Level mathematics, using 0.1mm precision coordinate mapping to award method marks.",
         "sameAs": [
             "https://twitter.com/aimarking",

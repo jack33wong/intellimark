@@ -677,8 +677,8 @@ const SubscriptionPage: React.FC = () => {
         title="Pricing & Plans"
         description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading. Get instant grades, method marks (M1), and ECF logic analysis."
         schemaData={productSchema}
-        canonical="https://www.aimarking.ai/pricing"
-        image="https://www.aimarking.ai/logo-social-share.jpg"
+        canonical="https://aimarking.ai/pricing"
+        image="https://aimarking.ai/logo-social-share.jpg"
         themeColor="#1a93fe"
       />
       {/* Close Button - Top Right */}

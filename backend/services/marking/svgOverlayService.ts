@@ -334,20 +334,45 @@ export class SVGOverlayService {
     const classificationSize = Math.max(14, Math.round(textSize * 0.8));
     const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
 
-    const markingCodeWidth = (text && text.trim()) ? text.length * (textSize * 0.6) : 0;
+    // --- STEP 1: CALCULATE SYMBOL LINE (LINE 1) ---
+    const markingCodeWidth = (text && text.trim()) ? text.length * (textSize * 1.1) : 0;
     const displayClassText = (classificationText && classificationText.trim())
       ? (classificationText.length > 20 ? classificationText.substring(0, 20) + '...' : classificationText)
       : '';
-    const classTextWidth = displayClassText ? displayClassText.length * (classificationSize * 0.6) : 0;
 
-    const symbolContentWidth = symbolSize +
-      (markingCodeWidth ? markingCodeWidth + 10 : 0) +
-      (classTextWidth ? classTextWidth + 15 : 0) +
-      10;
+    // Use FULL classificationText for width estimation
+    const calcClassText = (classificationText && classificationText.trim()) || '';
+    const classTextWidth = calcClassText ? calcClassText.length * (classificationSize * 1.1) : 0;
 
-    // 2. Layout Dimensions
-    const safeMargin = 40 * fontScaleFactor;
-    const padding = 10 * fontScaleFactor;
+    const line1Width = symbolSize +
+      (markingCodeWidth ? markingCodeWidth + 15 : 0) +
+      (classTextWidth ? classTextWidth + 25 : 0) +
+      20;
+
+    // --- STEP 2: CALCULATE REASONING BLOCK (LINE 2+) ---
+    let reasoningSVG = '';
+    let maxReasoningWidth = 0;
+    let reasoningLineHeight = reasoningSize + 4;
+    let reasoningTotalHeight = 0;
+    let reasoningLines: string[] = [];
+
+    if (symbol === '✗' && reasoning && reasoning.trim()) {
+      const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
+      // Line limit for vertical stack
+      const lineCharLimit = 35;
+      reasoningLines = this.breakTextIntoMultiLines(cleanReasoning, lineCharLimit);
+      reasoningTotalHeight = reasoningLines.length * reasoningLineHeight;
+      maxReasoningWidth = Math.max(...reasoningLines.map(l => l.length * (reasoningSize * 0.75)));
+    }
+
+    // The total horizontal footprint is the wider of the two lines
+    const totalAnnotationWidth = Math.max(line1Width, maxReasoningWidth);
+
+    // Layout Dimensions
+    const safeMargin = 100 * fontScaleFactor;
+    const padding = 15 * fontScaleFactor;
+    const rowGap = 10 * fontScaleFactor;
+
     const requiredBottomSpace = 150 * fontScaleFactor;
     const maxBottomY = actualHeight - requiredBottomSpace;
 
@@ -357,9 +382,9 @@ export class SVGOverlayService {
     }
 
     const baseYOffsetPixels = (effectiveHeight * this.CONFIG.yPositions.baseYOffset) / 100;
-    const symbolY = y + effectiveHeight + baseYOffsetPixels;
+    const anchorY = y + effectiveHeight + baseYOffsetPixels; // The "Baseline" of student work
 
-    // --- STEP 1: PLACE THE SYMBOL (ANCHOR) ---
+    // --- STEP 3: PLACE THE ENTIRE BLOCK (ANCHOR) ---
     const rightEdgeOfStudentWork = x + width;
     const pageRightLimit = actualWidth - safeMargin;
     const spaceOnRight = pageRightLimit - rightEdgeOfStudentWork;
@@ -368,16 +393,16 @@ export class SVGOverlayService {
     let isFlipped = false;
     let symbolAnchorX = 0;
     let symbolTextAnchor = 'start';
-    let drawSymbolBackground = false;
+    let drawBackground = false;
 
     // PREFER RIGHT GUTTER
-    if (spaceOnRight >= symbolContentWidth + padding) {
+    if (spaceOnRight >= totalAnnotationWidth + padding) {
       isFlipped = false;
       symbolAnchorX = rightEdgeOfStudentWork + padding;
       symbolTextAnchor = 'start';
     }
     // FLIP LEFT IF NECESSARY
-    else if (spaceOnLeft >= symbolContentWidth + padding) {
+    else if (spaceOnLeft >= totalAnnotationWidth + padding) {
       isFlipped = true;
       symbolAnchorX = x - padding;
       symbolTextAnchor = 'end';
@@ -385,112 +410,76 @@ export class SVGOverlayService {
     // OVERLAY IF TRAPPED
     else {
       isFlipped = false;
-      symbolAnchorX = pageRightLimit - symbolContentWidth;
+      symbolAnchorX = pageRightLimit - totalAnnotationWidth;
       symbolTextAnchor = 'start';
-      drawSymbolBackground = true;
+      drawBackground = true;
     }
 
-    // --- STEP 2: PLACE THE REASONING (SIDE-BY-SIDE) ---
-    let svg = '';
-    let reasoningBlockSVG = '';
+    // --- STEP 4: RENDER REASONING (LINE 2+) ---
+    if (reasoningLines.length > 0) {
+      // Position reasoning below the symbol line
+      const reasoningStartY = anchorY + (symbolSize * 0.4) + rowGap;
+      const anchor = isFlipped ? 'end' : 'start';
 
-    if (symbol === '✗' && reasoning && reasoning.trim()) {
-      const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
-      const lineHeight = reasoningSize + 4;
+      // Draw Background Box for reasoning
+      const boxX = (anchor === 'start') ? symbolAnchorX - 5 : symbolAnchorX - maxReasoningWidth - 5;
+      const boxY = reasoningStartY - reasoningSize + 5;
 
-      // Break text into lines
-      const lineCharLimit = isFlipped ? 20 : 30;
-      const fallbackLines = this.breakTextIntoMultiLines(cleanReasoning, lineCharLimit);
-
-      const totalBlockHeight = fallbackLines.length * lineHeight;
-
-      // 🔥 FIX 1 (Vertical): ALIGN BOTTOM-UP
-      // Anchor the bottom of the text block to the bottom of the symbol.
-      // This forces the text to "Grow Upwards" into the empty margin, 
-      // preventing it from dropping into the next question (20b).
-      const startY = symbolY + (symbolSize * 0.5) - totalBlockHeight + (lineHeight * 0.8);
-
-      let reasonX = symbolAnchorX;
-      let anchor = isFlipped ? 'end' : 'start';
-
-      // 🔥 FIX 2 (Horizontal): JUMP THE FULL LABEL
-      // Use symbolContentWidth (Icon + "A0" + Padding) instead of just symbolSize.
-      // This prevents the text from printing on top of the "A0" code.
-      const separation = symbolContentWidth + 10;
-
-      if (anchor === 'start') {
-        reasonX += separation;
-      } else {
-        reasonX -= separation;
-      }
-
-      // Draw Background Box
-      const maxLineWidth = Math.max(...fallbackLines.map(l => l.length * (reasoningSize * 0.55)));
-      const boxX = (anchor === 'start') ? reasonX - 5 : reasonX - maxLineWidth - 5;
-      const boxY = startY - reasoningSize + 5;
-
-      reasoningBlockSVG += `<rect x="${boxX}" y="${boxY}" width="${maxLineWidth + 10}" height="${totalBlockHeight + 5}" 
+      reasoningSVG += `<rect x="${boxX}" y="${boxY}" width="${maxReasoningWidth + 10}" height="${reasoningTotalHeight + 5}" 
                                fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
 
-      fallbackLines.forEach((line, i) => {
-        reasoningBlockSVG += `<text x="${reasonX}" y="${startY + (i * lineHeight)}" text-anchor="${anchor}" 
+      reasoningLines.forEach((line, i) => {
+        reasoningSVG += `<text x="${symbolAnchorX}" y="${reasoningStartY + (i * reasoningLineHeight)}" text-anchor="${anchor}" 
                                   fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
       });
     }
 
-    // --- STEP 3: RENDER SYMBOL ---
-    const renderSymbol = (startX: number) => {
-      let currentX = startX;
-      let svgParts = '';
-      const mainColor = symbol === '✓' ? '#008000' : '#ff0000';
+    // --- STEP 5: RENDER SYMBOLS (LINE 1) ---
+    let mainSVG = '';
+    const symbolY = anchorY;
+    const mainColor = symbol === '✓' ? '#008000' : '#ff0000';
 
-      if (drawSymbolBackground) {
-        const bgPadding = 5;
-        const bgHeight = Math.max(symbolSize, textSize) + 10;
-        const bgY = symbolY - bgHeight + 5;
-        const bgX = (symbolTextAnchor === 'start') ? startX - bgPadding : startX - symbolContentWidth - bgPadding;
-        svgParts += `<rect x="${bgX}" y="${bgY}" width="${symbolContentWidth + (bgPadding * 2)}" height="${bgHeight}" 
-                          fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
+    if (drawBackground) {
+      const bgPadding = 5;
+      const bgHeight = Math.max(symbolSize, textSize) + 10;
+      const bgY = symbolY - bgHeight + 5;
+      const bgX = (symbolTextAnchor === 'start') ? symbolAnchorX - bgPadding : symbolAnchorX - line1Width - bgPadding;
+      mainSVG += `<rect x="${bgX}" y="${bgY}" width="${line1Width + (bgPadding * 2)}" height="${bgHeight}" 
+                        fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
+    }
+
+    let currentX = symbolAnchorX;
+    if (!isFlipped) {
+      mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
+                  font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
+      currentX += symbolSize + 5;
+
+      if (text && text.trim()) {
+        mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
+                      font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
+        currentX += markingCodeWidth + 10;
       }
-
-      if (!isFlipped) {
-        svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
-                    font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
-        currentX += symbolSize + 5;
-
-        if (text && text.trim()) {
-          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" 
-                        font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
-          currentX += markingCodeWidth + 10;
-        }
-        // SIMPLIFIED: Trust the Enrichment Service. If text is there, show it.
-        if (displayClassText) {
-          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="#0000ff" 
-                        font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
-        }
-      } else {
-        svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" 
-                    font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
-        currentX -= (symbolSize + 5);
-
-        if (text && text.trim()) {
-          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" 
-                        font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
-          currentX -= (markingCodeWidth + 10);
-        }
-        // SIMPLIFIED: Trust the Enrichment Service. If text is there, show it.
-        if (displayClassText) {
-          svgParts += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="#0000ff" 
-                        font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
-        }
+      if (displayClassText) {
+        mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="#0000ff" 
+                      font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
       }
-      return svgParts;
-    };
+    } else {
+      mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" 
+                  font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
+      currentX -= (symbolSize + 5);
 
-    svg += reasoningBlockSVG;
-    svg += renderSymbol(symbolAnchorX);
+      if (text && text.trim()) {
+        mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" 
+                      font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(text)}</text>`;
+        currentX -= (markingCodeWidth + 10);
+      }
+      if (displayClassText) {
+        mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="#0000ff" 
+                      font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${this.escapeXml(displayClassText)})</text>`;
+      }
+    }
 
-    return svg;
+    return reasoningSVG + mainSVG;
   }
 
   // =========================================================================
@@ -606,44 +595,27 @@ export class SVGOverlayService {
     return text + underline1 + underline2;
   }
 
-  /**
-   * Helper: Merge overlapping annotations based on Student Work ID (line_id)
-   * if they are same student work, stack it.
-   */
   private static mergeOverlappingAnnotations(annotations: Annotation[], width: number, height: number): Annotation[] {
     if (!annotations || annotations.length < 2) return annotations;
-
-    // console.log(`🔍 [SVG-MERGE] Checking ${annotations.length} annotations for overlap (ID-BASED).`);
-
     const mergedInfos = new Map<string, Annotation>();
     const standalone: Annotation[] = [];
 
-    // Group by line_id + action
-    // If line_id is missing, treat as standalone (no merge)
     for (const anno of annotations) {
       const lineId = (anno as any).line_id;
       const action = anno.action;
-
       if (!lineId) {
         standalone.push(anno);
         continue;
       }
-
       const key = `${lineId}|${action}`;
-
       if (mergedInfos.has(key)) {
-        // Stack it!
         const existing = mergedInfos.get(key)!;
         const newText = [existing.text, anno.text].filter(t => t).join(' ');
-
-        // console.log(`      ✨ [STACK] Merging for ID ${lineId}: "${existing.text}" + "${anno.text}" -> "${newText}"`);
-
         mergedInfos.set(key, { ...existing, text: newText });
       } else {
         mergedInfos.set(key, anno);
       }
     }
-
     return [...standalone, ...mergedInfos.values()];
   }
 }

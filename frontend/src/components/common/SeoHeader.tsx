@@ -24,6 +24,10 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
     ogDescription,
     ogUrl
 }) => {
+    // Enforce non-www for SEO parameters
+    const cleanCanonicalUrl = canonicalUrl ? canonicalUrl.replace(/https?:\/\/www\.aimarking\.ai/g, 'https://aimarking.ai') : undefined;
+    const cleanOgUrl = ogUrl ? ogUrl.replace(/https?:\/\/www\.aimarking\.ai/g, 'https://aimarking.ai') : undefined;
+
     // Generate optimized title
     const finalTitle = title || (examBoard
         ? `AI ${examBoard} Maths Marking | Instant GCSE ${year || ''} Feedback`
@@ -59,13 +63,13 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
             <meta name="description" content={finalDescription} />
             <meta name="keywords" content={keywords} />
 
-            {canonicalUrl && <link rel="canonical" href={canonicalUrl} data-rh="true" />}
+            {cleanCanonicalUrl && <link rel="canonical" href={cleanCanonicalUrl} data-rh="true" />}
 
             {/* Open Graph / Facebook */}
             <meta property="og:type" content="website" />
             <meta property="og:title" content={ogTitle || finalTitle} />
             <meta property="og:description" content={ogDescription || finalDescription} />
-            {ogUrl && <meta property="og:url" content={ogUrl} />}
+            {cleanOgUrl && <meta property="og:url" content={cleanOgUrl} />}
 
             {/* Twitter */}
             <meta name="twitter:card" content="summary_large_image" />
