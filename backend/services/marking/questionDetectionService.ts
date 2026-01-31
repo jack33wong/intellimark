@@ -857,9 +857,10 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     return generateGenericTitleFromText(firstQText, mode);
   }
 
-  // Pattern: Exam Series + Board Short + Subject Short + Tier
+  // Pattern: Exam Series + Exam Code + Board Short + Subject Short + Tier
   const p = examPapers[0];
   const seriesPart = p.examSeries || '';
+  const codePart = p.examCode || '';
   const boardPart = getShortExamBoard(p.examBoard);
   const subjectPart = getShortSubjectName(p.subject || '');
   const tierPart = p.tier ? `${p.tier}` : '';
@@ -879,7 +880,7 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     }
   }
 
-  const baseTitle = `${seriesPart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
+  const baseTitle = `${seriesPart} ${codePart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
   return `${baseTitle}${qRange} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
 }
 

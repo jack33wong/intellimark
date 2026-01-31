@@ -362,15 +362,16 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 // Helper function to generate session title
 export function generateSessionTitle(questionDetection: any, extractedQuestionText: string, mode: 'Question' | 'Marking'): string {
   if (questionDetection?.found && questionDetection.match) {
-    const { board, examSeries, tier, subject, qualification } = questionDetection.match;
+    const { board, examSeries, tier, subject, qualification, paperCode } = questionDetection.match;
 
-    // Pattern: Exam Series + Board Short + Subject Short + Tier
+    // Pattern: Exam Series + Exam Code + Board Short + Subject Short + Tier
     const seriesPart = examSeries || '';
+    const codePart = paperCode || '';
     const boardPart = getShortExamBoard(board);
     const subjectPart = getShortSubjectName(subject || qualification || '');
     const tierPart = tier ? `${tier}` : '';
 
-    return `${seriesPart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
+    return `${seriesPart} ${codePart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
   }
   return generateNonPastPaperTitle(extractedQuestionText, mode);
 }

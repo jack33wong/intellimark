@@ -327,10 +327,10 @@ export class SessionManagementService {
         // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
-          const { board, examSeries, tier, subject, qualification } = firstQuestionDetection.match;
+          const { board, examSeries, tier, subject, qualification, paperCode } = firstQuestionDetection.match;
           const boardShort = getShortExamBoard(board);
           const subjectShort = getShortSubjectName(subject || qualification || '');
-          const baseTitle = `${examSeries} ${boardShort} ${subjectShort} ${tier || ''}`.replace(/\s+/g, ' ').trim();
+          const baseTitle = `${examSeries} ${paperCode || ''} ${boardShort} ${subjectShort} ${tier || ''}`.replace(/\s+/g, ' ').trim();
           return `${baseTitle} ${questionNumberDisplay} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
         }
       }
