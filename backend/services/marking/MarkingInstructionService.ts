@@ -184,7 +184,12 @@ export class MarkingInstructionService {
       ...b,
       _y: MarkingInstructionService.getBlockY(b) || 0,
       _cleanText: (b.text || b.mathpixLatex || b.latex || b.content || '').trim()
-    })).sort((a, b) => a._y - b._y);
+    })).sort((a, b) => {
+      const pA = (a as any).pageIndex ?? 0;
+      const pB = (b as any).pageIndex ?? 0;
+      if (pA !== pB) return pA - pB;
+      return a._y - b._y;
+    });
 
     const qLandmarkRegex = /^Q\s*(\d+)/i;
 

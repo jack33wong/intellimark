@@ -4,8 +4,12 @@ import UsageTracker from '../../utils/UsageTracker.js';
 
 export interface PageMap {
     pageIndex: number;
-    questions: string[]; // List of question numbers (e.g., "1", "2a", "3")
-    category?: "frontPage" | "questionAnswer" | "questionOnly"; // Front page/cover sheet, question with student work, or question only
+    questions: Array<{
+        questionNumber: string;
+        subQuestions?: string[];
+    }>;
+    category?: "frontPage" | "questionAnswer" | "questionOnly";
+    flatQuestions?: string[]; // For backward compatibility in Pass 2
 }
 
 export class ClassificationMapper {
@@ -115,14 +119,55 @@ export class ClassificationMapper {
             // Fill exactly images.length results
             for (let i = 0; i < images.length; i++) {
                 const p = pages[i] || { questions: [], category: undefined };
+
+                // Handle both old string[] format and new {questionNumber, subQuestions} format for robustness
+                const rawQuestions = Array.isArray(p.questions) ? p.questions : [];
+                const structuredQuestions: Array<{ questionNumber: string; subQuestions?: string[] }> = [];
+                const flatQuestions: string[] = [];
+
+                rawQuestions.forEach((q: any) => {
+                    if (typeof q === 'string') {
+                        // Legacy support: convert "3b" to {questionNumber: "3", subQuestions: ["b"]}
+                        const match = q.match(/^(\d+)([a-z]*.*)/i);
+                        if (match) {
+                            const base = match[1];
+                            const part = match[2];
+                            const existing = structuredQuestions.find(sq => sq.questionNumber === base);
+                            if (existing) {
+                                if (part && !existing.subQuestions?.includes(part)) {
+                                    existing.subQuestions = [...(existing.subQuestions || []), part];
+                                }
+                            } else {
+                                structuredQuestions.push({
+                                    questionNumber: base,
+                                    subQuestions: part ? [part] : undefined
+                                });
+                            }
+                        } else {
+                            structuredQuestions.push({ questionNumber: q });
+                        }
+                        flatQuestions.push(q);
+                    } else if (typeof q === 'object' && q !== null && q.questionNumber) {
+                        // NEW format
+                        structuredQuestions.push(q);
+                        // Reconstruct flat questions for backward compatibility
+                        if (q.subQuestions && q.subQuestions.length > 0) {
+                            q.subQuestions.forEach((sq: string) => {
+                                flatQuestions.push(`${q.questionNumber}${sq}`);
+                            });
+                        } else {
+                            flatQuestions.push(q.questionNumber);
+                        }
+                    }
+                });
+
                 const result: PageMap = {
                     pageIndex: i,
-                    questions: p.questions || [],
-                    category: p.category
+                    questions: structuredQuestions,
+                    category: p.category,
+                    flatQuestions: flatQuestions
                 };
                 results.push(result);
-
-                // Debug logging for pages with Q2 - REMOVED
             }
             return results;
         };

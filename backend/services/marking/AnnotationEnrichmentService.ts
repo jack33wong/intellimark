@@ -322,10 +322,10 @@ export const enrichAnnotationsWithPositions = (
             pageIndex: pageIndex,
             ocr_match_status: status as any,
             linked_ocr_id: activePointer,
-            student_text: studentText,   // snake_case for DB/Logs
-            studentText: studentText,    // camelCase for Frontend
-            classification_text: classText,
-            classificationText: classText,
+            student_text: latexToPlainText(studentText),   // [FIXED] Sanitize for SVG
+            studentText: latexToPlainText(studentText),    // [FIXED] Sanitize for Frontend
+            classification_text: latexToPlainText(classText), // [FIXED] Sanitize for SVG
+            classificationText: latexToPlainText(classText), // [FIXED] Sanitize for Frontend
             _debug_placement_method: method,
             unit: 'pixels'
         } as EnrichedAnnotation;

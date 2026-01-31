@@ -336,18 +336,24 @@ export class SVGOverlayService {
 
     // --- STEP 1: CALCULATE SYMBOL LINE (LINE 1) ---
     const markingCodeWidth = (text && text.trim()) ? text.length * (textSize * 1.1) : 0;
+
+    // [FIX]: Truncate for display (50 chars) AND use this for width calculation
+    const maxChars = 50;
     const displayClassText = (classificationText && classificationText.trim())
-      ? (classificationText.length > 20 ? classificationText.substring(0, 20) + '...' : classificationText)
+      ? (classificationText.length > maxChars ? classificationText.substring(0, maxChars) + '...' : classificationText)
       : '';
 
-    // Use FULL classificationText for width estimation
-    const calcClassText = (classificationText && classificationText.trim()) || '';
-    const classTextWidth = calcClassText ? calcClassText.length * (classificationSize * 1.1) : 0;
+    // Use truncated text for width estimation
+    const classTextWidth = displayClassText ? displayClassText.length * (classificationSize * 0.75) : 0;
 
     const line1Width = symbolSize +
       (markingCodeWidth ? markingCodeWidth + 15 : 0) +
       (classTextWidth ? classTextWidth + 25 : 0) +
       20;
+
+    // Safety: Cap total annotation width to manageable size (80% of page)
+    const maxWidth = actualWidth * 0.8;
+    const finalLine1Width = Math.min(line1Width, maxWidth);
 
     // --- STEP 2: CALCULATE REASONING BLOCK (LINE 2+) ---
     let reasoningSVG = '';
@@ -366,7 +372,7 @@ export class SVGOverlayService {
     }
 
     // The total horizontal footprint is the wider of the two lines
-    const totalAnnotationWidth = Math.max(line1Width, maxReasoningWidth);
+    const totalAnnotationWidth = Math.max(finalLine1Width, maxReasoningWidth);
 
     // Layout Dimensions
     const safeMargin = 100 * fontScaleFactor;
@@ -396,13 +402,13 @@ export class SVGOverlayService {
     let drawBackground = false;
 
     // PREFER RIGHT GUTTER
-    if (spaceOnRight >= totalAnnotationWidth + padding) {
+    if (spaceOnRight >= finalLine1Width + padding) {
       isFlipped = false;
       symbolAnchorX = rightEdgeOfStudentWork + padding;
       symbolTextAnchor = 'start';
     }
     // FLIP LEFT IF NECESSARY
-    else if (spaceOnLeft >= totalAnnotationWidth + padding) {
+    else if (spaceOnLeft >= finalLine1Width + padding) {
       isFlipped = true;
       symbolAnchorX = x - padding;
       symbolTextAnchor = 'end';
@@ -410,7 +416,7 @@ export class SVGOverlayService {
     // OVERLAY IF TRAPPED
     else {
       isFlipped = false;
-      symbolAnchorX = pageRightLimit - totalAnnotationWidth;
+      symbolAnchorX = pageRightLimit - finalLine1Width;
       symbolTextAnchor = 'start';
       drawBackground = true;
     }
@@ -443,8 +449,8 @@ export class SVGOverlayService {
       const bgPadding = 5;
       const bgHeight = Math.max(symbolSize, textSize) + 10;
       const bgY = symbolY - bgHeight + 5;
-      const bgX = (symbolTextAnchor === 'start') ? symbolAnchorX - bgPadding : symbolAnchorX - line1Width - bgPadding;
-      mainSVG += `<rect x="${bgX}" y="${bgY}" width="${line1Width + (bgPadding * 2)}" height="${bgHeight}" 
+      const bgX = (symbolTextAnchor === 'start') ? symbolAnchorX - bgPadding : symbolAnchorX - finalLine1Width - bgPadding;
+      mainSVG += `<rect x="${bgX}" y="${bgY}" width="${finalLine1Width + (bgPadding * 2)}" height="${bgHeight}" 
                         fill="rgba(255, 255, 255, 0.9)" rx="4" />`;
     }
 

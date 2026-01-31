@@ -23,14 +23,21 @@ export class ZoneArchitect {
         }));
 
         let nextQuestionText = task.nextQuestionText;
+        let semanticZones: Record<string, any[]>;
 
-        // 2. Perform raw detection
-        const semanticZones = MarkingPositioningService.detectSemanticZones(
-            rawOcrBlocksForZones,
-            pageHeightForZones,
-            expectedQuestions,
-            nextQuestionText
-        );
+        // 2. Perform raw detection (Priority: Global injected zones -> local detection)
+        if (task.semanticZones && Object.keys(task.semanticZones).length > 0) {
+            console.log(` 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: ${Object.keys(task.semanticZones).length})`);
+            // Clone to avoid mutating the source
+            semanticZones = JSON.parse(JSON.stringify(task.semanticZones));
+        } else {
+            semanticZones = MarkingPositioningService.detectSemanticZones(
+                rawOcrBlocksForZones,
+                pageHeightForZones,
+                expectedQuestions,
+                nextQuestionText
+            );
+        }
 
         // 3. MERGE ZONES (Combine segments on same page)
         Object.keys(semanticZones).forEach(key => {

@@ -636,6 +636,7 @@ export class MarkingPipelineService {
                 if (result.questions && Array.isArray(result.questions)) {
                     result.questions.forEach((question: any) => {
                         const qNum = question.questionNumber;
+                        const individualPageIndex = question.pageIndex !== undefined ? question.pageIndex : pageIndex;
 
                         // Only merge if questionNumber exists and is not null/undefined
                         if (qNum && qNum !== 'null' && qNum !== 'undefined') {
@@ -645,13 +646,13 @@ export class MarkingPipelineService {
                             }
                             questionsByNumber.get(qNumStr)!.push({
                                 question,
-                                pageIndex
+                                pageIndex: individualPageIndex
                             });
                         } else {
                             // No question number - can't merge, keep as separate entry
                             questionsWithoutNumber.push({
                                 question,
-                                pageIndex
+                                pageIndex: individualPageIndex
                             });
                         }
                     });

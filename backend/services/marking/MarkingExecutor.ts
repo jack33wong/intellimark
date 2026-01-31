@@ -333,13 +333,15 @@ export function createMarkingTasksFromClassification(
   allPagesOcrData: any[],
   markingSchemesMap: Map<string, any>,
   pageDimensionsMap: Map<number, { width: number; height: number }>,
-  standardizedPages: any[]
+  standardizedPages: any[],
+  allClassificationResults?: any[]
 ): MarkingTask[] {
   return MarkingTaskFactory.createTasksFromClassification(
     classificationResult,
     allPagesOcrData,
     markingSchemesMap,
     pageDimensionsMap,
-    standardizedPages
+    standardizedPages,
+    allClassificationResults
   );
 }

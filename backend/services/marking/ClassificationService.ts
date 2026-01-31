@@ -139,55 +139,85 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         );
       }
 
-      // Map<QuestionNumber, Set<PageIndex>>
-      const questionToPages = new Map<string, Set<number>>();
+      // --- NEW: CONNECTED COMPONENTS GROUPING ---
+      // We group questions that share pages into a single "Classification Task"
+      // to avoid redundant token usage and coordinate collisions.
+
+      const baseQToPages = new Map<string, Set<number>>();
+      const pageToBaseQs = new Map<number, Set<string>>();
 
       // NEW: Track which sub-question is on which page for display & prompt hinting
       // Map<BaseQuestionNumber, Map<PageIndex, Set<QuestionPart>>>
       const subQuestionPageMap = new Map<string, Map<number, Set<string>>>();
 
       resolvedPageMaps.forEach(map => {
+        const pageIdx = map.pageIndex;
         if (map.questions && Array.isArray(map.questions)) {
-          map.questions.forEach(q => {
-            // Extract base question number (e.g., "3a" → "3", "3b" → "3")
-            const match = q.match(/^(\d+)/);
-            const baseQ = match ? match[1] : q.replace(/[a-z]+$/i, '').trim();
+          map.questions.forEach(qObj => {
+            const qNum = typeof qObj === 'string' ? qObj : qObj.questionNumber;
+            const match = qNum.match(/^(\d+)/);
+            const baseQ = match ? match[1] : qNum.replace(/[a-z]+$/i, '').trim();
             if (!baseQ) return;
 
-            // Group by base number (for task efficiency)
-            if (!questionToPages.has(baseQ)) {
-              questionToPages.set(baseQ, new Set());
-              subQuestionPageMap.set(baseQ, new Map());
-            }
-            questionToPages.get(baseQ)!.add(map.pageIndex);
+            if (!baseQToPages.has(baseQ)) baseQToPages.set(baseQ, new Set());
+            baseQToPages.get(baseQ)!.add(pageIdx);
 
-            // Track sub-question to page mapping (for display & prompt hinting)
-            // Store as Map<PageIndex, Set<QuestionPart>>
+            if (!pageToBaseQs.has(pageIdx)) pageToBaseQs.set(pageIdx, new Set());
+            pageToBaseQs.get(pageIdx)!.add(baseQ);
+
+            // Track sub-question to page mapping (original hint logic)
             if (!subQuestionPageMap.has(baseQ)) {
               subQuestionPageMap.set(baseQ, new Map());
             }
             const pageToParts = subQuestionPageMap.get(baseQ)!;
-            if (!pageToParts.has(map.pageIndex)) {
-              pageToParts.set(map.pageIndex, new Set());
+            if (!pageToParts.has(pageIdx)) {
+              pageToParts.set(pageIdx, new Set());
             }
-            pageToParts.get(map.pageIndex)!.add(q);
+            // Add all involved labels for this baseQ on this page
+            const labels = typeof qObj === 'string' ? [qObj] : [qObj.questionNumber, ...(qObj.subQuestions?.map((s: string) => `${qObj.questionNumber}${s}`) || [])];
+            labels.forEach(l => pageToParts.get(pageIdx)!.add(l));
           });
         }
       });
 
-      // Convert to array of tasks
-      const markingTasks: Array<{ questionNumber: string; pageIndices: number[] }> = [];
-      questionToPages.forEach((indices, qNum) => {
+      // Find Connected Components using BFS
+      const visitedQs = new Set<string>();
+      const markingTasks: Array<{ questionNumber: string; pageIndices: number[]; baseQNumbers: string[] }> = [];
+
+      baseQToPages.forEach((_, startQ) => {
+        if (visitedQs.has(startQ)) return;
+
+        const componentQs = new Set<string>();
+        const componentPages = new Set<number>();
+        const qQueue = [startQ];
+
+        while (qQueue.length > 0) {
+          const q = qQueue.shift()!;
+          if (visitedQs.has(q)) continue;
+          visitedQs.add(q);
+          componentQs.add(q);
+
+          const pages = baseQToPages.get(q) || new Set();
+          pages.forEach(p => {
+            componentPages.add(p);
+            const otherQs = pageToBaseQs.get(p) || new Set();
+            otherQs.forEach(oq => {
+              if (!visitedQs.has(oq)) qQueue.push(oq);
+            });
+          });
+        }
+
+        const sortedQs = Array.from(componentQs).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
         markingTasks.push({
-          questionNumber: qNum,
-          pageIndices: Array.from(indices).sort((a, b) => a - b)
+          questionNumber: sortedQs.join(', '), // Display label
+          baseQNumbers: sortedQs,
+          pageIndices: Array.from(componentPages).sort((a, b) => a - b)
         });
       });
 
-      // NEW: Handle pages that are categorized as question content but have no specific question number
-      // (e.g. "No Questions" detected by mapper, but category is "questionOnly")
+      // Handle pages that are categorized as question content but have no specific question number
       const mappedPageIndices = new Set<number>();
-      questionToPages.forEach(indices => indices.forEach(i => mappedPageIndices.add(i)));
+      markingTasks.forEach(task => task.pageIndices.forEach(i => mappedPageIndices.add(i)));
 
       resolvedPageMaps.forEach(map => {
         // If page is NOT mapped to a question AND is content (not metadata/frontPage)
@@ -208,9 +238,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const results: Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }> = [];
       let completedTasks = 0;
 
-      // Helper to process a single question task
-      const processQuestionTask = async (task: { questionNumber: string; pageIndices: number[] }) => {
-        const { questionNumber, pageIndices } = task;
+      // Helper to process a single question task (which may contain multiple connected questions)
+      const processQuestionTask = async (task: { questionNumber: string; pageIndices: number[]; baseQNumbers?: string[] }) => {
+        const { questionNumber, pageIndices, baseQNumbers } = task;
 
         // Get images for this question
         const taskImages = pageIndices.map(idx => images[idx]);
@@ -243,25 +273,34 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${pageIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${pageIndices[0] + 1}" (representing the page number).`;
           taskUserPrompt = `Extract all text and student work from Page ${pageIndices[0] + 1}.`;
         } else {
-          // Specific question extraction mode
-          // IMPROVED: Provide detailed sub-question mapping to prevent incorrect page grouping
+          // Connected components extraction mode (handles one or more questions)
+          const qList = baseQNumbers && baseQNumbers.length > 0 ? baseQNumbers : [questionNumber];
+
           const pageHints = pageIndices.map(idx => {
-            const partsOnThisPage = Array.from(subQuestionPageMap.get(questionNumber)?.get(idx) || []);
+            const partsOnThisPage: string[] = [];
+            qList.forEach((bq: string) => {
+              const parts = Array.from(subQuestionPageMap.get(bq)?.get(idx) || []);
+              partsOnThisPage.push(...parts);
+            });
             return `Page ${idx + 1}: [${partsOnThisPage.join(', ')}]`;
           }).join('\n');
 
-          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question ${questionNumber}. 
-Focus ONLY on extracting Question ${questionNumber} and its specific parts assigned to each page:
+          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question(s): ${qList.join(', ')}. 
+Focus ONLY on extracting these specific questions and their parts assigned to each page:
 ${pageHints}
 
 **PAGE ASSIGNMENT RULE**: You MUST assign each sub-question part (e.g., "3b") to the EXACT page listed above. Do NOT pull a sub-question onto a preceding page just because its header is visible there.`;
 
-          taskUserPrompt = `Extract Question ${questionNumber} and its parts from these pages following the provided mapping.`;
+          taskUserPrompt = `Extract Question(s) ${qList.join(', ')} and their parts from these pages following the provided mapping.`;
         }
 
 
         // Call AI (User Selected Model)
         // We reuse the existing single-request logic but with a subset of images
+        // To avoid duplicating 100 lines of code, we should refactor the AI call into a helper method.
+        // For now, I will inline the essential parts or call a helper if I create one.
+        // Let's use the existing logic structure but applied to taskImages.
+
         let content: string;
         let usageTokens = 0;
         let apiUsed: string;

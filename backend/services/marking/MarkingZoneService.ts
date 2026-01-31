@@ -68,13 +68,39 @@ export class MarkingZoneService {
             return a.startY - b.startY;
         });
 
-        console.log(`[ZONE-TVC] Deterministic Order: ${detectedLandmarks.map(l => `${l.key}(P${l.pageIndex}@${l.startY})`).join(' -> ')}`);
+        // 🏰 [ABSORPTION FIX]: First Sub-question absorbs Main Intro
+        // If "14" and "14a" are on the same page, "14" is likely just a header/intro.
+        // We absorb "14" into "14a" so "14a" can own the top of the page (and any graphs there).
+        const absorbedIndices = new Set<number>();
+        for (let i = 0; i < detectedLandmarks.length - 1; i++) {
+            const current = detectedLandmarks[i];
+            const next = detectedLandmarks[i + 1];
+
+            if (next.pageIndex === current.pageIndex) {
+                const mainClean = current.key.replace(/\D/g, '');
+                // Check if 'current' is purely numeric (e.g. "14")
+                if (mainClean && current.key === mainClean) {
+                    // Check if 'next' is a subpart of 'current' (e.g. "14a")
+                    if (next.key.startsWith(mainClean) && next.key.length > mainClean.length) {
+                        const suffix = next.key.substring(mainClean.length).toLowerCase().replace(/[^a-z0-9]/g, '');
+                        // suffix 'a', '1', 'ai', 'i' etc implies first part
+                        if (['a', '1', 'ai', 'i', 'parta'].includes(suffix)) {
+                            console.log(`[ZONE-ABSORB] Q${next.key} absorbing Main Q${current.key} on P${current.pageIndex}`);
+                            absorbedIndices.add(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        const finalLandmarks = detectedLandmarks.filter((_, idx) => !absorbedIndices.has(idx));
+        console.log(`[ZONE-TVC] Deterministic Order (Post-Absorb): ${finalLandmarks.map(l => `${l.key}(P${l.pageIndex}@${l.startY})`).join(' -> ')}`);
 
         const pagesWithFirstLandmark = new Set<number>();
 
-        for (let i = 0; i < detectedLandmarks.length; i++) {
-            const current = detectedLandmarks[i];
-            const next = detectedLandmarks[i + 1];
+        for (let i = 0; i < finalLandmarks.length; i++) {
+            const current = finalLandmarks[i];
+            const next = finalLandmarks[i + 1];
 
             // 🏗️ TVC START: If this is the FIRST landmark found on this page, snap to 0
             // This captures grids and headers above the label.
@@ -128,31 +154,25 @@ export class MarkingZoneService {
         // =====================================================================
 
         // Iterate through the landmarks we found
-        for (let i = 0; i < detectedLandmarks.length; i++) {
-            const current = detectedLandmarks[i];
-            const next = detectedLandmarks[i + 1];
+        for (let i = 0; i < finalLandmarks.length; i++) {
+            const current = finalLandmarks[i];
+            const next = finalLandmarks[i + 1];
 
-            // Condition: Current is on Page X, Next is on Page X+1 (or higher)
+            // 🏰 [FIX]: Only bridge FULL gap pages. 
+            // Do NOT extend into 'next.pageIndex' itself, because TVC logic 
+            // already ensures the first question on a page owns the top.
             if (next && next.pageIndex > current.pageIndex) {
-
-                // We have a gap. Q11b ends at P0-Bottom. Q11c starts at P1-Middle.
-                // Q11b deserves the "Void" on Page 1 above Q11c.
-
-                const gapPage = next.pageIndex;
-                const ceilingY = next.startY;
-
-                console.log(`[ZONE-UPSTREAM] Detected Split Page Gap: ${current.key} (P${current.pageIndex}) -> ${next.key} (P${gapPage})`);
-                console.log(`   ↳ Extending ${current.key} to P${gapPage}: 0 to ${ceilingY}`);
-
-                // Push the Backfilled Zone directly into the Upstream Output
-                zones[current.key].push({
-                    label: current.key,
-                    pageIndex: gapPage,
-                    startY: 0,         // Start at top of new page
-                    endY: ceilingY,    // End where next question starts
-                    x: 0,
-                    width: 100         // Full width
-                } as any);
+                for (let p = current.pageIndex + 1; p < next.pageIndex; p++) {
+                    console.log(`[ZONE-UPSTREAM] Filling full gap page: ${current.key} for P${p}`);
+                    zones[current.key].push({
+                        label: current.key,
+                        pageIndex: p,
+                        startY: 0,
+                        endY: pageHeight, // Full page
+                        x: 0,
+                        width: 100
+                    } as any);
+                }
             }
         }
 

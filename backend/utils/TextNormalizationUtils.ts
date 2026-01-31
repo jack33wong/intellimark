@@ -423,14 +423,20 @@ export function latexToPlainText(text: string | null | undefined): string {
 
   let plain = text;
 
+  // 0. Pre-process Escaped Backslashes
+  // Some OCR results come with double backslashes (e.g. "\\frac")
+  // Convert them to single internal representation for easier matching.
+  plain = plain.replace(/\\\\/g, '\\');
+
   // 1. Delimiters
   plain = plain.replace(/\\\(([^\\]*?)\\\)/g, '$1');
   plain = plain.replace(/\\\[([^\\]*?)\\\]/g, '$1');
   plain = plain.replace(/\$/g, '');
 
   // 2. Common LaTeX commands to readable equivalents
+  // Improved non-greedy match for braces
   plain = plain
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+    .replace(/\\frac\s*\{([^}]+)\}\s*\{([^}]+)\}/g, '$1/$2')
     .replace(/\\times/g, '×')
     .replace(/\\div/g, '÷')
     .replace(/\\pm/g, '±')
@@ -439,7 +445,7 @@ export function latexToPlainText(text: string | null | undefined): string {
     .replace(/\\neq/g, '≠')
     .replace(/\\approx/g, '≈')
     .replace(/\\degree/g, '°')
-    .replace(/\\sqrt\{([^}]+)\}/g, '√$1')
+    .replace(/\\sqrt\s*\{([^}]+)\}/g, '√$1')
     .replace(/\\cdot/g, '·')
     .replace(/\\alpha/g, 'α')
     .replace(/\\beta/g, 'β')

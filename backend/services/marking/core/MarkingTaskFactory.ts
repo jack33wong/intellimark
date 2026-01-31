@@ -1,6 +1,7 @@
 
 import { getBaseQuestionNumber } from '../../../utils/TextNormalizationUtils.js';
 import { MarkingTask } from '../../../types/index.js';
+import { MarkingZoneService } from '../MarkingZoneService.js';
 
 export class MarkingTaskFactory {
 
@@ -177,6 +178,46 @@ export class MarkingTaskFactory {
         }
 
         // =========================================================================
+        // PHASE 1.6: GLOBAL ZONE DETECTION
+        // =========================================================================
+        const allOcrBlocksGlobal: any[] = [];
+        if (allPagesOcrData) {
+            allPagesOcrData.forEach((pageData, pIdx) => {
+                const blocksSource = (pageData as any)?.ocrData?.mathBlocks || (pageData as any)?.mathBlocks || (pageData as any)?.blocks || [];
+                const blocks = blocksSource.map((b: any, bIdx: number) => {
+                    const blockId = `p${pageData.pageIndex ?? pIdx}_ocr_${bIdx}`;
+                    return { ...b, pageIndex: pageData.pageIndex ?? pIdx, globalBlockId: blockId, id: blockId, text: b.text || b.mathpixLatex || b.latex || "" };
+                });
+                allOcrBlocksGlobal.push(...blocks);
+            });
+        }
+
+        const globalExpectedQuestions: Array<{ label: string; text: string }> = [];
+        for (const q of classificationResult.questions) {
+            const basePrefix = getBaseQuestionNumber(String(q.questionNumber || ''));
+            if (!basePrefix) continue;
+            const nodes = this.flattenQuestionTree(q);
+            nodes.forEach(node => {
+                let partLabel = "";
+                if (node.part && node.part !== 'main') {
+                    partLabel = node.part.startsWith(basePrefix) ? node.part : `${basePrefix}${node.part}`;
+                } else {
+                    partLabel = basePrefix;
+                }
+                if (!globalExpectedQuestions.some(eq => eq.label === partLabel)) {
+                    globalExpectedQuestions.push({ label: partLabel, text: node.text || "" });
+                }
+            });
+        }
+
+        const samplePageDims = Array.from(pageDimensionsMap.values())[0] || { width: 2000, height: 2828 };
+        const globalZones = MarkingZoneService.detectSemanticZones(
+            allOcrBlocksGlobal,
+            samplePageDims.height,
+            globalExpectedQuestions
+        );
+
+        // =========================================================================
         // PHASE 2: TASK GENERATION
         // =========================================================================
         const sortedQuestionGroups = Array.from(questionGroups.entries()).sort((a, b) => {
@@ -255,6 +296,7 @@ export class MarkingTaskFactory {
                 imageData: questionImages[0],
                 images: questionImages,
                 aiSegmentationResults: group.aiSegmentationResults,
+                semanticZones: globalZones,
                 subQuestionMetadata: {
                     hasSubQuestions: group.subQuestionMetadata.hasSubQuestions,
                     subQuestions: group.subQuestionMetadata.subQuestions
