@@ -207,9 +207,19 @@ export const enrichAnnotationsWithPositions = (
                 }
             }
 
-            // FAIL FAST
+            // 🛡️ [SAFETY FIX]: Fallback to Zone Start if box is still missing
             if (!rawBox) {
-                throw new Error(`[RENDERER-FAIL] Annotation ${anno.subQuestion} is UNMATCHED and has no handwriting source (line_id: ${lineId}).`);
+                console.warn(`[RENDERER-WARN] Annotation ${anno.subQuestion} is UNMATCHED and has no position. Falling back to zone start.`);
+                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
+                if (zone) {
+                    rawBox = { x: zone.x || 0, y: zone.startY, width: 200, height: 40, unit: 'pixels' };
+                    pageIndex = zone.pageIndex;
+                    method = "FALLBACK_ZONE_START";
+                } else {
+                    // Total failure - fallback to top of default page
+                    rawBox = { x: 0, y: 0, width: 200, height: 40, unit: 'pixels' };
+                    method = "TOTAL_FALLBACK";
+                }
             }
         }
 
@@ -236,15 +246,19 @@ export const enrichAnnotationsWithPositions = (
             // This prevents P0 constraints (bottom of page) from dragging down P1 marks (top of page).
             if (zone && zone.pageIndex === pageIndex) {
 
-                // Clamp unless it's a direct text match (which we trust implicitly)
+                const startY = zone.startY;
+                const endY = zone.endY;
+
+                const h = pixelBox.height || (dims.height * 0.015); // Default ~50px if missing
+
+                // Trust MATCHED status implicitly (Design rule)
                 if (status !== "MATCHED") {
-                    if (pixelBox.y < zone.startY) {
-                        pixelBox.y = zone.startY;
+                    // FOOTPRINT-AWARE CHECK: If bottom edge breaches, pull back.
+                    if (pixelBox.y < startY) {
+                        pixelBox.y = startY + (dims.height * 0.10); // 10% Pull-back
                     }
-                    if (zone.endY && pixelBox.y > zone.endY) {
-                        // Ensure we don't crush it to 0 height
-                        const safeTop = Math.max(zone.startY, zone.endY - (pixelBox.height || 10));
-                        pixelBox.y = safeTop;
+                    if (endY && (pixelBox.y + h) > endY) {
+                        pixelBox.y = endY - h - (dims.height * 0.10); // 10% Pull-back + clear the object height
                     }
                 }
             } else if (zone && zone.pageIndex !== pageIndex) {
