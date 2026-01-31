@@ -192,6 +192,18 @@ export class MarkingTaskFactory {
             });
         }
 
+        // 🛡️ [ZONE-FIX]: Include classification-based landmarks in the pool.
+        // These are often more reliable and contain more complete question text than fragmented OCR blocks.
+        masterLandmarks.forEach(l => {
+            allOcrBlocksGlobal.push({
+                id: l.id,
+                text: l.text,
+                coordinates: l.box,
+                pageIndex: l.pageIndex,
+                isHandwritten: false
+            });
+        });
+
         const globalExpectedQuestions: Array<{ label: string; text: string }> = [];
         for (const q of classificationResult.questions) {
             const basePrefix = getBaseQuestionNumber(String(q.questionNumber || ''));

@@ -203,73 +203,73 @@ export class MarkingZoneService {
         let bestBlock: any = null;
         let bestSimilarity = 0;
 
-        for (const block of sortedBlocks) {
-            const blockY = MarkingZoneService.getY(block);
-            const blockPage = block.pageIndex || 0;
+        for (let i = 0; i < sortedBlocks.length; i++) {
+            const firstBlock = sortedBlocks[i];
+            const blockY = MarkingZoneService.getY(firstBlock);
+            const blockPage = firstBlock.pageIndex || 0;
 
             if (blockPage < minPage) continue;
             if (blockPage === minPage && blockY < minY) continue;
 
-            const blockTextRaw = block.text || "";
-            const blockNorm = this.normalize(blockTextRaw);
+            let accumulatedText = "";
 
-            // 🛡️ [NUCLEAR OPTION] HARD GATE
-            // If normalization killed the string (e.g. "3:4:8" -> ""), REJECT.
-            // This prevents handwritten digits from being considered as candidates.
-            if (blockNorm.length < 3 && labelRaw.length === 0) {
-                continue;
-            }
+            // 🛡️ [ACCUMULATIVE-WINDOW]: Look ahead up to 5 blocks to handle fragmentation
+            // Instead of judging each block in isolation, we see if adding the next line improves the match.
+            for (let j = i; j < Math.min(i + 5, sortedBlocks.length); j++) {
+                const currentBlock = sortedBlocks[j];
+                if (currentBlock.pageIndex !== blockPage) break;
 
-            let anchorBonus = 0;
-            let isAnchorMatch = false;
+                accumulatedText += (currentBlock.text || "") + " ";
+                const blockTextRaw = accumulatedText.trim();
+                const blockNorm = this.normalize(blockTextRaw);
 
-            if (labelRaw.length > 0) {
-                const exactRegex = new RegExp(`^${this.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
-                const parentRegex = parentLabel ? new RegExp(`^${this.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i') : null;
-
-                let suffixRegex: RegExp | null = null;
-                if (subPartLabel) {
-                    suffixRegex = new RegExp(`^\\(?${this.escapeRegExp(subPartLabel)}\\)(?:[\\s\\.]|$)`, 'i');
+                // Nuclear gate check for noise
+                if (j === i && blockNorm.length < 3 && labelRaw.length === 0) {
+                    continue;
                 }
 
-                const isLabelMatch = exactRegex.test(blockTextRaw.trim()) || MarkingZoneService.checkLabelMatch(blockTextRaw, labelRaw);
+                let anchorBonus = 0;
+                let isAnchorMatch = false;
 
-                if (isLabelMatch) {
-                    // 🛡️ [FIX] STRICT TEXT VERIFICATION
-                    // We verify against the Database Text.
-                    const isConfirmed = verifyMatch(textRaw, blockTextRaw);
+                if (labelRaw.length > 0) {
+                    const exactRegex = new RegExp(`^${this.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
+                    const parentRegex = parentLabel ? new RegExp(`^${this.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i') : null;
 
-                    if (isConfirmed) {
-                        // ✅ SUCCESS: Label AND Text Match.
-                        anchorBonus = 0.5; // High bonus for confirmed split points
+                    let suffixRegex: RegExp | null = null;
+                    if (subPartLabel) {
+                        suffixRegex = new RegExp(`^\\(?${this.escapeRegExp(subPartLabel)}\\)(?:[\\s\\.]|$)`, 'i');
+                    }
+
+                    const isLabelMatch = exactRegex.test(blockTextRaw.trim()) || MarkingZoneService.checkLabelMatch(blockTextRaw, labelRaw);
+
+                    if (isLabelMatch) {
+                        const isConfirmed = verifyMatch(textRaw, blockTextRaw);
+                        if (isConfirmed) {
+                            anchorBonus = 0.5;
+                            isAnchorMatch = true;
+                        }
+                    }
+                    else if (suffixRegex && suffixRegex.test(blockTextRaw.trim())) {
+                        anchorBonus = 0.25;
                         isAnchorMatch = true;
-                    } else {
-                        // ❌ REJECT: Label matched, but Text Failed.
-                        // This catches the handwritten "3:4:8" error.
-                        continue;
+                    }
+                    else if (parentRegex && parentRegex.test(blockTextRaw.trim())) {
+                        anchorBonus = 0.20;
+                        isAnchorMatch = true;
                     }
                 }
-                else if (suffixRegex && suffixRegex.test(blockTextRaw.trim())) {
-                    anchorBonus = 0.25;
-                    isAnchorMatch = true;
+
+                const simFull = this.calculateSimilarity(targetFull, blockNorm, isAnchorMatch);
+                let finalScore = simFull + anchorBonus;
+
+                if (finalScore > bestSimilarity) {
+                    bestSimilarity = finalScore;
+                    bestBlock = firstBlock; // Always anchor the zone to the FIRST physical block of the match
                 }
-                else if (parentRegex && parentRegex.test(blockTextRaw.trim())) {
-                    anchorBonus = 0.20;
-                    isAnchorMatch = true;
-                }
-            }
-
-            const simFull = this.calculateSimilarity(targetFull, blockNorm, isAnchorMatch);
-
-            // If it's a confirmed anchor, we give it a massive boost
-            let finalScore = simFull + anchorBonus;
-
-            if (finalScore > bestSimilarity) {
-                bestSimilarity = finalScore;
-                bestBlock = block;
             }
         }
-        // 🎯 STRICT THRESHOLD: 0.5 required (Up from 0.4)
+        // 🎯 [THRESHOLD-RESTORED]: Restored to 0.5 because Accomulative Matching 
+        // recovers fragments, making low similarity scores less likely for valid matches.
         return (bestBlock && bestSimilarity > 0.5) ? { block: bestBlock, similarity: bestSimilarity } : null;
     }
 
