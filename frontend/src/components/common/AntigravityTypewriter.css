@@ -1,0 +1,70 @@
+.antigravity-typewriter-container {
+    position: relative;
+    display: inline-block;
+    min-height: 1.2em;
+    width: 100%;
+    line-height: normal;
+}
+
+.antigravity-text-wrapper {
+    display: inline;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.antigravity-char {
+    display: inline;
+    /* [FIX] Remove transition to avoid "sliding" feel per user request. 
+       Characters should appear instantly one-by-one. */
+}
+
+.antigravity-cursor-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+    will-change: transform;
+    /* Use hardware acceleration */
+    transform: translate3d(var(--cursor-x, 0), var(--cursor-y, 0), 0);
+    /* Snappier "gliding" effect */
+    transition: transform 0.08s ease-out;
+}
+
+.antigravity-cursor-asset {
+    display: block;
+    /* Match the font height but slightly taller for that premium look */
+    height: 1.3em;
+    width: auto;
+    min-width: 4px;
+    /* Apply mix-blend-mode if needed; usually not needed for high-quality PNGs */
+    /* mix-blend-mode: screen; */
+
+    /* The Blinking Animation */
+    animation: antigravity-cursor-blink 0.5s infinite;
+}
+
+@keyframes antigravity-cursor-blink {
+    0% {
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* For browsers that don't support translate3d well */
+@media (prefers-reduced-motion: reduce) {
+    .antigravity-cursor-wrapper {
+        transition: none;
+    }
+}

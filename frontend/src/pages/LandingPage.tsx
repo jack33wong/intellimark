@@ -1,4 +1,4 @@
-import React, { useState, useRef, MouseEvent } from 'react';
+import React, { useState, useRef, MouseEvent, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
@@ -9,6 +9,7 @@ import UserSegmentation from '../components/landing/UserSegmentation';
 import SupportedPapers from '../components/landing/SupportedPapers';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
+import AntigravityTypewriter from '../components/common/AntigravityTypewriter';
 import './LandingPage.css';
 
 const ImageMagnifier = ({
@@ -92,6 +93,11 @@ const ImageMagnifier = ({
     );
 };
 
+const HERO_SEGMENTS = [
+    { text: "AI Marking that reads your handwriting " },
+    { text: "Exactly like an Examiner", className: "hero-highlight-blue" }
+];
+
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
     const [userSegment, setUserSegment] = useState<'student' | 'tutor'>('student');
@@ -126,7 +132,10 @@ const LandingPage: React.FC = () => {
             <section className="landing-section landing-section-hero">
                 <div className="landing-hero-content">
 
-                    <h1 className="hero-main-title">AI Marking that reads your handwriting <br></br><span className="hero-highlight-blue">Exactly like an Examiner</span></h1>
+                    <AntigravityTypewriter
+                        className="hero-main-title"
+                        segments={HERO_SEGMENTS}
+                    />
                     <p className="hero-main-subtitle">Upload your handwritten maths papers and get an instant grade. Our AI follows your working out step-by-step to find the method marks a normal AI would miss.</p>
 
                     <div className="hero-cta-group">

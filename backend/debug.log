@@ -14,22 +14,1000 @@
 📚 Swagger UI available at /api-docs
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🚀 [MARKING] Controller started - Files: 13, Body Keys: model, aiMessageId
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.0917837, files: 1, bytes: 867837
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":259.13}
+💳 [CREDIT CHECK] Estimated cost: 0.535678, files: 13, bytes: 4706780
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":145.71}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
 
 [1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Single Image (1 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.2s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[INPUT TYPE] Detected: Multiple Images (13 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m1.6s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 1 pages...
-✅ [MAPPER] Map Pass complete in 1.67s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m5.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[MAPPER] Starting Map Pass for 13 pages...
+
+[35m[MAPPER DEBUG] Raw Response:[0m
+{
+  "pages": [
+    {
+      "questions": [],
+      "category": "frontPage"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "1"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "2",
+          "subQuestions": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "3"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "4"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "5",
+          "subQuestions": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "6"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "7"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "8"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "9",
+          "subQuestions": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "10"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "11",
+          "subQuestions": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "11",
+          "subQuestions": [
+            "c",
+            "d"
+          ]
+        }
+      ],
+      "category": "questionAnswer"
+    }
+  ]
+}
+✅ [MAPPER] Map Pass complete in 5.25s. Mapped 13 pages.
+
+[36m[CLASSIFICATION DEBUG] Q2 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "2",
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "Write 90 as a product of its prime factors.",
+              "studentWorkLines": [
+                {
+                  "text": "2x3²x5",
+                  "position": {
+                    "x": 57.29,
+                    "y": 37.5,
+                    "width": 14.79,
+                    "height": 4.28
+                  }
+                }
+              ]
+            },
+            {
+              "part": "b",
+              "text": "Write down the lowest common multiple (LCM) of A and B.",
+              "studentWorkLines": [
+                {
+                  "text": "36",
+                  "position": {
+                    "x": 57.29,
+                    "y": 67.14,
+                    "width": 4.58,
+                    "height": 4.28
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q3 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "3",
+          "text": "The number of hours, H, that some machines take to make 5000 bottles is given by\nH = \\frac{72}{n} where n is the number of machines.\nOn Monday, 6 machines made 5000 bottles.\nOn Tuesday, 9 machines made 5000 bottles.\nThe machines took more time to make the bottles on Monday than on Tuesday.\nHow much more time?",
+          "studentWorkLines": [
+            {
+              "text": "\\frac{72}{6} - \\frac{72}{9}",
+              "position": {
+                "x": 31.67,
+                "y": 26.89,
+                "width": 14.58,
+                "height": 10.0
+              }
+            },
+            {
+              "text": "4",
+              "position": {
+                "x": 74.38,
+                "y": 40.66,
+                "width": 3.12,
+                "height": 5.0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q1 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "1",
+          "text": "ABC is a right-angled triangle.\nWork out the length of CB.\nGive your answer correct to 3 significant figures.",
+          "hasStudentDrawing": false,
+          "studentWorkLines": [
+            {
+              "text": "\\sqrt{19^2-10^2} = \\sqrt{261}",
+              "position": {
+                "x": 30.21,
+                "y": 48.96,
+                "width": 40.0,
+                "height": 7.0
+              }
+            },
+            {
+              "text": "16.1",
+              "position": {
+                "x": 69.0,
+                "y": 55.0,
+                "width": 10.0,
+                "height": 5.0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q4 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "4",
+          "text": "There are only red discs, blue discs and yellow discs in a bag.\nThere are 24 yellow discs in the bag.\nMel is going to take at random a disc from the bag.\nThe probability that the disc will be yellow is 0.16\nthe number of red discs : the number of blue discs = 5:4\nWork out the number of red discs in the bag.",
+          "studentWorkLines": [
+            {
+              "text": "\\frac{24}{24+r+b} = 0.16",
+              "position": {
+                "x": 30.53,
+                "y": 27.96,
+                "width": 23.16,
+                "height": 10.09
+              }
+            },
+            {
+              "text": "24=0.16(24+r+\\frac{4}{5}r)",
+              "position": {
+                "x": 30.53,
+                "y": 38.4,
+                "width": 40.0,
+                "height": 7.08
+              }
+            },
+            {
+              "text": "b=\\frac{4}{5}r",
+              "position": {
+                "x": 59.05,
+                "y": 38.4,
+                "width": 12.89,
+                "height": 10.09
+              }
+            },
+            {
+              "text": "20.16=\\frac{9}{5}r x 0.16",
+              "position": {
+                "x": 30.53,
+                "y": 48.84,
+                "width": 31.84,
+                "height": 7.08
+              }
+            },
+            {
+              "text": "r=20.16x\\frac{5}{9}x\\frac{1}{0.16}",
+              "position": {
+                "x": 30.53,
+                "y": 58.31,
+                "width": 40.79,
+                "height": 7.08
+              }
+            },
+            {
+              "text": "r = 70",
+              "position": {
+                "x": 30.53,
+                "y": 67.75,
+                "width": 11.32,
+                "height": 7.08
+              }
+            },
+            {
+              "text": "70",
+              "position": {
+                "x": 72.89,
+                "y": 67.75,
+                "width": 6.32,
+                "height": 7.08
+              }
+            }
+          ],
+          "hasStudentDrawing": false
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q5 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "5",
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "Complete the table of values for y = x²-x",
+              "studentWorkLines": [
+                {
+                  "text": "2",
+                  "position": {
+                    "x": 32.5,
+                    "y": 22.5,
+                    "width": 3.0,
+                    "height": 4.0
+                  }
+                },
+                {
+                  "text": "0",
+                  "position": {
+                    "x": 45.5,
+                    "y": 22.5,
+                    "width": 3.0,
+                    "height": 4.0
+                  }
+                },
+                {
+                  "text": "0",
+                  "position": {
+                    "x": 58.5,
+                    "y": 22.5,
+                    "width": 3.0,
+                    "height": 4.0
+                  }
+                },
+                {
+                  "text": "2",
+                  "position": {
+                    "x": 71.5,
+                    "y": 22.5,
+                    "width": 3.0,
+                    "height": 4.0
+                  }
+                },
+                {
+                  "text": "6",
+                  "position": {
+                    "x": 84.5,
+                    "y": 22.5,
+                    "width": 3.0,
+                    "height": 4.0
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            },
+            {
+              "part": "b",
+              "text": "On the grid, draw the graph of y = x²-x for values of x from -2 to 3",
+              "hasStudentDrawing": true,
+              "studentDrawingPosition": {
+                "x": 20,
+                "y": 33,
+                "width": 60,
+                "height": 40
+              },
+              "studentWorkLines": []
+            },
+            {
+              "part": "c",
+              "text": "Use your graph to find estimates for the solutions of the equation x²-x=4",
+              "studentWorkLines": [
+                {
+                  "text": "-1.55, 2.6",
+                  "position": {
+                    "x": 40.0,
+                    "y": 80.0,
+                    "width": 25.0,
+                    "height": 5.0
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            }
+          ],
+          "text": "Complete the table of values for y = x²-x\nOn the grid, draw the graph of y = x²-x for values of x from -2 to 3\nUse your graph to find estimates for the solutions of the equation x²-x=4",
+          "hasStudentDrawing": true,
+          "studentWorkLines": [],
+          "studentDrawingPosition": {
+            "x": 20,
+            "y": 33,
+            "width": 60,
+            "height": 40
+          }
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q8 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "8",
+          "text": "A playground is in the shape of a right-angled triangle.\nDan makes a scale drawing of the playground.\nHe uses a scale of 1 cm represents 5m\nThe area of the playground on the scale drawing is 28 cm²\nThe real length of QR is 40m\nWork out the real length of PQ.",
+          "studentWorkLines": [
+            {
+              "text": "Area=\\frac{1}{2}bh",
+              "position": {
+                "x": 38.02,
+                "y": 40.87,
+                "width": 17.4,
+                "height": 5.26
+              }
+            },
+            {
+              "text": "28cm³ = \\frac{1}{2}x40xPQ",
+              "position": {
+                "x": 38.02,
+                "y": 48.15,
+                "width": 34.06,
+                "height": 5.26
+              }
+            },
+            {
+              "text": "28x25 = \\frac{1}{2}x40xPQ",
+              "position": {
+                "x": 38.02,
+                "y": 55.43,
+                "width": 34.06,
+                "height": 5.26
+              }
+            },
+            {
+              "text": "PQ=3Sm",
+              "position": {
+                "x": 38.02,
+                "y": 62.71,
+                "width": 17.4,
+                "height": 5.26
+              }
+            },
+            {
+              "text": "35",
+              "position": {
+                "x": 70.31,
+                "y": 68.9,
+                "width": 5.31,
+                "height": 5.26
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q6 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "6",
+          "text": "Andy, Luke and Tina share some sweets in the ratio 1:6:14\nTina gives \\frac{3}{7} of her sweets to Andy.\nTina then gives 12\\frac{1}{2}% of the rest of her sweets to Luke.\nTina says,\n\"Now all three of us have the same number of sweets.\"\nIs Tina correct?\nYou must show how you get your answer.",
+          "studentWorkLines": [
+            {
+              "text": "Andy: Luke: Tina",
+              "position": {
+                "x": 33.0,
+                "y": 33.0,
+                "width": 30.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "1 : 6 : 14 -14x\\frac{3}{7}",
+              "position": {
+                "x": 33.0,
+                "y": 38.0,
+                "width": 40.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "+14x\\frac{3}{7}",
+              "position": {
+                "x": 23.0,
+                "y": 38.0,
+                "width": 15.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "7 : 6 : 8",
+              "position": {
+                "x": 33.0,
+                "y": 44.0,
+                "width": 20.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "+8x0.125 - 8x0.125",
+              "position": {
+                "x": 38.0,
+                "y": 49.0,
+                "width": 30.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "Now 7 : 7 : 7",
+              "position": {
+                "x": 33.0,
+                "y": 54.0,
+                "width": 30.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "1 : 1 : 1",
+              "position": {
+                "x": 33.0,
+                "y": 60.0,
+                "width": 20.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "So they have the same number of sweet.",
+              "position": {
+                "x": 33.0,
+                "y": 67.0,
+                "width": 50.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "So Tim is correct",
+              "position": {
+                "x": 33.0,
+                "y": 72.0,
+                "width": 30.0,
+                "height": 5.0
+              }
+            }
+          ],
+          "subQuestions": []
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q9 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "9",
+          "text": "A number N is rounded to 2 significant figures.\nThe result is 7.3",
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "Write down the least possible value of N.",
+              "studentWorkLines": [
+                {
+                  "text": "7.25",
+                  "position": {
+                    "x": 74.51,
+                    "y": 15.48,
+                    "width": 6.09,
+                    "height": 5.0
+                  }
+                }
+              ]
+            },
+            {
+              "part": "b",
+              "text": "Leila says,\n\"The value of N cannot be greater than 7.349 because 7.350 would round up to 7.4\"\nIs Leila correct?\nYou must give a reason for your answer.",
+              "studentWorkLines": [
+                {
+                  "text": "NO, 7.3499 is greater thon 7.349 but wald",
+                  "position": {
+                    "x": 15.48,
+                    "y": 37.1,
+                    "width": 62.0,
+                    "height": 5.0
+                  }
+                },
+                {
+                  "text": "Still round to 7.4.",
+                  "position": {
+                    "x": 15.48,
+                    "y": 41.53,
+                    "width": 27.0,
+                    "height": 5.0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q7 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "7",
+          "text": "ABCD is a quadrilateral.\nAll angles are measured in degrees.\nShow that ABCD is a trapezium.",
+          "hasStudentDrawing": false,
+          "studentWorkLines": [
+            {
+              "text": "4x+15 +4x+8 + 2x +15 +3x-3=360",
+              "position": {
+                "x": 14.5,
+                "y": 31.6,
+                "width": 60.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "13x=325",
+              "position": {
+                "x": 39.5,
+                "y": 38.3,
+                "width": 20.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "x=25°",
+              "position": {
+                "x": 40.0,
+                "y": 44.3,
+                "width": 15.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "Angle ABC + angle BAD = 4x25 +15+2x25 +15",
+              "position": {
+                "x": 14.5,
+                "y": 51.6,
+                "width": 65.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "=180°",
+              "position": {
+                "x": 40.0,
+                "y": 56.6,
+                "width": 15.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "Angle BCD + angle ADC = 4x25+8 +3x25-3",
+              "position": {
+                "x": 14.5,
+                "y": 63.3,
+                "width": 65.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "= 180°",
+              "position": {
+                "x": 40.0,
+                "y": 68.3,
+                "width": 15.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "So BC is parallel to AD and ABCD is",
+              "position": {
+                "x": 14.5,
+                "y": 75.0,
+                "width": 65.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "tropezium.",
+              "position": {
+                "x": 14.5,
+                "y": 80.0,
+                "width": 25.0,
+                "height": 5.0
+              }
+            }
+          ],
+          "subQuestions": []
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q10 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "10",
+          "text": "The diagram shows two right-angled triangles.\nAll lengths are measured in centimetres.\nGiven that\nsina = tan b\nwork out the value of x.",
+          "studentWorkLines": [
+            {
+              "text": "Sina= \\\\frac{7-2x}{9}",
+              "position": {
+                "x": 42.5,
+                "y": 34.4,
+                "width": 16.3,
+                "height": 4.0
+              }
+            },
+            {
+              "text": "tonb= \\\\frac{1+x}{4}",
+              "position": {
+                "x": 42.5,
+                "y": 38.7,
+                "width": 15.0,
+                "height": 4.0
+              }
+            },
+            {
+              "text": "\\\\frac{7-2x}{9} = \\\\frac{1+x}{4}",
+              "position": {
+                "x": 42.5,
+                "y": 43.9,
+                "width": 15.8,
+                "height": 4.0
+              }
+            },
+            {
+              "text": "28-8x = 9+9x",
+              "position": {
+                "x": 42.5,
+                "y": 49.1,
+                "width": 16.0,
+                "height": 4.0
+              }
+            },
+            {
+              "text": "19 = 17x",
+              "position": {
+                "x": 42.5,
+                "y": 53.4,
+                "width": 10.0,
+                "height": 4.0
+              }
+            },
+            {
+              "text": "x= \\\\frac{19}{17}",
+              "position": {
+                "x": 42.5,
+                "y": 57.7,
+                "width": 8.8,
+                "height": 4.0
+              }
+            },
+            {
+              "text": "x = \\\\frac{19}{17}",
+              "position": {
+                "x": 69.0,
+                "y": 52.8,
+                "width": 10.0,
+                "height": 3.0
+              }
+            }
+          ],
+          "subQuestions": []
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q11 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "11",
+          "text": "The frequency table gives information about the weights of 60 parcels.",
+          "hasStudentDrawing": false,
+          "studentWorkLines": [],
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "Complete the cumulative frequency table.",
+              "studentWorkLines": [
+                {
+                  "text": "28",
+                  "position": {
+                    "x": 49.0,
+                    "y": 38.0,
+                    "width": 4.0,
+                    "height": 3.0
+                  }
+                },
+                {
+                  "text": "43",
+                  "position": {
+                    "x": 49.0,
+                    "y": 45.0,
+                    "width": 4.0,
+                    "height": 3.0
+                  }
+                },
+                {
+                  "text": "54",
+                  "position": {
+                    "x": 49.0,
+                    "y": 52.0,
+                    "width": 4.0,
+                    "height": 3.0
+                  }
+                },
+                {
+                  "text": "60",
+                  "position": {
+                    "x": 49.0,
+                    "y": 59.0,
+                    "width": 4.0,
+                    "height": 3.0
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            },
+            {
+              "part": "b",
+              "text": "On the grid opposite, draw a cumulative frequency graph for your table.",
+              "studentWorkLines": [],
+              "hasStudentDrawing": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "11",
+          "text": "The frequency table gives information about the weights of 60 parcels.",
+          "hasStudentDrawing": true,
+          "studentDrawingPosition": {
+            "x": 15.0,
+            "y": 10.0,
+            "width": 65.0,
+            "height": 45.0
+          },
+          "studentWorkLines": [],
+          "subQuestions": [
+            {
+              "part": "c",
+              "text": "Use your graph to find an estimate for the interquartile range.",
+              "studentWorkLines": [
+                {
+                  "text": "6.4-3",
+                  "position": {
+                    "x": 32.0,
+                    "y": 70.0,
+                    "width": 10.0,
+                    "height": 4.0
+                  }
+                },
+                {
+                  "text": "3.4",
+                  "position": {
+                    "x": 65.0,
+                    "y": 70.0,
+                    "width": 5.0,
+                    "height": 4.0
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            },
+            {
+              "part": "d",
+              "text": "Use your graph to find an estimate for the number of these parcels with a weight greater than 7.4 kg.",
+              "studentWorkLines": [
+                {
+                  "text": "60-51",
+                  "position": {
+                    "x": 48.0,
+                    "y": 85.0,
+                    "width": 10.0,
+                    "height": 4.0
+                  }
+                },
+                {
+                  "text": "9",
+                  "position": {
+                    "x": 65.0,
+                    "y": 85.0,
+                    "width": 2.0,
+                    "height": 4.0
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m18.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🚀 [OVERRIDE] 90% Rule Triggered: 12/12 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -39,51 +1017,187 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m5.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m18.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.1s[0m ([32m[1mMATHPIX[0m)
-[SIMILARITY OVERRIDE] 98% because MatchRate=0.82 in Keys=[here,venn,diagram,number,chosen,random,universal,probability,fraction,numbers,101311141617]
-   ✅ Matched Part: 4a (1 marks, Max: 1)
-   ✅ Matched Part: 4b (2 marks, Max: 2)
-   📊 Final Map Keys: 4a, 4b
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m6.6s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.75
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.80 in Keys=[root,times,correct,significant,figures]
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.67
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.67
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.75
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.67
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.60
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.75
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.86 in Keys=[lowest,common,multiple,product,prime,factors,2x3x5]
+   🎯 [ORCHESTRATOR] Overriding Part 2a Total: 3 -> 2
+   🎯 [ORCHESTRATOR] Overriding Part 2b Total: 3 -> 1
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[number,hours,some,machines,take,make,5000,bottles,given,fraction,where,monday,made,tuesday,took,more,time,than,much]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[there,only,discs,blue,yellow,going,take,random,disc,probability,will,number]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[andy,luke,tina,share,some,sweets,ratio,gives,fraction,then,rest,says,three,have,same,number,correct,must]
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.67
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.63
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.71
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[number,rounded,significant,figures,result,least,possible,leila,says,cannot,greater,than,7349,because,7350,would,round,correct,must]
+   🎯 [ORCHESTRATOR] Overriding Part 9a Total: 2 -> 1
+   🎯 [ORCHESTRATOR] Overriding Part 9b Total: 2 -> 1
+[DETECTION] 🏆 Relative Winner Accepted: 0.777 vs Runner-up 0.613
+[SIMILARITY OVERRIDE] 98% because MatchRate=0.89 in Keys=[frequency,gives,information,about,weights,parcels,estimate,number,these,weight,greater,than,6051,opposite,cumulative,drawing,interquartile,range]
+   🎯 [ORCHESTRATOR] Overriding Part 11a Total: 7 -> 1
+   🎯 [ORCHESTRATOR] Overriding Part 11b Total: 7 -> 2
+   🎯 [ORCHESTRATOR] Overriding Part 11c Total: 7 -> 2
+   🎯 [ORCHESTRATOR] Overriding Part 11d Total: 7 -> 2
+[SIMILARITY OVERRIDE] 85% because MatchRate=0.75
+   ✅ Matched Part: 1 (Truth Max: 2)
+   📊 Final Map Keys: 1
+   ✅ Matched Part: 2a (Truth Max: 2)
+   ✅ Matched Part: 2b (Truth Max: 1)
+   📊 Final Map Keys: 2a, 2b
+   ✅ Matched Part: 3 (Truth Max: 2)
+   📊 Final Map Keys: 3
+   ✅ Matched Part: 4 (Truth Max: 4)
+   📊 Final Map Keys: 4
+   ✅ Matched Part: 5a (Truth Max: 2)
+   ✅ Matched Part: 5b (Truth Max: 2)
+   ✅ Matched Part: 5c (Truth Max: 2)
+   📊 Final Map Keys: 5a, 5b, 5c
+   ✅ Matched Part: 6 (Truth Max: 4)
+   📊 Final Map Keys: 6
+   ✅ Matched Part: 7 (Truth Max: 4)
+   ✅ Matched Part: 7alt (Truth Max: 4)
+   📊 Final Map Keys: 7, 7alt
+   ✅ Matched Part: 8 (Truth Max: 3)
+   📊 Final Map Keys: 8
+   ✅ Matched Part: 9a (Truth Max: 1)
+   ✅ Matched Part: 9b (Truth Max: 1)
+   📊 Final Map Keys: 9a, 9b
+   ✅ Matched Part: 10 (Truth Max: 3)
+   📊 Final Map Keys: 10
+   ✅ Matched Part: 11a (Truth Max: 1)
+   ✅ Matched Part: 11b (Truth Max: 2)
+   ✅ Matched Part: 11c (Truth Max: 2)
+   ✅ Matched Part: 11d (Truth Max: 2)
+   📊 Final Map Keys: 11a, 11b, 11c, 11d
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m5.4s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔍 [DETECTION CONTEXT]
-   Strategy: Global Search
-   Pool Size: 108 papers, 2709 total question candidates
+   Strategy: Pearson Edexcel 1MA1/2H June 2024 Higher Tier
+   Pool Size: 1 papers, 22 total question candidates
 ------------------------------------------------------------------------------------------------------------------------------------
 
 📋 [DETECTION AUDIT REPORT]
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 4    | Here is a Venn diagram.                       | Edexcel GCSE 1MA1/1H June 2024 Q4                  | 0.891 | [32m✅ SUCCESS[0m      |
-| 4a   | Here is a Venn diagram.  Write down the nu... | Edexcel GCSE 1MA1/1H June 2024 Q4                  | 0.891 | [32m✅ SUCCESS[0m      |
-| 4b   | Here is a Venn diagram.  A number is chose... | Edexcel GCSE 1MA1/1H June 2024 Q4                  | 0.891 | [32m✅ SUCCESS[0m      |
+| 1    | ABC is a right-angled triangle. Work out t... | Edexcel GCSE 1MA1/2H June 2024 Q1                  | 0.689 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      ○ [0.689] 1MA1/2H Q1                     | Txt:0.85 Num:0.43 Str:0.50 Sem:PASS
+      ○ [0.479] 1MA1/2H Q12                    | Txt:0.43 Num:0.57 Str:0.50 Sem:PASS
+      ○ [0.397] 1MA1/2H Q10                    | Txt:0.45 Num:0.25 Str:0.50 Sem:PASS
+| 2a   | Write 90 as a product of its prime factors... | Edexcel GCSE 1MA1/2H June 2024 Q2                  | 0.848 | [32m✅ SUCCESS[0m      |
+| 2b   | Write down the lowest common multiple (LCM... | Edexcel GCSE 1MA1/2H June 2024 Q2                  | 0.848 | [32m✅ SUCCESS[0m      |
+| 3    | The number of hours, H, that some machines... | Edexcel GCSE 1MA1/2H June 2024 Q3                  | 0.968 | [32m✅ SUCCESS[0m      |
+| 4    | There are only red discs, blue discs and y... | Edexcel GCSE 1MA1/2H June 2024 Q4                  | 0.921 | [32m✅ SUCCESS[0m      |
+| 5    | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.785 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.785] 1MA1/2H Q5                     | Txt:0.97 Num:0.20 Str:1.00 Sem:PASS
+| 5a   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.785 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.785] 1MA1/2H Q5                     | Txt:0.97 Num:0.20 Str:1.00 Sem:PASS
+| 5b   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.785 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.785] 1MA1/2H Q5                     | Txt:0.97 Num:0.20 Str:1.00 Sem:PASS
+| 5c   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.785 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.785] 1MA1/2H Q5                     | Txt:0.97 Num:0.20 Str:1.00 Sem:PASS
+| 6    | Andy, Luke and Tina share some sweets in t... | Edexcel GCSE 1MA1/2H June 2024 Q6                  | 0.949 | [32m✅ SUCCESS[0m      |
+| 7    | ABCD is a quadrilateral. All angles are me... | Edexcel GCSE 1MA1/2H June 2024 Q7                  | 0.836 | [32m✅ SUCCESS[0m      |
+| 8    | A playground is in the shape of a right-an... | Edexcel GCSE 1MA1/2H June 2024 Q8                  | 0.888 | [32m✅ SUCCESS[0m      |
+| 9    | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.946 | [32m✅ SUCCESS[0m      |
+| 9a   | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.946 | [32m✅ SUCCESS[0m      |
+| 9b   | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.946 | [32m✅ SUCCESS[0m      |
+| 10   | The diagram shows two right-angled triangl... | Edexcel GCSE 1MA1/2H June 2024 Q10                 | 0.777 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.777] 1MA1/2H Q10                    | Txt:0.81 Num:0.45 Str:1.00 Sem:PASS
+      ○ [0.613] 1MA1/2H Q10                    | Txt:0.33 Num:0.65 Str:1.00 Sem:PASS
+      ○ [0.513] 8300/3H Q10                    | Txt:0.31 Num:0.30 Str:1.00 Sem:PASS
+| 11   | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.824 | [32m✅ SUCCESS[0m      |
+| 11a  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.824 | [32m✅ SUCCESS[0m      |
+| 11b  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.824 | [32m✅ SUCCESS[0m      |
+| 11c  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.824 | [32m✅ SUCCESS[0m      |
+| 11d  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.824 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
 📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 3
-   Detected: 3/3
-   Not detected: 0
+   Total questions: 21
+   Detected: 16/21
+   Not detected: 5
    [HINT] Hint Used: "Global Search"
    [HINT] Matched Papers: 108
-🔍 [MERGE-DEBUG] attempting to merge classification results into 1 pages
-   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 1)
+[DRAWING] Q5: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q5: Will pass image to Marking AI
+[DRAWING] Q11: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q11: Will pass image to Marking AI
+[DRAWING] Q11: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q11: Will pass image to Marking AI
+🔍 [MERGE-DEBUG] attempting to merge classification results into 13 pages
+   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 0)
+   ✅ [MERGE-DEBUG] Page 1 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 2 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 3 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 4 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 5 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 6 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 7 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 8 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 9 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 10 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 11 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 12 merged with 1 results (Total Qs: 1)
 🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
-   🏛️ [COORD-DEBUG] Task Q4: Injected 1 siblings into pageContext
-✅ createMarkingTasksFromClassification completed, created 1 marking task(s)
+[ZONE-TVC] Deterministic Order (Post-Absorb): 1(P1@866) -> 2a(P2@200) -> 2b(P2@1221) -> 3(P3@167) -> 4(P4@203) -> 5(P5@172) -> 5a(P11@687) -> 5b(P11@1253) -> 5c(P12@1279) -> 11c(P12@1592)
+[ZONE-TVC] First on P1: Snapping 1 start to 0
+[ZONE-TVC] First on P2: Snapping 2a start to 0
+[ZONE-TVC] First on P3: Snapping 3 start to 0
+[ZONE-TVC] First on P4: Snapping 4 start to 0
+[ZONE-TVC] First on P5: Snapping 5 start to 0
+[ZONE-TVC] First on P11: Snapping 5a start to 0
+[ZONE-TVC] First on P12: Snapping 5c start to 0
+[ZONE-UPSTREAM] Filling full gap page: 5 for P6
+[ZONE-UPSTREAM] Filling full gap page: 5 for P7
+[ZONE-UPSTREAM] Filling full gap page: 5 for P8
+[ZONE-UPSTREAM] Filling full gap page: 5 for P9
+[ZONE-UPSTREAM] Filling full gap page: 5 for P10
+✅ createMarkingTasksFromClassification completed, created 11 marking task(s)
 [1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
-   🏗️ [ZONE-STRATEGY] Using Coordinator Context (1 siblings)
-   🌍 [ZONE-GLOBAL] Context for P0: 4, 4a, 4b
-[ZONE-TVC] Deterministic Order: 4a(P0@667) -> 4b(P0@1074)
-[ZONE-TVC] First on P0: Snapping 4a start to 0
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q1 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q2 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q3 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
 [33m[POS-DEBUG] ⚠️ Missing Position for Q4 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q5 -> (0,0).[0m
 [33m   - ClassBlocks: 0[0m
 [33m   - QuestionDetection: true[0m
 
@@ -93,28 +1207,14 @@ SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
 ------------------------------------------------------------------
 USER PROMPT:
  
-# MARKING TASK: Question 4
+# MARKING TASK: Question 2
 
 ## QUESTION TEXT
-**[4]**: Here is a Venn diagram. [A Venn diagram shows a universal set $\mathcal{E}$ containing two overlapping circles, P and Q. Circle P only contains 12 and 15. The intersection, $P \cap Q$, contains 18. Circle Q only contains 10 and 14. The area outside both circles contains 11, 13, 16, 17.] Write down the numbers that are in set P' A number is chosen at random from the universal set, $\mathcal{E}$. Find the probability that this number is in the set $P\cup Q$.
+**[2]**: Write 90 as a product of its prime factors. $A=2^{2}\times3$ and $B=2\times3^{2}$. Write down the lowest common multiple (LCM) of A and B.
 
-**[4a]**: Write down the numbers that are in set P'
+**[2a]**: Write 90 as a product of its prime factors.
 
-**[4b]**: A number is chosen at random from the universal set, $\mathcal{E}$. Find the probability that this number is in the set $P\cup Q$.
-
-
-## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
-## GENERAL MARKING GUIDANCE
-> [!IMPORTANT]
-> **Precedence:** Specific notes for individual questions take precedence over this general guidance.
-
-### General Principles
-- All candidates must receive the same treatment (mark the last candidate the same way as the first).
-- Mark schemes should be applied positively; all available marks are designed to be awarded.
-- Examiners should be prepared to award zero marks if the response is not worthy of credit.
-- Where judgement is required, mark schemes provide the principles for awards, and guidance/exemplification is not exhaustive.
-- If you are in doubt about applying the mark scheme, send the response for review.
-
+**[2b]**: $A=2^{2}\times3$ and $B=2\times3^{2}$. Write down the lowest common multiple (LCM) of A and B.
 
 
 
@@ -128,12 +1228,12 @@ USER PROMPT:
 >    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
 
 [OFFICIAL SCHEME]
-[4a] [MAX SCORE: 1]
-- B1: 10, 11, 13, 14, 16, 17
+[2a] [MAX SCORE: 2]
+- M1: for a complete method to find prime factors; could be shown on a complete factor tree with no more than one error or by division by prime factors with no more than one error or for 2, 3, 3, 5
+- A1: for $2 \times 3 \times 3 \times 5$ oe
 
-[4b] [MAX SCORE: 2]
-- M1: for identification of 10, 12, 14, 15, 18 OR for $\frac{a}{9}$ where $1 \le a \le 8$, a an integer, OR for $\frac{5}{b}$ where $b > 5$, b an integer, OR for incorrect form, eg 5: 9
-- A1: oe
+[2b] [MAX SCORE: 1]
+- B1: for 36
 
 
 > [!IMPORTANT]
@@ -145,27 +1245,25 @@ USER PROMPT:
 ## STUDENT WORK (STRUCTURED)
 
 [SUB-QUESTION a]
-[ID: p0_q4_line_1] 10,13,11,14,16,17
+[ID: p2_q2_line_1] 2x3²x5
 
 [SUB-QUESTION b]
-[ID: p0_q4_line_2] \frac{5}{9}
-[ID: p0_q4_line_3] 5/9
+[ID: p2_q2_line_2] 36
 
 
  
 ## RAW OCR BLOCKS
 Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
 
-[p0_ocr_0]: "4 Here is a Venn diagram."
-[p0_ocr_1]: "(a) Write down the numbers that are in set \( P^{\prime} \) [PRINTED_INSTRUCTION]"
-[p0_ocr_2]: "10,13,11,14,16,17"
-[p0_ocr_3]: "(1)"
-[p0_ocr_4]: "A number is chosen at random from the universal set, \( \mathscr{E} \)"
-[p0_ocr_5]: "(b) Find the probability that this number is in the set \( P \cup Q \)"
-[p0_ocr_6]: "\frac{5}{9}"
-[p0_ocr_7]: "S"
-[p0_ocr_8]: "(2)"
-[p0_ocr_9]: "6"
+[p2_ocr_0]: "2 (a) Write 90 as a product of its prime factors."
+[p2_ocr_1]: "2 \times 3^{2} \times 5"
+[p2_ocr_2]: "(2)"
+[p2_ocr_3]: "A=2^{2} \times 3 [PRINTED_INSTRUCTION]"
+[p2_ocr_4]: "B=2 \times 3^{2} [PRINTED_INSTRUCTION]"
+[p2_ocr_5]: "(b) Write down the lowest common multiple (LCM) of \( A \) and \( B \). [PRINTED_INSTRUCTION]"
+[p2_ocr_6]: "36"
+[p2_ocr_7]: "(1)"
+[p2_ocr_8]: "3"
 
 --------------------------------------------------
 FINAL QUALITY CHECK (DO NOT IGNORE):
@@ -176,138 +1274,2736 @@ FINAL QUALITY CHECK (DO NOT IGNORE):
 
 ==================================================================
 
-[DEBUG-INSTRUCTION] structuredQuestionText len: 666
-[DEBUG-INSTRUCTION] finalPromptText len: 666
-[DEBUG-INSTRUCTION] finalPromptText PREVIEW: **[4]**: Here is a Venn diagram. [A Venn diagram shows a universal set $\mathcal{E}$ containing two 
-[DEBUG-INSTRUCTION] Returning result with promptQuestionText defined? true
-[DEBUG-EXECUTOR] markingResult.promptQuestionText: undefined
-[DEBUG-EXECUTOR] markingResult.schemeTextForPrompt: > [INSTRUCTION]: You are the CHIEF EXAMINER.
-> 1. **MATCH**: Match the student's work strictly to th
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m4.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m4.3s[0m ([32m[1mAI-MARKING[0m)
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 3
+
+## QUESTION TEXT
+**[3]**: The number of hours, H, that some machines take to make 5000 bottles is given by $H=\frac{72}{n}$ where n is the number of machines. On Monday, 6 machines made 5000 bottles. On Tuesday, 9 machines made 5000 bottles. The machines took more time to make the bottles on Monday than on Tuesday. How much more time?
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[3] [MAX SCORE: 2]
+- M1: for method to use formula, eg $72 \div 6 (= 12)$ or $72 \div 9 (= 8)$
+- A1: 4
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p3_q3_line_2] 4
+[ID: p3_q3_line_1] \frac{72}{6} - \frac{72}{9}
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p3_ocr_0]: "3 The number of hours, \( H \), that some machines take to make 5000 bottles is given by"
+[p3_ocr_1]: "H=\frac{72}{n} \quad \text { where } n \text { is the number of machines. }"
+[p3_ocr_2]: "On Monday, 6 machines made 5000 bottles. [PRINTED_INSTRUCTION]"
+[p3_ocr_3]: "On Tuesday, 9 machines made 5000 bottles. [PRINTED_INSTRUCTION]"
+[p3_ocr_4]: "The machines took more time to make the bottles on Monday than on Tuesday. [PRINTED_INSTRUCTION]"
+[p3_ocr_5]: "How much more time? [PRINTED_INSTRUCTION]"
+[p3_ocr_6]: "\frac{72}{6}-\frac{72}{9}"
+[p3_ocr_7]: "4"
+[p3_ocr_8]: "hours"
+[p3_ocr_9]: "4"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 4
+
+## QUESTION TEXT
+**[4]**: There are only red discs, blue discs and yellow discs in a bag. There are 24 yellow discs in the bag. Mel is going to take at random a disc from the bag. The probability that the disc will be yellow is 0.16. The number of red discs : the number of blue discs = 5 : 4. Work out the number of red discs in the bag.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[4] [MAX SCORE: 4]
+- P1: for process to find number of discs in the bag, eg $24 \div 0.16 (= 150)$ or for process to find the total probability of red or blue, eg $1 - 0.16 (= 0.84$ or $\frac{21}{25}$ oe)
+- P1: for process to work with the ratio eg $([total] - 24) \div (5+4) (= 14)$ or for a process to find the probability of red, eg $[probability] \div (5+4) \times 5 (= 0.46...$ or $\frac{7}{15})$
+- P1: for a complete correct process to find the number of red discs eg "14" $\times 5$ or "0.46..." $\times 24 \div 0.16$ or an answer of $\frac{70}{150}$
+- A1: for 70
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p4_q4_line_7] 70
+[ID: p4_q4_line_6] r = 70
+[ID: p4_q4_line_5] r=20.16x\frac{5}{9}x\frac{1}{0.16}
+[ID: p4_q4_line_4] 20.16=\frac{9}{5}r x 0.16
+[ID: p4_q4_line_3] b=\frac{4}{5}r
+[ID: p4_q4_line_2] 24=0.16(24+r+\frac{4}{5}r)
+[ID: p4_q4_line_1] \frac{24}{24+r+b} = 0.16
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p4_ocr_0]: "4 There are only red discs, blue discs and yellow discs in a bag."
+[p4_ocr_1]: "There are 24 yellow discs in the bag. [PRINTED_INSTRUCTION]"
+[p4_ocr_2]: "Mel is going to take at random a disc from the bag. [PRINTED_INSTRUCTION]"
+[p4_ocr_3]: "The probability that the disc will be yellow is 0.16 [PRINTED_INSTRUCTION]"
+[p4_ocr_4]: "the number of red discs : the number of blue discs \( =5: 4 \) [PRINTED_INSTRUCTION]"
+[p4_ocr_5]: "Work out the number of red discs in the bag. [PRINTED_INSTRUCTION]"
+[p4_ocr_6]: "\frac{24}{24+r+b}  =0.16"
+[p4_ocr_7]: "24  =0.16\left(24+r+\frac{4}{5} r\right) \quad b=-\frac{4}{5} \sigma"
+[p4_ocr_9]: "\( b=4 \frac{4}{5} \sigma \)"
+[p4_ocr_8]: "20.16  =\frac{9}{5} \sigma \times 0.16"
+[p4_ocr_10]: "r  =20.16 \times \frac{5}{9} \times \frac{1}{0.16}"
+[p4_ocr_11]: "r  =70"
+[p4_ocr_12]: "70"
+[p4_ocr_13]: "5"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 1
+
+## QUESTION TEXT
+**[1]**: ABC is a right-angled triangle. Work out the length of CB. Give your answer correct to 3 significant figures. [A diagram shows a right-angled triangle ABC with the right angle at B. The hypotenuse AC is 19 cm and the side AB is 10 cm.]
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[1] [MAX SCORE: 2]
+- M1: for a correct first step to find BC, eg $19^2 = 10^2 + BC^2$ or $19^2 - 10^2 (= 261)$ or $\sqrt{19^2 - 10^2}$ or $\sqrt{261}$ or $3\sqrt{29}$
+- A1: for answer in the range 16.1 to 16.2
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p1_q1_line_2] 16.1
+[ID: p1_q1_line_1] \sqrt{19^2-10^2} = \sqrt{261}
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p1_ocr_0]: "Answer ALL questions."
+[p1_ocr_1]: "Write your answers in the spaces provided."
+[p1_ocr_2]: "You must write down all the stages in your working."
+[p1_ocr_3]: "\( 1 A B C \) is a right-angled triangle."
+[p1_ocr_4]: "Work out the length of \( C B \). [PRINTED_INSTRUCTION]"
+[p1_ocr_5]: "Give your answer correct to 3 significant figures. [PRINTED_INSTRUCTION]"
+[p1_ocr_6]: "\sqrt{19^{2}-10^{2}}=3 \sqrt{29}"
+[p1_ocr_8]: "D"
+[p1_ocr_9]: "10."
+[p1_ocr_10]: "cm"
+[p1_ocr_11]: "2"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 5
+
+## QUESTION TEXT
+**[5]**: Complete the table of values for $y=x^{2}-x$. [A table with x values -2, -1, 0, 1, 2, 3. y values 6, blank, 0, blank, 2, blank.] On the grid, draw the graph of $y=x^{2}-x$ for values of x from -2 to 3. [A coordinate grid is provided.] Use your graph to find estimates for the solutions of the equation $x^{2}-x=4$
+
+**[5a]**: Complete the table of values for $y=x^{2}-x$. [A table with x values -2, -1, 0, 1, 2, 3. y values 6, blank, 0, blank, 2, blank.]
+
+**[5b]**: On the grid, draw the graph of $y=x^{2}-x$ for values of x from -2 to 3. [A coordinate grid is provided.]
+
+**[5c]**: Use your graph to find estimates for the solutions of the equation $x^{2}-x=4$
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[5a] [MAX SCORE: 2]
+- B2: for all 3 values correct
+
+[5b] [MAX SCORE: 2]
+- B2: for a fully correct graph
+
+[5c] [MAX SCORE: 2]
+- M1: for drawing the line $y=4$ or reading off intersections where $y=4$ or one correct solution or both solutions given as coordinates, eg (-1.6, 2.6) or (-1.6, 4) and (2.6, 4)
+- A1: for answers in the range -1.7 to -1.5 and 2.5 to 2.7 or ft their graph with at least 2 solutions
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: visual_drawing_5_2] [DRAWING]
+
+[SUB-QUESTION a]
+[ID: p5_q5_line_2] 2
+[ID: p5_q5_line_3] 0
+[ID: p5_q5_line_4] 0
+[ID: p5_q5_line_5] 2
+[ID: p5_q5_line_6] 6
+
+[SUB-QUESTION b]
+[ID: visual_drawing_5_8] [DRAWING]
+
+[SUB-QUESTION c]
+[ID: p5_q5_line_8] -1.55, 2.6
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p5_ocr_0]: "5 (a) Complete the table of values for \( y=x^{2}-x \) [PRINTED_INSTRUCTION]"
+[p5_ocr_1]: "\begin{tabular}{|c|c|c|c|c|c|c|} \hline\( x \) & -2 & -1 & 0 & 1 & 2 & 3"
+[p5_ocr_2]: "\hline\( y \) & 6 & 2 & 0 & 0 & 2 & 6"
+[p5_ocr_3]: "\hline \end{tabular}"
+[p5_ocr_4]: "(2)"
+[p5_ocr_5]: "(b) On the grid, draw the graph of \( y=x^{2}-x \) for values of \( x \) from -2 to 3"
+[p5_ocr_6]: "(2)"
+[p5_ocr_7]: "(c) Use your graph to find estimates for the solutions of the equation \( x^{2}-x=4 \)"
+[p5_ocr_8]: "\( -1.55,2106 \)"
+[p5_ocr_9]: "(2)"
+[p5_ocr_10]: "6"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 2,
+    "raw_correct_steps_found": 2,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p3_q3_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p3_ocr_6",
+      "reasoning": "The student has shown the correct method to use the formula by subtracting the time taken on Tuesday from the time taken on Monday, using the given formula.",
+      "subQuestion": "3",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p3_q3_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p3_ocr_7",
+      "reasoning": "The student has correctly calculated the difference in time as 4 hours.",
+      "subQuestion": "3",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 2,
+    "awardedMarks": 2,
+    "scoreText": "2/2"
+  }
+}
+```
+========================================
+
+ ✅ [ZONE-OK] Q3: Footprint at Y=25.8% (Range 22.4-29.2%) is safe within 0.0-105.0%
+ ✅ [ZONE-OK] Q3: Footprint at Y=47.1% (Range 45.4-48.8%) is safe within 0.0-105.0%
+ 💎 [BUDGET-CHECK] Q3: Max Marks = 2. Items to Process: 2
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q6 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 6
+
+## QUESTION TEXT
+**[6]**: Andy, Luke and Tina share some sweets in the ratio 1 : 6 : 14. Tina gives $\frac{3}{7}$ of her sweets to Andy. Tina then gives $12\frac{1}{2}\%$ of the rest of her sweets to Luke. Tina says, "Now all three of us have the same number of sweets." Is Tina correct? You must show how you get your answer.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[6] [MAX SCORE: 4]
+- P1: for a process to find the number of sweets Tina gives to Andy, eg $14 \div 7 \times 3 (= 6)$ or for a process to work with fractions of the total to find fraction given to Andy, eg $\frac{14}{21} \times \frac{3}{7} (= \frac{2}{7})$ or for dividing a given number (eg 441) in the ratio $1:6:14 (= 21:126:294)$
+- P1: for a process to find number for Andy and Tina after first exchange, eg $A = 1 + "6" (= 7)$ and $T = 14 - "6" (= 8)$ or for a process to find the number of sweets Tina gives to Luke eg $(14 - "6") \times \frac{12.5}{100} (= 1)$ or for a process to work with fractions of the total to find fraction given to Luke, eg $\frac{(14 - "6")}{21} \times \frac{12.5}{100}$ or process to work out the number of sweets given to Andy and Luke for their total
+- P1: for a process to find the final amounts or final shares for at least two of Andy, Luke and Tina eg two of $1+"6"(=7)$, $6+"1"(=7)$, $14-"6"-"1"(=7)$
+- C1: Yes, supported by full working and accurate figures for Andy, Luke and Tina
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p6_q6_line_9] So Tim is correct
+[ID: p6_q6_line_8] So they have the same number of sweet.
+[ID: p6_q6_line_7] 1 : 1 : 1
+[ID: p6_q6_line_6] Now 7 : 7 : 7
+[ID: p6_q6_line_5] +8x0.125 - 8x0.125
+[ID: p6_q6_line_4] 7 : 6 : 8
+[ID: p6_q6_line_3] +14x\frac{3}{7}
+[ID: p6_q6_line_2] 1 : 6 : 14 -14x\frac{3}{7}
+[ID: p6_q6_line_1] Andy: Luke: Tina
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p6_ocr_0]: "6 Andy, Luke and Tina share some sweets in the ratio \( 1: 6: 14 \)"
+[p6_ocr_1]: "Tina gives \( \frac{3}{7} \) of her sweets to Andy. [PRINTED_INSTRUCTION]"
+[p6_ocr_2]: "Tina then gives \( 12 \frac{1}{2} \% \) of the rest of her sweets to Luke. [PRINTED_INSTRUCTION]"
+[p6_ocr_3]: "Tina says, [PRINTED_INSTRUCTION]"
+[p6_ocr_4]: ""Now all three of us have the same number of sweets." [PRINTED_INSTRUCTION]"
+[p6_ocr_5]: "Is Tina correct? [PRINTED_INSTRUCTION]"
+[p6_ocr_6]: "You must show how you get your answer. [PRINTED_INSTRUCTION]"
+[p6_ocr_7]: "Andy: Luke: Tina"
+[p6_ocr_8]: "+14 \times \frac{3}{7} \text { 1: } 6: 14"
+[p6_ocr_9]: "7: 6: 8 -14 \times \frac{3}{7}"
+[p6_ocr_10]: "+8 \times 1015-8 \times 0.115"
+[p6_ocr_11]: "\text { Now 7:7:7 }"
+[p6_ocr_12]: "1: 1: 1"
+[p6_ocr_13]: "So they have the Same number of sweet"
+[p6_ocr_14]: "so Tim is correct"
+[p6_ocr_16]: "7"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 2,
+    "raw_correct_steps_found": 2,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p1_q1_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p1_ocr_6",
+      "reasoning": "Student shows a correct first step to find BC, which is \\sqrt{19^2 - 10^2}",
+      "subQuestion": "1",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p1_q1_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p1_ocr_11",
+      "reasoning": "Student provides the correct answer of 16.1, which is in the range 16.1 to 16.2",
+      "subQuestion": "1",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 2,
+    "awardedMarks": 2,
+    "scoreText": "2/2"
+  }
+}
+```
+========================================
+
+ ✅ [ZONE-OK] Q1: Footprint at Y=38.7% (Range 36.0-41.4%) is safe within 0.0-101.4%
+ ✅ [ZONE-OK] Q1: Footprint at Y=90.8% (Range 90.0-91.6%) is safe within 0.0-101.4%
+ 💎 [BUDGET-CHECK] Q1: Max Marks = 2. Items to Process: 2
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q7 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 7
+
+## QUESTION TEXT
+**[7]**: ABCD is a quadrilateral. All angles are measured in degrees. Show that ABCD is a trapezium. [A diagram shows a quadrilateral with internal angles: Angle A = 2x+15, Angle B = 4x+15, Angle C = 4x+8, Angle D = 3x-3.]
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[7] [MAX SCORE: 4]
+- M1: for deriving a suitable equation, eg $4x+15+2x+15+4x+8+3x-3=360 (13x+35=360)$ or $4x+15+2x+15=180 (6x+30=180)$ or $4x+8+3x-3=180 (7x+5=180)$
+- M1: (dep) for a method to isolate terms in x, eg $4x+2x+4x+3x=360-15-15-8+3$ or $4x+2x=180-15-15$ or $4x+3x=180-8+3$
+- A1: for solving equation to $x=25$
+- C1: for substituting $x=25$ into $A+B$ or $C+D$ and showing = 180, and gives a suitable statement, eg co-interior/allied angles (sum to 180), or since $A+B=180$ the lines are parallel
+
+[7alt] [MAX SCORE: 4]
+- M1: Alternative solution assuming it is a trapezium for deriving a suitable equation, eg $4x+15+2x+15=4x+8+3x-3 (6x+30=7x+5)$
+- M1: (dep) for a method to isolate terms in x, eg $15+15-8+3=4x+3x-4x-2x$
+- A1: for solving equation to $x=25$
+- C1: for a fully correct statement, eg since $A+B=180$ the lines are parallel
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p7_q7_line_9] tropezium.
+[ID: p7_q7_line_8] So BC is parallel to AD and ABCD is
+[ID: p7_q7_line_7] = 180°
+[ID: p7_q7_line_6] Angle BCD + angle ADC = 4x25+8 +3x25-3
+[ID: p7_q7_line_5] =180°
+[ID: p7_q7_line_4] Angle ABC + angle BAD = 4x25 +15+2x25 +15
+[ID: p7_q7_line_3] x=25°
+[ID: p7_q7_line_2] 13x=325
+[ID: p7_q7_line_1] 4x+15 +4x+8 + 2x +15 +3x-3=360
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p7_ocr_0]: "\( 7 A B C D \) is a quadrilateral."
+[p7_ocr_1]: "All angles are measured in degrees. [PRINTED_INSTRUCTION]"
+[p7_ocr_2]: "Show that \( A B C D \) is a trapezium. [PRINTED_INSTRUCTION]"
+[p7_ocr_3]: "4 x+15+4 x+8+2 x+15+3 x \cdot 3=360"
+[p7_ocr_4]: "13 x  =325"
+[p7_ocr_5]: "x  =25"
+[p7_ocr_6]: "\text { Angle } A B C+\text { ongle } B A D=4 \times 25+15+2 \times 5+15"
+[p7_ocr_7]: "=180^{\circ}"
+[p7_ocr_8]: "\text { Angle } B C D+\text { angle } H O C=4 \times 95+8+3 \times 25-3"
+[p7_ocr_9]: "=180^{\circ}"
+[p7_ocr_10]: "\text { So } B C \text { - is pordlel to } A D \text { and } A B C D \text { is }"
+[p7_ocr_11]: "\text { tropezism. }"
+[p7_ocr_12]: "8"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 3,
+    "raw_correct_steps_found": 3,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p2_q2_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_1",
+      "reasoning": "Student provides a complete method to find prime factors by writing the prime factors with exponents.",
+      "subQuestion": "2a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p2_q2_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_1",
+      "reasoning": "Student provides the correct prime factors of 90 as a product.",
+      "subQuestion": "2a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p2_q2_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_6",
+      "reasoning": "Student correctly states the lowest common multiple of A and B is 36.",
+      "subQuestion": "2b",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 3,
+    "awardedMarks": 3,
+    "scoreText": "3/3"
+  }
+}
+```
+========================================
+
+ ✅ [ZONE-OK] Q2a: Footprint at Y=38.9% (Range 36.7-41.1%) is safe within 0.0-51.6%
+ ✅ [ZONE-OK] Q2a: Footprint at Y=38.9% (Range 36.7-41.1%) is safe within 0.0-51.6%
+ ✅ [ZONE-OK] Q2b: Footprint at Y=60.1% (Range 58.4-61.9%) is safe within 51.6-104.1%
+ 💎 [BUDGET-CHECK] Q2a: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q2b: Max Marks = 99. Items to Process: 1
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q8 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 8
+
+## QUESTION TEXT
+**[8]**: A playground is in the shape of a right-angled triangle. [A diagram shows a right-angled triangle PQR with the right angle at Q.] Dan makes a scale drawing of the playground. He uses a scale of 1 cm represents 5 m. The area of the playground on the scale drawing is $28~cm^{2}$. The real length of QR is 40 m. Work out the real length of PQ.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[8] [MAX SCORE: 3]
+- P1: for one correct use of the given scale, eg $40 \div 5 (= 8)$ or $28 \times 5^2 (= 700)$
+- P1: for process to use area of triangle, eg $28 = \frac{1}{2} \times PQ \times [QR]$ or $[area] = \frac{1}{2} \times PQ \times 40$
+- A1: 35
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p8_q8_line_5] 35
+[ID: p8_q8_line_4] PQ=3Sm
+[ID: p8_q8_line_3] 28x25 = \frac{1}{2}x40xPQ
+[ID: p8_q8_line_2] 28cm³ = \frac{1}{2}x40xPQ
+[ID: p8_q8_line_1] Area=\frac{1}{2}bh
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p8_ocr_0]: "8 A playground is in the shape of a right-angled triangle."
+[p8_ocr_1]: "Dan makes a scale drawing of the playground. [PRINTED_INSTRUCTION]"
+[p8_ocr_2]: "He uses a scale of 1 cm represents 5 m [PRINTED_INSTRUCTION]"
+[p8_ocr_3]: "The area of the playground on the scale drawing is \( 28 \mathrm{~cm}^{2} \)"
+[p8_ocr_4]: "The real length of \( Q R \) is 40 m [PRINTED_INSTRUCTION]"
+[p8_ocr_5]: "Work out the real length of \( P Q \). [PRINTED_INSTRUCTION]"
+[p8_ocr_6]: "\text { Area }  =\frac{1}{2} 64"
+[p8_ocr_7]: "28 \mathrm{~cm}^{3}  =\frac{1}{2} \times 40 \times P Q"
+[p8_ocr_8]: "28 \times 9 S  =\frac{1}{2} \times 40 \times P Q"
+[p8_ocr_9]: "P Q  =35 \mathrm{~m}"
+[p8_ocr_10]: "35 ."
+[p8_ocr_11]: "9"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 4,
+    "raw_correct_steps_found": 4,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p4_q4_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p4_ocr_6",
+      "reasoning": "Student sets up the initial equation to find the total number of discs using the probability of yellow discs.",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p4_q4_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p4_ocr_7",
+      "reasoning": "Student uses the ratio to express the number of blue discs in terms of red discs.",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p4_q4_line_5",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p4_ocr_10",
+      "reasoning": "Student performs a complete correct process to find the number of red discs.",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p4_q4_line_7",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p4_ocr_12",
+      "reasoning": "Student arrives at the correct answer of 70.",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 4,
+    "scoreText": "4/4"
+  }
+}
+```
+========================================
+
+ ✅ [ZONE-OK] Q4: Footprint at Y=26.3% (Range 23.3-29.4%) is safe within 0.0-107.2%
+ ✅ [ZONE-OK] Q4: Footprint at Y=32.5% (Range 29.4-35.6%) is safe within 0.0-107.2%
+ ✅ [ZONE-OK] Q4: Footprint at Y=44.9% (Range 41.8-48.0%) is safe within 0.0-107.2%
+ ✅ [ZONE-OK] Q4: Footprint at Y=58.7% (Range 57.0-60.5%) is safe within 0.0-107.2%
+ 💎 [BUDGET-CHECK] Q4: Max Marks = 4. Items to Process: 4
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q9 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 9
+
+## QUESTION TEXT
+**[9]**: A number N is rounded to 2 significant figures. The result is 7.3. Write down the least possible value of N. Leila says, "The value of N cannot be greater than 7.349 because 7.350 would round up to 7.4". Is Leila correct? You must give a reason for your answer.
+
+**[9a]**: A number N is rounded to 2 significant figures. The result is 7.3. Write down the least possible value of N.
+
+**[9b]**: Leila says, "The value of N cannot be greater than 7.349 because 7.350 would round up to 7.4". Is Leila correct? You must give a reason for your answer.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[9a] [MAX SCORE: 1]
+- B1: oe
+
+[9b] [MAX SCORE: 1]
+- C1: No with supporting reason
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p9_q9_line_1] 7.25
+
+[SUB-QUESTION b]
+[ID: p9_q9_line_2] NO, 7.3499 is greater thon 7.349 but wald
+[ID: p9_q9_line_3] Still round to 7.4.
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p9_ocr_0]: "9 A number \( N \) is rounded to 2 significant figures."
+[p9_ocr_1]: "The result is 7.3 [PRINTED_INSTRUCTION]"
+[p9_ocr_2]: "(a) Write down the least possible value of \( N \). [PRINTED_INSTRUCTION]"
+[p9_ocr_3]: "7.25"
+[p9_ocr_4]: "(1)"
+[p9_ocr_5]: "Leila says, [PRINTED_INSTRUCTION]"
+[p9_ocr_6]: ""The value of \( N \) cannot be greater than 7.349 because 7.350 would round up to 7.4 " [PRINTED_INSTRUCTION]"
+[p9_ocr_7]: "(b) Is Leila correct?"
+[p9_ocr_8]: "You must give a reason for your answer. [PRINTED_INSTRUCTION]"
+[p9_ocr_9]: "No, 7.3499 is greater thon 7.349 but would"
+[p9_ocr_10]: "still round to 7.4."
+[p9_ocr_11]: "(1)"
+[p9_ocr_12]: "10"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 6,
+    "raw_correct_steps_found": 6,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "The student has completed the table, drawn a graph and estimated the solutions.",
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B2",
+      "line_id": "p5_q5_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p5_ocr_2",
+      "reasoning": "The student has correctly filled in the table with the values 2, 0, and 6.",
+      "subQuestion": "5a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B2",
+      "line_id": "visual_drawing_5_8",
+      "content_desc": "Fully correct graph of y=x^2-x",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn a fully correct graph of the equation y=x^2-x.",
+      "subQuestion": "5b",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "visual_drawing_5_8",
+      "content_desc": "Line y=4 drawn on the graph",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn the line y=4 on the graph.",
+      "subQuestion": "5c",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 55,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p5_q5_line_8",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p5_ocr_8",
+      "reasoning": "The student has provided answers in the range -1.7 to -1.5 and 2.5 to 2.7.",
+      "subQuestion": "5c",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 6,
+    "awardedMarks": 6,
+    "scoreText": "6/6"
+  }
+}
+```
+========================================
+
+ ⚖️ [IRON-DOME-VETO] 5c: ID p5_ocr_8 is OUT OF ZONE.
+ 📍 [PATH 3] Q5c: Line "p5_q5_line_8" is UNMATCHED. Recovering position.
+ 🧲 [IRON-DOME-PATCH] Snapping Q5c from P5 -> P12
+ 🧲 [IRON-DOME-PATCH] Snapping Q5b from P5 -> P11
+ 🧲 [IRON-DOME-PATCH] Snapping Q5c from P5 -> P12
+✅ [IRON-DOME] Snapped mark to: p5_q5_line_2 (P5)
+   🔓 [ZONE-SKIP] Skipping clamping for Q5a. Anno P5 != Zone P11
+✅ [IRON-DOME] Snapped mark to: p5_q5_line_8 (P5)
+   🔓 [ZONE-SKIP] Skipping clamping for Q5c. Anno P5 != Zone P12
+✅ [IRON-DOME] Snapped mark to: visual_drawing_5_8 (P5)
+   🔓 [ZONE-SKIP] Skipping clamping for Q5b. Anno P5 != Zone P11
+✅ [IRON-DOME] Snapped mark to: p5_q5_line_8 (P5)
+   🔓 [ZONE-SKIP] Skipping clamping for Q5c. Anno P5 != Zone P12
+ ✅ [ZONE-OK] Q5a: Footprint at Y=22.5% (Range 20.5-24.5%) is safe within 0.0-52.4%
+ 🛡️ [ZONE-PROTECT] Q5c: Footprint breach at Y=80.0% (Bottom=82.5%). Clamping back 10% to 56.6%
+ 🛡️ [ZONE-PROTECT] Q5b: Footprint breach at Y=52.4% (Bottom=77.4%). Clamping back 10% to 62.4%
+ ✅ [ZONE-OK] Q5c: Footprint at Y=47.0% (Range 44.5-49.5%) is safe within 0.0-66.6%
+ 💎 [BUDGET-CHECK] Q5a: Max Marks = 99. Items to Process: 1
+ 💎 [BUDGET-CHECK] Q5c: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q5b: Max Marks = 99. Items to Process: 1
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q10 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 10
+
+## QUESTION TEXT
+**[10]**: The diagram shows two right-angled triangles. [Triangle 1 has hypotenuse 8 and one angle 'a'. Triangle 2 has vertical side 1+x, horizontal side 4, and angle 'b' between the hypotenuse and the horizontal side. The bottom side of Triangle 1 is labeled 7-2x.] All lengths are measured in centimetres. Given that $\sin a = \tan b$, work out the value of x.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[10] [MAX SCORE: 3]
+- B1: for $(sin~a = ) \frac{7-2x}{8}$ or $(tan~b = ) \frac{1+x}{4}$
+- P1: for start of a process to solve $\frac{7-2x}{8} = \frac{1+x}{4}$, eg $4(7-2x) = 8(1+x)$ or $28-8x=8+8x$ or $7-2x=2(1+x)$
+- A1: for 1.25 oe
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p10_q10_line_7] x = \\frac{19}{17}
+[ID: p10_q10_line_6] x= \\frac{19}{17}
+[ID: p10_q10_line_5] 19 = 17x
+[ID: p10_q10_line_4] 28-8x = 9+9x
+[ID: p10_q10_line_3] \\frac{7-2x}{9} = \\frac{1+x}{4}
+[ID: p10_q10_line_2] tonb= \\frac{1+x}{4}
+[ID: p10_q10_line_1] Sina= \\frac{7-2x}{9}
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p10_ocr_0]: "10 The diagram shows two right-angled triangles."
+[p10_ocr_1]: "All lengths are measured in centimetres. [PRINTED_INSTRUCTION]"
+[p10_ocr_2]: "Given that [PRINTED_INSTRUCTION]"
+[p10_ocr_3]: "\sin a=\tan b [PRINTED_INSTRUCTION]"
+[p10_ocr_4]: "work out the value of \( x \). [PRINTED_INSTRUCTION]"
+[p10_ocr_5]: "\sin a=\frac{7-2 x}{9}"
+[p10_ocr_6]: "\tan b=\frac{1+7 x}{4}"
+[p10_ocr_7]: "\frac{7-2 x}{9}=\frac{1+x}{4}"
+[p10_ocr_8]: "28-8 x=9+9 x"
+[p10_ocr_9]: "19=17 x \quad x=\frac{1 a}{17}"
+[p10_ocr_10]: "\hline"
+[p10_ocr_12]: "11"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 3,
+    "raw_correct_steps_found": 3,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p8_q8_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p8_ocr_8",
+      "reasoning": "Student multiplies the area by 25 (5 squared), which is a correct use of the scale.",
+      "subQuestion": "8",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p8_q8_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p8_ocr_8",
+      "reasoning": "Student uses the area of a triangle formula with correct values.",
+      "subQuestion": "8",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p8_q8_line_5",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p8_ocr_10",
+      "reasoning": "Student provides the correct answer of 35.",
+      "subQuestion": "8",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 3,
+    "awardedMarks": 3,
+    "scoreText": "3/3"
+  }
+}
+```
+========================================
+
+ 💎 [BUDGET-CHECK] Q8: Max Marks = 3. Items to Process: 3
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 10)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q11 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 11
+
+## QUESTION TEXT
+**[11]**: The frequency table gives information about the weights of 60 parcels. [Table: 0<w<=2 (7), 2<w<=4 (21), 4<w<=6 (15), 6<w<=8 (11), 8<w<=10 (6).] Complete the cumulative frequency table. On the grid opposite, draw a cumulative frequency graph for your table. [A blank grid with Weight (w kg) on x-axis 0-10 and Cumulative frequency on y-axis 0-60.] Use your graph to find an estimate for the interquartile range. Use your graph to find an estimate for the number of these parcels with a weight greater than 7.4kg.
+
+**[11a]**: The frequency table gives information about the weights of 60 parcels. [Table: 0<w<=2 (7), 2<w<=4 (21), 4<w<=6 (15), 6<w<=8 (11), 8<w<=10 (6).] Complete the cumulative frequency table.
+
+**[11b]**: On the grid opposite, draw a cumulative frequency graph for your table. [A blank grid with Weight (w kg) on x-axis 0-10 and Cumulative frequency on y-axis 0-60.]
+
+**[11c]**: Use your graph to find an estimate for the interquartile range.
+
+**[11d]**: Use your graph to find an estimate for the number of these parcels with a weight greater than 7.4kg.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[11a] [MAX SCORE: 1]
+- B1: 7, 28, 43, 54, 60
+
+[11b] [MAX SCORE: 2]
+- M1: for 4 or 5 of their points plotted correctly from a cf table
+- A1: for a fully correct graph
+
+[11c] [MAX SCORE: 2]
+- M1: for at least one correct quartile, eg $(UQ=)$ value in the range 6.2 to 6.4 or $(LQ=)$ value in the range 2.6 to 2.8 or ft their cf graph
+- A1: for answer in the range 3.4 to 4 or ft their cf graph
+
+[11d] [MAX SCORE: 2]
+- M1: for cf reading at weight = 7.4 in the range 50 to 53 or ft their cf graph
+- A1: for answer in the range 7 to 10 or ft their cf graph
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p11_q11_line_1] 28
+[ID: p11_q11_line_2] 43
+[ID: p11_q11_line_3] 54
+[ID: p11_q11_line_4] 60
+
+[SUB-QUESTION b]
+[ID: visual_drawing_11_6] [DRAWING]
+
+[SUB-QUESTION c]
+[ID: p12_q11_line_6] 6.4-3
+[ID: p12_q11_line_7] 3.4
+
+[SUB-QUESTION d]
+[ID: p12_q11_line_8] 60-51
+[ID: p12_q11_line_9] 9
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p11_ocr_0]: "11 The frequency table gives information about the weights of 60 parcels."
+[p11_ocr_1]: "\begin{tabular}{|c|c|} \hline Weight ( \( \boldsymbol{w} \mathbf{k g} \) ) & Frequency"
+[p11_ocr_2]: "\hline \( 0<w \leqslant 2 \) & 7"
+[p11_ocr_3]: "\hline \( 2<w \leqslant 4 \) & 21"
+[p11_ocr_4]: "\hline \( 4<w \leqslant 6 \) & 15"
+[p11_ocr_5]: "\hline \( 6<w \leqslant 8 \) & 11"
+[p11_ocr_6]: "\hline \( 8<w \leqslant 10 \) & 6"
+[p11_ocr_7]: "\hline \end{tabular}"
+[p11_ocr_8]: "(a) Complete the cumulative frequency table. [PRINTED_INSTRUCTION]"
+[p11_ocr_9]: "\begin{tabular}{|l|l|} \hline Weight ( \( w \mathrm{~kg} \) ) & Cumulative frequency"
+[p11_ocr_10]: "Weight ( \( w \mathrm{~kg} \) )"
+[p11_ocr_11]: "Cumulative frequency [PRINTED_INSTRUCTION]"
+[p11_ocr_12]: "\hline \( 0<w \leqslant 2 \) & 7"
+[p11_ocr_15]: "7"
+[p11_ocr_14]: "\( 0<w \leqslant 2 \)"
+[p11_ocr_13]: "\hline \( 0<w \leqslant 4 \) & 28"
+[p11_ocr_18]: "28"
+[p11_ocr_17]: "\( 0<w \leqslant 4 \)"
+[p11_ocr_16]: "\hline \( 0<w \leqslant 6 \) & 43"
+[p11_ocr_21]: "43"
+[p11_ocr_20]: "\( 0<w \leqslant 6 \)"
+[p11_ocr_19]: "\hline \( 0<w \leqslant 8 \) & 54"
+[p11_ocr_24]: "54"
+[p11_ocr_22]: "\hline \( 0<w \leqslant 10 \) & 60"
+[p11_ocr_23]: "\( 0<w \leqslant 8 \)"
+[p11_ocr_27]: "60"
+[p11_ocr_25]: "\hline \end{tabular}"
+[p11_ocr_26]: "\( 0<w \leqslant 10 \)"
+[p11_ocr_28]: "(1)"
+[p11_ocr_29]: "(b) On the grid opposite, draw a cumulative frequency graph for your table."
+[p11_ocr_30]: "(2)"
+[p11_ocr_31]: "12"
+[p12_ocr_0]: "OT WRITE IN THIS AREA"
+[p12_ocr_1]: "(c) Use your graph to find an estimate for the interquartile range."
+[p12_ocr_2]: "6.4-3"
+[p12_ocr_3]: "3.4"
+[p12_ocr_4]: "kg"
+[p12_ocr_5]: "(2)"
+[p12_ocr_6]: "(d) Use your graph to find an estimate for the number of these parcels with a weight"
+[p12_ocr_7]: "greater than 7.4 kg . [PRINTED_INSTRUCTION]"
+[p12_ocr_8]: "60-51"
+[p12_ocr_9]: "9"
+[p12_ocr_10]: "(2)"
+[p12_ocr_11]: "13"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 2,
+    "raw_correct_steps_found": 2,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p9_q9_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p9_ocr_3",
+      "reasoning": "Student provided the correct answer for the least possible value of N when rounded to 2 significant figures.",
+      "subQuestion": "a",
+      "pageIndex": null,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "C1",
+      "line_id": "p9_q9_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p9_ocr_9",
+      "reasoning": "Student correctly states that Leila is incorrect and provides a valid reason using 7.3499 as an example.",
+      "subQuestion": "b",
+      "pageIndex": null,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 2,
+    "awardedMarks": 2,
+    "scoreText": "2/2"
+  }
+}
+```
+========================================
+
+✅ [IRON-DOME] Snapped mark to: p9_q9_line_1 (P9)
+   🔓 [ZONE-SKIP] Skipping clamping for Qa. Anno P9 != Zone P2
+✅ [IRON-DOME] Snapped mark to: p9_q9_line_2 (P9)
+   🔓 [ZONE-SKIP] Skipping clamping for Qb. Anno P9 != Zone P2
+ 💎 [BUDGET-CHECK] Qa: Max Marks = 99. Items to Process: 1
+ 💎 [BUDGET-CHECK] Qb: Max Marks = 99. Items to Process: 1
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 4,
+    "raw_correct_steps_found": 4,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p6_q6_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p6_ocr_8",
+      "reasoning": "The student shows a process to find the number of sweets Tina gives to Andy, indicated by '14x3/7'.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p6_q6_line_4",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p6_ocr_9",
+      "reasoning": "The student shows a process to find the number for Andy and Tina after the first exchange, indicated by '7 : 6 : 8'.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p6_q6_line_6",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p6_ocr_11",
+      "reasoning": "The student shows a process to find the final amounts for Andy, Luke, and Tina, indicated by 'Now 7 : 7 : 7'.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "C1",
+      "line_id": "p6_q6_line_8",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p6_ocr_13",
+      "reasoning": "The student concludes that they have the same number of sweets, supported by full working and accurate figures.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 4,
+    "scoreText": "4/4"
+  }
+}
+```
+========================================
+
+ 💎 [BUDGET-CHECK] Q6: Max Marks = 4. Items to Process: 4
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 4,
+    "raw_correct_steps_found": 4,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p7_q7_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p7_ocr_3",
+      "reasoning": "The student has derived a suitable equation: 4x+15 +4x+8 + 2x +15 +3x-3=360",
+      "subQuestion": "7",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p7_q7_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p7_ocr_4",
+      "reasoning": "The student has isolated terms in x: 13x=325",
+      "subQuestion": "7",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p7_q7_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p7_ocr_5",
+      "reasoning": "The student has solved the equation to x=25",
+      "subQuestion": "7",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "C1",
+      "line_id": "p7_q7_line_8",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p7_ocr_10",
+      "reasoning": "The student has substituted x=25 into A+B and C+D and showing = 180, and gives a suitable statement, eg co-interior/allied angles (sum to 180), or since A+B=180 the lines are parallel",
+      "subQuestion": "7",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 4,
+    "scoreText": "4/4"
+  }
+}
+```
+========================================
+
+ 💎 [BUDGET-CHECK] Q7: Max Marks = 4. Items to Process: 4
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 3,
+    "raw_correct_steps_found": 3,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B0",
+      "line_id": "p10_q10_line_1",
+      "content_desc": null,
+      "ocr_match_status": "UNMATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The denominator is incorrect. It should be 8, not 9.",
+      "subQuestion": "10",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p10_q10_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p10_ocr_6",
+      "reasoning": "Correct expression for tan b.",
+      "subQuestion": "10",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p10_q10_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p10_ocr_7",
+      "reasoning": "Equating sin a and tan b.",
+      "subQuestion": "10",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p10_q10_line_6",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p10_ocr_9",
+      "reasoning": "Correct answer.",
+      "subQuestion": "10",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 3,
+    "awardedMarks": 2,
+    "scoreText": "2/3"
+  }
+}
+```
+========================================
+
+ 📍 [PATH 3] Q10: Line "p10_q10_line_1" is UNMATCHED. Recovering position.
+ 💎 [BUDGET-CHECK] Q10: Max Marks = 3. Items to Process: 4
+[GUILLOTINE] Q10 GLOBAL exceeded budget! Total 3. Executing final cut...
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 7,
+    "raw_correct_steps_found": 7,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "Cumulative frequency graph drawn.",
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p11_q11_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p11_ocr_18",
+      "reasoning": "The student has correctly filled in the cumulative frequency table with 28.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p11_q11_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p11_ocr_21",
+      "reasoning": "The student has correctly filled in the cumulative frequency table with 43.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p11_q11_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p11_ocr_24",
+      "reasoning": "The student has correctly filled in the cumulative frequency table with 54.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p11_q11_line_4",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p11_ocr_27",
+      "reasoning": "The student has correctly filled in the cumulative frequency table with 60.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": null,
+      "content_desc": "Cumulative frequency graph with 5 points plotted correctly.",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has plotted 5 points correctly on the cumulative frequency graph.",
+      "subQuestion": "11b",
+      "pageIndex": 1,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": null,
+      "content_desc": "Fully correct cumulative frequency graph.",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn a fully correct cumulative frequency graph.",
+      "subQuestion": "11b",
+      "pageIndex": 1,
+      "visual_position": {
+        "x": 55,
+        "y": 55,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p12_q11_line_6",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p12_ocr_2",
+      "reasoning": "The student has given a correct upper quartile value of 6.4.",
+      "subQuestion": "11c",
+      "pageIndex": 1,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p12_q11_line_7",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p12_ocr_3",
+      "reasoning": "The student has given a correct interquartile range of 3.4.",
+      "subQuestion": "11c",
+      "pageIndex": 1,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p12_q11_line_8",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p12_ocr_8",
+      "reasoning": "The student has shown the correct cf reading at weight = 7.4.",
+      "subQuestion": "11d",
+      "pageIndex": 1,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p12_q11_line_9",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p12_ocr_9",
+      "reasoning": "The student has given a correct answer of 9.",
+      "subQuestion": "11d",
+      "pageIndex": 1,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 7,
+    "awardedMarks": 7,
+    "scoreText": "7/7"
+  }
+}
+```
+========================================
+
+ ⚖️ [IRON-DOME-VETO] 11c: ID p12_ocr_2 is OUT OF ZONE.
+ ⚖️ [IRON-DOME-VETO] 11c: ID p12_ocr_3 is OUT OF ZONE.
+ 📍 [PATH 3] Q11c: Line "p12_q11_line_6" is UNMATCHED. Recovering position.
+ 📍 [PATH 3] Q11c: Line "p12_q11_line_7" is UNMATCHED. Recovering position.
+ 🛡️ [ZONE-PROTECT] Q11c: Footprint breach at Y=70.0% (Bottom=72.0%). Clamping back 10% to 84.3%
+ 🛡️ [ZONE-PROTECT] Q11c: Footprint breach at Y=69.2% (Bottom=71.2%). Clamping back 10% to 84.3%
+ 💎 [BUDGET-CHECK] Q11a: Max Marks = 99. Items to Process: 4
+ 💎 [BUDGET-CHECK] Q11d: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q11b: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q11c: Max Marks = 99. Items to Process: 2
+[GUILLOTINE] Q11a exceeded budget! Kept 1/4, Budget 1.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m16.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m16.2s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
-   📊 Marking Results: 1 questions
+   📊 Marking Results: 11 questions
    📝 Question Results: NO
    ✅ Both modes triggered: NO
 🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
 [32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
-[32m✅ [LOGICAL RE-INDEXING] Re-indexed 1 questions and 1 pages.[0m
-[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 6 ([37mQ4a[32m)[0m
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mOUTPUT-GENERATION[0m)
-[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 11 questions and 13 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 1 ([37mFRONT PAGE[32m) -> [2] Page 2 ([37mQ1[32m) -> [3] Page 3 ([37mQ2a[32m) -> [4] Page 4 ([37mQ3[32m) -> [5] Page 5 ([37mQ4[32m) -> [6] Page 6 ([37mQ5a[32m) -> [7] Page 7 ([37mQ6[32m) -> [8] Page 8 ([37mQ7[32m) -> [9] Page 9 ([37mQ8[32m) -> [10] Page 10 ([37mQ9a[32m) -> [11] Page 11 ([37mQ10[32m) -> [12] Page 12 ([37mQ11a, Q11b[32m) -> [13] Page 13 ([37mQ11c, Q11d[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m3.1s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 11 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 11 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
 
 📊 [ANNOTATION SUMMARY]
 -----------------------------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
 |----------|-------|-------------------------|----------------------------------------|
-| [32m4       [0m | 3/3   | B1, A1, M1              | AI:3/3 → M:3 U:0                       |
+| [32m1       [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m2       [0m | 3/3   | A1, M1, B1              | AI:3/3 → M:3 U:0                       |
+| [90m  a     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
+| [90m  b     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m3       [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m4       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m5       [0m | 6/6   | B2, A1, M1, B2          | AI:2/4 → M:2 U:0                       |
+| [90m  a     [0m | 2     | B2                      | AI:1/1 → M:1 U:0                       |
+| [90m  b     [0m | 2     | B2                      | AI:0/1 → M:0 U:0                       |
+| [90m  c     [0m | 2     | A1, M1                  | AI:1/2 → M:1 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m6       [0m | 4/4   | P1, P1, P1, C1          | AI:4/4 → M:4 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m7       [0m | 4/4   | A1, M1, M1, C1          | AI:4/4 → M:4 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m8       [0m | 3/3   | A1, P1, P1              | AI:3/3 → M:3 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m9       [0m | 2/2   | B1, C1                  | AI:2/2 → M:2 U:0                       |
 | [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
-| [90m  b     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
+| [90m  b     [0m | 1     | C1                      | AI:1/1 → M:1 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m10      [0m | 4/3   | A1, B1, B0, P1          | AI:3/4 → M:3 U:1                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m11      [0m | 7/7   | B1, A1, M1, A1, M1, A1, M1 | AI:5/7 → M:3 U:2                       |
+| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
+| [90m  b     [0m | 2     | A1, M1                  | AI:0/2 → M:0 U:0                       |
+| [90m  c     [0m | 2     | A1, M1                  | AI:2/2 → M:0 U:2                       |
+| [90m  d     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
 |----------|-------|-------------------------|----------------------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 16.2s
+Total Processing Time: 54.0s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      5.5s (34%)
-marking                             4.3s (26%)
-ocr_processing                      3.1s (19%)
-output_generation                   1.1s (7%)
-question_detection                  0.7s (5%)
-performance_summary                 0.6s (3%)
-preprocessing                       0.2s (1%)
+classification                      18.6s (34%)
+marking                             16.2s (30%)
+ocr_processing                      6.6s (12%)
+question_detection                  5.4s (10%)
+output_generation                   3.1s (6%)
+preprocessing                       1.6s (3%)
+performance_summary                 1.1s (2%)
+database_persistence                0.2s (0%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 24 total
+   Total Tokens: 154,117 (139,573 in + 14,544 out)
+   Total Cost: $0.071095
+   Mathpix OCR: 13 pages → $0.052000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 4,968 tokens (1 requests) → $0.000679
+   • Classification (Marking Pass): 71,535 tokens (11 requests) → $0.009176
+   • Marking: 75,888 tokens (11 requests) → $0.009725
+   • Performance Summary: 1,726 tokens (1 requests) → $0.000194
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769894837833
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769894837833
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0710954
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 7.11 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769894837833), remaining: 138.60
+💳 Deducted 0.0711 credits (session: sub-1769894837833) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769894837833
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 3, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.1257327, files: 3, bytes: 1107327
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":138.6}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Multiple Images (3 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 3 pages...
+
+[35m[MAPPER DEBUG] Raw Response:[0m
+{
+  "pages": [
+    {
+      "questions": [
+        {
+          "questionNumber": "5",
+          "subQuestions": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "6"
+        }
+      ],
+      "category": "questionAnswer"
+    },
+    {
+      "questions": [
+        {
+          "questionNumber": "4"
+        }
+      ],
+      "category": "questionAnswer"
+    }
+  ]
+}
+✅ [MAPPER] Map Pass complete in 2.21s. Mapped 3 pages.
+
+[36m[CLASSIFICATION DEBUG] Q4 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "4",
+          "text": "There are only red discs, blue discs and yellow discs in a bag.\nThere are 24 yellow discs in the bag.\nMel is going to take at random a disc from the bag.\nThe probability that the disc will be yellow is 0.16\nthe number of red discs : the number of blue discs = 5:4\nWork out the number of red discs in the bag.",
+          "hasStudentDrawing": false,
+          "studentWorkLines": [
+            {
+              "text": "\\frac{24}{24+r+b} = 0.16",
+              "position": {
+                "x": 34.0,
+                "y": 27.0,
+                "width": 23.0,
+                "height": 10.0
+              }
+            },
+            {
+              "text": "24=0.16(24+r+\\frac{4}{5}r)",
+              "position": {
+                "x": 20.0,
+                "y": 38.0,
+                "width": 40.0,
+                "height": 7.0
+              }
+            },
+            {
+              "text": "20.16=\\frac{9}{5}r \\times 0.16",
+              "position": {
+                "x": 20.0,
+                "y": 45.0,
+                "width": 35.0,
+                "height": 7.0
+              }
+            },
+            {
+              "text": "r=20.16 \\times \\frac{5}{9} \\times \\frac{1}{0.16}",
+              "position": {
+                "x": 20.0,
+                "y": 53.0,
+                "width": 45.0,
+                "height": 7.0
+              }
+            },
+            {
+              "text": "r = 70",
+              "position": {
+                "x": 20.0,
+                "y": 60.0,
+                "width": 15.0,
+                "height": 7.0
+              }
+            },
+            {
+              "text": "70",
+              "position": {
+                "x": 70.0,
+                "y": 59.0,
+                "width": 10.0,
+                "height": 7.0
+              }
+            }
+          ],
+          "subQuestions": []
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q5 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "5",
+          "text": "Complete the table of values for y = x²-x",
+          "hasStudentDrawing": false,
+          "studentWorkLines": [],
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "Complete the table of values for y = x²-x",
+              "studentWorkLines": [
+                {
+                  "text": "2",
+                  "position": {
+                    "x": 267,
+                    "y": 158,
+                    "width": 24,
+                    "height": 28
+                  }
+                },
+                {
+                  "text": "0",
+                  "position": {
+                    "x": 370,
+                    "y": 158,
+                    "width": 24,
+                    "height": 28
+                  }
+                },
+                {
+                  "text": "0",
+                  "position": {
+                    "x": 472,
+                    "y": 158,
+                    "width": 24,
+                    "height": 28
+                  }
+                },
+                {
+                  "text": "2",
+                  "position": {
+                    "x": 574,
+                    "y": 158,
+                    "width": 24,
+                    "height": 28
+                  }
+                },
+                {
+                  "text": "6",
+                  "position": {
+                    "x": 676,
+                    "y": 158,
+                    "width": 24,
+                    "height": 28
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            },
+            {
+              "part": "b",
+              "text": "On the grid, draw the graph of y = x²-x for values of x from -2 to 3",
+              "studentWorkLines": [],
+              "hasStudentDrawing": true,
+              "studentDrawingPosition": {
+                "x": 160,
+                "y": 225,
+                "width": 570,
+                "height": 350
+              }
+            },
+            {
+              "part": "c",
+              "text": "Use your graph to find estimates for the solutions of the equation x²-x=4",
+              "studentWorkLines": [
+                {
+                  "text": "-1.55, 2.6",
+                  "position": {
+                    "x": 340,
+                    "y": 598,
+                    "width": 170,
+                    "height": 30
+                  }
+                }
+              ],
+              "hasStudentDrawing": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+[36m[CLASSIFICATION DEBUG] Q6 Raw Response:[0m
+{
+  "pages": [
+    {
+      "category": "questionAnswer",
+      "rotation": 0,
+      "questions": [
+        {
+          "questionNumber": "6",
+          "text": "Andy, Luke and Tina share some sweets in the ratio 1:6:14\nTina gives \\frac{3}{7} of her sweets to Andy.\nTina then gives 12\\frac{1}{2}% of the rest of her sweets to Luke.\nTina says,\n\"Now all three of us have the same number of sweets.\"\nIs Tina correct?\nYou must show how you get your answer.",
+          "studentWorkLines": [
+            {
+              "text": "Andy: Luke: Tina",
+              "position": {
+                "x": 33.02,
+                "y": 33.85,
+                "width": 30.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "1 : 6 : 14",
+              "position": {
+                "x": 33.02,
+                "y": 38.23,
+                "width": 23.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "+14x\\frac{3}{7} -14x\\frac{3}{7}",
+              "position": {
+                "x": 19.79,
+                "y": 38.23,
+                "width": 40.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "7 : 6 : 8",
+              "position": {
+                "x": 33.02,
+                "y": 44.17,
+                "width": 23.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "+8x0.125 -8x0.125",
+              "position": {
+                "x": 39.58,
+                "y": 44.17,
+                "width": 30.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "Now 7 : 7 : 7",
+              "position": {
+                "x": 33.02,
+                "y": 50.1,
+                "width": 25.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "1 : 1 : 1",
+              "position": {
+                "x": 33.02,
+                "y": 55.42,
+                "width": 23.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "So they have the same number of sweet..:",
+              "position": {
+                "x": 33.02,
+                "y": 61.35,
+                "width": 50.0,
+                "height": 5.0
+              }
+            },
+            {
+              "text": "So Tim is correct",
+              "position": {
+                "x": 33.02,
+                "y": 66.67,
+                "width": 30.0,
+                "height": 5.0
+              }
+            }
+          ],
+          "hasStudentDrawing": false
+        }
+      ]
+    }
+  ]
+}
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🚀 [OVERRIDE] 50% Rule Triggered: 3/3 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m4.4s[0m ([32m[1mMATHPIX[0m)
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[there,only,discs,blue,yellow,going,take,random,disc,probability,will,number]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[andy,luke,tina,share,some,sweets,ratio,gives,fraction,then,rest,says,three,have,same,number,correct,must]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[there,only,discs,blue,yellow,going,take,random,disc,probability,will,number]
+[SIMILARITY OVERRIDE] 98% because MatchRate=1.00 in Keys=[andy,luke,tina,share,some,sweets,ratio,gives,fraction,then,rest,says,three,have,same,number,correct,must]
+   ✅ Matched Part: 4 (Truth Max: 4)
+   📊 Final Map Keys: 4
+   ✅ Matched Part: 5a (Truth Max: 2)
+   ✅ Matched Part: 5b (Truth Max: 2)
+   ✅ Matched Part: 5c (Truth Max: 2)
+   📊 Final Map Keys: 5a, 5b, 5c
+   ✅ Matched Part: 6 (Truth Max: 4)
+   📊 Final Map Keys: 6
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m2.2s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Global Search
+   Pool Size: 108 papers, 2709 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 4    | There are only red discs, blue discs and y... | Edexcel GCSE 1MA1/2H June 2024 Q4                  | 0.915 | [32m✅ SUCCESS[0m      |
+| 5    | Complete the table of values for y = x²-x     | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.453 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      ○ [0.453] 1MA1/2H Q5                     | Txt:0.34 Num:0.00 Str:1.00 Sem:PASS
+| 5a   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.453 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      ○ [0.453] 1MA1/2H Q5                     | Txt:0.34 Num:0.00 Str:1.00 Sem:PASS
+| 5b   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.453 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      ○ [0.453] 1MA1/2H Q5                     | Txt:0.34 Num:0.00 Str:1.00 Sem:PASS
+| 5c   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.453 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      ○ [0.453] 1MA1/2H Q5                     | Txt:0.34 Num:0.00 Str:1.00 Sem:PASS
+| 6    | Andy, Luke and Tina share some sweets in t... | Edexcel GCSE 1MA1/2H June 2024 Q6                  | 0.949 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 6
+   Detected: 2/6
+   Not detected: 4
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+[DRAWING] Q5: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)
+[DRAWING] Q5: Will pass image to Marking AI
+🔍 [MERGE-DEBUG] attempting to merge classification results into 3 pages
+   ✅ [MERGE-DEBUG] Page 0 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 1 merged with 1 results (Total Qs: 1)
+   ✅ [MERGE-DEBUG] Page 2 merged with 1 results (Total Qs: 1)
+🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...
+[ZONE-TVC] Deterministic Order (Post-Absorb): 4(P2@203)
+[ZONE-TVC] First on P2: Snapping 4 start to 0
+✅ createMarkingTasksFromClassification completed, created 3 marking task(s)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 1)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q4 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 1)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q5 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+ 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 1)
+[33m[POS-DEBUG] ⚠️ Missing Position for Q6 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 4
+
+## QUESTION TEXT
+**[4]**: There are only red discs, blue discs and yellow discs in a bag. There are 24 yellow discs in the bag. Mel is going to take at random a disc from the bag. The probability that the disc will be yellow is 0.16. The number of red discs : the number of blue discs = 5 : 4. Work out the number of red discs in the bag.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[4] [MAX SCORE: 4]
+- P1: for process to find number of discs in the bag, eg $24 \div 0.16 (= 150)$ or for process to find the total probability of red or blue, eg $1 - 0.16 (= 0.84$ or $\frac{21}{25}$ oe)
+- P1: for process to work with the ratio eg $([total] - 24) \div (5+4) (= 14)$ or for a process to find the probability of red, eg $[probability] \div (5+4) \times 5 (= 0.46...$ or $\frac{7}{15})$
+- P1: for a complete correct process to find the number of red discs eg "14" $\times 5$ or "0.46..." $\times 24 \div 0.16$ or an answer of $\frac{70}{150}$
+- A1: for 70
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p2_q4_line_6] 70
+[ID: p2_q4_line_5] r = 70
+[ID: p2_q4_line_4] r=20.16 \times \frac{5}{9} \times \frac{1}{0.16}
+[ID: p2_q4_line_3] 20.16=\frac{9}{5}r \times 0.16
+[ID: p2_q4_line_2] 24=0.16(24+r+\frac{4}{5}r)
+[ID: p2_q4_line_1] \frac{24}{24+r+b} = 0.16
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p2_ocr_0]: "4 There are only red discs, blue discs and yellow discs in a bag."
+[p2_ocr_1]: "There are 24 yellow discs in the bag. [PRINTED_INSTRUCTION]"
+[p2_ocr_2]: "Mel is going to take at random a disc from the bag. [PRINTED_INSTRUCTION]"
+[p2_ocr_3]: "The probability that the disc will be yellow is 0.16 [PRINTED_INSTRUCTION]"
+[p2_ocr_4]: "the number of red discs : the number of blue discs \( =5: 4 \) [PRINTED_INSTRUCTION]"
+[p2_ocr_5]: "Work out the number of red discs in the bag. [PRINTED_INSTRUCTION]"
+[p2_ocr_6]: "\frac{24}{24+r+b}  =0.16"
+[p2_ocr_7]: "24  =0.16\left(24+r+\frac{4}{5} r\right) \quad b=-\frac{4}{5} \sigma"
+[p2_ocr_9]: "\( b=4 \frac{4}{5} \sigma \)"
+[p2_ocr_8]: "20.16  =\frac{9}{5} \sigma \times 0.16"
+[p2_ocr_10]: "r  =20.16 \times \frac{5}{9} \times \frac{1}{0.16}"
+[p2_ocr_11]: "r  =70"
+[p2_ocr_12]: "70"
+[p2_ocr_13]: "5"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 5
+
+## QUESTION TEXT
+**[5]**: Complete the table of values for $y=x^{2}-x$. [A table with x values -2, -1, 0, 1, 2, 3. y values 6, blank, 0, blank, 2, blank.] On the grid, draw the graph of $y=x^{2}-x$ for values of x from -2 to 3. [A coordinate grid is provided.] Use your graph to find estimates for the solutions of the equation $x^{2}-x=4$
+
+**[5a]**: Complete the table of values for $y=x^{2}-x$. [A table with x values -2, -1, 0, 1, 2, 3. y values 6, blank, 0, blank, 2, blank.]
+
+**[5b]**: On the grid, draw the graph of $y=x^{2}-x$ for values of x from -2 to 3. [A coordinate grid is provided.]
+
+**[5c]**: Use your graph to find estimates for the solutions of the equation $x^{2}-x=4$
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[5a] [MAX SCORE: 2]
+- B2: for all 3 values correct
+
+[5b] [MAX SCORE: 2]
+- B2: for a fully correct graph
+
+[5c] [MAX SCORE: 2]
+- M1: for drawing the line $y=4$ or reading off intersections where $y=4$ or one correct solution or both solutions given as coordinates, eg (-1.6, 2.6) or (-1.6, 4) and (2.6, 4)
+- A1: for answers in the range -1.7 to -1.5 and 2.5 to 2.7 or ft their graph with at least 2 solutions
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p0_q5_line_1] 2
+[ID: p0_q5_line_2] 0
+[ID: p0_q5_line_3] 0
+[ID: p0_q5_line_4] 2
+[ID: p0_q5_line_5] 6
+
+[SUB-QUESTION b]
+[ID: visual_drawing_5_7] [DRAWING]
+
+[SUB-QUESTION c]
+[ID: p0_q5_line_7] -1.55, 2.6
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "5 (a) Complete the table of values for \( y=x^{2}-x \) [PRINTED_INSTRUCTION]"
+[p0_ocr_1]: "\begin{tabular}{|c|c|c|c|c|c|c|} \hline\( x \) & -2 & -1 & 0 & 1 & 2 & 3"
+[p0_ocr_2]: "\hline\( y \) & 6 & 2 & 0 & 0 & 2 & 6"
+[p0_ocr_3]: "\hline \end{tabular}"
+[p0_ocr_4]: "(2)"
+[p0_ocr_5]: "(b) On the grid, draw the graph of \( y=x^{2}-x \) for values of \( x \) from -2 to 3"
+[p0_ocr_6]: "(2)"
+[p0_ocr_7]: "(c) Use your graph to find estimates for the solutions of the equation \( x^{2}-x=4 \)"
+[p0_ocr_8]: "\( -1.55,2106 \)"
+[p0_ocr_9]: "(2)"
+[p0_ocr_10]: "6"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 6
+
+## QUESTION TEXT
+**[6]**: Andy, Luke and Tina share some sweets in the ratio 1 : 6 : 14. Tina gives $\frac{3}{7}$ of her sweets to Andy. Tina then gives $12\frac{1}{2}\%$ of the rest of her sweets to Luke. Tina says, "Now all three of us have the same number of sweets." Is Tina correct? You must show how you get your answer.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[6] [MAX SCORE: 4]
+- P1: for a process to find the number of sweets Tina gives to Andy, eg $14 \div 7 \times 3 (= 6)$ or for a process to work with fractions of the total to find fraction given to Andy, eg $\frac{14}{21} \times \frac{3}{7} (= \frac{2}{7})$ or for dividing a given number (eg 441) in the ratio $1:6:14 (= 21:126:294)$
+- P1: for a process to find number for Andy and Tina after first exchange, eg $A = 1 + "6" (= 7)$ and $T = 14 - "6" (= 8)$ or for a process to find the number of sweets Tina gives to Luke eg $(14 - "6") \times \frac{12.5}{100} (= 1)$ or for a process to work with fractions of the total to find fraction given to Luke, eg $\frac{(14 - "6")}{21} \times \frac{12.5}{100}$ or process to work out the number of sweets given to Andy and Luke for their total
+- P1: for a process to find the final amounts or final shares for at least two of Andy, Luke and Tina eg two of $1+"6"(=7)$, $6+"1"(=7)$, $14-"6"-"1"(=7)$
+- C1: Yes, supported by full working and accurate figures for Andy, Luke and Tina
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+[ID: p1_q6_line_9] So Tim is correct
+[ID: p1_q6_line_8] So they have the same number of sweet..:
+[ID: p1_q6_line_7] 1 : 1 : 1
+[ID: p1_q6_line_6] Now 7 : 7 : 7
+[ID: p1_q6_line_5] +8x0.125 -8x0.125
+[ID: p1_q6_line_4] 7 : 6 : 8
+[ID: p1_q6_line_3] +14x\frac{3}{7} -14x\frac{3}{7}
+[ID: p1_q6_line_2] 1 : 6 : 14
+[ID: p1_q6_line_1] Andy: Luke: Tina
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p1_ocr_0]: "6 Andy, Luke and Tina share some sweets in the ratio \( 1: 6: 14 \)"
+[p1_ocr_1]: "Tina gives \( \frac{3}{7} \) of her sweets to Andy. [PRINTED_INSTRUCTION]"
+[p1_ocr_2]: "Tina then gives \( 12 \frac{1}{2} \% \) of the rest of her sweets to Luke. [PRINTED_INSTRUCTION]"
+[p1_ocr_3]: "Tina says, [PRINTED_INSTRUCTION]"
+[p1_ocr_4]: ""Now all three of us have the same number of sweets." [PRINTED_INSTRUCTION]"
+[p1_ocr_5]: "Is Tina correct? [PRINTED_INSTRUCTION]"
+[p1_ocr_6]: "You must show how you get your answer. [PRINTED_INSTRUCTION]"
+[p1_ocr_7]: "Andy: Luke: Tina"
+[p1_ocr_8]: "+14 \times \frac{3}{7} \text { 1: } 6: 14"
+[p1_ocr_9]: "7: 6: 8 -14 \times \frac{3}{7}"
+[p1_ocr_10]: "+8 \times 1015-8 \times 0.115"
+[p1_ocr_11]: "\text { Now 7:7:7 }"
+[p1_ocr_12]: "1: 1: 1"
+[p1_ocr_13]: "So they have the Same number of sweet"
+[p1_ocr_14]: "so Tim is correct"
+[p1_ocr_16]: "7"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 4,
+    "raw_correct_steps_found": 4,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p1_q6_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p1_ocr_8",
+      "reasoning": "Student shows a process to find the number of sweets Tina gives to Andy, eg 14 x 3/7.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p1_q6_line_5",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p1_ocr_10",
+      "reasoning": "Student shows a process to find the number of sweets Tina gives to Luke, eg 8 x 0.125.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p1_q6_line_6",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p1_ocr_9",
+      "reasoning": "Student shows a process to find the final amounts for Andy, Luke and Tina, eg 7:7:7.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "C1",
+      "line_id": "p1_q6_line_8",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p1_ocr_13",
+      "reasoning": "Student states that they have the same number of sweets, supported by full working and accurate figures for Andy, Luke and Tina.",
+      "subQuestion": "6",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 4,
+    "scoreText": "4/4"
+  }
+}
+```
+========================================
+
+ 💎 [BUDGET-CHECK] Q6: Max Marks = 4. Items to Process: 4
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 6,
+    "raw_correct_steps_found": 6,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "The student has completed the table, drawn the graph and estimated the solutions.",
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B2",
+      "line_id": "p0_q5_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_4",
+      "reasoning": "The student has correctly completed the table of values. The values -1, 0, and 6 are correct.",
+      "subQuestion": "5a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B2",
+      "line_id": "visual_drawing_5_7",
+      "content_desc": "Fully correct graph of y=x^2-x",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn a fully correct graph of y=x^2-x for values of x from -2 to 3.",
+      "subQuestion": "5b",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "visual_drawing_5_7",
+      "content_desc": "Line y=4 drawn on the graph",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn the line y=4 on the graph.",
+      "subQuestion": "5c",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p0_q5_line_7",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_8",
+      "reasoning": "The student has provided answers in the range -1.7 to -1.5 and 2.5 to 2.7.",
+      "subQuestion": "5c",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 6,
+    "awardedMarks": 6,
+    "scoreText": "6/6"
+  }
+}
+```
+========================================
+
+✅ [IRON-DOME] Snapped mark to: p0_q5_line_7 (P0)
+ 💎 [BUDGET-CHECK] Q5a: Max Marks = 99. Items to Process: 1
+ 💎 [BUDGET-CHECK] Q5c: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q5b: Max Marks = 99. Items to Process: 1
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 4,
+    "raw_correct_steps_found": 4,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p2_q4_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_6",
+      "reasoning": "Student has a process to find the number of discs in the bag, by setting up the equation 24/(24+r+b) = 0.16, which is a valid process.",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p2_q4_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_7",
+      "reasoning": "Student has a process to work with the ratio, by expressing the equation 24 = 0.16(24+r+4/5r).",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "P1",
+      "line_id": "p2_q4_line_4",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_10",
+      "reasoning": "Student has a complete correct process to find the number of red discs, shown by the equation r=20.16 \\times \\frac{5}{9} \\times \\frac{1}{0.16}",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p2_q4_line_6",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p2_ocr_12",
+      "reasoning": "Student has the correct answer of 70.",
+      "subQuestion": "4",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 4,
+    "scoreText": "4/4"
+  }
+}
+```
+========================================
+
+ ✅ [ZONE-OK] Q4: Footprint at Y=26.3% (Range 23.3-29.4%) is safe within 0.0-101.8%
+ ✅ [ZONE-OK] Q4: Footprint at Y=32.5% (Range 29.4-35.6%) is safe within 0.0-101.8%
+ ✅ [ZONE-OK] Q4: Footprint at Y=44.9% (Range 41.8-48.0%) is safe within 0.0-101.8%
+ ✅ [ZONE-OK] Q4: Footprint at Y=58.7% (Range 57.0-60.5%) is safe within 0.0-101.8%
+ 💎 [BUDGET-CHECK] Q4: Max Marks = 4. Items to Process: 4
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m5.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m5.7s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 3 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+🔧 [HYBRID RESOLUTION] Applying coordinate snapping to marking results...
+[32m🔄 [LOGICAL RE-INDEXING] Aligning logical indices with sorted physical order...[0m
+[32m✅ [LOGICAL RE-INDEXING] Re-indexed 3 questions and 3 pages.[0m
+[32m✅ [1m[FINAL PAGE ORDER][0m [32m[1] Page 5 ([37mQ4[32m) -> [2] Page 6 ([37mQ5a[32m) -> [3] Page 7 ([37mQ6[32m)[0m
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.2s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 3 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 3 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m4       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m5       [0m | 6/6   | B2, A1, M1, B2          | AI:2/4 → M:2 U:0                       |
+| [90m  a     [0m | 2     | B2                      | AI:1/1 → M:1 U:0                       |
+| [90m  b     [0m | 2     | B2                      | AI:0/1 → M:0 U:0                       |
+| [90m  c     [0m | 2     | A1, M1                  | AI:1/2 → M:1 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m6       [0m | 4/4   | P1, P1, P1, C1          | AI:4/4 → M:4 U:0                       |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 23.7s
+Model Used: gemini-2.0-flash
+----------------------------
+classification                      8.2s (34%)
+marking                             5.7s (24%)
+ocr_processing                      4.4s (19%)
+question_detection                  2.2s (9%)
+output_generation                   1.2s (5%)
+performance_summary                 0.8s (3%)
+preprocessing                       0.4s (2%)
 database_persistence                0.2s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
-   API Requests: 4 total
-   Total Tokens: 18,369 (17,362 in + 1,007 out)
-   Total Cost: $0.005707
-   Mathpix OCR: 1 pages → $0.004000
+   API Requests: 8 total
+   Total Tokens: 44,712 (40,135 in + 4,577 out)
+   Total Cost: $0.017612
+   Mathpix OCR: 3 pages → $0.012000
 
    Breakdown by Phase:
-   • Mapper (Map Pass): 4,161 tokens (1 requests) → $0.000432
-   • Classification (Marking Pass): 6,711 tokens (1 requests) → $0.000799
-   • Marking: 7,097 tokens (1 requests) → $0.000858
-   • Performance Summary: 400 tokens (1 requests) → $0.000050
+   • Mapper (Map Pass): 1,858 tokens (1 requests) → $0.000232
+   • Classification (Marking Pass): 20,304 tokens (3 requests) → $0.002696
+   • Marking: 21,689 tokens (3 requests) → $0.002815
+   • Performance Summary: 861 tokens (1 requests) → $0.000101
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769798653175
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769798653175
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.005707
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1769895268152
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1769895268152
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0176123
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.57 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769798653175), remaining: 258.56
-💳 Deducted 0.0057 credits (session: sub-1769798653175) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769798653175
-[DEBUG_FOLLOWUP] Raw marking scheme input for Q4: "[4a] [MAX SCORE: 1]\n- B1: 10, 11, 13, 14, 16, 17\n\n[4b] [MAX SCORE: 2]\n- M1: for identification of 10, 12, 14, 15, 18 OR for $\\frac{a}{9}$ where $1 \\le a \\le 8$, a an integer, OR for $\\frac{5}{b}$ where $b > 5$, b an integer, OR for incorrect form, eg 5: 9\n- A1: oe"
-
-🔍 [DEBUG] MARKING SCHEME EXPLAIN PROMPT:
---- SYSTEM ---
-You are an AI that explains marking schemes for exam questions.
-
-Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
-Keep it concise and focus on the key marking points.
-Your response MUST be in markdown format.
-
-**IMPORTANT FORMATTING RULES:**
-1. **Parent-Child Grouping:**
-   - Always group sub-questions under their main Question Header.
-   - Example Structure:
-     **Question 4:**
-     - **a:** [Explanation]
-     - **b:** [Explanation]
-   - NEVER output a flat list (e.g., Q1, Q2, Q2a) if they belong together.
-
-2. **Ascending Order:**
-   - Respond to questions in strict ascending order (e.g., Q4, Q5).
-
-3. **Content:**
-   - Use simple language.
-   - Explain what M1, A1, B1 codes mean in context (e.g., "M1 for the method of...").
-   - Do NOT just copy the scheme text. Interpret it for a student.
-
---- USER ---
-** QUESTION:**
-Here is a Venn diagram.
-
-** MARKING SCHEME:**
-[4a] [MAX SCORE: 1]
-- B1: 10, 11, 13, 14, 16, 17
-
-[4b] [MAX SCORE: 2]
-- M1: for identification of 10, 12, 14, 15, 18 OR for $\frac{a}{9}$ where $1 \le a \le 8$, a an integer, OR for $\frac{5}{b}$ where $b > 5$, b an integer, OR for incorrect form, eg 5: 9
-- A1: oe
-
-Provide a brief explanation of this marking scheme.Keep it simple and concise.
-
-
-✅ [DEBUG] MARKING SCHEME EXPLAIN RESPONSE:
-**Question 4:**
-- **a:** B1 means one mark is awarded for listing the numbers 10, 11, 13, 14, 16, and 17.
-- **b:**
-  - M1: One mark for identifying the numbers 10, 12, 14, 15, 18, OR for writing a fraction with 9 as the denominator and a number from 1 to 8 as the numerator, OR for writing a fraction with 5 as the numerator and a number greater than 5 as the denominator, OR for an incorrect form.
-  - A1: One mark for an answer that is correct, or equivalent to the correct answer.
-
-
-💳 Deducted 0.01 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769798653175), remaining: 258.55
-💳 Deducted 0.00 cost (session: sub-1769798653175, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
+💳 Deducted 1.76 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1769895268152), remaining: 136.84
+💳 Deducted 0.0176 credits (session: sub-1769895268152) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1769895268152
