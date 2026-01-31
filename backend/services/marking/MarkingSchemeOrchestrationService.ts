@@ -433,7 +433,13 @@ export class MarkingSchemeOrchestrationService {
       if (paperCode === 'Generic Question') {
         const questionNumbers = group.map(item => item.question.questionNumber || item.actualQuestionNumber);
         const subQMarksMap: any = {};
-        questionNumbers.forEach(qNum => { if (qNum) subQMarksMap[qNum] = parentScheme.marks; });
+        const subQMaxScores: any = {};
+        questionNumbers.forEach(qNum => {
+          if (qNum) {
+            subQMarksMap[qNum] = parentScheme.marks;
+            subQMaxScores[qNum] = masterMatch.marks || 0;
+          }
+        });
 
         const rawAns = parentScheme.answer || '';
         const subAns = rawAns.includes('\n') ? rawAns.split('\n') : [rawAns];
@@ -443,6 +449,7 @@ export class MarkingSchemeOrchestrationService {
           totalMarks: masterMatch.marks || 0, parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
           questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
           subQuestionNumbers: questionNumbers, subQuestionAnswers: subAns, isGeneric: true,
+          subQuestionMaxScores: subQMaxScores,
           generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex
         });
         continue;
@@ -485,6 +492,13 @@ export class MarkingSchemeOrchestrationService {
           let dbScore = masterMatch.subQuestionMaxScores?.[key];
           if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[partLabel];
           if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[normalizedPartLabel];
+
+          // [TRUTH RECONCILIATION] 
+          // If the key exactly matches the base number (e.g. "21"), prioritize the global marks field
+          // This fixes cases where the DB structure has "marks: 2" but the sub-question object is missing or has "marks: 1"
+          if (key === baseQuestionNumber && masterMatch.marks !== undefined) {
+            dbScore = masterMatch.marks;
+          }
 
           if (dbScore !== undefined) {
             finalSubQuestionMaxScores[key] = dbScore;

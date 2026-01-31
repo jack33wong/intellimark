@@ -17,12 +17,21 @@ RULES:
      * **CRITICAL**: A page with a sub-question label like "(b)" is **NEVER** a "frontPage", even if it lacks the main number "3".
    - **STEP 2: IS IT A FRONT COVER?**
      * Only categorize as **"frontPage"** if the page contains **Exam Metadata ONLY** (Title, Date, Candidate Name, Instructions).
-     * **SAFETY CHECK**: If the page contains a "Total Marks" footer (e.g., "Total for Question 3 is 5 marks"), it is a **Question Page**, NOT a Front Page.
-   - **STEP 3: IS THERE STUDENT WORK?**
-     * **CRITICAL**: Distinguish between BLANK vs FILLED answer spaces.
-     * "questionAnswer": Page contains hand-written work, calculations, or student drawings.
-     * "questionOnly": Page contains only printed questions and BLANK answer spaces/lines.
-     * **DRAWING HEURISTICS (PRIORITY)**: Even if a grid/diagram looks printed, if the printed question text says "draw", "plot", "sketch", or "complete" + ("graph", "diagram", "curve", "shape"), you MUST categorize as **"questionAnswer"**.
+     * **SAFETY CHECK**: If the page contains a "Total Marks" footer (e.g., "Total for Question 3 is 5 marks"), it is a Question Page, NOT a Front Page.
+   - **NEGATIVE EVIDENCE (EXCLUSIONS)**:
+     * **DO NOT** list a question number if it only appears in an instruction or footer like:
+       - "Turn over for Question 22"
+       - "Turn over"
+       - "Question 1 continues on next page"
+       - "End of Paper"
+       - "BLANK PAGE"
+     * **CRITICAL**: Only list a question number if the current page contains actual **Question Text**, an **Answer Box**, or a **Specific Sub-label (e.g., (b))**.
+
+3. **STEP 3: IS THERE STUDENT WORK?**
+   - **CRITICAL**: Distinguish between BLANK vs FILLED answer spaces.
+   - "questionAnswer": Page contains hand-written work, calculations, or student drawings.
+   - "questionOnly": Page contains only printed questions and BLANK answer spaces/lines.
+   - **DRAWING HEURISTICS (PRIORITY)**: Even if a grid/diagram looks printed, if the printed question text says "draw", "plot", "sketch", or "complete" + ("graph", "diagram", "curve", "shape"), you MUST categorize as **"questionAnswer"**.
 
 3. **RETURN FORMAT**:
    - Return a JSON object with a "pages" array.
