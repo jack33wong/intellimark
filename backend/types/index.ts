@@ -736,6 +736,7 @@ export interface MarkingTask {
     subQuestionNumbers?: string[];  // ["22a", "22b"] for reference
   };
   subQuestionPageMap?: Record<string, number[]>; // NEW: Explicit mapping of sub-question part -> pageIndex(es)
+  pageMap?: Record<number, number>; // [ID-LIE FIX]: Maps Absolute Page Index -> Relative Index (0, 1, 2)
   allowedPageUnion?: number[]; // NEW: Union of all pages for the main question (for fallback routing)
   semanticZones?: Record<string, any[]>; // NEW: Pre-calculated zones for all questions in the document
   // Legacy fields (kept for backward compatibility, but not used in enhanced marking)

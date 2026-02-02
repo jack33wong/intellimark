@@ -5,7 +5,7 @@ import { normalizeLatexDelimiters, sanitizeOcrArtifacts, normalizeTextForCompari
 import * as stringSimilarity from 'string-similarity';
 import { MarkingPromptService } from './MarkingPromptService.js';
 import { MarkingResultParser } from './MarkingResultParser.js';
-import { MarkingPositioningService } from './MarkingPositioningService.js';
+import { MarkingZoneService } from './MarkingZoneService.js';
 
 // ========================= NEW: IMMUTABLE PAGE INDEX ARCHITECTURE =========================
 import {
@@ -223,7 +223,6 @@ export class MarkingInstructionService {
     const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normalizedQText = normalize(questionText || '');
     const structuralNoiseRegex = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn|\\\( \_+ \\\)|_+/i;
-    const instructionKeywordRegex = /^[\W\d_]*[a-z]?[\W\d_]*(Draw|Calculate|Explain|Show that|Work out|Write down|Describe|Complete|Label|Sketch|Plot|Construct)\b/i;
 
     return sortedBlocks.map(b => {
       // --- SPATIAL FILTERING ---
@@ -244,12 +243,8 @@ export class MarkingInstructionService {
 
       // --- INSTRUCTION TAGGING ---
       let isLikelyInstruction = false;
-      const normalizedBText = normalize(content);
-
-      // Match against DB Text
-      if (content.length > 8 && normalizedBText.length > 3 && normalizedQText.includes(normalizedBText)) isLikelyInstruction = true;
-      // Match against Keywords
-      if (!isLikelyInstruction && content && instructionKeywordRegex.test(content)) isLikelyInstruction = true;
+      // [DETETERMINISTIC-TAGGING]: Trust the Zone Detector's Header Identification
+      if ((b as any)._isInstruction) isLikelyInstruction = true;
 
       // Clean up temp props
       const { _y, _cleanText, ...cleanBlock } = b;
@@ -401,8 +396,7 @@ export class MarkingInstructionService {
       let offsetX = 0;
       let offsetY = 0;
 
-      ({ offsetX, offsetY } = MarkingPositioningService.calculateGlobalOffset(
-        classificationBlocks,
+      ({ offsetX, offsetY } = MarkingZoneService.calculateGlobalOffset(
         questionDetection,
         questionDetectionForNormalization,
         inputQuestionNumber,
@@ -411,7 +405,7 @@ export class MarkingInstructionService {
       ));
 
       const landmarks = (processedImage as any).landmarks || (processedImage as any).zones || [];
-      const studentWorkLines = MarkingPositioningService.globalizeStudentWorkLines(
+      const studentWorkLines = MarkingZoneService.globalizeStudentWorkLines(
         classificationBlocks,
         landmarks,
         cleanDataForMarking,

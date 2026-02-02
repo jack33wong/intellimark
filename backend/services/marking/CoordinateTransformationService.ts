@@ -146,6 +146,12 @@ export class CoordinateTransformationService {
             clamping?: { startY: number; endY: number; pad?: number }
         } = {}
     ): PixelBox {
+        // RESCUE ZONE: If AI hallucinated "null" or missing coordinates, return a safe box.
+        // This prevents the worker from crashing via TypeError or NaN propagation.
+        if (!box || (typeof box.x !== 'number' && !Array.isArray(box))) {
+            console.warn(`[COORD-RESCUE] Invalid position input for context: ${options.context || 'UNKNOWN'}. Returning safe default.`);
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
         // console.log(`\n🌀 [RESOLVE-DEBUG][${options.context || 'UNSET'}] START`);
 
         const rawCoords = Array.isArray(box) ? box : [box.x, box.y, box.width, box.height];

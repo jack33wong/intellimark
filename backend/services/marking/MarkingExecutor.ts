@@ -77,8 +77,14 @@ export async function executeMarkingForQuestion(
         if (pageIdx === -1) pageIdx = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
 
         const finalId = (result as any).line_id || (result as any).lineId || (result as any).id || (result as any).sequentialId || `p${pageIdx}_q${questionId}_line_${stepIndex + 1}`;
+
+        // [DEBUG-ID-TRACE]
+        // console.log(`[ID-TRACE] In: ${(result as any).line_id} | Final: ${finalId} | Page: ${pageIdx}`);
+
         return {
-          line_id: finalId, pageIndex: pageIdx, globalBlockId: result.blockId || finalId, text: result.content, lineId: finalId, cleanedText: (result.content || '').trim(), bbox: bbox, ocrSource: result.source || 'classification', isHandwritten: true, unit: (result as any).unit || ((result as any).source === 'classification' ? 'percentage' : 'pixels'), subQuestionLabel: (result as any).subQuestionLabel
+          line_id: finalId,
+          relative_line_id: (result as any).relative_line_id, // [FIX]: Preserve AI's native language (p0_)
+          pageIndex: pageIdx, globalBlockId: result.blockId || finalId, text: result.content, lineId: finalId, cleanedText: (result.content || '').trim(), bbox: bbox, ocrSource: result.source || 'classification', isHandwritten: true, unit: (result as any).unit || ((result as any).source === 'classification' ? 'percentage' : 'pixels'), subQuestionLabel: (result as any).subQuestionLabel
         };
       }).filter(step => {
         if (step.text.includes('[VISUAL WORKSPACE]') || step.text.includes('[DRAWING]')) return true;
@@ -86,8 +92,16 @@ export async function executeMarkingForQuestion(
         return !(step.bbox[0] === 0 && step.bbox[1] === 0 && step.bbox[2] === 0 && step.bbox[3] === 0);
       });
 
-      const ocrSteps = task.mathBlocks.filter(b => b.isHandwritten !== false).map((b, i) => ({
-        line_id: `p${(b as any).pageIndex ?? 0}_ocr_${i}`, pageIndex: (b as any).pageIndex ?? 0, globalBlockId: (b as any).globalBlockId, text: (b as any).mathpixLatex || '', cleanedText: (b as any).mathpixLatex || '', bbox: b.coordinates ? [b.coordinates.x, b.coordinates.y, b.coordinates.width, b.coordinates.height] : [0, 0, 0, 0], ocrSource: (b as any).ocrSource, isHandwritten: b.isHandwritten, unit: 'pixels'
+      const ocrSteps = task.mathBlocks.filter(b => b.isHandwritten !== false).map((b) => ({
+        line_id: (b as any).id || (b as any).globalBlockId || `p${(b as any).pageIndex ?? 0}_ocr_GEN`,
+        pageIndex: (b as any).pageIndex ?? 0,
+        globalBlockId: (b as any).globalBlockId,
+        text: (b as any).text || (b as any).mathpixLatex || '',
+        cleanedText: (b as any).text || (b as any).mathpixLatex || '',
+        bbox: b.coordinates ? [b.coordinates.x, b.coordinates.y, b.coordinates.width, b.coordinates.height] : [0, 0, 0, 0],
+        ocrSource: (b as any).ocrSource,
+        isHandwritten: b.isHandwritten,
+        unit: 'pixels'
       }));
       stepsDataForMapping = [...stepsDataForMapping, ...ocrSteps as any];
     } else {
@@ -101,7 +115,9 @@ export async function executeMarkingForQuestion(
       task.aiSegmentationResults.forEach((result, index) => {
         const clean = result.content.replace(/\s+/g, ' ').trim();
         if (clean && clean !== '--') {
-          const idTag = (result as any).sequentialId ? `[ID: ${(result as any).sequentialId}] ` : `${index + 1}. `;
+          // 🛡️ [ID-LIE FIX]: Use relative_line_id for consistency in the prompt
+          const id = (result as any).relative_line_id || (result as any).sequentialId || `${index + 1}`;
+          const idTag = `[ID: ${id}] `;
           ocrTextForPrompt += `${idTag}${clean}\n`;
         }
       });
@@ -129,7 +145,8 @@ export async function executeMarkingForQuestion(
 
     // --- 3. AI EXECUTION ---
     const rawOcrBlocks = task.mathBlocks.map((block, idx) => {
-      const id = (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx}`;
+      // 🛡️ [ID-LIE FIX]: Use relative_id for RAW OCR BLOCKS in the prompt
+      const id = (block as any).relative_id || (block as any).globalBlockId || `p${(block as any).pageIndex ?? 0}_ocr_${idx}`;
       const text = block.text || (block as any).mathpixLatex || (block as any).latex || (block as any).content || "";
       return { ...block, id: id, pageIndex: (block as any).pageIndex ?? 0, text: text };
     });
@@ -257,7 +274,18 @@ export async function executeMarkingForQuestion(
       } else if (!anno.visual_position && (anno as any).ai_visual_position) {
         anno.visual_position = (anno as any).ai_visual_position;
       }
-      if (!anno.visual_position) anno.visual_position = { x: 50, y: 50, width: 10, height: 10 };
+
+      if (!anno.visual_position) {
+        console.log(`[POS-DEBUG] ⚠️ Missing visual_position for Anno Q${anno.subQuestion} (ID: ${anno.line_id})`);
+        // Try to see if we can find it in lookup blocks
+        const lookup = combinedLookupBlocks.find(b => b.line_id === anno.line_id);
+        if (lookup) {
+          console.log(`[POS-DEBUG] ✅ Found in LOOKUP! Box: [${lookup.bbox.join(', ')}]`);
+        } else {
+          console.log(`[POS-DEBUG] ❌ NOT found in lookup blocks.`);
+        }
+        anno.visual_position = { x: 50, y: 50, width: 10, height: 10 };
+      }
 
       // 🛡️ [ZONE PROTECTION - ABSOLUTE FINAL CHECK]
       // Principle: Footprint-Aware Shield. Check if any part of the icon breaches the boundary.
@@ -267,24 +295,35 @@ export async function executeMarkingForQuestion(
         const halfH = h / 2;
         const rawY = anno.visual_position.y;
 
-        // Boundaries in Percent
-        const startYPercent = (zoneData.startY / dims.height) * 100;
-        const endYPercent = (zoneData.endY / dims.height) * 100;
+        // Boundaries in Percent (Pre-calculated in Upstream)
+        const startYPercent = (zoneData as any).startYPercent;
+        const endYPercent = (zoneData as any).endYPercent;
 
         // Check against extents (Top/Bottom), not just center.
         let wasClamped = false;
-        if ((rawY - halfH) < startYPercent) {
-          anno.visual_position.y = startYPercent + 10; // 10% Pull-back
-          wasClamped = true;
-        } else if (endYPercent && (rawY + halfH) > endYPercent) {
-          anno.visual_position.y = endYPercent - 10; // 10% Pull-back
-          wasClamped = true;
+
+        // [FIX]: Skip protection if the zone is just a sliver (Too small to hold an icon)
+        // This prevents "Negative Clamping" (-4%) on multi-page questions.
+        const zoneHeight = (zoneData.endY || 0) - (zoneData.startY || 0);
+        if (zoneHeight > 50) {
+          if ((rawY - halfH) < startYPercent) {
+            anno.visual_position.y = Math.max(0, startYPercent + 2); // 2% Pull-back (Gentler)
+            wasClamped = true;
+          } else if (endYPercent && (rawY + halfH) > endYPercent) {
+            anno.visual_position.y = Math.min(100, endYPercent - 2); // 2% Pull-back (Gentler)
+            wasClamped = true;
+          }
         }
 
         if (wasClamped) {
-          console.log(` 🛡️ [ZONE-PROTECT] Q${anno.subQuestion}: Footprint breach at Y=${rawY.toFixed(1)}% (Bottom=${(rawY + halfH).toFixed(1)}%). Clamping back 10% to ${anno.visual_position.y.toFixed(1)}%`);
+          console.log(` 🛡️ [ZONE-PROTECT] Q${anno.subQuestion}: Footprint breach at Y=${rawY.toFixed(1)}%. Clamping to ${anno.visual_position.y.toFixed(1)}%`);
+
+          // 🛡️ [SYNC-FIX]: Update pixel bbox so the server-side renderer reflects the clamped position.
+          if (dims && dims.height > 0) {
+            anno.bbox[1] = (anno.visual_position.y / 100) * dims.height;
+          }
         } else {
-          console.log(` ✅ [ZONE-OK] Q${anno.subQuestion}: Footprint at Y=${rawY.toFixed(1)}% (Range ${(rawY - halfH).toFixed(1)}-${(rawY + halfH).toFixed(1)}%) is safe within ${startYPercent.toFixed(1)}-${endYPercent.toFixed(1)}%`);
+          console.log(` ✅ [ZONE-OK] Q${anno.subQuestion}: Footprint at Y=${rawY.toFixed(1)}% is safe within ${startYPercent.toFixed(1)}-${endYPercent.toFixed(1)}%`);
         }
       }
     });
@@ -318,38 +357,10 @@ export async function executeMarkingForQuestion(
       if (dims) maxH = dims.height;
     }
 
-    const pW = minW;
-    const pH = maxH;
-    // [FIX]: Standardize margin to 6% of page width (Dynamic)
-    const margin = Math.floor(pW * 0.06);
-
-    let finalZone: any;
-
-    if (upstreamZone) {
-      console.log(` ✅ [ZONE-FIDELITY] Q${questionId}: Reusing Upstream Zone from Detection Stage.`);
-      finalZone = {
-        x: upstreamZone.x ?? margin,
-        y: (upstreamZone as any).startY ?? 0,
-        width: upstreamZone.width ?? (pW - (margin * 2)),
-        height: ((upstreamZone as any).endY ?? pH) - ((upstreamZone as any).startY ?? 0)
-      };
-    } else {
-      console.warn(` ⚠️ [ZONE-FIDELITY] Q${questionId}: Upstream Zone missing. Falling back to Full-Page Slice with 5% margin.`);
-      finalZone = {
-        x: margin,
-        y: margin,
-        width: pW - (margin * 2),
-        height: pH - (margin * 2)
-      };
-    }
-
-    // 2. Final Visibility Safety (Minimal Height & Clamping)
-    if (finalZone.height < 100) finalZone.height = 100;
-    if (finalZone.y + finalZone.height > pH) {
-      finalZone.height = Math.max(50, pH - finalZone.y - margin);
-    }
-
-    const normalizedSearchWindow = finalZone;
+    // 🛡️ [ZONE-FIDELITY]: We no longer use 'searchWindow' or 'debugSearchWindow' 
+    // for the primary question container. Everything flows through 'semanticZones'.
+    // This removes the "Two Opinions" problem and prevents "Shifted" red boxes.
+    const normalizedSearchWindow = null;
     // ======================================================================================
 
     // DB Payload Sanitization
@@ -359,7 +370,7 @@ export async function executeMarkingForQuestion(
       allowedKeys.forEach(key => { if ((task.markingScheme as any)[key] !== undefined) cleanMarkingScheme[key] = (task.markingScheme as any)[key]; });
     }
 
-    return {
+    const result = {
       questionNumber: questionId,
       score: parsedScore,
       annotations: strictResult.annotations,
@@ -380,9 +391,15 @@ export async function executeMarkingForQuestion(
       promptMarkingScheme: markingResult.schemeTextForPrompt,
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
       rawAnnotations: rawAnnotationsFromAI,
-      semanticZones: semanticZones,
-      debugSearchWindow: normalizedSearchWindow // ✅ Normalized for Renderer
+      semanticZones: semanticZones
     };
+
+    // 🔍 [DIAGNOSTIC] Final Zone Verification
+    const zoneCount = semanticZones ? Object.keys(semanticZones).length : 0;
+    const qZones = semanticZones?.[String(questionId)] || [];
+    console.log(`✅ [EXECUTOR] Finished Q${questionId}. Attached ${zoneCount} labels. Q${questionId} has ${qZones.length} zones.`);
+
+    return result;
   } catch (error) {
     console.error(`Error executing marking for Q${questionId}:`, error);
     throw error;

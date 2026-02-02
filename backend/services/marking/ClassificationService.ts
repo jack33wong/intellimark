@@ -928,6 +928,10 @@ ${pageHints}
       // Sanitize invalid escape sequences and bad control characters
       let sanitized = jsonString;
 
+      // 🛡️ [TOXIC-HALLUCINATION FIX]: Strip "undefined" if it appears in the JSON source.
+      // Gemini sometimes appends `undefined` after numbers (e.g., 4.08undefined) or at the end of properties.
+      sanitized = sanitized.replace(/undefined/gi, '');
+
       // FIX: Escape raw newlines and tabs within string literals
       // This handles the "Bad control character in string literal" error
       sanitized = sanitized.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/gs, (match) => {

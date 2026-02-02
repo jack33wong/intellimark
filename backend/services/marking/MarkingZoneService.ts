@@ -39,7 +39,6 @@ export class MarkingZoneService {
      * landmarks, and question detection boxes.
      */
     public static calculateGlobalOffset(
-        classificationBlocks: any[],
         questionDetection: any[],
         targetQuestionObject: any,
         inputQuestionNumber: string,
@@ -49,14 +48,8 @@ export class MarkingZoneService {
         let offsetX = 0;
         let offsetY = 0;
 
-        // 1. Try Classification Block (Primary Source)
-        if (classificationBlocks && classificationBlocks.length > 0) {
-            const sample = classificationBlocks[0];
-            const rawBox = sample.box || sample.coordinates || { x: sample.x, y: sample.y, width: 0, height: 0 };
-            const pixelBox = CoordinateTransformationService.ensurePixels(rawBox, 2000, 3000, `OFFSET-CLASS`);
-            offsetX = pixelBox.x;
-            offsetY = pixelBox.y;
-        }
+        // 1. [LEGACY REMOVED]: We no longer use raw classification blocks for offset.
+        // We rely on Question Detection (Global) or Landmarks (Local) exclusively.
 
         // 2. Fallback: Question Detection (Global Position)
         if ((offsetX === 0 && offsetY === 0) && targetQuestionObject) {
@@ -308,13 +301,28 @@ export class MarkingZoneService {
                 currentSearchPage,
                 minSearchY,
                 `Start-${finalKey}`,
-                nextEq?.label, // [STOPPER]: Stop if we see the next question
-                nextEq?.targetPage, // 🛡️ [GROUND-TRUTH STOP]: Only stop if it's on/after the expected page
-                eq.targetPage // 🛡️ [GROUND-TRUTH START]: Don't match earlier than expected
+                pageDimensionsMap, // Pass the map
+                nextEq?.label,
+                nextEq?.targetPage,
+                eq.targetPage,
+                nextEq?.text // [FIX]: Pass the Expected Text for Stopper Verification
             );
 
             if (match) {
+                // [FIX]: Tag this block as a confirmed Instruction (Header)
+                // This allows MarkingInstructionService to safely append [PRINTED_INSTRUCTION] without risky text matching.
+                match.block._isInstruction = true;
+
                 const blockY = MarkingZoneService.getY(match.block);
+                const pDims = pageDimensionsMap.get(match.block.pageIndex) || { width: 2480, height: 3508 };
+                const pH = pDims.height || 3508;
+
+                // 🔴 [RED-ALERT]: Log if the FIRST question on a page is found in the top half (< 50%)
+                const isFirstOnPage = !detectedLandmarks.some(l => l.pageIndex === match.block.pageIndex);
+                if (isFirstOnPage && blockY < (pH * 0.5)) {
+                    // console.log(`\x1b[31m 🚩 [TOP-HALF-ANCHOR] Question ${finalKey} found at Y=${blockY} (${((blockY / pH) * 100).toFixed(1)}%) on Page ${match.block.pageIndex} \x1b[0m`);
+                }
+
                 detectedLandmarks.push({
                     key: finalKey,
                     label: eq.label,
@@ -325,7 +333,8 @@ export class MarkingZoneService {
                 });
 
                 currentSearchPage = match.block.pageIndex;
-                minSearchY = MarkingZoneService.getY(match.block) + 10;
+                // [FIX]: Don't increment Y strictly. Sub-questions (2a) often share a line with their parent (2).
+                minSearchY = MarkingZoneService.getY(match.block);
             } else {
                 console.log(`[ZONE-MISS] ⚠️ Question ${finalKey} could not be anchored. Exhausted search from P${currentSearchPage}@${minSearchY}`);
             }
@@ -359,7 +368,7 @@ export class MarkingZoneService {
                         const suffix = next.key.substring(mainClean.length).toLowerCase().replace(/[^a-z0-9]/g, '');
                         // suffix 'a', '1', 'ai', 'i' etc implies first part
                         if (['a', '1', 'ai', 'i', 'parta'].includes(suffix)) {
-                            console.log(`[ZONE-ABSORB] Q${next.key} absorbing Main Q${current.key} on P${current.pageIndex}`);
+                            // console.log(`[ZONE-ABSORB] Q${next.key} absorbing Main Q${current.key} on P${current.pageIndex}`);
                             absorbedIndices.add(i);
                         }
                     }
@@ -368,7 +377,7 @@ export class MarkingZoneService {
         }
 
         const finalLandmarks = detectedLandmarks.filter((_, idx) => !absorbedIndices.has(idx));
-        console.log(`[ZONE-TVC] Deterministic Order (Post-Absorb): ${finalLandmarks.map(l => `${l.key}(P${l.pageIndex}@${l.startY})`).join(' -> ')}`);
+        // console.log(`[ZONE-TVC] Deterministic Order (Post-Absorb): ${finalLandmarks.map(l => `${l.key}(P${l.pageIndex}@${l.startY})`).join(' -> ')}`);
 
         const pagesWithFirstLandmark = new Set<number>();
 
@@ -383,14 +392,10 @@ export class MarkingZoneService {
             const pH = dims.height || 3508;
             const vMargin = Math.floor(pH * 0.06);
 
-            // 🏗️ SMART MARGIN: First question on a page owns the top (6% margin).
-            let finalStartY = current.startY - 150;
-            if (!pagesWithFirstLandmark.has(current.pageIndex)) {
-                console.log(`[ZONE-SMART] First on P${current.pageIndex}: ${current.key} owning Top-of-Page`);
-                finalStartY = vMargin;
-                pagesWithFirstLandmark.add(current.pageIndex);
-            }
-            finalStartY = Math.max(vMargin, finalStartY);
+            // 🏗️ [ZERO MARGIN FIX]: Zone starts EXACTLY at the question text landmark.
+            // No safety buffers, no forced "Top-of-Page" ownership.
+            let finalStartY = current.startY;
+            pagesWithFirstLandmark.add(current.pageIndex); // Maintain for potential logic tracking elsewhere
 
             let endY = pH; // Start at full page, only apply margin if it stays at full page
 
@@ -400,27 +405,9 @@ export class MarkingZoneService {
                 endY = next.startY;
             }
             else {
-                // LAST question on this page: Search for a "Total" stopper or "End of session" marker.
-                const markers = ["total for question", "marks)", "total marks"];
-                if (nextQuestionText) markers.push(nextQuestionText.toLowerCase());
-
-                const stopMarker = sortedBlocks.find(b => {
-                    if (b.pageIndex !== current.pageIndex) return false;
-                    const bY = MarkingZoneService.getY(b);
-                    if (bY < (current as any).startY + 50) return false; // Use original startY for check
-
-                    const t = (b.text || "").toLowerCase();
-                    return markers.some(m => t.includes(m));
-                });
-
-                if (stopMarker) {
-                    const stopY = MarkingZoneService.getY(stopMarker);
-                    console.log(`[ZONE-SMART] Detected STOP marker for ${current.key} at Y=${stopY}`);
-                    endY = stopY + 50; // Include the "Total" line itself + small margin
-                } else {
-                    // 🛡️ [FALLBACK]: Last question on a page owns the bottom (6% margin).
-                    endY = pH - vMargin;
-                }
+                // 🛡️ [SIMPLE DESIGN]: Last question on a page owns the bottom (6% margin).
+                // We no longer search for fragile text-based "Total" stoppers.
+                endY = pH - vMargin;
             }
 
             if (!zones[current.key]) zones[current.key] = [];
@@ -443,9 +430,13 @@ export class MarkingZoneService {
                 label: current.key,
                 startY: finalStartY,
                 endY: finalEndY,
+                startYPercent: (finalStartY / pH) * 100,
+                endYPercent: (finalEndY / pH) * 100,
                 pageIndex: current.pageIndex,
                 x: horizontalMargin,
                 width: pW - (horizontalMargin * 2),
+                origW: pW,
+                origH: pH
             } as any);
         }
 
@@ -460,48 +451,72 @@ export class MarkingZoneService {
             const current = finalLandmarks[i];
             const next = finalLandmarks[i + 1];
 
-            // 🏰 [FIX]: Only bridge FULL gap pages. 
-            // Do NOT extend into 'next.pageIndex' itself, because TVC logic 
-            // already ensures the first question on a page owns the top.
+            // 🏰 [FIX]: Only bridge if the question actually reached the bottom of its current page.
+            // If it was stopped by a "Total" marker, it should not leak into the next page.
+            const qZones = zones[current.key];
+            const lastZone = qZones ? qZones[qZones.length - 1] : null;
+            let stoppedEarly = false;
+
+            if (lastZone) {
+                const pDimsThis = pageDimensionsMap.get(lastZone.pageIndex) || { width: 2480, height: 3508 };
+                const vMarginThis = Math.floor((pDimsThis.height || 3508) * 0.06);
+                // If endY is significantly less than (pageHeight - margin), it stopped early.
+                stoppedEarly = lastZone.endY < (pDimsThis.height - vMarginThis - 100);
+            }
+
             if (next && next.pageIndex > current.pageIndex) {
-                // 1. Fill FULL gaps (e.g. P1 in P0->P2)
-                for (let p = current.pageIndex + 1; p < next.pageIndex; p++) {
-                    console.log(`[ZONE-UPSTREAM] Filling full gap page: ${current.key} for P${p}`);
-                    const pDims = pageDimensionsMap.get(p) || { width: 2480, height: 3508 };
-                    const pW_bridge = pDims.width || 2480;
-                    const pH_bridge = pDims.height || 3508;
-                    const margin_bridge = Math.floor(pW_bridge * 0.06); // [FIX]: Dynamic Margin (6%)
-                    const vMargin_bridge = Math.floor(pH_bridge * 0.06);
-
-                    zones[current.key].push({
-                        label: current.key,
-                        pageIndex: p,
-                        startY: vMargin_bridge, // [FIX]: Enforce TOP margin
-                        endY: pH_bridge - vMargin_bridge, // [FIX]: Enforce BOTTOM margin
-                        x: margin_bridge,
-                        width: pW_bridge - (margin_bridge * 2),
-                    } as any);
-                }
-
-                // 2. Fill PARTIAL top of the next page (e.g. Top of P1 before 11c starts)
-                // This gives 11b ownership of the space above 11c on P1.
-                console.log(`[ZONE-UPSTREAM] Bridging partial top of P${next.pageIndex} for ${current.key} (ends at ${next.key}@${next.startY})`);
                 const nextPDims = pageDimensionsMap.get(next.pageIndex) || { width: 2480, height: 3508 };
-                const nextPW = nextPDims.width || 2480;
                 const nextPH = nextPDims.height || 3508;
-                const nextMargin = Math.floor(nextPW * 0.06); // [FIX]: Dynamic Margin (6%)
-                const nextVMargin = Math.floor(nextPH * 0.06);
+                // 🌉 [V5 SIMPLE DESIGN]: Trigger bridge ONLY if next question starts EXCEPTIONALY HIGH (< 15%).
+                // If it starts lower (e.g. 30%), we SKIP the bridge (no leak).
+                const isNextWithinTop15Percent = next.startY < (nextPH * 0.15);
 
-                // Only create if there is actual space (> vMargin + 50)
-                if (next.startY > nextVMargin + 50) {
-                    zones[current.key].push({
-                        label: current.key,
-                        pageIndex: next.pageIndex,
-                        startY: nextVMargin, // [FIX]: Enforce TOP margin
-                        endY: next.startY, // Stop where the next question starts (Tighten logic will handle refinement)
-                        x: nextMargin,
-                        width: nextPW - (nextMargin * 2),
-                    } as any);
+                if (isNextWithinTop15Percent) {
+                    // console.log(` 🌉 [BRIDGE-ACTIVATE] ${current.key} -> ${next.key} (NextY: ${next.startY} [15%= ${(nextPH * 0.15).toFixed(0)}])`);
+
+                    // 1. Fill FULL gaps (e.g. P1 in P0->P2)
+                    for (let p = current.pageIndex + 1; p < next.pageIndex; p++) {
+                        const pDims = pageDimensionsMap.get(p) || { width: 2480, height: 3508 };
+                        const pW_bridge = pDims.width || 2480;
+                        const pH_bridge = pDims.height || 3508;
+                        const margin_bridge = Math.floor(pW_bridge * 0.06);
+                        const vMargin_bridge = Math.floor(pH_bridge * 0.06);
+
+                        zones[current.key].push({
+                            label: current.key,
+                            pageIndex: p,
+                            startY: vMargin_bridge,
+                            endY: pH_bridge - vMargin_bridge,
+                            startYPercent: (vMargin_bridge / pH_bridge) * 100,
+                            endYPercent: ((pH_bridge - vMargin_bridge) / pH_bridge) * 100,
+                            x: margin_bridge,
+                            width: pW_bridge - (margin_bridge * 2),
+                            origW: pW_bridge,
+                            origH: pH_bridge
+                        } as any);
+                    }
+
+                    // 2. Fill PARTIAL top of the next page
+                    const nextPW = nextPDims.width || 2480;
+                    const nextMargin = Math.floor(nextPW * 0.06);
+                    const nextVMargin = Math.floor(nextPH * 0.06);
+
+                    if (next.startY > nextVMargin + 50) {
+                        zones[current.key].push({
+                            label: current.key,
+                            pageIndex: next.pageIndex,
+                            startY: nextVMargin,
+                            endY: next.startY,
+                            startYPercent: (nextVMargin / nextPH) * 100,
+                            endYPercent: (next.startY / nextPH) * 100,
+                            x: nextMargin,
+                            width: nextPW - (nextMargin * 2),
+                            origW: nextPW,
+                            origH: nextPH
+                        } as any);
+                    }
+                } else {
+                    // console.log(` 🚫 [BRIDGE-SKIP] ${current.key} -> ${next.key} (NextY: ${next.startY} [15%= ${(nextPH * 0.15).toFixed(0)}])`);
                 }
             }
         }
@@ -519,9 +534,11 @@ export class MarkingZoneService {
         minPage: number,
         minY: number,
         debugContext: string,
+        pageDimensionsMap: Map<number, { width: number; height: number }>,
         nextQuestionLabel?: string,
-        targetNextPage?: number, // 🛡️ [GROUND-TRUTH STOP]: The expected page for the stopper
-        targetCurrentPage?: number // 🛡️ [GROUND-TRUTH START]: The expected page for THIS question
+        targetNextPage?: number,
+        targetCurrentPage?: number,
+        nextQuestionText?: string // [FIX]: New Argument
     ): { block: any, similarity: number } | null {
 
         const label = labelRaw.trim();
@@ -580,12 +597,35 @@ export class MarkingZoneService {
                     // 1. Strict Number & Sequence Match
                     if (blockNum === targetNextNum && blockSeq === targetNextSeq) {
                         const hasExplicitKeyword = /question/i.test(blockText);
+                        let isValidStopper = true;
+
+                        // 🛡️ [STOPPER-VERIFICATION]: If it's a "Naked Number" (no "Question" keyword),
+                        // we MUST verify the text matches the expected Next Question Text.
+                        // This prevents "2 marks" from triggering "Question 2".
+                        if (!hasExplicitKeyword && nextQuestionText) {
+                            // Look ahead to capture text context
+                            let stopperContext = blockText;
+                            // Grab a few subsequent blocks to build context (similar to forward search)
+                            // Simple lookahead for context
+                            let contextLimit = 3;
+                            for (let k = 1; k <= contextLimit; k++) {
+                                if (i + k < sortedBlocks.length && sortedBlocks[i + k].pageIndex === firstBlock.pageIndex) {
+                                    stopperContext += " " + (sortedBlocks[i + k].text || "");
+                                }
+                            }
+
+                            const stopperScore = SimilarityService.calculateHybridScore(stopperContext, nextQuestionText, false, true);
+                            if (stopperScore.total < 0.4) {
+                                // console.log(`[STOPPER-REJECT] '2' found but text mismatch (${stopperScore.total.toFixed(2)}). Expected: '${nextQuestionText.substring(0,20)}...'`);
+                                isValidStopper = false;
+                            }
+                        }
+
 
                         // 🕵️ HEURISTIC: "Physical Law" Stopper
                         // - STRONG STOP: If it says "Question X", it's a real header. STOP.
                         // - WEAK STOP: If it's just a naked "X", it could be a summary table or page number.
                         //   We only STOP if we have already found a decent match for the CURRENT question.
-                        let isValidStopper = true;
 
                         if (!hasExplicitKeyword) {
                             // 🛡️ [FOOTER NOISE REJECTION]: Skip digits in the bottom 5% (likely page numbers)
@@ -607,7 +647,7 @@ export class MarkingZoneService {
                         }
 
                         if (isValidStopper) {
-                            console.log(`[ZONE-SEQUENTIAL] 🛑 ABSOLUTE STOP: Detected next question "${nextQuestionLabel}" at P${blockPage}. Killing search for "${label}".`);
+                            // console.log(`[ZONE-SEQUENTIAL] 🛑 ABSOLUTE STOP: Detected next question "${nextQuestionLabel}" at P${blockPage}. Killing search for "${label}".`);
                             break;
                         }
                     }
@@ -616,7 +656,7 @@ export class MarkingZoneService {
 
             // 🛡️ [CONFIDENCE LOCK]: If we have a high-confidence match on an early page, stop searching.
             if (bestBlock && bestBlock.pageIndex < blockPage && bestSimilarity > 0.75) {
-                console.log(`[ZONE-SEQUENTIAL] 🛡️ Found early match for "${label}" at P${bestBlock.pageIndex}. Terminating search before P${blockPage}.`);
+                // console.log(`[ZONE-SEQUENTIAL] 🛡️ Found early match for "${label}" at P${bestBlock.pageIndex}. Terminating search before P${blockPage}.`);
                 break;
             }
 
@@ -630,32 +670,34 @@ export class MarkingZoneService {
                 accumulatedText += (currentBlock.text || "") + " ";
                 const blockTextRaw = accumulatedText.trim();
 
-                const details = SimilarityService.calculateHybridScore(blockTextRaw, targetFull, false, true);
+                // [BUG-FIX]: Normalize notations (e.g., "2 (a) Write" -> "2 Write") so they match classification text
+                const normalizedCandidate = blockTextRaw
+                    .replace(/^[\\(\[\]\s\-\.\)]+/, '') // [FIX]: Strip leading LaTeX/noise (e.g. \( 1 -> 1)
+                    .replace(/^(\d+)\s*\(?([a-z]|[0-9]{1,2}|[ivx]+)\)?\s+/, '$1 ')
+                    .replace(/^(\d+)[\.\)]\s+/, '$1 ')
+                    .trim();
+
+                const details = SimilarityService.calculateHybridScore(normalizedCandidate, targetFull, false, true);
 
                 let anchorBonus = 0;
                 if (labelRaw.length > 0) {
                     const exactRegex = new RegExp(`^${MarkingZoneService.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
                     const parentRegex = parentLabel ? new RegExp(`^${MarkingZoneService.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i') : null;
-                    let suffixRegex: RegExp | null = null;
-                    if (subPartLabel) {
-                        suffixRegex = new RegExp(`^\\(?${MarkingZoneService.escapeRegExp(subPartLabel)}\\)(?:[\\s\\.]|$)`, 'i');
-                    }
 
-                    let isLabelMatch = exactRegex.test(blockTextRaw.trim()) || MarkingZoneService.checkLabelMatch(blockTextRaw, labelRaw);
+                    const isLabelMatch = exactRegex.test(normalizedCandidate) || MarkingZoneService.checkLabelMatch(normalizedCandidate, labelRaw);
 
-                    // 🛡️ [NOISE-REJECTION]: Avoid matching naked page numbers as question anchors
-                    if (isLabelMatch && !/question/i.test(blockTextRaw)) {
-                        if (blockY > 92) { // Footer margin
-                            isLabelMatch = false;
+                    if (isLabelMatch) {
+                        const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
+                        const pH_match = dims_match.height || 3508;
+                        const isFooter = blockY > (pH_match * 0.9);
+                        const isTotalLine = /total/i.test(normalizedCandidate);
+
+                        // We check the "Header Identity" vs "Footer Identity"
+                        if (isFooter || isTotalLine) {
+                            anchorBonus = -0.5; // Penalize footers
+                        } else {
+                            anchorBonus = 0.5; // Favor headers
                         }
-                    }
-
-                    if (isLabelMatch && verifyMatch(textRaw, blockTextRaw)) {
-                        anchorBonus = 0.5;
-                    } else if (suffixRegex && suffixRegex.test(blockTextRaw.trim())) {
-                        anchorBonus = 0.25;
-                    } else if (parentRegex && parentRegex.test(blockTextRaw.trim())) {
-                        anchorBonus = 0.20;
                     }
                 }
 
@@ -685,7 +727,8 @@ export class MarkingZoneService {
                 }
 
                 if (finalScore > bestSimilarity) {
-                    bestBlock = currentBlock;
+                    // [FIX]: Anchor to the START of the question (firstBlock), not the end of the window (currentBlock).
+                    bestBlock = firstBlock;
                     bestSimilarity = finalScore;
                 }
             }
@@ -695,6 +738,11 @@ export class MarkingZoneService {
         const dynamicThreshold = targetFull.length < 15 ? 0.7 : 0.45;
         if (bestBlock && bestSimilarity > dynamicThreshold) {
             return { block: bestBlock, similarity: bestSimilarity };
+        }
+
+        if (labelRaw === "2" || labelRaw === "2a") {
+            console.log(`[ZONE-FAIL] ❌ Match failed for ${labelRaw}. Best candidate: "${bestBlock?.text?.substring(0, 50)}..." Score: ${bestSimilarity?.toFixed(3)} (Threshold: ${dynamicThreshold})`);
+            console.log(`[ZONE-FAIL] 🎯 Target was: "${targetFull.substring(0, 50)}..."`);
         }
         return null;
     }
@@ -724,7 +772,8 @@ export class MarkingZoneService {
 
         const escapedLabel = MarkingZoneService.escapeRegExp(cleanLabel);
         const patterns = [
-            new RegExp(`^${escapedLabel}(?:[\\s\\.\\)]|$)`, 'i'),
+            // [FIX]: Handle LaTeX delimiters like "\( 1" or "[1" or "1."
+            new RegExp(`^[\\\\\\(\\[\\]\\s\\-\\.]*${escapedLabel}(?:[\\s\\.\\)\\],\\-]|$|\\\\)`, 'i'),
             new RegExp(`^Question\\s+${escapedLabel}`, 'i')
         ];
 

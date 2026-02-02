@@ -195,7 +195,12 @@ export class MarkingTaskFactory {
                 const blocksSource = (pageData as any)?.ocrData?.mathBlocks || (pageData as any)?.mathBlocks || (pageData as any)?.blocks || [];
                 const blocks = blocksSource.map((b: any, bIdx: number) => {
                     const blockId = `p${pageData.pageIndex ?? pIdx}_ocr_${bIdx}`;
-                    return { ...b, pageIndex: pageData.pageIndex ?? pIdx, globalBlockId: blockId, id: blockId, text: b.text || b.mathpixLatex || b.latex || "" };
+                    // [FIX]: Mutate original block to preserve references
+                    b.pageIndex = pageData.pageIndex ?? pIdx;
+                    b.globalBlockId = blockId;
+                    b.id = blockId;
+                    b.text = b.text || b.mathpixLatex || b.latex || "";
+                    return b;
                 });
                 allOcrBlocksGlobal.push(...blocks);
             });
@@ -296,6 +301,14 @@ export class MarkingTaskFactory {
             let promptMainWork = "";
             let currentHeader = "";
 
+            // [ID-LIE FIX]: Create a mapping of Absolute Page Index -> Relative Index (0, 1, 2...)
+            // This ensures the AI prompt always sees questions starting from Page 0.
+            const absPageIndices = [...group.sourceImageIndices].sort((a, b) => a - b);
+            const pageMap: Record<number, number> = {};
+            absPageIndices.forEach((abs, rel) => {
+                pageMap[abs] = rel;
+            });
+
             group.aiSegmentationResults.sort((a: any, b: any) => {
                 if (a.subQuestionLabel === 'main') return -1;
                 if (b.subQuestionLabel === 'main') return 1;
@@ -314,74 +327,79 @@ export class MarkingTaskFactory {
 
                     // 🛡️ [OMNI-PRESENT SOURCE FIX]: 
                     // Explode [DRAWING] blocks into page-specific IDs if the question spans multiple pages.
-                    // This ensures the AI prompt allows selection of the correct page.
                     if (clean === '[DRAWING]' && seg.subQuestionLabel) {
-                        // [FIX]: Key Mismatch. seg.subQuestionLabel might be "b", but zones are keyed "11b".
                         const fullLabel = seg.subQuestionLabel.startsWith(baseQNum)
                             ? seg.subQuestionLabel
                             : `${baseQNum}${seg.subQuestionLabel}`;
 
                         const zones = globalZones[fullLabel];
-
                         if (zones && zones.length > 0) {
                             const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
-
-                            // If we have zones on multiple pages (or just one page that is different from the anchor),
-                            // we generate explicit page-specific IDs.
                             if (uniquePages.length > 0) {
                                 uniquePages.forEach(pIdx => {
-                                    // pX_visual_drawing_11_1
-                                    const pageSpecificId = `p${pIdx}_${seg.line_id}`; // e.g. p0_visual_drawing_11_1
+                                    const relIdx = pageMap[pIdx] ?? 0;
+                                    const pageSpecificId = `p${relIdx}_${seg.line_id}`; // e.g. p0_visual_drawing_11_1
                                     promptMainWork += `[ID: ${pageSpecificId}] [DRAWING]\n`;
-
-                                    // ⚠️ CRITICAL: We must also append this new synthetic block to the group's results
-                                    // so that MarkingExecutor can map the AI's response back to a valid step.
-                                    // We check if it already exists to avoid duplicates (though loop order should prevent this).
-                                    if (!group.aiSegmentationResults.some((s: any) => s.line_id === pageSpecificId)) {
-                                        // We defer this push to avoid mutating the array while iterating
-                                        // or we can handle it by post-processing.
-                                        // Actually, let's just push it to a separate list and merge later?
-                                        // Better: Let's assume the mapped steps will be derived from these explicitly later.
-                                    }
                                 });
-                                return; // Skip the default generic line
+                                return; // Skip default generic line
                             }
                         }
                     }
 
-                    const id = seg.line_id || seg.blockId || seg.sequentialId;
+                    let id = seg.line_id || seg.blockId || seg.sequentialId;
+
+                    // 🛡️ [ID-LIE FIX]: Rewrite ID in prompt to use relative page index
+                    if (id && id.startsWith('p')) {
+                        const match = id.match(/^p(\d+)_/);
+                        if (match) {
+                            const absIdx = parseInt(match[1]);
+                            if (pageMap[absIdx] !== undefined) {
+                                id = id.replace(`p${absIdx}_`, `p${pageMap[absIdx]}_`);
+                            }
+                        }
+                    }
+
                     promptMainWork += `[ID: ${id}] ${clean}\n`;
                 }
             });
 
-            // 🛡️ [OMNI-PRESENT SYNC]: Re-populate aiSegmentationResults with the exploded versions?
-            // MarkingExecutor consumes task.aiSegmentationResults to build its mapping.
-            // If the AI returns "p1_visual_drawing...", MarkingExecutor needs to find a step with that ID.
-            // So we MUST expand group.aiSegmentationResults.
-
+            // 🛡️ [OMNI-PRESENT SYNC]: Re-populate aiSegmentationResults with the exploded/relative versions
             const explodedResults: any[] = [];
             group.aiSegmentationResults.forEach((seg: any) => {
                 const clean = seg.content.replace(/\s+/g, ' ').trim();
-                if (clean === '[DRAWING]' && seg.subQuestionLabel && globalZones[seg.subQuestionLabel]) {
-                    const zones = globalZones[seg.subQuestionLabel];
-                    const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
+                if (clean === '[DRAWING]' && seg.subQuestionLabel) {
+                    const fullLabel = seg.subQuestionLabel.startsWith(baseQNum)
+                        ? seg.subQuestionLabel
+                        : `${baseQNum}${seg.subQuestionLabel}`;
 
-                    if (uniquePages.length > 0) {
+                    const zones = globalZones[fullLabel];
+                    if (zones && zones.length > 0) {
+                        const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
                         uniquePages.forEach(pIdx => {
+                            const relIdx = pageMap[pIdx] ?? 0;
                             const newId = `p${pIdx}_${seg.line_id}`;
+                            const relId = `p${relIdx}_${seg.line_id}`;
                             explodedResults.push({
                                 ...seg,
                                 line_id: newId,
+                                relative_line_id: relId,
                                 blockId: newId,
                                 globalBlockId: newId,
                                 pageIndex: pIdx,
                                 isExploded: true
                             });
                         });
-                        return; // Don't push original
+                        return;
                     }
                 }
-                explodedResults.push(seg);
+
+                const relIdx = seg.pageIndex !== undefined ? (pageMap[seg.pageIndex] ?? 0) : 0;
+                explodedResults.push({
+                    ...seg,
+                    relative_line_id: (seg.line_id || seg.blockId)?.startsWith('p')
+                        ? (seg.line_id || seg.blockId).replace(/^p(\d+)_/, `p${relIdx}_`)
+                        : seg.line_id
+                });
             });
             group.aiSegmentationResults = explodedResults;
 
@@ -389,12 +407,31 @@ export class MarkingTaskFactory {
             if (allPagesOcrData) {
                 group.sourceImageIndices.forEach((pIdx: number) => {
                     const pageData = allPagesOcrData.find(p => p.pageIndex === pIdx);
+                    // 🛡️ [PROMPT-SCOPE]: Get the specific zone for this question on this page
+                    // We only want OCR blocks that are inside (or very close to) the question's zone.
+                    const qZones = globalZones && globalZones[baseQNum] ? globalZones[baseQNum] : [];
+                    const pageZone = qZones.find((z: any) => z.pageIndex === pIdx);
+
+                    const validStartY = pageZone ? (pageZone.startY || 0) : 0;
+                    const validEndY = pageZone ? (pageZone.endY || 99999) : 99999;
+
                     const blocksSource = (pageData as any)?.ocrData?.mathBlocks || (pageData as any)?.mathBlocks || (pageData as any)?.blocks || [];
                     if (blocksSource.length > 0) {
+                        const relIdx = pageMap[pIdx] ?? 0;
                         const blocks = blocksSource.map((b: any, bIdx: number) => {
-                            const blockId = `p${pIdx}_ocr_${bIdx}`;
-                            return { ...b, pageIndex: pIdx, globalBlockId: blockId, id: blockId, text: b.text || b.mathpixLatex || b.latex || "" };
-                        });
+                            // ⚠️ [SAFETY-REVERT] Filter removed to prevent data loss.
+                            // We construct the block ID preserving the original index bIdx.
+                            const absId = `p${pIdx}_ocr_${bIdx}`;
+                            const relId = `p${relIdx}_ocr_${bIdx}`;
+
+                            // [FIX]: Preserve the original reference that was tagged in Phase 1.6
+                            b.pageIndex = pIdx;
+                            b.globalBlockId = absId;
+                            b.id = absId;
+                            b.relative_id = relId;
+                            b.text = b.text || b.mathpixLatex || b.latex || "";
+                            return b;
+                        }).filter((b: any) => b !== null);
                         allOcrBlocks.push(...blocks);
                     }
                 });
@@ -432,6 +469,7 @@ export class MarkingTaskFactory {
                 images: questionImages,
                 aiSegmentationResults: group.aiSegmentationResults,
                 semanticZones: globalZones,
+                pageMap: pageMap,
                 subQuestionMetadata: {
                     hasSubQuestions: group.subQuestionMetadata.hasSubQuestions,
                     subQuestions: group.subQuestionMetadata.subQuestions

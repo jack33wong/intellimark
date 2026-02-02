@@ -1,5 +1,5 @@
 
-import { MarkingPositioningService } from '../MarkingPositioningService.js';
+import { MarkingZoneService } from '../MarkingZoneService.js';
 import { MarkingTask } from '../../../types/index.js';
 import { MarkingTaskFactory } from './MarkingTaskFactory.js';
 
@@ -17,11 +17,14 @@ export class ZoneArchitect {
         const taskFirstPage = (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0;
         const expectedQuestions = classificationExpected.map(c => ({ ...c, targetPage: taskFirstPage }));
 
-        const rawOcrBlocksForZones = task.mathBlocks.map((block) => ({
-            text: block.mathpixLatex || (block as any).googleVisionText || '',
-            coordinates: block.coordinates,
-            pageIndex: (block as any).pageIndex ?? 0
-        }));
+        const rawOcrBlocksForZones = (task.mathBlocks || []).map((block) => {
+            // [FIX]: Preserve the original object reference so that _isInstruction tag persists.
+            // Also ensure .text is present as MarkingZoneService relies on it for fuzzy matching.
+            if (!(block as any).text) {
+                (block as any).text = block.mathpixLatex || (block as any).googleVisionText || '';
+            }
+            return block;
+        });
 
         let nextQuestionText = task.nextQuestionText;
         let semanticZones: Record<string, any[]>;
@@ -32,7 +35,7 @@ export class ZoneArchitect {
             // Clone to avoid mutating the source
             semanticZones = JSON.parse(JSON.stringify(task.semanticZones));
         } else {
-            semanticZones = MarkingPositioningService.detectSemanticZones(
+            semanticZones = MarkingZoneService.detectSemanticZones(
                 rawOcrBlocksForZones,
                 pageDimensionsMap,
                 expectedQuestions,
@@ -102,11 +105,12 @@ export class ZoneArchitect {
             if ((step as any).ocrSource === 'system-injection') {
                 const qLabel = (step as any).subQuestionLabel;
                 const pIdx = step.pageIndex;
-                if (!semanticZones[qLabel] || semanticZones[qLabel].length === 0) {
+                const hasZoneOnPage = semanticZones[qLabel]?.some(z => z.pageIndex === pIdx);
+                if (!hasZoneOnPage) {
                     const dims = pageDimensionsMap.get(pIdx) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
                     const pW = dims.width || 2480;
                     const pH = dims.height || 3508;
-                    const margin = 40;
+                    const margin = Math.floor(pW * 0.05); // [FIX]: Dynamic Margin (5%)
 
                     let ceilingY = pH;
                     Object.values(semanticZones).flat().forEach(z => {

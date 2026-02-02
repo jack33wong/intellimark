@@ -699,48 +699,53 @@ export function formatGroupedStudentWork(
 
 /**
  * Convert question numbers to sortable numeric values for page sorting
- * Examples: "3" → 3.0, "3a" → 3.01, "3b" → 3.02, "12i" → 12.01, "12ii" → 12.02
+ * Handles complex nesting: "3" → 3.0, "3a" → 3.01, "3ai" → 3.0101, "3aii" → 3.0102, "12bii" → 12.0202
  */
 export function getQuestionSortValue(questionNumber: string | null | undefined): number {
   if (!questionNumber) return Infinity;
 
-  const baseNum = parseInt(String(questionNumber).replace(/\D/g, '')) || 0;
-  if (baseNum === 0) return Infinity;
+  const str = String(questionNumber).trim().toLowerCase();
 
-  // Extract sub-question part (e.g., "a", "b", "i", "ii")
-  const subPart = String(questionNumber).replace(/^\d+/, '').toLowerCase();
+  // 1. Extract Base Number (e.g. "11" from "11a(i)")
+  const baseMatch = str.match(/^(\d+)/);
+  if (!baseMatch) return Infinity;
+  const baseNum = parseInt(baseMatch[1]);
 
-  if (!subPart) {
-    // Main question (e.g., "3") → 3.0
-    return baseNum;
+  let remaining = str.replace(/^\d+/, '').replace(/[\(\)\[\]]/g, '').trim();
+  let weight = baseNum;
+
+  if (!remaining) return weight;
+
+  // 2. Extract Alpha Part (e.g. "a" from "ai")
+  // Only extract as alpha if it's NOT a standalone roman numeral
+  const isRomanOnly = /^[ivx]+$/i.test(remaining);
+  const alphaMatch = remaining.match(/^([a-z])/i);
+  if (alphaMatch && !isRomanOnly) {
+    const letter = alphaMatch[1].toLowerCase();
+    weight += (letter.charCodeAt(0) - 'a'.charCodeAt(0) + 1) * 0.01;
+    remaining = remaining.substring(alphaMatch[1].length);
   }
 
-  // Convert sub-question part to numeric offset
-  let subOffset = 0;
+  if (!remaining) return weight;
 
-  // Letter sub-questions: a=0.01, b=0.02, c=0.03, etc.
-  if (subPart.match(/^[a-z]$/)) {
-    subOffset = (subPart.charCodeAt(0) - 'a'.charCodeAt(0) + 1) * 0.01;
-  }
-  // Roman numerals: i=0.01, ii=0.02, iii=0.03, iv=0.04, v=0.05, etc.
-  else if (subPart.match(/^[ivx]+$/i)) {
-    const romanMap: Record<string, number> = {
-      'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5,
-      'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10
-    };
-    const romanValue = romanMap[subPart.toLowerCase()] || 0;
-    subOffset = romanValue * 0.01;
-  }
-  // Numeric sub-questions: (1)=0.01, (2)=0.02, etc.
-  else if (subPart.match(/^\(?\d+\)?$/)) {
-    const numMatch = subPart.match(/\d+/);
+  // 3. Extract Secondary Part (Roman Numerals or Numeric)
+  // Roman numerals: i, ii, iii...
+  const romanMap: Record<string, number> = {
+    'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5,
+    'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10
+  };
+
+  if (romanMap[remaining]) {
+    weight += romanMap[remaining] * 0.0001;
+  } else {
+    // Check for numeric sub-part (e.g. 1, 2 from "(1)")
+    const numMatch = remaining.match(/^(\d+)/);
     if (numMatch) {
-      subOffset = parseInt(numMatch[0]) * 0.01;
+      weight += parseInt(numMatch[1]) * 0.0001;
     }
   }
 
-  // Return base number + sub-question offset
-  return baseNum + subOffset;
+  return weight;
 }
 
 /**

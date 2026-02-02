@@ -1,0 +1,547 @@
+
+> ai-marking-backend@1.0.0 dev
+> cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
+
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 2, Body Keys: model, aiMessageId, customText
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.1203342, files: 2, bytes: 1103342
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":315.78}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Multiple Images (2 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.3s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 2 pages...
+   📦 [MAPPER-BUCKET] Processing pages 0 to 1...
+
+🔍 [MAPPER AUDIT] Batch of 2 images:
+   ✅ Mapped Local[0] -> Global[0] | Content: 11c, 11d
+   ✅ Mapped Local[1] -> Global[1] | Content: 11a, 11b
+✅ [MAPPER] Map Pass complete in 1.82s. Mapped 2 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m9.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m9.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.5s[0m ([32m[1mMATHPIX[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Pearson Edexcel Mathematics 1MA1/2H • June 2024
+   Pool Size: 1 papers, 22 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 11   | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.740 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.740] 1MA1/2H Q11                    | Txt:0.73 Num:0.38 Str:1.00 Sem:PASS
+| 11c  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.740 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.740] 1MA1/2H Q11                    | Txt:0.73 Num:0.38 Str:1.00 Sem:PASS
+| 11d  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.740 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.740] 1MA1/2H Q11                    | Txt:0.73 Num:0.38 Str:1.00 Sem:PASS
+| 11a  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.740 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.740] 1MA1/2H Q11                    | Txt:0.73 Num:0.38 Str:1.00 Sem:PASS
+| 11b  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.740 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.740] 1MA1/2H Q11                    | Txt:0.73 Num:0.38 Str:1.00 Sem:PASS
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 5
+   Detected: 5/5
+   Not detected: 0
+   [HINT] Hint Used: "Pearson Edexcel Mathematics 1MA1/2H • June 2024"
+   [HINT] Matched Papers: 1
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔄 [RE-INDEXING] 🛡️ Aligning physical pages...
+🕵️ [PROBE] Q11 | sourceImageIndex: 1 | text: The frequency table gives info...
+   ⚖️ [PAGE-WEIGHT] Page 0: Weights=[11:11, 11c:11.03, 11d:11.04] -> Selected: 11.03
+   ⚖️ [PAGE-WEIGHT] Page 1: Weights=[11:11, 11a:11.01, 11b:11.02] -> Selected: 11.01
+🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:
+-----------------------------------------------------------------------------------------
+| OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |
+-----------------------------------------------------------------------------------------
+| 0       | new doc 2025-11-23 1 | false  | 11.03  | 11, 11c, 11d                       |
+| 1       | new doc 2025-11-23 1 | false  | 11.01  | 11, 11a, 11b                       |
+-----------------------------------------------------------------------------------------
+✅ [RE-INDEXING] Completed. Physical Page Index 0 is now: new doc 2025-11-23 11.51.11_12.jpg
+✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.
+
+🔄 [OCR RE-ID] Regenerating Global Block IDs to match new Page Indices...
+✅ [OCR RE-ID] Completed. Blocks are now synchronized with physical pages.
+✅ [DIMENSIONS REBUILD] Map refreshed for 2 re-indexed pages.
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+🔍 [DIMENSIONS DEBUG] Pages: 2
+🔍 [DIMENSIONS DEBUG] Map Size: 2
+[ZONE-TRUTH] Q11 Classifier Target: Page 0
+[UPSTREAM-SORT] 🏆 Fed 45 blocks in order: 0 -> 1
+[ZONE-DETECTOR] Deterministic Sort Order: 11 -> 11a -> 11b -> 11c -> 11d
+[ZONE-SORT] 🏆 Physical Page Order: 0 -> 1
+[ZONE-SEQUENTIAL] 🛡️ Found early match for "11" at P0. Terminating search before P1.
+[ZONE-SEQUENTIAL] 🛡️ Found early match for "11a" at P0. Terminating search before P1.
+[ZONE-SEQUENTIAL] 🛡️ Found early match for "11b" at P0. Terminating search before P1.
+[ZONE-ABSORB] Q11a absorbing Main Q11 on P0
+[ZONE-TVC] Deterministic Order (Post-Absorb): 11a(P0@687) -> 11b(P0@1253) -> 11c(P1@1279) -> 11d(P1@1628)
+[ZONE-SMART] First on P0: Snapping 11a start with 150px buffer
+[ZONE-SMART] First on P1: Snapping 11c start with 150px buffer
+[ZONE-UPSTREAM] Bridging partial top of P1 for 11b (ends at 11c@1279)
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+
+🔍 [EXECUTOR PROBE] Q11
+   - Task Page Index: 0
+   - Visible Blocks Sample: p0_q11_line_5, p0_q11_line_6, p0_q11_line_7
+[33m[POS-DEBUG] ⚠️ Missing Position for Q11 -> (0,0).[0m
+[33m   - ClassBlocks: 0[0m
+[33m   - QuestionDetection: true[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 11
+
+## QUESTION TEXT
+**[11]**: The frequency table gives information about the weights of 60 parcels. [Table: 0<w<=2 (7), 2<w<=4 (21), 4<w<=6 (15), 6<w<=8 (11), 8<w<=10 (6).] Complete the cumulative frequency table. On the grid opposite, draw a cumulative frequency graph for your table. [A blank grid with Weight (w kg) on x-axis 0-10 and Cumulative frequency on y-axis 0-60.] Use your graph to find an estimate for the interquartile range. Use your graph to find an estimate for the number of these parcels with a weight greater than 7.4kg.
+
+**[11a]**: The frequency table gives information about the weights of 60 parcels. [Table: 0<w<=2 (7), 2<w<=4 (21), 4<w<=6 (15), 6<w<=8 (11), 8<w<=10 (6).] Complete the cumulative frequency table.
+
+**[11b]**: On the grid opposite, draw a cumulative frequency graph for your table. [A blank grid with Weight (w kg) on x-axis 0-10 and Cumulative frequency on y-axis 0-60.]
+
+**[11c]**: Use your graph to find an estimate for the interquartile range.
+
+**[11d]**: Use your graph to find an estimate for the number of these parcels with a weight greater than 7.4kg.
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[11a] [MAX SCORE: 1]
+- B1: 7, 28, 43, 54, 60
+
+[11b] [MAX SCORE: 2]
+- M1: for 4 or 5 of their points plotted correctly from a cf table
+- A1: for a fully correct graph
+
+[11c] [MAX SCORE: 2]
+- M1: for at least one correct quartile, eg $(UQ=)$ value in the range 6.2 to 6.4 or $(LQ=)$ value in the range 2.6 to 2.8 or ft their cf graph
+- A1: for answer in the range 3.4 to 4 or ft their cf graph
+
+[11d] [MAX SCORE: 2]
+- M1: for cf reading at weight = 7.4 in the range 50 to 53 or ft their cf graph
+- A1: for answer in the range 7 to 10 or ft their cf graph
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p0_q11_line_5] 7
+[ID: p0_q11_line_6] 28
+[ID: p0_q11_line_7] 43
+[ID: p0_q11_line_8] 54
+[ID: p0_q11_line_9] 60
+
+[SUB-QUESTION b]
+[ID: p0_visual_drawing_11_11] [DRAWING]
+[ID: p1_visual_drawing_11_11] [DRAWING]
+
+[SUB-QUESTION c]
+[ID: p1_q11_line_1] 6.4-3
+[ID: p1_q11_line_2] 3.4
+
+[SUB-QUESTION d]
+[ID: p1_q11_line_3] 60-51
+[ID: p1_q11_line_4] 9
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "11 The frequency table gives information about the weights of 60 parcels."
+[p0_ocr_1]: "\begin{tabular}{|c|c|} \hline Weight ( \( \boldsymbol{w} \mathbf{k g} \) ) & Frequency"
+[p0_ocr_2]: "\hline \( 0<w \leqslant 2 \) & 7"
+[p0_ocr_3]: "\hline \( 2<w \leqslant 4 \) & 21"
+[p0_ocr_4]: "\hline \( 4<w \leqslant 6 \) & 15"
+[p0_ocr_5]: "\hline \( 6<w \leqslant 8 \) & 11"
+[p0_ocr_6]: "\hline \( 8<w \leqslant 10 \) & 6"
+[p0_ocr_7]: "\hline \end{tabular}"
+[p0_ocr_8]: "(a) Complete the cumulative frequency table. [PRINTED_INSTRUCTION]"
+[p0_ocr_9]: "\begin{tabular}{|l|l|} \hline Weight ( \( w \mathrm{~kg} \) ) & Cumulative frequency"
+[p0_ocr_10]: "Weight ( \( w \mathrm{~kg} \) )"
+[p0_ocr_11]: "Cumulative frequency [PRINTED_INSTRUCTION]"
+[p0_ocr_12]: "\hline \( 0<w \leqslant 2 \) & 7"
+[p0_ocr_15]: "7"
+[p0_ocr_14]: "\( 0<w \leqslant 2 \)"
+[p0_ocr_13]: "\hline \( 0<w \leqslant 4 \) & 28"
+[p0_ocr_18]: "28"
+[p0_ocr_17]: "\( 0<w \leqslant 4 \)"
+[p0_ocr_16]: "\hline \( 0<w \leqslant 6 \) & 43"
+[p0_ocr_21]: "43"
+[p0_ocr_20]: "\( 0<w \leqslant 6 \)"
+[p0_ocr_19]: "\hline \( 0<w \leqslant 8 \) & 54"
+[p0_ocr_24]: "54"
+[p0_ocr_22]: "\hline \( 0<w \leqslant 10 \) & 60"
+[p0_ocr_23]: "\( 0<w \leqslant 8 \)"
+[p0_ocr_27]: "60"
+[p0_ocr_25]: "\hline \end{tabular}"
+[p0_ocr_26]: "\( 0<w \leqslant 10 \)"
+[p0_ocr_28]: "(1)"
+[p0_ocr_29]: "(b) On the grid opposite, draw a cumulative frequency graph for your table."
+[p0_ocr_30]: "(2)"
+[p0_ocr_31]: "12"
+[p1_ocr_0]: "OT WRITE IN THIS AREA"
+[p1_ocr_1]: "(c) Use your graph to find an estimate for the interquartile range."
+[p1_ocr_2]: "6.4-3"
+[p1_ocr_3]: "3.4"
+[p1_ocr_4]: "kg"
+[p1_ocr_5]: "(2)"
+[p1_ocr_6]: "(d) Use your graph to find an estimate for the number of these parcels with a weight"
+[p1_ocr_7]: "greater than 7.4 kg . [PRINTED_INSTRUCTION]"
+[p1_ocr_8]: "60-51"
+[p1_ocr_9]: "9"
+[p1_ocr_10]: "(2)"
+[p1_ocr_11]: "13"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 7,
+    "raw_correct_steps_found": 7,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "Student has completed the cumulative frequency table, drawn a cumulative frequency graph, estimated the interquartile range and estimated the number of parcels with a weight greater than 7.4kg.",
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q11_line_5",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_15",
+      "reasoning": "The student has correctly entered 7 in the cumulative frequency table.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q11_line_6",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_18",
+      "reasoning": "The student has correctly entered 28 in the cumulative frequency table.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q11_line_7",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_21",
+      "reasoning": "The student has correctly entered 43 in the cumulative frequency table.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q11_line_8",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_24",
+      "reasoning": "The student has correctly entered 54 in the cumulative frequency table.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q11_line_9",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_27",
+      "reasoning": "The student has correctly entered 60 in the cumulative frequency table.",
+      "subQuestion": "11a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p0_visual_drawing_11_11",
+      "content_desc": "Cumulative frequency graph with 5 points plotted correctly.",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has plotted 5 points correctly from their cumulative frequency table.",
+      "subQuestion": "11b",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p0_visual_drawing_11_11",
+      "content_desc": "Fully correct cumulative frequency graph.",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn a fully correct cumulative frequency graph.",
+      "subQuestion": "11b",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 50,
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p1_q11_line_2",
+      "content_desc": null,
+      "ocr_match_status": "UNMATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has a correct value for the interquartile range.",
+      "subQuestion": "11c",
+      "pageIndex": 1,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p1_q11_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has a correct answer for the interquartile range.",
+      "subQuestion": "11c",
+      "pageIndex": 1,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p1_q11_line_4",
+      "content_desc": null,
+      "ocr_match_status": "UNMATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has a correct cf reading at weight = 7.4.",
+      "subQuestion": "11d",
+      "pageIndex": 1,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p1_q11_line_4",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": null,
+      "reasoning": "The student has a correct answer for the number of parcels with a weight greater than 7.4kg.",
+      "subQuestion": "11d",
+      "pageIndex": 1,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 7,
+    "awardedMarks": 7,
+    "scoreText": "7/7"
+  }
+}
+```
+========================================
+
+ 🛡️ [VETO-HIT] Block "7" matched Veto Item "use your graph to find an estimate for the number of these parcels with a weight greater than 74 kg"
+ 🛡️ [SEMANTIC-VETO] 11a: Block p0_ocr_15 ("7") rejected.
+ 🛡️ [VETO-HIT] Block "60" matched Veto Item "the frequency table gives information about the weights of 60 parcels"
+ 🛡️ [SEMANTIC-VETO] 11a: Block p0_ocr_27 ("60") rejected.
+ 🚫 [VETO-REJECT] Candidate "(b) On the grid opposite, draw a cumulative frequency graph for your table." matches Veto "on the grid opposite draw a cumulative frequency graph for your table"
+ 🚫 [VETO-REJECT] Candidate "(c) Use your graph to find an estimate for the interquartile range." matches Veto "use your graph to find an estimate for the interquartile range"
+ 🚫 [VETO-REJECT] Candidate "kg" matches Veto "use your graph to find an estimate for the number of these parcels with a weight greater than 74 kg"
+ 🚫 [VETO-REJECT] Candidate "greater than 7.4 kg ." matches Veto "use your graph to find an estimate for the number of these parcels with a weight greater than 74 kg"
+ 🧲 [LINKER-RESCUE] 11c: Snapped UNMATCHED "3.4" to Block p1_ocr_3
+ 🚫 [VETO-REJECT] Candidate "(b) On the grid opposite, draw a cumulative frequency graph for your table." matches Veto "on the grid opposite draw a cumulative frequency graph for your table"
+ 🚫 [VETO-REJECT] Candidate "(c) Use your graph to find an estimate for the interquartile range." matches Veto "use your graph to find an estimate for the interquartile range"
+ 🚫 [VETO-REJECT] Candidate "kg" matches Veto "use your graph to find an estimate for the number of these parcels with a weight greater than 74 kg"
+ 🚫 [VETO-REJECT] Candidate "greater than 7.4 kg ." matches Veto "use your graph to find an estimate for the number of these parcels with a weight greater than 74 kg"
+ 🧲 [LINKER-RESCUE] 11c: Snapped UNMATCHED "3.4" to Block p1_ocr_3
+ 📍 [PATH 3] Q11a: Line "p0_q11_line_5" is UNMATCHED. Recovering position.
+ 📍 [PATH 3] Q11a: Line "p0_q11_line_9" is UNMATCHED. Recovering position.
+ 🧲 [IRON-DOME-PATCH] Snapping Q11b from P0 -> P1
+ 🧲 [IRON-DOME-PATCH] Snapping Q11b from P0 -> P1
+ 📍 [PATH 3] Q11d: Line "p1_q11_line_4" is UNMATCHED. Recovering position.
+ 📍 [PATH 3] Q11d: Line "p1_q11_line_4" is UNMATCHED. Recovering position.
+ ✅ [ZONE-OK] Q11a: Footprint at Y=42.5% (Range 41.2-43.8%) is safe within 25.0-58.4%
+ ✅ [ZONE-OK] Q11a: Footprint at Y=45.6% (Range 44.1-47.0%) is safe within 25.0-58.4%
+ ✅ [ZONE-OK] Q11a: Footprint at Y=48.7% (Range 47.4-50.0%) is safe within 25.0-58.4%
+ ✅ [ZONE-OK] Q11c: Footprint at Y=62.6% (Range 60.8-64.3%) is safe within 49.1-70.8%
+ ✅ [ZONE-OK] Q11c: Footprint at Y=62.6% (Range 60.8-64.3%) is safe within 49.1-70.8%
+ ✅ [ZONE-OK] Q11b: Footprint at Y=25.2% (Range 20.2-30.2%) is safe within 0.0-55.6%
+ ✅ [ZONE-OK] Q11b: Footprint at Y=30.9% (Range 25.9-35.9%) is safe within 0.0-55.6%
+ ✅ [ZONE-OK] Q11a: Footprint at Y=51.8% (Range 49.7-53.8%) is safe within 25.0-58.4%
+ ✅ [ZONE-OK] Q11a: Footprint at Y=47.2% (Range 45.2-49.3%) is safe within 25.0-58.4%
+ ✅ [ZONE-OK] Q11d: Footprint at Y=82.9% (Range 80.8-84.9%) is safe within 64.3-96.5%
+ ✅ [ZONE-OK] Q11d: Footprint at Y=87.4% (Range 85.3-89.4%) is safe within 64.3-96.5%
+ 💎 [BUDGET-CHECK] Q11a: Max Marks = 99. Items to Process: 5
+ 💎 [BUDGET-CHECK] Q11c: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q11b: Max Marks = 99. Items to Process: 2
+ 💎 [BUDGET-CHECK] Q11d: Max Marks = 99. Items to Process: 2
+[GUILLOTINE] Q11a exceeded budget! Kept 1/5, Budget 1.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m11.2s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m11.2s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+
+🎨 [RENDERER AUDIT] Page 0 (Physical Index) (W: 1516, H: 2144) - 1 Questions:
+   ✅ Q11: ZONE FOUND [x:81, y:81, w:1462, h:2138]
+      📊 STATS: PageWidth=1516 | Margin=81px (5.34%) | Target(5%)=75px
+
+🎨 [RENDERER AUDIT] Page 1 (Physical Index) (W: 1624, H: 2300) - 1 Questions:
+   ✅ Q11: ZONE FOUND [x:81, y:81, w:1462, h:2138]
+      📊 STATS: PageWidth=1624 | Margin=81px (4.99%) | Target(5%)=81px
+
+✅ [OUTPUT SERVICE] Final Page Order (Verified Content):
+---------------------------------------------------------------------------------
+| Seq | Index | Original Filename      | Content (Questions)                  |
+---------------------------------------------------------------------------------
+| [0] |  0    | new doc 2025-11-23 11. | 11a, 11b                             |
+| [1] |  1    | new doc 2025-11-23 11. | 11b, 11c, 11d                        |
+---------------------------------------------------------------------------------
+
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.4s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.8s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m11      [0m | 7/7   | B1, A1, M1, A1, M1, A1, M1 | AI:3/7 → M:3 U:2                       |
+| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
+| [90m  b     [0m | 2     | A1, M1                  | AI:0/2 → M:0 U:0                       |
+| [90m  c     [0m | 2     | A1, M1                  | AI:1/2 → M:2 U:0                       |
+| [90m  d     [0m | 2     | A1, M1                  | AI:1/2 → M:0 U:2                       |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 28.6s
+Model Used: gemini-2.0-flash
+----------------------------
+marking                             11.2s (39%)
+classification                      9.7s (34%)
+ocr_processing                      3.5s (12%)
+output_generation                   1.4s (5%)
+performance_summary                 0.8s (3%)
+question_detection                  0.7s (2%)
+preprocessing                       0.3s (1%)
+database_persistence                0.2s (1%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 4 total
+   Total Tokens: 12,993 (10,094 in + 2,899 out)
+   Total Cost: $0.009972
+   Mathpix OCR: 2 pages → $0.008000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 1,571 tokens (1 requests) → $0.000197
+   • Classification (Marking Pass): 4,551 tokens (1 requests) → $0.000775
+   • Marking: 6,400 tokens (1 requests) → $0.001137
+   • Performance Summary: 471 tokens (1 requests) → $0.000059
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1770034485723
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1770034485723
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0099723
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 1.00 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770034485723), remaining: 314.78
+💳 Deducted 0.0100 credits (session: sub-1770034485723) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770034485723

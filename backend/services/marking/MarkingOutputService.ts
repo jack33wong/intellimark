@@ -37,39 +37,33 @@ export class MarkingOutputService {
         // --- 1. Draw Annotations (Zones & Marks) ---
         // We iterate through the standardizedPages in their CURRENT (Correct) order.
         const annotatedImagesBase64 = await Promise.all(standardizedPages.map(async (page, i) => {
+            const pageIndex = page.pageIndex;
             // Find questions that belong to this page index
             // Note: markingResults have updated pageIndex from the Pipeline's Re-Indexing step
             // Find questions that belong to this physical page (by primary anchor OR by having annotations on this page)
             const pageQuestions = markingResults.filter(r =>
-                r.pageIndex === page.pageIndex ||
-                r.annotations?.some(a => a.pageIndex === page.pageIndex) ||
-                (r.sourceImageIndices && r.sourceImageIndices.includes(page.pageIndex))
+                r.pageIndex === pageIndex ||
+                r.annotations?.some(a => a.pageIndex === pageIndex) ||
+                (r.sourceImageIndices && r.sourceImageIndices.includes(pageIndex))
             );
 
             // ========================= 🎨 [RENDERER AUDIT] =========================
             // CRITICAL DEBUG: Check if the Zone Coordinates actually reached the renderer.
             // If this logs "❌ NO ZONE", then 'MarkingExecutor' failed to attach the data to the final result.
             if (pageQuestions.length > 0) {
-                console.log(`\n🎨 [RENDERER AUDIT] Page ${i} (Physical Index) (W: ${page.width}, H: ${page.height}) - ${pageQuestions.length} Questions:`);
+                console.log(`\n🎨 [RENDERER AUDIT] Page ${i} (Physical Index: ${pageIndex}) (W: ${page.width}, H: ${page.height}) - ${pageQuestions.length} Questions:`);
                 pageQuestions.forEach(q => {
-                    // Check all possible properties where the zone might be stored
-                    const zone = (q as any).debugSearchWindow || (q as any).searchWindow || (q as any).position;
+                    // 🛡️ [SINGLE SOURCE OF TRUTH AUDIT]: Check semanticZones instead of legacy props
+                    const label = q.questionNumber;
+                    const zoneMap = (q as any).semanticZones;
+                    const zonesForThisQ = zoneMap ? zoneMap[label] || zoneMap[String(label)] : null;
+                    const zoneOnThisPage = zonesForThisQ?.find((z: any) => z.pageIndex === pageIndex);
 
-                    if (zone) {
-                        const x = zone.x || 0;
-                        const w = zone.width || 0;
-                        const marginPct = (page.width > 0) ? (x / page.width) * 100 : 0;
-                        const marginTarget = Math.floor(page.width * 0.05);
-
-                        const coords = `x:${x.toFixed(0)}, y:${zone.y?.toFixed(0)}, w:${w.toFixed(0)}, h:${zone.height?.toFixed(0)}`;
-                        console.log(`   ✅ Q${q.questionNumber}: ZONE FOUND [${coords}]`);
-                        console.log(`      📊 STATS: PageWidth=${page.width} | Margin=${x.toFixed(0)}px (${marginPct.toFixed(2)}%) | Target(5%)=${marginTarget}px`);
-
-                        if (x < marginTarget - 5) { // Allow small variance
-                            console.warn(`      ⚠️ [MARGIN ALERT] Zone margin (${x}px) is LESS than 5% target (${marginTarget}px)! logic failed.`);
-                        }
+                    if (zoneOnThisPage) {
+                        const coords = `x:${zoneOnThisPage.x.toFixed(0)}, y:${zoneOnThisPage.startY.toFixed(0)}, w:${zoneOnThisPage.width.toFixed(0)}, h:${(zoneOnThisPage.endY - zoneOnThisPage.startY).toFixed(0)}`;
+                        console.log(`   ✅ Q${q.questionNumber}: SEMANTIC ZONE FOUND [${coords}] (P${zoneOnThisPage.pageIndex})`);
                     } else {
-                        console.log(`   ❌ Q${q.questionNumber}: NO ZONE DATA FOUND (Renderer received null)`);
+                        console.log(`   ❌ Q${q.questionNumber}: NO SEMANTIC ZONE DATA for Page ${pageIndex}`);
                     }
                 });
             }
@@ -79,7 +73,6 @@ export class MarkingOutputService {
             // Note: We need to adapt the existing logic slightly as the user provided a conceptual 'AnnotationService.overlayAnnotations'
             // but the original code used SVGOverlayService directly. I will adapt to use the original logic but IN ORDER.
 
-            const pageIndex = page.pageIndex;
             const annotationsForThisPage = pageQuestions.flatMap(q => q.annotations || []).filter(a => a.pageIndex === pageIndex);
             // Also need to handle 'annotationsByPage' grouping if we want to be robust, but filtering from results is cleaner.
 
@@ -106,29 +99,30 @@ export class MarkingOutputService {
 
             // Deduplicate zones (copied from original)
             const uniqueZonesMap = new Map<string, any>();
+            console.log(`   🔍 [OUTPUT-SERVICE] Page ${pageIndex}: Processing ${markingResults.length} marking results for zones...`);
             markingResults.forEach(qr => {
-                // 1. Primary Container (The "Red Box" for the whole question)
-                const primaryZone = (qr as any).debugSearchWindow || (qr as any).searchWindow;
-                if (primaryZone && qr.pageIndex === pageIndex) {
-                    const key = `Q${qr.questionNumber}_p${pageIndex}`;
-                    if (!uniqueZonesMap.has(key)) {
-                        uniqueZonesMap.set(key, {
-                            ...primaryZone,
-                            label: `Q${qr.questionNumber}`,
-                            startY: primaryZone.y, // Drawer expects startY
-                            endY: (primaryZone.y || 0) + (primaryZone.height || 0)
-                        });
-                    }
-                }
-
-                // 2. Semantic Zones (Sub-questions like 11a, 11b)
                 if (qr.semanticZones) {
                     Object.entries(qr.semanticZones).forEach(([label, zones]: [string, any]) => {
                         zones.forEach((z: any) => {
                             if (z.pageIndex === pageIndex) {
                                 const key = `${label}_p${pageIndex}`;
                                 if (!uniqueZonesMap.has(key)) {
-                                    uniqueZonesMap.set(key, { ...z, label });
+                                    // 🛡️ [RESOLUTION-SYNC]: Scale zones from OCR resolution to burn resolution
+                                    const origW = z.origW || page.width || 2480;
+                                    const origH = z.origH || page.height || 3508;
+                                    const sX = page.width / origW;
+                                    const sY = page.height / origH;
+
+                                    const scaledZone = {
+                                        ...z,
+                                        label,
+                                        x: z.x * sX,
+                                        width: z.width * sX,
+                                        startY: z.startY * sY,
+                                        endY: z.endY * sY
+                                    };
+
+                                    uniqueZonesMap.set(key, scaledZone);
                                 }
                             }
                         });

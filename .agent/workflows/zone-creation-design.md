@@ -2,7 +2,7 @@
 description: Design principles and technical logic for Zone Creation and Page Alignment.
 ---
 
-# Zone Creation Design Bible (v1.0)
+# Zone Creation Design Bible (v1.1)
 
 This document defines the core architecture for how the system aligns physical pages with logical questions and determines the spatial boundaries (zones) for marking.
 
@@ -11,25 +11,37 @@ This document defines the core architecture for how the system aligns physical p
 The system must ensure that physical page indices match the logical sequence of the exam. This prevents "Warp Speed" errors where a zone detector looks for the next question on a distant page.
 
 ### The Truth-First Sorting Hierarchy
-Re-indexing occurs **after** Stage 3 (Database Verification) to ensure sorting is based on Ground Truth. It is the design for upstream data; downstream components (Zone Detector, SVG Renderer) must trust this sorting implicitly.
+Re-indexing occurs **after** Stage 3 (Database Verification).
 
 1.  **Tier 1: Metadata (P0)**: Front covers and instruction pages are always pinned to the top.
 2.  **Tier 2: Ground Truth**: Pages are sorted by the lowest verified question number detected on them.
-    *   **Past Paper**: Uses **Database Verified** question numbers. **FAIL FAST**. If detection fails for a non-meta page, it must NOT go to Tier 3 fallback.
+    *   **Past Paper**: Uses **Database Verified** question numbers.
     *   **Non-Past Paper**: Uses **AI Classification** question numbers.
-3.  **Tier 3: Original Physical Order**: Fallback for Non-Past Papers or Ghost Pages (Non-Past Paper only).
-    *   **PROHIBITION**: Never use Filenames for sorting. Filenames are "dumb" data and introduce lexicographical bias (e.g., "Page 10" before "Page 2").
 
-### Pointer Synchronization
-When pages are re-indexed, the following pointers MUST be updated to maintain 1:1 mapping:
-- `pageIndex` in `StandardizedPage`
-- `sourceImageIndex` in `ClassificationResult.questions`
-- `sourceImageIndex` in `MarkingTask`
+### The Fail-Fast Directive (Past Papers ONLY)
+- **STRICT PROHIBITION**: For Past Papers, there is NO Tier 3 fallback to "Original Physical Order."
+- **HALT ON SILENCE**: If any page (that is not Tier 1 Meta) contains zero detected question landmarks, the system must **HALT** with a "Detection Integrity Failure."
+- **EXCEPTIONS**: A page can only proceed without a landmark if it is a **Ghost Page** (physically situated between two identified questions and correctly backfilled). If it is a "Lone Ghost" that cannot be anchored, it is a failure.
+- **RATIONALE**: Fallbacks hide detection errors. If the system can't prove where a page belongs, it must not guess. Scrambled pages are a critical failure.
 
-### 1.3 Upstream Backfill (Backfilled Zones)
-To ensure continuous marking coverage, the system implements a "Backfill" mechanism for spans where no landmark headers are detected.
+### Sorting Modes & Edge Cases
+The sorting strategy differs based on the **Source of Authority**.
 
-*   **Ghost Pages**: If Page $K$ contains no detected question header, but Question $N$ started on Page $K-1$ and Question $N+1$ is on Page $K+1$, the system **backfills** Page $K$ into the zone of Question $N$.
+#### 1. Past Paper Mode (Authority: Database)
+- **Primary Rules**: 00 (Meta) -> Question Sequence -> Backfilled Sequence.
+- **Fail-Fast**: If a page contains zero detected question landmarks and is not a backfilled neighbor, it is a **Detection Integrity Failure**. **HALT IMMEDIATELY**.
+- **Prohibition**: Never use "Original Physical Order" as a fallback for missing data. It is better to crash than to scramble an exam.
+
+#### 2. Non-Past Paper/Homework (Authority: User Intent)
+- **Primary Rules**: 00 (Meta) -> Classified Question Number.
+- **Graceful Fallback**: If a page is unidentified (e.g., a blank sheet or drawing), it must maintain its **Original Physical Order** relative to its identified neighbors.
+- **Rationale**: There is no "Ground Truth" to prove the AI missed something; therefore, the user's upload sequence is the final authority.
+
+### Ghost Page & Pointer Synchronization (Section 1.2 Updated)
+A **Ghost Page** is a page with no detected text landmarks (e.g., a drawing-only page).
+- **Backfilling**: If Page N is Q1 and Page N+2 is Q2, then Page N+1 is logically assigned to "Q1 Continuation."
+- **Pointer Sync**: When a page is re-indexed from `OriginalIndex_12` to `PhysicalIndex_0`, the `sourceImageIndex` property on all associated `Question` objects MUST be updated to `0` **before** any downstream component (Zone Detector) receives the data.
+ Page $K+1$, the system **backfills** Page $K$ into the zone of Question $N$.
 *   **Expansion Rule**: A question zone expands horizontally across all intervening pages until it hits the **Sequential Terminator** (the next question's header).
 *   **Visual Representation**: In the backend, these are stored as `semanticZones`. A backfilled page will have a zone with `startY=0` and `endY=100` (Full Page Coverage).
 *   **Authority**: Backfilling is determined by the **Logical Re-indexing** order. It ensures that the marker never encounters a "Dead Zone" between questions.

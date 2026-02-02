@@ -708,6 +708,21 @@ export class MarkingPipelineService {
                         .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
                         .join('\n');
 
+                    // 🛡️ [GLOBAL-ID FIX]: Combine parent-level student work lines from all pages
+                    // Every line must keep its original page index
+                    const combinedParentLines: any[] = [];
+                    questionInstances.forEach(({ question, pageIndex }) => {
+                        if (question.studentWorkLines && Array.isArray(question.studentWorkLines)) {
+                            question.studentWorkLines.forEach((line: any) => {
+                                // Stamp the page index on the line before adding
+                                combinedParentLines.push({
+                                    ...line,
+                                    pageIndex: line.pageIndex !== undefined ? line.pageIndex : pageIndex
+                                });
+                            });
+                        }
+                    });
+
                     // Merge sub-questions if present (group by part, combine student work)
                     // Also track which pages each sub-question came from
                     // Recursive merge helper for sub-questions
@@ -745,12 +760,18 @@ export class MarkingPipelineService {
                             if (subQ.studentWorkLines && Array.isArray(subQ.studentWorkLines)) {
                                 // Simple deduplication based on text and position
                                 subQ.studentWorkLines.forEach((newLine: any) => {
+                                    // Stamp source page index
+                                    const stampedLine = {
+                                        ...newLine,
+                                        pageIndex: newLine.pageIndex !== undefined ? newLine.pageIndex : pIdx
+                                    };
+
                                     const isDuplicate = existing.studentWorkLines.some((l: any) =>
-                                        l.text === newLine.text &&
-                                        l.position?.x === newLine.position?.x &&
-                                        l.position?.y === newLine.position?.y
+                                        l.text === stampedLine.text &&
+                                        l.position?.x === stampedLine.position?.x &&
+                                        l.position?.y === stampedLine.position?.y
                                     );
-                                    if (!isDuplicate) existing.studentWorkLines.push(newLine);
+                                    if (!isDuplicate) existing.studentWorkLines.push(stampedLine);
                                 });
                             }
 
@@ -806,6 +827,8 @@ export class MarkingPipelineService {
                             : questionInstances[0].question.text,
                         // Combine student work from all pages
                         studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
+                        // [GLOBAL-ID FIX]: Include all merged lines with their page indices
+                        studentWorkLines: combinedParentLines.length > 0 ? combinedParentLines : (pageWithText.question.studentWorkLines || []),
                         // Use sourceImageIndex from page with text, or first page (for backward compatibility)
                         sourceImage: standardizedPages.find(p => p.pageIndex === pageWithText.pageIndex)?.originalFileName || 'unknown',
                         sourceImageIndex: pageWithText.pageIndex,
@@ -1076,36 +1099,81 @@ export class MarkingPipelineService {
             // CRITICAL ARCHITECTURE FIX: Re-sort pages using DB-VERIFIED Ground Truth.
             // This happens AFTER Stage 3, so we trust the Question Numbers implicitly.
 
-            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages using Database Verified Truth...`);
+            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages...`);
 
-            // 1. Map pages to their Lowest VERIFIED Question Number
+            // 🔍 [RE-INDEX PROBE]: Verify pointer sync integrity
+            classificationResult.questions.forEach((q: any) => {
+                if (q.questionNumber === '11' || q.questionNumber === '1' || q.questionNumber?.startsWith('11')) {
+                    console.log(`🕵️ [PROBE] Q${q.questionNumber} | sourceImageIndex: ${q.sourceImageIndex} | text: ${q.text?.substring(0, 30)}...`);
+                }
+            });
+
+            // 1. Map pages to their Lowest VERIFIED Question Number (Sub-Question Aware)
+            // 🛡️ [MULTI-ANCHOR REUSE]: We check sourceImageIndices (plural) to see if a page belongs to a question.
+            // This preserves the existing logic for questions spanning multiple pages (like Q11 on P0/P23).
             const pageSortMap = standardizedPages.map((page, originalIdx) => {
-                // We use the UPDATED classification result which has DB-confirmed numbers
-                // The 'questions' array here is already filtered/cleaned by OrchestrationService
-                const questions = classificationResult.questions.filter((q: any) => q.sourceImageIndex === page.pageIndex);
+                const physicalPageIndex = page.pageIndex;
 
-                // Find lowest question number on this page
-                let minQ = Infinity;
+                let minSortWeight = Infinity;
                 const debugQList: string[] = [];
 
-                questions.forEach((q: any) => {
-                    // Extract numeric part (e.g. "1a" -> 1)
-                    const num = parseInt(String(q.questionNumber).replace(/\D/g, ''));
-                    debugQList.push(q.questionNumber);
-                    if (!isNaN(num) && num > 0 && num < minQ) minQ = num;
-                });
+                // 🏗️ TRUTH-FIRST: Look at database-verified questions and their SUB-QUENCES
+                const pageWeights: { q: string, w: number }[] = [];
+                const checkWeightRecursive = (node: any, parentQNum: string = '') => {
+                    const currentQNum = node.questionNumber || node.part || '';
+                    // Build full context (e.g. "11" + "c" = "11c")
+                    let qNumContext = parentQNum;
+                    if (currentQNum) {
+                        if (!qNumContext) qNumContext = currentQNum;
+                        else if (!qNumContext.endsWith(currentQNum) && !currentQNum.startsWith(qNumContext)) {
+                            // Only append if it looks like a sub-part (not a repetition)
+                            if (/^[a-z(]/.test(currentQNum)) qNumContext += currentQNum;
+                            else qNumContext = currentQNum;
+                        }
+                    }
 
-                // Check if it's a metadata page based on the ORIGINAL classification
-                // (Orchestration might have focused only on questions, so we check the raw result for category)
+                    // Check if this specific node (Question or Sub-Question) is on this page
+                    const indices = node.sourceImageIndices || (node.sourceImageIndex !== undefined ? [node.sourceImageIndex] : []);
+                    const pageIndexOnNode = node.pageIndex !== undefined ? [node.pageIndex] : [];
+                    const allIndicesOnNode = [...new Set([...indices, ...pageIndexOnNode])];
+
+                    if (allIndicesOnNode.includes(physicalPageIndex)) {
+                        if (qNumContext) {
+                            debugQList.push(qNumContext);
+                            const weight = getQuestionSortValue(qNumContext);
+                            pageWeights.push({ q: qNumContext, w: weight });
+                        }
+                    }
+
+                    // Recurse into sub-questions to find the earliest part on this page
+                    if (node.subQuestions && Array.isArray(node.subQuestions)) {
+                        node.subQuestions.forEach((sub: any) => checkWeightRecursive(sub, qNumContext));
+                    }
+                };
+
+                classificationResult.questions.forEach((q: any) => checkWeightRecursive(q));
+
+                // 🛡️ [SPECIFICITY PRIORITY]: Solve ties like Q11 on both pages.
+                if (pageWeights.length > 0) {
+                    const getPrecision = (n: number) => String(n).includes('.') ? String(n).split('.')[1].length : 0;
+                    const maxPrecision = Math.max(...pageWeights.map(pw => getPrecision(pw.w)));
+                    const specificWeights = pageWeights.filter(pw => getPrecision(pw.w) === maxPrecision);
+                    minSortWeight = Math.min(...specificWeights.map(pw => pw.w));
+
+                    // 🔍 DEBUG: Log the decision
+                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
+                }
+
+                // Fallback for Meta/Front Pages
                 const rawResult = allClassificationResults[originalIdx]?.result;
                 const isMeta = rawResult?.category === 'metadata' || rawResult?.category === 'frontPage';
 
                 return {
                     originalIdx,
                     filename: page.originalFileName,
-                    minQ: minQ === Infinity ? 999999 : minQ,
+                    minQ: minSortWeight === Infinity ? 999999 : minSortWeight,
                     isMeta,
-                    debugQ: debugQList.join(', ')
+                    debugQ: [...new Set(debugQList)].join(', ')
                 };
             });
 
@@ -1121,35 +1189,33 @@ export class MarkingPipelineService {
             });
             console.log('-----------------------------------------------------------------------------------------');
 
-            // 1.5 FAIL-FAST Check for Past Papers
-            // If this is a Past Paper session, and we have non-meta pages with no detected question,
-            // we must FAIL FAST according to the Design Bible (No fallback to Tier 3).
+            // 1.5 PAST PAPER MODE: STRICT FAIL-FAST (Bible 1.1)
             const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
             if (isPastPaper) {
-                const missingPages = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
-                if (missingPages.length > 0) {
-                    const pageNames = missingPages.map(p => p.filename).join(', ');
-                    const errorMsg = `[TRUTH-WARNING] Past Paper detection missing results for pages: ${pageNames}. Proceeding with Warning (Quality may be reduced).`;
-                    console.warn(`⚠️ ${errorMsg}`);
-                    // We no longer throw here as per updated design - we allow the Safety Net to handle blank/unknown pages.
+                // Identify "Lone Ghosts" (Pages with no Q-number that weren't backfilled)
+                const fatalErrors = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
+
+                if (fatalErrors.length > 0) {
+                    // HALT ON SILENCE (Bible 1.1)
+                    // We do NOT fall back to upload order. We crash to protect data integrity.
+                    const err = `[DETECTION INTEGRITY FAILURE] Pages ${fatalErrors.map(p => p.originalIdx).join(', ')} could not be identified or backfilled. Halting process to prevent scrambled data.`;
+                    console.error(`❌ ${err}`);
+                    throw new Error(err);
                 }
             }
 
-            // 2. Execute the Sort
+            // 2. LOGICAL SORT (Truth-First)
             pageSortMap.sort((a, b) => {
-                // Priority 1: Metadata/Front Page always first
+                // Rule 1: Metadata First
                 if (a.isMeta && !b.isMeta) return -1;
                 if (!a.isMeta && b.isMeta) return 1;
 
-                // Priority 2: Verified Question Number (The Truth)
-                // If both have valid numbers, use them.
-                if (a.minQ !== 999999 && b.minQ !== 999999) {
+                // Rule 2: Robust Weight (Covers a, b, i, ii, etc.)
+                if (Math.abs(a.minQ - b.minQ) > 0.00001) {
                     return a.minQ - b.minQ;
                 }
 
-                // Priority 3: SAFETY NET - Natural Upload Order
-                // If AI missed a page, we fallback to original upload position to keep it near its neighbors.
-                // This adheres to the "Truth-First" design by avoiding biased filename sorting.
+                // Rule 3: Non-Past Paper Fallback (User Intent)
                 return a.originalIdx - b.originalIdx;
             });
 
@@ -1187,19 +1253,6 @@ export class MarkingPipelineService {
             standardizedPages = reindexedStandardPages;
             allPagesOcrData = reindexedOcrData;
             allClassificationResults = reindexedClassificationResults;
-
-            // 6. DEEP FIX: Update the 'classificationResult' object itself
-            // The questions inside 'classificationResult' still point to old page indices.
-            if (classificationResult.questions) {
-                classificationResult.questions.forEach((q: any) => {
-                    if (q.sourceImageIndex !== undefined) {
-                        q.sourceImageIndex = oldToNewIndex.get(q.sourceImageIndex) ?? q.sourceImageIndex;
-                    }
-                    if (q.sourceImageIndices) {
-                        q.sourceImageIndices = q.sourceImageIndices.map((idx: number) => oldToNewIndex.get(idx) ?? idx);
-                    }
-                });
-            }
 
             console.log(`✅ [RE-INDEXING] Completed. Physical Page Index 0 is now: ${standardizedPages[0].originalFileName}`);
 

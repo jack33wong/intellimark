@@ -186,7 +186,7 @@ export class SVGOverlayService {
           if (szW <= 5 || szH <= 5) return;
 
           svg += `<rect x="${szX}" y="${szY}" width="${szW}" height="${szH}" 
-                        fill="rgba(255, 0, 0, 0.05)" stroke="rgba(255, 0, 0, 0.4)" stroke-width="2" stroke-dasharray="8,4" />`;
+                        fill="rgba(255, 0, 0, 0.1)" stroke="rgba(255, 0, 0, 0.5)" stroke-width="4" stroke-dasharray="10,5" />`;
 
           // Background for the label to make it readable (Scaled to fontScaleFactor)
           const labelText = zone.label.toUpperCase();

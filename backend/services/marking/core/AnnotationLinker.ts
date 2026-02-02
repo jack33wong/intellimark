@@ -58,10 +58,11 @@ export class AnnotationLinker {
             const zoneData = this.getEffectiveZone(anno.subQuestion, semanticZones, primaryPage);
             let physicalId = anno.linked_ocr_id || anno.linkedOcrId;
 
+            const lineId = anno.line_id || anno.lineId;
+            const sourceStep = stepsDataForMapping.find(s => s.line_id === lineId || s.globalBlockId === lineId);
+            const realStudentContent = sourceStep ? sourceStep.text : (anno.text || anno.studentText || "");
+
             if (anno.ocr_match_status === "UNMATCHED" && zoneData && (anno.line_id || anno.lineId)) {
-                const lineId = anno.line_id || anno.lineId;
-                const sourceStep = stepsDataForMapping.find(s => s.line_id === lineId || s.globalBlockId === lineId);
-                const realStudentContent = sourceStep ? sourceStep.text : (anno.text || anno.studentText || "");
                 const targetText = this.normalizeForRescue(realStudentContent);
                 const isTooShort = targetText.length < 2;
                 const isRiskOfFalsePositive = targetText.length < 4 && /^[a-z]?[0-9]+$/.test(targetText);
@@ -113,14 +114,10 @@ export class AnnotationLinker {
 
                     const blockTextNorm = this.normalizeForMatching(block.text);
                     let isClassificationText = false;
-                    for (const vetoItem of vetoList) {
-                        if (vetoItem.length < 2) continue;
-                        if (vetoItem.includes(blockTextNorm) || blockTextNorm.includes(vetoItem)) {
-                            isClassificationText = true;
-                            console.log(` 🛡️ [VETO-HIT] Block "${block.text}" matched Veto Item "${vetoItem}"`);
-                            break;
-                        }
-                    }
+
+                    // [CLEANUP]: Removed Legacy "Text Containment" Loop.
+                    // We now rely 100% on the [PRINTED_INSTRUCTION] tag from Upstream.
+                    // This prevents false positives on short numbers (e.g. "2").
 
                     const isInstructionTag = (block.text || '').includes('[PRINTED_INSTRUCTION]');
                     let isQuestionLabel = false;
@@ -137,11 +134,48 @@ export class AnnotationLinker {
                         anno.ocr_match_status = "UNMATCHED";
                         anno.linked_ocr_id = null;
                     } else if (markY !== null) {
+                        // --- IRON DOME VETOES ---
                         const inZone = ZoneUtils.isPointInZone(markY, zoneData, 0);
+
+                        // 1. [NUMERICAL FIDELITY VETO]: 
+                        // If student work contains numbers (e.g. "16.1"), verify the block contains AT LEAST one of them.
+                        // Helps prevent "16.1" being linked to Page Number "2".
+                        let fidelityVeto = false;
+                        if (block.isHandwritten !== true && !isInstructionTag) {
+                            const studentNums = (realStudentContent || '').match(/\d+(\.\d+)?/g) || [];
+                            const blockNums = (block.text || '').match(/\d+(\.\d+)?/g) || [];
+
+                            if (studentNums.length > 0 && blockNums.length > 0) {
+                                const hasOverlap = studentNums.some(sn => blockNums.some(bn => bn === sn || bn.includes(sn) || sn.includes(bn)));
+                                if (!hasOverlap) {
+                                    console.log(` 🛡️ [FIDELITY-VETO] ${anno.subQuestion}: Student has "${studentNums.join(',')}", but Block has "${blockNums.join(',')}". Rejecting Hallucination.`);
+                                    fidelityVeto = true;
+                                }
+                            }
+                        }
+
+                        // 2. [EXTREME MARGIN VETO]:
+                        // Reject short numeric printed blocks in the top/bottom 5% (likely page numbers).
+                        let marginVeto = false;
+                        if (pageDimensionsMap && block.isHandwritten !== true && !isInstructionTag) {
+                            const dims = pageDimensionsMap.get(block.pageIndex ?? primaryPage);
+                            if (dims && dims.height > 0) {
+                                const relY = markY / dims.height;
+                                const isShortNumeric = /^\d+$/.test((block.text || '').trim()) && block.text.length < 3;
+                                if (isShortNumeric && (relY < 0.05 || relY > 0.95)) {
+                                    console.log(` 🛡️ [MARGIN-VETO] ${anno.subQuestion}: Naked digit "${block.text}" at RelY=${relY.toFixed(3)} is likely a page number. Rejecting.`);
+                                    marginVeto = true;
+                                }
+                            }
+                        }
+
                         const isVisualPlaceholder = (block.text || '').includes('VISUAL') || physicalId.includes('visual');
                         const isNextPage = (block.pageIndex === (zoneData.pageIndex + 1));
-                        if (!inZone && !(isVisualPlaceholder && isNextPage)) {
-                            console.log(` ⚖️ [IRON-DOME-VETO] ${anno.subQuestion}: ID ${physicalId} is OUT OF ZONE.`);
+
+                        if (fidelityVeto || marginVeto || (!inZone && !(isVisualPlaceholder && isNextPage))) {
+                            const snippet = (block.text || '').substring(0, 20).replace(/\n/g, ' ');
+                            const reason = fidelityVeto ? "Fidelity" : (marginVeto ? "Margin" : "Zone");
+                            console.log(` ⚖️ [IRON-DOME-VETO] ${anno.subQuestion}: Block "${snippet}" (ID ${physicalId}) rejected [${reason}].`);
                             anno.ocr_match_status = "UNMATCHED";
                             anno.linked_ocr_id = null;
                         }

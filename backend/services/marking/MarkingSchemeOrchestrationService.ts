@@ -7,7 +7,7 @@
  * 3. Keeps "Sequential Rubric" and "Dynamic Totals".
  */
 
-import { logDetectionAudit } from './MarkingHelpers.js';
+import { logDetectionAudit, getQuestionSortValue } from './MarkingHelpers.js';
 import { questionDetectionService } from './questionDetectionService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
 
@@ -534,17 +534,51 @@ export class MarkingSchemeOrchestrationService {
       });
     }
 
-    // Update classification result
+    // ========================= ⚓ [POINTER SYNCHRONIZATION] =========================
+    // CRITICAL FIX (Design Bible 1.2): We must propagate the 'Truth' back to the master list.
+    // If the Truth Stage (Stage 3) found the question on a specific page, we MUST update 
+    // the sourceImageIndex so the Sorter (Stage 4) and Zone Detector (Stage 5) have the same Map.
     for (const { question, detectionResult } of detectionResults) {
       if (detectionResult.found && detectionResult.match?.questionNumber) {
         const matchingQuestion = classificationResult.questions.find((q: any) =>
           q === question || (q.text && question.text && q.text.includes(question.text.substring(0, 20)))
         );
-        if (matchingQuestion && !matchingQuestion.questionNumber) {
+        if (matchingQuestion) {
+          // 1. Logically link the question number (Database Verification)
           matchingQuestion.questionNumber = detectionResult.match.questionNumber;
+
+          // 2. Physical Anchor Update (Source of Ordering Chaos fix)
+          // 🛡️ [LOGICAL ANCHOR]: Stick to the page with the LOWEST weight (Earliest logical part).
+          // If we find Q11 on Page 1 (as "11a") and Page 0 (as "11c"), we should anchor to Page 1.
+          if (question.sourceImageIndex !== undefined) {
+            const currentIdx = matchingQuestion.sourceImageIndex;
+            const newQNum = detectionResult.match.questionNumber || '';
+            const currentQNum = matchingQuestion.questionNumber || '';
+
+            const newWeight = getQuestionSortValue(newQNum);
+            const currentWeight = currentIdx !== undefined ? getQuestionSortValue(currentQNum) : Infinity;
+
+            if (currentIdx === undefined || newWeight < currentWeight) {
+              if (currentIdx !== undefined) {
+                console.log(`⚓ [SYNC] Q${matchingQuestion.questionNumber}: Lower weight ${newQNum}(${newWeight}) found at P${question.sourceImageIndex}. Moving anchor from P${currentIdx}.`);
+              } else {
+                console.log(`⚓ [SYNC] Anchoring Q${matchingQuestion.questionNumber} -> Physical Page ${question.sourceImageIndex} (Weight ${newWeight})`);
+                matchingQuestion.sourceImageIndex = question.sourceImageIndex;
+              }
+              matchingQuestion.sourceImageIndex = question.sourceImageIndex;
+
+              // 3. Propagate to sub-questions (Bible 1.2) - ONLY if we anchor/re-anchor the parent
+              if (matchingQuestion.subQuestions && Array.isArray(matchingQuestion.subQuestions)) {
+                matchingQuestion.subQuestions.forEach((sub: any) => {
+                  sub.sourceImageIndex = question.sourceImageIndex;
+                });
+              }
+            }
+          }
         }
       }
     }
+    // ===============================================================================
 
     return { markingSchemesMap, detectionStats, updatedClassificationResult: classificationResult, detectionResults };
   }

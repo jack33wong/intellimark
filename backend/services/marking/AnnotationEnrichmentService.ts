@@ -83,11 +83,31 @@ export const enrichAnnotationsWithPositions = (
     semanticZones?: Record<string, Array<{ startY: number; endY: number; pageIndex: number; x: number }>>
 ): EnrichedAnnotation[] => {
 
-    // Helper: Lookup Text or Handwriting blocks
-    const findInData = (id: string) => stepsDataForMapping.find(s => s.line_id === id || s.globalBlockId === id || s.id === id);
+    // Helper: Lookup Text or Handwriting blocks (supports [ID-LIE] relative IDs)
+    const findInData = (id: string) => stepsDataForMapping.find(s =>
+        s.line_id === id ||
+        s.globalBlockId === id ||
+        s.id === id ||
+        s.relative_line_id === id ||
+        (s as any).relative_id === id
+    );
 
     const enriched = annotations.map((anno, idx) => {
         let pageIndex = (anno as any).pageIndex ?? defaultPageIndex;
+
+        // 🛡️ [ID-LIE FIX]: Translate Relative Page Index -> Absolute Document Index
+        // If AI says "pageIndex: 0", and the task has a pageMap {10: 0, 11: 1}, we map 0 -> 10.
+        if (task?.pageMap) {
+            // Check if pageIndex is a relative index in the map values
+            const absPage = Object.entries(task.pageMap).find(([abs, rel]) => rel === pageIndex)?.[0];
+            if (absPage !== undefined) {
+                pageIndex = parseInt(absPage);
+            }
+        } else if (task?.sourcePages && pageIndex < task.sourcePages.length) {
+            // Fallback to sourcePages array index
+            pageIndex = task.sourcePages[pageIndex];
+        }
+
         let method = "NONE";
         let rawBox: any = null;
 

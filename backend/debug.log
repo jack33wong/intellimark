@@ -14,43 +14,26 @@
 📚 Swagger UI available at /api-docs
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 12, Body Keys: model, aiMessageId
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId, customText
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.4458642, files: 12, bytes: 3858642
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":363.1}
+💳 [CREDIT CHECK] Estimated cost: 0.051697200000000006, files: 1, bytes: 466972
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":237.24}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
 
 [1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Multiple Images (12 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m1.5s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.2s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 12 pages...
-   📦 [MAPPER-BUCKET] Processing pages 0 to 9...
+[MAPPER] Starting Map Pass for 1 pages...
+   📦 [MAPPER-BUCKET] Processing pages 0 to 0...
 
-🔍 [MAPPER AUDIT] Batch of 10 images:
-   ✅ Mapped Local[0] -> Global[0] | Content: Empty/Meta
-   ✅ Mapped Local[1] -> Global[1] | Content: 1
-   ✅ Mapped Local[2] -> Global[2] | Content: 2a, 2b
-   ✅ Mapped Local[3] -> Global[3] | Content: 3
-   ✅ Mapped Local[4] -> Global[4] | Content: 4
-   ✅ Mapped Local[5] -> Global[5] | Content: 5a, 5b, 5c
-   ✅ Mapped Local[6] -> Global[6] | Content: 6
-   ✅ Mapped Local[7] -> Global[7] | Content: 7
-   ✅ Mapped Local[8] -> Global[8] | Content: 8
-   ✅ Mapped Local[9] -> Global[9] | Content: 9a, 9b
-   📦 [MAPPER-BUCKET] Processing pages 8 to 11...
-
-🔍 [MAPPER AUDIT] Batch of 4 images:
-   ✅ Mapped Local[0] -> Global[8] | Content: 8
-   ✅ Mapped Local[1] -> Global[9] | Content: 9a, 9b
-   ✅ Mapped Local[2] -> Global[10] | Content: 10
-   ✅ Mapped Local[3] -> Global[11] | Content: 11a, 11b
-✅ [MAPPER] Map Pass complete in 7.54s. Mapped 12 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m19.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-🚀 [OVERRIDE] 90% Rule Triggered: 11/11 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
+🔍 [MAPPER AUDIT] Batch of 1 images:
+   ✅ Mapped Local[0] -> Global[0] | Content: 5a, 5b, 5c
+✅ [MAPPER] Map Pass complete in 2.23s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -60,16 +43,16 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m19.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m8.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m7.2s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.4s[0m ([32m[1mMATHPIX[0m)
 
 🔍 [DETECTION CONTEXT]
-   Strategy: Pearson Edexcel 1MA1/2H June 2024 Higher Tier
+   Strategy: Pearson Edexcel Mathematics 1MA1/2H • June 2024 • Higher Tier
    Pool Size: 1 papers, 22 total question candidates
 ------------------------------------------------------------------------------------------------------------------------------------
 
@@ -77,435 +60,321 @@
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 1    | ABC is a right-angled triangle. Work out t... | Edexcel GCSE 1MA1/2H June 2024 Q1                  | 0.679 | [33m⚠️  RESCUED[0m    |
+| 5    | Complete the table of values for y = x²-x     | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.788 | [33m⚠️  RESCUED[0m    |
    └─ Runners Up (Audit Trail):
-      ○ [0.679] 1MA1/2H Q1                     | Txt:0.90 Num:0.43 Str:0.50 Sem:PASS
-      ○ [0.481] 1MA1/2H Q12                    | Txt:0.43 Num:0.57 Str:0.50 Sem:PASS
-      ○ [0.424] 1MA1/2H Q10                    | Txt:0.45 Num:0.25 Str:0.50 Sem:PASS
-| 2a   | Write 90 as a product of its prime factors... | Edexcel GCSE 1MA1/2H June 2024 Q2                  | 0.828 | [32m✅ SUCCESS[0m      |
-| 2b   | Write down the lowest common multiple (LCM... | Edexcel GCSE 1MA1/2H June 2024 Q2                  | 0.828 | [32m✅ SUCCESS[0m      |
-| 3    | The number of hours, H, that some machines... | Edexcel GCSE 1MA1/2H June 2024 Q3                  | 0.972 | [32m✅ SUCCESS[0m      |
-| 4    | There are only red discs, blue discs and y... | Edexcel GCSE 1MA1/2H June 2024 Q4                  | 0.887 | [32m✅ SUCCESS[0m      |
-| 5    | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.816 | [32m✅ SUCCESS[0m      |
-| 5a   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.816 | [32m✅ SUCCESS[0m      |
-| 5b   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.816 | [32m✅ SUCCESS[0m      |
-| 5c   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.816 | [32m✅ SUCCESS[0m      |
-| 6    | Andy, Luke and Tina share some sweets in t... | Edexcel GCSE 1MA1/2H June 2024 Q6                  | 0.891 | [32m✅ SUCCESS[0m      |
-| 7    | ABCD is a quadrilateral. All angles are me... | Edexcel GCSE 1MA1/2H June 2024 Q7                  | 0.846 | [32m✅ SUCCESS[0m      |
-| 8    | A playground is in the shape of a right-an... | Edexcel GCSE 1MA1/2H June 2024 Q8                  | 0.912 | [32m✅ SUCCESS[0m      |
-| 9    | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.862 | [32m✅ SUCCESS[0m      |
-| 9a   | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.862 | [32m✅ SUCCESS[0m      |
-| 9b   | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.862 | [32m✅ SUCCESS[0m      |
-| 10   | The diagram shows two right-angled triangl... | Edexcel GCSE 1MA1/2H June 2024 Q10                 | 0.811 | [32m✅ SUCCESS[0m      |
-| 11   | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.726 | [33m⚠️  RESCUED[0m    |
+      [32m○[0m [0.788] 1MA1/2H Q5                     | Txt:0.77 Num:0.53 Str:1.00 Sem:PASS
+| 5a   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.788 | [33m⚠️  RESCUED[0m    |
    └─ Runners Up (Audit Trail):
-      [32m○[0m [0.726] 1MA1/2H Q11                    | Txt:0.85 Num:0.05 Str:1.00 Sem:PASS
-| 11a  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.726 | [33m⚠️  RESCUED[0m    |
+      [32m○[0m [0.788] 1MA1/2H Q5                     | Txt:0.77 Num:0.53 Str:1.00 Sem:PASS
+| 5b   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.788 | [33m⚠️  RESCUED[0m    |
    └─ Runners Up (Audit Trail):
-      [32m○[0m [0.726] 1MA1/2H Q11                    | Txt:0.85 Num:0.05 Str:1.00 Sem:PASS
-| 11b  | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.726 | [33m⚠️  RESCUED[0m    |
+      [32m○[0m [0.788] 1MA1/2H Q5                     | Txt:0.77 Num:0.53 Str:1.00 Sem:PASS
+| 5c   | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.788 | [33m⚠️  RESCUED[0m    |
    └─ Runners Up (Audit Trail):
-      [32m○[0m [0.726] 1MA1/2H Q11                    | Txt:0.85 Num:0.05 Str:1.00 Sem:PASS
+      [32m○[0m [0.788] 1MA1/2H Q5                     | Txt:0.77 Num:0.53 Str:1.00 Sem:PASS
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
 📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 19
-   Detected: 11/19
-   Not detected: 8
-   [HINT] Hint Used: "Global Search"
-   [HINT] Matched Papers: 108
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m4.8s[0m ([32m[1mQUESTION-DETECTION[0m)
+   Total questions: 4
+   Detected: 4/4
+   Not detected: 0
+   [HINT] Hint Used: "Pearson Edexcel Mathematics 1MA1/2H • June 2024 • Higher Tier"
+   [HINT] Matched Papers: 1
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
 
-🔄 [RE-INDEXING] 🛡️ Aligning physical pages using Database Verified Truth...
+🔄 [RE-INDEXING] 🛡️ Aligning physical pages...
+   ⚖️ [PAGE-WEIGHT] Page 0: Weights=[5:5, 5a:5.01, 5b:5.02, 5c:5.03] -> Selected: 5.01
 🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:
 -----------------------------------------------------------------------------------------
 | OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |
 -----------------------------------------------------------------------------------------
-| 0       | new doc 2025-11-23 1 | true   | 999999 |                                    |
-| 1       | new doc 2025-11-23 1 | false  | 1      | 1                                  |
-| 2       | new doc 2025-11-23 1 | false  | 2      | 2                                  |
-| 3       | new doc 2025-11-23 1 | false  | 3      | 3                                  |
-| 4       | new doc 2025-11-23 1 | false  | 4      | 4                                  |
-| 5       | new doc 2025-11-23 1 | false  | 5      | 5                                  |
-| 6       | new doc 2025-11-23 1 | false  | 6      | 6                                  |
-| 7       | new doc 2025-11-23 1 | false  | 7      | 7                                  |
-| 8       | new doc 2025-11-23 1 | false  | 8      | 8                                  |
-| 9       | new doc 2025-11-23 1 | false  | 9      | 9                                  |
-| 10      | new doc 2025-11-23 1 | false  | 10     | 10                                 |
-| 11      | new doc 2025-11-23 1 | false  | 11     | 11                                 |
+| 0       | new doc 2025-11-23 1 | false  | 5.01   | 5, 5a, 5b, 5c                      |
 -----------------------------------------------------------------------------------------
-✅ [RE-INDEXING] Completed. Physical Page Index 0 is now: new doc 2025-11-23 11.51.11_1.jpg
+✅ [RE-INDEXING] Completed. Physical Page Index 0 is now: new doc 2025-11-23 11.51.11_6.jpg
 ✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.
 
 🔄 [OCR RE-ID] Regenerating Global Block IDs to match new Page Indices...
 ✅ [OCR RE-ID] Completed. Blocks are now synchronized with physical pages.
-✅ [DIMENSIONS REBUILD] Map refreshed for 12 re-indexed pages.
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m4.8s[0m ([32m[1mQUESTION-DETECTION[0m)
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m4.8s[0m ([32m[1mQUESTION-DETECTION[0m)
-🔍 [DIMENSIONS DEBUG] Pages: 12
-🔍 [DIMENSIONS DEBUG] Map Size: 12
-[ZONE-TRUTH] Q1 Classifier Target: Page 1
-[ZONE-TRUTH] Q2 Classifier Target: Page 2
-[ZONE-TRUTH] Q3 Classifier Target: Page 3
-[ZONE-TRUTH] Q4 Classifier Target: Page 4
-[ZONE-TRUTH] Q5 Classifier Target: Page 5
-[ZONE-TRUTH] Q6 Classifier Target: Page 6
-[ZONE-TRUTH] Q7 Classifier Target: Page 7
-[ZONE-TRUTH] Q8 Classifier Target: Page 8
-[ZONE-TRUTH] Q9 Classifier Target: Page 9
-[ZONE-TRUTH] Q10 Classifier Target: Page 10
-[ZONE-TRUTH] Q11 Classifier Target: Page 11
-[UPSTREAM-SORT] 🏆 Fed 202 blocks in order: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
-[ZONE-DETECTOR] Deterministic Sort Order: 1 -> 2 -> 2a -> 2b -> 3 -> 4 -> 5 -> 5a -> 5b -> 5c -> 6 -> 7 -> 8 -> 9 -> 9a -> 9b -> 10 -> 11 -> 11a -> 11b
-[ZONE-SORT] 🏆 Physical Page Order: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "1" at P1. Terminating search before P2.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "2" at P2. Terminating search before P3.
-[ZONE-MISS] ⚠️ Question 2a could not be anchored. Exhausted search from P2@1042
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "2b" at P2. Terminating search before P3.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "3" at P3. Terminating search before P4.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "4" at P4. Terminating search before P5.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "5" at P5. Terminating search before P6.
-[ZONE-MISS] ⚠️ Question 5a could not be anchored. Exhausted search from P5@1631
-[ZONE-MISS] ⚠️ Question 5b could not be anchored. Exhausted search from P5@1631
-[ZONE-MISS] ⚠️ Question 5c could not be anchored. Exhausted search from P5@1631
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "6" at P6. Terminating search before P7.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "7" at P7. Terminating search before P8.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "8" at P8. Terminating search before P9.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "9" at P9. Terminating search before P10.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "9a" at P9. Terminating search before P10.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "9b" at P9. Terminating search before P10.
-[ZONE-SEQUENTIAL] 🛡️ Found early match for "10" at P10. Terminating search before P11.
-[ZONE-ABSORB] Q9a absorbing Main Q9 on P9
-[ZONE-ABSORB] Q11a absorbing Main Q11 on P11
-[ZONE-TVC] Deterministic Order (Post-Absorb): 1(P1@866) -> 2(P2@1032) -> 2b(P2@1221) -> 3(P3@448) -> 4(P4@424) -> 5(P5@1621) -> 6(P6@563) -> 7(P7@740) -> 8(P8@832) -> 9a(P9@279) -> 9b(P9@724) -> 10(P10@734) -> 11a(P11@687) -> 11b(P11@1253)
-[ZONE-TVC] First on P1: Snapping 1 start to 0
-[ZONE-TVC] First on P2: Snapping 2 start to 0
-[ZONE-TVC] First on P3: Snapping 3 start to 0
-[ZONE-TVC] First on P4: Snapping 4 start to 0
-[ZONE-TVC] First on P5: Snapping 5 start to 0
-[ZONE-TVC] First on P6: Snapping 6 start to 0
-[ZONE-TVC] First on P7: Snapping 7 start to 0
-[ZONE-TVC] First on P8: Snapping 8 start to 0
-[ZONE-TVC] First on P9: Snapping 9a start to 0
-[ZONE-TVC] First on P10: Snapping 10 start to 0
-[ZONE-TVC] First on P11: Snapping 11a start to 0
+✅ [DIMENSIONS REBUILD] Map refreshed for 1 re-indexed pages.
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+🔍 [DIMENSIONS DEBUG] Pages: 1
+🔍 [DIMENSIONS DEBUG] Map Size: 1
+[ZONE-TRUTH] Q5 Classifier Target: Page 0
+[UPSTREAM-SORT] 🏆 Fed 11 blocks in order: 0
+[ZONE-DETECTOR] Deterministic Sort Order: 5 -> 5a -> 5b -> 5c
+[ZONE-SORT] 🏆 Physical Page Order: 0
+ ⚖️ [ZONE-TIGHTEN] Pulling Q5a endY from 490 up to Q5b startY (340)
+ ⚖️ [ZONE-TIGHTEN] Pulling Q5b endY from 1621 up to Q5c startY (1471)
+
+📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:
+   ✅ 5a     | P0 | Y:  143 (6.0%) to  340 | X: 98 (Margin: 6.0%) | W: 1448
+   ✅ 5b     | P0 | Y:  340 (14.2%) to 1471 | X: 98 (Margin: 6.0%) | W: 1448
+   ✅ 5c     | P0 | Y: 1471 (61.5%) to 2249 | X: 98 (Margin: 6.0%) | W: 1448
+-------------------------------------------
+
 [1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
-
-🔍 [EXECUTOR PROBE] Q1
-   - Task Page Index: 1
-   - Visible Blocks Sample: p1_q1_line_2, p1_q1_line_1, p1_ocr_6
-[33m[POS-DEBUG] ⚠️ Missing Position for Q1 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
-
-🔍 [EXECUTOR PROBE] Q2
-   - Task Page Index: 2
-   - Visible Blocks Sample: p2_q2_line_1, p2_q2_line_2, p2_ocr_1
-[33m[POS-DEBUG] ⚠️ Missing Position for Q2 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
-
-🔍 [EXECUTOR PROBE] Q3
-   - Task Page Index: 3
-   - Visible Blocks Sample: p3_q3_line_2, p3_q3_line_1, p3_ocr_6
-[33m[POS-DEBUG] ⚠️ Missing Position for Q3 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
-
-🔍 [EXECUTOR PROBE] Q4
-   - Task Page Index: 4
-   - Visible Blocks Sample: p4_q4_line_7, p4_q4_line_6, p4_q4_line_5
-[33m[POS-DEBUG] ⚠️ Missing Position for Q4 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
 
 🔍 [EXECUTOR PROBE] Q5
-   - Task Page Index: 5
-   - Visible Blocks Sample: drawing_5_2, p5_q5_line_2, p5_q5_line_3
-[33m[POS-DEBUG] ⚠️ Missing Position for Q5 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- ✅ [ZONE-OK] Q3: Footprint at Y=25.8% (Range 22.4-29.2%) is safe within 0.0-97.9%
- ✅ [ZONE-OK] Q3: Footprint at Y=47.1% (Range 45.4-48.8%) is safe within 0.0-97.9%
- 💎 [BUDGET-CHECK] Q3: Max Marks = 2. Items to Process: 2
- ✅ [ZONE-FIDELITY] Q3: Reusing Upstream Zone from Detection Stage.
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
+   - Task Page Index: 0
+   - Visible Blocks Sample: p0_q5_line_1, p0_q5_line_2, p0_q5_line_3
 
-🔍 [EXECUTOR PROBE] Q6
-   - Task Page Index: 6
-   - Visible Blocks Sample: p6_q6_line_9, p6_q6_line_8, p6_q6_line_7
-[33m[POS-DEBUG] ⚠️ Missing Position for Q6 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- 🛡️ [SEMANTIC-VETO] 1: Block p1_ocr_11 ("2") rejected.
- 📍 [PATH 3] Q1: Line "p1_q1_line_2" is UNMATCHED. Recovering position.
- ✅ [ZONE-OK] Q1: Footprint at Y=38.7% (Range 36.0-41.4%) is safe within 0.0-97.9%
- ✅ [ZONE-OK] Q1: Footprint at Y=58.0% (Range 55.5-60.5%) is safe within 0.0-97.9%
- 💎 [BUDGET-CHECK] Q1: Max Marks = 2. Items to Process: 2
- ✅ [ZONE-FIDELITY] Q1: Reusing Upstream Zone from Detection Stage.
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ 
+# MARKING TASK: Question 5
 
-🔍 [EXECUTOR PROBE] Q7
-   - Task Page Index: 7
-   - Visible Blocks Sample: p7_q7_line_9, p7_q7_line_8, p7_q7_line_7
-[33m[POS-DEBUG] ⚠️ Missing Position for Q7 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- ✅ [ZONE-OK] Q2b: Footprint at Y=60.1% (Range 58.4-61.9%) is safe within 51.6-97.9%
- 💎 [BUDGET-CHECK] Q2a: Max Marks = 99. Items to Process: 2
- 💎 [BUDGET-CHECK] Q2b: Max Marks = 99. Items to Process: 1
- ✅ [ZONE-FIDELITY] Q2: Reusing Upstream Zone from Detection Stage.
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
+## QUESTION TEXT
+**[5]**: Complete the table of values for $y=x^{2}-x$. [A table with x values -2, -1, 0, 1, 2, 3. y values 6, blank, 0, blank, 2, blank.] On the grid, draw the graph of $y=x^{2}-x$ for values of x from -2 to 3. [A coordinate grid is provided.] Use your graph to find estimates for the solutions of the equation $x^{2}-x=4$
 
-🔍 [EXECUTOR PROBE] Q8
-   - Task Page Index: 8
-   - Visible Blocks Sample: p8_q8_line_5, p8_q8_line_4, p8_q8_line_3
-[33m[POS-DEBUG] ⚠️ Missing Position for Q8 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- ✅ [ZONE-OK] Q4: Footprint at Y=26.3% (Range 23.3-29.4%) is safe within 0.0-97.8%
- ✅ [ZONE-OK] Q4: Footprint at Y=32.5% (Range 29.4-35.6%) is safe within 0.0-97.8%
- ✅ [ZONE-OK] Q4: Footprint at Y=44.9% (Range 41.8-48.0%) is safe within 0.0-97.8%
- ✅ [ZONE-OK] Q4: Footprint at Y=58.7% (Range 57.0-60.5%) is safe within 0.0-97.8%
- 💎 [BUDGET-CHECK] Q4: Max Marks = 4. Items to Process: 4
- ✅ [ZONE-FIDELITY] Q4: Reusing Upstream Zone from Detection Stage.
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
+**[5a]**: Complete the table of values for $y=x^{2}-x$. [A table with x values -2, -1, 0, 1, 2, 3. y values 6, blank, 0, blank, 2, blank.]
 
-🔍 [EXECUTOR PROBE] Q9
-   - Task Page Index: 9
-   - Visible Blocks Sample: p9_q9_line_1, p9_q9_line_2, p9_q9_line_3
-[33m[POS-DEBUG] ⚠️ Missing Position for Q9 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
+**[5b]**: On the grid, draw the graph of $y=x^{2}-x$ for values of x from -2 to 3. [A coordinate grid is provided.]
+
+**[5c]**: Use your graph to find estimates for the solutions of the equation $x^{2}-x=4$
+
+
+
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[5a] [MAX SCORE: 2]
+- B2: for all 3 values correct
+
+[5b] [MAX SCORE: 2]
+- B2: for a fully correct graph
+
+[5c] [MAX SCORE: 2]
+- M1: for drawing the line $y=4$ or reading off intersections where $y=4$ or one correct solution or both solutions given as coordinates, eg (-1.6, 2.6) or (-1.6, 4) and (2.6, 4)
+- A1: for answers in the range -1.7 to -1.5 and 2.5 to 2.7 or ft their graph with at least 2 solutions
+
+
+> [!IMPORTANT]
+> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
+> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
+
+
+## STUDENT WORK (STRUCTURED)
+
+[SUB-QUESTION a]
+[ID: p0_q5_line_1] 2
+[ID: p0_q5_line_2] 0
+[ID: p0_q5_line_3] 0
+[ID: p0_q5_line_4] 2
+[ID: p0_q5_line_5] 6
+
+[SUB-QUESTION b]
+[ID: p0_visual_drawing_5_7] [DRAWING]
+
+[SUB-QUESTION c]
+[ID: p0_q5_line_7] -1.55, 2.6
+
+
+ 
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "5 (a) Complete the table of values for \( y=x^{2}-x \) [PRINTED_INSTRUCTION]"
+[p0_ocr_1]: "\begin{tabular}{|c|c|c|c|c|c|c|} \hline\( x \) & -2 & -1 & 0 & 1 & 2 & 3"
+[p0_ocr_2]: "\hline\( y \) & 6 & 2 & 0 & 0 & 2 & 6"
+[p0_ocr_3]: "\hline \end{tabular}"
+[p0_ocr_4]: "(2)"
+[p0_ocr_5]: "(b) On the grid, draw the graph of \( y=x^{2}-x \) for values of \( x \) from -2 to 3"
+[p0_ocr_6]: "(2)"
+[p0_ocr_7]: "(c) Use your graph to find estimates for the solutions of the equation \( x^{2}-x=4 \)"
+[p0_ocr_8]: "\( -1.55,2106 \)"
+[p0_ocr_9]: "(2)"
+[p0_ocr_10]: "6"
+
+--------------------------------------------------
+FINAL QUALITY CHECK (DO NOT IGNORE):
+1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
+2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
+3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
+--------------------------------------------------
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 6,
+    "raw_correct_steps_found": 6,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": "The student has completed the table, drawn the graph and estimated the solutions.",
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B2",
+      "line_id": "p0_q5_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_4",
+      "reasoning": "The student has 2 correct values in the table (-1 = 2 and 3 = 6).",
+      "subQuestion": "5a",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B2",
+      "line_id": "p0_visual_drawing_5_7",
+      "content_desc": "Fully correct graph of y=x^2-x",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn a fully correct graph of y=x^2-x.",
+      "subQuestion": "5b",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 50,
+        "y": 50,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "action": "tick",
+      "text": "M1",
+      "line_id": "p0_visual_drawing_5_7",
+      "content_desc": "Drawing the line y=4",
+      "ocr_match_status": "VISUAL",
+      "linked_ocr_id": null,
+      "reasoning": "The student has drawn the line y=4 on the graph.",
+      "subQuestion": "5c",
+      "pageIndex": 0,
+      "visual_position": {
+        "x": 55,
+        "y": 55,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "action": "tick",
+      "text": "A1",
+      "line_id": "p0_q5_line_7",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_8",
+      "reasoning": "The student has provided answers in the range -1.7 to -1.5 and 2.5 to 2.7.",
+      "subQuestion": "5c",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 6,
+    "awardedMarks": 6,
+    "scoreText": "6/6"
+  }
+}
+```
+========================================
+
+ ⚖️ [IRON-DOME-VETO] 5a: ID p0_ocr_4 is OUT OF ZONE.
+ 📍 [PATH 3] Q5a: Line "p0_q5_line_1" is UNMATCHED. Recovering position.
+✅ [IRON-DOME] Snapped mark to: p0_q5_line_7 (P0)
+ ✅ [ZONE-OK] Q5c: Footprint at Y=72.0% is safe within 61.5-94.0%
+ 🛡️ [ZONE-PROTECT] Q5a: Footprint breach at Y=1.4%. Clamping to 8.0%
+ 🛡️ [ZONE-PROTECT] Q5b: Footprint breach at Y=11.5%. Clamping to 16.2%
+ ✅ [ZONE-OK] Q5c: Footprint at Y=71.5% is safe within 61.5-94.0%
  💎 [BUDGET-CHECK] Q5c: Max Marks = 99. Items to Process: 2
  💎 [BUDGET-CHECK] Q5a: Max Marks = 99. Items to Process: 1
  💎 [BUDGET-CHECK] Q5b: Max Marks = 99. Items to Process: 1
- ✅ [ZONE-FIDELITY] Q5: Reusing Upstream Zone from Detection Stage.
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
-
-🔍 [EXECUTOR PROBE] Q10
-   - Task Page Index: 10
-   - Visible Blocks Sample: p10_q10_line_7, p10_q10_line_6, p10_q10_line_5
-[33m[POS-DEBUG] ⚠️ Missing Position for Q10 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- ✅ [ZONE-OK] Q8: Footprint at Y=51.0% (Range 48.7-53.4%) is safe within 0.0-97.9%
- ✅ [ZONE-OK] Q8: Footprint at Y=51.0% (Range 48.7-53.4%) is safe within 0.0-97.9%
- ✅ [ZONE-OK] Q8: Footprint at Y=61.6% (Range 59.5-63.6%) is safe within 0.0-97.9%
- 💎 [BUDGET-CHECK] Q8: Max Marks = 3. Items to Process: 3
- ✅ [ZONE-FIDELITY] Q8: Reusing Upstream Zone from Detection Stage.
- 🌐 [ZONE-ARCHITECT] Using Global Pre-calculated Zones (Count: 14)
-
-🔍 [EXECUTOR PROBE] Q11
-   - Task Page Index: 11
-   - Visible Blocks Sample: p11_q11_line_1, p11_q11_line_2, p11_q11_line_3
-[33m[POS-DEBUG] ⚠️ Missing Position for Q11 -> (0,0).[0m
-[33m   - ClassBlocks: 0[0m
-[33m   - QuestionDetection: true[0m
- ✅ [ZONE-OK] Q6: Footprint at Y=37.0% (Range 35.0-39.0%) is safe within 0.0-98.0%
- ✅ [ZONE-OK] Q6: Footprint at Y=40.9% (Range 39.0-42.9%) is safe within 0.0-98.0%
- ✅ [ZONE-OK] Q6: Footprint at Y=48.8% (Range 46.8-50.8%) is safe within 0.0-98.0%
- ✅ [ZONE-OK] Q6: Footprint at Y=58.1% (Range 55.9-60.3%) is safe within 0.0-98.0%
- 💎 [BUDGET-CHECK] Q6: Max Marks = 4. Items to Process: 4
- ✅ [ZONE-FIDELITY] Q6: Reusing Upstream Zone from Detection Stage.
-✅ [IRON-DOME] Snapped mark to: p9_q9_line_1 (P9)
-   🔓 [ZONE-SKIP] Skipping clamping for Qa. Anno P9 != Zone P11
-✅ [IRON-DOME] Snapped mark to: p9_q9_line_2 (P9)
-   🔓 [ZONE-SKIP] Skipping clamping for Qb. Anno P9 != Zone P11
- 💎 [BUDGET-CHECK] Qa: Max Marks = 99. Items to Process: 1
- 💎 [BUDGET-CHECK] Qb: Max Marks = 99. Items to Process: 1
- ✅ [ZONE-OK] Q7: Footprint at Y=33.7% (Range 31.5-36.0%) is safe within 0.0-98.0%
- ✅ [ZONE-OK] Q7: Footprint at Y=38.2% (Range 36.0-40.4%) is safe within 0.0-98.0%
- ✅ [ZONE-OK] Q7: Footprint at Y=42.6% (Range 40.4-44.8%) is safe within 0.0-98.0%
- ✅ [ZONE-OK] Q7: Footprint at Y=64.7% (Range 62.5-66.9%) is safe within 0.0-98.0%
- 💎 [BUDGET-CHECK] Q7: Max Marks = 4. Items to Process: 4
- ✅ [ZONE-FIDELITY] Q7: Reusing Upstream Zone from Detection Stage.
- 🚫 [VETO-REJECT] Candidate "All lengths are measured in centimetres." matches Veto "the diagram shows two rightangled triangles all lengths are measured in centimetres given that sina tan b work out the value of x"
- 🚫 [VETO-REJECT] Candidate "Given that" matches Veto "the diagram shows two rightangled triangles all lengths are measured in centimetres given that sina tan b work out the value of x"
- 🚫 [VETO-REJECT] Candidate "work out the value of \( x \)." matches Veto "the diagram shows two rightangled triangles all lengths are measured in centimetres given that sina tan b work out the value of x"
- 🚫 [VETO-REJECT] Candidate "\hline" matches Veto "the diagram shows two rightangled triangles all lengths are measured in centimetres given that sina tan b work out the value of x"
- 🧲 [LINKER-RESCUE] 10: Snapped UNMATCHED "Sina= \\frac{7-2x}{9}" to Block p10_ocr_5
- ✅ [ZONE-OK] Q10: Footprint at Y=35.0% (Range 33.1-36.9%) is safe within 0.0-97.8%
- ✅ [ZONE-OK] Q10: Footprint at Y=38.7% (Range 36.9-40.6%) is safe within 0.0-97.8%
- ✅ [ZONE-OK] Q10: Footprint at Y=42.5% (Range 40.6-44.4%) is safe within 0.0-97.8%
- ✅ [ZONE-OK] Q10: Footprint at Y=50.0% (Range 48.1-51.8%) is safe within 0.0-97.8%
- 💎 [BUDGET-CHECK] Q10: Max Marks = 3. Items to Process: 4
- ✅ [ZONE-FIDELITY] Q10: Reusing Upstream Zone from Detection Stage.
-[GUILLOTINE] Q10 GLOBAL exceeded budget! Total 3. Executing final cut...
- 🛡️ [VETO-HIT] Block "60" matched Veto Item "the frequency table gives information about the weights of 60 parcels"
- 🛡️ [SEMANTIC-VETO] 11a: Block p11_ocr_27 ("60") rejected.
- 📍 [PATH 3] Q11a: Line "p11_q11_line_5" is UNMATCHED. Recovering position.
- ✅ [ZONE-OK] Q11a: Footprint at Y=39.2% (Range 38.1-40.3%) is safe within 0.0-58.4%
- ✅ [ZONE-OK] Q11a: Footprint at Y=42.5% (Range 41.2-43.8%) is safe within 0.0-58.4%
- ✅ [ZONE-OK] Q11a: Footprint at Y=45.6% (Range 44.1-47.0%) is safe within 0.0-58.4%
- ✅ [ZONE-OK] Q11a: Footprint at Y=48.7% (Range 47.4-50.0%) is safe within 0.0-58.4%
- ✅ [ZONE-OK] Q11a: Footprint at Y=42.1% (Range 40.6-43.6%) is safe within 0.0-58.4%
- 🛡️ [ZONE-PROTECT] Q11b: Footprint breach at Y=58.4% (Bottom=63.4%). Clamping back 10% to 68.4%
- ✅ [ZONE-OK] Q11b: Footprint at Y=68.9% (Range 63.9-73.9%) is safe within 58.4-97.7%
- 💎 [BUDGET-CHECK] Q11a: Max Marks = 99. Items to Process: 5
- 💎 [BUDGET-CHECK] Q11c: Max Marks = 99. Items to Process: 2
- 💎 [BUDGET-CHECK] Q11d: Max Marks = 99. Items to Process: 2
- 💎 [BUDGET-CHECK] Q11b: Max Marks = 99. Items to Process: 2
-[GUILLOTINE] Q11a exceeded budget! Kept 1/5, Budget 1.
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m17.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m17.9s[0m ([32m[1mAI-MARKING[0m)
+✅ [EXECUTOR] Finished Q5. Attached 3 labels. Q5 has 0 zones.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m6.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m6.7s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
-   📊 Marking Results: 11 questions
+   📊 Marking Results: 1 questions
    📝 Question Results: NO
    ✅ Both modes triggered: NO
 
-🎨 [RENDERER AUDIT] Page 1 (Physical Index) - 1 Questions:
-   ✅ Q1: ZONE FOUND [x:40, y:0, w:1624, h:2382]
-
-🎨 [RENDERER AUDIT] Page 2 (Physical Index) - 1 Questions:
-   ✅ Q2: ZONE FOUND [x:40, y:0, w:1616, h:1221]
-
-🎨 [RENDERER AUDIT] Page 3 (Physical Index) - 1 Questions:
-   ✅ Q3: ZONE FOUND [x:40, y:0, w:1552, h:2298]
-
-🎨 [RENDERER AUDIT] Page 4 (Physical Index) - 1 Questions:
-   ✅ Q4: ZONE FOUND [x:40, y:0, w:1552, h:2250]
-
-🎨 [RENDERER AUDIT] Page 5 (Physical Index) - 1 Questions:
-   ✅ Q5: ZONE FOUND [x:40, y:0, w:1564, h:2342]
-
-🎨 [RENDERER AUDIT] Page 6 (Physical Index) - 1 Questions:
-   ✅ Q6: ZONE FOUND [x:40, y:0, w:1676, h:2442]
-
-🎨 [RENDERER AUDIT] Page 7 (Physical Index) - 1 Questions:
-   ✅ Q7: ZONE FOUND [x:40, y:0, w:1744, h:2490]
-
-🎨 [RENDERER AUDIT] Page 8 (Physical Index) - 1 Questions:
-   ✅ Q8: ZONE FOUND [x:40, y:0, w:1636, h:2370]
-
-🎨 [RENDERER AUDIT] Page 9 (Physical Index) - 1 Questions:
-   ✅ Q9: ZONE FOUND [x:40, y:40, w:1584, h:2272]
-
-🎨 [RENDERER AUDIT] Page 10 (Physical Index) - 1 Questions:
-   ✅ Q10: ZONE FOUND [x:40, y:0, w:1536, h:2198]
-
-🎨 [RENDERER AUDIT] Page 11 (Physical Index) - 1 Questions:
-   ✅ Q11: ZONE FOUND [x:40, y:40, w:1436, h:2064]
+🎨 [RENDERER AUDIT] Page 0 (Physical Index: 0) (W: 1644, H: 2392) - 1 Questions:
+   ❌ Q5: NO SEMANTIC ZONE DATA for Page 0
+   🔍 [OUTPUT-SERVICE] Page 0: Processing 1 marking results for zones...
 
 ✅ [OUTPUT SERVICE] Final Page Order (Verified Content):
 ---------------------------------------------------------------------------------
 | Seq | Index | Original Filename      | Content (Questions)                  |
 ---------------------------------------------------------------------------------
-| [0] |  0    | new doc 2025-11-23 11. | METADATA / FRONT PAGE                |
-| [1] |  1    | new doc 2025-11-23 11. | 1                                    |
-| [2] |  2    | new doc 2025-11-23 11. | 2                                    |
-| [3] |  3    | new doc 2025-11-23 11. | 3                                    |
-| [4] |  4    | new doc 2025-11-23 11. | 4                                    |
-| [5] |  5    | new doc 2025-11-23 11. | 5                                    |
-| [6] |  6    | new doc 2025-11-23 11. | 6                                    |
-| [7] |  7    | new doc 2025-11-23 11. | 7                                    |
-| [8] |  8    | new doc 2025-11-23 11. | 8                                    |
-| [9] |  9    | new doc 2025-11-23 11. | 9                                    |
-| [10] |  10   | new doc 2025-11-23 11. | 10                                   |
-| [11] |  11   | new doc 2025-11-23 11. | 11                                   |
+| [0] |  0    | new doc 2025-11-23 11. | 5a, 5b, 5c                           |
 ---------------------------------------------------------------------------------
 
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m3.2s[0m ([32m[1mOUTPUT-GENERATION[0m)
-[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 11 Engine Results...
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.7s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 11 Engine Results...
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
 
 📊 [ANNOTATION SUMMARY]
 -----------------------------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
 |----------|-------|-------------------------|----------------------------------------|
-| [32m1       [0m | 2/2   | A1, M1                  | AI:2/2 → M:1 U:1                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m2       [0m | 3/3   | A1, M1, B1              | AI:3/3 → M:3 U:0                       |
-| [90m  a     [0m | 2     | A1, M1                  | AI:2/2 → M:2 U:0                       |
-| [90m  b     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m3       [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m4       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m5       [0m | 6/6   | A1, M1, B2, B2          | AI:1/4 → M:1 U:0                       |
-| [90m  a     [0m | 2     | B2                      | AI:0/1 → M:0 U:0                       |
+| [32m5       [0m | 6/6   | A1, M1, B2, B2          | AI:2/4 → M:1 U:1                       |
+| [90m  a     [0m | 2     | B2                      | AI:1/1 → M:0 U:1                       |
 | [90m  b     [0m | 2     | B2                      | AI:0/1 → M:0 U:0                       |
 | [90m  c     [0m | 2     | A1, M1                  | AI:1/2 → M:1 U:0                       |
 |----------|-------|-------------------------|----------------------------------------|
-| [32m6       [0m | 4/4   | P1, P1, P1, C1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m7       [0m | 4/4   | A1, M1, M1, C1          | AI:4/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m8       [0m | 3/3   | A1, P1, P1              | AI:3/3 → M:3 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m9       [0m | 2/2   | B1, C1                  | AI:2/2 → M:2 U:0                       |
-| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
-| [90m  b     [0m | 1     | C1                      | AI:1/1 → M:1 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m10      [0m | 4/3   | A1, B0, B1, P1          | AI:3/4 → M:4 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
-| [32m11      [0m | 1/7   | B1, A0, M0, A0, M0, A0, M0 | AI:1/7 → M:1 U:0                       |
-| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 U:0                       |
-| [90m  b     [0m | 0     | A0, M0                  | AI:0/2 → M:0 U:0                       |
-| [90m  c     [0m | 0     | A0, M0                  | AI:0/2 → M:0 U:0                       |
-| [90m  d     [0m | 0     | A0, M0                  | AI:0/2 → M:0 U:0                       |
-|----------|-------|-------------------------|----------------------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 56.6s
+Total Processing Time: 23.0s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      19.4s (34%)
-marking                             17.9s (32%)
-ocr_processing                      7.2s (13%)
-question_detection                  4.8s (8%)
-output_generation                   3.2s (6%)
-preprocessing                       1.5s (3%)
-performance_summary                 1.4s (3%)
-database_persistence                0.2s (0%)
+classification                      8.1s (35%)
+marking                             6.7s (29%)
+ocr_processing                      3.4s (15%)
+output_generation                   1.7s (8%)
+performance_summary                 1.0s (4%)
+question_detection                  0.7s (3%)
+database_persistence                0.2s (1%)
+preprocessing                       0.2s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
-   API Requests: 25 total
-   Total Tokens: 157,359 (142,992 in + 14,367 out)
-   Total Cost: $0.067229
-   Mathpix OCR: 12 pages → $0.048000
+   API Requests: 4 total
+   Total Tokens: 19,265 (17,683 in + 1,582 out)
+   Total Cost: $0.005944
+   Mathpix OCR: 1 pages → $0.004000
 
    Breakdown by Phase:
-   • Mapper (Map Pass): 6,191 tokens (2 requests) → $0.000817
-   • Classification (Marking Pass): 72,334 tokens (11 requests) → $0.009117
-   • Marking: 77,094 tokens (11 requests) → $0.009916
-   • Performance Summary: 1,740 tokens (1 requests) → $0.000197
+   • Mapper (Map Pass): 4,346 tokens (1 requests) → $0.000457
+   • Classification (Marking Pass): 6,995 tokens (1 requests) → $0.000910
+   • Marking: 7,431 tokens (1 requests) → $0.000971
+   • Performance Summary: 493 tokens (1 requests) → $0.000063
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1770018853654
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1770018853654
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0672292
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1770060001415
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1770060001415
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0059437
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 6.72 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770018853654), remaining: 356.38
-💳 Deducted 0.0672 credits (session: sub-1770018853654) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770018853654
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
+💳 Deducted 0.59 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770060001415), remaining: 236.65
+💳 Deducted 0.0059 credits (session: sub-1770060001415) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770060001415
 ✅ Permissions configuration loaded from .env.local:
    - Analysis Plans: pro, ultra
    - Model Selection Plans: pro, ultra
