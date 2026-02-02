@@ -56,7 +56,16 @@ export class MarkingOutputService {
                     // 🛡️ [SINGLE SOURCE OF TRUTH AUDIT]: Check semanticZones instead of legacy props
                     const label = q.questionNumber;
                     const zoneMap = (q as any).semanticZones;
-                    const zonesForThisQ = zoneMap ? zoneMap[label] || zoneMap[String(label)] : null;
+                    let zonesForThisQ = zoneMap ? zoneMap[label] || zoneMap[String(label)] : null;
+
+                    // 🛡️ [SUB-QUESTION FALLBACK]: If "11" has no zone, but "11a", "11b" do, use them for the audit/renderer.
+                    if (!zonesForThisQ && zoneMap) {
+                        const childKeys = Object.keys(zoneMap).filter(k => k.startsWith(String(label)) && k !== String(label));
+                        if (childKeys.length > 0) {
+                            zonesForThisQ = childKeys.flatMap(k => zoneMap[k]);
+                        }
+                    }
+
                     const zoneOnThisPage = zonesForThisQ?.find((z: any) => z.pageIndex === pageIndex);
 
                     if (zoneOnThisPage) {

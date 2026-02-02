@@ -8,6 +8,7 @@ import UsageTracker from '../../utils/UsageTracker.js';
 // Core Service Imports
 import { MarkingTaskFactory } from './core/MarkingTaskFactory.js';
 import { ZoneArchitect } from './core/ZoneArchitect.js';
+import { MarkingZoneService } from './MarkingZoneService.js';
 import { AnnotationLinker } from './core/AnnotationLinker.js';
 import { ScoreAuditor } from './core/ScoreAuditor.js';
 
@@ -128,7 +129,7 @@ export async function executeMarkingForQuestion(
 
     // [FIX]: Reuse Upstream Static Zones (Single Source of Truth)
     const semanticZones = task.semanticZones || ZoneArchitect.detectAndRefineZones(task, task.pageDimensions as any);
-    ZoneArchitect.backfillInjectedZones(semanticZones, stepsDataForMapping, task.pageDimensions as any);
+    MarkingZoneService.backfillInjectedZones(semanticZones, stepsDataForMapping, task.pageDimensions as any);
 
     // 🔍 [DEBUG PROBE] What does the Executor see?
     console.log(`\n🔍 [EXECUTOR PROBE] Q${task.questionNumber}`);

@@ -93,42 +93,4 @@ export class ZoneArchitect {
         return semanticZones;
     }
 
-    /**
-     * Backfills zones for injected steps (e.g. DRAWING) if they were missed.
-     */
-    static backfillInjectedZones(
-        semanticZones: Record<string, any[]>,
-        stepsDataForMapping: any[],
-        pageDimensionsMap: Map<number, { width: number; height: number }>
-    ): void {
-        stepsDataForMapping.forEach(step => {
-            if ((step as any).ocrSource === 'system-injection') {
-                const qLabel = (step as any).subQuestionLabel;
-                const pIdx = step.pageIndex;
-                const hasZoneOnPage = semanticZones[qLabel]?.some(z => z.pageIndex === pIdx);
-                if (!hasZoneOnPage) {
-                    const dims = pageDimensionsMap.get(pIdx) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
-                    const pW = dims.width || 2480;
-                    const pH = dims.height || 3508;
-                    const margin = Math.floor(pW * 0.05); // [FIX]: Dynamic Margin (5%)
-
-                    let ceilingY = pH;
-                    Object.values(semanticZones).flat().forEach(z => {
-                        if (z.pageIndex === pIdx && z.startY < ceilingY && z.startY > 10 && z.label !== qLabel) {
-                            ceilingY = z.startY;
-                        }
-                    });
-                    if (!semanticZones[qLabel]) semanticZones[qLabel] = [];
-                    semanticZones[qLabel].push({
-                        label: qLabel,
-                        pageIndex: pIdx,
-                        startY: 0,
-                        endY: ceilingY,
-                        x: margin,
-                        width: pW - (margin * 2)
-                    } as any);
-                }
-            }
-        });
-    }
 }

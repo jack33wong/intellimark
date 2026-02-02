@@ -368,7 +368,10 @@ export class MarkingZoneService {
                         const suffix = next.key.substring(mainClean.length).toLowerCase().replace(/[^a-z0-9]/g, '');
                         // suffix 'a', '1', 'ai', 'i' etc implies first part
                         if (['a', '1', 'ai', 'i', 'parta'].includes(suffix)) {
-                            // console.log(`[ZONE-ABSORB] Q${next.key} absorbing Main Q${current.key} on P${current.pageIndex}`);
+                            // 🏰 [ABSORB-TRANSFER]: Transfer parent's startY to the sub-question
+                            // Ensure the child question starts where the intro/group-header began.
+                            next.startY = Math.min(next.startY, current.startY);
+                            // console.log(`[ZONE-ABSORB] Q${next.key} absorbing Main Q${current.key} on P${current.pageIndex}. New StartY: ${next.startY}`);
                             absorbedIndices.add(i);
                         }
                     }
@@ -467,12 +470,13 @@ export class MarkingZoneService {
             if (next && next.pageIndex > current.pageIndex) {
                 const nextPDims = pageDimensionsMap.get(next.pageIndex) || { width: 2480, height: 3508 };
                 const nextPH = nextPDims.height || 3508;
-                // 🌉 [V5 SIMPLE DESIGN]: Trigger bridge ONLY if next question starts EXCEPTIONALY HIGH (< 15%).
-                // If it starts lower (e.g. 30%), we SKIP the bridge (no leak).
-                const isNextWithinTop15Percent = next.startY < (nextPH * 0.15);
+                // 🌉 [GAP-BASED BRIDGE]: 
+                // Trigger bridge if there is a LARGE GAP (> 15%) above the first question on the second page.
+                // This captures graphs/tables (like Q11 CF Graph) without false positives on tight packing.
+                const hasLargeGapAbove = next.startY > (nextPH * 0.15);
 
-                if (isNextWithinTop15Percent) {
-                    // console.log(` 🌉 [BRIDGE-ACTIVATE] ${current.key} -> ${next.key} (NextY: ${next.startY} [15%= ${(nextPH * 0.15).toFixed(0)}])`);
+                if (hasLargeGapAbove) {
+                    // console.log(` 🌉 [BRIDGE-ACTIVATE] ${current.key} -> ${next.key} due to gap (NextY: ${next.startY} [15%= ${(nextPH * 0.15).toFixed(0)}])`);
 
                     // 1. Fill FULL gaps (e.g. P1 in P0->P2)
                     for (let p = current.pageIndex + 1; p < next.pageIndex; p++) {
@@ -763,6 +767,47 @@ export class MarkingZoneService {
 
     private static escapeRegExp(string: string): string {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * Backfills zones for injected steps (e.g. DRAWING) if they were missed.
+     */
+    public static backfillInjectedZones(
+        semanticZones: Record<string, any[]>,
+        stepsDataForMapping: any[],
+        pageDimensionsMap: Map<number, { width: number; height: number }>
+    ): void {
+        stepsDataForMapping.forEach(step => {
+            if ((step as any).ocrSource === 'system-injection') {
+                const qLabel = (step as any).subQuestionLabel;
+                const pIdx = step.pageIndex;
+                const hasZoneOnPage = semanticZones[qLabel]?.some(z => z.pageIndex === pIdx);
+                if (!hasZoneOnPage) {
+                    const dims = pageDimensionsMap.get(pIdx) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
+                    const pW = dims.width || 2480;
+                    const pH = dims.height || 3508;
+                    const margin = Math.floor(pW * 0.05); // [FIX]: Dynamic Margin (5%)
+
+                    let ceilingY = pH;
+                    Object.values(semanticZones).flat().forEach(z => {
+                        if (z.pageIndex === pIdx && z.startY < ceilingY && z.startY > 10 && z.label !== qLabel) {
+                            ceilingY = z.startY;
+                        }
+                    });
+                    if (!semanticZones[qLabel]) semanticZones[qLabel] = [];
+                    semanticZones[qLabel].push({
+                        label: qLabel,
+                        pageIndex: pIdx,
+                        startY: 0,
+                        endY: ceilingY,
+                        x: margin,
+                        width: pW - (margin * 2),
+                        origW: pW,
+                        origH: pH
+                    } as any);
+                }
+            }
+        });
     }
 
     private static checkLabelMatch(text: string, label: string): boolean {

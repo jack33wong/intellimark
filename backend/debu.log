@@ -2,30 +2,3 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-✅ Permissions configuration loaded from .env.local:
-   - Analysis Plans: pro, ultra
-   - Model Selection Plans: pro, ultra
-✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
-   - Conversion Rate: $0.01 per credit
-   - Free Plan: 10 credits/month
-   - Pro Plan: 200 credits/month
-   - Ultra Plan: 600 credits/month
-💳 Stripe initialized in TEST mode
-📚 Swagger UI available at /api-docs
-👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
-📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 2, Body Keys: model, aiMessageId, customText
-🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
-💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.1203342, files: 2, bytes: 1103342
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":219.66}
-
-🔄 ========== UNIFIED PIPELINE START ==========
-🔄 ============================================
-
-[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Multiple Images (2 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.3s[0m ([32m[1mIMAGE-PROCESSING[0m)
-[MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 2 pages...
-   📦 [MAPPER-BUCKET] Processing pages 0 to 1...
