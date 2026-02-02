@@ -394,7 +394,7 @@ export class MarkingZoneService {
                 pagesWithFirstLandmark.add(current.pageIndex);
             }
 
-            let endY = pH - vMargin; // [FIX]: Enforce BOTTOM margin (6%) by default
+            let endY = pH; // Start at full page, only apply margin if it stays at full page
 
             if (next && next.pageIndex === current.pageIndex) {
                 // Inter-question gap filling (Snap to start of next question)
@@ -435,9 +435,12 @@ export class MarkingZoneService {
             const horizontalMargin = Math.floor(pW * 0.06);
             const minHeight = 100;
 
-            // [FIX]: Final Safety Clamp - No zone can EVER cross the 6% vertical margins
-            const safetyEndY = Math.min(pH - vMargin, endY);
-            const finalEndY = Math.max(safetyEndY, finalStartY + minHeight);
+            // [FIX]: Only apply BOTTOM margin (6%) if the zone naturally ends at the page boundary.
+            let finalEndY = endY;
+            if (finalEndY >= pH - 20) {
+                finalEndY = pH - vMargin;
+            }
+            finalEndY = Math.max(finalEndY, finalStartY + minHeight);
 
             zones[current.key].push({
                 label: current.key,
