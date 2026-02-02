@@ -39,20 +39,35 @@ export class MarkingOutputService {
         const annotatedImagesBase64 = await Promise.all(standardizedPages.map(async (page, i) => {
             // Find questions that belong to this page index
             // Note: markingResults have updated pageIndex from the Pipeline's Re-Indexing step
-            const pageQuestions = markingResults.filter(r => r.pageIndex === page.pageIndex);
+            // Find questions that belong to this physical page (by primary anchor OR by having annotations on this page)
+            const pageQuestions = markingResults.filter(r =>
+                r.pageIndex === page.pageIndex ||
+                r.annotations?.some(a => a.pageIndex === page.pageIndex) ||
+                (r.sourceImageIndices && r.sourceImageIndices.includes(page.pageIndex))
+            );
 
             // ========================= 🎨 [RENDERER AUDIT] =========================
             // CRITICAL DEBUG: Check if the Zone Coordinates actually reached the renderer.
             // If this logs "❌ NO ZONE", then 'MarkingExecutor' failed to attach the data to the final result.
             if (pageQuestions.length > 0) {
-                console.log(`\n🎨 [RENDERER AUDIT] Page ${i} (Physical Index) - ${pageQuestions.length} Questions:`);
+                console.log(`\n🎨 [RENDERER AUDIT] Page ${i} (Physical Index) (W: ${page.width}, H: ${page.height}) - ${pageQuestions.length} Questions:`);
                 pageQuestions.forEach(q => {
                     // Check all possible properties where the zone might be stored
                     const zone = (q as any).debugSearchWindow || (q as any).searchWindow || (q as any).position;
 
                     if (zone) {
-                        const coords = `x:${zone.x?.toFixed(0)}, y:${zone.y?.toFixed(0)}, w:${zone.width?.toFixed(0)}, h:${zone.height?.toFixed(0)}`;
+                        const x = zone.x || 0;
+                        const w = zone.width || 0;
+                        const marginPct = (page.width > 0) ? (x / page.width) * 100 : 0;
+                        const marginTarget = Math.floor(page.width * 0.05);
+
+                        const coords = `x:${x.toFixed(0)}, y:${zone.y?.toFixed(0)}, w:${w.toFixed(0)}, h:${zone.height?.toFixed(0)}`;
                         console.log(`   ✅ Q${q.questionNumber}: ZONE FOUND [${coords}]`);
+                        console.log(`      📊 STATS: PageWidth=${page.width} | Margin=${x.toFixed(0)}px (${marginPct.toFixed(2)}%) | Target(5%)=${marginTarget}px`);
+
+                        if (x < marginTarget - 5) { // Allow small variance
+                            console.warn(`      ⚠️ [MARGIN ALERT] Zone margin (${x}px) is LESS than 5% target (${marginTarget}px)! logic failed.`);
+                        }
                     } else {
                         console.log(`   ❌ Q${q.questionNumber}: NO ZONE DATA FOUND (Renderer received null)`);
                     }
@@ -92,6 +107,21 @@ export class MarkingOutputService {
             // Deduplicate zones (copied from original)
             const uniqueZonesMap = new Map<string, any>();
             markingResults.forEach(qr => {
+                // 1. Primary Container (The "Red Box" for the whole question)
+                const primaryZone = (qr as any).debugSearchWindow || (qr as any).searchWindow;
+                if (primaryZone && qr.pageIndex === pageIndex) {
+                    const key = `Q${qr.questionNumber}_p${pageIndex}`;
+                    if (!uniqueZonesMap.has(key)) {
+                        uniqueZonesMap.set(key, {
+                            ...primaryZone,
+                            label: `Q${qr.questionNumber}`,
+                            startY: primaryZone.y, // Drawer expects startY
+                            endY: (primaryZone.y || 0) + (primaryZone.height || 0)
+                        });
+                    }
+                }
+
+                // 2. Semantic Zones (Sub-questions like 11a, 11b)
                 if (qr.semanticZones) {
                     Object.entries(qr.semanticZones).forEach(([label, zones]: [string, any]) => {
                         zones.forEach((z: any) => {
@@ -179,16 +209,27 @@ export class MarkingOutputService {
         const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(markingResults);
 
         // ========================= 🔍 [DEBUG: CONTENT VERIFICATION] =========================
-        // Map Page Index -> Question Numbers to prove the sort order is semantically correct
-        const pageToQuestions = new Map<number, string[]>();
+        // Map Page Index -> Sub-Content to prove exactly what lives on each page
+        const pageToContent = new Map<number, Set<string>>();
 
-        // Use updatedQuestionResults because they have the final re-indexed page numbers
         updatedQuestionResults.forEach(r => {
-            const pIdx = r.pageIndex; // This is the re-indexed physical index
-            if (!pageToQuestions.has(pIdx)) {
-                pageToQuestions.set(pIdx, []);
+            // Priority 1: Semantic Zones (Detailed Sub-questions)
+            if (r.semanticZones && Object.keys(r.semanticZones).length > 0) {
+                Object.entries(r.semanticZones).forEach(([subLabel, zones]: [string, any]) => {
+                    zones.forEach((z: any) => {
+                        if (z.pageIndex !== undefined) {
+                            if (!pageToContent.has(z.pageIndex)) pageToContent.set(z.pageIndex, new Set());
+                            pageToContent.get(z.pageIndex)?.add(subLabel);
+                        }
+                    });
+                });
             }
-            pageToQuestions.get(pIdx)?.push(String(r.questionNumber));
+            // Priority 2: Fallback to Main Question Number (if no zones detected)
+            else {
+                const pIdx = r.pageIndex;
+                if (!pageToContent.has(pIdx)) pageToContent.set(pIdx, new Set());
+                pageToContent.get(pIdx)?.add(String(r.questionNumber));
+            }
         });
 
         console.log('\n✅ [OUTPUT SERVICE] Final Page Order (Verified Content):');
@@ -197,8 +238,9 @@ export class MarkingOutputService {
         console.log('---------------------------------------------------------------------------------');
 
         sortedStandardizedPages.forEach((p, i) => {
-            // Get questions on this page, or mark as 'Front Page / Filler' if empty
-            let content = pageToQuestions.get(i)?.join(', ');
+            // Get questions on this page, naturally sorted
+            const contentSet = pageToContent.get(i);
+            let content = contentSet ? Array.from(contentSet).sort(getQuestionSortValue).join(', ') : '';
 
             if (!content || content.length === 0) {
                 // If no questions, check if it was metadata

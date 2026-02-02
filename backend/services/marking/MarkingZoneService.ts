@@ -383,16 +383,14 @@ export class MarkingZoneService {
             const pH = dims.height || 3508;
             const vMargin = Math.floor(pH * 0.06);
 
-            // [FIX]: Only enforce TOP margin (6%) if it would have been at the top (Page Boundary)
+            // 🏗️ SMART MARGIN: First question on a page owns the top (6% margin).
             let finalStartY = current.startY - 150;
-            if (finalStartY < vMargin) {
-                finalStartY = vMargin;
-            }
-
             if (!pagesWithFirstLandmark.has(current.pageIndex)) {
-                console.log(`[ZONE-SMART] First on P${current.pageIndex}: Snapping ${current.key} start with 150px buffer`);
+                console.log(`[ZONE-SMART] First on P${current.pageIndex}: ${current.key} owning Top-of-Page`);
+                finalStartY = vMargin;
                 pagesWithFirstLandmark.add(current.pageIndex);
             }
+            finalStartY = Math.max(vMargin, finalStartY);
 
             let endY = pH; // Start at full page, only apply margin if it stays at full page
 
@@ -420,9 +418,8 @@ export class MarkingZoneService {
                     console.log(`[ZONE-SMART] Detected STOP marker for ${current.key} at Y=${stopY}`);
                     endY = stopY + 50; // Include the "Total" line itself + small margin
                 } else {
-                    // 🛡️ [FALLBACK]: If no stop marker and it's the solo/last question, 
-                    // cap it at 800px below startY to avoid "The Infini-Zone"
-                    endY = Math.min(pH - vMargin, current.startY + 800);
+                    // 🛡️ [FALLBACK]: Last question on a page owns the bottom (6% margin).
+                    endY = pH - vMargin;
                 }
             }
 
