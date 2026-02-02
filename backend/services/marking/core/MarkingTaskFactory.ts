@@ -259,11 +259,29 @@ export class MarkingTaskFactory {
 
         console.log(`[ZONE-DETECTOR] Deterministic Sort Order: ${globalExpectedQuestions.map(q => q.label).join(' -> ')}`);
 
-        const globalZones = MarkingZoneService.detectSemanticZones(
+        let globalZones = MarkingZoneService.detectSemanticZones(
             allOcrBlocksGlobal,
             pageDimensionsMap,
             globalExpectedQuestions
         );
+
+        // [FIX] Refine zones to prevent overlap (User Rule: No Buffer)
+        // This ensures Zone Fidelity respects the "Next Sub-Question Start = Current End" rule upstream.
+        globalZones = MarkingZoneService.refineZones(globalZones);
+
+        // 🔍 [EVIDENCE LOG]: Prove the zones are correctly tightened and using individual margins.
+        console.log(`\n📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:`);
+        Object.entries(globalZones).forEach(([lbl, zs]: [string, any[]]) => {
+            zs.forEach(z => {
+                const pW = pageDimensionsMap.get(z.pageIndex)?.width || 0;
+                const pH = pageDimensionsMap.get(z.pageIndex)?.height || 0;
+                const marginXPct = ((z.x / pW) * 100).toFixed(1);
+                const marginYPct = ((z.startY / pH) * 100).toFixed(1);
+                const marginTarget = 6.0;
+                console.log(`   ✅ ${lbl.padEnd(6)} | P${z.pageIndex} | Y: ${String(Math.round(z.startY)).padStart(4)} (${marginYPct}%) to ${String(Math.round(z.endY)).padStart(4)} | X: ${z.x} (Margin: ${marginXPct}%) | W: ${z.width}`);
+            });
+        });
+        console.log(`-------------------------------------------\n`);
 
         // =========================================================================
         // PHASE 2: TASK GENERATION
@@ -293,10 +311,79 @@ export class MarkingTaskFactory {
                         promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
                         currentHeader = seg.subQuestionLabel;
                     }
+
+                    // 🛡️ [OMNI-PRESENT SOURCE FIX]: 
+                    // Explode [DRAWING] blocks into page-specific IDs if the question spans multiple pages.
+                    // This ensures the AI prompt allows selection of the correct page.
+                    if (clean === '[DRAWING]' && seg.subQuestionLabel) {
+                        // [FIX]: Key Mismatch. seg.subQuestionLabel might be "b", but zones are keyed "11b".
+                        const fullLabel = seg.subQuestionLabel.startsWith(baseQNum)
+                            ? seg.subQuestionLabel
+                            : `${baseQNum}${seg.subQuestionLabel}`;
+
+                        const zones = globalZones[fullLabel];
+
+                        if (zones && zones.length > 0) {
+                            const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
+
+                            // If we have zones on multiple pages (or just one page that is different from the anchor),
+                            // we generate explicit page-specific IDs.
+                            if (uniquePages.length > 0) {
+                                uniquePages.forEach(pIdx => {
+                                    // pX_visual_drawing_11_1
+                                    const pageSpecificId = `p${pIdx}_${seg.line_id}`; // e.g. p0_visual_drawing_11_1
+                                    promptMainWork += `[ID: ${pageSpecificId}] [DRAWING]\n`;
+
+                                    // ⚠️ CRITICAL: We must also append this new synthetic block to the group's results
+                                    // so that MarkingExecutor can map the AI's response back to a valid step.
+                                    // We check if it already exists to avoid duplicates (though loop order should prevent this).
+                                    if (!group.aiSegmentationResults.some((s: any) => s.line_id === pageSpecificId)) {
+                                        // We defer this push to avoid mutating the array while iterating
+                                        // or we can handle it by post-processing.
+                                        // Actually, let's just push it to a separate list and merge later?
+                                        // Better: Let's assume the mapped steps will be derived from these explicitly later.
+                                    }
+                                });
+                                return; // Skip the default generic line
+                            }
+                        }
+                    }
+
                     const id = seg.line_id || seg.blockId || seg.sequentialId;
                     promptMainWork += `[ID: ${id}] ${clean}\n`;
                 }
             });
+
+            // 🛡️ [OMNI-PRESENT SYNC]: Re-populate aiSegmentationResults with the exploded versions?
+            // MarkingExecutor consumes task.aiSegmentationResults to build its mapping.
+            // If the AI returns "p1_visual_drawing...", MarkingExecutor needs to find a step with that ID.
+            // So we MUST expand group.aiSegmentationResults.
+
+            const explodedResults: any[] = [];
+            group.aiSegmentationResults.forEach((seg: any) => {
+                const clean = seg.content.replace(/\s+/g, ' ').trim();
+                if (clean === '[DRAWING]' && seg.subQuestionLabel && globalZones[seg.subQuestionLabel]) {
+                    const zones = globalZones[seg.subQuestionLabel];
+                    const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
+
+                    if (uniquePages.length > 0) {
+                        uniquePages.forEach(pIdx => {
+                            const newId = `p${pIdx}_${seg.line_id}`;
+                            explodedResults.push({
+                                ...seg,
+                                line_id: newId,
+                                blockId: newId,
+                                globalBlockId: newId,
+                                pageIndex: pIdx,
+                                isExploded: true
+                            });
+                        });
+                        return; // Don't push original
+                    }
+                }
+                explodedResults.push(seg);
+            });
+            group.aiSegmentationResults = explodedResults;
 
             let allOcrBlocks: any[] = [];
             if (allPagesOcrData) {

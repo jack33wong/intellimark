@@ -1,7 +1,266 @@
-import { verifyMatch } from './MarkingPositioningService.js';
 import { SimilarityService } from './SimilarityService.js';
+import { CoordinateTransformationService } from './CoordinateTransformationService.js';
+
+// 🛡️ [CRITICAL FIX] STRICT TEXT SANITIZER
+// Removes ALL numbers and symbols. Keeps ONLY words.
+export function normalizeText(text: string): string[] {
+    if (!text) return [];
+    return text
+        .replace(/\\[a-zA-Z]+/g, ' ')       // Strip LaTeX commands
+        .replace(/[^a-zA-Z\s]/g, '')        // 🚨 DELETE ALL NUMBERS (0-9) AND SYMBOLS
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(t => t.length > 2);         // Only keep words > 2 chars
+}
+
+export function verifyStrictMatch(dbText: string, ocrText: string): boolean {
+    if (!dbText || !ocrText) return false;
+
+    const dbTokens = normalizeText(dbText).slice(0, 15); // Fingerprint
+    const ocrTokens = normalizeText(ocrText);
+
+    if (dbTokens.length === 0) return false;
+
+    const matches = dbTokens.filter(t => ocrTokens.includes(t));
+    const confidence = matches.length / dbTokens.length;
+
+    // 🎯 STRICT THRESHOLD: 40% Word Overlap Required
+    return confidence >= 0.4;
+}
+
+export function verifyMatch(dbText: string, ocrText: string): boolean {
+    return verifyStrictMatch(dbText, ocrText);
+}
 
 export class MarkingZoneService {
+
+    /**
+     * Calculates the global offset (x, y) for a question based on classification blocks,
+     * landmarks, and question detection boxes.
+     */
+    public static calculateGlobalOffset(
+        classificationBlocks: any[],
+        questionDetection: any[],
+        targetQuestionObject: any,
+        inputQuestionNumber: string,
+        rawOcrBlocks: any[],
+        processedImage: any
+    ): { offsetX: number; offsetY: number } {
+        let offsetX = 0;
+        let offsetY = 0;
+
+        // 1. Try Classification Block (Primary Source)
+        if (classificationBlocks && classificationBlocks.length > 0) {
+            const sample = classificationBlocks[0];
+            const rawBox = sample.box || sample.coordinates || { x: sample.x, y: sample.y, width: 0, height: 0 };
+            const pixelBox = CoordinateTransformationService.ensurePixels(rawBox, 2000, 3000, `OFFSET-CLASS`);
+            offsetX = pixelBox.x;
+            offsetY = pixelBox.y;
+        }
+
+        // 2. Fallback: Question Detection (Global Position)
+        if ((offsetX === 0 && offsetY === 0) && targetQuestionObject) {
+            let qBox = targetQuestionObject.region || targetQuestionObject.box || targetQuestionObject.rect || targetQuestionObject.coordinates;
+            // PARENT FALLBACK
+            if (!qBox && questionDetection && Array.isArray(questionDetection)) {
+                const currentBase = String(inputQuestionNumber).replace(/[a-z]/i, '');
+                const parentQ = questionDetection.find((q: any) => String(q.questionNumber) === currentBase);
+                if (parentQ) {
+                    qBox = parentQ.box || parentQ.region || parentQ.rect || parentQ.coordinates;
+                }
+            }
+            if (qBox) {
+                const pixelBox = CoordinateTransformationService.ensurePixels(qBox, 2000, 3000, `OFFSET-DETECTION`);
+                offsetX = pixelBox.x;
+                offsetY = pixelBox.y;
+            }
+        }
+
+        // 3. Landmark / Zone Detection (Hierarchical Fallback)
+        if (offsetX === 0 && offsetY === 0) {
+            const landmarks = (processedImage as any).landmarks || (processedImage as any).zones;
+            const subQ = String(inputQuestionNumber || '').replace(/^\d+/, '').toLowerCase();
+
+            if (landmarks && Array.isArray(landmarks)) {
+                let match = landmarks.find((l: any) =>
+                    (l.label && l.label.toLowerCase() === subQ && subQ !== "") ||
+                    (l.label && l.label.toLowerCase() === inputQuestionNumber?.toLowerCase()) ||
+                    (l.text && l.text.toLowerCase().includes(`(${subQ})`) && subQ !== "")
+                );
+
+                // Hierarchical "First Child" Fallback
+                if (!match && landmarks.length > 0) {
+                    const isRootQuery = subQ === "" || subQ === inputQuestionNumber?.toLowerCase();
+                    if (isRootQuery) {
+                        const firstL = landmarks[0];
+                        const label = (firstL.label || "").toLowerCase();
+                        if (["a", "i", "1"].includes(label)) {
+                            match = firstL;
+                        }
+                    }
+                }
+
+                if (match) {
+                    const pixelBox = CoordinateTransformationService.ensurePixels(match, 2000, 3000, `OFFSET-LANDMARK`);
+                    offsetX = pixelBox.x;
+                    offsetY = pixelBox.y;
+                }
+            }
+        }
+
+        // 4. "Smart Sub-Question Anchor" (OCR Block Fallback)
+        if (offsetX === 0 && offsetY === 0 && rawOcrBlocks && rawOcrBlocks.length > 0) {
+            const subQ = String(inputQuestionNumber || '').replace(/^\d+/, '');
+            const baseQ = String(inputQuestionNumber || '').replace(/\D/g, '');
+            const subQRegex = new RegExp(`^\\(?${subQ}[).]?`, 'i');
+            const baseQRegex = new RegExp(`^Q?${baseQ}[.:]?`, 'i');
+
+            let anchorBlock = rawOcrBlocks.find((b: any) => subQ && subQRegex.test(b.text));
+            if (!anchorBlock) {
+                anchorBlock = rawOcrBlocks.find((b: any) => baseQ && baseQRegex.test(b.text));
+            }
+            if (!anchorBlock) anchorBlock = rawOcrBlocks[0];
+
+            if (anchorBlock) {
+                const bCoords = anchorBlock.coordinates || anchorBlock.box || anchorBlock.geometry?.boundingBox;
+                if (bCoords) {
+                    const pixelBox = CoordinateTransformationService.ensurePixels(bCoords, 2000, 3000, `OFFSET-ANCHOR`);
+                    offsetX = pixelBox.x;
+                    offsetY = pixelBox.y;
+                }
+            }
+        }
+
+        return { offsetX, offsetY };
+    }
+
+    public static globalizeStudentWorkLines(
+        classificationBlocks: any[],
+        landmarks: any[],
+        cleanDataForMarking: any,
+        globalOffsetX: number,
+        globalOffsetY: number
+    ): Array<{ text: string; position: { x: number; y: number; width: number; height: number } }> {
+        let studentWorkLines: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }> = [];
+
+        if (classificationBlocks && classificationBlocks.length > 0) {
+            classificationBlocks.forEach((block: any) => {
+                let blockOffsetX = globalOffsetX;
+                let blockOffsetY = globalOffsetY;
+
+                const blockText = (block.text || "").toLowerCase();
+                const blockMatch = landmarks.find((l: any) =>
+                    blockText.includes(`(${l.label?.toLowerCase()})`) ||
+                    blockText.includes(`${l.label?.toLowerCase()})`)
+                );
+
+                if (blockMatch) {
+                    blockOffsetX = blockMatch.x || blockMatch.left || 0;
+                    blockOffsetY = blockMatch.y || blockMatch.top || 0;
+                }
+
+                const passThroughLine = (line: any) => {
+                    if (!line.position) {
+                        return {
+                            ...line,
+                            position: { x: blockOffsetX, y: blockOffsetY, width: 100, height: 40 }
+                        };
+                    }
+                    const pos = line.position;
+                    const dims = { width: 2000, height: 3000 };
+                    const pixelBox = CoordinateTransformationService.ensurePixels(pos, dims.width, dims.height, `GLOBAL-LINE`);
+
+                    return {
+                        ...line,
+                        position: {
+                            x: pixelBox.x + blockOffsetX,
+                            y: pixelBox.y + blockOffsetY,
+                            width: pixelBox.width,
+                            height: pixelBox.height
+                        }
+                    };
+                };
+
+                if (block.studentWorkLines && Array.isArray(block.studentWorkLines)) {
+                    studentWorkLines = studentWorkLines.concat(block.studentWorkLines.map(passThroughLine));
+                }
+                if (block.subQuestions && Array.isArray(block.subQuestions)) {
+                    block.subQuestions.forEach((sq: any) => {
+                        if (sq.studentWorkLines) {
+                            studentWorkLines = studentWorkLines.concat(sq.studentWorkLines.map(passThroughLine));
+                        }
+                    });
+                }
+            });
+        } else if (cleanDataForMarking.steps && Array.isArray(cleanDataForMarking.steps)) {
+            studentWorkLines = cleanDataForMarking.steps.map((step: any) => {
+                if (!step.box && !step.position) return null;
+                const pos = step.box || step.position;
+                return {
+                    text: step.text,
+                    position: {
+                        x: pos.x + globalOffsetX,
+                        y: pos.y + globalOffsetY,
+                        width: pos.width,
+                        height: pos.height
+                    }
+                };
+            }).filter((s: any) => s !== null);
+        }
+
+        return studentWorkLines;
+    }
+
+    public static refineZones(semanticZones: Record<string, any[]>): Record<string, any[]> {
+        // 1. MERGE ZONES (Combine segments on same page)
+        Object.keys(semanticZones).forEach(key => {
+            const zones = semanticZones[key];
+            const mergedZones: any[] = [];
+            const byPage: Record<number, any[]> = {};
+            zones.forEach(z => {
+                if (!byPage[z.pageIndex]) byPage[z.pageIndex] = [];
+                byPage[z.pageIndex].push(z);
+            });
+            Object.keys(byPage).forEach(pIdxStr => {
+                const pIdx = Number(pIdxStr);
+                const pageZones = byPage[pIdx];
+                if (pageZones.length > 1) {
+                    const startY = Math.min(...pageZones.map(z => z.startY));
+                    const endY = Math.max(...pageZones.map(z => z.endY));
+                    mergedZones.push({ ...pageZones[0], startY, endY });
+                } else {
+                    mergedZones.push(pageZones[0]);
+                }
+            });
+            semanticZones[key] = mergedZones;
+        });
+
+        // 2. TIGHTEN OVERLAPS (Mutual Push-Pull)
+        const allLabels = Object.keys(semanticZones);
+        const zonesByPage: Record<number, any[]> = {};
+        allLabels.forEach(lbl => {
+            semanticZones[lbl].forEach(z => {
+                if (!zonesByPage[z.pageIndex]) zonesByPage[z.pageIndex] = [];
+                zonesByPage[z.pageIndex].push(z);
+            });
+        });
+
+        Object.keys(zonesByPage).forEach(pIdxStr => {
+            const pIdx = Number(pIdxStr);
+            const pageList = zonesByPage[pIdx];
+            pageList.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+            for (let i = 0; i < pageList.length - 1; i++) {
+                const current = pageList[i];
+                const next = pageList[i + 1];
+                if (next.startY < current.endY) {
+                    console.log(` ⚖️ [ZONE-TIGHTEN] Pulling Q${current.label} endY from ${current.endY} up to Q${next.label} startY (${next.startY})`);
+                    current.endY = next.startY;
+                }
+            }
+        });
+
+        return semanticZones;
+    }
 
     public static detectSemanticZones(
         rawBlocks: any[],
@@ -61,7 +320,7 @@ export class MarkingZoneService {
                     label: eq.label,
                     startY: blockY,
                     pageIndex: match.block.pageIndex,
-                    x: 0, // [WIDTH-FIX]: Zones take the full page width by default
+                    x: 75, // [FIX]: Default placeholder, will be refined per-page later
                     headerBlockId: match.block.id || match.block.globalBlockId
                 });
 
@@ -119,22 +378,27 @@ export class MarkingZoneService {
 
             // 🏗️ SMART MARGIN: Instead of snapping to 0, use a 150px safety buffer.
             // This catches "Answer ALL questions" without coveting the very top of the page.
-            let finalStartY = Math.max(0, current.startY - 150);
+            const dims = pageDimensionsMap.get(current.pageIndex) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
+            const pW = dims.width || 2480;
+            const pH = dims.height || 3508;
+            const vMargin = Math.floor(pH * 0.06);
+
+            // [FIX]: Only enforce TOP margin (6%) if it would have been at the top (Page Boundary)
+            let finalStartY = current.startY - 150;
+            if (finalStartY < vMargin) {
+                finalStartY = vMargin;
+            }
 
             if (!pagesWithFirstLandmark.has(current.pageIndex)) {
                 console.log(`[ZONE-SMART] First on P${current.pageIndex}: Snapping ${current.key} start with 150px buffer`);
                 pagesWithFirstLandmark.add(current.pageIndex);
             }
 
-            const dims = pageDimensionsMap.get(current.pageIndex) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
-            const pW = dims.width || 2480;
-            const pH = dims.height || 3508;
-            const margin = 80;
-
-            let endY = pH - 50; // default: extend to footer
+            let endY = pH - vMargin; // [FIX]: Enforce BOTTOM margin (6%) by default
 
             if (next && next.pageIndex === current.pageIndex) {
                 // Inter-question gap filling (Snap to start of next question)
+                // [FIX]: "Don't touch the middle zone" - No vMargin for inter-question boundaries
                 endY = next.startY;
             }
             else {
@@ -158,18 +422,30 @@ export class MarkingZoneService {
                 } else {
                     // 🛡️ [FALLBACK]: If no stop marker and it's the solo/last question, 
                     // cap it at 800px below startY to avoid "The Infini-Zone"
-                    endY = Math.min(pH - margin, current.startY + 800);
+                    endY = Math.min(pH - vMargin, current.startY + 800);
                 }
             }
 
             if (!zones[current.key]) zones[current.key] = [];
+
+            // 🏛️ UNIVERSAL SLICE DESIGN (Bible 7.4)
+            // We ignore detected widths. A Zone is ALWAYS a horizontal strip.
+            // This ensures deterministic coverage for handwriting that drifts horizontally.
+            // [FIX]: Update Margin to 6% (User Request)
+            const horizontalMargin = Math.floor(pW * 0.06);
+            const minHeight = 100;
+
+            // [FIX]: Final Safety Clamp - No zone can EVER cross the 6% vertical margins
+            const safetyEndY = Math.min(pH - vMargin, endY);
+            const finalEndY = Math.max(safetyEndY, finalStartY + minHeight);
+
             zones[current.key].push({
                 label: current.key,
                 startY: finalStartY,
-                endY: endY,
+                endY: finalEndY,
                 pageIndex: current.pageIndex,
-                x: margin,
-                width: pW - (margin * 2),
+                x: horizontalMargin,
+                width: pW - (horizontalMargin * 2),
             } as any);
         }
 
@@ -188,20 +464,43 @@ export class MarkingZoneService {
             // Do NOT extend into 'next.pageIndex' itself, because TVC logic 
             // already ensures the first question on a page owns the top.
             if (next && next.pageIndex > current.pageIndex) {
+                // 1. Fill FULL gaps (e.g. P1 in P0->P2)
                 for (let p = current.pageIndex + 1; p < next.pageIndex; p++) {
                     console.log(`[ZONE-UPSTREAM] Filling full gap page: ${current.key} for P${p}`);
                     const pDims = pageDimensionsMap.get(p) || { width: 2480, height: 3508 };
                     const pW_bridge = pDims.width || 2480;
                     const pH_bridge = pDims.height || 3508;
-                    const margin_bridge = 80;
+                    const margin_bridge = Math.floor(pW_bridge * 0.06); // [FIX]: Dynamic Margin (6%)
+                    const vMargin_bridge = Math.floor(pH_bridge * 0.06);
 
                     zones[current.key].push({
                         label: current.key,
                         pageIndex: p,
-                        startY: 0,
-                        endY: pH_bridge, // Full page
+                        startY: vMargin_bridge, // [FIX]: Enforce TOP margin
+                        endY: pH_bridge - vMargin_bridge, // [FIX]: Enforce BOTTOM margin
                         x: margin_bridge,
                         width: pW_bridge - (margin_bridge * 2),
+                    } as any);
+                }
+
+                // 2. Fill PARTIAL top of the next page (e.g. Top of P1 before 11c starts)
+                // This gives 11b ownership of the space above 11c on P1.
+                console.log(`[ZONE-UPSTREAM] Bridging partial top of P${next.pageIndex} for ${current.key} (ends at ${next.key}@${next.startY})`);
+                const nextPDims = pageDimensionsMap.get(next.pageIndex) || { width: 2480, height: 3508 };
+                const nextPW = nextPDims.width || 2480;
+                const nextPH = nextPDims.height || 3508;
+                const nextMargin = Math.floor(nextPW * 0.06); // [FIX]: Dynamic Margin (6%)
+                const nextVMargin = Math.floor(nextPH * 0.06);
+
+                // Only create if there is actual space (> vMargin + 50)
+                if (next.startY > nextVMargin + 50) {
+                    zones[current.key].push({
+                        label: current.key,
+                        pageIndex: next.pageIndex,
+                        startY: nextVMargin, // [FIX]: Enforce TOP margin
+                        endY: next.startY, // Stop where the next question starts (Tighten logic will handle refinement)
+                        x: nextMargin,
+                        width: nextPW - (nextMargin * 2),
                     } as any);
                 }
             }
@@ -252,10 +551,12 @@ export class MarkingZoneService {
             }
 
             // 🛡️ [WARP DRIVE PROTECTION]: Prevent jumping too far ahead
-            // If we are jumping more than 2 pages, and we aren't in "Rescue Mode" (bestSimilarity > 0.95), reject.
-            // This prevents Q5a (P23) from being accepted when we are currently on P17.
+            // RELAXED (Bible 1.2): If this is the target page from the Truth stage, we allow the anchor 
+            // even if it's a large jump from the previous question.
             const pageDiff = blockPage - minPage;
-            if (pageDiff > 2 && bestSimilarity < 0.95) {
+            const isTargetPage = targetCurrentPage !== undefined && blockPage === targetCurrentPage;
+
+            if (pageDiff > 2 && bestSimilarity < 0.95 && !isTargetPage) {
                 // If we hit a very high confidence match even far ahead, we might allow it,
                 // but for sub-questions or fragmented text, we stay strict.
                 continue;

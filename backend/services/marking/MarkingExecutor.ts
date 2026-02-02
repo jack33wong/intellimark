@@ -110,7 +110,8 @@ export async function executeMarkingForQuestion(
     // --- 2. ZONE ARCHITECTURE ---
     // -------------------------------------------------------------------------
 
-    const semanticZones = ZoneArchitect.detectAndRefineZones(task, task.pageDimensions as any);
+    // [FIX]: Reuse Upstream Static Zones (Single Source of Truth)
+    const semanticZones = task.semanticZones || ZoneArchitect.detectAndRefineZones(task, task.pageDimensions as any);
     ZoneArchitect.backfillInjectedZones(semanticZones, stepsDataForMapping, task.pageDimensions as any);
 
     // 🔍 [DEBUG PROBE] What does the Executor see?
@@ -303,10 +304,24 @@ export async function executeMarkingForQuestion(
     // Principle: Zone Fidelity. We reuse the exact zone created during the detection stage.
     const upstreamZone = AnnotationLinker.getEffectiveZone(String(questionId), semanticZones, defaultPageIndex);
 
-    const dims = task.pageDimensions?.get(defaultPageIndex) || Array.from(task.pageDimensions?.values() || [])[0] || { width: 2480, height: 3508 };
-    const pW = dims.width || 2480;
-    const pH = dims.height || 3508;
-    const margin = 40;
+    // [FIX] Safety: Use the MINIMUM page width from the source pages to prevent overflow on mixed-resolution docs.
+    // If we pick the largest, it draws off the edge of the smallest.
+    let minW = 2480;
+    let maxH = 3508;
+
+    if (task.sourcePages && task.pageDimensions) {
+      const widths = task.sourcePages.map(p => task.pageDimensions?.get(p)?.width).filter(w => w) as number[];
+      if (widths.length > 0) minW = Math.min(...widths);
+
+      // Height doesn't matter as much for overflow, usually we care about width
+      const dims = task.pageDimensions.get(defaultPageIndex);
+      if (dims) maxH = dims.height;
+    }
+
+    const pW = minW;
+    const pH = maxH;
+    // [FIX]: Standardize margin to 6% of page width (Dynamic)
+    const margin = Math.floor(pW * 0.06);
 
     let finalZone: any;
 
@@ -319,7 +334,7 @@ export async function executeMarkingForQuestion(
         height: ((upstreamZone as any).endY ?? pH) - ((upstreamZone as any).startY ?? 0)
       };
     } else {
-      console.warn(` ⚠️ [ZONE-FIDELITY] Q${questionId}: Upstream Zone missing. Falling back to Full-Page Slice.`);
+      console.warn(` ⚠️ [ZONE-FIDELITY] Q${questionId}: Upstream Zone missing. Falling back to Full-Page Slice with 5% margin.`);
       finalZone = {
         x: margin,
         y: margin,
@@ -349,6 +364,7 @@ export async function executeMarkingForQuestion(
       score: parsedScore,
       annotations: strictResult.annotations,
       pageIndex: task.sourcePages?.[0] ?? 0,
+      sourceImageIndices: task.sourcePages,
       usageTokens: markingResult.usage?.llmTokens || 0,
       inputTokens: markingResult.usage?.llmInputTokens || 0,
       outputTokens: markingResult.usage?.llmOutputTokens || 0,
@@ -392,37 +408,41 @@ export function createMarkingTasksFromClassification(
 
   if (classificationResult.questions) {
     classificationResult.questions.forEach((q: any) => {
-      // Get the True Physical Page Index
-      const truePageIdx = q.sourceImageIndex;
+      // Primary Anchor (The header page)
+      const primaryAnchor = q.sourceImageIndex;
 
-      if (truePageIdx !== undefined && q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
+      if (q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
         q.studentWorkLines.forEach((line: any) => {
-          // 1. Force the property to match
-          line.pageIndex = truePageIdx;
+          // 🛡️ [MULTI-PAGE INTEGRITY]: Preserve the line's specific page index.
+          // Only fallback to the question's primary anchor if the line's index is missing.
+          const trueLinePageIdx = line.pageIndex !== undefined ? line.pageIndex : primaryAnchor;
 
-          // 2. Force the ID String to match (The "Red Zone" Fix)
-          if (line.id && typeof line.id === 'string') {
-            const hasPrefix = /^p\d+_/.test(line.id);
+          if (trueLinePageIdx !== undefined) {
+            line.pageIndex = trueLinePageIdx;
 
-            if (hasPrefix) {
-              // Case A: Has prefix, but it might be wrong (e.g. "p3_" on Page 5)
-              const match = line.id.match(/^p(\d+)_/);
-              if (match && match[1] !== String(truePageIdx)) {
-                line.id = line.id.replace(/^p\d+_/, `p${truePageIdx}_`);
+            // 2. Force the ID String to match (The "Red Zone" Fix)
+            if (line.id && typeof line.id === 'string') {
+              const hasPrefix = /^p\d+_/.test(line.id);
+
+              if (hasPrefix) {
+                // Case A: Has prefix. Match it to the line's OWN page index.
+                const match = line.id.match(/^p(\d+)_/);
+                if (match && match[1] !== String(trueLinePageIdx)) {
+                  line.id = line.id.replace(/^p\d+_/, `p${trueLinePageIdx}_`);
+                }
+              } else {
+                // Case B: No prefix. Prepend the correct Page Index.
+                line.id = `p${trueLinePageIdx}_${line.id}`;
               }
-            } else {
-              // Case B: No prefix (e.g. "line_1"). The Detector ignores these!
-              // We must Prepend the correct Page Index.
-              line.id = `p${truePageIdx}_${line.id}`;
+            } else if (!line.id) {
+              // Case C: Missing ID.
+              line.id = `p${trueLinePageIdx}_gen_${Math.random().toString(36).substr(2, 5)}`;
             }
-          } else if (!line.id) {
-            // Case C: Missing ID. Generate one to ensure it's counted.
-            line.id = `p${truePageIdx}_gen_${Math.random().toString(36).substr(2, 5)}`;
-          }
 
-          // Fix Global Block ID too if present
-          if (line.globalBlockId) {
-            line.globalBlockId = line.globalBlockId.replace(/^p\d+_/, `p${truePageIdx}_`);
+            // Fix Global Block ID too
+            if (line.globalBlockId) {
+              line.globalBlockId = line.globalBlockId.replace(/^p\d+_/, `p${trueLinePageIdx}_`);
+            }
           }
         });
       }
@@ -430,16 +450,20 @@ export function createMarkingTasksFromClassification(
       // Also fix sub-questions recursively
       if (q.subQuestions) {
         const fixSubQ = (sq: any) => {
-          if (sq.pageIndex !== undefined) sq.pageIndex = truePageIdx;
+          // Sub-questions might have their own page index
+          const subAnchor = sq.pageIndex !== undefined ? sq.pageIndex : primaryAnchor;
+          if (sq.pageIndex !== undefined) sq.pageIndex = subAnchor;
+
           if (sq.studentWorkLines) {
             sq.studentWorkLines.forEach((line: any) => {
-              line.pageIndex = sq.pageIndex ?? truePageIdx;
-              // Apply same ID fix logic
+              const linePageIdx = line.pageIndex !== undefined ? line.pageIndex : subAnchor;
+              line.pageIndex = linePageIdx;
+
               if (line.id && typeof line.id === 'string') {
                 if (/^p\d+_/.test(line.id)) {
-                  line.id = line.id.replace(/^p\d+_/, `p${line.pageIndex}_`);
+                  line.id = line.id.replace(/^p\d+_/, `p${linePageIdx}_`);
                 } else {
-                  line.id = `p${line.pageIndex}_${line.id}`;
+                  line.id = `p${linePageIdx}_${line.id}`;
                 }
               }
             });

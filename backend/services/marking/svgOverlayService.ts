@@ -174,9 +174,9 @@ export class SVGOverlayService {
         const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
 
         zonesToDraw.forEach((zone, idx) => {
-          const szX = 0; // [WIDTH-FIX]: Sovereignty means full horizontal slice
-          const szY = (zone.startY || 0) * scaleY;
-          const szW = actualWidth;
+          const szX = (zone.x) * scaleX;
+          const szY = (zone.startY) * scaleY;
+          const szW = (zone.width) * scaleX;
           const szH = (zone.endY - zone.startY) * scaleY;
 
           // console.log(`   🎨 [ZONE-SVG-DRAW] [#${idx}] Label: "${zone.label}" | Rect: [x=${Math.round(szX)}, y=${Math.round(szY)}, w=${Math.round(szW)}, h=${Math.round(szH)}] | StartY: ${zone.startY}, EndY: ${zone.endY}`);
