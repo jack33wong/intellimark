@@ -174,12 +174,16 @@ export class SVGOverlayService {
         const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
 
         zonesToDraw.forEach((zone, idx) => {
-          const szX = (zone.x || 0) * scaleX;
+          const szX = 0; // [WIDTH-FIX]: Sovereignty means full horizontal slice
           const szY = (zone.startY || 0) * scaleY;
-          const szW = actualWidth - szX - (50 * scaleX);
+          const szW = actualWidth;
           const szH = (zone.endY - zone.startY) * scaleY;
 
           // console.log(`   🎨 [ZONE-SVG-DRAW] [#${idx}] Label: "${zone.label}" | Rect: [x=${Math.round(szX)}, y=${Math.round(szY)}, w=${Math.round(szW)}, h=${Math.round(szH)}] | StartY: ${zone.startY}, EndY: ${zone.endY}`);
+
+          // 🛡️ [DARK REC FIX]: Skip drawing ONLY if dimensions are effectively 0
+          // This allows "Top Snap" zones (startY=0) to be drawn correctly.
+          if (szW <= 5 || szH <= 5) return;
 
           svg += `<rect x="${szX}" y="${szY}" width="${szW}" height="${szH}" 
                         fill="rgba(255, 0, 0, 0.05)" stroke="rgba(255, 0, 0, 0.4)" stroke-width="2" stroke-dasharray="8,4" />`;

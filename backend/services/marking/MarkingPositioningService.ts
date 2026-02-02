@@ -44,11 +44,11 @@ export class MarkingPositioningService {
      */
     public static detectSemanticZones(
         rawBlocks: any[],
-        pageHeight: number,
-        expectedQuestions?: Array<{ label: string; text: string }>,
+        pageDimensionsMap: Map<number, { width: number; height: number }>,
+        expectedQuestions?: Array<{ label: string; text: string; targetPage?: number }>,
         nextQuestionText?: string // [SEMANTIC-STOP]
     ) {
-        return MarkingZoneService.detectSemanticZones(rawBlocks, pageHeight, expectedQuestions, nextQuestionText);
+        return MarkingZoneService.detectSemanticZones(rawBlocks, pageDimensionsMap, expectedQuestions, nextQuestionText);
     }
 
     /**

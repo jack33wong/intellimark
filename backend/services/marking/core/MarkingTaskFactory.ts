@@ -161,15 +161,24 @@ export class MarkingTaskFactory {
         for (const q of classificationResult.questions) {
             const qBase = getBaseQuestionNumber(String(q.questionNumber || ''));
             if (!qBase) continue;
+
+            const targetPageIndex = q.sourceImageIndex ?? q.pageIndex ?? 0;
+            console.log(`[ZONE-TRUTH] Q${qBase} Classifier Target: Page ${targetPageIndex}`);
+
             const allNodes = this.flattenQuestionTree(q);
             allNodes.forEach((node: any) => {
                 const nodeBox = node.box || node.region || node.rect || node.coordinates;
                 if (nodeBox) {
+                    // 🛡️ [IDENTITY-PATCH]: Prepend the label (e.g. "1 ") to the text.
+                    // This ensures the Dressing/Handshaking logic in MarkingZoneService can see the number.
+                    const partLabel = node.part && node.part !== 'main' ? node.part : qBase;
+                    const cleanTextWithNumber = `${partLabel} ${node.text || ''}`.trim();
+
                     masterLandmarks.push({
                         id: `master_block_${qBase}_${node.part || 'main'}`,
-                        text: node.text || '',
+                        text: cleanTextWithNumber,
                         box: nodeBox,
-                        pageIndex: node.pageIndex ?? q.sourceImageIndex ?? 0,
+                        pageIndex: node.pageIndex ?? targetPageIndex,
                         part: node.part || 'main',
                         questionNumber: qBase
                     });
@@ -204,7 +213,20 @@ export class MarkingTaskFactory {
             });
         });
 
-        const globalExpectedQuestions: Array<{ label: string; text: string }> = [];
+        // 🏰 [UPSTREAM-SORT]: Enforce strict physical order (Page -> Y)
+        // This is critical for the Sequential Zone Detector's "Stop if next question seen" logic.
+        allOcrBlocksGlobal.sort((a, b) => {
+            const pageDiff = (a.pageIndex || 0) - (b.pageIndex || 0);
+            if (pageDiff !== 0) return pageDiff;
+            const yA = a.coordinates?.y ?? 0;
+            const yB = b.coordinates?.y ?? 0;
+            return yA - yB;
+        });
+
+        const distinctPages = [...new Set(allOcrBlocksGlobal.map(b => b.pageIndex || 0))].sort((a, b) => a - b);
+        console.log(`[UPSTREAM-SORT] 🏆 Fed ${allOcrBlocksGlobal.length} blocks in order: ${distinctPages.join(' -> ')}`);
+
+        const globalExpectedQuestions: Array<{ label: string; text: string; targetPage?: number }> = [];
         for (const q of classificationResult.questions) {
             const basePrefix = getBaseQuestionNumber(String(q.questionNumber || ''));
             if (!basePrefix) continue;
@@ -217,15 +239,29 @@ export class MarkingTaskFactory {
                     partLabel = basePrefix;
                 }
                 if (!globalExpectedQuestions.some(eq => eq.label === partLabel)) {
-                    globalExpectedQuestions.push({ label: partLabel, text: node.text || "" });
+                    globalExpectedQuestions.push({
+                        label: partLabel,
+                        text: node.text || "",
+                        targetPage: q.sourceImageIndex ?? q.pageIndex ?? 0
+                    });
                 }
             });
         }
 
-        const samplePageDims = Array.from(pageDimensionsMap.values())[0] || { width: 2000, height: 2828 };
+        // 🏰 [DETERMINISTIC SORT]: Sort Numerically (1, 2, 2a, 10, 11...)
+        // This ensures the Search Window (minPage) moves through the paper in order.
+        globalExpectedQuestions.sort((a, b) => {
+            const numA = parseInt(a.label.match(/\d+/)?.[0] || '0');
+            const numB = parseInt(b.label.match(/\d+/)?.[0] || '0');
+            if (numA !== numB) return numA - numB;
+            return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        console.log(`[ZONE-DETECTOR] Deterministic Sort Order: ${globalExpectedQuestions.map(q => q.label).join(' -> ')}`);
+
         const globalZones = MarkingZoneService.detectSemanticZones(
             allOcrBlocksGlobal,
-            samplePageDims.height,
+            pageDimensionsMap,
             globalExpectedQuestions
         );
 

@@ -1,0 +1,131 @@
+---
+description: Design principles and technical logic for Zone Creation and Page Alignment.
+---
+
+# Zone Creation Design Bible (v1.0)
+
+This document defines the core architecture for how the system aligns physical pages with logical questions and determines the spatial boundaries (zones) for marking.
+
+## 1. Physical-to-Logical Alignment (The Straightener)
+
+The system must ensure that physical page indices match the logical sequence of the exam. This prevents "Warp Speed" errors where a zone detector looks for the next question on a distant page.
+
+### The Truth-First Sorting Hierarchy
+Re-indexing occurs **after** Stage 3 (Database Verification) to ensure sorting is based on Ground Truth. It is the design for upstream data; downstream components (Zone Detector, SVG Renderer) must trust this sorting implicitly.
+
+1.  **Tier 1: Metadata (P0)**: Front covers and instruction pages are always pinned to the top.
+2.  **Tier 2: Ground Truth**: Pages are sorted by the lowest verified question number detected on them.
+    *   **Past Paper**: Uses **Database Verified** question numbers. **FAIL FAST**. If detection fails for a non-meta page, it must NOT go to Tier 3 fallback.
+    *   **Non-Past Paper**: Uses **AI Classification** question numbers.
+3.  **Tier 3: Original Physical Order**: Fallback for Non-Past Papers or Ghost Pages (Non-Past Paper only).
+    *   **PROHIBITION**: Never use Filenames for sorting. Filenames are "dumb" data and introduce lexicographical bias (e.g., "Page 10" before "Page 2").
+
+### Pointer Synchronization
+When pages are re-indexed, the following pointers MUST be updated to maintain 1:1 mapping:
+- `pageIndex` in `StandardizedPage`
+- `sourceImageIndex` in `ClassificationResult.questions`
+- `sourceImageIndex` in `MarkingTask`
+
+### 1.3 Upstream Backfill (Backfilled Zones)
+To ensure continuous marking coverage, the system implements a "Backfill" mechanism for spans where no landmark headers are detected.
+
+*   **Ghost Pages**: If Page $K$ contains no detected question header, but Question $N$ started on Page $K-1$ and Question $N+1$ is on Page $K+1$, the system **backfills** Page $K$ into the zone of Question $N$.
+*   **Expansion Rule**: A question zone expands horizontally across all intervening pages until it hits the **Sequential Terminator** (the next question's header).
+*   **Visual Representation**: In the backend, these are stored as `semanticZones`. A backfilled page will have a zone with `startY=0` and `endY=100` (Full Page Coverage).
+*   **Authority**: Backfilling is determined by the **Logical Re-indexing** order. It ensures that the marker never encounters a "Dead Zone" between questions.
+
+---
+
+## 2. The Sequential Terminator (The Stopper)
+
+To prevent a single question's zone from consuming the entire document, the system implements a strict "Stopper" logic.
+
+### 2.1 "Warp Speed" Protection
+- **Constraint**: A single question zone cannot jump more than **2 pages** ahead from its starting point unless a very high-confidence match ($>0.95$) is found.
+- **Reason**: Prevents OCR hallucinations on later pages from creating giant, empty zones.
+
+### 2.2 The Ground-Truth Stopper
+When searching for Question $N$, the system must stop immediately if it encounters a block representing Question $N+1$.
+
+- **Heuristic: Strong Stop**: If the text contains the explicit keyword `"Question X"` or `"Q X"`, it is a definitive header. The search MUST stop.
+- **Heuristic: Weak Stop**: If the text is a "Naked Digit" (e.g., just `"3"`), it might be a summary table or part of a math expression.
+    *   **Rule**: Only stop on a naked digit if a "decent" match ($>0.6$) for the *current* question has already been found.
+
+---
+
+## 3. Normalization & Stripping
+
+### Case-Insensitivity & Symbol Stripping
+For comparison purposes ONLY, question numbers are normalized:
+- `Q3`, `Question 3`, `3.` $\to$ `3`
+- `12(a)`, `12a`, `(a)` $\to$ `12a` or `a` (depending on context)
+
+### Math Protection
+The system MUST NOT strip digits that are followed by mathematical operators ($+, -, \times, \div, =$).
+- *Correct*: `3. Calculate` $\to$ `Calculate`
+- *Prevented*: `3 + 2` $\to$ `+ 2` (Incorrect - this is math content)
+
+---
+
+## 4. Generic vs. Past Paper Logic
+
+| Feature | Past Paper (Matched) | Generic (No Match) |
+| :--- | :--- | :--- |
+| **Source of Truth** | Database (Ground Truth) | AI Extraction |
+| **Sorting** | Numeric (DB Order) | Upload Order |
+| **Segmentation** | Strict (Landmark-based) | Loose (Proximity-based) |
+
+---
+
+## 5. Visual Sovereignty (Drawings)
+
+- **Rule**: Drawings and coordinate-based tasks (graphs, grids) use `ocr_match_status: "VISUAL"`.
+- **Prohibition**: Never attempt to "snap" or "re-align" VISUAL coordinates to text blocks. The visual position provided by the AI is the absolute authority.
+---
+
+## 6. Appendix: Mapping Scenarios & Zone Examples
+
+### Scenario A: Normal Case (1-to-1)
+*   **Setup**: Q1 is on Page 1, Q2 is on Page 2.
+*   **Result**: 
+    *   **Zone Q1**: Starts at Page 1, Y=0. Ends at Page 1, Y=Bottom.
+    *   **Zone Q2**: Starts at Page 2, Y=0. Ends at Page 2, Y=Bottom.
+*   **Logic**: First question on a page always snaps to Y=0 to capture headers.
+
+### Scenario B: Dense Page (Multi-Question)
+*   **Setup**: Page 3 contains Question 3, Question 4, and Question 5.
+*   **Result**:
+    *   **Zone Q3**: Starts at P3, Y=0. Ends at P3, Y=Start of Q4.
+    *   **Zone Q4**: Starts at P3, Y=Start of Q4. Ends at P3, Y=Start of Q5.
+    *   **Zone Q5**: Starts at P3, Y=Start of Q5. Ends at P3, Y=Bottom.
+
+### Scenario C: Spanning Question (The "Ghost Page" Bridge)
+*   **Setup**: Q6 starts on Page 4. Page 5 has no headers (just a large graph). Q7 starts on Page 6.
+*   **Result**:
+    *   **Zone Q6**: 
+        *   Page 4: Starts at Y=Start of Q6. Ends at Y=Bottom.
+        *   Page 5: Starts at Y=0. Ends at Y=Bottom. (**UPSTREAM BACKFILL**)
+    *   **Logic**: Since Q7 is on P6, the system bridge-expands Q6 to cover the entire empty P5.
+
+### Scenario D: Edge Case - Multi-Page Sub-questions
+*   **Setup**: Q10a is on Page 7. Q10b is on Page 8.
+*   **Result**:
+    *   **Zone Q10a**: Page 7, Y=Start. Ends at Page 7, Y=Bottom.
+    *   **Zone Q10b**: Page 8, Y=0. Ends at Page 8, Y=Bottom.
+*   **Note**: Because 10b is the *next* logical question, it acts as the terminator for 10a's search on Page 7.
+
+### Scenario E: Header Absorption (The Intro Problem)
+*   **Setup**: Page 9 says "Question 11" followed by "11(a) Calculate...".
+*   **Result**: 
+    *   The landmark "Question 11" is **Absorbed** into "11a".
+    *   **Zone Q11a**: Starts at Page 9, Y=0 (capturing the 'Question 11' header).
+    *   **Reasoning**: Prevents the parent "11" from creating a narrow, useless zone at the top while the child "11a" starts lower.
+
+---
+
+## 7. Zone Fidelity (The Source of Truth)
+
+1.  **Downstream Respect**: Once a zone is defined during the **Question Detection** stage (as `semanticZones`), all downstream components (Executor, SVG Renderer, Annotation Snapper) must treat it as the **Sacred Boundary**.
+2.  **Reuse vs. Recalculation**: Components MUST NOT attempt to re-detect or loosely re-calculate zones. They must retrieve the existing zone via the `questionId`.
+3.  **Coordinate Sovereignty**: The `(x, y, width, height)` produced by the Detection Engine (Mathpix-compatible pixels) is the primary source of truth. 
+4.  **Visual Debug Consistency**: The "Red Box" shown in debug mode must be the exact same rectangle used for **Zone Protection** logic. If an icon is clamped, it must be clamped to the boundaries defined in the detection stage.

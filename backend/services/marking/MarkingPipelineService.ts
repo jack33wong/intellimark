@@ -8,7 +8,12 @@ import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { MarkingOutputService } from './MarkingOutputService.js';
 import { MarkingPersistenceService } from './MarkingPersistenceService.js';
 import { createProgressData } from '../../utils/sseUtils.js';
-import { logPerformanceSummary, extractQuestionsFromClassification, logAnnotationSummary } from './MarkingHelpers.js';
+import {
+    logPerformanceSummary,
+    extractQuestionsFromClassification,
+    logAnnotationSummary,
+    getQuestionSortValue
+} from './MarkingHelpers.js';
 import { withPerformanceLogging } from '../../utils/markingRouterHelpers.js';
 import UsageTracker from '../../utils/UsageTracker.js';
 
@@ -172,6 +177,7 @@ export class MarkingPipelineService {
             let allPagesOcrData: PageOcrResult[] = [];
             let markingTasks: MarkingTask[] = [];
             let pdfContext: any = null;
+            let pageDimensionsMap = new Map<number, { width: number; height: number }>();
 
             // --- Conditional Routing (PDF first) ---
             if (isPdf || isMultiplePdfs) {
@@ -1060,6 +1066,266 @@ export class MarkingPipelineService {
             const detectionResults = orchestrationResult.detectionResults;
             const detectionStats = orchestrationResult.detectionStats;
             classificationResult = orchestrationResult.updatedClassificationResult;
+            // ^^^ This object now holds the DB-verified Question Numbers
+
+            // 📊 [LOGGING] Print Detection Statistics BEFORE re-indexing starts
+            MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
+            logQuestionDetectionComplete(); // End the overall Question Detection timer
+
+            // ========================= 🔄 [INTELLIGENCE RE-INDEXING - V2] =========================
+            // CRITICAL ARCHITECTURE FIX: Re-sort pages using DB-VERIFIED Ground Truth.
+            // This happens AFTER Stage 3, so we trust the Question Numbers implicitly.
+
+            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages using Database Verified Truth...`);
+
+            // 1. Map pages to their Lowest VERIFIED Question Number
+            const pageSortMap = standardizedPages.map((page, originalIdx) => {
+                // We use the UPDATED classification result which has DB-confirmed numbers
+                // The 'questions' array here is already filtered/cleaned by OrchestrationService
+                const questions = classificationResult.questions.filter((q: any) => q.sourceImageIndex === page.pageIndex);
+
+                // Find lowest question number on this page
+                let minQ = Infinity;
+                const debugQList: string[] = [];
+
+                questions.forEach((q: any) => {
+                    // Extract numeric part (e.g. "1a" -> 1)
+                    const num = parseInt(String(q.questionNumber).replace(/\D/g, ''));
+                    debugQList.push(q.questionNumber);
+                    if (!isNaN(num) && num > 0 && num < minQ) minQ = num;
+                });
+
+                // Check if it's a metadata page based on the ORIGINAL classification
+                // (Orchestration might have focused only on questions, so we check the raw result for category)
+                const rawResult = allClassificationResults[originalIdx]?.result;
+                const isMeta = rawResult?.category === 'metadata' || rawResult?.category === 'frontPage';
+
+                return {
+                    originalIdx,
+                    filename: page.originalFileName,
+                    minQ: minQ === Infinity ? 999999 : minQ,
+                    isMeta,
+                    debugQ: debugQList.join(', ')
+                };
+            });
+
+            // 🔍 [DEBUG-PROBE] Dump the Sorting Decision Matrix
+            console.log('🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:');
+            console.log('-----------------------------------------------------------------------------------------');
+            console.log('| OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |');
+            console.log('-----------------------------------------------------------------------------------------');
+            pageSortMap.forEach(p => {
+                const fName = p.filename.padEnd(20).slice(0, 20);
+                const qList = p.debugQ.padEnd(34).slice(0, 34);
+                console.log(`| ${String(p.originalIdx).padEnd(7)} | ${fName} | ${String(p.isMeta).padEnd(6)} | ${String(p.minQ).padEnd(6)} | ${qList} |`);
+            });
+            console.log('-----------------------------------------------------------------------------------------');
+
+            // 1.5 FAIL-FAST Check for Past Papers
+            // If this is a Past Paper session, and we have non-meta pages with no detected question,
+            // we must FAIL FAST according to the Design Bible (No fallback to Tier 3).
+            const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
+            if (isPastPaper) {
+                const missingPages = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
+                if (missingPages.length > 0) {
+                    const pageNames = missingPages.map(p => p.filename).join(', ');
+                    const errorMsg = `[TRUTH-WARNING] Past Paper detection missing results for pages: ${pageNames}. Proceeding with Warning (Quality may be reduced).`;
+                    console.warn(`⚠️ ${errorMsg}`);
+                    // We no longer throw here as per updated design - we allow the Safety Net to handle blank/unknown pages.
+                }
+            }
+
+            // 2. Execute the Sort
+            pageSortMap.sort((a, b) => {
+                // Priority 1: Metadata/Front Page always first
+                if (a.isMeta && !b.isMeta) return -1;
+                if (!a.isMeta && b.isMeta) return 1;
+
+                // Priority 2: Verified Question Number (The Truth)
+                // If both have valid numbers, use them.
+                if (a.minQ !== 999999 && b.minQ !== 999999) {
+                    return a.minQ - b.minQ;
+                }
+
+                // Priority 3: SAFETY NET - Natural Upload Order
+                // If AI missed a page, we fallback to original upload position to keep it near its neighbors.
+                // This adheres to the "Truth-First" design by avoiding biased filename sorting.
+                return a.originalIdx - b.originalIdx;
+            });
+
+            // 3. Create Index Lookups
+            const oldToNewIndex = new Map<number, number>();
+            const newToOldIndex = new Map<number, number>();
+            pageSortMap.forEach((item, newIdx) => {
+                oldToNewIndex.set(item.originalIdx, newIdx);
+                newToOldIndex.set(newIdx, item.originalIdx);
+            });
+
+            // 4. Re-build Arrays
+            const reindexedStandardPages: StandardizedPage[] = [];
+            const reindexedOcrData: any[] = [];
+            const reindexedClassificationResults: any[] = [];
+
+            for (let newIdx = 0; newIdx < pageSortMap.length; newIdx++) {
+                const oldIdx = newToOldIndex.get(newIdx)!;
+
+                const page = standardizedPages[oldIdx];
+                const ocr = allPagesOcrData[oldIdx];
+                const cls = allClassificationResults[oldIdx];
+
+                // CRITICAL: Update the ID itself
+                page.pageIndex = newIdx;
+                if (ocr) ocr.pageIndex = newIdx;
+                if (cls) cls.pageIndex = newIdx;
+
+                reindexedStandardPages.push(page);
+                if (ocr) reindexedOcrData.push(ocr);
+                if (cls) reindexedClassificationResults.push(cls);
+            }
+
+            // 5. UPDATE GLOBAL REFERENCES
+            standardizedPages = reindexedStandardPages;
+            allPagesOcrData = reindexedOcrData;
+            allClassificationResults = reindexedClassificationResults;
+
+            // 6. DEEP FIX: Update the 'classificationResult' object itself
+            // The questions inside 'classificationResult' still point to old page indices.
+            if (classificationResult.questions) {
+                classificationResult.questions.forEach((q: any) => {
+                    if (q.sourceImageIndex !== undefined) {
+                        q.sourceImageIndex = oldToNewIndex.get(q.sourceImageIndex) ?? q.sourceImageIndex;
+                    }
+                    if (q.sourceImageIndices) {
+                        q.sourceImageIndices = q.sourceImageIndices.map((idx: number) => oldToNewIndex.get(idx) ?? idx);
+                    }
+                });
+            }
+
+            console.log(`✅ [RE-INDEXING] Completed. Physical Page Index 0 is now: ${standardizedPages[0].originalFileName}`);
+
+            // 5. CRITICAL: Update Classification Result Indices to match New Integrity (DEEP FIX)
+            // We must update questions, sub-questions, AND studentWorkLines to match the new Physical Index.
+            // If we don't, the Zone Detector looks at Page 5 but ignores lines tagged as "Page 1".
+
+            // Create a lookup: OriginalIdx -> NewIdx
+            const originalToNewIndexMap = new Map<number, number>();
+            pageSortMap.forEach((p, newIdx) => {
+                originalToNewIndexMap.set(p.originalIdx, newIdx);
+            });
+
+            if (classificationResult && classificationResult.questions) {
+                const updateNodeIndices = (node: any) => {
+                    // Update Page Index if present
+                    if (node.pageIndex !== undefined) {
+                        node.pageIndex = originalToNewIndexMap.get(node.pageIndex) ?? node.pageIndex;
+                    }
+
+                    // Update Source Image Index (Legacy)
+                    if (node.sourceImageIndex !== undefined) {
+                        node.sourceImageIndex = originalToNewIndexMap.get(node.sourceImageIndex) ?? node.sourceImageIndex;
+                    }
+
+                    // Update Array of Indices
+                    if (node.sourceImageIndices && Array.isArray(node.sourceImageIndices)) {
+                        node.sourceImageIndices = node.sourceImageIndices.map((idx: number) => originalToNewIndexMap.get(idx) ?? idx);
+                    }
+
+                    // CRITICAL: Update Student Work Lines
+                    if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {
+                        node.studentWorkLines.forEach((line: any) => {
+                            if (line.pageIndex !== undefined) {
+                                const newPageIdx = originalToNewIndexMap.get(line.pageIndex) ?? line.pageIndex;
+                                line.pageIndex = newPageIdx;
+
+                                // 2. REWRITE THE ID STRING
+                                // We must change "p3_q1_line_1" to "p5_q1_line_1"
+                                // Otherwise, the detector parses "p3" and discards it.
+                                if (line.id && typeof line.id === 'string') {
+                                    // Regex to replace p{Number}_ with p{NewNumber}_
+                                    const oldId = line.id;
+                                    line.id = line.id.replace(/^p\d+_/, `p${newPageIdx}_`);
+
+                                    // 🔍 DEBUG: Log the rewrite for the first few lines to prove it works
+                                    if (line.id !== oldId && Math.random() < 0.05) {
+                                        console.log(`   🔧 [ID-REWRITE] ${oldId} -> ${line.id}`);
+                                    }
+                                }
+                                if (line.globalBlockId) {
+                                    line.globalBlockId = line.globalBlockId.replace(/^p\d+_/, `p${newPageIdx}_`);
+                                }
+                            }
+                        });
+                    }
+
+                    // Recurse into SubQuestions
+                    if (node.subQuestions && Array.isArray(node.subQuestions)) {
+                        node.subQuestions.forEach(updateNodeIndices);
+                    }
+                };
+
+                classificationResult.questions.forEach(updateNodeIndices);
+            }
+
+            // Also update allClassificationResults for consistency
+            allClassificationResults.forEach(r => {
+                if (r.pageIndex !== undefined) {
+                    r.pageIndex = originalToNewIndexMap.get(r.pageIndex) ?? r.pageIndex;
+                }
+            });
+            console.log(`✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.`);
+
+            // ========================= 7. REGENERATE OCR BLOCK IDs =========================
+            // CRITICAL FIX: The OCR blocks still carry IDs from their original page index (e.g. "p8_ocr_1").
+            // Since we moved the page to a new index (e.g. 10), we must rename the blocks to "p10_ocr_1".
+            // Otherwise, the Zone Detector thinks these blocks belong to a different page and discards them.
+
+            console.log(`\n🔄 [OCR RE-ID] Regenerating Global Block IDs to match new Page Indices...`);
+
+            allPagesOcrData.forEach(page => {
+                const newPageIndex = page.pageIndex; // This is already updated by the sort loop
+                let blockCounter = 1;
+
+                // 1. Update Math Blocks
+                if (page.ocrData?.mathBlocks) {
+                    page.ocrData.mathBlocks.forEach((b: any) => {
+                        // Generate new ID: p{NewIndex}_ocr_{Seq}
+                        const newId = `p${newPageIndex}_ocr_${blockCounter++}`;
+
+                        // Preserve the old ID in metadata if needed for debugging, but update the main ID
+                        if (!b.metadata) b.metadata = {};
+                        b.metadata.originalBlockId = b.globalBlockId || b.id;
+
+                        b.globalBlockId = newId;
+                        b.id = newId; // Ensure legacy ID field is also updated
+                    });
+                }
+
+                // 2. Update Standard Blocks (if they exist)
+                if (page.ocrData?.blocks) {
+                    page.ocrData.blocks.forEach((b: any) => {
+                        const newId = `p${newPageIndex}_ocr_${blockCounter++}`;
+                        b.globalBlockId = newId;
+                        b.id = newId;
+                    });
+                }
+            });
+            console.log(`✅ [OCR RE-ID] Completed. Blocks are now synchronized with physical pages.`);
+
+            // ========================= 8. REBUILD DIMENSIONS MAP =========================
+            // CRITICAL FIX: The pageDimensionsMap was built BEFORE re-indexing. 
+            // Now that pages have swapped indices, the old map keys point to the wrong physical page dimensions.
+            // We must rebuild it to ensure coordinate calculations use the correct width/height for the new page order.
+
+            pageDimensionsMap.clear(); // Clear old stale data
+            standardizedPages.forEach((page) => {
+                if (page.width && page.height && page.pageIndex != null) {
+                    pageDimensionsMap.set(page.pageIndex, { width: page.width, height: page.height });
+                }
+            });
+            console.log(`✅ [DIMENSIONS REBUILD] Map refreshed for ${pageDimensionsMap.size} re-indexed pages.`);
+            // =============================================================================
+            // ===============================================================================
+            // =====================================================================================
 
             // NEW: Extract dominant paper hint for consistent detection in mixed mode
             let dominantPaperHint: string | null = null;
@@ -1085,8 +1351,9 @@ export class MarkingPipelineService {
 
             logQuestionDetectionComplete();
 
-            // Log detection statistics
-            MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
+            logQuestionDetectionComplete();
+
+            // [LOG MOVED] Detection statistics are now logged BEFORE re-indexing for better clarity.
 
             // Warn if suspected missing paper in database
             const detectionRate = detectionStats.totalQuestions > 0
@@ -1099,8 +1366,21 @@ export class MarkingPipelineService {
                 console.log(`   Please verify that the correct paper is uploaded to Firestore.\n`);
             }
 
+            // 🔍 DEBUG PROBE for Merge Mismatch
+            allPagesOcrData.forEach(page => {
+                const matches = allClassificationResults.filter(r => r.pageIndex === page.pageIndex);
+                if (matches.length === 0) {
+                    console.error(`❌ [ZONE CRITICAL] Merge Mismatch! OCR Page ${page.pageIndex} has NO matching Classification Result.`);
+                    console.log(`   - OCR Index: ${page.pageIndex}`);
+                    console.log(`   - Available Class Indices: ${allClassificationResults.map(c => c.pageIndex).join(', ')}`);
+                } else {
+                    // console.log(`✅ [ZONE OK] Page ${page.pageIndex} merged with ${matches.length} classification results.`);
+                }
+            });
+
             progressCallback(createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
             // ========================== END: ADD QUESTION DETECTION STAGE ==========================
+
 
             // =========================PASS IMAGES TO DRAWING QUESTIONS (SIMPLIFIED) =========================
             // For questions with hasStudentDrawing=true, flag them to receive images for marking
@@ -1115,9 +1395,7 @@ export class MarkingPipelineService {
                         const pageForDrawing = standardizedPages.find(p => p.pageIndex === pageIndex);
                         if (hasDrawingsInQuestion && pageForDrawing) {
                             // Pass image data to Marking AI
-                            console.log(`[DRAWING] Q${q.questionNumber}: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)`);
                             (q as any).imageDataForMarking = pageForDrawing.imageData;
-                            console.log(`[DRAWING] Q${q.questionNumber || '?'}: Will pass image to Marking AI`);
                         }
                     });
                 }
@@ -1133,12 +1411,19 @@ export class MarkingPipelineService {
 
 
             // Create page dimensions map from standardizedPages for accurate drawing position calculation
-            const pageDimensionsMap = new Map<number, { width: number; height: number }>();
+            console.log(`🔍 [DIMENSIONS DEBUG] Pages: ${standardizedPages.length}`);
+            // pageDimensionsMap is already declared and populated above after re-indexing.
+            // We just log it here for confirmation.
+            /* 
             standardizedPages.forEach((page) => {
                 if (page.width && page.height && page.pageIndex != null) {
                     pageDimensionsMap.set(page.pageIndex, { width: page.width, height: page.height });
+                } else {
+                    console.error(`❌ [ZONE FATAL] Page ${page.pageIndex} (${page.originalFileName}) is MISSING from Dimensions Map! Width: ${page.width}, Height: ${page.height}`);
                 }
             });
+            */
+            console.log(`🔍 [DIMENSIONS DEBUG] Map Size: ${pageDimensionsMap.size}`);
 
             // Create marking tasks directly from classification results (bypass segmentation)
             try {
@@ -1202,7 +1487,6 @@ export class MarkingPipelineService {
                 // ========================= CLASSIFICATION DATA MERGE =========================
                 // CRITICAL: Attach classification results to page objects so logs can find them
                 // This enables the "Unified Lookup" for transparency reporting
-                console.log(`🔍 [MERGE-DEBUG] attempting to merge classification results into ${allPagesOcrData.length} pages`);
                 allPagesOcrData.forEach(page => {
                     // FIND ALL MATCHES (not just one)
                     const matches = allClassificationResults.filter(r => r.pageIndex === page.pageIndex);
@@ -1212,21 +1496,20 @@ export class MarkingPipelineService {
                         const allQuestions = matches.flatMap(m => m.result.questions || []);
                         const uniqueQuestions = [...allQuestions]; // Could add dedup logic if needed, but usually distinct tasks
 
-                        console.log(`   ✅ [MERGE-DEBUG] Page ${page.pageIndex} merged with ${matches.length} results (Total Qs: ${uniqueQuestions.length})`);
 
                         // Construct a merged result
                         (page as any).classificationResult = {
                             questions: uniqueQuestions
                         };
-                    } else {
-                        console.warn(`   ⚠️ [MERGE-DEBUG] Page ${page.pageIndex} has NO matching classification result (Available indices: ${allClassificationResults.map(r => r.pageIndex).join(',')})`);
                     }
                 });
                 // ==============================================================================
 
+
+                // =====================================================================================
+
                 // ========================= ASSIGN GLOBAL IDs TO OCR BLOCKS =========================
                 // Pre-assign stable IDs so MarkingExecutor and Transparency Report match perfectly
-                console.log(`🆔 [GLOBAL-ID] Assigning stable IDs to all OCR blocks before task creation...`);
                 allPagesOcrData.forEach(page => {
                     if (page.ocrData && page.ocrData.mathBlocks) {
                         page.ocrData.mathBlocks.forEach((b: any, idx: number) => {
@@ -1248,7 +1531,6 @@ export class MarkingPipelineService {
                     standardizedPages,
                     allClassificationResults
                 );
-                console.log(`✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
             } catch (error) {
                 console.error('❌ createMarkingTasksFromClassification failed:', error);
                 throw error;
@@ -1704,12 +1986,6 @@ export class MarkingPipelineService {
             // ========================= REALIGN DETECTION RESULTS (FOR EXAM TAB) =========================
             // After re-indexing, we must also update sourceImageIndex in detectionResults 
             // so that the Exam Tab (sidebar) points to the correct physical pages.
-            const oldToNewIndex = new Map<number, number>();
-            sortedStandardizedPages.forEach((p, newIdx) => {
-                // We need to know which OLD index this NEW index represents.
-                // Wait, sortedStandardizedPages mapping is done in MarkingOutputService.
-                // It already has the correct pageIndex (which is the NEW index).
-            });
 
             // Actually, MarkingOutputService already built the map internally.
             // Let's create a map from originalPageIndex to new physical index.
@@ -1806,7 +2082,7 @@ export class MarkingPipelineService {
                 originalInputType: isPdf ? 'pdf' : 'images',
                 // Always include unifiedSession for consistent frontend handling
                 unifiedSession: unifiedSession,
-                results: allQuestionResults,
+                results: updatedQuestionResults,
                 metadata: {
                     totalQuestions: allQuestionResults.length,
                     totalScore: overallScore, // Use calculated overall score

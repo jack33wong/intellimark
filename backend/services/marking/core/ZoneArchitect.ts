@@ -10,11 +10,12 @@ export class ZoneArchitect {
      */
     static detectAndRefineZones(
         task: MarkingTask,
-        pageHeightForZones: number
+        pageDimensionsMap: Map<number, { width: number; height: number }>
     ): Record<string, any[]> {
         // 1. Derive expected questions
         const classificationExpected = MarkingTaskFactory.deriveExpectedQuestionsFromClassification(task);
-        const expectedQuestions = classificationExpected.map(c => ({ ...c, targetPageIndex: 0 }));
+        const taskFirstPage = (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0;
+        const expectedQuestions = classificationExpected.map(c => ({ ...c, targetPage: taskFirstPage }));
 
         const rawOcrBlocksForZones = task.mathBlocks.map((block) => ({
             text: block.mathpixLatex || (block as any).googleVisionText || '',
@@ -33,7 +34,7 @@ export class ZoneArchitect {
         } else {
             semanticZones = MarkingPositioningService.detectSemanticZones(
                 rawOcrBlocksForZones,
-                pageHeightForZones,
+                pageDimensionsMap,
                 expectedQuestions,
                 nextQuestionText
             );
@@ -95,21 +96,33 @@ export class ZoneArchitect {
     static backfillInjectedZones(
         semanticZones: Record<string, any[]>,
         stepsDataForMapping: any[],
-        pageHeightForZones: number
+        pageDimensionsMap: Map<number, { width: number; height: number }>
     ): void {
         stepsDataForMapping.forEach(step => {
             if ((step as any).ocrSource === 'system-injection') {
                 const qLabel = (step as any).subQuestionLabel;
                 const pIdx = step.pageIndex;
                 if (!semanticZones[qLabel] || semanticZones[qLabel].length === 0) {
-                    let ceilingY = pageHeightForZones;
+                    const dims = pageDimensionsMap.get(pIdx) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
+                    const pW = dims.width || 2480;
+                    const pH = dims.height || 3508;
+                    const margin = 40;
+
+                    let ceilingY = pH;
                     Object.values(semanticZones).flat().forEach(z => {
                         if (z.pageIndex === pIdx && z.startY < ceilingY && z.startY > 10 && z.label !== qLabel) {
                             ceilingY = z.startY;
                         }
                     });
                     if (!semanticZones[qLabel]) semanticZones[qLabel] = [];
-                    semanticZones[qLabel].push({ label: qLabel, pageIndex: pIdx, startY: 0, endY: ceilingY, x: 0, width: 100 } as any);
+                    semanticZones[qLabel].push({
+                        label: qLabel,
+                        pageIndex: pIdx,
+                        startY: 0,
+                        endY: ceilingY,
+                        x: margin,
+                        width: pW - (margin * 2)
+                    } as any);
                 }
             }
         });

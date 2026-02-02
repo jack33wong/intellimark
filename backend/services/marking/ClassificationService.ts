@@ -251,7 +251,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
         // CRITICAL: questionAnswer and frontPage MUST use heavy (needs positions)
         // ONLY questionOnly uses light (no student work, no positions needed)
-        const useLight = mapperCategory === 'questionOnly';
+        // ALWAYS use heavy mode. We need bounding boxes for ALL pages to ensure 
+        // the "Red Debug Zone" can be drawn even if the page is just printed text.
+        const useLight = false;
 
 
 
@@ -351,7 +353,26 @@ ${pageHints}
           console.log(cleanContent); // Full response (User Request)
         }
 
-        parsed = this.parseJsonWithSanitization(cleanContent);
+        try {
+          parsed = this.parseJsonWithSanitization(cleanContent);
+        } catch (error) {
+          console.error(`❌ [CLASSIFICATION] JSON Parse Failure for Q${questionNumber}. Creating Fallback.`, error);
+          // Create dummy structure that matches Gemini output format to keep the pipeline moving
+          parsed = {
+            pages: pageIndices.map(idx => ({
+              category: "questionAnswer",
+              reasoning: `JSON Parse Error for Q${questionNumber} on Page ${idx + 1}. Falling back to manual review placeholder.`,
+              questions: [
+                {
+                  questionNumber: questionNumber,
+                  text: "MANUAL_REVIEW_REQUIRED_JSON_ERROR (The AI output was malformed)",
+                  studentWorkLines: [],
+                  confidence: 0.1
+                }
+              ]
+            }))
+          };
+        }
 
 
 
@@ -374,19 +395,28 @@ ${pageHints}
 
             // NOTE: Text Shield (printed text filtering) removed to prevent stripping of typed model answers.
 
-            // ✅ CRITICAL FIX: Inject pageIndex into studentWorkLines position objects (Recursive)
+            // ✅ CRITICAL FIX: Inject pageIndex into Question, SubQuestions, AND Lines
             if (processedQuestions && Array.isArray(processedQuestions)) {
               const injectPageIndex = (node: any) => {
+                // 1. Fix the Node itself (This overrides the AI's relative "0" with the true Global Index)
+                node.pageIndex = globalPageIndex;
+                node.sourceImageIndex = globalPageIndex;
+
+                // 2. Fix Student Work Lines
                 if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {
                   node.studentWorkLines.forEach((line: any) => {
                     line.pageIndex = globalPageIndex;
                     if (line.position) line.position.pageIndex = globalPageIndex;
                   });
                 }
+
+                // 3. Recurse into SubQuestions
                 if (node.subQuestions && Array.isArray(node.subQuestions)) {
                   node.subQuestions.forEach((sq: any) => injectPageIndex(sq));
                 }
               };
+
+              // Apply to all questions
               processedQuestions.forEach(q => injectPageIndex(q));
             }
 

@@ -40,7 +40,6 @@ export class AnnotationLinker {
         annotations: any[],
         semanticZones: Record<string, any[]>,
         allOcrBlocks: any[],
-        pageHeight: number,
         vetoList: string[],
         questionNumber: string,
         stepsDataForMapping: any[],
@@ -162,7 +161,6 @@ export class AnnotationLinker {
         stepsDataForMapping: any[],
         task: any,
         semanticZones: any,
-        pageHeight: number,
         pageDimensionsMap?: Map<number, { width: number; height: number }>
     ): any[] {
         const unmatchedLineUsage: Record<string, number> = {};

@@ -26,7 +26,10 @@
  * normalizeTextForComparison("$y=x^{2}-4$") // Returns: "yx24"
  * normalizeTextForComparison("y = x^2 - 4") // Returns: "yx24"
  */
-export function normalizeTextForComparison(text: string | null | undefined): string {
+export function normalizeTextForComparison(
+  text: string | null | undefined,
+  options: { includeNumbers?: boolean } = { includeNumbers: false }
+): string {
   if (!text || typeof text !== 'string') {
     return '';
   }
@@ -62,31 +65,26 @@ export function normalizeTextForComparison(text: string | null | undefined): str
     .replace(/\{|\}/g, '') // Remove braces
     .replace(/\$+/g, '') // Remove $ signs
 
-  // Remove question number prefixes (e.g., "1 ", "2 (a)", "Q1 ", "Question 1")
-  // BUT: Only if followed by common question words or if it's clearly a question number pattern
-  // Don't remove numbers that are part of math expressions (e.g., "35 / 24")
-  normalized = normalized
-    .replace(/^q\d+[a-z]?\s+/i, '') // Remove "Q1 ", "Q2a ", etc.
-    .replace(/^question\s+\d+[a-z]?\s+/i, '') // Remove "Question 1 ", etc.
-    .replace(/^\d+[a-z]?\s*\([a-z]\)\s*/i, '') // Remove "2 (a) ", etc.
-    // Only remove question number patterns if followed by question words (work, find, calculate, etc.)
-    // CRITICAL: Don't remove if followed by math operators (=, +, -, /, ×, etc.) - this is a math expression
-    // Match: "35 /" or "35=" or "35 +" etc. should NOT be removed (they're part of math)
-    // Only remove if followed by question words like "35 work" or "35 find" (which shouldn't happen, but be safe)
-    .replace(/^(\d+[a-z]?)\s+(?![+\-×÷*/=])/i, (match, num, offset, string) => {
-      // Check what comes after the number and space
-      const after = string.substring(offset + match.length);
-      // If followed by math operator or number, keep it (it's part of a math expression)
-      if (/^[+\-×÷*/=\d]/.test(after)) {
-        return match; // Keep it (part of math expression like "35 / 24")
-      }
-      // If followed by question words, remove it (it's a question number)
-      if (/^(work|find|calculate|simplify|solve|show|prove|write|draw|explain|state|give|describe|complete|fill|here|the|this|a\s|an\s|is|are|was|were)/i.test(after)) {
-        return ''; // Remove it (it's a question number)
-      }
-      // Default: keep it (better safe than sorry - might be part of math expression)
-      return match;
-    })
+  // --- QUESTION NUMBER STRIPPING ---
+  // Only strip numbers if includeNumbers is FALSE (default)
+  if (!options.includeNumbers) {
+    // Remove question number prefixes (e.g., "1 ", "2 (a)", "Q1 ", "Question 1")
+    // BUT: Only if followed by common question words or if it's clearly a question number pattern
+    // Don't remove numbers that are part of math expressions (e.g., "35 / 24")
+    normalized = normalized
+      .replace(/^q\d+[a-z]?\s+/i, '') // Remove "Q1 ", "Q2a ", etc.
+      .replace(/^question\s+\d+[a-z]?\s+/i, '') // Remove "Question 1 ", etc.
+      .replace(/^\d+[a-z]?\s*\([a-z]\)\s*/i, '') // Remove "2 (a) ", etc.
+      // Only remove question number patterns if followed by question words (work, find, calculate, etc.)
+      .replace(/^(\d+[a-z]?)\s+(?![+\-×÷*/=])/i, (match, num, offset, string) => {
+        const after = string.substring(offset + match.length);
+        if (/^[+\-×÷*/=\d]/.test(after)) return match;
+        if (/^(work|find|calculate|simplify|solve|show|prove|write|draw|explain|state|give|describe|complete|fill|here|the|this|a\s|an\s|is|are|was|were)/i.test(after)) {
+          return '';
+        }
+        return match;
+      });
+  }
 
   normalized = normalized
     .toLowerCase()

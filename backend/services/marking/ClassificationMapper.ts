@@ -32,11 +32,10 @@ export class ClassificationMapper {
         console.log(`[MAPPER] Starting Map Pass for ${images.length} pages...`);
         const startTime = Date.now(); // Track performance
 
-        // SINGLE BATCH: Process all pages at once to maintain full context (e.g. Q11 on Page 13 -> Q11 on Page 12)
-        // Gemini 1.5 Flash has 1M context window, so 50 images is trivial.
-        const processAllPages = async (debug: boolean = false) => {
-            const systemPrompt = getPrompt('classification.mapper.system', images.length);
-            const userPrompt = getPrompt('classification.mapper.user', images.length);
+        // SINGLE BATCH HELPER: Process a subset of pages
+        const processAllPages = async (imagesToProcess: typeof images, debug: boolean = false) => {
+            const systemPrompt = getPrompt('classification.mapper.system', imagesToProcess.length);
+            const userPrompt = getPrompt('classification.mapper.user', imagesToProcess.length);
             const accessToken = ModelProvider.getGeminiApiKey();
 
             const parts: any[] = [
@@ -44,7 +43,7 @@ export class ClassificationMapper {
                 { text: userPrompt }
             ];
 
-            images.forEach((img, index) => {
+            imagesToProcess.forEach((img, index) => {
                 let mimeType = 'image/jpeg';
                 let cleanData = img.imageData;
 
@@ -56,32 +55,30 @@ export class ClassificationMapper {
                     cleanData = img.imageData.split(',')[1];
                 }
 
-                parts.push({ text: `\n--- Page Index ${index} ---` });
+                parts.push({ text: `\n--- Page Index ${img.pageIndex} ---` });
                 parts.push({ inline_data: { mime_type: mimeType, data: cleanData } });
             });
 
             const { getModelConfig } = await import('../../config/aiModels.js');
             const config = getModelConfig(MAPPING_MODEL as any);
 
-
             const response = await ModelProvider.withRetry(async () => {
                 const res = await fetch(`${config.apiEndpoint}?key=${accessToken}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    signal: AbortSignal.timeout(60000),
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts }],
                         generationConfig: {
                             temperature: 0.1,
-                            maxOutputTokens: 8192, // Increased for larger output
+                            maxOutputTokens: 8192,
                             responseMimeType: "application/json"
                         }
                     })
                 });
 
                 if (!res.ok) {
-                    if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`); // Explicitly throw 429 for retry match
+                    if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`);
                     if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
                     const txt = await res.text();
                     throw new Error(`Gemini API error: ${res.status} - ${txt}`);
@@ -94,20 +91,20 @@ export class ClassificationMapper {
             const result = await response.json() as any;
             const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-            // Extract token usage and record via tracker
             if (tracker) {
                 const inputTokens = result.usageMetadata?.promptTokenCount || 0;
                 const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
-                tracker.recordMapper(inputTokens, outputTokens);  // Use mapper phase
+                tracker.recordMapper(inputTokens, outputTokens);
             }
 
-            let parsed: any; // Declare 'parsed' before the try-catch block
+            let parsed: any;
             const cleanContent = content.replace(/```json\n|\n```/g, '');
 
-            if (debug) {
-                console.log(`\n\x1b[35m[MAPPER DEBUG] Raw Response:\x1b[0m`);
-                console.log(cleanContent);
-            }
+            // 🔍 [RAW AI DEBUG] Uncomment if you want to see the raw JSON string
+            // if (debug) {
+            //     console.log(`\n\x1b[35m[MAPPER RAW JSON]\x1b[0m`);
+            //     console.log(cleanContent.substring(0, 500) + "..."); 
+            // }
 
             try {
                 parsed = JSON.parse(cleanContent);
@@ -116,18 +113,23 @@ export class ClassificationMapper {
             const pages = Array.isArray(parsed.pages) ? parsed.pages : [];
             const results: PageMap[] = [];
 
-            // Fill exactly images.length results
-            for (let i = 0; i < images.length; i++) {
-                const p = pages[i] || { questions: [], category: undefined };
+            // ========================= 🛡️ THE CRITICAL FIX & AUDIT 🛡️ =========================
+            // 1. Iterate the BATCH (imagesToProcess), not global images.
+            // 2. Use img.pageIndex to set the result ID.
 
-                // Handle both old string[] format and new {questionNumber, subQuestions} format for robustness
+            console.log(`\n🔍 [MAPPER AUDIT] Batch of ${imagesToProcess.length} images:`);
+
+            imagesToProcess.forEach((img, localIdx) => {
+                // Fetch AI result by LOCAL index (0, 1, 2...)
+                const p = pages[localIdx] || { questions: [], category: undefined };
+
+                // Parsing Logic (Standard)
                 const rawQuestions = Array.isArray(p.questions) ? p.questions : [];
                 const structuredQuestions: Array<{ questionNumber: string; subQuestions?: string[] }> = [];
                 const flatQuestions: string[] = [];
 
                 rawQuestions.forEach((q: any) => {
                     if (typeof q === 'string') {
-                        // Legacy support: convert "3b" to {questionNumber: "3", subQuestions: ["b"]}
                         const match = q.match(/^(\d+)([a-z]*.*)/i);
                         if (match) {
                             const base = match[1];
@@ -148,9 +150,7 @@ export class ClassificationMapper {
                         }
                         flatQuestions.push(q);
                     } else if (typeof q === 'object' && q !== null && q.questionNumber) {
-                        // NEW format
                         structuredQuestions.push(q);
-                        // Reconstruct flat questions for backward compatibility
                         if (q.subQuestions && q.subQuestions.length > 0) {
                             q.subQuestions.forEach((sq: string) => {
                                 flatQuestions.push(`${q.questionNumber}${sq}`);
@@ -162,24 +162,60 @@ export class ClassificationMapper {
                 });
 
                 const result: PageMap = {
-                    pageIndex: i,
+                    pageIndex: img.pageIndex, // ✅ CORRECT: Global Index (e.g., 10)
                     questions: structuredQuestions,
                     category: p.category,
                     flatQuestions: flatQuestions
                 };
                 results.push(result);
-            }
+
+                // 🔍 [VERIFICATION LOG] This proves indices are correct
+                const qLog = flatQuestions.length > 0 ? flatQuestions.join(', ') : 'Empty/Meta';
+                console.log(`   ✅ Mapped Local[${localIdx}] -> Global[${img.pageIndex}] | Content: ${qLog}`);
+            });
+
             return results;
         };
 
-        // Execute single batch
+        // OVERLAPPING BUCKETS: Process large documents in chunks to avoid AI response truncation
+        // We use an overlap (e.g. 2 pages) so that a question split across buckets is caught by both.
+        const BUCKET_SIZE = 10;
+        const OVERLAP = 2;
+        const results: PageMap[] = [];
+        const processedPageIndices = new Set<number>();
+
         try {
-            const allPages = await processAllPages(!!debug);
+            for (let start = 0; start < images.length; start += (BUCKET_SIZE - OVERLAP)) {
+                const end = Math.min(start + BUCKET_SIZE, images.length);
+                const bucket = images.slice(start, end);
+
+                if (bucket.length === 0) break;
+
+                console.log(`   📦 [MAPPER-BUCKET] Processing pages ${start} to ${end - 1}...`);
+                const bucketResults = await processAllPages(bucket, !!debug);
+
+                // Merge results, prioritizing new data for pages we haven't seen or that were empty
+                bucketResults.forEach(res => {
+                    const existingIdx = results.findIndex(r => r.pageIndex === res.pageIndex);
+                    if (existingIdx === -1) {
+                        results.push(res);
+                        processedPageIndices.add(res.pageIndex);
+                    } else {
+                        // If we already have this page, merge questions if the new result found more
+                        const existing = results[existingIdx];
+                        if (res.questions.length > existing.questions.length) {
+                            results[existingIdx] = res;
+                        }
+                    }
+                });
+
+                if (end === images.length) break; // Finished all images
+            }
 
             const duration = (Date.now() - startTime) / 1000;
-            console.log(`✅ [MAPPER] Map Pass complete in ${duration.toFixed(2)}s. Mapped ${allPages.length} pages.`);
+            console.log(`✅ [MAPPER] Map Pass complete in ${duration.toFixed(2)}s. Mapped ${results.length} pages.`);
 
-            return allPages;
+            return results.sort((a, b) => a.pageIndex - b.pageIndex);
         } catch (error) {
             console.error('❌ [MAPPER] Map Pass failed:', error);
             return [];

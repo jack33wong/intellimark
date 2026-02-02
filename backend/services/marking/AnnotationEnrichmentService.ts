@@ -237,6 +237,13 @@ export const enrichAnnotationsWithPositions = (
             }
         );
 
+        // ✅ SAFETY CHECK: If pixels is null (mapping failed), return annotation without position
+        // or use a default safe position to prevent the entire worker from crashing.
+        if (!pixelBox) {
+            console.warn(`⚠️ [ANNO-WARN] Could not resolve pixels for annotation '${(anno as any).text}' on Page ${pageIndex}. Skipping position.`);
+            return { ...anno, position: null } as EnrichedAnnotation;
+        }
+
         // 4. STRICT ZONE CLAMPING (Universal)
         if (semanticZones) {
             const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);

@@ -275,11 +275,6 @@ export class MarkingSchemeOrchestrationService {
               effectiveResult.match.subQuestionMaxScores?.[partLabel] ??
               effectiveResult.match.subQuestionMaxScores?.[normalizedPart];
 
-            if (specificMarks !== undefined) {
-              console.log(`   🎯 [ORCHESTRATOR] Overriding Part ${qNum} Total: ${effectiveResult.match.marks} -> ${specificMarks}`);
-              effectiveResult.match.marks = specificMarks;
-              effectiveResult.match.parentQuestionMarks = specificMarks;
-            }
           } else {
             // Fallback: If specific marks are missing, default to empty to avoid saving "messy" data.
             effectiveResult.match.markingScheme.questionMarks = [];
@@ -506,12 +501,10 @@ export class MarkingSchemeOrchestrationService {
             finalSubQuestionMaxScores[key] = partMarks.length;
           }
 
-          console.log(`   ✅ Matched Part: ${key} (Truth Max: ${finalSubQuestionMaxScores[key] || '?'})`);
         }
       });
 
       if (Object.keys(subQuestionMarksMap).length === 0) {
-        console.log(`   ⚠️ No parts matched prefix "${baseQuestionNumber}". Falling back to MasterMatch marks.`);
         subQuestionMarksMap[masterMatch.questionNumber] = parentScheme.marks || parentScheme;
         subQuestionNumbers.push(masterMatch.questionNumber);
 
@@ -524,7 +517,6 @@ export class MarkingSchemeOrchestrationService {
           finalSubQuestionMaxScores[masterMatch.questionNumber] = 0; // Will trigger generic handling or be overwritten
         }
       } else {
-        console.log(`   📊 Final Map Keys: ${Object.keys(subQuestionMarksMap).join(', ')}`);
       }
 
       markingSchemesMap.set(uniqueKey, {

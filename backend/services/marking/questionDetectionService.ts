@@ -12,20 +12,7 @@ import { normalizeTextForComparison, normalizeSubQuestionPart, generateGenericTi
 import { getShortSubjectName, getShortExamBoard } from './MarkingHelpers.js';
 import * as stringSimilarity from 'string-similarity';
 
-// --- Constants ---
-const COMMON_STOP_WORDS = new Set([
-  'the', 'and', 'is', 'in', 'it', 'of', 'to', 'for', 'a', 'an', 'on', 'with', 'at', 'by',
-  'from', 'up', 'down', 'out', 'that', 'this', 'write', 'down', 'answer', 'total', 'marks', 'question', 'show', 'give', 'your', 'reason', 'explain', 'state',
-  'describe', 'value', 'table', 'graph', 'grid', 'space', 'left', 'blank',
-  'work', 'find', 'calculate', 'solve', 'simplify', 'evaluate', 'complete', 'fill', 'draw', 'label'
-]);
-
-// Semantic mapping for LaTeX commands to English keywords
-const LATEX_SEMANTIC_MAP: { [key: string]: string } = {
-  'frac': 'fraction', 'sqrt': 'root', 'approx': 'estimate', 'pi': 'circle',
-  'angle': 'angle', 'triangle': 'triangle', 'int': 'integral', 'sum': 'sum',
-  'lim': 'limit', 'vec': 'vector', 'sin': 'sine', 'cos': 'cosine', 'tan': 'tangent'
-};
+import { SimilarityService } from './SimilarityService.js';
 
 // --- Type Definitions ---
 export interface ExamPaperMatch {
@@ -352,47 +339,10 @@ export class QuestionDetectionService {
     isRescueMode: boolean
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
-    // 1. Text Similarity (WITH CONTAINMENT BOOST)
-    // We check if one text is largely contained in the other to handle the Context Injection scenario.
-    // E.g. "100 people... Complete Venn" (Input) vs "Complete Venn" (DB) -> High Match
-    const textScore = this.calculateSimilarity(inputText, dbText);
+    // 🛡️ [REUSE]: Delegate to centralized SimilarityService
+    const details = SimilarityService.calculateHybridScore(inputText, dbText, isRescueMode);
 
-    // 2. Semantic Anchoring (Math-Aware)
-    const inputKeywords = this.getKeywords(inputText);
-    const dbKeywords = this.getKeywords(dbText);
-
-    let semanticCheck = false;
-    if (inputKeywords.size < 2 || dbKeywords.size < 2) {
-      semanticCheck = true;
-    } else {
-      for (const w of inputKeywords) {
-        if (dbKeywords.has(w)) {
-          semanticCheck = true;
-          break;
-        }
-      }
-    }
-
-    // 3. Numeric Fingerprinting
-    const inputNums = (inputText.match(/\d+(\.\d+)?/g) || []);
-    const dbNums = (dbText.match(/\d+(\.\d+)?/g) || []);
-    let numericScore = 0;
-    if (dbNums.length > 0 && inputNums.length > 0) {
-      const setDb = new Set(dbNums);
-      const intersection = inputNums.filter(n => setDb.has(n));
-      numericScore = intersection.length / Math.max(inputNums.length, dbNums.length);
-
-      // Minimal debug for numeric match
-      if (numericScore > 0 && numericScore < 1.0) {
-        // console.log(`[NUMERIC DEBUG] Input Nums: [${inputNums.slice(0, 10).join(', ')}]`);
-        // console.log(`[NUMERIC DEBUG] DB Nums:    [${dbNums.slice(0, 10).join(', ')}]`);
-        // console.log(`[NUMERIC DEBUG] Intersection: ${intersection.length} / ${Math.max(inputNums.length, dbNums.length)} = ${numericScore.toFixed(3)}`);
-      }
-    } else if (dbNums.length === 0 && inputNums.length === 0) {
-      numericScore = 0.5;
-    }
-
-    // 4. Structural Match
+    // 4. Structural Match (Remains in Detection Service as it's specific to Paper search)
     let structureScore = 0.5;
     if (hint) {
       const hintBase = hint.match(/^\d+/)?.[0];
@@ -400,36 +350,20 @@ export class QuestionDetectionService {
       if (hintBase === dbBase) structureScore = 1.0;
     }
 
-    // Weighting
-    let total = 0;
-    const textFloor = isRescueMode ? 0.15 : 0.25;
-    const effectiveStructureScore = (textScore < textFloor && numericScore < 0.5) ? 0 : structureScore;
+    // Weight the Structure back into the Hybrid score
+    const finalTotal = (details.total * 0.7) + (structureScore * 0.3);
 
-    if (effectiveStructureScore >= 0.9) {
-      total = (textScore * 0.45) + (numericScore * 0.25) + (effectiveStructureScore * 0.30);
-    } else {
-      total = (textScore * 0.60) + (numericScore * 0.30) + (effectiveStructureScore * 0.10);
-    }
-
-    if (!isRescueMode && !semanticCheck) {
-      total = total * 0.4;
-    }
-
-    return { total, text: textScore, numeric: numericScore, structure: effectiveStructureScore, semanticCheck };
+    return {
+      total: finalTotal,
+      text: details.text,
+      numeric: details.numeric,
+      structure: structureScore,
+      semanticCheck: details.semanticCheck
+    };
   }
 
   private getKeywords(text: string): Set<string> {
-    if (!text) return new Set();
-    let clean = text.toLowerCase();
-
-    Object.entries(LATEX_SEMANTIC_MAP).forEach(([cmd, replacement]) => {
-      const regex = new RegExp(`\\\\${cmd}`, 'g');
-      clean = clean.replace(regex, ` ${replacement} `);
-    });
-
-    // FIX: Don't strip unknown LaTeX commands, just remove the backslash so they count as keywords (e.g. "alpha", "beta")
-    clean = clean.replace(/\\/g, ' ').replace(/[^a-z0-9\s]/g, '').trim();
-    return new Set(clean.split(/\s+/).filter(w => w.length > 3 && !COMMON_STOP_WORDS.has(w)));
+    return SimilarityService.getKeywords(text);
   }
 
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
@@ -572,69 +506,8 @@ export class QuestionDetectionService {
     }
   }
 
-  // [UPDATED] Robust Similarity with Containment Boost
   public calculateSimilarity(str1: string, str2: string): number {
-    if (!str1 || !str2) return 0;
-
-    // 1. Precise Match Check
-    const norm1 = normalizeTextForComparison(str1);
-    const norm2 = normalizeTextForComparison(str2);
-    if (norm1 === norm2) return 1.0;
-
-    // 2. Keyword Match (Fuzzy Containment)
-    const keys1 = this.getKeywords(str1);
-    const keys2 = this.getKeywords(str2);
-
-    // We check if the shorter set of keywords is contained in the longer set
-    const shorterKeys = keys1.size < keys2.size ? keys1 : keys2;
-    const longerKeys = keys1.size >= keys2.size ? keys1 : keys2;
-
-    if (shorterKeys.size >= 2) {
-      let matches = 0;
-      const matchedWords: string[] = [];
-      const missingWords: string[] = [];
-
-      for (const word of shorterKeys) {
-        if (longerKeys.has(word)) {
-          matches++;
-          matchedWords.push(word);
-        } else {
-          missingWords.push(word);
-        }
-      }
-
-      const matchRate = matches / shorterKeys.size;
-
-      // LOG THE FUZZY ATTEMPT
-      if (matchRate > 0.45) {
-        // console.log(`[SIMILARITY DEBUG] Fuzzy Rate: ${matchRate.toFixed(2)} (${matches}/${shorterKeys.size})`);
-      }
-
-      // FAILURE ANALYSIS (2025-01-21):
-      // A 100% match on 3 common math keys (e.g. "fraction", "root", "form") is NOT enough to prove identity.
-      // Small generic questions (e.g. "Work out the value") often strip down to just these few keys.
-      // We must require a minimum complexity (key count) to trust a pure keyword containment match.
-      const MIN_KEYS_FOR_OVERRIDE = 5;
-
-      if (shorterKeys.size < MIN_KEYS_FOR_OVERRIDE) {
-        // console.log(`[SIMILARITY SAFETY] Key count (${shorterKeys.size}) < ${MIN_KEYS_FOR_OVERRIDE}. Ignoring containment override.`);
-        // Fall through to Dice Coefficient
-      } else {
-        if (matchRate >= 0.80) {
-          // [SENIOR PROTOCOL] Log why we are returning a high score
-          console.log(`[SIMILARITY OVERRIDE] 98% because MatchRate=${matchRate.toFixed(2)} in Keys=[${Array.from(shorterKeys).join(',')}]`);
-          return 0.98;
-        }
-        if (matchRate >= 0.60) {
-          console.log(`[SIMILARITY OVERRIDE] 85% because MatchRate=${matchRate.toFixed(2)}`);
-          return 0.85;
-        }
-      }
-    }
-
-    // 3. Fallback to Dice
-    const dice = stringSimilarity.compareTwoStrings(norm1, norm2);
-    return dice;
+    return SimilarityService.calculateSimilarity(str1, str2);
   }
 
   private calculateNgramSimilarity(text1: string, text2: string, n: number = 3): number {

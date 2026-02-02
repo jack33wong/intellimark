@@ -106,4 +106,5 @@ export interface QuestionResult {
     cleanedOcrText?: string;
     rawAnnotations?: any[];
     semanticZones?: any;
+    debugSearchWindow?: any;
 }

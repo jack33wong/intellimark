@@ -108,11 +108,21 @@ export async function executeMarkingForQuestion(
     }
 
     // --- 2. ZONE ARCHITECTURE ---
-    const primaryPageDims = task.pageDimensions?.get(task.sourcePages?.[0] || 0);
-    const pageHeight = primaryPageDims?.height || 2000;
+    // -------------------------------------------------------------------------
 
-    const semanticZones = ZoneArchitect.detectAndRefineZones(task, pageHeight);
-    ZoneArchitect.backfillInjectedZones(semanticZones, stepsDataForMapping, pageHeight);
+    const semanticZones = ZoneArchitect.detectAndRefineZones(task, task.pageDimensions as any);
+    ZoneArchitect.backfillInjectedZones(semanticZones, stepsDataForMapping, task.pageDimensions as any);
+
+    // 🔍 [DEBUG PROBE] What does the Executor see?
+    console.log(`\n🔍 [EXECUTOR PROBE] Q${task.questionNumber}`);
+    const probePageIndex = task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : -1;
+    console.log(`   - Task Page Index: ${probePageIndex}`);
+
+    // Check the actual page object at that index
+    // Note: We need to access allPagesOcrData. Use stepsDataForMapping to infer if possible, or just rely on globalBlockId checks.
+    // Actually, 'stepsDataForMapping' contains the blocks the prompt will see.
+    const stepsSample = stepsDataForMapping.slice(0, 3).map(s => s.globalBlockId).join(', ');
+    console.log(`   - Visible Blocks Sample: ${stepsSample}`);
 
     const allLabels = Object.keys(semanticZones);
 
@@ -166,7 +176,6 @@ export async function executeMarkingForQuestion(
         markingResult.annotations,
         semanticZones,
         rawOcrBlocks as any[],
-        pageHeight,
         vetoList,
         String(questionId),
         stepsDataForMapping,
@@ -186,7 +195,6 @@ export async function executeMarkingForQuestion(
       stepsDataForMapping,
       task,
       semanticZones,
-      pageHeight,
       task.pageDimensions
     );
 
@@ -259,8 +267,8 @@ export async function executeMarkingForQuestion(
         const rawY = anno.visual_position.y;
 
         // Boundaries in Percent
-        const startYPercent = (zoneData.startY / pageHeight) * 100;
-        const endYPercent = (zoneData.endY / pageHeight) * 100;
+        const startYPercent = (zoneData.startY / dims.height) * 100;
+        const endYPercent = (zoneData.endY / dims.height) * 100;
 
         // Check against extents (Top/Bottom), not just center.
         let wasClamped = false;
@@ -290,6 +298,45 @@ export async function executeMarkingForQuestion(
     parsedScore.awardedMarks = strictResult.awardedMarks;
     parsedScore.scoreText = `${strictResult.awardedMarks}/${parsedScore.totalMarks}`;
 
+    // ========================= 🛡️ SYSTEMATIC DATA PROTECTION 🛡️ =========================
+    // 1. Get the Raw Zone from Math Engine (The Sacred Source of Truth)
+    // Principle: Zone Fidelity. We reuse the exact zone created during the detection stage.
+    const upstreamZone = AnnotationLinker.getEffectiveZone(String(questionId), semanticZones, defaultPageIndex);
+
+    const dims = task.pageDimensions?.get(defaultPageIndex) || Array.from(task.pageDimensions?.values() || [])[0] || { width: 2480, height: 3508 };
+    const pW = dims.width || 2480;
+    const pH = dims.height || 3508;
+    const margin = 40;
+
+    let finalZone: any;
+
+    if (upstreamZone) {
+      console.log(` ✅ [ZONE-FIDELITY] Q${questionId}: Reusing Upstream Zone from Detection Stage.`);
+      finalZone = {
+        x: upstreamZone.x ?? margin,
+        y: (upstreamZone as any).startY ?? 0,
+        width: upstreamZone.width ?? (pW - (margin * 2)),
+        height: ((upstreamZone as any).endY ?? pH) - ((upstreamZone as any).startY ?? 0)
+      };
+    } else {
+      console.warn(` ⚠️ [ZONE-FIDELITY] Q${questionId}: Upstream Zone missing. Falling back to Full-Page Slice.`);
+      finalZone = {
+        x: margin,
+        y: margin,
+        width: pW - (margin * 2),
+        height: pH - (margin * 2)
+      };
+    }
+
+    // 2. Final Visibility Safety (Minimal Height & Clamping)
+    if (finalZone.height < 100) finalZone.height = 100;
+    if (finalZone.y + finalZone.height > pH) {
+      finalZone.height = Math.max(50, pH - finalZone.y - margin);
+    }
+
+    const normalizedSearchWindow = finalZone;
+    // ======================================================================================
+
     // DB Payload Sanitization
     const cleanMarkingScheme: any = {};
     if (task.markingScheme) {
@@ -317,7 +364,8 @@ export async function executeMarkingForQuestion(
       promptMarkingScheme: markingResult.schemeTextForPrompt,
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
       rawAnnotations: rawAnnotationsFromAI,
-      semanticZones: semanticZones
+      semanticZones: semanticZones,
+      debugSearchWindow: normalizedSearchWindow // ✅ Normalized for Renderer
     };
   } catch (error) {
     console.error(`Error executing marking for Q${questionId}:`, error);
@@ -336,6 +384,73 @@ export function createMarkingTasksFromClassification(
   standardizedPages: any[],
   allClassificationResults?: any[]
 ): MarkingTask[] {
+
+  // ========================= 🛡️ FINAL SYNCHRONIZATION 🛡️ =========================
+  // CRITICAL FIX: The Pipeline updated the Page Indices, but the 'id' strings (e.g., "p3_q1_line1")
+  // might still be stale OR missing a prefix entirely. We must rewrite them to match the new 'sourceImageIndex'.
+  // Without this, the Zone Detector looks for "p5" lines on "Page 5", finds "p3" or "line_1", and discards them.
+
+  if (classificationResult.questions) {
+    classificationResult.questions.forEach((q: any) => {
+      // Get the True Physical Page Index
+      const truePageIdx = q.sourceImageIndex;
+
+      if (truePageIdx !== undefined && q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
+        q.studentWorkLines.forEach((line: any) => {
+          // 1. Force the property to match
+          line.pageIndex = truePageIdx;
+
+          // 2. Force the ID String to match (The "Red Zone" Fix)
+          if (line.id && typeof line.id === 'string') {
+            const hasPrefix = /^p\d+_/.test(line.id);
+
+            if (hasPrefix) {
+              // Case A: Has prefix, but it might be wrong (e.g. "p3_" on Page 5)
+              const match = line.id.match(/^p(\d+)_/);
+              if (match && match[1] !== String(truePageIdx)) {
+                line.id = line.id.replace(/^p\d+_/, `p${truePageIdx}_`);
+              }
+            } else {
+              // Case B: No prefix (e.g. "line_1"). The Detector ignores these!
+              // We must Prepend the correct Page Index.
+              line.id = `p${truePageIdx}_${line.id}`;
+            }
+          } else if (!line.id) {
+            // Case C: Missing ID. Generate one to ensure it's counted.
+            line.id = `p${truePageIdx}_gen_${Math.random().toString(36).substr(2, 5)}`;
+          }
+
+          // Fix Global Block ID too if present
+          if (line.globalBlockId) {
+            line.globalBlockId = line.globalBlockId.replace(/^p\d+_/, `p${truePageIdx}_`);
+          }
+        });
+      }
+
+      // Also fix sub-questions recursively
+      if (q.subQuestions) {
+        const fixSubQ = (sq: any) => {
+          if (sq.pageIndex !== undefined) sq.pageIndex = truePageIdx;
+          if (sq.studentWorkLines) {
+            sq.studentWorkLines.forEach((line: any) => {
+              line.pageIndex = sq.pageIndex ?? truePageIdx;
+              // Apply same ID fix logic
+              if (line.id && typeof line.id === 'string') {
+                if (/^p\d+_/.test(line.id)) {
+                  line.id = line.id.replace(/^p\d+_/, `p${line.pageIndex}_`);
+                } else {
+                  line.id = `p${line.pageIndex}_${line.id}`;
+                }
+              }
+            });
+          }
+          if (sq.subQuestions) sq.subQuestions.forEach(fixSubQ);
+        };
+        q.subQuestions.forEach(fixSubQ);
+      }
+    });
+  }
+  // ===============================================================================
   return MarkingTaskFactory.createTasksFromClassification(
     classificationResult,
     allPagesOcrData,

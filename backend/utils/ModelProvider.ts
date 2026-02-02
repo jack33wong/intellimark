@@ -38,9 +38,15 @@ export class ModelProvider {
         attempt++;
 
         // Check if we should retry
-        const isRetryable = error.message.includes('429') || // Too Many Requests
+        const isRetryable =
+          error.message.includes('429') || // Too Many Requests
           error.message.includes('503') || // Service Unavailable
-          error.message.includes('Resource exhausted'); // Gemini specific
+          error.message.includes('Resource exhausted') || // Gemini specific
+          error.message.includes('fetch failed') || // Node/Undici network error
+          error.message.includes('timeout') || // Connection or request timeout
+          error.message.includes('ECONNRESET') || // Connection reset
+          error.message.includes('ETIMEDOUT') || // Connection timeout
+          error.message.includes('UND_ERR_CONNECT_TIMEOUT'); // Specific Undici timeout
 
         if (attempt > retries || !isRetryable) {
           throw error;
