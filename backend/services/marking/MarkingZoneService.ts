@@ -742,7 +742,8 @@ export class MarkingZoneService {
                 // 🎯 IDENTITY GATE:
                 if (labelRaw) {
                     const targetMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
-                    const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)([a-z]+)?/i);
+                    // [FIX]: Robust regex to capture "2 (a)" or "2.a" as Identity
+                    const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)(?:\s*[\(\[\]]?\s*)([a-z]+)?/i);
 
                     if (targetMatch && blockMatch) {
                         const targetNum = targetMatch[1];
@@ -761,16 +762,22 @@ export class MarkingZoneService {
                         }
                     }
 
-                    // 🛡️ [ANTI-FALSE-POSITIVE]: Penalty for high number match but low text match
-                    // This prevents anchoring to marks indicators like (2) instead of real headers 2(a).
-                    if (finalScore > 0.4 && details.total < 0.25) {
-                        // console.log(`[ZONE-PENALTY] Q${labelRaw} Num matched but Txt low (${details.total.toFixed(2)}). Candidate: "${normalizedCandidate.substring(0,30)}"`);
-                        finalScore -= 0.8;
+                    // 🛡️ [ANTI-FALSE-POSITIVE]: Strong Penalty for "Number Match, Low Text Match"
+                    // Triggered if text similarity is extremely low (< 0.2) or score is weak.
+                    // This disqualifies marks indicators like (2) or (1) which have no textual content.
+                    if (finalScore > 0 && details.total < 0.20 && normalizedCandidate.length < 50) {
+                        finalScore -= 1.5; // Disqualify
                     }
                 }
 
+                // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 80% similarity, stop.
+                if (details.total > 0.8 && finalScore > bestSimilarity) {
+                    bestBlock = firstBlock;
+                    bestSimilarity = finalScore;
+                    break;
+                }
+
                 if (finalScore > bestSimilarity) {
-                    // [FIX]: Anchor to the START of the question (firstBlock), not the end of the window (currentBlock).
                     bestBlock = firstBlock;
                     bestSimilarity = finalScore;
                 }
