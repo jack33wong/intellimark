@@ -247,21 +247,26 @@ export class MarkingInstructionService {
       if ((b as any)._isInstruction) isLikelyInstruction = true;
 
       // 🛡️ [SIMILARITY-TAGGING]: If the block matches a significant part of the official question text.
-      // This catches intermediate instructions like geometric setup in Q19.
+      // This catches intermediate instructions like geometric setup in Q19 or math variables in Q2.
       if (!isLikelyInstruction && normalizedQText.length > 5) {
         const blockNorm = normalize(content);
-        if (blockNorm.length > 5) {
-          // Token-based overlap check
-          const blockTokens = content.toLowerCase().split(/\s+/).filter(t => t.length > 3);
-          const qTextTokens = (questionText || '').toLowerCase().split(/\s+/).filter(t => t.length > 3);
+        if (blockNorm.length >= 3) {
+          // 1. Direct Containment Check (Fast & Robust for short math identities)
+          if (normalizedQText.includes(blockNorm)) {
+            isLikelyInstruction = true;
+          } else {
+            // 2. Token-based overlap check
+            const blockTokens = content.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+            const qTextTokens = (questionText || '').toLowerCase().split(/\s+/).filter(t => t.length >= 2);
 
-          if (blockTokens.length > 0) {
-            const overlap = blockTokens.filter(t => qTextTokens.includes(t)).length;
-            const overlapRatio = overlap / blockTokens.length;
+            if (blockTokens.length > 0) {
+              const overlap = blockTokens.filter(t => qTextTokens.includes(t)).length;
+              const overlapRatio = overlap / blockTokens.length;
 
-            if (overlapRatio > 0.6) {
-              isLikelyInstruction = true;
-              // console.log(` 🛡️ [AUTO-TAG] Tagged "${content}" as instruction (Overlap: ${(overlapRatio*100).toFixed(0)}%)`);
+              if (overlapRatio > 0.6) {
+                isLikelyInstruction = true;
+                // console.log(` 🛡️ [AUTO-TAG] Tagged "${content}" as instruction (Overlap: ${(overlapRatio*100).toFixed(0)}%)`);
+              }
             }
           }
         }
