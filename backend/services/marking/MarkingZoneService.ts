@@ -311,8 +311,10 @@ export class MarkingZoneService {
 
             if (match) {
                 // [FIX]: Tag this block as a confirmed Instruction (Header)
-                // This allows MarkingInstructionService to safely append [PRINTED_INSTRUCTION] without risky text matching.
+                // Stores the specific question label (e.g. "2a") so it can be added to the AI Prompt tag.
                 match.block._isInstruction = true;
+                match.block._associatedQuestion = finalKey;
+                console.log(` 💎 [ZONE-TAG] ${finalKey} anchored on "${match.block.text.substring(0, 50)}" (P${match.block.pageIndex})`);
 
                 const blockY = MarkingZoneService.getY(match.block);
                 const pDims = pageDimensionsMap.get(match.block.pageIndex) || { width: 2480, height: 3508 };
@@ -333,9 +335,16 @@ export class MarkingZoneService {
                     headerBlockId: match.block.id || match.block.globalBlockId
                 });
 
-                currentSearchPage = match.block.pageIndex;
-                // [FIX]: Don't increment Y strictly. Sub-questions (2a) often share a line with their parent (2).
-                minSearchY = MarkingZoneService.getY(match.block);
+                // [SHARED-CURSOR-FIX]: Questions in the same group (parent/child) should search from the same starting point.
+                // This ensures Stage 3 has enough anchors to reconcile "Impossible Zones".
+                const isEndOfGroup = !nextEq || !nextEq.label.startsWith(eq.label.replace(/[a-z]+$/, ''));
+
+                if (isEndOfGroup) {
+                    currentSearchPage = match.block.pageIndex;
+                    minSearchY = MarkingZoneService.getY(match.block);
+                } else {
+                    // console.log(`[SHARED-CURSOR] Q${finalKey} sharing cursor with children from P${currentSearchPage}@${minSearchY}.`);
+                }
             } else {
                 console.log(`[ZONE-MISS] ⚠️ Question ${finalKey} could not be anchored. Exhausted search from P${currentSearchPage}@${minSearchY}`);
             }
@@ -345,7 +354,10 @@ export class MarkingZoneService {
         // 🛡️ Total Vertical Coverage: "First owns the top, Last owns the bottom"
         // 🏰 [DETETERMINISTIC FIX]: Sort landmarks by physical vertical order.
         // This prevents the current marked question from "stealing" the Top slot
-        // if it's physically lower than its neighbors.
+        // 3. Stage 3: Reconciliation Pass (OCR-Based Order)
+        MarkingZoneService.reconcileLandmarksByOCRIndex(detectedLandmarks, sortedBlocks);
+
+        // 4. Transform Landmarks into Final Zones
         detectedLandmarks.sort((a, b) => {
             const pageDiff = (a.pageIndex || 0) - (b.pageIndex || 0);
             if (pageDiff !== 0) return pageDiff;
@@ -713,61 +725,56 @@ export class MarkingZoneService {
                     .replace(/^(\d+)[\.\)]\s+/, '$1 ')
                     .trim();
 
-                const details = SimilarityService.calculateHybridScore(normalizedCandidate, targetFull, false, true);
+                // --- STAGE 2: RANKING (NUMBER + TEXT) ---
+                // [RESTORE-SOPHISTICATED-DESIGN]: Pass isStrict=false to enable the Containment Boost.
+                // This ensures that fragmented question text matching results in a high score (0.85+).
+                const details = SimilarityService.calculateHybridScore(normalizedCandidate, targetFull, false, false);
 
-                let anchorBonus = 0;
+                // --- STAGE 1: IDENTITY FILTER ---
+                let passesFilter = true;
                 if (labelRaw.length > 0) {
-                    const exactRegex = new RegExp(`^${MarkingZoneService.escapeRegExp(labelRaw)}(?:[\\s\\.\\)]|$)`, 'i');
-                    const parentRegex = parentLabel ? new RegExp(`^${MarkingZoneService.escapeRegExp(parentLabel)}(?:[\\s\\.\\)]|$)`, 'i') : null;
+                    const isLabelMatch = MarkingZoneService.checkLabelMatch(normalizedCandidate, labelRaw);
 
-                    const isLabelMatch = exactRegex.test(normalizedCandidate) || MarkingZoneService.checkLabelMatch(normalizedCandidate, labelRaw);
+                    // Identify Gate: Base Number Lock
+                    const targetMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
+                    const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)(?:\s*[\(\[\]]?\s*)([a-z]+)?/i);
 
-                    if (isLabelMatch) {
-                        const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
-                        const pH_match = dims_match.height || 3508;
-                        const isFooter = blockY > (pH_match * 0.9);
-                        const isTotalLine = /total/i.test(normalizedCandidate);
+                    // [FILTER]: A block must LOOK like a potential header (Label Match) OR have a matching Number ID.
+                    // This prevents noise like "cm 2" from entering the similarity race.
+                    if (!isLabelMatch && !blockMatch) {
+                        passesFilter = false;
+                    }
+                    else if (targetMatch && blockMatch) {
+                        const targetNum = targetMatch[1];
+                        const targetSeq = (targetMatch[2] || "").toLowerCase();
+                        const blockNum = blockMatch[1].replace(/[Qq]/i, '');
+                        const blockSeq = (blockMatch[2] || "").toLowerCase();
 
-                        // We check the "Header Identity" vs "Footer Identity"
-                        if (isFooter || isTotalLine) {
-                            anchorBonus = -0.5; // Penalize footers
-                        } else {
-                            anchorBonus = 0.5; // Favor headers
+                        // 1. [BINARY NUMBER LOCK]: 1 vs 11 is absolute rejection.
+                        if (targetNum !== blockNum) {
+                            passesFilter = false;
+                        }
+                        // 2. Exact Sequence Conflict Lock (Prevents 5a vs 5b)
+                        // Note: Lax filter allows Naked Numbers (no blockSeq) to pass.
+                        else if (targetSeq && blockSeq && targetSeq !== blockSeq) {
+                            passesFilter = false;
                         }
                     }
                 }
 
-                let finalScore = details.total + anchorBonus;
+                if (!passesFilter) continue;
 
-                // 🎯 IDENTITY GATE:
-                if (labelRaw) {
-                    const targetMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
-                    // [FIX]: Robust regex to capture "2 (a)" or "2.a" as Identity
-                    const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)(?:\s*[\(\[\]]?\s*)([a-z]+)?/i);
+                let finalScore = details.total;
 
-                    if (targetMatch && blockMatch) {
-                        const targetNum = targetMatch[1];
-                        const targetSeq = (targetMatch[2] || "").toLowerCase();
+                // Apply directional penalties (Footers/Totals)
+                const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
+                const pH_match = dims_match.height || 3508;
+                const blockY = MarkingZoneService.getY(firstBlock);
+                const isFooter = blockY > (pH_match * 0.9);
+                const isTotalLine = /total/i.test(normalizedCandidate);
 
-                        const blockNum = blockMatch[1].replace(/[Qq]/i, '');
-                        const blockSeq = (blockMatch[2] || "").toLowerCase();
-
-                        // 1. [BINARY NUMBER LOCK]: 1 vs 11 is absolute 0 similarity.
-                        if (targetNum !== blockNum) {
-                            finalScore = 0;
-                        }
-                        // 2. Exact Sequence Lock (Prevents 5a vs 5b)
-                        else if (targetSeq && blockSeq && targetSeq !== blockSeq) {
-                            finalScore -= 1.0;
-                        }
-                    }
-
-                    // 🛡️ [ANTI-FALSE-POSITIVE]: Strong Penalty for "Number Match, Low Text Match"
-                    // Triggered if text similarity is extremely low (< 0.2) or score is weak.
-                    // This disqualifies marks indicators like (2) or (1) which have no textual content.
-                    if (finalScore > 0 && details.total < 0.20 && normalizedCandidate.length < 50) {
-                        finalScore -= 1.5; // Disqualify
-                    }
+                if (isFooter || isTotalLine) {
+                    finalScore -= 0.5; // Penalize non-question body areas
                 }
 
                 // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 80% similarity, stop.
@@ -780,6 +787,11 @@ export class MarkingZoneService {
                 if (finalScore > bestSimilarity) {
                     bestBlock = firstBlock;
                     bestSimilarity = finalScore;
+                }
+
+                // [DEBUG]: Trace scores for target question 2/2a
+                if (labelRaw === "2" || labelRaw === "2a" || blockTextRaw.includes("(2)")) {
+                    console.log(`   🕵️ [ANCHOR-TRACE] ${labelRaw}: "${blockTextRaw.substring(0, 30)}" | TotalScore: ${finalScore.toFixed(3)} (Sim: ${details.total.toFixed(2)})`);
                 }
             }
         }
@@ -851,6 +863,72 @@ export class MarkingZoneService {
                         origW: pW,
                         origH: pH
                     } as any);
+                }
+            }
+        });
+    }
+
+    /**
+     * Stage 3: Reconciliation Pass
+     * Ensures that Parent questions (e.g. 2) are not anchored AFTER their Children (e.g. 2a).
+     * If a sequence violation is found, snaps the parent back to the top of its group.
+     */
+    private static reconcileLandmarksByOCRIndex(landmarks: any[], sortedBlocks: any[]): void {
+        const blockToIndex = new Map<string, number>();
+        sortedBlocks.forEach((b, idx) => {
+            const id = b.id || b.globalBlockId;
+            if (id) blockToIndex.set(id, idx);
+        });
+
+        // Group landmarks by base question number
+        const groups = new Map<string, any[]>();
+        landmarks.forEach(l => {
+            const baseMatch = l.label.match(/^(\d+)/);
+            if (baseMatch) {
+                const base = baseMatch[1];
+                if (!groups.has(base)) groups.set(base, []);
+                groups.get(base)!.push(l);
+            }
+        });
+
+        groups.forEach((groupMembers, baseNum) => {
+            const parent = groupMembers.find(m => m.label === baseNum);
+            const children = groupMembers.filter(m => m.label !== baseNum);
+
+            if (parent && children.length > 0) {
+                // Find the physically EARLIEST child
+                let earliestChild = children[0];
+                let minChildIdx = blockToIndex.get(earliestChild.headerBlockId) ?? 999999;
+
+                for (let i = 1; i < children.length; i++) {
+                    const idx = blockToIndex.get(children[i].headerBlockId) ?? 999999;
+                    if (idx < minChildIdx) {
+                        minChildIdx = idx;
+                        earliestChild = children[i];
+                    }
+                }
+
+                const parentIdx = blockToIndex.get(parent.headerBlockId) ?? -1;
+
+                // VALIDATE: If Parent is on a later page OR is a later block index than its child -> Reset it.
+                const isParentLaterPage = parent.pageIndex > earliestChild.pageIndex;
+                const isParentLaterBlock = parent.pageIndex === earliestChild.pageIndex && parentIdx > minChildIdx;
+
+                if (isParentLaterPage || isParentLaterBlock) {
+                    console.log(` ⚖️ [RECONCILE] Parent "${parent.label}" was anchored at block index ${parentIdx} (P${parent.pageIndex}).`);
+                    console.log(` ⚖️ [RECONCILE] SNAPPING "${parent.label}" to match child "${earliestChild.label}" at block index ${minChildIdx} (P${earliestChild.pageIndex}).`);
+
+                    // Clean up the false positive flag on the old parent block
+                    const oldParentBlock = sortedBlocks[parentIdx];
+                    if (oldParentBlock) {
+                        oldParentBlock._isInstruction = false;
+                        oldParentBlock.isLikelyInstruction = false;
+                    }
+
+                    // Snap parent to child's anchor
+                    parent.startY = earliestChild.startY;
+                    parent.pageIndex = earliestChild.pageIndex;
+                    parent.headerBlockId = earliestChild.headerBlockId;
                 }
             }
         });

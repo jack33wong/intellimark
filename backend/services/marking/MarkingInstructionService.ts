@@ -246,40 +246,22 @@ export class MarkingInstructionService {
       // [DETETERMINISTIC-TAGGING]: Trust the Zone Detector's Header Identification
       if ((b as any)._isInstruction) isLikelyInstruction = true;
 
-      // 🛡️ [SIMILARITY-TAGGING]: If the block matches a significant part of the official question text.
-      // This catches intermediate instructions like geometric setup in Q19 or math variables in Q2.
-      if (!isLikelyInstruction && normalizedQText.length > 5) {
-        const blockNorm = normalize(content);
-        if (blockNorm.length >= 3) {
-          // 1. Direct Containment Check (Fast & Robust for short math identities)
-          if (normalizedQText.includes(blockNorm)) {
-            isLikelyInstruction = true;
-          } else {
-            // 2. Token-based overlap check
-            const blockTokens = content.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
-            const qTextTokens = (questionText || '').toLowerCase().split(/\s+/).filter(t => t.length >= 2);
-
-            if (blockTokens.length > 0) {
-              const overlap = blockTokens.filter(t => qTextTokens.includes(t)).length;
-              const overlapRatio = overlap / blockTokens.length;
-
-              if (overlapRatio > 0.6) {
-                isLikelyInstruction = true;
-                // console.log(` 🛡️ [AUTO-TAG] Tagged "${content}" as instruction (Overlap: ${(overlapRatio*100).toFixed(0)}%)`);
-              }
-            }
-          }
-        }
+      // [DEBUG]: Trace why "(2)" or math block matches
+      if (content.includes("(2)")) {
+        console.log(` 🕵️ [TAG-DEBUG] Block "(2)": isLikelyInstruction=${isLikelyInstruction} (FromZoneDetector=${(b as any)._isInstruction || false})`);
       }
 
-      // Clean up temp props
-      const { _y, _cleanText, ...cleanBlock } = b;
-      const finalBlock = { ...cleanBlock, text: content };
+      // Build final block
+      const { _y, _cleanText, ...finalBlock } = b;
 
       if (isLikelyInstruction) {
-        return { ...finalBlock, text: `${content} [PRINTED_INSTRUCTION]` };
+        const qLabel = (b as any)._associatedQuestion ? ` [Q${(b as any)._associatedQuestion}]` : '';
+        const taggedText = `${content} [PRINTED_INSTRUCTION${qLabel}]`;
+        const result = { ...finalBlock, text: taggedText };
+        console.log(` ✅ [TAG-RESULT] Q${baseQNum} ${result.id || (result as any).globalBlockId}: "${taggedText.substring(0, 50)}" (Reason: Zone)`);
+        return result;
       }
-      return finalBlock;
+      return { ...finalBlock, text: content };
     }).filter(b => b !== null);
   }
 
@@ -618,11 +600,19 @@ export class MarkingInstructionService {
     const formattedGeneralGuidance = this.formatGeneralMarkingGuidance(generalMarkingGuidance);
     const { AI_PROMPTS } = await import('../../config/prompts.js');
 
-    const currentQNum = inputQuestionNumber || normalizedScheme?.questionNumber || 'Unknown';
-    const baseQNum = String(currentQNum).replace(/[a-z]/i, '');
-    const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '', baseQNum);
 
     // ❌ REMOVED INJECTION LOGIC
+    const currentQNum = inputQuestionNumber || normalizedScheme?.questionNumber || 'Unknown';
+    const baseQNum = String(currentQNum).replace(/[a-z]/i, '');
+
+    // 🛡️ [COMPREHENSIVE-TAGGING]: Combine parent text with all sub-question texts
+    // This ensures math blocks in sub-questions (e.g. Q2b's A=2^2x3) are correctly tagged.
+    let combinedQuestionContent = questionText || '';
+    if (normalizedScheme?.subQuestionTexts) {
+      combinedQuestionContent += ' ' + Object.values(normalizedScheme.subQuestionTexts).filter(t => t).join(' ');
+    }
+
+    const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], combinedQuestionContent, baseQNum);
 
     const hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
@@ -645,7 +635,23 @@ export class MarkingInstructionService {
 
       liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
 
-      if (questionText) structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
+      // [FIX]: Smart Redundancy Suppression
+      // If the parent text is effectively a faked join (or identical to the first sub-question), skip it.
+      let isParentRedundant = false;
+      if (questionText && normalizedScheme.subQuestionTexts) {
+        const subTexts = Object.values(normalizedScheme.subQuestionTexts).join(' ').toLowerCase();
+        const parentNorm = questionText.toLowerCase().trim();
+        // If the parent text is exactly found within the joined sub-questions, it's likely a faked join from DB.
+        if (subTexts.includes(parentNorm) || parentNorm.length < 5) {
+          isParentRedundant = true;
+          // console.log(` 🛡️ [PROMPT-CLEAN] Suppressing redundant parent text for Q${baseQNum}`);
+        }
+      }
+
+      if (questionText && !isParentRedundant) {
+        structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
+      }
+
       if (normalizedScheme.subQuestionTexts) {
         Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
           const text = normalizedScheme.subQuestionTexts![key];

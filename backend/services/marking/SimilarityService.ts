@@ -69,7 +69,7 @@ export class SimilarityService {
         // 4. Weighting
         let total = 0;
 
-        // If we have a very strong keyword match, give it high weight
+        // [WEIGHT-SHIFT]: Text match is much more important than number match to prevent "Perfect Number" hijacks.
         if (semanticCheck && textScore > 0.4) {
             total = (textScore * 0.7) + (numericScore * 0.3);
         } else {

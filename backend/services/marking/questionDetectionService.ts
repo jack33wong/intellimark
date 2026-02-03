@@ -300,18 +300,19 @@ export class QuestionDetectionService {
         continue;
       }
 
-      // 2. CONSTRUCT AGGREGATE DB TEXT
-      let fullDbText = (qData.question_text || qData.text || qData.question || '') + ' ';
+      // 2. CONSTRUCT AGGREGATE DB TEXT (For Scoring Only)
+      const parentText = (qData.question_text || qData.text || qData.question || '').trim();
+      let searchAggregateText = parentText + ' ';
 
       const subQuestions = qData.sub_questions || qData.subQuestions || [];
       if (Array.isArray(subQuestions)) {
-        fullDbText += subQuestions.map((sq: any) =>
+        searchAggregateText += subQuestions.map((sq: any) =>
           (sq.text || sq.question || sq.question_text || sq.sub_question || '')
         ).join(' ');
       }
 
       // 3. COMPARE BLOCKS
-      const scoreDetails = this.calculateHybridScore(inputQueryText, fullDbText, hintQNum, qNum, null, isRescueMode);
+      const scoreDetails = this.calculateHybridScore(inputQueryText, searchAggregateText, hintQNum, qNum, null, isRescueMode);
 
       // 4. THRESHOLD
       if (scoreDetails.total > 0.15) {
@@ -320,7 +321,7 @@ export class QuestionDetectionService {
           questionData: qData,
           questionNumber: qNum,
           subQuestionNumber: '',
-          databaseText: fullDbText.trim(),
+          databaseText: parentText, // [FIX]: Return ONLY the parent text, not the search join.
           score: scoreDetails.total,
           scoreDetails
         });
