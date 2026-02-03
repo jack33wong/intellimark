@@ -46,6 +46,13 @@ export class AnnotationLinker {
         pageDimensionsMap?: Map<number, { width: number; height: number }>,
         allLabels: string[] = []
     ): any[] {
+        // [DEBUG-VETO-CHECK-FINAL]: What exactly does p0_ocr_0 look like here?
+        const debugBlock = allOcrBlocks.find(b => b.id === 'p0_ocr_0');
+        if (debugBlock) {
+            console.log(` 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Content: "${debugBlock.text}"`);
+            console.log(` 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Has Tag? ${(debugBlock.text || '').includes('PRINTED_INSTRUCTION')}`);
+        }
+
         return annotations.map(anno => {
             if (!(anno as any).ai_raw_status) (anno as any).ai_raw_status = anno.ocr_match_status;
 
@@ -55,7 +62,13 @@ export class AnnotationLinker {
             }
 
             const primaryPage = (anno as any).pageIndex ?? 0;
-            const zoneData = this.getEffectiveZone(anno.subQuestion, semanticZones, primaryPage);
+            // [FIX] Try exact match first ("a"), then composite match ("5a")
+            let zoneData = this.getEffectiveZone(anno.subQuestion, semanticZones, primaryPage);
+            if (!zoneData) {
+                const compositeKey = `${questionNumber}${anno.subQuestion}`;
+                zoneData = this.getEffectiveZone(compositeKey, semanticZones, primaryPage);
+            }
+
             let physicalId = anno.linked_ocr_id || anno.linkedOcrId;
 
             const lineId = anno.line_id || anno.lineId;
@@ -115,13 +128,16 @@ export class AnnotationLinker {
                     const blockTextNorm = this.normalizeForMatching(block.text);
                     let isClassificationText = false;
 
-                    const isInstructionTag = (block.text || '').includes('[PRINTED_INSTRUCTION]');
+                    let isInstructionTag = (block.text || '').includes('[PRINTED_INSTRUCTION');
                     let isQuestionLabel = false;
                     if (block.isHandwritten !== true) {
                         const cleanBlockText = (block.text || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
                         const trapLabels = allLabels.map(l => l.replace(/[^0-9a-zA-Z]/g, '').toLowerCase());
                         if (trapLabels.some(l => cleanBlockText === l || cleanBlockText === `q${l}`)) {
                             isQuestionLabel = true;
+                        }
+                        if (block.text && block.text.includes('[PRINTED_INSTRUCTION')) {
+                            isInstructionTag = true;
                         }
                     }
 
@@ -135,9 +151,10 @@ export class AnnotationLinker {
                     }
 
                     if (isHeader || isClassificationText || isQuestionLabel || isInstructionTag || isVetoed) {
-                        console.log(` 🛡️ [SEMANTIC-VETO] ${anno.subQuestion}: Block ${physicalId} ("${block.text}") rejected.`);
-                        anno.ocr_match_status = "UNMATCHED";
+                        console.log(` 🚫 [SEMANTIC-VETO] Q${anno.subQuestion}: Detaching from "${block.text}" (Tag=${isInstructionTag}, Veto=${isVetoed})`);
+                        physicalId = null;
                         anno.linked_ocr_id = null;
+                        anno.ocr_match_status = "UNMATCHED";
                     } else if (markY !== null) {
                         // --- IRON DOME VETOES ---
                         const inZone = ZoneUtils.isPointInZone(markY, zoneData, 0);
@@ -247,13 +264,10 @@ export class AnnotationLinker {
             }
 
             // Iron Dome Page Snap
-            const validZones = semanticZones[anno.subQuestion] || [];
+            const validZones = (semanticZones && semanticZones[anno.subQuestion]) || [];
             const validPageIndices = validZones.map((z: any) => z.pageIndex);
 
-            // 🛡️ [MULTI-PAGE FIX]: Only snap if the current page is NOT among the valid zones for this question.
-            // This prevents drawings on the first page of a multi-page question from being teleported to the last page.
-            if (validPageIndices.length > 0 && !validPageIndices.includes(anno.pageIndex ?? 1000)) { // Use 1000 to avoid matching 0 if undefined
-                // If we are on a truly wrong page, snap to the FIRST valid page of the question.
+            if (validPageIndices.length > 0 && !validPageIndices.includes(anno.pageIndex ?? 1000)) {
                 const targetZone = validZones.sort((a: any, b: any) => a.pageIndex - b.pageIndex)[0];
                 if (targetZone) {
                     const isVisual = (anno.ocr_match_status === 'VISUAL') ||
