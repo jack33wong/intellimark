@@ -124,6 +124,21 @@ export const enrichAnnotationsWithPositions = (
             status = "VISUAL";
         }
 
+        // 🛡️ [HIGH-PAGE PREFERENCE]: For Drawings/Visuals on multi-page questions.
+        // If AI didn't provide a specific ID, default to the HIGHEST valid page index.
+        if (status === "VISUAL" && !activePointer && semanticZones) {
+            const currentQuestionId = (questionId || "").replace(/\D/g, '');
+            const zones = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId);
+            if (zones.length > 1) {
+                const highestPage = Math.max(...zones.map(z => z.pageIndex));
+                if (pageIndex !== highestPage) {
+                    console.log(` 🚀 [HIGH-PAGE] Shifting VISUAL Q${anno.subQuestion} from P${pageIndex} -> P${highestPage} (Drawing preference)`);
+                    pageIndex = highestPage;
+                    (anno as any).pageIndex = highestPage;
+                }
+            }
+        }
+
         // =====================================================================
         // 🛡️ IRON DOME: SILO & PAGE ENFORCEMENT
         // =====================================================================
@@ -134,25 +149,28 @@ export const enrichAnnotationsWithPositions = (
             const annoLabel = normalize(anno.subQuestion);
             const sourceLabel = normalize(source.subQuestionLabel);
 
-            // 1. DETERMINE TRUTH PAGE
-            let trueZonePage = -1;
+            // 1. DETERMINE TRUTH PAGES
+            let trueZonePages: number[] = [];
             if (semanticZones) {
                 const currentQuestionId = (questionId || "").replace(/\D/g, '');
-                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones, currentQuestionId);
-                if (zone) trueZonePage = zone.pageIndex;
+                const zones = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId);
+                trueZonePages = zones.map(z => z.pageIndex);
             }
 
-            // �️ [SMART OVERRIDE]: If Visual + P1 Candidate exists, Trust P1 over Zone Detector
-            if ((status === 'VISUAL' || (anno.text || '').includes('B')) && trueZonePage === 0) {
+            // 🛡️ [SMART OVERRIDE]: If Visual + P1 Candidate exists, Trust P1 over Zone Detector (Legacy Rule)
+            if ((status === 'VISUAL' || (anno.text || '').includes('B')) && trueZonePages.includes(0)) {
                 const p1Candidate = stepsDataForMapping.find(s =>
                     s.subQuestionLabel && normalize(s.subQuestionLabel) === annoLabel && s.pageIndex === 1
                 );
-                if (p1Candidate) trueZonePage = 1;
+                if (p1Candidate && !trueZonePages.includes(1)) trueZonePages.push(1);
             }
 
             // 2. DETECT VIOLATION
             const labelMismatch = (annoLabel && sourceLabel && annoLabel !== sourceLabel && sourceLabel !== 'main');
-            const pageMismatch = (trueZonePage !== -1 && source.pageIndex !== undefined && source.pageIndex !== trueZonePage);
+
+            // A mismatch only exists if the found source is on a page that HAS NO ZONE for this question part.
+            // This enables drawings to span multiple pages correctly.
+            const pageMismatch = (trueZonePages.length > 0 && source.pageIndex !== undefined && !trueZonePages.includes(source.pageIndex));
 
             if (labelMismatch || pageMismatch) {
                 // 3. SEARCH REPLACEMENT
@@ -160,15 +178,15 @@ export const enrichAnnotationsWithPositions = (
                     s.subQuestionLabel && normalize(s.subQuestionLabel) === annoLabel
                 );
 
-                // Prioritize Correct Page
+                // Prioritize Correct Page (Try to find a candidate on ANY of the true zone pages)
                 if (pageMismatch) {
-                    const pageSpecific = candidates.filter(s => s.pageIndex === trueZonePage);
+                    const pageSpecific = candidates.filter(s => trueZonePages.includes(s.pageIndex));
                     if (pageSpecific.length > 0) candidates = pageSpecific;
                 }
 
                 if (candidates.length > 0) {
                     // Sort: Visuals first
-                    candidates.sort((a, b) => (a.text.includes('VISUAL') ? -1 : 1));
+                    candidates.sort((a, b) => (a.text?.includes('VISUAL') ? -1 : 1));
                     const best = candidates[0];
 
                     // 4. SNAP & UPDATE
@@ -207,9 +225,10 @@ export const enrichAnnotationsWithPositions = (
             }
         }
         else if (status === "VISUAL" && rawVisualPos) {
-            // [PATH B] VISUAL COORDS (Fallback)
+            // [PATH B] VISUAL COORDS (Page-Relative Design)
+            // Resolve relative to the PAGE as drawings are based on full-page images.
             rawBox = { ...rawVisualPos, unit: 'percentage' };
-            method = "VISUAL_COORDS";
+            method = "VISUAL_COORDS_PAGE_RELATIVE";
         }
         else {
             // [PATH C] UNMATCHED -> Use Handwriting (line_id)
@@ -269,30 +288,33 @@ export const enrichAnnotationsWithPositions = (
         // 4. STRICT ZONE CLAMPING (Universal)
         if (semanticZones) {
             const currentQuestionId = (questionId || "").replace(/\D/g, '');
-            const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones, currentQuestionId);
+            const allPossibleZones = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId);
+            const zone = allPossibleZones.find(z => z.pageIndex === pageIndex);
 
             // 🛡️ [FIX]: PAGE-AWARE CLAMPING
-            // Only clamp if the annotation is on the SAME PAGE as the defined zone.
-            // This prevents P0 constraints (bottom of page) from dragging down P1 marks (top of page).
-            if (zone && zone.pageIndex === pageIndex) {
-
+            // Only clamp if we found a zone that matches the annotation's physical page.
+            if (zone) {
                 const startY = zone.startY;
                 const endY = zone.endY;
 
+                const zoneHeight = (endY - startY);
+                // 🛡️ [WEAK CLAMP]: Use 5% of zone height, capped at 30px (Down from 10%/50px)
+                const SAFE_MARGIN = Math.min(30, Math.round(zoneHeight * 0.05));
+
                 const h = pixelBox.height || (dims.height * 0.015); // Default ~50px if missing
 
-                // Trust MATCHED status implicitly (Design rule)
+                // 🛡️ [USER-PROTECT]: DO NOT touch MATCHED marks. They must stay on the handwriting.
+                // Pullback ONLY applies to UNMATCHED, VISUAL, or FALLBACK marks.
                 if (status !== "MATCHED") {
-                    // FOOTPRINT-AWARE CHECK: If bottom edge breaches, pull back.
-                    if (pixelBox.y < startY) {
-                        pixelBox.y = startY + (dims.height * 0.10); // 10% Pull-back
+                    if (pixelBox.y < startY + SAFE_MARGIN) {
+                        pixelBox.y = startY + SAFE_MARGIN;
                     }
-                    if (endY && (pixelBox.y + h) > endY) {
-                        pixelBox.y = endY - h - (dims.height * 0.10); // 10% Pull-back + clear the object height
+                    if (endY && (pixelBox.y + h) > endY - SAFE_MARGIN) {
+                        pixelBox.y = Math.max(startY + SAFE_MARGIN, endY - h - SAFE_MARGIN);
                     }
                 }
-            } else if (zone && zone.pageIndex !== pageIndex) {
-                console.log(`   🔓 [ZONE-SKIP] Skipping clamping for Q${anno.subQuestion}. Anno P${pageIndex} != Zone P${zone.pageIndex}`);
+            } else if (allPossibleZones.length > 0) {
+                console.log(`   🔓 [ZONE-SKIP] Skipping clamping for Q${anno.subQuestion}. No zone for P${pageIndex} (Current pages: ${allPossibleZones.map(z => z.pageIndex).join(',')})`);
             }
         }
 

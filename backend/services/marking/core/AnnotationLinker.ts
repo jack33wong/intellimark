@@ -247,13 +247,18 @@ export class AnnotationLinker {
             }
 
             // Iron Dome Page Snap
-            const validZones = semanticZones[anno.subQuestion];
-            if (validZones) {
-                const targetZone = validZones.sort((a: any, b: any) => b.pageIndex - a.pageIndex)[0];
-                if (targetZone && (anno.pageIndex || 0) < targetZone.pageIndex) {
+            const validZones = semanticZones[anno.subQuestion] || [];
+            const validPageIndices = validZones.map((z: any) => z.pageIndex);
+
+            // 🛡️ [MULTI-PAGE FIX]: Only snap if the current page is NOT among the valid zones for this question.
+            // This prevents drawings on the first page of a multi-page question from being teleported to the last page.
+            if (validPageIndices.length > 0 && !validPageIndices.includes(anno.pageIndex ?? 1000)) { // Use 1000 to avoid matching 0 if undefined
+                // If we are on a truly wrong page, snap to the FIRST valid page of the question.
+                const targetZone = validZones.sort((a: any, b: any) => a.pageIndex - b.pageIndex)[0];
+                if (targetZone) {
                     const isVisual = (anno.ocr_match_status === 'VISUAL') ||
                         (anno.line_id === null) ||
-                        (anno.text && ['M1', 'A1', 'B1'].includes(anno.text));
+                        (anno.text && ['M1', 'A1', 'B1', 'B2', 'B3'].includes(anno.text));
 
                     if (isVisual) {
                         console.log(` 🧲 [IRON-DOME-PATCH] Snapping Q${anno.subQuestion} from P${anno.pageIndex} -> P${targetZone.pageIndex}`);

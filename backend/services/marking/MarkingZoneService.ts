@@ -133,7 +133,8 @@ export class MarkingZoneService {
         landmarks: any[],
         cleanDataForMarking: any,
         globalOffsetX: number,
-        globalOffsetY: number
+        globalOffsetY: number,
+        questionId?: string
     ): Array<{ text: string; position: { x: number; y: number; width: number; height: number } }> {
         let studentWorkLines: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }> = [];
 
@@ -190,11 +191,29 @@ export class MarkingZoneService {
             studentWorkLines = cleanDataForMarking.steps.map((step: any) => {
                 if (!step.box && !step.position) return null;
                 const pos = step.box || step.position;
+
+                // 🛡️ [MULTI-PAGE OFFSET FIX]: Don't use a single global offset for all pages.
+                // Find the zone for THIS specific page to determine the correct translation.
+                let stepOffsetX = globalOffsetX;
+                let stepOffsetY = globalOffsetY;
+
+                const stepPage = (step as any).pageIndex;
+                if (stepPage !== undefined && landmarks) {
+                    const currentQuestionId = (questionId || "").replace(/\D/g, '');
+                    const allZones = ZoneUtils.findAllMatchingZones(step.subQuestionLabel || "", (landmarks as any), currentQuestionId);
+                    const zoneForPage = allZones.find(z => z.pageIndex === stepPage);
+
+                    if (zoneForPage) {
+                        stepOffsetX = zoneForPage.x || 0;
+                        stepOffsetY = zoneForPage.startY || 0;
+                    }
+                }
+
                 return {
                     text: step.text,
                     position: {
-                        x: pos.x + globalOffsetX,
-                        y: pos.y + globalOffsetY,
+                        x: pos.x + stepOffsetX,
+                        y: pos.y + stepOffsetY,
                         width: pos.width,
                         height: pos.height
                     }

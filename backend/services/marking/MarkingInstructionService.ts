@@ -418,7 +418,8 @@ export class MarkingInstructionService {
         landmarks,
         cleanDataForMarking,
         offsetX,
-        offsetY
+        offsetY,
+        inputQuestionNumber
       );
 
       const positionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
