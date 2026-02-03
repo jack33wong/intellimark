@@ -283,7 +283,15 @@ export class MarkingZoneService {
 
         let minSearchY = 0;
         let currentSearchPage = sortedBlocks[0]?.pageIndex || 0;
-        const detectedLandmarks: Array<{ key: string; label: string; startY: number; pageIndex: number; x: number; headerBlockId?: string }> = [];
+        const detectedLandmarks: Array<{
+            key: string;
+            label: string;
+            startY: number;
+            pageIndex: number;
+            x: number;
+            headerBlockId?: string;
+            isFallback?: boolean;
+        }> = [];
 
         // 2. Find Zone STARTS (Sequential Logic)
         for (let qIdx = 0; qIdx < expectedQuestions.length; qIdx++) {
@@ -347,6 +355,26 @@ export class MarkingZoneService {
                 }
             } else {
                 console.log(`[ZONE-MISS] ⚠️ Question ${finalKey} could not be anchored. Exhausted search from P${currentSearchPage}@${minSearchY}`);
+
+                // [FALLBACK-LANDMARK]: If anchoring failed but we have a target page from the classifier,
+                // we create a placeholder landmark. This ensures Stage 3 Reconciliation can see
+                // where the question is expected to be and adjust it/reconcile it.
+                if (eq.targetPage !== undefined) {
+                    const fallbackPage = eq.targetPage;
+                    const pDims = pageDimensionsMap.get(fallbackPage) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
+                    const fallbackY = Math.floor((pDims.height || 3508) * 0.06);
+
+                    console.log(` 🛡️ [ZONE-FALLBACK] Creating placeholder for Q${finalKey} on P${fallbackPage}@${fallbackY}`);
+                    detectedLandmarks.push({
+                        key: finalKey,
+                        label: eq.label,
+                        startY: fallbackY,
+                        pageIndex: fallbackPage,
+                        x: 75,
+                        // Not anchored to a block, so no headerBlockId
+                        isFallback: true
+                    });
+                }
             }
         }
 
@@ -893,7 +921,7 @@ export class MarkingZoneService {
 
         groups.forEach((groupMembers, baseNum) => {
             const parent = groupMembers.find(m => m.label === baseNum);
-            const children = groupMembers.filter(m => m.label !== baseNum);
+            const children = groupMembers.filter(m => !m.label.match(/^\d+$/)); // Anything that isn't a pure number is a child
 
             if (parent && children.length > 0) {
                 // Find the physically EARLIEST child
