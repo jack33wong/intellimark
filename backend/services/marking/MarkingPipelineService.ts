@@ -1206,16 +1206,13 @@ export class MarkingPipelineService {
 
             // 2. LOGICAL SORT (Truth-First)
             pageSortMap.sort((a, b) => {
-                // Rule 1: Metadata First
+                // Rule 1: Metadata First (Cover pages usually at the start)
                 if (a.isMeta && !b.isMeta) return -1;
                 if (!a.isMeta && b.isMeta) return 1;
 
-                // Rule 2: Robust Weight (Covers a, b, i, ii, etc.)
-                if (Math.abs(a.minQ - b.minQ) > 0.00001) {
-                    return a.minQ - b.minQ;
-                }
-
-                // Rule 3: Non-Past Paper Fallback (User Intent)
+                // Rule 2: [PHYSICAL-TRUTH]: Follow original upload order.
+                // We no longer sort by question number (minQ) because it destroys 
+                // the physical relationship between blocks and fragments (e.g. Q11c on P0).
                 return a.originalIdx - b.originalIdx;
             });
 
