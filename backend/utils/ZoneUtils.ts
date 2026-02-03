@@ -35,7 +35,7 @@ export class ZoneUtils {
      * @param zoneMap - The master map of physical zones
      * @returns The best matching zone, or null if not found.
      */
-    static findMatchingZone(subQuestionLabel: string, zoneMap: SemanticZoneMap): SemanticZone | null {
+    static findMatchingZone(subQuestionLabel: string, zoneMap: SemanticZoneMap, questionPrefix?: string): SemanticZone | null {
         if (!subQuestionLabel || !zoneMap) return null;
 
         const target = this.normalizeLabel(subQuestionLabel); // e.g. "bi"
@@ -48,7 +48,14 @@ export class ZoneUtils {
         let bestMatchKey = "";
 
         for (const key of sortedKeys) {
-            const zoneKey = this.normalizeLabel(key); // e.g. "10bi"
+            const normalizedKey = this.normalizeLabel(key); // e.g. "10bi"
+
+            // 🛡️ [SCOPED MATCHING]: If we have a question prefix (e.g. "9"), 
+            // ensure the zone key starts with it (e.g. "9a").
+            // This prevents "a" from matching "11a" while marking Question 9.
+            if (questionPrefix && !normalizedKey.startsWith(questionPrefix)) {
+                continue;
+            }
 
             // MATCHING STRATEGY:
             // 1. Exact Match: "10bi" === "10bi"
@@ -57,9 +64,9 @@ export class ZoneUtils {
             // 3. Forward Match (Rare): "bi".startsWith("10bi") (Usually false, but good safety)
 
             if (
-                zoneKey === target ||
-                zoneKey.endsWith(target) ||
-                target.endsWith(zoneKey)
+                normalizedKey === target ||
+                normalizedKey.endsWith(target) ||
+                target.endsWith(normalizedKey)
             ) {
                 bestMatchKey = key;
                 break; // Stop at the first (longest) valid match

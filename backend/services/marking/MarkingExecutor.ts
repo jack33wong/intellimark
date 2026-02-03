@@ -222,10 +222,14 @@ export async function executeMarkingForQuestion(
 
     const combinedLookupBlocks = [
       ...stepsDataForMapping.map(s => {
+        // [FIX]: Trust the existing 'unit' property if set (especially for 'pixels' rescue blocks).
+        // Only default to 'percentage' if it's a classification block OR has a legacy _line_ ID without a unit.
         const isClassification = s.ocrSource === 'classification' || (s.line_id && s.line_id.includes('_line_'));
+        const detectedUnit = isClassification ? 'percentage' : 'pixels';
+
         return {
           ...s,
-          unit: isClassification ? 'percentage' : 'pixels',
+          unit: s.unit || detectedUnit,
           _source: isClassification ? 'CLASSIFICATION' : 'SEGMENTED'
         };
       }),

@@ -1,5 +1,6 @@
 import { SimilarityService } from './SimilarityService.js';
 import { CoordinateTransformationService } from './CoordinateTransformationService.js';
+import { ZoneUtils } from '../../utils/ZoneUtils.js';
 
 // 🛡️ [CRITICAL FIX] STRICT TEXT SANITIZER
 // Removes ALL numbers and symbols. Keeps ONLY words.
@@ -398,6 +399,14 @@ export class MarkingZoneService {
             // 🏗️ [ZERO MARGIN FIX]: Zone starts EXACTLY at the question text landmark.
             // No safety buffers, no forced "Top-of-Page" ownership.
             let finalStartY = current.startY;
+
+            // 🏗️ [Q1 TOP-FILL]: For the very first question in the paper,
+            // capture any instructions/preamble orphans at the top of the page.
+            if (i === 0 && finalStartY > vMargin) {
+                // console.log(`🏗️ [Q1-TOP-FILL] Stretching Q${current.key} from ${finalStartY} to ${vMargin} (Page ${current.pageIndex})`);
+                finalStartY = vMargin;
+            }
+
             pagesWithFirstLandmark.add(current.pageIndex); // Maintain for potential logic tracking elsewhere
 
             let endY = pH; // Start at full page, only apply margin if it stays at full page
@@ -475,7 +484,29 @@ export class MarkingZoneService {
                 // This captures graphs/tables (like Q11 CF Graph) without false positives on tight packing.
                 const hasLargeGapAbove = next.startY > (nextPH * 0.15);
 
-                if (hasLargeGapAbove) {
+                // 🏰 [ANTI-LEAK]: Forbid bridging if the question stopped early (Total marker found)
+                if (hasLargeGapAbove && !stoppedEarly) {
+
+                    // 🛡️ [NEXT-HEADER-PROTECTION]: Check if the "Next" question's label exists at the top-left of this page.
+                    // If it does, then Page X truly belongs to 'Next', and 'Current' shouldn't bridge into it.
+                    // This specifically fixes the "Q13 Drawer Grid" problem where Q12b leaks into P14.
+                    const topBlocks = sortedBlocks.filter(b =>
+                        b.pageIndex === next.pageIndex &&
+                        MarkingZoneService.getY(b) < (nextPH * 0.15) &&
+                        MarkingZoneService.getX(b) < (nextPDims.width * 0.3)
+                    );
+
+                    const nextLabelNormalized = ZoneUtils.normalizeLabel(next.label);
+                    const isNextLabelPresentAtTop = topBlocks.some(b => {
+                        const normalizedText = ZoneUtils.normalizeLabel(b.text || "");
+                        return normalizedText === nextLabelNormalized || normalizedText.startsWith(nextLabelNormalized);
+                    });
+
+                    if (isNextLabelPresentAtTop) {
+                        // console.log(` 🛡️ [BRIDGE-VETO] ${current.key} bridge to P${next.pageIndex} cancelled: Label "${next.label}" found in top-left.`);
+                        continue;
+                    }
+
                     // console.log(` 🌉 [BRIDGE-ACTIVATE] ${current.key} -> ${next.key} due to gap (NextY: ${next.startY} [15%= ${(nextPH * 0.15).toFixed(0)}])`);
 
                     // 1. Fill FULL gaps (e.g. P1 in P0->P2)
@@ -567,7 +598,8 @@ export class MarkingZoneService {
             // 🛡️ [GROUND-TRUTH START PROTECTION]:
             // If we know this question belongs on a specific page (from classifier),
             // don't let a stray "2" on Page 1 anchor Question 2.
-            if (targetCurrentPage !== undefined && blockPage < targetCurrentPage) {
+            // [RELAXED]: Added 1-page buffer to handle classifier indexing errors (e.g. Q1 on P0 vs P1).
+            if (targetCurrentPage !== undefined && blockPage < (targetCurrentPage - 1)) {
                 continue;
             }
 
@@ -674,10 +706,10 @@ export class MarkingZoneService {
                 accumulatedText += (currentBlock.text || "") + " ";
                 const blockTextRaw = accumulatedText.trim();
 
-                // [BUG-FIX]: Normalize notations (e.g., "2 (a) Write" -> "2 Write") so they match classification text
+                // [BUG-FIX]: Normalize notations (e.g., "2 (a) Write" -> "2a Write") so they match classification text
                 const normalizedCandidate = blockTextRaw
                     .replace(/^[\\(\[\]\s\-\.\)]+/, '') // [FIX]: Strip leading LaTeX/noise (e.g. \( 1 -> 1)
-                    .replace(/^(\d+)\s*\(?([a-z]|[0-9]{1,2}|[ivx]+)\)?\s+/, '$1 ')
+                    .replace(/^(\d+)\s*\(?([a-z]|[0-9]{1,2}|[ivx]+)\)?\s+/, '$1$2 ') // [FIX]: Concatenate 2(a) -> 2a
                     .replace(/^(\d+)[\.\)]\s+/, '$1 ')
                     .trim();
 
@@ -727,6 +759,13 @@ export class MarkingZoneService {
                         else if (targetSeq && blockSeq && targetSeq !== blockSeq) {
                             finalScore -= 1.0;
                         }
+                    }
+
+                    // 🛡️ [ANTI-FALSE-POSITIVE]: Penalty for high number match but low text match
+                    // This prevents anchoring to marks indicators like (2) instead of real headers 2(a).
+                    if (finalScore > 0.4 && details.total < 0.25) {
+                        // console.log(`[ZONE-PENALTY] Q${labelRaw} Num matched but Txt low (${details.total.toFixed(2)}). Candidate: "${normalizedCandidate.substring(0,30)}"`);
+                        finalScore -= 0.8;
                     }
                 }
 

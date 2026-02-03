@@ -115,10 +115,6 @@ export class AnnotationLinker {
                     const blockTextNorm = this.normalizeForMatching(block.text);
                     let isClassificationText = false;
 
-                    // [CLEANUP]: Removed Legacy "Text Containment" Loop.
-                    // We now rely 100% on the [PRINTED_INSTRUCTION] tag from Upstream.
-                    // This prevents false positives on short numbers (e.g. "2").
-
                     const isInstructionTag = (block.text || '').includes('[PRINTED_INSTRUCTION]');
                     let isQuestionLabel = false;
                     if (block.isHandwritten !== true) {
@@ -129,7 +125,16 @@ export class AnnotationLinker {
                         }
                     }
 
-                    if (isHeader || isClassificationText || isQuestionLabel || isInstructionTag) {
+                    let isVetoed = false;
+                    for (const vetoItem of vetoList) {
+                        if (vetoItem.length < 3) continue;
+                        if (vetoItem.includes(blockTextNorm) || blockTextNorm.includes(vetoItem)) {
+                            isVetoed = true;
+                            break;
+                        }
+                    }
+
+                    if (isHeader || isClassificationText || isQuestionLabel || isInstructionTag || isVetoed) {
                         console.log(` 🛡️ [SEMANTIC-VETO] ${anno.subQuestion}: Block ${physicalId} ("${block.text}") rejected.`);
                         anno.ocr_match_status = "UNMATCHED";
                         anno.linked_ocr_id = null;

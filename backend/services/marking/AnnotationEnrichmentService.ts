@@ -137,7 +137,8 @@ export const enrichAnnotationsWithPositions = (
             // 1. DETERMINE TRUTH PAGE
             let trueZonePage = -1;
             if (semanticZones) {
-                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
+                const currentQuestionId = (questionId || "").replace(/\D/g, '');
+                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones, currentQuestionId);
                 if (zone) trueZonePage = zone.pageIndex;
             }
 
@@ -230,7 +231,8 @@ export const enrichAnnotationsWithPositions = (
             // 🛡️ [SAFETY FIX]: Fallback to Zone Start if box is still missing
             if (!rawBox) {
                 console.warn(`[RENDERER-WARN] Annotation ${anno.subQuestion} is UNMATCHED and has no position. Falling back to zone start.`);
-                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
+                const currentQuestionId = (questionId || "").replace(/\D/g, '');
+                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones, currentQuestionId);
                 if (zone) {
                     rawBox = { x: zone.x || 0, y: zone.startY, width: 200, height: 40, unit: 'pixels' };
                     pageIndex = zone.pageIndex;
@@ -266,7 +268,8 @@ export const enrichAnnotationsWithPositions = (
 
         // 4. STRICT ZONE CLAMPING (Universal)
         if (semanticZones) {
-            const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones);
+            const currentQuestionId = (questionId || "").replace(/\D/g, '');
+            const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones, currentQuestionId);
 
             // 🛡️ [FIX]: PAGE-AWARE CLAMPING
             // Only clamp if the annotation is on the SAME PAGE as the defined zone.
