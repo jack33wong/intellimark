@@ -1204,8 +1204,28 @@ export class MarkingPipelineService {
                 }
             }
 
-            // 2. PHYSICAL SORT (Preserve Upload Order for Processing)
-            pageSortMap.sort((a, b) => a.originalIdx - b.originalIdx);
+            // 2. LOGICAL SORT (The Straightener) - [RESTORED]
+            // This ensures that the PDF is "straightened" into numerical order regardless of upload sequence.
+            pageSortMap.sort((a, b) => {
+                // Rule 1: Metadata First
+                if (a.isMeta && !b.isMeta) return -1;
+                if (!a.isMeta && b.isMeta) return 1;
+
+                // Rule 2: Logical Question Order
+                if (Math.abs(a.minQ - b.minQ) > 0.00001) {
+                    return a.minQ - b.minQ;
+                }
+
+                // Rule 3: Physical Tie-breaker (Original Upload Order)
+                return a.originalIdx - b.originalIdx;
+            });
+
+            console.log(`\n🚀 [SORT-RESULT] Final Logical Order:`);
+            console.log('-----------------------------------------------------------------------------------------');
+            pageSortMap.forEach((p, i) => {
+                console.log(`| Seq ${i} | OrigIdx ${p.originalIdx} | isMeta: ${p.isMeta} | minQ: ${p.minQ} |`);
+            });
+            console.log('-----------------------------------------------------------------------------------------');
 
             // 3. Create Index Lookups
             const oldToNewIndex = new Map<number, number>();
@@ -1242,7 +1262,7 @@ export class MarkingPipelineService {
             allPagesOcrData = reindexedOcrData;
             allClassificationResults = reindexedClassificationResults;
 
-            console.log(`✅ [PHYSICAL-MAP] Reconstructed. Logical processing index 0 -> Physical original index 0`);
+            console.log(`✅ [RE-INDEXING] Completed. Pages have been straightened into Logical Order.`);
 
             // 5. CRITICAL: Update Classification Result Indices to match New Integrity (DEEP FIX)
             // We must update questions, sub-questions, AND studentWorkLines to match the new Physical Index.

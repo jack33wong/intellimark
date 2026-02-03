@@ -684,10 +684,10 @@ export class MarkingZoneService {
                             }
                         }
 
-                        // 🛡️ [GROUND-TRUTH OVERRIDE]: 
-                        // If we have a Target Page for the NEXT question, don't let it stop us on an EARLY page.
-                        // This fixes the "Aggressive Stopper on P4 kills search for Q5 on P5" bug.
-                        if (targetNextPage !== undefined && blockPage < targetNextPage) {
+                        // 🛡️ [SCRAMBLE-AWARE STOPPER]: 
+                        // In scrambled uploads, the "Next Question" might physically appear BEFORE the current one.
+                        // We only allow a label to act as a stopper if it's on the page the AI Mapper expects.
+                        if (targetNextPage !== undefined && blockPage !== targetNextPage) {
                             isValidStopper = false;
                         }
 
