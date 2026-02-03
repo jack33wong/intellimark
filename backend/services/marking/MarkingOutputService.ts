@@ -34,14 +34,78 @@ export class MarkingOutputService {
         const startTime = Date.now();
         const isAuthenticated = !!options.userId;
 
+        // --- 0. Late-Stage Logical Sort (Presentation Phase) ---
+        // [GOD-SORT]: We process in Physical order, but we PRESENT in Logical order.
+        // Rule: Metadata -> Lowest Question Number -> Page Scan Order.
+        const presentationSortMap = standardizedPages.map((page, i) => {
+            const originalIdx = page.pageIndex; // Current physical index
+            const classification = allClassificationResults.find(c => c.pageIndex === originalIdx);
+            const isMeta = classification?.result?.category === 'metadata' || classification?.result?.category === 'frontPage';
+
+            // Find the lowest question sort value on this page to determine its logical rank
+            // Check semantic zones first, then fallback to result pageIndex
+            const pageQs = markingResults.filter(r =>
+                r.pageIndex === originalIdx ||
+                (r.semanticZones && Object.values(r.semanticZones).some((zones: any) => zones.some((z: any) => z.pageIndex === originalIdx)))
+            );
+
+            const minQSort = pageQs.length > 0
+                ? Math.min(...pageQs.map(qr => getQuestionSortValue(String(qr.questionNumber))))
+                : 999999;
+
+            return { originalIdx, isMeta, minQSort, page };
+        });
+
+        presentationSortMap.sort((a, b) => {
+            if (a.isMeta && !b.isMeta) return -1;
+            if (!a.isMeta && b.isMeta) return 1;
+            if (a.minQSort !== b.minQSort) return a.minQSort - b.minQSort;
+            return a.originalIdx - b.originalIdx;
+        });
+
+        const oldToNewIndex = new Map<number, number>();
+        const presentationPages = presentationSortMap.map((item, newIdx) => {
+            oldToNewIndex.set(item.originalIdx, newIdx);
+            return { ...item.page, pageIndex: newIdx };
+        });
+
+        // Update results and annotations to point to new presentation indices
+        const presentationResults = markingResults.map(r => {
+            const newR = { ...r };
+            if (r.pageIndex !== undefined) newR.pageIndex = oldToNewIndex.get(r.pageIndex) ?? r.pageIndex;
+
+            // Update semantic zones
+            if (r.semanticZones) {
+                const newZonesMap: any = {};
+                Object.entries(r.semanticZones).forEach(([label, zones]: [string, any]) => {
+                    newZonesMap[label] = zones.map((z: any) => ({
+                        ...z,
+                        pageIndex: oldToNewIndex.get(z.pageIndex) ?? z.pageIndex
+                    }));
+                });
+                (newR as any).semanticZones = newZonesMap;
+            }
+
+            // Update annotations
+            if (r.annotations) {
+                newR.annotations = r.annotations.map(a => ({
+                    ...a,
+                    pageIndex: oldToNewIndex.get(a.pageIndex) ?? a.pageIndex
+                }));
+            }
+            return newR;
+        });
+
+        // Swap globals for the rest of the renderer
+        const activePages = presentationPages;
+        const activeResults = presentationResults;
+
         // --- 1. Draw Annotations (Zones & Marks) ---
-        // We iterate through the standardizedPages in their CURRENT (Correct) order.
-        const annotatedImagesBase64 = await Promise.all(standardizedPages.map(async (page, i) => {
-            const pageIndex = page.pageIndex;
+        // We iterate through the presentationPages in their LOGICAL order.
+        const annotatedImagesBase64 = await Promise.all(activePages.map(async (page, i) => {
+            const pageIndex = page.pageIndex; // This is now the NEW logical index
             // Find questions that belong to this page index
-            // Note: markingResults have updated pageIndex from the Pipeline's Re-Indexing step
-            // Find questions that belong to this physical page (by primary anchor OR by having annotations on this page)
-            const pageQuestions = markingResults.filter(r =>
+            const pageQuestions = activeResults.filter(r =>
                 r.pageIndex === pageIndex ||
                 r.annotations?.some(a => a.pageIndex === pageIndex) ||
                 (r.sourceImageIndices && r.sourceImageIndices.includes(pageIndex))
@@ -94,8 +158,8 @@ export class MarkingOutputService {
             const imageDimensions = { width: page.width, height: page.height };
 
             // Calculate scores like before
-            const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(markingResults);
-            const questionFirstPageScores = calculateQuestionFirstPageScores(markingResults, classificationResult);
+            const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(activeResults);
+            const questionFirstPageScores = calculateQuestionFirstPageScores(activeResults, classificationResult);
 
             const scoresToDraw = questionFirstPageScores.get(pageIndex);
 
@@ -108,8 +172,8 @@ export class MarkingOutputService {
 
             // Deduplicate zones (copied from original)
             const uniqueZonesMap = new Map<string, any>();
-            console.log(`   🔍 [OUTPUT-SERVICE] Page ${pageIndex}: Processing ${markingResults.length} marking results for zones...`);
-            markingResults.forEach(qr => {
+            console.log(`   🔍 [OUTPUT-SERVICE] Page ${pageIndex}: Processing ${activeResults.length} marking results for zones...`);
+            activeResults.forEach(qr => {
                 if (qr.semanticZones) {
                     Object.entries(qr.semanticZones).forEach(([label, zones]: [string, any]) => {
                         zones.forEach((z: any) => {
@@ -161,7 +225,7 @@ export class MarkingOutputService {
         if (isAuthenticated) {
             // Upload in parallel, but keep the array index aligned
             annotatedImageLinks = await Promise.all(annotatedImagesBase64.map(async (imageData, i) => {
-                const page = standardizedPages[i];
+                const page = activePages[i];
                 // Generate a unique safe filename: "doc_p0_timestamp.png"
                 // This prevents the "Overwrite Bug" where identical filenames destroyed data
                 const safeName = (page.originalFileName || 'image').replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.[^/.]+$/, "");
@@ -193,7 +257,7 @@ export class MarkingOutputService {
         const finalAnnotatedOutput = annotatedImageLinks;
 
         // Map the sorted pages back to the structure expected by the frontend
-        const sortedStandardizedPages = standardizedPages.map((p, i) => ({
+        const sortedStandardizedPages = activePages.map((p, i) => ({
             ...p,
             // Ensure the frontend knows this is the definitive index
             pageIndex: i,
@@ -202,14 +266,14 @@ export class MarkingOutputService {
 
         // --- 4. Re-Align Question Results (Just in case) ---
         // Ensure question results are sorted by Question Number for the JSON data
-        const updatedQuestionResults = [...markingResults].sort((a, b) => {
+        const updatedQuestionResults = [...activeResults].sort((a, b) => {
             const numA = parseFloat(String(a.questionNumber).replace(/[^\d.]/g, '')) || 0;
             const numB = parseFloat(String(b.questionNumber).replace(/[^\d.]/g, '')) || 0;
             return numA - numB;
         });
 
         // --- 5. Calculate Totals (Recalculate for return) ---
-        const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(markingResults);
+        const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(activeResults);
 
         // ========================= 🔍 [DEBUG: CONTENT VERIFICATION] =========================
         // Map Page Index -> Sub-Content to prove exactly what lives on each page

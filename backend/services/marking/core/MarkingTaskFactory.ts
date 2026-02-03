@@ -231,7 +231,7 @@ export class MarkingTaskFactory {
         const distinctPages = [...new Set(allOcrBlocksGlobal.map(b => b.pageIndex || 0))].sort((a, b) => a - b);
         console.log(`[UPSTREAM-SORT] 🏆 Fed ${allOcrBlocksGlobal.length} blocks in order: ${distinctPages.join(' -> ')}`);
 
-        const globalExpectedQuestions: Array<{ label: string; text: string; targetPage?: number }> = [];
+        const globalExpectedQuestions: Array<{ label: string; text: string; targetPages?: number[] }> = [];
         for (const q of classificationResult.questions) {
             const basePrefix = getBaseQuestionNumber(String(q.questionNumber || ''));
             if (!basePrefix) continue;
@@ -244,24 +244,20 @@ export class MarkingTaskFactory {
                     partLabel = basePrefix;
                 }
                 if (!globalExpectedQuestions.some(eq => eq.label === partLabel)) {
+                    const sourceImageIndices = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
                     globalExpectedQuestions.push({
                         label: partLabel,
                         text: node.text || "",
-                        targetPage: q.sourceImageIndex ?? q.pageIndex ?? 0
+                        targetPages: sourceImageIndices
                     });
                 }
             });
         }
 
-        // 🏰 [PHYSICAL-TRUTH SORT]: Sort by Page Index, then Numerically (1, 2, 11c, 12, 11, 11a...)
-        // This ensures the Search Window (minPage) follows the physical paper flow
-        // rather than the logical nomenclature flow.
+        // 🏰 [RESTORED]: Sort Numerically (1, 2, 2a, 10, 11...)
+        // We MUST process questions in numerical order for the UI and AI context.
+        // This ensures the pipeline flow is logical (Q1 -> Q2 -> Q3).
         globalExpectedQuestions.sort((a, b) => {
-            const pageA = a.targetPage ?? 0;
-            const pageB = b.targetPage ?? 0;
-
-            if (pageA !== pageB) return pageA - pageB;
-
             const numA = parseInt(a.label.match(/\d+/)?.[0] || '0');
             const numB = parseInt(b.label.match(/\d+/)?.[0] || '0');
             if (numA !== numB) return numA - numB;

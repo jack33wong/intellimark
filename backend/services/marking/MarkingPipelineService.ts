@@ -1204,17 +1204,8 @@ export class MarkingPipelineService {
                 }
             }
 
-            // 2. LOGICAL SORT (Truth-First)
-            pageSortMap.sort((a, b) => {
-                // Rule 1: Metadata First (Cover pages usually at the start)
-                if (a.isMeta && !b.isMeta) return -1;
-                if (!a.isMeta && b.isMeta) return 1;
-
-                // Rule 2: [PHYSICAL-TRUTH]: Follow original upload order.
-                // We no longer sort by question number (minQ) because it destroys 
-                // the physical relationship between blocks and fragments (e.g. Q11c on P0).
-                return a.originalIdx - b.originalIdx;
-            });
+            // 2. PHYSICAL SORT (Preserve Upload Order for Processing)
+            pageSortMap.sort((a, b) => a.originalIdx - b.originalIdx);
 
             // 3. Create Index Lookups
             const oldToNewIndex = new Map<number, number>();
@@ -1251,7 +1242,7 @@ export class MarkingPipelineService {
             allPagesOcrData = reindexedOcrData;
             allClassificationResults = reindexedClassificationResults;
 
-            console.log(`✅ [RE-INDEXING] Completed. Physical Page Index 0 is now: ${standardizedPages[0].originalFileName}`);
+            console.log(`✅ [PHYSICAL-MAP] Reconstructed. Logical processing index 0 -> Physical original index 0`);
 
             // 5. CRITICAL: Update Classification Result Indices to match New Integrity (DEEP FIX)
             // We must update questions, sub-questions, AND studentWorkLines to match the new Physical Index.

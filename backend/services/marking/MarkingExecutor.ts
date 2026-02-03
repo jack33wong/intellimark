@@ -328,7 +328,7 @@ export async function executeMarkingForQuestion(
             anno.bbox[1] = (anno.visual_position.y / 100) * dims.height;
           }
         } else {
-          console.log(` ✅ [ZONE-OK] Q${anno.subQuestion}: Footprint at Y=${rawY.toFixed(1)}% is safe within ${startYPercent.toFixed(1)}-${endYPercent.toFixed(1)}%`);
+          console.log(` ✅ [ZONE-OK] Q${anno.subQuestion}: Footprint at Y=${rawY?.toFixed(1) || '?'}% is safe within ${startYPercent?.toFixed(1) || '?'}-${endYPercent?.toFixed(1) || '?'}%`);
         }
       }
     });

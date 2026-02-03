@@ -259,7 +259,7 @@ export class MarkingZoneService {
     public static detectSemanticZones(
         rawBlocks: any[],
         pageDimensionsMap: Map<number, { width: number; height: number }>,
-        expectedQuestions?: Array<{ label: string; text: string; targetPage?: number }>,
+        expectedQuestions?: Array<{ label: string; text: string; targetPages?: number[] }>,
         nextQuestionText?: string,
         questionId?: string
     ) {
@@ -304,8 +304,8 @@ export class MarkingZoneService {
                 `Start-${finalKey}`,
                 pageDimensionsMap, // Pass the map
                 nextEq?.label,
-                nextEq?.targetPage,
-                eq.targetPage,
+                nextEq?.targetPages ? nextEq.targetPages[0] : undefined,
+                eq.targetPages,
                 nextEq?.text // [FIX]: Pass the Expected Text for Stopper Verification
             );
 
@@ -584,7 +584,7 @@ export class MarkingZoneService {
         pageDimensionsMap: Map<number, { width: number; height: number }>,
         nextQuestionLabel?: string,
         targetNextPage?: number,
-        targetCurrentPage?: number,
+        targetCurrentPages?: number[],
         nextQuestionText?: string // [FIX]: New Argument
     ): { block: any, similarity: number } | null {
 
@@ -599,33 +599,30 @@ export class MarkingZoneService {
         let bestBlock: any = null;
         let bestSimilarity = 0;
 
+        if (targetCurrentPages && targetCurrentPages.length > 0) {
+            console.log(`   📂 [BUCKET-DEBUG] ${labelRaw} Whitelist: [${targetCurrentPages.join(', ')}]`);
+        }
+
         for (let i = 0; i < sortedBlocks.length; i++) {
             const firstBlock = sortedBlocks[i];
             const blockY = MarkingZoneService.getY(firstBlock);
             const blockPage = firstBlock.pageIndex || 0;
 
-            if (blockPage < minPage) continue;
-            if (blockPage === minPage && blockY < minY) continue;
-
-            // 🛡️ [GROUND-TRUTH START PROTECTION]:
-            // If we know this question belongs on a specific page (from classifier),
-            // don't let a stray "2" on Page 1 anchor Question 2.
-            // [RELAXED]: Added 1-page buffer to handle classifier indexing errors (e.g. Q1 on P0 vs P1).
-            if (targetCurrentPage !== undefined && blockPage < (targetCurrentPage - 1)) {
-                continue;
+            // 🛡️ [BUCKET-STRICT WHITELIST]:
+            // If the AI Mapper has identified specific pages for this question,
+            // we ONLY allow anchoring on those pages. This stops jumping to the template!
+            // 🚀 [CURSOR OVERRIDE]: Whitelisted pages ignore the previous question's cursor.
+            if (targetCurrentPages && targetCurrentPages.length > 0) {
+                if (!targetCurrentPages.includes(blockPage)) {
+                    continue;
+                }
+            } else {
+                // Only enforce sequential order if there is no bucket whitelist from the AI.
+                if (blockPage < minPage) continue;
+                if (blockPage === minPage && blockY < minY) continue;
             }
 
-            // 🛡️ [WARP DRIVE PROTECTION]: Prevent jumping too far ahead
-            // RELAXED (Bible 1.2): If this is the target page from the Truth stage, we allow the anchor 
-            // even if it's a large jump from the previous question.
-            const pageDiff = blockPage - minPage;
-            const isTargetPage = targetCurrentPage !== undefined && blockPage === targetCurrentPage;
-
-            if (pageDiff > 2 && bestSimilarity < 0.95 && !isTargetPage) {
-                // If we hit a very high confidence match even far ahead, we might allow it,
-                // but for sub-questions or fragmented text, we stay strict.
-                continue;
-            }
+            // [JUMP LOGIC REMOVED PER USER REQUEST]
 
             // 🛡️ [SEQUENTIAL TERMINATOR]: 
             // If we encounter the NEXT question while looking for THIS one, we MUST stop.
@@ -777,8 +774,10 @@ export class MarkingZoneService {
                     finalScore -= 0.5; // Penalize non-question body areas
                 }
 
-                // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 80% similarity, stop.
-                if (details.total > 0.8 && finalScore > bestSimilarity) {
+                // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 85% similarity, stop.
+                // [STEP 3]: If a mapper whitelist is present, we REQUIRE 0.85 to anchor.
+                const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.85 : 0.7;
+                if (finalScore >= similarityThreshold && finalScore > bestSimilarity) {
                     bestBlock = firstBlock;
                     bestSimilarity = finalScore;
                     break;
@@ -936,16 +935,28 @@ export class MarkingZoneService {
 
     private static checkLabelMatch(text: string, label: string): boolean {
         if (!text || !label) return false;
-        const cleanText = text.toLowerCase().trim();
-        const cleanLabel = label.toLowerCase().trim();
 
-        const escapedLabel = MarkingZoneService.escapeRegExp(cleanLabel);
-        const patterns = [
-            // [FIX]: Handle LaTeX delimiters like "\( 1" or "[1" or "1."
-            new RegExp(`^[\\\\\\(\\[\\]\\s\\-\\.]*${escapedLabel}(?:[\\s\\.\\)\\],\\-]|$|\\\\)`, 'i'),
-            new RegExp(`^Question\\s+${escapedLabel}`, 'i')
-        ];
+        // [CLEANING]: Standardize for cross-OCR matching
+        const cleanT = text.replace(/\\+|\/+|\[|\]|\(|\)|\s+|\./g, '').toLowerCase();
+        const cleanL = label.toLowerCase();
 
-        return patterns.some(p => p.test(cleanText));
+        const match = label.match(/^(\d+)([a-z]+)?/);
+        const num = match ? match[1] : label;
+        const sub = match ? match[2] : null;
+
+        if (sub) {
+            // Patterns for sub-questions like "5b"
+            const combined = new RegExp(`^${num}${sub}`, 'i');   // "5b"
+            const divided = new RegExp(`^${num}.*${sub}`, 'i');   // "5 (b)"
+            const naked = new RegExp(`^[\\s\\(\\.]*${sub}[\\s\\.\\)]`, 'i'); // "(b)" or "b." - NAKED MATCH
+
+            return combined.test(cleanT) || divided.test(text.toLowerCase()) || naked.test(text.toLowerCase());
+        }
+
+        // Patterns for main questions like "5"
+        const mainPattern = new RegExp(`^[\\\\\\(\\[\\s]*${num}(?:[\\s\\.\\)\\],\\-]|$|\\\\)`, 'i');
+        const explicitPattern = new RegExp(`^Question\\s+${num}`, 'i');
+
+        return mainPattern.test(text.toLowerCase()) || explicitPattern.test(text.toLowerCase());
     }
 }
