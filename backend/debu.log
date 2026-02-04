@@ -2,3 +2,13 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
+✅ Permissions configuration loaded from .env.local:
+   - Analysis Plans: pro, ultra
+   - Model Selection Plans: pro, ultra
+✅ Credit configuration loaded from .env.local (FAIL-FAST mode):
+   - Conversion Rate: $0.01 per credit
+   - Free Plan: 10 credits/month
+   - Pro Plan: 200 credits/month
+   - Ultra Plan: 600 credits/month
+💳 Stripe initialized in TEST mode
+📚 Swagger UI available at /api-docs

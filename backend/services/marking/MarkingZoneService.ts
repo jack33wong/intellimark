@@ -546,6 +546,18 @@ export class MarkingZoneService {
                         continue;
                     }
 
+                    // 🛡️ [PARENT-NUMBER-GUARD]: 
+                    // Only allow bridging if we are continuing the SAME question group (e.g. 2b -> 2c).
+                    // If the parent number changes (e.g. 2b -> 3), we MUST NOT bridge, because the gap 
+                    // likely belongs to the new question's preamble (e.g. Q3 Intro Text).
+                    const currentParent = current.key.match(/^\d+/)?.[0];
+                    const nextParent = next.key.match(/^\d+/)?.[0];
+
+                    if (currentParent && nextParent && currentParent !== nextParent) {
+                        // console.log(` 🛡️ [BRIDGE-VETO] ${current.key} (Child of ${currentParent}) -> ${next.key} (Child of ${nextParent}) cancelled. Mismatch Parent.`);
+                        continue;
+                    }
+
                     // console.log(` 🌉 [BRIDGE-ACTIVATE] ${current.key} -> ${next.key} due to gap (NextY: ${next.startY} [15%= ${(nextPH * 0.15).toFixed(0)}])`);
 
                     // 1. Fill FULL gaps (e.g. P1 in P0->P2)
