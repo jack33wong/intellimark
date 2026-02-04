@@ -1,0 +1,7 @@
+# Strict Protocol: Diagnosis-First
+
+1.  **Diagnosis First**: Never suggest or implement a fix until the root cause is proven using logs or code analysis.
+2.  **No Premature Execution**: Never modify code files (`replace_file_content`, `multi_replace_file_content`, etc.) until the user provides the specific command **"execute"** for a proposed change.
+3.  **Proposal Phase**: Always present a detailed discovery and a specific code proposal (showing exactly what will be changed) before asking for permission to execute.
+4.  **Log Verification**: Always cross-reference multiple log points (e.g., raw JSON vs. processed matching targets) to ensure the diagnosis is based on factual data, not assumptions.
+5.  **Observer Mode**: Use `view_file`, `grep_search`, and `run_command` to gain full context before making any conclusions.

@@ -348,6 +348,7 @@ export class MarkingInstructionService {
     schemeTextForPrompt?: string;
     promptQuestionText?: string; // NEW: Expose the exact prompt text
     overallPerformanceSummary?: string;
+    taggedOcrBlocks?: any[];
   }> {
     const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker, allowedPageUnion } = inputs;
 
@@ -504,7 +505,7 @@ export class MarkingInstructionService {
       const immutableAnnotations = MarkingInstructionService.processAnnotationsImmutable(
         rawAiAnnotations,
         sourceImageIndices || [0],
-        rawOcrBlocks,
+        annotationData.taggedOcrBlocks || rawOcrBlocks,
         studentWorkLines
       );
 
@@ -542,7 +543,8 @@ export class MarkingInstructionService {
         promptQuestionText: annotationData.promptQuestionText, // [FIX] Clean pass-through
         promptMarkingScheme: annotationData.promptMarkingScheme, // [FIX] Clean pass-through
         globalOffsetX: offsetX,
-        globalOffsetY: offsetY
+        globalOffsetY: offsetY,
+        taggedOcrBlocks: annotationData.taggedOcrBlocks // [FIX] Propagate tagged blocks to Executor
       };
     } catch (error) {
       console.error('❌ Marking flow failed:', error);
@@ -596,7 +598,7 @@ export class MarkingInstructionService {
     tracker?: any,
     cleanStudentWorkSteps?: any[],
     landmarks?: Array<{ label: string; y: number }>
-  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string; promptQuestionText?: string }> {
+  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string; promptQuestionText?: string; taggedOcrBlocks?: any[] }> {
     const formattedOcrText = MarkingPromptService.formatOcrTextForPrompt(ocrText);
     const formattedGeneralGuidance = this.formatGeneralMarkingGuidance(generalMarkingGuidance);
     const { AI_PROMPTS } = await import('../../config/prompts.js');
@@ -606,14 +608,7 @@ export class MarkingInstructionService {
     const currentQNum = inputQuestionNumber || normalizedScheme?.questionNumber || 'Unknown';
     const baseQNum = String(currentQNum).replace(/[a-z]/i, '');
 
-    // 🛡️ [COMPREHENSIVE-TAGGING]: Combine parent text with all sub-question texts
-    // This ensures math blocks in sub-questions (e.g. Q2b's A=2^2x3) are correctly tagged.
-    let combinedQuestionContent = questionText || '';
-    if (normalizedScheme?.subQuestionTexts) {
-      combinedQuestionContent += ' ' + Object.values(normalizedScheme.subQuestionTexts).filter(t => t).join(' ');
-    }
-
-    const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], combinedQuestionContent, baseQNum);
+    const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '', baseQNum);
 
     const hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
@@ -636,20 +631,7 @@ export class MarkingInstructionService {
 
       liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
 
-      // [FIX]: Smart Redundancy Suppression
-      // If the parent text is effectively a faked join (or identical to the first sub-question), skip it.
-      let isParentRedundant = false;
-      if (questionText && normalizedScheme.subQuestionTexts) {
-        const subTexts = Object.values(normalizedScheme.subQuestionTexts).join(' ').toLowerCase();
-        const parentNorm = questionText.toLowerCase().trim();
-        // If the parent text is exactly found within the joined sub-questions, it's likely a faked join from DB.
-        if (subTexts.includes(parentNorm) || parentNorm.length < 5) {
-          isParentRedundant = true;
-          // console.log(` 🛡️ [PROMPT-CLEAN] Suppressing redundant parent text for Q${baseQNum}`);
-        }
-      }
-
-      if (questionText && !isParentRedundant) {
+      if (questionText) {
         structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
       }
 
@@ -755,7 +737,8 @@ export class MarkingInstructionService {
       promptMarkingScheme: schemeText,
       studentScore: parsedResponse.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' },
       visualObservation: parsedResponse.visualObservation,
-      promptQuestionText: finalPromptText
+      promptQuestionText: finalPromptText,
+      taggedOcrBlocks: sanitizedBlocks // [FIX] Propagate tagged blocks upstream
     };
 
     return resultObj;

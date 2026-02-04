@@ -287,6 +287,7 @@ export class MarkingZoneService {
 
         if (!rawBlocks || !expectedQuestions) return zones;
 
+
         // 1. Sort blocks strictly by Page and then Y
         const sortedBlocks = [...rawBlocks].sort((a, b) => {
             const pageIdA = a.pageId || `idx_${a.pageIndex || 0}`;
@@ -303,6 +304,7 @@ export class MarkingZoneService {
         let minSearchY = 0;
         let currentSearchPage = sortedBlocks[0]?.pageIndex || 0;
         const detectedLandmarks: Array<{ key: string; label: string; startY: number; pageIndex: number; x: number; headerBlockId?: string }> = [];
+        const claimedBlockIds = new Set<string>();
 
         // 2. Find Zone STARTS (Sequential Logic)
         for (let qIdx = 0; qIdx < expectedQuestions.length; qIdx++) {
@@ -325,7 +327,8 @@ export class MarkingZoneService {
                 nextEq?.label,
                 nextEq?.targetPages ? nextEq.targetPages[0] : undefined,
                 eq.targetPages,
-                nextEq?.text // [FIX]: Pass the Expected Text for Stopper Verification
+                nextEq?.text, // [FIX]: Pass the Expected Text for Stopper Verification
+                claimedBlockIds
             );
 
             if (match) {
@@ -334,6 +337,11 @@ export class MarkingZoneService {
                 match.block._isInstruction = true;
                 match.block._associatedQuestion = finalKey;
                 console.log(` 💎 [ZONE-TAG] ${finalKey} anchored on "${match.block.text.substring(0, 50)}" (P${match.block.pageIndex})`);
+
+                // Mark this block as claimed so children/siblings don't re-anchor on it
+                if (match.block.id) {
+                    claimedBlockIds.add(match.block.id);
+                }
 
                 const blockY = MarkingZoneService.getY(match.block);
                 const pDims = pageDimensionsMap.get(match.block.pageIndex) || { width: 2480, height: 3508 };
@@ -604,7 +612,8 @@ export class MarkingZoneService {
         nextQuestionLabel?: string,
         targetNextPage?: number,
         targetCurrentPages?: number[],
-        nextQuestionText?: string // [FIX]: New Argument
+        nextQuestionText?: string, // [FIX]: New Argument
+        claimedBlockIds?: Set<string>
     ): { block: any, similarity: number } | null {
 
         const label = labelRaw.trim();
@@ -624,6 +633,12 @@ export class MarkingZoneService {
 
         for (let i = 0; i < sortedBlocks.length; i++) {
             const firstBlock = sortedBlocks[i];
+
+            // [FIX]: If this block has already been claimed by a previous question, we cannot start a new window here.
+            if (claimedBlockIds && claimedBlockIds.has(firstBlock.id)) {
+                continue;
+            }
+
             const blockY = MarkingZoneService.getY(firstBlock);
             const blockPage = firstBlock.pageIndex || 0;
 
@@ -731,6 +746,11 @@ export class MarkingZoneService {
                 const currentBlock = sortedBlocks[j];
                 if (currentBlock.pageIndex !== blockPage) break;
 
+                // [FIX]: Exclusive Window. If the window passes through a block claimed by another question, we MUST stop.
+                if (j > i && claimedBlockIds && claimedBlockIds.has(currentBlock.id)) {
+                    break;
+                }
+
                 accumulatedText += (currentBlock.text || "") + " ";
                 const blockTextRaw = accumulatedText.trim();
 
@@ -753,63 +773,75 @@ export class MarkingZoneService {
 
                     // Identify Gate: Base Number Lock
                     const targetMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
-                    const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)(?:\s*[\(\[\]]?\s*)([a-z]+)?/i);
+                    if (labelRaw.length > 0 && targetMatch) {
+                        const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)(?:\s*[\(\[\]]?\s*)([a-z]+)?/i);
 
-                    // [FILTER]: A block must LOOK like a potential header (Label Match) OR have a matching Number ID.
-                    // This prevents noise like "cm 2" from entering the similarity race.
-                    if (!isLabelMatch && !blockMatch) {
-                        passesFilter = false;
-                    }
-                    else if (targetMatch && blockMatch) {
-                        const targetNum = targetMatch[1];
-                        const targetSeq = (targetMatch[2] || "").toLowerCase();
-                        const blockNum = blockMatch[1].replace(/[Qq]/i, '');
-                        const blockSeq = (blockMatch[2] || "").toLowerCase();
+                        let wouldBeFiltered = false;
 
-                        // 1. [BINARY NUMBER LOCK]: 1 vs 11 is absolute rejection.
-                        if (targetNum !== blockNum) {
-                            passesFilter = false;
+                        // [FILTER]: A block must LOOK like a potential header (Label Match) OR have a matching Number ID.
+                        if (!isLabelMatch && !blockMatch) {
+                            wouldBeFiltered = true;
                         }
-                        // 2. Exact Sequence Conflict Lock (Prevents 5a vs 5b)
-                        // Note: Lax filter allows Naked Numbers (no blockSeq) to pass.
-                        else if (targetSeq && blockSeq && targetSeq !== blockSeq) {
-                            passesFilter = false;
+                        else if (targetMatch && blockMatch) {
+                            const targetNum = targetMatch[1];
+                            const targetSeq = (targetMatch[2] || "").toLowerCase();
+                            const blockNum = blockMatch[1].replace(/[Qq]/i, '');
+                            const blockSeq = (blockMatch[2] || "").toLowerCase();
+
+                            // 1. [BINARY NUMBER LOCK]: 1 vs 11 is absolute rejection.
+                            if (targetNum !== blockNum) {
+                                wouldBeFiltered = true;
+                            }
+                            // 2. Exact Sequence Conflict Lock (Prevents 5a vs 5b)
+                            else if (targetSeq && blockSeq && targetSeq !== blockSeq) {
+                                wouldBeFiltered = true;
+                            }
+                        }
+
+                        // 🛡️ [NAKED SIBLING PERMIT]:
+                        // Skip filter if isLabelMatch=true and blockNum is missing.
+                        if (targetMatch && !blockMatch && isLabelMatch) {
+                            wouldBeFiltered = false;
+                        }
+
+                        if (wouldBeFiltered) {
+                            // 🚪 [SOFT-DISABLE]: Identity Gate no longer kills the search.
+                            passesFilter = true;
                         }
                     }
-                }
 
-                if (!passesFilter) continue;
+                    // 🚪 [LABEL BOOST]: If we found an exact label match, give a massive similarity boost.
+                    let finalScore = details.total;
+                    if (isLabelMatch) {
+                        finalScore += 0.5;
+                    }
 
-                let finalScore = details.total;
+                    // Apply directional penalties (Footers/Totals)
+                    const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
+                    const pH_match = dims_match.height || 3508;
+                    const blockY = MarkingZoneService.getY(firstBlock);
+                    const isFooter = blockY > (pH_match * 0.9);
+                    const isTotalLine = /total/i.test(normalizedCandidate);
 
-                // Apply directional penalties (Footers/Totals)
-                const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
-                const pH_match = dims_match.height || 3508;
-                const blockY = MarkingZoneService.getY(firstBlock);
-                const isFooter = blockY > (pH_match * 0.9);
-                const isTotalLine = /total/i.test(normalizedCandidate);
+                    // 🛡️ [FOOTER-GRACE]: If we are whitelisted on this page, relax the footer penalty.
+                    // This prevents the last question on a page from being rejected as "footer noise".
+                    if ((isFooter || isTotalLine) && (!targetCurrentPages || targetCurrentPages.length === 0)) {
+                        finalScore -= 0.5; // Penalize non-question body areas
+                    }
 
-                if (isFooter || isTotalLine) {
-                    finalScore -= 0.5; // Penalize non-question body areas
-                }
+                    // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 85% similarity, stop.
+                    // [STEP 3]: If a mapper whitelist is present, we are more lenient (0.7).
+                    const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.7 : 0.85;
+                    if (finalScore >= similarityThreshold && finalScore > bestSimilarity) {
+                        bestBlock = firstBlock;
+                        bestSimilarity = finalScore;
+                        break;
+                    }
 
-                // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 85% similarity, stop.
-                // [STEP 3]: If a mapper whitelist is present, we REQUIRE 0.85 to anchor.
-                const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.85 : 0.7;
-                if (finalScore >= similarityThreshold && finalScore > bestSimilarity) {
-                    bestBlock = firstBlock;
-                    bestSimilarity = finalScore;
-                    break;
-                }
-
-                if (finalScore > bestSimilarity) {
-                    bestBlock = firstBlock;
-                    bestSimilarity = finalScore;
-                }
-
-                // [DEBUG]: Trace scores for target question 2/2a
-                if (labelRaw === "2" || labelRaw === "2a" || blockTextRaw.includes("(2)")) {
-                    console.log(`   🕵️ [ANCHOR-TRACE] ${labelRaw}: "${blockTextRaw.substring(0, 30)}" | TotalScore: ${finalScore.toFixed(3)} (Sim: ${details.total.toFixed(2)})`);
+                    if (finalScore > bestSimilarity) {
+                        bestBlock = firstBlock;
+                        bestSimilarity = finalScore;
+                    }
                 }
             }
         }
@@ -818,11 +850,6 @@ export class MarkingZoneService {
         const dynamicThreshold = targetFull.length < 15 ? 0.7 : 0.45;
         if (bestBlock && bestSimilarity > dynamicThreshold) {
             return { block: bestBlock, similarity: bestSimilarity };
-        }
-
-        if (labelRaw === "2" || labelRaw === "2a") {
-            console.log(`[ZONE-FAIL] ❌ Match failed for ${labelRaw}. Best candidate: "${bestBlock?.text?.substring(0, 50)}..." Score: ${bestSimilarity?.toFixed(3)} (Threshold: ${dynamicThreshold})`);
-            console.log(`[ZONE-FAIL] 🎯 Target was: "${targetFull.substring(0, 50)}..."`);
         }
         return null;
     }
@@ -854,9 +881,11 @@ export class MarkingZoneService {
         pageDimensionsMap: Map<number, { width: number; height: number }>
     ): void {
         stepsDataForMapping.forEach(step => {
-            if ((step as any).ocrSource === 'system-injection') {
-                const qLabel = (step as any).subQuestionLabel;
+            if ((step as any).ocrSource === 'system-injection' || (step as any).source === 'classification') {
+                const qLabel = (step as any).subQuestionLabel || (step as any).part || 'main';
                 const pIdx = step.pageIndex;
+                if (pIdx === undefined) return;
+
                 const hasZoneOnPage = semanticZones[qLabel]?.some(z => z.pageIndex === pIdx);
                 if (!hasZoneOnPage) {
                     const dims = pageDimensionsMap.get(pIdx) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
@@ -955,27 +984,31 @@ export class MarkingZoneService {
     private static checkLabelMatch(text: string, label: string): boolean {
         if (!text || !label) return false;
 
-        // [CLEANING]: Standardize for cross-OCR matching
-        const cleanT = text.replace(/\\+|\/+|\[|\]|\(|\)|\s+|\./g, '').toLowerCase();
-        const cleanL = label.toLowerCase();
+        const lowerText = text.toLowerCase();
+        const lowerLabel = label.toLowerCase();
+
+        // 🛡️ [IDENTICAL MATCH]: Fast path for OCR/Classification identity.
+        if (lowerText.includes(lowerLabel)) return true;
 
         const match = label.match(/^(\d+)([a-z]+)?/);
         const num = match ? match[1] : label;
         const sub = match ? match[2] : null;
 
         if (sub) {
-            // Patterns for sub-questions like "5b"
-            const combined = new RegExp(`^${num}${sub}`, 'i');   // "5b"
-            const divided = new RegExp(`^${num}.*${sub}`, 'i');   // "5 (b)"
-            const naked = new RegExp(`^[\\s\\(\\.]*${sub}[\\s\\.\\)]`, 'i'); // "(b)" or "b." - NAKED MATCH
+            // Patterns for sub-questions like "12iii" or "(iii)"
+            // Use word boundaries or brackets to avoid partial matches (e.g. "i" inside "addition")
+            const combined = new RegExp(`^${num}${sub}`, 'i');   // "12iii"
+            const divided = new RegExp(`^${num}.*${sub}`, 'i');   // "12 (iii)"
+            // Naked match: Look for the Roman/letter part surrounded by non-alphanumerics
+            const nakedPattern = new RegExp(`(?:^|[^a-z0-9])${sub}(?:[^a-z0-9]|$)`, 'i');
 
-            return combined.test(cleanT) || divided.test(text.toLowerCase()) || naked.test(text.toLowerCase());
+            return combined.test(lowerText) || divided.test(lowerText) || nakedPattern.test(lowerText);
         }
 
-        // Patterns for main questions like "5"
-        const mainPattern = new RegExp(`^[\\\\\\(\\[\\s]*${num}(?:[\\s\\.\\)\\],\\-]|$|\\\\)`, 'i');
-        const explicitPattern = new RegExp(`^Question\\s+${num}`, 'i');
+        // Patterns for main questions like "12"
+        const mainPattern = new RegExp(`(?:^|[^a-z0-9])${num}(?:[^a-z0-9]|$)`, 'i');
+        const explicitPattern = new RegExp(`Question\\s+${num}`, 'i');
 
-        return mainPattern.test(text.toLowerCase()) || explicitPattern.test(text.toLowerCase());
+        return mainPattern.test(lowerText) || explicitPattern.test(lowerText);
     }
 }

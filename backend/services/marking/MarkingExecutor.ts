@@ -194,7 +194,7 @@ export async function executeMarkingForQuestion(
       markingResult.annotations = AnnotationLinker.resolveLinksWithZones(
         markingResult.annotations,
         semanticZones,
-        rawOcrBlocks as any[],
+        (markingResult as any).taggedOcrBlocks || rawOcrBlocks as any[],
         vetoList,
         String(questionId),
         stepsDataForMapping,

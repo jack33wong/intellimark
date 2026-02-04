@@ -145,8 +145,14 @@ export class AnnotationLinker {
                     for (const vetoItem of vetoList) {
                         if (vetoItem.length < 3) continue;
                         if (vetoItem.includes(blockTextNorm) || blockTextNorm.includes(vetoItem)) {
-                            isVetoed = true;
-                            break;
+                            // 🛡️ [VETO-PRECISION]: Only veto if the match is significant (length > 2)
+                            // or if it's an identical match. This prevents single-character 
+                            // student answers (H, F, J) from being detached just because they 
+                            // exist in the printed question text.
+                            if (blockTextNorm.length > 2 || vetoItem === blockTextNorm) {
+                                isVetoed = true;
+                                break;
+                            }
                         }
                     }
 
@@ -264,7 +270,15 @@ export class AnnotationLinker {
             }
 
             // Iron Dome Page Snap
-            const validZones = (semanticZones && semanticZones[anno.subQuestion]) || [];
+            const subQ = anno.subQuestion;
+            let validZones = (semanticZones && semanticZones[subQ]) || [];
+
+            // 🛡️ [ZONE-RECOVERY]: If AI returns "i" but zone is "12i", broaden the search
+            const qNum = String(task.questionNumber || "");
+            if (validZones.length === 0 && subQ && qNum) {
+                const compositeKey = subQ.startsWith(qNum) ? subQ : `${qNum}${subQ}`;
+                validZones = (semanticZones && semanticZones[compositeKey]) || [];
+            }
             const validPageIndices = validZones.map((z: any) => z.pageIndex);
 
             if (validPageIndices.length > 0 && !validPageIndices.includes(anno.pageIndex ?? 1000)) {

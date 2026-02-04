@@ -190,17 +190,6 @@ export class MarkingSchemeOrchestrationService {
           effectiveText = `${effectiveText}\n\n${q.studentWork}`;
         }
 
-        // B. CONTEXT INJECTION (Avoid repeating if parent text is already in the questio text)
-        if (isSubQuestion(q.questionNumber)) {
-          const parentContext = parentTextMap.get(baseNum);
-          if (parentContext && parentContext.trim() !== effectiveText.trim()) {
-            // Only inject if it's not already there
-            if (!effectiveText.toLowerCase().includes(parentContext.toLowerCase().substring(0, 30))) {
-              effectiveText = `${parentContext}\n\n${effectiveText}`;
-            }
-          }
-        }
-
         // IMPORTANT: Update the question object itself so subsequent logs use this rich text
         q.text = effectiveText;
       }

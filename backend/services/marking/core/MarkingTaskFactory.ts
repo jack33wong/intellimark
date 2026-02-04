@@ -264,7 +264,6 @@ export class MarkingTaskFactory {
             return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
         });
 
-        console.log(`[ZONE-DETECTOR] Deterministic Sort Order: ${globalExpectedQuestions.map(q => q.label).join(' -> ')}`);
 
         let globalZones = MarkingZoneService.detectSemanticZones(
             allOcrBlocksGlobal,
