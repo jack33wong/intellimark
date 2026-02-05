@@ -111,6 +111,8 @@ export const enrichAnnotationsWithPositions = (
         }
 
         let method = "NONE";
+        let hasLineData: boolean | undefined = undefined;
+        let isSplitBlock: boolean | undefined = undefined;
         let rawBox: any = null;
 
         // 1. READ STATUS
@@ -218,12 +220,17 @@ export const enrichAnnotationsWithPositions = (
             const match = findInData(targetId);
             if (match) {
                 const sourceBox = match.bbox || match.position;
+                if ((targetId && targetId.includes('17')) || (lineId && lineId.includes('17'))) {
+                    console.log(`   🎯 [ENRICH-DEBUG] MATCH FOUND for ${targetId || lineId}:`, JSON.stringify(sourceBox));
+                }
                 const unit = match.unit || 'pixels';
 
                 rawBox = Array.isArray(sourceBox)
                     ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3], unit }
                     : { ...sourceBox, unit };
                 method = "DIRECT_LINK";
+                hasLineData = match.hasLineData;
+                isSplitBlock = match.isSplitBlock;
             }
         }
         else if (status === "VISUAL" && rawVisualPos) {
@@ -246,23 +253,15 @@ export const enrichAnnotationsWithPositions = (
                         : { ...sourceBox, unit };
 
                     method = "ZONE_PROTECTED_HANDWRITING";
+                    hasLineData = match.hasLineData;
+                    isSplitBlock = match.isSplitBlock;
                 }
             }
 
-            // 🛡️ [SAFETY FIX]: Fallback to Zone Start if box is still missing
+            // 🛡️ [FAIL-FAST]: No silent fallbacks. 
             if (!rawBox) {
-                console.warn(`[RENDERER-WARN] Annotation ${anno.subQuestion} is UNMATCHED and has no position. Falling back to zone start.`);
-                const currentQuestionId = (questionId || "").replace(/\D/g, '');
-                const zone = ZoneUtils.findMatchingZone(anno.subQuestion, semanticZones, currentQuestionId);
-                if (zone) {
-                    rawBox = { x: zone.x || 0, y: zone.startY, width: 200, height: 40, unit: 'pixels' };
-                    pageIndex = zone.pageIndex;
-                    method = "FALLBACK_ZONE_START";
-                } else {
-                    // Total failure - fallback to top of default page
-                    rawBox = { x: 0, y: 0, width: 200, height: 40, unit: 'pixels' };
-                    method = "TOTAL_FALLBACK";
-                }
+                const faultType = status === "MATCHED" ? "ID Mapping" : (status === "VISUAL" ? "AI Coordinates" : "Position Recovery");
+                throw new Error(`[PositionFailure] Q${anno.subQuestion}: Could not resolve ${status} position via '${faultType}'. Pointer: ${activePointer || 'N/A'}. This must be fixed in the upstream linker or pipeline logic.`);
             }
         }
 
@@ -381,6 +380,8 @@ export const enrichAnnotationsWithPositions = (
             classification_text: latexToPlainText(classText), // [FIXED] Sanitize for SVG
             classificationText: latexToPlainText(classText), // [FIXED] Sanitize for Frontend
             _debug_placement_method: method,
+            hasLineData: hasLineData,
+            isSplitBlock: isSplitBlock,
             unit: 'pixels'
         } as EnrichedAnnotation;
     });

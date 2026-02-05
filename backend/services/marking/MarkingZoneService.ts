@@ -629,10 +629,6 @@ export class MarkingZoneService {
         const text = textRaw.trim();
         const targetFull = `${label} ${text}`.trim();
 
-        const parentMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
-        const parentLabel = parentMatch ? parentMatch[1] : null;
-        const subPartLabel = parentMatch ? parentMatch[2] : null;
-
         let bestBlock: any = null;
         let bestSimilarity = 0;
 
@@ -665,11 +661,7 @@ export class MarkingZoneService {
                 if (blockPage === minPage && blockY < minY) continue;
             }
 
-            // [JUMP LOGIC REMOVED PER USER REQUEST]
-
             // 🛡️ [SEQUENTIAL TERMINATOR]: 
-            // If we encounter the NEXT question while looking for THIS one, we MUST stop.
-            // [CONTEXT-AWARE]: Avoids killing search early on Summary Tables/Mark Grids.
             if (nextQuestionLabel) {
                 const blockText = (firstBlock.text || "").trim();
                 const nextMatch = blockText.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)([a-z]+)?/i);
@@ -682,19 +674,12 @@ export class MarkingZoneService {
                     const targetNextNum = targetNextMatch ? targetNextMatch[1] : null;
                     const targetNextSeq = targetNextMatch ? (targetNextMatch[2] || "").toLowerCase() : "";
 
-                    // 1. Strict Number & Sequence Match
                     if (blockNum === targetNextNum && blockSeq === targetNextSeq) {
                         const hasExplicitKeyword = /question/i.test(blockText);
                         let isValidStopper = true;
 
-                        // 🛡️ [STOPPER-VERIFICATION]: If it's a "Naked Number" (no "Question" keyword),
-                        // we MUST verify the text matches the expected Next Question Text.
-                        // This prevents "2 marks" from triggering "Question 2".
                         if (!hasExplicitKeyword && nextQuestionText) {
-                            // Look ahead to capture text context
                             let stopperContext = blockText;
-                            // Grab a few subsequent blocks to build context (similar to forward search)
-                            // Simple lookahead for context
                             let contextLimit = 3;
                             for (let k = 1; k <= contextLimit; k++) {
                                 if (i + k < sortedBlocks.length && sortedBlocks[i + k].pageIndex === firstBlock.pageIndex) {
@@ -704,38 +689,24 @@ export class MarkingZoneService {
 
                             const stopperScore = SimilarityService.calculateHybridScore(stopperContext, nextQuestionText, false, true);
                             if (stopperScore.total < 0.4) {
-                                // console.log(`[STOPPER-REJECT] '2' found but text mismatch (${stopperScore.total.toFixed(2)}). Expected: '${nextQuestionText.substring(0,20)}...'`);
                                 isValidStopper = false;
                             }
                         }
 
-
-                        // 🕵️ HEURISTIC: "Physical Law" Stopper
-                        // - STRONG STOP: If it says "Question X", it's a real header. STOP.
-                        // - WEAK STOP: If it's just a naked "X", it could be a summary table or page number.
-                        //   We only STOP if we have already found a decent match for the CURRENT question.
-
                         if (!hasExplicitKeyword) {
-                            // 🛡️ [FOOTER NOISE REJECTION]: Skip digits in the bottom 5% (likely page numbers)
                             if (blockY > 95) {
                                 isValidStopper = false;
                             }
-                            // If it's a naked digit, and we haven't found a 40%+ match for THIS question yet,
-                            // it's likely a Table of Contents or Mark Grid. Ignore it.
                             else if (bestSimilarity < 0.4) {
                                 isValidStopper = false;
                             }
                         }
 
-                        // 🛡️ [SCRAMBLE-AWARE STOPPER]: 
-                        // In scrambled uploads, the "Next Question" might physically appear BEFORE the current one.
-                        // We only allow a label to act as a stopper if it's on the page the AI Mapper expects.
                         if (targetNextPage !== undefined && blockPage !== targetNextPage) {
                             isValidStopper = false;
                         }
 
                         if (isValidStopper) {
-                            // console.log(`[ZONE-SEQUENTIAL] 🛑 ABSOLUTE STOP: Detected next question "${nextQuestionLabel}" at P${blockPage}. Killing search for "${label}".`);
                             break;
                         }
                     }
@@ -744,7 +715,6 @@ export class MarkingZoneService {
 
             // 🛡️ [CONFIDENCE LOCK]: If we have a high-confidence match on an early page, stop searching.
             if (bestBlock && bestBlock.pageIndex < blockPage && bestSimilarity > 0.75) {
-                // console.log(`[ZONE-SEQUENTIAL] 🛡️ Found early match for "${label}" at P${bestBlock.pageIndex}. Terminating search before P${blockPage}.`);
                 break;
             }
 
@@ -755,7 +725,6 @@ export class MarkingZoneService {
                 const currentBlock = sortedBlocks[j];
                 if (currentBlock.pageIndex !== blockPage) break;
 
-                // [FIX]: Exclusive Window. If the window passes through a block claimed by another question, we MUST stop.
                 if (j > i && claimedBlockIds && claimedBlockIds.has(currentBlock.id)) {
                     break;
                 }
@@ -763,99 +732,49 @@ export class MarkingZoneService {
                 accumulatedText += (currentBlock.text || "") + " ";
                 const blockTextRaw = accumulatedText.trim();
 
-                // [BUG-FIX]: Normalize notations (e.g., "2 (a) Write" -> "2a Write") so they match classification text
                 const normalizedCandidate = blockTextRaw
-                    .replace(/^[\\(\[\]\s\-\.\)]+/, '') // [FIX]: Strip leading LaTeX/noise (e.g. \( 1 -> 1)
-                    .replace(/^(\d+)\s*\(?([a-z]|[0-9]{1,2}|[ivx]+)\)?\s+/, '$1$2 ') // [FIX]: Concatenate 2(a) -> 2a
+                    .replace(/^[\\(\[\]\s\-\.\)]+/, '')
+                    .replace(/^(\d+)\s*\(?([a-z]|[0-9]{1,2}|[ivx]+)\)?\s+/, '$1$2 ')
                     .replace(/^(\d+)[\.\)]\s+/, '$1 ')
                     .trim();
 
-                // --- STAGE 2: RANKING (NUMBER + TEXT) ---
-                // [RESTORE-SOPHISTICATED-DESIGN]: Pass isStrict=false to enable the Containment Boost.
-                // This ensures that fragmented question text matching results in a high score (0.85+).
                 const details = SimilarityService.calculateHybridScore(normalizedCandidate, targetFull, false, false);
 
-                // --- STAGE 1: IDENTITY FILTER ---
-                let passesFilter = true;
-                if (labelRaw.length > 0) {
-                    const isLabelMatch = MarkingZoneService.checkLabelMatch(normalizedCandidate, labelRaw);
+                // 🛡️ [SAFE-RESTORE]: Re-apply label boost, but only if the block starts with the label.
+                const isLabelMatch = MarkingZoneService.checkLabelMatch(normalizedCandidate, labelRaw);
+                let finalScore = details.total;
+                if (isLabelMatch) {
+                    finalScore += 0.5;
+                }
 
-                    // Identify Gate: Base Number Lock
-                    const targetMatch = labelRaw.match(/^(\d+)([a-z]+)?/i);
-                    if (labelRaw.length > 0 && targetMatch) {
-                        const blockMatch = blockTextRaw.match(/^(?:\W+)?(?:question\s+)?(\d+|[Qq]\d+)(?:\s*[\(\[\]]?\s*)([a-z]+)?/i);
+                // Apply directional penalties (Footers/Totals)
+                const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
+                const pH_match = dims_match.height || 3508;
+                const isFooter = blockY > (pH_match * 0.9);
+                const isTotalLine = /total/i.test(normalizedCandidate);
 
-                        let wouldBeFiltered = false;
+                if ((isFooter || isTotalLine) && (!targetCurrentPages || targetCurrentPages.length === 0)) {
+                    finalScore -= 0.5;
+                }
 
-                        // [FILTER]: A block must LOOK like a potential header (Label Match) OR have a matching Number ID.
-                        if (!isLabelMatch && !blockMatch) {
-                            wouldBeFiltered = true;
-                        }
-                        else if (targetMatch && blockMatch) {
-                            const targetNum = targetMatch[1];
-                            const targetSeq = (targetMatch[2] || "").toLowerCase();
-                            const blockNum = blockMatch[1].replace(/[Qq]/i, '');
-                            const blockSeq = (blockMatch[2] || "").toLowerCase();
+                if (finalScore > 0.3) {
+                    console.log(`   🕵️ [SIMILARITY-TRACE] Q${labelRaw} candidate: "${normalizedCandidate.substring(0, 40)}" | Score: ${finalScore.toFixed(3)} (Raw: ${details.total.toFixed(3)}, Boost: ${isLabelMatch ? '+0.5' : '0.0'}) | P${blockPage}`);
+                }
 
-                            // 1. [BINARY NUMBER LOCK]: 1 vs 11 is absolute rejection.
-                            if (targetNum !== blockNum) {
-                                wouldBeFiltered = true;
-                            }
-                            // 2. Exact Sequence Conflict Lock (Prevents 5a vs 5b)
-                            else if (targetSeq && blockSeq && targetSeq !== blockSeq) {
-                                wouldBeFiltered = true;
-                            }
-                        }
+                const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.7 : 0.85;
+                if (finalScore >= similarityThreshold && finalScore > bestSimilarity) {
+                    bestBlock = firstBlock;
+                    bestSimilarity = finalScore;
+                    break;
+                }
 
-                        // 🛡️ [NAKED SIBLING PERMIT]:
-                        // Skip filter if isLabelMatch=true and blockNum is missing.
-                        if (targetMatch && !blockMatch && isLabelMatch) {
-                            wouldBeFiltered = false;
-                        }
-
-                        if (wouldBeFiltered) {
-                            // 🚪 [SOFT-DISABLE]: Identity Gate no longer kills the search.
-                            passesFilter = true;
-                        }
-                    }
-
-                    // 🚪 [LABEL BOOST]: If we found an exact label match, give a massive similarity boost.
-                    let finalScore = details.total;
-                    if (isLabelMatch) {
-                        finalScore += 0.5;
-                    }
-
-                    // Apply directional penalties (Footers/Totals)
-                    const dims_match = pageDimensionsMap.get(blockPage) || { width: 2480, height: 3508 };
-                    const pH_match = dims_match.height || 3508;
-                    const blockY = MarkingZoneService.getY(firstBlock);
-                    const isFooter = blockY > (pH_match * 0.9);
-                    const isTotalLine = /total/i.test(normalizedCandidate);
-
-                    // 🛡️ [FOOTER-GRACE]: If we are whitelisted on this page, relax the footer penalty.
-                    // This prevents the last question on a page from being rejected as "footer noise".
-                    if ((isFooter || isTotalLine) && (!targetCurrentPages || targetCurrentPages.length === 0)) {
-                        finalScore -= 0.5; // Penalize non-question body areas
-                    }
-
-                    // 🏅 [GREEDY BEST-MATCH]: If we find a block that matches both number AND has 85% similarity, stop.
-                    // [STEP 3]: If a mapper whitelist is present, we are more lenient (0.7).
-                    const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.7 : 0.85;
-                    if (finalScore >= similarityThreshold && finalScore > bestSimilarity) {
-                        bestBlock = firstBlock;
-                        bestSimilarity = finalScore;
-                        break;
-                    }
-
-                    if (finalScore > bestSimilarity) {
-                        bestBlock = firstBlock;
-                        bestSimilarity = finalScore;
-                    }
+                if (finalScore > bestSimilarity) {
+                    bestBlock = firstBlock;
+                    bestSimilarity = finalScore;
                 }
             }
         }
 
-        // Dynamic threshold based on source length
         const dynamicThreshold = targetFull.length < 15 ? 0.7 : 0.45;
         if (bestBlock && bestSimilarity > dynamicThreshold) {
             return { block: bestBlock, similarity: bestSimilarity };
@@ -993,31 +912,36 @@ export class MarkingZoneService {
     private static checkLabelMatch(text: string, label: string): boolean {
         if (!text || !label) return false;
 
-        const lowerText = text.toLowerCase();
-        const lowerLabel = label.toLowerCase();
+        const lowerText = text.toLowerCase().trim();
+        const lowerLabel = label.toLowerCase().trim();
 
-        // 🛡️ [IDENTICAL MATCH]: Fast path for OCR/Classification identity.
-        if (lowerText.includes(lowerLabel)) return true;
+        // 1. Exact leading match (e.g. block starts with "12a")
+        if (lowerText.startsWith(lowerLabel)) {
+            // Ensure word boundary or bracket to avoid "12" matching "120"
+            const nextChar = lowerText[lowerLabel.length];
+            if (!nextChar || !/[0-9a-zA-Z]/.test(nextChar)) return true;
+        }
 
-        const match = label.match(/^(\d+)([a-z]+)?/);
-        const num = match ? match[1] : label;
+        // 2. Sub-Part Extraction for labels like "12i"
+        const match = label.match(/^(\d+)([a-z]+)?/i);
         const sub = match ? match[2] : null;
 
         if (sub) {
-            // Patterns for sub-questions like "12iii" or "(iii)"
-            // Use word boundaries or brackets to avoid partial matches (e.g. "i" inside "addition")
-            const combined = new RegExp(`^${num}${sub}`, 'i');   // "12iii"
-            const divided = new RegExp(`^${num}.*${sub}`, 'i');   // "12 (iii)"
-            // Naked match: Look for the Roman/letter part surrounded by non-alphanumerics
-            const nakedPattern = new RegExp(`(?:^|[^a-z0-9])${sub}(?:[^a-z0-9]|$)`, 'i');
-
-            return combined.test(lowerText) || divided.test(lowerText) || nakedPattern.test(lowerText);
+            // Handle sub-part brackets: matches "i) y=..." or "(i) y=..."
+            const subPartPattern = new RegExp(`^\\(?[\\s]*${sub}[\\s]*[\\.\\)]`, 'i');
+            return subPartPattern.test(lowerText);
         }
 
-        // Patterns for main questions like "12"
-        const mainPattern = new RegExp(`(?:^|[^a-z0-9])${num}(?:[^a-z0-9]|$)`, 'i');
-        const explicitPattern = new RegExp(`Question\\s+${num}`, 'i');
+        // 3. Main Number Extraction for labels like "12"
+        const numMatch = label.match(/^(\d+)/);
+        if (numMatch) {
+            const num = numMatch[1];
+            // Matches "12. The diagram", "12) The diagram", or "Question 12"
+            const anchoredNumPattern = new RegExp(`^\\(?[\\s]*${num}[\\s]*[\\.\\)]`, 'i');
+            const explicitPattern = new RegExp(`^Question\\s+${num}`, 'i');
+            return anchoredNumPattern.test(lowerText) || explicitPattern.test(lowerText);
+        }
 
-        return mainPattern.test(lowerText) || explicitPattern.test(lowerText);
+        return false;
     }
 }

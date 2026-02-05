@@ -102,7 +102,11 @@ export class MarkingPromptAdapter {
                 const idFields = ['line_id', 'id', 'step_id', 'linked_ocr_id', 'linkedOcrId', 'lineId'];
                 idFields.forEach(field => {
                     if (anno[field] && typeof anno[field] === 'string') {
+                        const oldId = anno[field];
                         anno[field] = anno[field].replace(/^p\d+_/, `p${physicalIdx}_`);
+                        if (oldId !== anno[field]) {
+                            console.log(` ✅ [ADAPTER-RESTORE] Mapped ID ${oldId} -> ${anno[field]} (Rel: ${relIdx}, Phys: ${physicalIdx})`);
+                        }
                     }
                 });
 

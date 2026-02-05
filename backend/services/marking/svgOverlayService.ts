@@ -277,16 +277,20 @@ export class SVGOverlayService {
       if (isDrawing) {
         debugBorderColor = 'magenta';
         statusLabel = 'v';
-      } else if (ocrStatus === 'FALLBACK') {
-        debugBorderColor = 'orange';
-        statusLabel = 's';
       } else if (ocrStatus === 'UNMATCHED') {
         debugBorderColor = 'red';
         statusLabel = 'u';
+      } else if (ocrStatus === 'FALLBACK') {
+        debugBorderColor = 'orange';
+        statusLabel = 's';
+      } else if ((annotation as any).isSplitBlock || (annotation as any).hasLineData === false) {
+        debugBorderColor = '#00FF00'; // Pure Green for Split
+        statusLabel = 'S';
       } else if (ocrStatus === 'MATCHED') {
         debugBorderColor = 'blue';
         statusLabel = 'm';
-      } else {
+      }
+      else {
         debugBorderColor = 'grey';
         statusLabel = '?';
       }

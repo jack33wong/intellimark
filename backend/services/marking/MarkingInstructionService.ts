@@ -225,51 +225,32 @@ export class MarkingInstructionService {
     const normalizedQText = normalize(questionText || '');
     const structuralNoiseRegex = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn|\\\( \_+ \\\)|_+/i;
 
-    return sortedBlocks.map(b => {
-      // --- SPATIAL FILTERING ---
-      // If the block is physically above Q12 or below Q13, kill it.
+    const result = sortedBlocks.map(b => {
+      // ... (existing mapping logic)
       if (b._y < minValidY || b._y >= maxValidY) return null;
-
-      const content = b._cleanText; // Use pre-cleaned text
-
-      // --- CONTENT FILTERING ---
+      const content = b._cleanText;
       if (!content || structuralNoiseRegex.test(content)) return null;
-
-      // Filter ANY Question Header that isn't ours (Redundant safety for "Q13")
       const landmarkMatch = content.match(qLandmarkRegex);
       if (landmarkMatch && landmarkMatch[1] !== baseQNum) return null;
-
-      // Filter noise (single letters, unless it's a sub-part label like "(a)")
       if (content.length < 2 && !/\d/.test(content) && !/[a-zA-Z]/.test(content)) return null;
-
-      // --- INSTRUCTION TAGGING ---
       let isLikelyInstruction = false;
-      // [DETETERMINISTIC-TAGGING]: Trust the Zone Detector's Header Identification
       if ((b as any)._isInstruction) isLikelyInstruction = true;
-
-      // [DEBUG]: Trace why "(2)" or math block matches
-      if (content.includes("(2)")) {
-        console.log(` 🕵️ [TAG-DEBUG] Block "(2)": isLikelyInstruction=${isLikelyInstruction} (FromZoneDetector=${(b as any)._isInstruction || false})`);
-      }
-
-      // Build final block
       const { _y, _cleanText, ...finalBlock } = b;
-
       if (isLikelyInstruction) {
         const qLabel = (b as any)._associatedQuestion ? ` [Q${(b as any)._associatedQuestion}]` : '';
         const taggedText = `${content} [PRINTED_INSTRUCTION${qLabel}]`;
-        const result = { ...finalBlock, text: taggedText };
-        console.log(` ✅ [TAG-RESULT] Q${baseQNum} ${result.id || (result as any).globalBlockId}: "${taggedText.substring(0, 50)}" (Reason: Zone)`);
-        return result;
+        return { ...finalBlock, text: taggedText };
       }
       return { ...finalBlock, text: content };
     }).filter(b => b !== null);
+
+    return result;
   }
 
   private static extractLiveQuestion(blocks: any[], baseQNum: string): string {
     let questionTextBlocks: string[] = [];
     let foundStart = false;
-    const qLandmarkRegex = new RegExp(`^Q\\s*${baseQNum}`, 'i');
+    const qLandmarkRegex = /^Q\s*(\d+)/i;
 
     for (const b of blocks) {
       const text = (b.text || b.mathpixLatex || '').trim(); // Robust access
@@ -734,6 +715,10 @@ export class MarkingInstructionService {
     // [RELATIVE-ADAPTER]: Map relative response indices back to physical truth.
     if (parsedResponse?.annotations && sourceImageIndices) {
       MarkingPromptAdapter.restorePhysicalTruth(parsedResponse.annotations, sourceImageIndices);
+      const isQ23 = String(inputQuestionNumber).includes('23');
+      if (isQ23) {
+        console.log(`🕵️ [ADAPTER-TRACE] Restored IDs for Q${inputQuestionNumber}:`, parsedResponse.annotations.map((a: any) => ({ line_id: a.line_id, ocr: a.linked_ocr_id, p: a.pageIndex })));
+      }
     }
 
     if (!parsedResponse || !parsedResponse.annotations) {

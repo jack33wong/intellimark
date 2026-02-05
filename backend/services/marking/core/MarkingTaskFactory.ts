@@ -313,9 +313,12 @@ export class MarkingTaskFactory {
             });
 
             group.aiSegmentationResults.sort((a: any, b: any) => {
-                if (a.subQuestionLabel === 'main') return -1;
-                if (b.subQuestionLabel === 'main') return 1;
-                return (a.subQuestionLabel || '').localeCompare(b.subQuestionLabel || '');
+                const labelA = a.subQuestionLabel || 'main';
+                const labelB = b.subQuestionLabel || 'main';
+                if (labelA === labelB) return 0;
+                if (labelA === 'main') return -1;
+                if (labelB === 'main') return 1;
+                return labelA.localeCompare(labelB, undefined, { numeric: true });
             });
 
             group.aiSegmentationResults.forEach((seg: any) => {

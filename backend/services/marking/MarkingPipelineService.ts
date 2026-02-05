@@ -1036,6 +1036,8 @@ export class MarkingPipelineService {
 
             allPagesOcrData = await Promise.all(pageProcessingPromises);
 
+
+
             // [DEBUG] Verify Data Integrity immediately after OCR
             if (allPagesOcrData.length > 1) {
                 const page1Data = allPagesOcrData[1]?.ocrData;

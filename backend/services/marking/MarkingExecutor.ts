@@ -132,7 +132,9 @@ export async function executeMarkingForQuestion(
           bbox: b.coordinates ? [b.coordinates.x, b.coordinates.y, b.coordinates.width, b.coordinates.height] : [0, 0, 0, 0],
           ocrSource: (b as any).ocrSource,
           isHandwritten: b.isHandwritten,
-          unit: 'pixels'
+          unit: 'pixels',
+          hasLineData: (b as any).hasLineData,
+          isSplitBlock: (b as any).isSplitBlock
         };
       });
       stepsDataForMapping = [...stepsDataForMapping, ...ocrSteps as any];
@@ -148,7 +150,9 @@ export async function executeMarkingForQuestion(
           else gPage = sourcePagesNum[sourcePagesNum.length - 1];
         }
         return {
-          line_id: `p${gPage}_q${questionId}_line_${i}`, pageIndex: gPage, globalBlockId: (b as any).globalBlockId, text: (b as any).text || (b as any).mathpixLatex || '', cleanedText: (b as any).mathpixLatex || '', bbox: b.coordinates ? [b.coordinates.x, b.coordinates.y, b.coordinates.width, b.coordinates.height] : [0, 0, 0, 0], ocrSource: (b as any).ocrSource, isHandwritten: b.isHandwritten, unit: 'pixels'
+          line_id: `p${gPage}_q${questionId}_line_${i}`, pageIndex: gPage, globalBlockId: (b as any).globalBlockId, text: (b as any).text || (b as any).mathpixLatex || '', cleanedText: (b as any).mathpixLatex || '', bbox: b.coordinates ? [b.coordinates.x, b.coordinates.y, b.coordinates.width, b.coordinates.height] : [0, 0, 0, 0], ocrSource: (b as any).ocrSource, isHandwritten: b.isHandwritten, unit: 'pixels',
+          hasLineData: (b as any).hasLineData,
+          isSplitBlock: (b as any).isSplitBlock
         };
       }) as any;
     }
@@ -192,8 +196,9 @@ export async function executeMarkingForQuestion(
       // [TRUTH-FIRST]: Prioritize globalBlockId (Physical) over others.
       const id = (block as any).globalBlockId || (block as any).id || `p${globalPage}_ocr_${idx}`;
       const text = block.text || (block as any).mathpixLatex || (block as any).latex || (block as any).content || "";
+      const bbox = block.coordinates ? [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height] : (block as any).bbox;
 
-      return { ...block, id: id, pageIndex: globalPage, text: text };
+      return { ...block, id: id, pageIndex: globalPage, text: text, bbox: bbox };
     });
 
     const rawOcrText = rawOcrBlocks.map(b => `[${b.id}]: "${b.text}"`).join('\n');
@@ -207,6 +212,16 @@ export async function executeMarkingForQuestion(
     };
 
     const markingResult = await MarkingInstructionService.executeMarking(markingInputs);
+
+    // 🕵️ [DEBUG-ID-SYNC]: Inspect IDs for Q23
+    if (String(questionId).includes("23")) {
+      console.log(`🕵️ [DEBUG-ID-SYNC] Q23 Prompt Raw Annotations:`, JSON.stringify(markingResult.annotations.map((a: any) => ({ t: a.text, l: a.line_id, o: a.linked_ocr_id, p: a.pageIndex })), null, 2));
+      const sampleBlock17 = rawOcrBlocks.find(b => b.id?.includes('ocr_17'));
+      if (sampleBlock17) {
+        console.log(`🕵️ [DEBUG-ID-SYNC] Q23 OCR Block 17 Raw:`, JSON.stringify(sampleBlock17));
+      }
+    }
+
     if (!markingResult || !markingResult.annotations || !markingResult.studentScore) {
       throw new Error(`MarkingInstructionService returned invalid data for Q${questionId}`);
     }
@@ -283,7 +298,9 @@ export async function executeMarkingForQuestion(
         return {
           ...s,
           unit: s.unit || detectedUnit,
-          _source: isClassification ? 'CLASSIFICATION' : 'SEGMENTED'
+          _source: isClassification ? 'CLASSIFICATION' : 'SEGMENTED',
+          hasLineData: s.hasLineData ?? !isClassification,
+          isSplitBlock: s.isSplitBlock ?? false
         };
       }),
       ...rawOcrBlocks.map(block => ({
@@ -299,9 +316,22 @@ export async function executeMarkingForQuestion(
         ] as [number, number, number, number],
         unit: 'pixels',
         _source: 'RESCUE_RAW',
-        isHandwritten: block.isHandwritten
+        isHandwritten: block.isHandwritten,
+        hasLineData: (block as any).hasLineData,
+        isSplitBlock: (block as any).isSplitBlock
       }))
     ];
+
+    // 🕵️ [COORDS-IDENTITY]: Print all OCR blocks to verify IDs vs Coordinates
+    if (combinedLookupBlocks.length > 0) {
+      console.log(`🕵️ [COORDS-IDENTITY] Q${questionId} OCR Pool Sample (Block 0):`, JSON.stringify(combinedLookupBlocks[0]));
+      console.log(`🕵️ [COORDS-IDENTITY] Q${questionId} OCR Pool (${combinedLookupBlocks.length} blocks):`);
+      combinedLookupBlocks.forEach(b => {
+        if (b.line_id?.includes('ocr') || b.line_id?.includes('_line_')) {
+          console.log(`   - ID: ${b.line_id.padEnd(12)} | Coords: ${JSON.stringify(b.bbox).padEnd(25)} | Text: "${(b.text || '').substring(0, 30)}" | S:${b.isSplitBlock} L:${b.hasLineData}`);
+        }
+      });
+    }
 
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations,
@@ -323,6 +353,12 @@ export async function executeMarkingForQuestion(
       let dims = task.pageDimensions?.get(pIdx);
       if (!dims && task.pageDimensions && task.pageDimensions.size > 0) dims = Array.from(task.pageDimensions.values())[0];
       if (anno.bbox && dims && dims.width > 0 && dims.height > 0) {
+        if (String(task.questionNumber).includes("23") && (anno.linked_ocr_id?.includes('ocr_17') || anno.line_id?.includes('ocr_17'))) {
+          console.log(`   🎯 [COORD-INTEGRITY] Block 17: BBox ${JSON.stringify(anno.bbox)}, Dims [${dims.width}x${dims.height}], PageIndex: ${pIdx}, Result:`, {
+            x: (anno.bbox[0] / dims.width) * 100,
+            y: (anno.bbox[1] / dims.height) * 100
+          });
+        }
         anno.visual_position = {
           x: (anno.bbox[0] / dims.width) * 100,
           y: (anno.bbox[1] / dims.height) * 100,

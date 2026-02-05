@@ -250,7 +250,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       // Logic mirrored from MarkingExecutor match statuses
       if (a.ocr_match_status === 'VISUAL') v++;
       else if (a.ocr_match_status === 'UNMATCHED') u++;
-      else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) s++;
+      else if (a.isSplitBlock === true || (a.hasLineData === false && a.bbox && a.bbox.length === 4)) s++;
       else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) m++;
       else m++; // Default to match if it has reliable bbox
 
@@ -283,7 +283,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
     // Calculate Main Status
     const stats = calcStats(questionAnns);
-    const statusStr = `AI:${stats.ai_m}/${questionAnns.length} → M:${stats.m} U:${stats.u}`;
+    const statusStr = `AI:${stats.ai_m}/${questionAnns.length} → M:${stats.m} S:${stats.s} U:${stats.u}`;
 
     console.log(`| ${coloredQNum} | ${paddedScore} | ${mainMarks.padEnd(23)} | ${statusStr.padEnd(38)} |`);
 
@@ -349,7 +349,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         // Calculate Sub Status
         const subStats = calcStats(subAnnsMap.get(key) || []);
         const subTotalCount = (subAnnsMap.get(key) || []).length;
-        const subStatusStr = `AI:${subStats.ai_m}/${subTotalCount} → M:${subStats.m} U:${subStats.u}`;
+        const subStatusStr = `AI:${subStats.ai_m}/${subTotalCount} → M:${subStats.m} S:${subStats.s} U:${subStats.u}`;
 
         console.log(`| ${coloredLabel} | ${subScoreStr.padEnd(5)} | ${subMarks.padEnd(23)} | ${subStatusStr.padEnd(38)} |`);
       });

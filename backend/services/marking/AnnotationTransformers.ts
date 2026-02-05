@@ -53,7 +53,8 @@ export interface OCRBlock {
     id: string;
     text: string;
     pageIndex: number;  // Global page index
-    bbox: [number, number, number, number];
+    bbox?: [number, number, number, number];
+    coordinates?: { x: number; y: number; width: number; height: number };
     confidence?: number;
 }
 
@@ -331,13 +332,26 @@ export function enrichWithOCRBbox(
         (annotation.page as any).global = GlobalPageIndex.from(matchingBlock.pageIndex);
     }
 
+    // [FAIL-FAST]: Ensure we have coordinates. Check both .bbox and .coordinates.
+    let resolvedBbox: BoundingBox | undefined = matchingBlock.bbox as BoundingBox | undefined;
+    if (!resolvedBbox && matchingBlock.coordinates) {
+        resolvedBbox = [
+            matchingBlock.coordinates.x,
+            matchingBlock.coordinates.y,
+            matchingBlock.coordinates.width,
+            matchingBlock.coordinates.height
+        ] as BoundingBox;
+    }
+
+    if (!resolvedBbox) {
+        throw new Error(`[CoordinateFailure] OCR Block ${matchingBlock.id} matched but has no physical coordinates (bbox or coordinates are missing). This is a critical failure in the OCR ingestion pipeline.`);
+    }
+
     // Return new annotation with OCR data
-    // NOTE: We do NOT update the page index here. We trust mapToGlobalPage (AI context)
-    // more than the OCR block location, as the AI knows which page it was looking at.
     return {
         ...annotation,
-        bbox: matchingBlock.bbox as BoundingBox,
-        ocrSource: 'mathpix' // Could be parameterized if needed
+        bbox: resolvedBbox,
+        ocrSource: 'mathpix'
     };
 }
 

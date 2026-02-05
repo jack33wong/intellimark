@@ -139,12 +139,16 @@ export class OCRService {
       // Assume [xmin, ymin, width, height] based on common API patterns 
       // OR [ymin, xmin, height, width]?
       // Standard Mathpix is usually [xmin, ymin, width, height]
-      return {
+      const result = {
         x: line.box_2d[0],
         y: line.box_2d[1],
         width: line.box_2d[2],
         height: line.box_2d[3]
       };
+      if (line.text?.includes('\\pm 11') || line.latex_styled?.includes('\\pm 11')) {
+        console.log(`   🕵️ [OCR-BOX-2D] Detected for ±11:`, JSON.stringify(line.box_2d), '-> Result:', JSON.stringify(result));
+      }
+      return result;
     }
 
     return null;
@@ -470,6 +474,11 @@ export class OCRService {
         const coords = this.extractBoundingBox(line);
         const hasOriginalCoords = !!coords; // Define flag based on coords presence
 
+        if (text.includes('\\pm 11')) {
+          console.log(`   🕵️ [OCR-RAW-TRACE] Found ±11:`, JSON.stringify(line));
+          console.log(`   🕵️ [OCR-CORE-EXTRACT] Result for ±11:`, JSON.stringify(coords));
+        }
+
         // [DEBUG] Log Coords for Handwriting (Existing or Missing)
         // if (text && (line.is_printed === false || line.type === 'handwriting')) {
         //   if (!coords) {
@@ -706,6 +715,7 @@ export class OCRService {
           coordinates: coords,
           bbox: coords, // Alias for coordinates
           hasLineData: hasOriginalCoords && !line.isSplitBlock, // true if coords from Mathpix AND not multi-line AND not split
+          isSplitBlock: line.isSplitBlock,
           isHandwritten: line.isHandwritten,
 
           // Ensure globalBlockId is set for reliable matching downstream (CRITICAL FIX)
