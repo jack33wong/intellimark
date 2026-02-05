@@ -95,20 +95,19 @@ export const enrichAnnotationsWithPositions = (
     const enriched = annotations.map((anno, idx) => {
         let pageIndex = (anno as any).pageIndex ?? defaultPageIndex;
 
-        // 🛡️ [ID-LIE FIX]: Translate Relative Page Index -> Absolute Document Index
-        // If AI says "pageIndex: 0", and the task has a pageMap {10: 0, 11: 1}, we map 0 -> 10.
-        // [TRUTH-FIRST]: Skip this if we already have a confirmed physical page index.
-        if ((anno as any).isPhysicalPage) {
-            console.log(` 🛡️ [TRUTH-STAY] Keeping physical page P${pageIndex} for Q${anno.subQuestion} (Skip Relative Lookup)`);
-        } else if (task?.pageMap) {
-            // Check if pageIndex is a relative index in the map values
-            const absPage = Object.entries(task.pageMap).find(([abs, rel]) => rel === pageIndex)?.[0];
-            if (absPage !== undefined) {
-                pageIndex = parseInt(absPage);
+        // 🛡️ [TRUTH-FIRST]: Trust the physical page index if confirmed.
+        // Otherwise, resolve relative to task configuration.
+        if (!(anno as any).isPhysicalPage) {
+            if (task?.pageMap) {
+                // Check if pageIndex is a relative index in the map values
+                const absPage = Object.entries(task.pageMap).find(([abs, rel]) => rel === pageIndex)?.[0];
+                if (absPage !== undefined) {
+                    pageIndex = parseInt(absPage);
+                }
+            } else if (task?.sourcePages && pageIndex < task.sourcePages.length) {
+                // Fallback to sourcePages array index
+                pageIndex = task.sourcePages[pageIndex];
             }
-        } else if (task?.sourcePages && pageIndex < task.sourcePages.length) {
-            // Fallback to sourcePages array index
-            pageIndex = task.sourcePages[pageIndex];
         }
 
         let method = "NONE";

@@ -47,40 +47,6 @@ export class MarkingOutputService {
                 (r.sourceImageIndices && r.sourceImageIndices.includes(pageIndex))
             );
 
-            // ========================= 🎨 [RENDERER AUDIT] =========================
-            // CRITICAL DEBUG: Check if the Zone Coordinates actually reached the renderer.
-            // If this logs "❌ NO ZONE", then 'MarkingExecutor' failed to attach the data to the final result.
-            if (pageQuestions.length > 0) {
-                console.log(`\n🎨 [RENDERER AUDIT] Page ${i} (Physical Index: ${pageIndex}) (W: ${page.width}, H: ${page.height}) - ${pageQuestions.length} Questions:`);
-                pageQuestions.forEach(q => {
-                    const label = q.questionNumber;
-                    const zoneMap = (q as any).semanticZones;
-                    console.log(`   🔍 [RENDER-TRACE] Q${label} has zoneMap? ${!!zoneMap} (Keys: ${zoneMap ? Object.keys(zoneMap).join(', ') : 'NONE'})`);
-
-                    let zonesForThisQ = zoneMap ? zoneMap[label] || zoneMap[String(label)] : null;
-
-                    if (!zonesForThisQ && zoneMap) {
-                        const childKeys = Object.keys(zoneMap).filter(k => k.startsWith(String(label)) && k !== String(label));
-                        console.log(`   🔍 [RENDER-TRACE] Q${label} fallback childKeys: ${childKeys.join(', ')}`);
-                        if (childKeys.length > 0) {
-                            zonesForThisQ = childKeys.flatMap(k => zoneMap[k]);
-                        }
-                    }
-
-                    const zonesOnThisPage = zonesForThisQ?.filter((z: any) => z.pageIndex === pageIndex) || [];
-                    console.log(`   🔍 [RENDER-TRACE] Q${label} zones on P${pageIndex}: ${zonesOnThisPage.length}`);
-
-                    if (zonesOnThisPage.length > 0) {
-                        zonesOnThisPage.forEach((zone: any) => {
-                            const coords = `x:${zone.x.toFixed(0)}, y:${zone.startY.toFixed(0)}, w:${zone.width.toFixed(0)}, h:${(zone.endY - zone.startY).toFixed(0)}`;
-                            console.log(`   ✅ Q${label} (${zone.label || 'no-label'}): SEMANTIC ZONE FOUND [${coords}] (P${zone.pageIndex})`);
-                        });
-                    } else {
-                        console.log(`   ❌ Q${label}: NO SEMANTIC ZONE DATA for Page ${pageIndex}`);
-                    }
-                });
-            }
-            // =======================================================================
 
             // Render the image with annotations
             // Note: We need to adapt the existing logic slightly as the user provided a conceptual 'AnnotationService.overlayAnnotations'
@@ -110,9 +76,8 @@ export class MarkingOutputService {
             const mapperCategory = allClassificationResults.find(c => c.pageIndex === pageIndex)?.result?.category;
             const hasMetaPage = mapperCategory === 'metadata' || mapperCategory === 'frontPage';
 
-            // Deduplicate zones (copied from original)
+            // Deduplicate and scale zones
             const uniqueZonesMap = new Map<string, any>();
-            console.log(`   🔍 [OUTPUT-SERVICE] Page ${pageIndex}: Processing ${markingResults.length} marking results for zones...`);
             markingResults.forEach(qr => {
                 if (qr.semanticZones) {
                     Object.entries(qr.semanticZones).forEach(([label, zones]: [string, any]) => {
@@ -120,7 +85,7 @@ export class MarkingOutputService {
                             if (z.pageIndex === pageIndex) {
                                 const key = `${label}_p${pageIndex}`;
                                 if (!uniqueZonesMap.has(key)) {
-                                    // 🛡️ [RESOLUTION-SYNC]: Scale zones from OCR resolution to burn resolution
+                                    // [RESOLUTION-SYNC]: Scale zones from OCR resolution to burn resolution
                                     const origW = z.origW || page.width || 2480;
                                     const origH = z.origH || page.height || 3508;
                                     const sX = page.width / origW;
@@ -134,7 +99,6 @@ export class MarkingOutputService {
                                         startY: z.startY * sY,
                                         endY: z.endY * sY
                                     };
-
                                     uniqueZonesMap.set(key, scaledZone);
                                 }
                             }
@@ -145,8 +109,6 @@ export class MarkingOutputService {
 
             try {
                 const zonesForThisPageArray = Array.from(uniqueZonesMap.values());
-                console.log(`   🔍 [OUTPUT-SERVICE] Page ${pageIndex}: Finally passing ${zonesForThisPageArray.length} unique zones to renderer.`);
-
                 const annotatedImageData = await SVGOverlayService.burnSVGOverlayServerSide(
                     page.imageData,
                     annotationsForThisPage,
