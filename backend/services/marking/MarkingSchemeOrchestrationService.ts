@@ -529,13 +529,21 @@ export class MarkingSchemeOrchestrationService {
     // the sourceImageIndex so the Sorter (Stage 4) and Zone Detector (Stage 5) have the same Map.
     for (const { question, detectionResult } of detectionResults) {
       if (detectionResult.found && detectionResult.match?.questionNumber) {
-        const matchingQuestion = classificationResult.questions.find((q: any) =>
-          q === question || (q.text && question.text && q.text.includes(question.text.substring(0, 20)))
-        );
-        if (matchingQuestion) {
-          // 1. Logically link the question number (Database Verification)
-          matchingQuestion.questionNumber = detectionResult.match.questionNumber;
 
+        // [SAFETY FIX] Use Strict Location Matching (Global Page ID)
+        // Do NOT use text.includes() as it causes "Generic Text Overlap" (Q5 vs Q11c 'Use your graph...')
+        const matchingQuestion = classificationResult.questions.find((q: any) =>
+          q === question ||
+          (q.sourceImageIndex !== undefined && q.sourceImageIndex === question.sourceImageIndex)
+        );
+
+        if (matchingQuestion) {
+          // [SOFT DISABLE]: User requested to keep logs but disable the actual override (Risk Management).
+          // 1. Logically link the question number (Database Verification)
+          // matchingQuestion.questionNumber = detectionResult.match.questionNumber;
+          console.log(`⚓ [SYNC-DISABLED] Safe Match Found on P${question.sourceImageIndex}. AI: Q${matchingQuestion.questionNumber} -> DB: ${detectionResult.match.questionNumber}. (Override prevented)`);
+
+          /* [DISABLED] "Identity Helper" - Page Anchor Update
           // 2. Physical Anchor Update (Source of Ordering Chaos fix)
           // 🛡️ [LOGICAL ANCHOR]: Stick to the page with the LOWEST weight (Earliest logical part).
           // If we find Q11 on Page 1 (as "11a") and Page 0 (as "11c"), we should anchor to Page 1.
@@ -564,6 +572,7 @@ export class MarkingSchemeOrchestrationService {
               }
             }
           }
+          */
         }
       }
     }
