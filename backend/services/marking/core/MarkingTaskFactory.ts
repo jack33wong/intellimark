@@ -239,7 +239,9 @@ export class MarkingTaskFactory {
             nodes.forEach(node => {
                 let partLabel = "";
                 if (node.part && node.part !== 'main') {
-                    partLabel = node.part.startsWith(basePrefix) ? node.part : `${basePrefix}${node.part}`;
+                    const qNumStr = String(basePrefix).trim();
+                    const partStr = String(node.part).trim();
+                    partLabel = partStr.startsWith(qNumStr) ? node.part : `${basePrefix}${node.part}`;
                 } else {
                     partLabel = basePrefix;
                 }
@@ -329,7 +331,9 @@ export class MarkingTaskFactory {
                     // 🛡️ [OMNI-PRESENT SOURCE FIX]: 
                     // Explode [DRAWING] blocks into page-specific IDs if the question spans multiple pages.
                     if (clean === '[DRAWING]' && seg.subQuestionLabel) {
-                        const fullLabel = seg.subQuestionLabel.startsWith(baseQNum)
+                        const qNumStr = String(baseQNum).trim();
+                        const subQLabelStr = String(seg.subQuestionLabel).trim();
+                        const fullLabel = subQLabelStr.startsWith(qNumStr)
                             ? seg.subQuestionLabel
                             : `${baseQNum}${seg.subQuestionLabel}`;
 
@@ -349,16 +353,6 @@ export class MarkingTaskFactory {
 
                     let id = seg.line_id || seg.blockId || seg.sequentialId;
 
-                    // 🛡️ [ID-LIE FIX]: Rewrite ID in prompt to use relative page index
-                    if (id && id.startsWith('p')) {
-                        const match = id.match(/^p(\d+)_/);
-                        if (match) {
-                            const absIdx = parseInt(match[1]);
-                            if (pageMap[absIdx] !== undefined) {
-                                id = id.replace(`p${absIdx}_`, `p${pageMap[absIdx]}_`);
-                            }
-                        }
-                    }
 
                     promptMainWork += `[ID: ${id}] ${clean}\n`;
                 }
@@ -369,7 +363,9 @@ export class MarkingTaskFactory {
             group.aiSegmentationResults.forEach((seg: any) => {
                 const clean = seg.content.replace(/\s+/g, ' ').trim();
                 if (clean === '[DRAWING]' && seg.subQuestionLabel) {
-                    const fullLabel = seg.subQuestionLabel.startsWith(baseQNum)
+                    const qNumStr = String(baseQNum).trim();
+                    const subQLabelStr = String(seg.subQuestionLabel).trim();
+                    const fullLabel = subQLabelStr.startsWith(qNumStr)
                         ? seg.subQuestionLabel
                         : `${baseQNum}${seg.subQuestionLabel}`;
 
@@ -379,11 +375,10 @@ export class MarkingTaskFactory {
                         uniquePages.forEach(pIdx => {
                             const relIdx = pageMap[pIdx] ?? 0;
                             const newId = `p${pIdx}_${seg.line_id}`;
-                            const relId = `p${relIdx}_${seg.line_id}`;
                             explodedResults.push({
                                 ...seg,
                                 line_id: newId,
-                                relative_line_id: relId,
+                                relative_line_id: newId,
                                 blockId: newId,
                                 globalBlockId: newId,
                                 pageIndex: pIdx,
@@ -397,9 +392,7 @@ export class MarkingTaskFactory {
                 const relIdx = seg.pageIndex !== undefined ? (pageMap[seg.pageIndex] ?? 0) : 0;
                 explodedResults.push({
                     ...seg,
-                    relative_line_id: (seg.line_id || seg.blockId)?.startsWith('p')
-                        ? (seg.line_id || seg.blockId).replace(/^p(\d+)_/, `p${relIdx}_`)
-                        : seg.line_id
+                    relative_line_id: seg.line_id || seg.blockId
                 });
             });
             group.aiSegmentationResults = explodedResults;
@@ -420,16 +413,14 @@ export class MarkingTaskFactory {
                     if (blocksSource.length > 0) {
                         const relIdx = pageMap[pIdx] ?? 0;
                         const blocks = blocksSource.map((b: any, bIdx: number) => {
-                            // ⚠️ [SAFETY-REVERT] Filter removed to prevent data loss.
+                            // [TRUTH-FIRST]: Use the PHYSICAL page index (pIdx) for the block ID.
                             // We construct the block ID preserving the original index bIdx.
                             const absId = `p${pIdx}_ocr_${bIdx}`;
-                            const relId = `p${relIdx}_ocr_${bIdx}`;
 
                             // [FIX]: Preserve the original reference that was tagged in Phase 1.6
                             b.pageIndex = pIdx;
                             b.globalBlockId = absId;
                             b.id = absId;
-                            b.relative_id = relId;
                             b.text = b.text || b.mathpixLatex || b.latex || "";
                             return b;
                         }).filter((b: any) => b !== null);
@@ -454,6 +445,19 @@ export class MarkingTaskFactory {
             const nextGroup = sortedQuestionGroups[idx + 1];
             if (nextGroup) nextQuestionText = nextGroup[1].mainQuestion.text;
 
+            // 🛡️ [STRICT-LOOKUP]: Populate the sub-question page map for downstream safety checks.
+            const subQuestionPageMap: Record<string, number[]> = {};
+            globalExpectedQuestions.forEach(eq => {
+                if (eq.targetPages && eq.targetPages.length > 0) {
+                    // Store both full label (3a) and normalized suffix (a) for maximum coverage
+                    subQuestionPageMap[eq.label] = eq.targetPages;
+                    const suffix = eq.label.replace(/^\d+/, '').toLowerCase();
+                    if (suffix && suffix !== eq.label.toLowerCase()) {
+                        subQuestionPageMap[suffix] = eq.targetPages;
+                    }
+                }
+            });
+
             tasks.push({
                 questionNumber: baseQNum,
                 questionText: group.mainQuestion.text,
@@ -471,6 +475,7 @@ export class MarkingTaskFactory {
                 aiSegmentationResults: group.aiSegmentationResults,
                 semanticZones: globalZones,
                 pageMap: pageMap,
+                subQuestionPageMap: subQuestionPageMap,
                 subQuestionMetadata: {
                     hasSubQuestions: group.subQuestionMetadata.hasSubQuestions,
                     subQuestions: group.subQuestionMetadata.subQuestions

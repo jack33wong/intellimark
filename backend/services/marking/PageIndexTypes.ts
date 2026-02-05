@@ -95,8 +95,15 @@ export interface PageCoordinates {
      * - 'ai': From AI's visual analysis
      * - 'ocr': From OCR block data (ground truth)
      * - 'inferred': Calculated from context
+     * - 'global_id': Extracted from Global ID prefix
      */
-    readonly source: 'ai' | 'ocr' | 'inferred';
+    readonly source: 'ai' | 'ocr' | 'inferred' | 'global_id';
+
+    /**
+     * Whether this page index is confirmed as a physical ground-truth index.
+     * Signals downstream services to skip relative re-mapping.
+     */
+    readonly isPhysicalPage?: boolean;
 }
 
 /**
@@ -198,6 +205,11 @@ export interface ImmutableAnnotation {
      * Pointer vs Value strategy: AI's description of visual content
      */
     readonly contentDesc?: string;
+
+    /**
+     * Whether this annotation is pinned to a confirmed physical page.
+     */
+    readonly isPhysicalPage?: boolean;
 }
 
 // ============================================================================

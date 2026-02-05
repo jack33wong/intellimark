@@ -97,7 +97,10 @@ export const enrichAnnotationsWithPositions = (
 
         // 🛡️ [ID-LIE FIX]: Translate Relative Page Index -> Absolute Document Index
         // If AI says "pageIndex: 0", and the task has a pageMap {10: 0, 11: 1}, we map 0 -> 10.
-        if (task?.pageMap) {
+        // [TRUTH-FIRST]: Skip this if we already have a confirmed physical page index.
+        if ((anno as any).isPhysicalPage) {
+            console.log(` 🛡️ [TRUTH-STAY] Keeping physical page P${pageIndex} for Q${anno.subQuestion} (Skip Relative Lookup)`);
+        } else if (task?.pageMap) {
             // Check if pageIndex is a relative index in the map values
             const absPage = Object.entries(task.pageMap).find(([abs, rel]) => rel === pageIndex)?.[0];
             if (absPage !== undefined) {

@@ -188,6 +188,15 @@ export const MarkingPageProvider = ({
           return;
         }
 
+        // [FIX]: If this is the FIRST time we are seeing a session ID (previously null),
+        // it means we just entered split mode in a fresh session. We should NOT force-reset
+        // to global view, but rather respect the user's intent (e.g., they clicked a specific image).
+        // Just sync the ID and return.
+        if (lastSyncedSessionId.current === null) {
+          lastSyncedSessionId.current = currentSession.id;
+          return;
+        }
+
         if (newImages && newImages.length > 0) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',

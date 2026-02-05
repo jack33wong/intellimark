@@ -311,10 +311,7 @@ export class MarkingZoneService {
             const eq = expectedQuestions[qIdx];
             const nextEq = expectedQuestions[qIdx + 1];
 
-            let finalKey = eq.label;
-            if (questionId && !eq.label.startsWith(questionId)) {
-                finalKey = `${questionId}${eq.label}`;
-            }
+            const finalKey = eq.label;
 
             const match = this.findBestBlockSequential(
                 sortedBlocks,

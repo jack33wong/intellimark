@@ -155,25 +155,45 @@ export function createAnnotationFromAI(
 ): ImmutableAnnotation {
     const aiPosition = parseAIPosition(aiAnnotation, context);
 
-    // V27: Direct ground-truth extraction from block ID (e.g., block_1_5 -> Page 1)
+    // V27: Direct ground-truth extraction from block ID 
     let groundTruthPage: number | undefined = undefined;
-    if (aiAnnotation.line_id?.startsWith('block_')) {
+
+    // 🛡️ [TRUTH-FIRST]: Check all possible ID fields for the physical page prefix p{N}_
+    const idsToProbe = [
+        aiAnnotation.line_id,
+        aiAnnotation.linked_ocr_id,
+        (aiAnnotation as any).id,
+        (aiAnnotation as any).lineId
+    ];
+
+    for (const probeId of idsToProbe) {
+        if (typeof probeId === 'string' && probeId.match(/^p(\d+)_/)) {
+            const match = probeId.match(/^p(\d+)_/);
+            if (match) {
+                groundTruthPage = parseInt(match[1], 10);
+                console.log(` 🛡️ [TRUTH-EXTRACT] Found ground truth P${groundTruthPage} from ID: "${probeId}"`);
+                break; // Found physical ground truth!
+            }
+        }
+    }
+
+    // 2. Check for Classification Block format: "block_{N}_..."
+    if (groundTruthPage === undefined && aiAnnotation.line_id?.startsWith('block_')) {
         const parts = aiAnnotation.line_id.split('_');
         const pageIdx = parseInt(parts[1], 10);
         if (!isNaN(pageIdx)) groundTruthPage = pageIdx;
     }
 
     const page: PageCoordinates = {
-        // V27: Priority: 1. Ground Truth from ID, 2. [POSITION] tag, 3. JSON pageIndex
-        relative: (groundTruthPage !== undefined)
-            ? RelativePageIndex.from(groundTruthPage)
-            : ((aiPosition?.pageIndex != null)
-                ? RelativePageIndex.from(aiPosition.pageIndex)
-                : (aiAnnotation.pageIndex != null
-                    ? RelativePageIndex.from(aiAnnotation.pageIndex)
-                    : undefined)),
-        global: GlobalPageIndex.from(0), // Not yet mapped
-        source: 'ai'
+        // If we found a Global ID in the string, we set 'global' IMMEDIATELY.
+        global: (groundTruthPage !== undefined)
+            ? GlobalPageIndex.from(groundTruthPage)
+            : GlobalPageIndex.from(0), // Temporary fallback
+
+        // If we have ground truth, the relative index is irrelevant
+        relative: undefined,
+        source: (groundTruthPage !== undefined) ? 'global_id' : 'ai',
+        isPhysicalPage: (groundTruthPage !== undefined)
     };
 
     return {
@@ -189,7 +209,8 @@ export function createAnnotationFromAI(
         reasoning: aiAnnotation.reasoning,
         aiMatchStatus: aiAnnotation.ocr_match_status,
         linkedOcrId: aiAnnotation.linked_ocr_id,
-        contentDesc: aiAnnotation.content_desc
+        contentDesc: aiAnnotation.content_desc,
+        isPhysicalPage: (groundTruthPage !== undefined)
     };
 }
 
@@ -209,6 +230,12 @@ export function mapToGlobalPage(
     annotation: ImmutableAnnotation,
     sourcePages: readonly GlobalPageIndex[]
 ): ImmutableAnnotation {
+    // TRUTH-FIRST SHORTCIRCUIT:
+    // If the annotation source is 'global_id', it implies the page.global is already correct.
+    if (annotation.page.source === 'global_id') {
+        return annotation;
+    }
+
     const relativeIdx = annotation.page.relative;
 
     // If no relative index, annotation is already global (from OCR or inferred)
@@ -296,6 +323,12 @@ export function enrichWithOCRBbox(
 
     if (!matchingBlock) {
         return annotation; // No match, return unchanged
+    }
+
+    // [TRUTH-SYNC]: If we matched an OCR block, its page index is the ultimate ground truth.
+    if (matchingBlock.pageIndex !== undefined && annotation.page.global && (annotation.page.global as number) !== matchingBlock.pageIndex) {
+        console.log(` 🔄 [TRUTH-SYNC] Syncing page for Q${annotation.subQuestion}: P${annotation.page.global} -> P${matchingBlock.pageIndex} (Matched Block: ${matchingBlock.id})`);
+        (annotation.page as any).global = GlobalPageIndex.from(matchingBlock.pageIndex);
     }
 
     // Return new annotation with OCR data
@@ -390,6 +423,7 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         action: annotation.action,
         reasoning: annotation.reasoning,
         ocr_match_status: matchStatus,
+        isPhysicalPage: annotation.isPhysicalPage || annotation.page.isPhysicalPage,
         // [PTR-V-VAL] These will be hydrated in the Enrichment Service
         student_text: annotation.contentDesc || '',
         studentText: annotation.contentDesc || '',
@@ -413,7 +447,8 @@ export function fromLegacyFormat(legacyAnno: any): ImmutableAnnotation {
             ? RelativePageIndex.from(legacyAnno._aiRelativePageIndex)
             : undefined,
         global: GlobalPageIndex.from(legacyAnno.pageIndex || 0),
-        source: legacyAnno.ocrSource ? 'ocr' : 'inferred'
+        source: legacyAnno.ocrSource ? 'ocr' : 'inferred',
+        isPhysicalPage: legacyAnno.isPhysicalPage || false // Set isPhysicalPage from legacyAnno
     };
 
     return {

@@ -112,6 +112,7 @@ export class SVGOverlayService {
     hasMetaPage?: boolean,
     semanticZones?: any[]
   ): Promise<string> {
+    console.log(` 🖼️ [SVG-BURN] Burning P${imageDimensions.width}x${imageDimensions.height} | Anno: ${annotations.length} | Zones: ${semanticZones?.length || 0}`);
     try {
       const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
       if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
@@ -164,11 +165,13 @@ export class SVGOverlayService {
 
     // --- SUB-QUESTION ZONES DEBUG BORDER (Optional) ---
     const drawZones = process.env.DRAW_SUBQUESTION_ZONES === 'true' || process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER === 'true';
-    // console.log(`🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: ${process.env.DRAW_SUBQUESTION_ZONES}, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: ${process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER}, finalDraw: ${drawZones}, Count: ${semanticZones ? (Array.isArray(semanticZones) ? semanticZones.length : Object.keys(semanticZones).length) : 0}`);
+    console.log(`   🎨 [SVG-DEBUG] DRAW_SUBQUESTION_ZONES: ${process.env.DRAW_SUBQUESTION_ZONES}, ENABLE_SVG_ANNOTATION_DEBUG_BORDER: ${process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER} | Final: ${drawZones} | Zones: ${semanticZones?.length || 0}`);
 
     if (drawZones && semanticZones) {
       const zonesToDraw = Array.isArray(semanticZones) ? semanticZones :
         Object.entries(semanticZones).flatMap(([label, list]) => (list as any[]).map(z => ({ ...z, label })));
+
+      console.log(`   🎨 [SVG-DEBUG] Flattened zonesToDraw: ${zonesToDraw.length}`);
 
       if (zonesToDraw.length > 0) {
         const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
