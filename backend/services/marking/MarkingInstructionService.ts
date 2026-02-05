@@ -6,6 +6,7 @@ import * as stringSimilarity from 'string-similarity';
 import { MarkingPromptService } from './MarkingPromptService.js';
 import { MarkingResultParser } from './MarkingResultParser.js';
 import { MarkingZoneService } from './MarkingZoneService.js';
+import { MarkingPromptAdapter } from './core/MarkingPromptAdapter.js';
 
 // ========================= NEW: IMMUTABLE PAGE INDEX ARCHITECTURE =========================
 import {
@@ -622,6 +623,19 @@ export class MarkingInstructionService {
     let structuredQuestionText = '';
     let liveQuestion = '';
 
+    // [CLEAN-PROMPT-FIX]: Filter and map sub-question page assignments using the common adapter.
+    const {
+      filteredSubQuestionPageMap,
+      promptBlocks,
+      promptStudentWork
+    } = MarkingPromptAdapter.prepareRelativePrompt({
+      sourceImageIndices,
+      subQuestionPageMap,
+      questionNumber: inputQuestionNumber,
+      model,
+      processedImage: { rawOcrBlocks: sanitizedBlocks, classificationStudentWork } as any
+    });
+
     if (hasMarkingScheme && normalizedScheme) {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;
@@ -648,10 +662,10 @@ export class MarkingInstructionService {
       userPrompt = prompt.user(
         currentQNum,
         schemeText,
-        classificationStudentWork || 'No student work provided',
-        sanitizedBlocks,
+        promptStudentWork || 'No student work provided',
+        promptBlocks,
         structuredQuestionText.trim() || questionText || liveQuestion || classificationStudentWork || 'No question text provided',
-        subQuestionPageMap as any,
+        filteredSubQuestionPageMap as any,
         formattedGeneralGuidance,
         normalizedScheme.isGeneric === true
       );
@@ -716,6 +730,11 @@ export class MarkingInstructionService {
 
 
     parsedResponse = MarkingResultParser.postProcessMarkingResponse(parsedResponse, normalizedScheme, subQuestionPageMap || {}, inputQuestionNumber || '');
+
+    // [RELATIVE-ADAPTER]: Map relative response indices back to physical truth.
+    if (parsedResponse?.annotations && sourceImageIndices) {
+      MarkingPromptAdapter.restorePhysicalTruth(parsedResponse.annotations, sourceImageIndices);
+    }
 
     if (!parsedResponse || !parsedResponse.annotations) {
       throw new Error('AI failed to generate valid annotations array');
