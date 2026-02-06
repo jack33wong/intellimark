@@ -373,27 +373,7 @@ export async function executeMarkingForQuestion(
         anno.visual_position = { x: 50, y: 50, width: 10, height: 10 };
       }
 
-      // Zone Protection
-      const zoneData = AnnotationLinker.getEffectiveZone(anno.subQuestion, semanticZones, anno.pageIndex || 0);
-      if (zoneData && anno.visual_position) {
-        const h = anno.visual_position.height || 10;
-        const halfH = h / 2;
-        const rawY = anno.visual_position.y;
-        const startYPercent = (zoneData as any).startYPercent;
-        const endYPercent = (zoneData as any).endYPercent;
-        const zoneHeight = (zoneData.endY || 0) - (zoneData.startY || 0);
-
-        if (zoneHeight > 50) {
-          if ((rawY - halfH) < startYPercent) {
-            anno.visual_position.y = Math.max(0, startYPercent + 2);
-          } else if (endYPercent && (rawY + halfH) > endYPercent) {
-            anno.visual_position.y = Math.min(100, endYPercent - 2);
-          }
-        }
-        if (dims && dims.height > 0) {
-          anno.bbox[1] = (anno.visual_position.y / 100) * dims.height;
-        }
-      }
+      // Zone Protection (DEPRECATED: Handled Upstream in EnrichmentService)
     });
 
     // --- 9. SCORING ---

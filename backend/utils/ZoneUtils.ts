@@ -90,4 +90,45 @@ export class ZoneUtils {
         // Allow point to be slightly above or slightly below the strict lines
         return y >= (zone.startY - buffer) && y <= (zone.endY + buffer);
     }
+
+    /**
+     * MASTER CLAMP: Ensures a bounding box is physically inside its Semantic Zone.
+     * Handles both X and Y axes.
+     * @param box - The pixel box {x, y, width, height}
+     * @param zone - The SemanticZone to clamp to
+     * @param paddingPercent - The internal safe margin (default 5%)
+     */
+    static clampToZone(
+        box: { x: number, y: number, width: number, height: number },
+        zone: SemanticZone,
+        paddingPercent: number = 0.05
+    ): { x: number, y: number } {
+        const zoneHeight = (zone.endY - zone.startY);
+        const yPadding = Math.min(30, Math.round(zoneHeight * paddingPercent));
+
+        // Horizontal clamping (User Request: Same margin for X,Y)
+        const zoneStartX = zone.x ?? 0;
+        const zoneWidth = (zone as any).width ?? 2000;
+        const zoneEndX = zoneStartX + zoneWidth;
+        const xPadding = Math.min(30, Math.round(zoneWidth * paddingPercent));
+
+        let x = box.x;
+        let y = box.y;
+
+        // Vertical Clamping
+        if (y < zone.startY + yPadding) {
+            y = zone.startY + yPadding;
+        } else if (y + box.height > zone.endY - yPadding) {
+            y = Math.max(zone.startY + yPadding, zone.endY - box.height - yPadding);
+        }
+
+        // Horizontal Clamping
+        if (x < zoneStartX + xPadding) {
+            x = zoneStartX + xPadding;
+        } else if (x + box.width > zoneEndX - xPadding) {
+            x = Math.max(zoneStartX + xPadding, zoneEndX - box.width - xPadding);
+        }
+
+        return { x, y };
+    }
 }

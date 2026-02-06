@@ -299,20 +299,20 @@ export const enrichAnnotationsWithPositions = (
                 const endY = zone.endY;
 
                 const zoneHeight = (endY - startY);
-                // 🛡️ [WEAK CLAMP]: Use 5% of zone height, capped at 30px (Down from 10%/50px)
-                const SAFE_MARGIN = Math.min(30, Math.round(zoneHeight * 0.05));
-
-                const h = pixelBox.height || (dims.height * 0.015); // Default ~50px if missing
+                const h = pixelBox.height || (dims.height * 0.015);
 
                 // 🛡️ [USER-PROTECT]: DO NOT touch MATCHED marks. They must stay on the handwriting.
                 // Pullback ONLY applies to UNMATCHED, VISUAL, or FALLBACK marks.
                 if (status !== "MATCHED") {
-                    if (pixelBox.y < startY + SAFE_MARGIN) {
-                        pixelBox.y = startY + SAFE_MARGIN;
-                    }
-                    if (endY && (pixelBox.y + h) > endY - SAFE_MARGIN) {
-                        pixelBox.y = Math.max(startY + SAFE_MARGIN, endY - h - SAFE_MARGIN);
-                    }
+                    const clamped = ZoneUtils.clampToZone({
+                        x: pixelBox.x,
+                        y: pixelBox.y,
+                        width: pixelBox.width,
+                        height: h
+                    }, zone);
+
+                    pixelBox.x = clamped.x;
+                    pixelBox.y = clamped.y;
                 }
             } else if (allPossibleZones.length > 0) {
                 console.log(`   🔓 [ZONE-SKIP] Skipping clamping for Q${anno.subQuestion}. No zone for P${pageIndex} (Current pages: ${allPossibleZones.map(z => z.pageIndex).join(',')})`);

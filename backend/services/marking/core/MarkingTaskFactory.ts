@@ -34,6 +34,7 @@ export class MarkingTaskFactory {
 
             // --- Anchor Page Logic (Standard) ---
             let anchorMainPage = sourceImageIndices[0] ?? 0;
+            /* [SOFT DISABLE]: User requested to disable physical anchoring to prevent risky misalignments.
             if (allPagesOcrData) {
                 const snippet = q.text ? q.text.replace(/\n/g, ' ').substring(0, 25).trim() : null;
                 if (snippet && snippet.length > 5) {
@@ -49,6 +50,10 @@ export class MarkingTaskFactory {
                 const idx = sourceImageIndices.indexOf(anchorMainPage);
                 sourceImageIndices.splice(idx, 1);
                 sourceImageIndices.unshift(anchorMainPage);
+            }
+            */
+            if (anchorMainPage !== undefined) {
+                console.log(`⚓ [ANCHOR-DISABLED] Safe Match Found at P${anchorMainPage}. (Override prevented)`);
             }
 
             let markingScheme = null;

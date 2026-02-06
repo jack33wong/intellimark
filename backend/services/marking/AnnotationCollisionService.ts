@@ -79,28 +79,6 @@ export class AnnotationCollisionService {
                         newY = fixedBox.y - mobileBox.height - 10;
                     }
 
-                    // 🛡️ ZONE PROTECTION
-                    // Before applying the move, check if it stays within the Zone
-                    if (semanticZones && mobile.subQuestion) {
-                        const pageIndex = mobile.pageIndex || 0;
-                        const allPossibleZones = ZoneUtils.findAllMatchingZones(mobile.subQuestion, semanticZones);
-                        const zone = allPossibleZones.find(z => z.pageIndex === pageIndex);
-
-                        if (zone) {
-                            const zoneHeight = (zone.endY - zone.startY);
-                            // 🛡️ [WEAK CLAMP]: Use 5% of zone height, capped at 30px
-                            const SAFE_MARGIN = Math.min(30, Math.round(zoneHeight * 0.05));
-
-                            // Clamp Logic
-                            if (newY < zone.startY + SAFE_MARGIN) newY = zone.startY + SAFE_MARGIN; // Hit Ceiling
-
-                            if (zone.endY && newY + mobileBox.height > zone.endY - SAFE_MARGIN) {
-                                // Hit Floor -> Clamp to floor with margin.
-                                newY = Math.max(zone.startY + SAFE_MARGIN, zone.endY - mobileBox.height - SAFE_MARGIN);
-                            }
-                        }
-                    }
-
                     // Apply Move
                     mobile.bbox[1] = newY;
                     mobileBox.y = newY; // Update local box for next comparison

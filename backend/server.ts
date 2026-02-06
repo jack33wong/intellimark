@@ -82,6 +82,7 @@ import usageRoutes from './routes/usage.js';
 import configRoutes from './routes/config.js';
 import creditsRoutes from './routes/credits.js';
 import adminCreditsRoutes from './routes/admin/credits.js';
+import debugRoutes from './routes/debug.js';
 
 // Enable auth routes (Apply JSON/URLENCODED here)
 app.use('/api/auth', express.json({ limit: '50mb' }), express.urlencoded({ extended: true, limit: '50mb' }), authRoutes);
@@ -101,6 +102,7 @@ app.use('/api/payment', jsonParser, urlParser, paymentRoutes);
 app.use('/api/config', jsonParser, urlParser, configRoutes);
 app.use('/api/credits', jsonParser, urlParser, creditsRoutes);
 app.use('/api/admin/credits', jsonParser, urlParser, adminCreditsRoutes);
+app.use('/api/debug', jsonParser, urlParser, debugRoutes);
 
 
 
