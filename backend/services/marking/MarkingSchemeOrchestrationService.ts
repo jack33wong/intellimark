@@ -186,9 +186,12 @@ export class MarkingSchemeOrchestrationService {
 
         let effectiveText = (cleanText && cleanText.length > 5) ? cleanText : q.text;
 
+        /* [UPSTREAM-FIX]: Concatenating student work here is redundant and harmful to detection.
+           Student work is already passed to the AI in the classificationStudentWork section.
         if (q.studentWork) {
           effectiveText = `${effectiveText}\n\n${q.studentWork}`;
         }
+        */
 
         // IMPORTANT: Update the question object itself so subsequent logs use this rich text
         q.text = effectiveText;

@@ -341,7 +341,7 @@ export class QuestionDetectionService {
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
     // 🛡️ [REUSE]: Delegate to centralized SimilarityService
-    const details = SimilarityService.calculateHybridScore(inputText, dbText, isRescueMode);
+    const details = SimilarityService.calculateHybridScore(inputText, dbText, isRescueMode, false, 'question');
 
     // 4. Structural Match (Remains in Detection Service as it's specific to Paper search)
     let structureScore = 0.5;

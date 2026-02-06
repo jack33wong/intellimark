@@ -31,7 +31,8 @@ export class SimilarityService {
         inputText: string,
         dbText: string,
         isRescueMode: boolean = false,
-        isStrict: boolean = false
+        isStrict: boolean = false,
+        mode: 'question' | 'zone' = 'zone'
     ): SimilarityScoreDetails {
 
         // 1. Text Similarity (Dice Coefficient)
@@ -61,7 +62,12 @@ export class SimilarityService {
         if (dbNums.length > 0 && inputNums.length > 0) {
             const setDb = new Set(dbNums);
             const intersection = inputNums.filter(n => setDb.has(n));
-            numericScore = intersection.length / Math.max(inputNums.length, dbNums.length);
+
+            // 🛡️ [REFINED NUMERIC LOGIC]
+            // mode: 'zone' (default) -> Balance against Max(Input, DB). Good for finding sub-zones.
+            // mode: 'question' -> Balance against DB only. Good for Blind Search where Input might contain page numbers.
+            const den = mode === 'question' ? dbNums.length : Math.max(inputNums.length, dbNums.length);
+            numericScore = intersection.length / den;
         } else if (dbNums.length === 0 && inputNums.length === 0) {
             numericScore = 1.0; // Both have no numbers -> identity preserved
         }
