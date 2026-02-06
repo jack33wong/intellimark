@@ -1,70 +1,99 @@
 .antigravity-typewriter-container {
     position: relative;
     display: inline-block;
-    min-height: 1.2em;
     width: 100%;
-    line-height: normal;
+    line-height: 1.4;
 }
 
 .antigravity-text-wrapper {
-    display: inline;
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    position: relative;
+    z-index: 1;
 }
 
 .antigravity-char {
-    display: inline;
-    /* [FIX] Remove transition to avoid "sliding" feel per user request. 
-       Characters should appear instantly one-by-one. */
+    display: inline-block;
+    white-space: pre;
+    transition: none !important;
 }
 
+/* --- Cursor Wrapper --- */
 .antigravity-cursor-wrapper {
     position: absolute;
     top: 0;
     left: 0;
     pointer-events: none;
     z-index: 10;
-    will-change: transform;
-    /* Use hardware acceleration */
-    transform: translate3d(var(--cursor-x, 0), var(--cursor-y, 0), 0);
-    /* Snappier "gliding" effect */
-    transition: transform 0.08s ease-out;
+
+    height: 1.4em;
+
+    /* Optional: Force width if your image is wide */
+    /* width: 2px;  */
+
+    display: flex;
+    align-items: center;
+
+    /* Instant movement */
+    transition: none !important;
 }
 
 .antigravity-cursor-asset {
     display: block;
-    /* Match the font height but slightly taller for that premium look */
-    height: 1.3em;
+    height: 100%;
     width: auto;
-    min-width: 4px;
-    /* Apply mix-blend-mode if needed; usually not needed for high-quality PNGs */
-    /* mix-blend-mode: screen; */
-
-    /* The Blinking Animation */
-    animation: antigravity-cursor-blink 0.5s infinite;
 }
 
-@keyframes antigravity-cursor-blink {
-    0% {
-        opacity: 0;
-    }
+/* --- Blink Animation --- */
+.antigravity-cursor-wrapper.blinking {
+    /* 1s duration, standard blink */
+    animation: cursor-blink 1s infinite;
+}
 
-    20% {
-        opacity: 1;
-    }
+@keyframes cursor-blink {
 
-    80% {
-        opacity: 1;
-    }
-
+    0%,
     100% {
+        opacity: 1;
+    }
+
+    50% {
         opacity: 0;
     }
 }
 
-/* For browsers that don't support translate3d well */
-@media (prefers-reduced-motion: reduce) {
-    .antigravity-cursor-wrapper {
-        transition: none;
-    }
+
+/* --- Staggered Fade-Up Animation --- */
+
+.anim-item {
+    opacity: 0;
+    transform: translateY(25px);
+    /* Start a bit lower for better effect */
+    pointer-events: none;
+
+    /* [FIX] SMOOTH STOP EFFECT 
+       Old: cubic-bezier(0.16, 1, 0.3, 1) -> Very snappy/sudden stop
+       New: cubic-bezier(0.25, 1, 0.5, 1) -> "Soft Quartic Ease-Out" 
+       This glides into the final position gently.
+    */
+    transition: opacity 0.8s ease-out, transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+
+    will-change: opacity, transform;
+}
+
+.trigger-anim .anim-item {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+/* Stagger Delays (Unchanged) */
+.delay-1 {
+    transition-delay: 0ms;
+}
+
+.delay-2 {
+    transition-delay: 150ms;
+}
+
+.delay-3 {
+    transition-delay: 300ms;
 }

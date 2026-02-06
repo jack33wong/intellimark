@@ -1,4 +1,4 @@
-import React, { useState, useRef, MouseEvent, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
@@ -12,6 +12,7 @@ import SeoHeader from '../components/common/SeoHeader';
 import AntigravityTypewriter from '../components/common/AntigravityTypewriter';
 import './LandingPage.css';
 
+/* --- Helper Component: Image Magnifier --- */
 const ImageMagnifier = ({
     src,
     width,
@@ -44,9 +45,7 @@ const ImageMagnifier = ({
                 src={src}
                 className="magnifier-image"
                 onMouseEnter={(e) => {
-                    // Disable for touch devices
                     if (window.matchMedia("(pointer: coarse)").matches) return;
-
                     const elem = e.currentTarget;
                     const { width, height } = elem.getBoundingClientRect();
                     setSize([width, height]);
@@ -56,15 +55,11 @@ const ImageMagnifier = ({
                     if (!showMagnifier) return;
                     const elem = e.currentTarget;
                     const { top, left } = elem.getBoundingClientRect();
-
-                    // Calculate relative position within the element
                     const x = e.clientX - left;
                     const y = e.clientY - top;
                     setXY([x, y]);
                 }}
-                onMouseLeave={() => {
-                    setShowMagnifier(false);
-                }}
+                onMouseLeave={() => setShowMagnifier(false)}
                 alt={"magnifier"}
             />
 
@@ -93,14 +88,19 @@ const ImageMagnifier = ({
     );
 };
 
+/* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "AI Marking that reads your handwriting " },
+    { text: "AI Marking that reads your handwriting" },
     { text: "Exactly like an Examiner", className: "hero-highlight-blue" }
 ];
 
+/* --- Main Page Component --- */
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
     const [userSegment, setUserSegment] = useState<'student' | 'tutor'>('student');
+
+    // Controls the staggered entrance of subtitle/CTA
+    const [startAnimations, setStartAnimations] = useState(false);
 
     const SegmentedTabs = () => (
         <div className="segmented-cta-tabs">
@@ -120,7 +120,6 @@ const LandingPage: React.FC = () => {
     );
 
     const handleCtaClick = () => {
-        // We can pass the segment to the app if needed, e.g., via query param
         navigate(`/app?role=${userSegment}`);
     };
 
@@ -130,24 +129,41 @@ const LandingPage: React.FC = () => {
             <LandingPageHeader />
 
             <section className="landing-section landing-section-hero">
-                <div className="landing-hero-content">
+                {/* [ANIMATION TRIGGER]
+                  The 'trigger-anim' class activates the 'anim-item' children.
+                */}
+                <div className={`landing-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
 
                     <AntigravityTypewriter
                         className="hero-main-title"
                         segments={HERO_SEGMENTS}
+                        // Trigger animation 150ms after typing finishes
+                        onComplete={() => setTimeout(() => setStartAnimations(true), 150)}
                     />
-                    <p className="hero-main-subtitle">Upload your handwritten maths papers and get an instant grade. Our AI follows your working out step-by-step to find the method marks a normal AI would miss.</p>
+
+                    {/* BLOCK 1: Subtitle (Immediate start after typing) */}
+                    <p className="hero-main-subtitle anim-item delay-1">
+                        Upload your handwritten maths papers and get an instant grade. Our AI follows your working out step-by-step to find the method marks a normal AI would miss.
+                    </p>
 
                     <div className="hero-cta-group">
-                        <SegmentedTabs />
-                        <button className="hero-primary-cta" onClick={handleCtaClick}>
-                            {userSegment === 'student' ? 'Get My Instant Grade (Free)' : 'Mark My Class Mocks (Free)'}
-                        </button>
-                        <p className="hero-trust-microcopy">
-                            Supports Edexcel (1MA1), AQA (8300), & OCR. No credit card required.
-                        </p>
+                        {/* BLOCK 2: Tabs (Medium delay) */}
+                        <div className="anim-item delay-2">
+                            <SegmentedTabs />
+                        </div>
+
+                        {/* BLOCK 3: Primary CTA & Trust Text (Longest delay) */}
+                        <div className="anim-item delay-3">
+                            <button className="hero-primary-cta" onClick={handleCtaClick}>
+                                {userSegment === 'student' ? 'Get My Instant Grade (Free)' : 'Mark My Class Mocks (Free)'}
+                            </button>
+                            <p className="hero-trust-microcopy">
+                                Supports Edexcel (1MA1), AQA (8300), & OCR. No credit card required.
+                            </p>
+                        </div>
                     </div>
                 </div>
+
                 <div className="landing-intro-image-container">
                     <HeroAnimation />
                 </div>
