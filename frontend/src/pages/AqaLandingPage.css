@@ -312,3 +312,131 @@
         font-size: 2.5rem;
     }
 }
+
+/* Fix Hero Button Distortion */
+.aqa-btn-file {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    height: auto;
+}
+
+/* 3-Column Year Hub */
+.aqa-year-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 40px;
+    width: 100%;
+    max-width: 1250px;
+}
+
+.aqa-year-card.static {
+    background: #ffffff;
+    border: 1px solid var(--border-main);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: left;
+}
+
+.year-card-header {
+    border-bottom: 2px solid var(--fill-blue);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.year-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+/* Internal Tier Grouping */
+.tier-groups-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.tier-sublabel {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+.internal-tier-group {
+    border-left: 2px solid var(--fill-blue);
+    /* Professional Indent Line */
+    padding-left: 12px;
+}
+
+/* Paper-Level Interaction */
+.paper-item-row.interactive {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    margin: 2px -4px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.paper-item-row.interactive:hover {
+    background: var(--background-gray-main);
+    transform: translateX(4px);
+    /* Professional shift effect */
+}
+
+.paper-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.paper-type {
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.action-link {
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.action-link.model {
+    background: #7f00ff;
+    color: white;
+    border: none;
+}
+
+.action-link.mark {
+    background: transparent;
+    color: #7f00ff;
+    border: 1px solid #7f00ff;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+    .aqa-year-card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .aqa-year-card-grid {
+        grid-template-columns: 1fr;
+    }
+}

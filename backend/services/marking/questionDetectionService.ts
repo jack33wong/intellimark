@@ -164,11 +164,7 @@ export class QuestionDetectionService {
         return sum + (Array.isArray(questions) ? questions.length : Object.keys(questions).length);
       }, 0);
 
-      if (cleanPaperHint) {
-        // console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Using paper hint: "${cleanPaperHint}" (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
-      } else {
-        // console.log(`[DETECTION] Q${questionNumberHint || '?'} -> Global search (Pool: ${searchPool.length} papers, ${currentPoolSize} candidates)`);
-      }
+
 
       const hintMetadata: QuestionDetectionResult['hintMetadata'] = {
         hintUsed: isNarrowSearch ? cleanPaperHint : 'Global Search',
@@ -197,13 +193,7 @@ export class QuestionDetectionService {
       // 5. Ranking & Sorting
       candidates.sort((a, b) => b.score - a.score);
 
-      // Log the top candidate for debugging
-      if (candidates.length > 0) {
-        const top = candidates[0];
-        // console.log(`[DETECTION DEBUG] Q${questionNumberHint || '??'} Top Candidate: ${top.paper.metadata.exam_board} - ${top.paper.metadata.exam_code} Q${top.questionNumber}${top.subQuestionNumber || ''} (Score: ${top.score.toFixed(3)})`);
-        // console.log(`[DETECTION DEBUG] Q${questionNumberHint || '??'} Input Text: "${extractedQuestionText.substring(0, 100)}..."`);
-        // console.log(`[DETECTION DEBUG] Q${questionNumberHint || '??'} DB Text:    "${top.databaseText.substring(0, 100)}..."`);
-      }
+
 
       // Populate Audit Trail (Top 5)
       hintMetadata.auditTrail = candidates.slice(0, 5).map((c, idx) => ({
@@ -340,19 +330,33 @@ export class QuestionDetectionService {
     isRescueMode: boolean
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
-    // 🛡️ [REUSE]: Delegate to centralized SimilarityService
-    const details = SimilarityService.calculateHybridScore(inputText, dbText, isRescueMode, false, 'question');
+    // 🛡️ [REUSE]: Delegate to centralized SimilarityService (Strict Question Mode)
+    const details = SimilarityService.calculateQuestionHybridScore(inputText, dbText, isRescueMode);
 
     // 4. Structural Match (Remains in Detection Service as it's specific to Paper search)
-    let structureScore = 0.5;
+    let structureScore = 0.5; // Neutral for global search without hints
     if (hint) {
       const hintBase = hint.match(/^\d+/)?.[0];
       const dbBase = dbQNum.match(/^\d+/)?.[0];
       if (hintBase === dbBase) structureScore = 1.0;
+      else structureScore = 0.0; // Hard fail if numbers differ
     }
 
-    // Weight the Structure back into the Hybrid score
-    const finalTotal = (details.total * 0.7) + (structureScore * 0.3);
+    // [AND GATE LOGIC]: 
+    // Final score is a mix, but we apply a "Kill Switch" if either side is too weak.
+    let finalTotal = (details.total * 0.7) + (structureScore * 0.3);
+
+    // 🛡️ [CONTENT-LOCK]: If text similarity is low (<0.4), 
+    // don't let a matching Question Number (structureScore=1.0) push it into the success zone.
+    // This implements the "AND" condition: Quality Text AND Correct Number.
+    if (structureScore > 0.8 && details.text < 0.4) {
+      finalTotal *= 0.4; // Drastic drop for generic labels like "Question 12"
+    }
+
+    // 🛡️ [STRUCTURE-LOCK]: If hint is provided but doesn't match, strictly suppress.
+    if (hint && structureScore < 0.8) {
+      finalTotal *= 0.1;
+    }
 
     return {
       total: finalTotal,
@@ -436,7 +440,6 @@ export class QuestionDetectionService {
 
   private sanitizeQuestionHint(hint: string | undefined | null): string | null {
     if (!hint) return null;
-    if (hint === '1') return null;
     let clean = hint.toLowerCase().trim();
     if (clean === 'l') clean = '1';
     return clean;
