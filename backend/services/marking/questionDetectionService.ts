@@ -139,6 +139,7 @@ export class QuestionDetectionService {
   ): Promise<QuestionDetectionResult> {
     try {
       // 1. Input Sanitization
+      console.log(`[DEBUG_INPUT_CAPTURE] detectQuestion Input for ${questionNumberHint}:`, extractedQuestionText);
       const cleanText = (extractedQuestionText || '').trim();
       const cleanQHint = this.sanitizeQuestionHint(questionNumberHint);
       const cleanPaperHint = (examPaperHint || '').trim();
@@ -195,7 +196,6 @@ export class QuestionDetectionService {
 
 
 
-      // Populate Audit Trail (Top 5)
       hintMetadata.auditTrail = candidates.slice(0, 5).map((c, idx) => ({
         rank: idx + 1,
         candidateId: `${c.paper.metadata.exam_code} Q${c.questionNumber}`,
@@ -286,7 +286,7 @@ export class QuestionDetectionService {
       const hintBase = hintQNum ? hintQNum.match(/^\d+/)?.[0] : null;
       const currentBase = qNum.match(/^\d+/)?.[0];
 
-      if (hintBase && currentBase && hintBase !== currentBase) {
+      if (!isRescueMode && hintBase && currentBase && hintBase !== currentBase) {
         continue;
       }
 
@@ -353,8 +353,13 @@ export class QuestionDetectionService {
       finalTotal *= 0.4; // Drastic drop for generic labels like "Question 12"
     }
 
-    // 🛡️ [STRUCTURE-LOCK]: If hint is provided but doesn't match, strictly suppress.
-    if (hint && structureScore < 0.8) {
+    // 🛡️ [GREAT PENALTY - HARD REJECT]: If hint is provided but doesn't match, strictly suppress.
+    // [V30 FIX] Only apply if NOT in rescue mode.
+    if (!isRescueMode && hint && structureScore < 0.8) {
+      finalTotal = 0;
+    } else if (hint && structureScore < 0.8) {
+      // Still apply a small penalty in rescue mode to favor better matches,
+      // but don't Hard Reject.
       finalTotal *= 0.1;
     }
 

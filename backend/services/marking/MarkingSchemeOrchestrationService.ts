@@ -219,17 +219,19 @@ export class MarkingSchemeOrchestrationService {
       const uniqueFragments = new Set<string>();
       group.forEach(q => { if (q.text) uniqueFragments.add(q.text.trim()); });
 
-      const sortedFragments = Array.from(uniqueFragments).sort((a, b) => b.length - a.length);
-      let combinedAnchor = sortedFragments[0] || '';
-      for (let i = 1; i < sortedFragments.length; i++) {
-        const frag = sortedFragments[i];
-        if (frag.length < 5) continue;
-        const tailLength = Math.min(frag.length, 40);
-        const tail = frag.substring(frag.length - tailLength);
-        if (!combinedAnchor.toLowerCase().includes(tail.toLowerCase().trim())) {
-          combinedAnchor += `\n\n${frag}`;
-        }
-      }
+      const fragments = Array.from(uniqueFragments);
+      // Filter out redundant fragments that are already contained within other (larger) fragments
+      // to keep the prompt clean while preserving the natural document order.
+      const condensedFragments = fragments.filter((f, idx) => {
+        if (f.length < 5) return false;
+        return !fragments.some((other, otherIdx) =>
+          idx !== otherIdx &&
+          other.length >= f.length && // If lengths are equal and one includes another, they are identical or very similar
+          other.toLowerCase().includes(f.toLowerCase())
+        );
+      });
+
+      const combinedAnchor = condensedFragments.join('\n\n');
 
       const groupDetectionResult = await questionDetectionService.detectQuestion(
         combinedAnchor,

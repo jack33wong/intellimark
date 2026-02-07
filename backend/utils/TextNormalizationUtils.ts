@@ -61,6 +61,8 @@ export function normalizeTextForComparison(
     .replace(/\\mathbf\{([^}]+)\}/g, '$1') // Remove \mathbf{} (e.g., \mathbf{A} → A)
     .replace(/\\mathit\{([^}]+)\}/g, '$1') // Remove \mathit{}
     .replace(/\\text\{([^}]+)\}/g, '$1') // Remove \text{}
+    .replace(/\\dot\{([^}]+)\}/g, '$1') // Remove \dot{} for recurring decimals
+    .replace(/\\\\n/g, ' ') // Handle literal \\n strings from OCR/JSON
     .replace(/\\/g, '') // Remove backslashes but KEEP the command names (e.g. "frac", "sqrt")
     .replace(/\{|\}/g, '') // Remove braces
     .replace(/\$+/g, '') // Remove $ signs

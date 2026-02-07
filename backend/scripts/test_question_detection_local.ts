@@ -41,30 +41,29 @@ const testCases: TestCase[] = [
     // ==================================================================================
     // SET B: Edexcel GCSE 1MA1/1H June 2024 (23 Questions) - GLOBAL SEARCH PARITY
     // ==================================================================================
-    { id: "1H-Q1", source: "1MA1/1H", text: "Here are the first four terms of an arithmetic sequence.", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q2a", source: "1MA1/1H", text: "Work out 3\\frac{4}{5} - 1\\frac{2}{3}", realScore: 0.692, realStatus: "RESCUED" },
-    { id: "1H-Q2b", source: "1MA1/1H", text: "What mistake has Kevin made?", realScore: 0.692, realStatus: "RESCUED" },
-    { id: "1H-Q3", source: "1MA1/1H", text: "The diagram shows a plan of a floor. Petra is going to paint the floor.", realScore: 0.958, realStatus: "SUCCESS" },
-    { id: "1H-Q4", source: "1MA1/1H", text: "Here is a Venn diagram.", realScore: 0.864, realStatus: "SUCCESS" },
-    { id: "1H-Q5", source: "1MA1/1H", text: "Sophie drives a distance of 513 kilometres in 4 hours 45 minutes.", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q6", source: "1MA1/1H", text: "Here is a straight line L drawn on a grid.", realScore: 0.567, realStatus: "RESCUED" },
-    { id: "1H-Q7", source: "1MA1/1H", text: "Kasim has some small jars, some medium jars and some large jars.", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q8", source: "1MA1/1H", text: "Len has 8 parcels. The mean weight of the 8 parcels is 3.2 kg.", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q9", source: "1MA1/1H", text: "In a sale, the normal price of a coat is reduced by 20%.", realScore: 0.987, realStatus: "SUCCESS" },
-    { id: "1H-Q10", source: "1MA1/1H", text: "Solve the simultaneous equations 3x - 4y = 11, 2x - 5y = 12", realScore: 0.704, realStatus: "RESCUED" },
-    { id: "1H-Q11", source: "1MA1/1H", text: "Triangle A is translated by the vector [3, -4] to give triangle B.", realScore: 0.990, realStatus: "SUCCESS" },
-    { id: "1H-Q12", source: "1MA1/1H", text: "Here are some graphs. Write down the letter of the graph that could be the graph of", realScore: 0.870, realStatus: "SUCCESS" },
-    { id: "1H-Q13", source: "1MA1/1H", text: "The table gives information about the amounts of time, in minutes, that 80 people waited", realScore: 0.998, realStatus: "SUCCESS" },
+    { id: "1H-Q1", source: "1MA1/1H", text: "Here are the first four terms of an arithmetic sequence.\n1 5 9 13\nFind an expression, in terms of n, for the nth term of this sequence.", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q2", source: "1MA1/1H", text: "Work out 3\\frac{4}{5} - 1\\frac{2}{3}\\\\nWhat mistake has Kevin made?", realScore: 0.692, realStatus: "RESCUED" },
+    { id: "1H-Q3", source: "1MA1/1H", text: "The diagram shows a plan of a floor.\nPetra is going to cover the floor with paint.\nPetra has 3 tins of paint.\nThere are 2.5 litres of paint in each tin.\nPetra thinks 1 litre of paint will cover 10m² of floor.\n\nActually, 1 litre of paint will cover 11 m² of floor.\nDoes this affect your answer to part (a)?\nYou must give a reason for your answer.\n\nAssuming Petra is correct, does she have enough paint to cover the floor?\nYou must show all your working.", realScore: 0.958, realStatus: "SUCCESS" },
+    { id: "1H-Q4", source: "1MA1/1H", text: "A number is chosen at random from the universal set, \\&.\nFind the probability that this number is in the set P\\cup Q\n\nWrite down the numbers that are in set P'\n\nHere is a Venn diagram.", realScore: 0.864, realStatus: "SUCCESS" },
+    { id: "1H-Q5", source: "1MA1/1H", text: "Sophie drives a distance of 513 kilometres on a motorway in France.\nShe pays 0.81 euros for every 10 kilometres she drives.\n\nIs your answer to part (a) an underestimate or an overestimate?\nGive a reason for your answer.\n\nWork out an estimate for the total amount that Sophie pays.", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q6", source: "1MA1/1H", text: "Here is a straight line L drawn on a grid.\n\nFind an equation for L.\n\nWrite down the equation of a straight line parallel to M.", realScore: 0.567, realStatus: "RESCUED" },
+    { id: "1H-Q7", source: "1MA1/1H", text: "Kasim has some small jars, some medium jars and some large jars.\nHe has a total of 400 jars.\n\\frac{3}{8} of the 400 jars are empty.\nFor the empty jars,\nnumber of small jars : number of medium jars = 3:4\nnumber of medium jars: number of large jars = 1:2\nWork out the percentage of Kasim's jars that are empty small jars.", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q8", source: "1MA1/1H", text: "Len has 8 parcels.\nThe mean weight of the 8 parcels is 2.5 kg.\nThe mean weight of 3 of the parcels is 2kg.\nWork out the mean weight of the other 5 parcels.", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q9", source: "1MA1/1H", text: "In a sale, the normal price of a coat is reduced by R%\nGiven that\nsale price = 0.7 × normal price\nfind the value of R.", realScore: 0.987, realStatus: "SUCCESS" },
+    { id: "1H-Q10", source: "1MA1/1H", text: "Solve the simultaneous equations", realScore: 0.704, realStatus: "RESCUED" },
+    { id: "1H-Q11", source: "1MA1/1H", text: "Triangle A is translated by the vector $\\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix}$ to give triangle B.\nTriangle B is rotated 90° clockwise about the point (1, 2) to give triangle C.\nDescribe fully the single transformation that maps triangle A onto triangle C.", realScore: 0.990, realStatus: "SUCCESS" },
+    { id: "1H-Q12", source: "1MA1/1H", text: "Here are some graphs. Write down the letter of the graph that could have the equation\n\ny = -\\frac{5}{x}\n\ny = x² - 4\n\ny = -x³", realScore: 0.870, realStatus: "SUCCESS" },
+    { id: "1H-Q13", source: "1MA1/1H", text: "Work out an estimate for the fraction of these 150 people who were in the shop for between 20 minutes and 40 minutes.\n\nThe table gives information about the amount of time that each of 150 people were in a shop.\n\nOn the grid, draw a histogram for this information.", realScore: 0.998, realStatus: "SUCCESS" },
     { id: "1H-Q14", source: "1MA1/1H", text: "Expand and simplify (3x-1)(2x + 3)(x - 5)", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q15", source: "1MA1/1H", text: "OAB is a sector of a circle with centre O and radius 12 cm.", realScore: 0.992, realStatus: "SUCCESS" },
-    { id: "1H-Q16", source: "1MA1/1H", text: "There are only n orange sweets and 1 white sweet in a bag.", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q17", source: "1MA1/1H", text: "Rationalise the denominator of 1/sqrt(5). Simplify fully sqrt(80)-sqrt(5)", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q18", source: "1MA1/1H", text: "Show that 0.15 + 0.227 can be written in the form a/b", realScore: 0.757, realStatus: "RESCUED" },
-    { id: "1H-Q19", source: "1MA1/1H", text: "ABC and DAB are similar isosceles triangles.", realScore: 1.000, realStatus: "SUCCESS" },
-    { id: "1H-Q20", source: "1MA1/1H", text: "2^x = 2^n / sqrt(2), 2^y = (sqrt(2))^n", realScore: 0.983, realStatus: "SUCCESS" },
-    { id: "1H-Q21", source: "1MA1/1H", text: "A solid cuboid has a volume of 300 cm³. The total surface area is 280 cm².", realScore: 0.906, realStatus: "SUCCESS" },
-    { id: "1H-Q22", source: "1MA1/1H", text: "Sketch the graph of y = sinx° for 0 ≤ x ≤ 360", realScore: 0.924, realStatus: "SUCCESS" },
-    { id: "1H-Q23", source: "1MA1/1H", text: "C is a circle with centre (0, 0) L is a straight line with equation y = x - 4", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q15", source: "1MA1/1H", text: "OAB is a sector of a circle with centre O and radius 6cm.\nThe length of the arc AB is 5\\pi cm.\nWork out, in terms of \\pi, the area of the sector.\nGive your answer in its simplest form.", realScore: 0.992, realStatus: "SUCCESS" },
+    { id: "1H-Q16", source: "1MA1/1H", text: "There are only n orange sweets and 1 white sweet in a bag.\nSaira takes at random a sweet from the bag and eats the sweet.\nShe then takes at random another sweet from the bag and eats this sweet.\nShow that the probability that Saira eats two orange sweets is \\frac{n-1}{n+1}", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q17", source: "1MA1/1H", text: "Rationalise the denominator of \\frac{1}{\\sqrt{7}}\n\nSimplify fully \\sqrt{80}-\\sqrt{5}", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q18", source: "1MA1/1H", text: "Show that 0.15 + 0.227 can be written in the form \\frac{m}{66} where m is an integer.", realScore: 0.757, realStatus: "RESCUED" },
+    { id: "1H-Q19", source: "1MA1/1H", text: "ABC and DAB are similar isosceles triangles.\nAB = AC\nAD = BD\nBC: CD=4:21\nFind the ratio AB: AD", realScore: 1.000, realStatus: "SUCCESS" },
+    { id: "1H-Q20", source: "1MA1/1H", text: "2* = \\frac{2^{n}}{\\sqrt{2}}\n2^{y} = (\\sqrt{2})^{5}\nGiven that x + y = 8\nwork out the value of n.", realScore: 0.983, realStatus: "SUCCESS" },
+    { id: "1H-Q21", source: "1MA1/1H", text: "A solid cuboid has a volume of 300 cm³.\nThe cuboid has a total surface area of 370 cm².\nThe length of the cuboid is 20 cm.\nThe width of the cuboid is greater than the height of the cuboid.\nWork out the height of the cuboid.\nYou must show all your working.", realScore: 0.906, realStatus: "SUCCESS" },
+    { id: "1H-Q22", source: "1MA1/1H", text: "Solve the equation 2 sinx = -1 for 0 ≤ x ≤ 360\n\nSketch the graph of y = sinx° for 0 ≤ x ≤ 360", realScore: 0.924, realStatus: "SUCCESS" },
+    { id: "1H-Q23", source: "1MA1/1H", text: "C is a circle with centre (0, 0)\nL is a straight line.\nThe circle C and the line L intersect at the points P and Q.\nThe coordinates of P are (5, 10)\nThe x coordinate of Q is -2\nL has a positive gradient and crosses the y-axis at the point (0, k)\nFind the value of k.", realScore: 1.000, realStatus: "SUCCESS" },
 
     // ==================================================================================
     // SET C: Edexcel GCSE 1MA1/2H June 2024 (22 Questions) - REAL PRODUCTION DATA
@@ -95,13 +94,6 @@ const testCases: TestCase[] = [
     // ==================================================================================
     // SET C: Special Cases (OCR & Non-PP)
     // ==================================================================================
-    {
-        id: "OCR-10",
-        source: "OCR",
-        text: "100 people were asked whether they had visited France (F) or Spain (S).\n55 had visited France\n60 had visited Spain\n4 had not visited either country.\n\nWrite down the probability that this person had visited France given that they had also visited Spain.\n\nWrite down the probability that this person had visited exactly one of the countries.\n\nComplete the Venn diagram.",
-        realScore: 0.869,
-        realStatus: "SUCCESS"
-    },
     {
         id: "NPP-12",
         source: "Non-PP",
@@ -159,10 +151,15 @@ async function runTest() {
             else icon = "✅";
 
 
+            const matchedPaper = result.match ? result.match.paperCode :
+                (result.hintMetadata?.auditTrail?.[0]?.candidateId?.split(' ')[0] || "None");
+
             (groups[tc.source] || groups["Non-PP"]).push({
                 id: tc.id,
                 text: tc.text.substring(0, 30).replace(/\n/g, ' '),
                 local: (localScore || 0).toFixed(3),
+                real: (tc.realScore || 0).toFixed(3),
+                paper: matchedPaper,
                 icon
             });
 
@@ -176,9 +173,9 @@ async function runTest() {
     }
 
     // Print Tables
-    console.log("\n==========================================================================================");
-    console.log("| ID       | Snippet                        | Score | Verdict      |");
-    console.log("|----------|--------------------------------|-------|--------------|");
+    console.log("\n==========================================================================================================");
+    console.log("| ID       | Snippet                        | Local | Real  | Paper          | Verdict      |");
+    console.log("|----------|--------------------------------|-------|-------|----------------|--------------|");
 
     Object.keys(groups).forEach(source => {
         if (groups[source].length === 0) return;
@@ -193,10 +190,10 @@ async function runTest() {
 
             const coloredLocal = `${color}${r.local.padEnd(5)}\x1b[0m`;
 
-            console.log(`| ${r.id.padEnd(8)} | ${r.text.padEnd(30)} | ${coloredLocal} | ${r.icon.padEnd(12)} |`);
+            console.log(`| ${r.id.padEnd(8)} | ${r.text.padEnd(30)} | ${coloredLocal} | ${r.real.padEnd(5)} | ${(r.paper || "N/A").padEnd(14)} | ${r.icon.padEnd(12)} |`);
         });
     });
-    console.log("==========================================================================================");
+    console.log("==========================================================================================================");
 
     process.exit(0);
 }
