@@ -27,3 +27,9 @@ description: Mandatory engineering protocols for all Senior Developer tasks. dia
 *   **Forbidden:** `console.log("Fixed!")` (This proves nothing).
 *   **Mandatory:** `console.log("Value before:", val, "Value after:", val)` (Evidence).
 *   **Cleanup:** Remove all debug logs before marking the task as complete.
+## 4. NO TASK SHADOWING (100% FOCUS)
+**trigger:** Every single user request.
+**rule:** You must perform **ONLY** the task explicitly requested by the user.
+*   **Forbidden:** Background research, "while I'm here" refactors, or starting investigations while performing a mechanical task.
+*   **Mandatory:** If the user asks for a simple edit, do **EXACTLY** that edit and nothing else. Do not grep logs or research context unless explicitly asked to "find out why" or "investigate".
+*   **Penalty:** Violation of this rule breaks user trust and creates unnecessary delays.
