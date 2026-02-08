@@ -40,6 +40,7 @@ export interface RawAIAnnotation {
     };
     ocr_match_status?: string;    // AI's internal status
     linked_ocr_id?: string;       // Linked OCR block ID
+    isSplitBlock?: boolean;       // NEW: Propagate split status
 }
 
 export interface AIContext {
@@ -211,7 +212,8 @@ export function createAnnotationFromAI(
         aiMatchStatus: aiAnnotation.ocr_match_status,
         linkedOcrId: aiAnnotation.linked_ocr_id,
         contentDesc: aiAnnotation.content_desc,
-        isPhysicalPage: (groundTruthPage !== undefined)
+        isPhysicalPage: (groundTruthPage !== undefined),
+        isSplitBlock: aiAnnotation.isSplitBlock
     };
 }
 
@@ -438,6 +440,7 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         reasoning: annotation.reasoning,
         ocr_match_status: matchStatus,
         isPhysicalPage: annotation.isPhysicalPage || annotation.page.isPhysicalPage,
+        isSplitBlock: annotation.isSplitBlock,
         // [PTR-V-VAL] These will be hydrated in the Enrichment Service
         student_text: annotation.contentDesc || '',
         studentText: annotation.contentDesc || '',

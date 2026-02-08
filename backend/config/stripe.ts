@@ -17,7 +17,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 });
 
 const isLive = process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
-console.log(`💳 Stripe initialized in ${isLive ? 'LIVE' : 'TEST'} mode`);
 
 // Keep both sets of product IDs in the code
 const STRIPE_PLANS = {

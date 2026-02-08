@@ -41,12 +41,6 @@ const FREE_PLAN_CREDITS = parseInt(getRequiredEnv('FREE_PLAN_CREDITS', 'number')
 const PRO_PLAN_CREDITS = parseInt(getRequiredEnv('PRO_PLAN_CREDITS', 'number'), 10);
 const ULTRA_PLAN_CREDITS = parseInt(getRequiredEnv('ULTRA_PLAN_CREDITS', 'number'), 10);
 
-// Log loaded configuration for verification
-console.log('✅ Credit configuration loaded from .env.local (FAIL-FAST mode):');
-console.log(`   - Conversion Rate: $${CREDIT_CONVERSION_RATE} per credit`);
-console.log(`   - Free Plan: ${FREE_PLAN_CREDITS} credits/month`);
-console.log(`   - Pro Plan: ${PRO_PLAN_CREDITS} credits/month`);
-console.log(`   - Ultra Plan: ${ULTRA_PLAN_CREDITS} credits/month`);
 
 export const CREDIT_CONFIG = {
     // Conversion rate: Dollar amount per credit

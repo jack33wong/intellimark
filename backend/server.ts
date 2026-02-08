@@ -66,7 +66,6 @@ try {
     }
   }));
 
-  console.log('📚 Swagger UI available at /api-docs');
 } catch (error) {
   console.error('❌ Failed to setup Swagger UI:', error);
 }

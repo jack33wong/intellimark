@@ -49,27 +49,42 @@ export class AnnotationCollisionService {
 
                 // Reuse the private isOverlapping helper
                 if (this.isOverlapping({ x: mobileBox.x, y: mobileBox.y, width: mobileBox.w, height: mobileBox.h }, { x: fixedBox.x, y: fixedBox.y, width: fixedBox.w, height: fixedBox.h })) {
+
+                    // 🛡️ DESIGN REINFORCEMENT: 
+                    // If both annotations are drawings in the same zone, allow them to overlap.
+                    const isBothVisual = mobile.ocr_match_status === 'VISUAL' && fixed.ocr_match_status === 'VISUAL';
+                    const isSameZone = mobile.subQuestion === fixed.subQuestion;
+
+                    if (isBothVisual && isSameZone) {
+                        // If they are almost exactly on top of each other
+                        if (Math.abs(mobileBox.y - fixedBox.y) < 30) {
+                            // Apply a diagonal shift to uncover the reasoning box below
+                            mobile.bbox[1] += 90; // Move Down 90px
+                            mobile.bbox[0] += 30; // Move Right 30px
+
+                            // Boundary safety
+                            if (zone) {
+                                mobile.bbox[1] = Math.min(mobile.bbox[1], zone.endY - mobileBox.h - 15);
+                            }
+                        }
+                        // Skip the "Push" logic entirely for these specific items
+                        continue;
+                    }
+
                     const isBelow = (mobileBox.y + mobileBox.h / 2) > (fixedBox.y + fixedBox.h / 2);
-                    let suggestedY = isBelow ? fixedBox.y + fixedBox.h + 2 : fixedBox.y - mobileBox.h - 2;
+                    const padding = 2; // Tighter padding for cleaner look
+                    let suggestedY = isBelow ? fixedBox.y + fixedBox.h + padding : fixedBox.y - mobileBox.h - padding;
 
                     if (zone) {
-                        // 🏰 REBOUND LOGIC:
-                        // If pushing UP violates the top of the zone, push DOWN instead
-                        if (suggestedY < zone.startY) {
-                            suggestedY = fixedBox.y + fixedBox.h + 2;
+                        // REBOUND: If pushing UP hits the ceiling, push DOWN instead
+                        if (suggestedY < zone.startY + 5) {
+                            suggestedY = fixedBox.y + fixedBox.h + padding;
                         }
-
-                        // Final boundary check to ensure it never leaves the box
-                        // Give it 2px more breathing room so it doesn't trigger the boundary guard immediately
-                        const finalClampedY = Math.max(zone.startY + 2, Math.min(suggestedY, zone.endY - mobileBox.h - 2));
-
-                        // Apply the move (clamped position solves or improves overlap)
-                        mobile.bbox[1] = finalClampedY;
-                        mobileBox.y = finalClampedY;
-                    } else {
-                        mobile.bbox[1] = suggestedY;
-                        mobileBox.y = suggestedY;
+                        // Hard floor cap
+                        suggestedY = Math.min(suggestedY, zone.endY - mobileBox.h - 5);
                     }
+                    mobile.bbox[1] = suggestedY;
+                    mobileBox.y = suggestedY;
                 }
             }
         }

@@ -290,19 +290,20 @@ export class SVGOverlayService {
     if (isDebugMode) {
       let statusLabel = 'm';
       let debugBorderColor = 'blue';
-      if (isDrawing) {
-        debugBorderColor = 'magenta';
-        statusLabel = 'v';
-      } else if (ocrStatus === 'UNMATCHED') {
+      const _debug_status = (annotation as any)._debug_status;
+      if (_debug_status === 'RED_BORDER') {
         debugBorderColor = 'red';
         statusLabel = 'u';
+      } else if (_debug_status === 'GREEN_BORDER' || (annotation as any).isSplitBlock || (annotation as any).hasLineData === false) {
+        debugBorderColor = '#00FF00'; // Pure Green for Split
+        statusLabel = 'S';
+      } else if (isDrawing) {
+        debugBorderColor = 'magenta';
+        statusLabel = 'v';
       } else if (ocrStatus === 'FALLBACK') {
         debugBorderColor = 'orange';
         statusLabel = 's';
-      } else if ((annotation as any).isSplitBlock || (annotation as any).hasLineData === false) {
-        debugBorderColor = '#00FF00'; // Pure Green for Split
-        statusLabel = 'S';
-      } else if (ocrStatus === 'MATCHED') {
+      } else if (ocrStatus === 'MATCHED' || _debug_status === 'BLUE_BORDER') {
         debugBorderColor = 'blue';
         statusLabel = 'm';
       }

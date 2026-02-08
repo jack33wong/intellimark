@@ -210,6 +210,11 @@ export interface ImmutableAnnotation {
      * Whether this annotation is pinned to a confirmed physical page.
      */
     readonly isPhysicalPage?: boolean;
+
+    /**
+     * Whether this annotation belongs to a split block (for UI display)
+     */
+    readonly isSplitBlock?: boolean;
 }
 
 // ============================================================================

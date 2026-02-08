@@ -112,7 +112,7 @@ export const enrichAnnotationsWithPositions = (
 
         let method = "NONE";
         let hasLineData: boolean | undefined = undefined;
-        let isSplitBlock: boolean | undefined = undefined;
+        let isSplitBlock: boolean | undefined = (anno as any).isSplitBlock;
         let rawBox: any = null;
 
         // 1. READ STATUS
@@ -227,7 +227,15 @@ export const enrichAnnotationsWithPositions = (
         const intentX = (rawX / 100) * pageWidth;
         const intentY = (rawY / 100) * pageHeight;
 
-        // 3. ZONE PROTECTION (Requirement: AI Intent limited to Intended Zone)
+        // 3. AUTHORITY SELECTION (Initial Intent)
+        let authorityBox: [number, number, number, number] = [
+            intentX,
+            intentY,
+            (rawAiBox[2] / 100) * pageWidth,
+            (rawAiBox[3] / 100) * pageHeight || (pageHeight * 0.015) // Height Protection
+        ];
+
+        // 4. ZONE PROTECTION (Requirement: AI Intent limited to Intended Zone)
         let finalX = intentX;
         let finalY = intentY;
 
@@ -237,27 +245,43 @@ export const enrichAnnotationsWithPositions = (
                 .find(z => z.pageIndex === pageIndex);
 
             if (zone) {
-                const margin = 10; // "Beauty" breathing room from borders
-                const zoneStartX = zone.x || 0;
-                const zoneWidth = (zone as any).width || pageWidth;
-                const zoneEndX = zoneStartX + zoneWidth;
+                const zoneH = zone.endY - zone.startY;
 
-                // CLAMP TO NEAREST BOUNDARY:
-                // If AI intent is inside, it stays. 
-                // If AI intent is below, it caps at bottom.
-                // If AI intent is above, it caps at top.
-                finalY = Math.max(zone.startY + margin, Math.min(intentY, zone.endY - (rawAiBox[3] / 100 * pageHeight || 20) - margin));
-                finalX = Math.max(zoneStartX + margin, Math.min(intentX, zoneEndX - (rawAiBox[2] / 100 * pageWidth || 20) - margin));
+                // DYNAMIC MARGIN: 5% of zone height, capped between 10px and 100px
+                const margin = Math.max(10, Math.min(100, zoneH * 0.05));
+
+                // LIMIT HEIGHT: Cap at 35% to ensure staggering room
+                let annoH = (rawAiBox[3] / 100) * pageHeight;
+                if (status === 'VISUAL' && annoH > zoneH * 0.35) {
+                    annoH = zoneH * 0.35;
+                }
+
+                // THE FIX: Move the Y-anchor UP by half the box height
+                // This makes the AI's "Center" instruction work as intended
+                const centeredY = intentY - (annoH / 2);
+
+                // CLAMP: Keep the box and its dynamic margin inside the zone
+                finalY = Math.max(
+                    zone.startY + margin,
+                    Math.min(centeredY, zone.endY - annoH - margin)
+                );
+
+                console.log(`🛡️ [11b-FIX] Q${anno.subQuestion} | IntentY: ${intentY.toFixed(0)} | Floor: ${(zone.endY - annoH).toFixed(0)} | ResultY: ${finalY.toFixed(0)}`);
+
+                const annoW = (rawAiBox[2] / 100) * pageWidth;
+                // Apply the same logic for X (Center to Left)
+                finalX = Math.max(
+                    (zone.x || 0) + margin,
+                    Math.min(intentX - (annoW / 2), ((zone.x || 0) + (zone.width || pageWidth)) - annoW - margin)
+                );
+
+                authorityBox = [finalX, finalY, annoW, annoH];
             }
         }
 
-        // 4. AUTHORITY SELECTION (Handling MATCHED/SPLIT overrides)
-        let authorityBox: [number, number, number, number] = [
-            finalX,
-            finalY,
-            (rawAiBox[2] / 100) * pageWidth,
-            (rawAiBox[3] / 100) * pageHeight || (pageHeight * 0.015) // Height Protection
-        ];
+        // Update authority box with clamped values
+        authorityBox[0] = finalX;
+        authorityBox[1] = finalY;
 
         const linkedOcrBlock = activePointer ? findInData(activePointer) : null;
         if ((status === 'MATCHED' || (anno as any).ocr_match_status === 'SPLIT') && linkedOcrBlock?.bbox) {
@@ -278,6 +302,8 @@ export const enrichAnnotationsWithPositions = (
         }
 
         // 5. FINAL LOGGING
+        if (linkedOcrBlock?.isSplitBlock) isSplitBlock = true;
+
         console.log(`🛡️ [DESIGN-RESCUE] Q${anno.subQuestion} | Status: ${status} | IntentY: ${intentY.toFixed(0)}px -> SnappedY: ${authorityBox[1].toFixed(0)}px`);
 
         // 5. EVIDENCE LOG
@@ -320,6 +346,9 @@ export const enrichAnnotationsWithPositions = (
             Math.max(15, authorityBox[3] || (pageHeight * 0.015))
         ];
 
+        // 🛡️ [STATUS-METADATA]: Preserve status for UI border colors.
+        const finalIsSplit = isSplitBlock || status === 'SPLIT';
+
         return {
             ...anno,
             bbox: finalBox,
@@ -333,7 +362,8 @@ export const enrichAnnotationsWithPositions = (
             classificationText: latexToPlainText(classText),
             _debug_placement_method: method,
             hasLineData: hasLineData,
-            isSplitBlock: isSplitBlock,
+            isSplitBlock: finalIsSplit,
+            _debug_status: finalIsSplit ? 'GREEN_BORDER' : (status === 'UNMATCHED' ? 'RED_BORDER' : 'BLUE_BORDER'),
             unit: 'pixels'
         } as EnrichedAnnotation;
     });
