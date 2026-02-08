@@ -78,11 +78,10 @@ b) Is your answer..."
         * Then: [Model answer for b) with mark codes]
       - After each wrapped sub-question, provide the model answer with mark codes
       - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
-      - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with line breaks (
-). Use double line breaks (
-
-) between major steps.
-      - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
+      - **CRITICAL RULE FOR MODEL ANSWERS:**
+        * Every single line of your model answer MUST end with a <br> tag.
+        * This includes lines with math, text, and marking codes.
+        * Use double <br><br> to separate major steps.
       - **QUESTION TEXT STYLING:** Wrap EACH question text part separately:
         * Main question text: Remove "5. " prefix, wrap in <span class="model_question">...</span>
         * Each sub-question: Keep "a)", "b)" label, wrap in its own <span class="model_question">...</span>
