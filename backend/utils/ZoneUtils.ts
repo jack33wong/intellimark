@@ -8,6 +8,7 @@ export interface SemanticZone {
     endY: number;
     pageIndex: number;
     x?: number;
+    width?: number; // NEW: The physical width of the zone
     label?: string; // Optional label for debugging
     headerBlockId?: string; // NEW: The ID of the question label block
 }
@@ -62,11 +63,12 @@ export class ZoneUtils {
                 continue;
             }
 
-            if (
-                normalizedKey === target ||
+            const isMatch = normalizedKey === target ||
                 normalizedKey.endsWith(target) ||
-                target.endsWith(normalizedKey)
-            ) {
+                target.endsWith(normalizedKey);
+
+            if (isMatch) {
+                console.log(`🎯 [ZONE-MATCH] Target: ${target} | Key: ${key} (Normalized: ${normalizedKey}) | MATCHED!`);
                 bestMatchKey = key;
                 break; // Stop at the first (longest) valid match
             }
@@ -115,18 +117,37 @@ export class ZoneUtils {
         let x = box.x;
         let y = box.y;
 
+        const originalX = x;
+        const originalY = y;
+
         // Vertical Clamping
+        let yTriggered = false;
         if (y < zone.startY + yPadding) {
             y = zone.startY + yPadding;
+            yTriggered = true;
         } else if (y + box.height > zone.endY - yPadding) {
             y = Math.max(zone.startY + yPadding, zone.endY - box.height - yPadding);
+            yTriggered = true;
         }
 
         // Horizontal Clamping
+        let xTriggered = false;
         if (x < zoneStartX + xPadding) {
             x = zoneStartX + xPadding;
+            xTriggered = true;
         } else if (x + box.width > zoneEndX - xPadding) {
             x = Math.max(zoneStartX + xPadding, zoneEndX - box.width - xPadding);
+            xTriggered = true;
+        }
+
+        console.log(`🛡️ [ZONE-CLAMP][${zone.label || 'Unknown'}] P${zone.pageIndex}`);
+        console.log(`   👉 Input:  (${Math.round(originalX)}, ${Math.round(originalY)})`);
+        console.log(`   🎯 Target: Y[${zone.startY}-${zone.endY}] Padding:${yPadding} | X[${zoneStartX}-${zoneEndX}] Padding:${xPadding}`);
+
+        if (xTriggered || yTriggered) {
+            console.log(`   ✅ CLAMPED: (${Math.round(originalX)}, ${Math.round(originalY)}) -> (${Math.round(x)}, ${Math.round(y)})`);
+        } else {
+            console.log(`   ⏭️ NO CLAMP NEEDED (Within bounds)`);
         }
 
         return { x, y };

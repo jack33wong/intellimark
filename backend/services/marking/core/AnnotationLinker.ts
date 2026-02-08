@@ -70,8 +70,21 @@ export class AnnotationLinker {
             }
 
             let physicalId = anno.linked_ocr_id || anno.linkedOcrId;
-
             const lineId = anno.line_id || anno.lineId;
+
+            // 🛡️ [HEADER-DETACH]: If AI matched a printed instruction/header, SEVER the link.
+            // This allows Path 3 (Rescue) to find the actual handwriting.
+            if (physicalId) {
+                const block = allOcrBlocks.find(b => b.id === physicalId);
+                const isHeader = block && (block.id === (zoneData as any)?.headerBlockId || (block as any)._isInstruction || ((block as any).isPrinted === true && block.text?.length < 5));
+                if (isHeader) {
+                    console.log(` 🛡️ [HEADER-DETACH] Q${anno.subQuestion}: Detaching from printed header "${block.text}" (ID ${physicalId})`);
+                    physicalId = null;
+                    anno.linked_ocr_id = null;
+                    anno.ocr_match_status = "UNMATCHED";
+                }
+            }
+
             const sourceStep = stepsDataForMapping.find(s => s.line_id === lineId || s.globalBlockId === lineId);
             const realStudentContent = sourceStep ? sourceStep.text : (anno.text || anno.studentText || "");
 
@@ -110,11 +123,15 @@ export class AnnotationLinker {
                                 return Math.abs(yA - aiY) - Math.abs(yB - aiY);
                             })[0];
                         }
-                        console.log(` 🧲 [LINKER-RESCUE] ${anno.subQuestion}: Snapped UNMATCHED "${realStudentContent}" to Block ${bestBlock.id}`);
-                        physicalId = bestBlock.id;
-                        anno.linked_ocr_id = bestBlock.id;
-                        anno.ocr_match_status = "MATCHED";
-                        anno.pageIndex = bestBlock.pageIndex;
+                        const isHeader = (bestBlock.id === (zoneData as any).headerBlockId) || (bestBlock as any)._isInstruction;
+
+                        if (!isHeader) {
+                            console.log(` 🧲 [LINKER-RESCUE] ${anno.subQuestion}: Snapped UNMATCHED "${realStudentContent}" to Block ${bestBlock.id}`);
+                            physicalId = bestBlock.id;
+                            anno.linked_ocr_id = bestBlock.id;
+                            anno.ocr_match_status = "MATCHED";
+                            anno.pageIndex = bestBlock.pageIndex;
+                        }
                     }
                 }
             }

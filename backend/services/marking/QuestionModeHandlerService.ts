@@ -283,9 +283,11 @@ export class QuestionModeHandlerService {
             const label = subPart ? `(${subPart})` : '';
 
             // DEBUG: Check for parentText
+            /*
             if (idx === 0) {
               console.log(`[GENERATOR DEBUG] Question ${baseNumber} grouping start. ParentText detected: ${sq.parentText ? 'YES' : 'NO'}`);
             }
+            */
 
             return `${label ? label + ' ' : ''}${sq.questionText}`;
           }).join('\n\n')
@@ -408,7 +410,7 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
         const rawResponseWithoutHeader = formattedResponse;
         formattedResponse = header + formattedResponse;
 
-        console.log(`[GENERATOR DEBUG] Q${baseNumber} Raw Response Start: "${rawResponseWithoutHeader.substring(0, 100)}..."`);
+        // console.log(`[GENERATOR DEBUG] Q${baseNumber} Raw Response Start: "${rawResponseWithoutHeader.substring(0, 100)}..."`);
 
         // Step 3: Insert blank lines after marking codes for visual separation
         formattedResponse = formattedResponse
@@ -516,7 +518,7 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
         questionDetection: questionDetection,
         examPaperHint: examPaperHint
       });
-      console.log('📝 [QUESTION MODE] Built MarkingContext for Chat:', questionModeContext.totalQuestionsMarked, 'questions');
+      // console.log('📝 [QUESTION MODE] Built MarkingContext for Chat:', questionModeContext.totalQuestionsMarked, 'questions');
       aiMessage.markingContext = questionModeContext;
     } catch (ctxError) {
       console.error('❌ [QUESTION MODE] Failed to build chat context:', ctxError);

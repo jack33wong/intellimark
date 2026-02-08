@@ -76,7 +76,11 @@ export class MarkingOutputService {
             const mapperCategory = allClassificationResults.find(c => c.pageIndex === pageIndex)?.result?.category;
             const hasMetaPage = mapperCategory === 'metadata' || mapperCategory === 'frontPage';
 
-            // Deduplicate and scale zones
+            // [RESOLUTION-SYNC] Synchronize burn dimensions
+            const burnW = page.width;
+            const burnH = page.height;
+
+            // Deduplicate zones
             const uniqueZonesMap = new Map<string, any>();
             markingResults.forEach(qr => {
                 if (qr.semanticZones) {
@@ -85,21 +89,8 @@ export class MarkingOutputService {
                             if (z.pageIndex === pageIndex) {
                                 const key = `${label}_p${pageIndex}`;
                                 if (!uniqueZonesMap.has(key)) {
-                                    // [RESOLUTION-SYNC]: Scale zones from OCR resolution to burn resolution
-                                    const origW = z.origW || page.width || 2480;
-                                    const origH = z.origH || page.height || 3508;
-                                    const sX = page.width / origW;
-                                    const sY = page.height / origH;
-
-                                    const scaledZone = {
-                                        ...z,
-                                        label,
-                                        x: z.x * sX,
-                                        width: z.width * sX,
-                                        startY: z.startY * sY,
-                                        endY: z.endY * sY
-                                    };
-                                    uniqueZonesMap.set(key, scaledZone);
+                                    // [SNAP-SYNC]: Trust the coordinates exactly as calculated upstream
+                                    uniqueZonesMap.set(key, { ...z, label });
                                 }
                             }
                         });
@@ -112,7 +103,7 @@ export class MarkingOutputService {
                 const annotatedImageData = await SVGOverlayService.burnSVGOverlayServerSide(
                     page.imageData,
                     annotationsForThisPage,
-                    imageDimensions,
+                    { width: burnW, height: burnH }, // [RE-SYNC]: Pass exact Gods Scale
                     scoresToDraw,
                     totalScoreToDraw,
                     hasMetaPage,

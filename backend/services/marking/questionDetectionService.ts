@@ -139,7 +139,7 @@ export class QuestionDetectionService {
   ): Promise<QuestionDetectionResult> {
     try {
       // 1. Input Sanitization
-      console.log(`[DEBUG_INPUT_CAPTURE] detectQuestion Input for ${questionNumberHint}:`, extractedQuestionText);
+      // console.log(`[DEBUG_INPUT_CAPTURE] detectQuestion Input for ${questionNumberHint}:`, extractedQuestionText);
       const cleanText = (extractedQuestionText || '').trim();
       const cleanQHint = this.sanitizeQuestionHint(questionNumberHint);
       const cleanPaperHint = (examPaperHint || '').trim();
@@ -231,9 +231,11 @@ export class QuestionDetectionService {
           if (winner.score < strictThreshold) hintMetadata.thresholdRelaxed = true;
           hintMetadata.isWeakMatch = winner.score < 0.7;
 
+          /*
           if (isRelativeWinner && !isRescueMode && winner.score < strictThreshold) {
             console.log(`[DETECTION] 🏆 Relative Winner Accepted: ${winner.score.toFixed(3)} vs Runner-up ${runnerUp?.score.toFixed(3)}`);
           }
+          */
 
           // Construct Result
           const matchResult = this.constructMatchResult(winner, isRescueMode || isRelativeWinner);

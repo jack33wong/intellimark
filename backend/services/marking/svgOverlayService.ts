@@ -157,10 +157,21 @@ export class SVGOverlayService {
     // This cleans up the UI when multiple marks land on the same spot.
     annotations = this.mergeOverlappingAnnotations(annotations, actualWidth, actualHeight);
 
-    const scaleX = actualWidth / originalDimensions.width;
-    const scaleY = actualHeight / originalDimensions.height;
+    // 🛡️ [SNAP-LOCK]: Burner is now "Dumb". It trusts absolute pixels.
+    const scaleX = 1.0;
+    const scaleY = 1.0;
+    console.log(`🎨 [BURN-SYNC] Scale Locked at ${scaleX.toFixed(3)} (Absolute Pixel Mode)`);
+
+    // THE VERIFICATION LOG
+    if (annotations.length > 0) {
+      const ann = annotations[0] as any;
+      const y = ann.snappedBbox ? ann.snappedBbox[1] : ann.bbox[1];
+      console.log(`🎨 [BURN-AUTHORITY] Drawing ${ann.text} | SnappedY: ${y} | Scale: 1:1 (Centralized)`);
+    }
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
+
+
 
     // --- SUB-QUESTION ZONES DEBUG BORDER (Optional) ---
     const drawZones = process.env.DRAW_SUBQUESTION_ZONES === 'true' || process.env.ENABLE_SVG_ANNOTATION_DEBUG_BORDER === 'true';
@@ -173,10 +184,10 @@ export class SVGOverlayService {
         const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
 
         zonesToDraw.forEach((zone, idx) => {
-          const szX = (zone.x) * scaleX;
-          const szY = (zone.startY) * scaleY;
-          const szW = (zone.width) * scaleX;
-          const szH = (zone.endY - zone.startY) * scaleY;
+          const szX = (zone.x);
+          const szY = (zone.startY);
+          const szW = (zone.width);
+          const szH = (zone.endY - zone.startY);
 
           // console.log(`   🎨 [ZONE-SVG-DRAW] [#${idx}] Label: "${zone.label}" | Rect: [x=${Math.round(szX)}, y=${Math.round(szY)}, w=${Math.round(szW)}, h=${Math.round(szH)}] | StartY: ${zone.startY}, EndY: ${zone.endY}`);
 
@@ -188,10 +199,11 @@ export class SVGOverlayService {
                         fill="rgba(255, 0, 0, 0.1)" stroke="rgba(255, 0, 0, 0.5)" stroke-width="4" stroke-dasharray="10,5" />`;
 
           // Background for the label to make it readable (Scaled to fontScaleFactor)
-          const labelText = zone.label.toUpperCase();
-          const fontSize = Math.max(28, Math.round(36 * fontScaleFactor));
-          const labelHeight = Math.max(48, Math.round(56 * fontScaleFactor));
-          const labelBgWidth = Math.max(80, labelText.length * (fontSize * 0.7) + 20);
+          const zoneCoordsLabel = `(${Math.round(zone.x || 0)},${Math.round(zone.startY)})`;
+          const labelText = `${zone.label.toUpperCase()} ${zoneCoordsLabel}`;
+          const fontSize = Math.max(32, Math.round(40 * fontScaleFactor)); // [BIGGER] Increased font size
+          const labelHeight = Math.max(54, Math.round(62 * fontScaleFactor)); // [BIGGER] Increased height
+          const labelBgWidth = Math.max(120, labelText.length * (fontSize * 0.65) + 20); // [BIGGER] Increased width
 
           svg += `<rect x="${szX}" y="${szY}" width="${labelBgWidth}" height="${labelHeight}" fill="rgba(255, 0, 0, 0.8)" />`;
           svg += `<text x="${szX + (5 * fontScaleFactor)}" y="${szY + (labelHeight * 0.75)}" font-family="Arial" font-size="${fontSize}" font-weight="bold" fill="white">${labelText}</text>`;
@@ -223,7 +235,7 @@ export class SVGOverlayService {
       annotations.forEach((annotation, index) => {
         try {
           const yOffset = offsets.get(index) || 0;
-          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, yOffset);
+          svg += this.createAnnotationSVG(annotation, index, actualWidth, actualHeight, yOffset);
         } catch (error) {
           console.error(`SVG Generation Error [Idx: ${index}]:`, error);
         }
@@ -239,8 +251,9 @@ export class SVGOverlayService {
     return svg + '</svg>';
   }
 
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, yOffset: number): string {
-    const [x, y, width, height] = annotation.bbox || [0, 0, 0, 0];
+  private static createAnnotationSVG(annotation: Annotation, index: number, actualWidth: number, actualHeight: number, yOffset: number): string {
+    // Priority: snappedBbox (Rescued/Authoritative) -> bbox (Original/Hallucinated)
+    const [x, y, width, height] = (annotation as any).snappedBbox || annotation.bbox || [0, 0, 0, 0];
     const action = annotation.action;
     if (!action) return '';
 
@@ -251,8 +264,11 @@ export class SVGOverlayService {
       (annotation.studentText && annotation.studentText.includes('[DRAWING]')) ||
       ocrStatus === 'VISUAL';
 
+    const scaleX = 1.0;
+    const scaleY = 1.0;
+
     const scaledX = x * scaleX;
-    const scaledY = (y * scaleY) + yOffset;
+    const scaledY = (y + yOffset) * scaleY;
     let scaledWidth = width * scaleX;
     let scaledHeight = height * scaleY;
 
@@ -300,8 +316,13 @@ export class SVGOverlayService {
                 fill="none" stroke="${debugBorderColor}" stroke-width="4" stroke-dasharray="8,4" opacity="0.6" />`;
 
       // Small status label tag (BIGGER)
-      svg += `<rect x="${scaledX}" y="${scaledY - 18}" width="22" height="18" fill="${debugBorderColor}" />
-              <text x="${scaledX + 5}" y="${scaledY - 4}" font-family="Arial" font-size="14" font-weight="bold" fill="white">${statusLabel}</text>`;
+      const coordLabel = `${statusLabel}-${annotation.subQuestion} (${Math.round(x)},${Math.round(y)})`;
+      const debugFontSize = 18; // [BIGGER] Increased from 14
+      const debugLabelWidth = coordLabel.length * 10 + 10;
+      const debugLabelHeight = 22;
+
+      svg += `<rect x="${scaledX}" y="${scaledY - debugLabelHeight}" width="${debugLabelWidth}" height="${debugLabelHeight}" fill="${debugBorderColor}" />
+              <text x="${scaledX + 5}" y="${scaledY - 5}" font-family="Arial" font-size="${debugFontSize}" font-weight="bold" fill="white">${coordLabel}</text>`;
     }
 
     if (action === 'tick' || action === 'cross' || action === 'write') {

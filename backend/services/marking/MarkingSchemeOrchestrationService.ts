@@ -546,7 +546,7 @@ export class MarkingSchemeOrchestrationService {
           // [SOFT DISABLE]: User requested to keep logs but disable the actual override (Risk Management).
           // 1. Logically link the question number (Database Verification)
           // matchingQuestion.questionNumber = detectionResult.match.questionNumber;
-          console.log(`⚓ [SYNC-DISABLED] Safe Match Found on P${question.sourceImageIndex}. AI: Q${matchingQuestion.questionNumber} -> DB: ${detectionResult.match.questionNumber}. (Override prevented)`);
+          // console.log(`⚓ [SYNC-DISABLED] Safe Match Found on P${question.sourceImageIndex}. AI: Q${matchingQuestion.questionNumber} -> DB: ${detectionResult.match.questionNumber}. (Override prevented)`);
 
           /* [DISABLED] "Identity Helper" - Page Anchor Update
           // 2. Physical Anchor Update (Source of Ordering Chaos fix)

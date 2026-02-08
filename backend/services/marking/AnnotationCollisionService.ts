@@ -25,67 +25,54 @@ export class AnnotationCollisionService {
     ): EnrichedAnnotation[] {
         if (annotations.length <= 1) return annotations;
 
-        // 1. Sort: MATCHED (Immovable) first, so they claim space first.
-        // Then sort by Y position to resolve top-down.
+        // 1. Sort: MATCHED (Immovable) first.
         const sorted = [...annotations].sort((a, b) => {
             const scoreA = a.ocr_match_status === 'MATCHED' ? 2 : 1;
             const scoreB = b.ocr_match_status === 'MATCHED' ? 2 : 1;
-            if (scoreA !== scoreB) return scoreB - scoreA; // High priority first
-            return (a.bbox?.[1] || 0) - (b.bbox?.[1] || 0); // Top to bottom
+            return scoreB - scoreA || (a.bbox?.[1] || 0) - (b.bbox?.[1] || 0);
         });
 
-        // 2. Resolve
         for (let i = 0; i < sorted.length; i++) {
             const mobile = sorted[i];
+            if (mobile.ocr_match_status === 'MATCHED' || !mobile.bbox) continue;
 
-            // If it's MATCHED, it effectively refuses to move (it's anchored to printed text)
-            // We only move UNMATCHED/VISUAL items
-            if (mobile.ocr_match_status === 'MATCHED') continue;
-            if (!mobile.bbox) continue;
+            // Find the "Legal Territory" for this specific annotation
+            const zone = ZoneUtils.findMatchingZone(mobile.subQuestion || "", semanticZones || {});
 
-            const mobileBox = {
-                x: mobile.bbox[0],
-                y: mobile.bbox[1],
-                width: mobile.bbox[2],
-                height: mobile.bbox[3]
-            };
-
-            // Check against all *other* annotations
             for (let j = 0; j < sorted.length; j++) {
                 if (i === j) continue;
                 const fixed = sorted[j];
                 if (!fixed.bbox) continue;
 
-                const fixedBox = {
-                    x: fixed.bbox[0],
-                    y: fixed.bbox[1],
-                    width: fixed.bbox[2],
-                    height: fixed.bbox[3]
-                };
+                const mobileBox = { x: mobile.bbox[0], y: mobile.bbox[1], w: mobile.bbox[2], h: mobile.bbox[3] };
+                const fixedBox = { x: fixed.bbox[0], y: fixed.bbox[1], w: fixed.bbox[2], h: fixed.bbox[3] };
 
-                if (this.isOverlapping(mobileBox, fixedBox)) {
-                    // 💥 COLLISION DETECTED
+                // Reuse the private isOverlapping helper
+                if (this.isOverlapping({ x: mobileBox.x, y: mobileBox.y, width: mobileBox.w, height: mobileBox.h }, { x: fixedBox.x, y: fixedBox.y, width: fixedBox.w, height: fixedBox.h })) {
+                    const isBelow = (mobileBox.y + mobileBox.h / 2) > (fixedBox.y + fixedBox.h / 2);
+                    let suggestedY = isBelow ? fixedBox.y + fixedBox.h + 2 : fixedBox.y - mobileBox.h - 2;
 
-                    // Direction: Is Mobile originally "below" the Fixed item?
-                    const isBelow = (mobileBox.y + mobileBox.height / 2) > (fixedBox.y + fixedBox.height / 2);
+                    if (zone) {
+                        // 🏰 REBOUND LOGIC:
+                        // If pushing UP violates the top of the zone, push DOWN instead
+                        if (suggestedY < zone.startY) {
+                            suggestedY = fixedBox.y + fixedBox.h + 2;
+                        }
 
-                    // Calculate Shift Needed (Height overlap + 10px padding)
-                    let newY = mobileBox.y;
-                    if (isBelow) {
-                        // Push Down
-                        newY = fixedBox.y + fixedBox.height + 10;
+                        // Final boundary check to ensure it never leaves the box
+                        // Give it 2px more breathing room so it doesn't trigger the boundary guard immediately
+                        const finalClampedY = Math.max(zone.startY + 2, Math.min(suggestedY, zone.endY - mobileBox.h - 2));
+
+                        // Apply the move (clamped position solves or improves overlap)
+                        mobile.bbox[1] = finalClampedY;
+                        mobileBox.y = finalClampedY;
                     } else {
-                        // Push Up
-                        newY = fixedBox.y - mobileBox.height - 10;
+                        mobile.bbox[1] = suggestedY;
+                        mobileBox.y = suggestedY;
                     }
-
-                    // Apply Move
-                    mobile.bbox[1] = newY;
-                    mobileBox.y = newY; // Update local box for next comparison
                 }
             }
         }
-
         return sorted;
     }
 }

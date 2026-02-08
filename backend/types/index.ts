@@ -147,6 +147,7 @@ export interface Annotation {
   pageIndex?: number; // Page index for multi-page annotations
   visualObservation?: string; // AI's description of the visual content
   unit?: 'pixels' | 'percentage'; // Explicit unit for coordinate scaling
+  snappedBbox?: number[]; // [NEW] Definitive Single Source of Truth
 }
 
 export interface MarkingInstructions {
@@ -758,4 +759,5 @@ export interface EnrichedAnnotation extends Annotation {
   unit?: 'pixels' | 'percentage'; // Explicit unit for coordinate scaling
   student_text?: string;
   classification_text?: string;
+  snappedBbox?: number[]; // [NEW] Definitive Single Source of Truth
 }

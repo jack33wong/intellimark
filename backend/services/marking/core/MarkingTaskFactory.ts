@@ -53,7 +53,7 @@ export class MarkingTaskFactory {
             }
             */
             if (anchorMainPage !== undefined) {
-                console.log(`⚓ [ANCHOR-DISABLED] Safe Match Found at P${anchorMainPage}. (Override prevented)`);
+                // console.log(`⚓ [ANCHOR-DISABLED] Safe Match Found at P${anchorMainPage}. (Override prevented)`);
             }
 
             let markingScheme = null;
@@ -127,7 +127,13 @@ export class MarkingTaskFactory {
                                 blockId: `drawing_${baseQNum}_${group.lineCounter}`,
                                 subQuestionLabel: node.part || 'main',
                                 pageIndex: pIdx,
-                                bbox: l.box || l.position || nodeBox || { x: 0, y: 0, width: 100, height: 50 }
+                                bbox: [
+                                    l.position?.x ?? l.box?.x ?? nodeBox?.x ?? 0,
+                                    l.position?.y ?? l.box?.y ?? nodeBox?.y ?? 0,
+                                    l.position?.width ?? l.box?.width ?? nodeBox?.width ?? 100,
+                                    l.position?.height ?? l.box?.height ?? nodeBox?.height ?? 50
+                                ],
+                                unit: 'percentage'
                             });
                             hasContent = true;
                             return;
@@ -138,7 +144,9 @@ export class MarkingTaskFactory {
                             rawBox = node.position || nodeBox;
                         }
 
-                        const positionData = rawBox || { x: 0, y: 0, width: 0, height: 0, unit: 'percentage' };
+                        const positionData = rawBox || { x: 0, y: 0, width: 0, height: 0 };
+                        const forcedUnit = (l.ocrSource === 'classification' || !l.ocrSource) ? 'percentage' : 'pixels';
+                        console.log(`🛡️ [UNIT-SYNC] Q${baseQNum} Source: ${l.ocrSource} | Raw Y: ${l.position?.y} | Forced Unit: ${forcedUnit}`);
 
                         group.aiSegmentationResults.push({
                             line_id: globalId,
@@ -148,7 +156,8 @@ export class MarkingTaskFactory {
                             subQuestionLabel: node.part || 'main',
                             pageIndex: pIdx,
                             bbox: positionData,
-                            position: positionData
+                            position: positionData,
+                            unit: forcedUnit
                         });
                         hasContent = true;
                     });
@@ -168,7 +177,7 @@ export class MarkingTaskFactory {
             if (!qBase) continue;
 
             const targetPageIndex = q.sourceImageIndex ?? q.pageIndex ?? 0;
-            console.log(`[ZONE-TRUTH] Q${qBase} Classifier Target: Page ${targetPageIndex}`);
+            // console.log(`[ZONE-TRUTH] Q${qBase} Classifier Target: Page ${targetPageIndex}`);
 
             const allNodes = this.flattenQuestionTree(q);
             allNodes.forEach((node: any) => {
@@ -234,7 +243,7 @@ export class MarkingTaskFactory {
         });
 
         const distinctPages = [...new Set(allOcrBlocksGlobal.map(b => b.pageIndex || 0))].sort((a, b) => a - b);
-        console.log(`[UPSTREAM-SORT] 🏆 Fed ${allOcrBlocksGlobal.length} blocks in order: ${distinctPages.join(' -> ')}`);
+        // console.log(`[UPSTREAM-SORT] 🏆 Fed ${allOcrBlocksGlobal.length} blocks in order: ${distinctPages.join(' -> ')}`);
 
         const globalExpectedQuestions: Array<{ label: string; text: string; targetPages?: number[] }> = [];
         for (const q of classificationResult.questions) {

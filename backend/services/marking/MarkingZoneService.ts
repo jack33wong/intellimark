@@ -265,6 +265,7 @@ export class MarkingZoneService {
             for (let i = 0; i < pageList.length - 1; i++) {
                 const current = pageList[i];
                 const next = pageList[i + 1];
+
                 if (next.startY < current.endY) {
                     console.log(` ⚖️ [ZONE-TIGHTEN] Pulling Q${current.label} endY from ${current.endY} up to Q${next.label} startY (${next.startY})`);
                     current.endY = next.startY;
@@ -299,7 +300,7 @@ export class MarkingZoneService {
         });
 
         const distinctPages = [...new Set(sortedBlocks.map(b => b.pageIndex || 0))].sort((a, b) => a - b);
-        console.log(`[ZONE-SORT] 🏆 Physical Page Order: ${distinctPages.join(' -> ')}`);
+        // console.log(`[ZONE-SORT] 🏆 Physical Page Order: ${distinctPages.join(' -> ')}`);
 
         let minSearchY = 0;
         let currentSearchPage = sortedBlocks[0]?.pageIndex || 0;
@@ -333,7 +334,7 @@ export class MarkingZoneService {
                 // Stores the specific question label (e.g. "2a") so it can be added to the AI Prompt tag.
                 match.block._isInstruction = true;
                 match.block._associatedQuestion = finalKey;
-                console.log(` 💎 [ZONE-TAG] ${finalKey} anchored on "${match.block.text.substring(0, 50)}" (P${match.block.pageIndex})`);
+                // console.log(` 💎 [ZONE-TAG] ${finalKey} anchored on "${match.block.text.substring(0, 50)}" (P${match.block.pageIndex})`);
 
                 // Mark this block as claimed so children/siblings don't re-anchor on it
                 if (match.block.id) {
@@ -633,7 +634,7 @@ export class MarkingZoneService {
         let bestSimilarity = 0;
 
         if (targetCurrentPages && targetCurrentPages.length > 0) {
-            console.log(`   📂 [BUCKET-DEBUG] ${labelRaw} Whitelist: [${targetCurrentPages.join(', ')}]`);
+            // console.log(`   📂 [BUCKET-DEBUG] ${labelRaw} Whitelist: [${targetCurrentPages.join(', ')}]`);
         }
 
         for (let i = 0; i < sortedBlocks.length; i++) {
@@ -687,7 +688,7 @@ export class MarkingZoneService {
                                 }
                             }
 
-                            const stopperScore = SimilarityService.calculateHybridScore(stopperContext, nextQuestionText, false, true);
+                            const stopperScore = SimilarityService.calculateHybridScore(stopperContext, nextQuestionText, false);
                             if (stopperScore.total < 0.4) {
                                 isValidStopper = false;
                             }
@@ -738,7 +739,7 @@ export class MarkingZoneService {
                     .replace(/^(\d+)[\.\)]\s+/, '$1 ')
                     .trim();
 
-                const details = SimilarityService.calculateHybridScore(normalizedCandidate, targetFull, false, false);
+                const details = SimilarityService.calculateHybridScore(normalizedCandidate, targetFull, false);
 
                 // 🛡️ [SAFE-RESTORE]: Re-apply label boost, but only if the block starts with the label.
                 const isLabelMatch = MarkingZoneService.checkLabelMatch(normalizedCandidate, labelRaw);
@@ -758,7 +759,7 @@ export class MarkingZoneService {
                 }
 
                 if (finalScore > 0.3) {
-                    console.log(`   🕵️ [SIMILARITY-TRACE] Q${labelRaw} candidate: "${normalizedCandidate.substring(0, 40)}" | Score: ${finalScore.toFixed(3)} (Raw: ${details.total.toFixed(3)}, Boost: ${isLabelMatch ? '+0.5' : '0.0'}) | P${blockPage}`);
+                    // console.log(`   🕵️ [SIMILARITY-TRACE] Q${labelRaw} candidate: "${normalizedCandidate.substring(0, 40)}" | Score: ${finalScore.toFixed(3)} (Raw: ${details.total.toFixed(3)}, Boost: ${isLabelMatch ? '+0.5' : '0.0'}) | P${blockPage}`);
                 }
 
                 const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.7 : 0.85;

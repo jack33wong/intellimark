@@ -519,10 +519,11 @@ export class MarkingPipelineService {
                         const metadata = await sharp(buffer).metadata();
                         if (metadata.width && metadata.height) {
                             if (page.width !== metadata.width || page.height !== metadata.height) {
-                                console.log(`[DIMENSIONS] Refreshed Page ${page.pageIndex} dimensions after preprocessing: ${page.width}x${page.height} -> ${metadata.width}x${metadata.height}`);
+                                console.log(`📐 [DIMENSIONS] Refreshed Page ${page.pageIndex} dimensions after preprocessing: ${page.width}x${page.height} -> ${metadata.width}x${metadata.height}`);
                                 page.width = metadata.width;
                                 page.height = metadata.height;
                             }
+
                         }
                     }
                 } catch (err) {

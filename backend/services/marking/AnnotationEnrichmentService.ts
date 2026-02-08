@@ -118,8 +118,8 @@ export const enrichAnnotationsWithPositions = (
         // 1. READ STATUS
         let status = (anno as any).ocr_match_status || "UNMATCHED";
         let lineId = (anno as any).line_id;
-        let targetId = (anno as any).linked_ocr_id;
-        let activePointer = lineId || targetId;
+        let targetId = (anno as any).linked_ocr_id || (anno.linked_ocr_id as any);
+        let activePointer = targetId || lineId; // 🛡️ [PRIORITY]: Prefer the OCR Match (targetId) over the raw line source.
         const rawVisualPos = (anno as any).visual_position || (anno as any).aiPosition;
 
         // 🛡️ ORPHAN RESCUE: Handle "Unmatched" marks with no handwriting source
@@ -173,10 +173,10 @@ export const enrichAnnotationsWithPositions = (
             const labelMismatch = (annoLabel && sourceLabel && annoLabel !== sourceLabel && sourceLabel !== 'main');
 
             // A mismatch only exists if the found source is on a page that HAS NO ZONE for this question part.
-            // This enables drawings to span multiple pages correctly.
             const pageMismatch = (trueZonePages.length > 0 && source.pageIndex !== undefined && !trueZonePages.includes(source.pageIndex));
+            const isRelaxedMatch = !labelMismatch && (annoLabel === sourceLabel || sourceLabel === 'main');
 
-            if (labelMismatch || pageMismatch) {
+            if (labelMismatch || (pageMismatch && !isRelaxedMatch)) {
                 // 3. SEARCH REPLACEMENT
                 let candidates = stepsDataForMapping.filter(s =>
                     s.subQuestionLabel && normalize(s.subQuestionLabel) === annoLabel
@@ -200,12 +200,9 @@ export const enrichAnnotationsWithPositions = (
                     (anno as any).line_id = best.line_id;
                     (anno as any).linked_ocr_id = best.line_id;
 
-                    // 🚨 CRITICAL: Physically move the annotation to the new page
-                    (anno as any).pageIndex = best.pageIndex;
-                    pageIndex = best.pageIndex;
-
-                    // 🚨 FIX: Don't force MATCHED. Keep VISUAL if it was VISUAL.
-                    if (status === "UNMATCHED") status = "MATCHED"; // Only promote if lost
+                    // 🚨 FIX: Don't force MATCHED. Keep VISUAL/UNMATCHED.
+                    // This prevents re-linking to a vetoed block.
+                    // if (status === "UNMATCHED") status = "MATCHED";
 
                     console.log(`✅ [IRON-DOME] Snapped mark to: ${lineId} (P${best.pageIndex})`);
                 }
@@ -213,172 +210,127 @@ export const enrichAnnotationsWithPositions = (
         }
         // =====================================================================
 
-        // 2. SELECT SOURCE (Modified to allow VISUAL + ID)
-        // [FIX]: Allow VISUAL status to use Direct Link (Path A) if it has an ID
-        if ((status === "MATCHED" || status === "VISUAL") && targetId) {
-            // [PATH A] DIRECT LINK (Text OR Visual Placeholder)
-            const match = findInData(targetId);
-            if (match) {
-                const sourceBox = match.bbox || match.position;
-                if ((targetId && targetId.includes('17')) || (lineId && lineId.includes('17'))) {
-                    console.log(`   🎯 [ENRICH-DEBUG] MATCH FOUND for ${targetId || lineId}:`, JSON.stringify(sourceBox));
-                }
-                const unit = match.unit || 'pixels';
-
-                rawBox = Array.isArray(sourceBox)
-                    ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3], unit }
-                    : { ...sourceBox, unit };
-                method = "DIRECT_LINK";
-                hasLineData = match.hasLineData;
-                isSplitBlock = match.isSplitBlock;
-            }
-        }
-        else if (status === "VISUAL" && rawVisualPos) {
-            // [PATH B] VISUAL COORDS (Page-Relative Design)
-            // Resolve relative to the PAGE as drawings are based on full-page images.
-            rawBox = { ...rawVisualPos, unit: 'percentage' };
-            method = "VISUAL_COORDS_PAGE_RELATIVE";
-        }
-        else {
-            // [PATH C] UNMATCHED -> Use Handwriting (line_id)
-            if (lineId) {
-                const match = findInData(lineId);
-                if (match) {
-                    const sourceBox = match.bbox || match.position;
-                    // FIX: Ensure we respect the source unit (often 'percentage' for classification blocks)
-                    const unit = match.unit || 'pixels';
-
-                    rawBox = Array.isArray(sourceBox)
-                        ? { x: sourceBox[0], y: sourceBox[1], width: sourceBox[2], height: sourceBox[3], unit }
-                        : { ...sourceBox, unit };
-
-                    method = "ZONE_PROTECTED_HANDWRITING";
-                    hasLineData = match.hasLineData;
-                    isSplitBlock = match.isSplitBlock;
-                }
-            }
-
-            // 🛡️ [FAIL-FAST]: No silent fallbacks. 
-            if (!rawBox) {
-                const faultType = status === "MATCHED" ? "ID Mapping" : (status === "VISUAL" ? "AI Coordinates" : "Position Recovery");
-                throw new Error(`[PositionFailure] Q${anno.subQuestion}: Could not resolve ${status} position via '${faultType}'. Pointer: ${activePointer || 'N/A'}. This must be fixed in the upstream linker or pipeline logic.`);
-            }
-        }
-
-        // 3. TRANSFORM (Resolve to Absolute Pixels)
+        // 1. DIMENSION GROUND TRUTH
         const dims = getPageDims(pageDimensions!, pageIndex);
+        const pageWidth = dims.width || 1000;
+        const pageHeight = dims.height || 1000;
 
-        const pixelBox = CoordinateTransformationService.resolvePixels(
-            rawBox,
-            dims.width,
-            dims.height,
-            {
-                offsetX: 0,
-                offsetY: 0,
-                context: `${method}-${targetId || lineId}`
-            }
-        );
+        // 2. PIXEL NORMALIZATION (The "Pump")
+        const rawAiBox = Array.isArray(anno.bbox)
+            ? [anno.bbox[0], anno.bbox[1], anno.bbox[2], anno.bbox[3]]
+            : [(anno.bbox as any)?.x || 0, (anno.bbox as any)?.y || 0, (anno.bbox as any)?.width || 0, (anno.bbox as any)?.height || 0];
 
-        // ✅ SAFETY CHECK: If pixels is null (mapping failed), return annotation without position
-        // or use a default safe position to prevent the entire worker from crashing.
-        if (!pixelBox) {
-            console.warn(`⚠️ [ANNO-WARN] Could not resolve pixels for annotation '${(anno as any).text}' on Page ${pageIndex}. Skipping position.`);
-            return { ...anno, position: null } as EnrichedAnnotation;
-        }
+        // 🛡️ STRENGTHEN EXTRACTION: Use multiple potential coordinate sources to avoid "0px Jump"
+        const rawX = (anno as any).visual_position?.x ?? (anno as any).aiPosition?.x ?? rawAiBox[0];
+        const rawY = (anno as any).visual_position?.y ?? (anno as any).aiPosition?.y ?? rawAiBox[1];
 
-        // 4. STRICT ZONE CLAMPING (Universal)
+        const intentX = (rawX / 100) * pageWidth;
+        const intentY = (rawY / 100) * pageHeight;
+
+        // 3. ZONE PROTECTION (Requirement: AI Intent limited to Intended Zone)
+        let finalX = intentX;
+        let finalY = intentY;
+
         if (semanticZones) {
             const currentQuestionId = (questionId || "").replace(/\D/g, '');
-            const allPossibleZones = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId);
-            const zone = allPossibleZones.find(z => z.pageIndex === pageIndex);
+            const zone = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId)
+                .find(z => z.pageIndex === pageIndex);
 
-            // 🛡️ [FIX]: PAGE-AWARE CLAMPING
-            // Only clamp if we found a zone that matches the annotation's physical page.
             if (zone) {
-                const startY = zone.startY;
-                const endY = zone.endY;
+                const margin = 10; // "Beauty" breathing room from borders
+                const zoneStartX = zone.x || 0;
+                const zoneWidth = (zone as any).width || pageWidth;
+                const zoneEndX = zoneStartX + zoneWidth;
 
-                const zoneHeight = (endY - startY);
-                const h = pixelBox.height || (dims.height * 0.015);
-
-                // 🛡️ [USER-PROTECT]: DO NOT touch MATCHED marks. They must stay on the handwriting.
-                // Pullback ONLY applies to UNMATCHED, VISUAL, or FALLBACK marks.
-                if (status !== "MATCHED") {
-                    const clamped = ZoneUtils.clampToZone({
-                        x: pixelBox.x,
-                        y: pixelBox.y,
-                        width: pixelBox.width,
-                        height: h
-                    }, zone);
-
-                    pixelBox.x = clamped.x;
-                    pixelBox.y = clamped.y;
-                }
-            } else if (allPossibleZones.length > 0) {
-                console.log(`   🔓 [ZONE-SKIP] Skipping clamping for Q${anno.subQuestion}. No zone for P${pageIndex} (Current pages: ${allPossibleZones.map(z => z.pageIndex).join(',')})`);
+                // CLAMP TO NEAREST BOUNDARY:
+                // If AI intent is inside, it stays. 
+                // If AI intent is below, it caps at bottom.
+                // If AI intent is above, it caps at top.
+                finalY = Math.max(zone.startY + margin, Math.min(intentY, zone.endY - (rawAiBox[3] / 100 * pageHeight || 20) - margin));
+                finalX = Math.max(zoneStartX + margin, Math.min(intentX, zoneEndX - (rawAiBox[2] / 100 * pageWidth || 20) - margin));
             }
         }
 
-        // 5. HYDRATION (Pointer vs Value Strategy - Single Source of Truth)
-        // Resolve input pointers. Use line_id OR targetId (whichever was used for positioning)
-        // NOTE: We rely on 'activePointer' which we might have updated in the Iron Dome block
-        activePointer = lineId || targetId;
-        const contentDesc = (anno as any).contentDesc || (anno as any).content_desc;
+        // 4. AUTHORITY SELECTION (Handling MATCHED/SPLIT overrides)
+        let authorityBox: [number, number, number, number] = [
+            finalX,
+            finalY,
+            (rawAiBox[2] / 100) * pageWidth,
+            (rawAiBox[3] / 100) * pageHeight || (pageHeight * 0.015) // Height Protection
+        ];
 
+        const linkedOcrBlock = activePointer ? findInData(activePointer) : null;
+        if ((status === 'MATCHED' || (anno as any).ocr_match_status === 'SPLIT') && linkedOcrBlock?.bbox) {
+            const b = linkedOcrBlock.bbox;
+            const rawOcrBox: [number, number, number, number] = Array.isArray(b) ? [b[0], b[1], b[2], b[3]] : [b.x, b.y, b.width, b.height];
+
+            // Ensure OCR percentages are normalized to the same pixel scale
+            if (linkedOcrBlock.unit === 'percentage') {
+                authorityBox = [
+                    (rawOcrBox[0] / 100) * pageWidth,
+                    (rawOcrBox[1] / 100) * pageHeight,
+                    (rawOcrBox[2] / 100) * pageWidth,
+                    (rawOcrBox[3] / 100) * pageHeight
+                ];
+            } else {
+                authorityBox = rawOcrBox;
+            }
+        }
+
+        // 5. FINAL LOGGING
+        console.log(`🛡️ [DESIGN-RESCUE] Q${anno.subQuestion} | Status: ${status} | IntentY: ${intentY.toFixed(0)}px -> SnappedY: ${authorityBox[1].toFixed(0)}px`);
+
+        // 5. EVIDENCE LOG
+        console.log(`🛡️ [ENRICH-AUTHORITY] ${anno.subQuestion} | Status: ${status} | Snapped: [${Math.round(authorityBox[0])}, ${Math.round(authorityBox[1])}]px`);
+
+        // Resolve student/class text as before
         let studentText = "";
         let classText = (anno as any).classification_text || "";
 
         if (activePointer) {
-            // [PATH A] Text/Handwriting Pointer
             const match = findInData(activePointer);
             if (match) {
                 studentText = match.text || match.cleanedText || "";
                 classText = match.text || match.cleanedText || "";
-
-                // 🛡️ [FIX]: HIDE BLUE TEXT FOR VISUAL PLACEHOLDERS
-                // If we snapped to a visual placeholder, don't show "[VISUAL WORKSPACE]" as blue text.
                 if (studentText.includes('VISUAL') || studentText.includes('DRAWING')) {
-                    classText = ""; // Hide overlay
-                    studentText = "[Drawing/Graph]"; // Friendly label
+                    classText = "";
+                    studentText = "[Drawing/Graph]";
                     method = "VISUAL_VALUE";
                 } else {
                     method = "POINTED_TEXT";
                 }
-            } else {
-                console.warn(`🚨 [ORPHAN] AI returned ID '${activePointer}' which does not exist in source data.`);
-                // We don't change status here to avoid breaking downstream flow, 
-                // but strictly speaking, this is a data integrity error.
             }
         } else {
-            // [PATH B] Drawing/Visual Value
-            const rawDesc = contentDesc || (anno as any).reasoning || "";
+            const rawDesc = (anno as any).contentDesc || (anno as any).content_desc || (anno as any).reasoning || "";
             const cleanDesc = rawDesc.replace('[DRAWING]', '').trim();
             studentText = cleanDesc ? `[DRAWING] ${cleanDesc}` : "[Drawing/Graph]";
-
-            // SIMPLIFIED: Drawings never show blue text overlays.
             classText = "";
-
             method = "VISUAL_VALUE";
-            // Ensure status is VISUAL if we relied on visual coords
             if (status === "UNMATCHED") status = "VISUAL";
         }
 
-        // 🛡️ REDUNDANCY PROTECTION: Don't show blue text if it is already MATCHED
-        // We only show blue overlays for UNMATCHED, FALLBACK, or VISUAL to explain layout.
-        if (status === "MATCHED") {
-            classText = "";
-        }
+        if (status === "MATCHED") classText = "";
+
+        // 🛡️ [FINAL SIZE SANITY]: Ensure no annotation ever exits with zero width/height.
+        // We enforce a 15px floor for both dimensions.
+        const finalBox: [number, number, number, number] = [
+            authorityBox[0],
+            authorityBox[1],
+            Math.max(15, authorityBox[2] || 20),
+            Math.max(15, authorityBox[3] || (pageHeight * 0.015))
+        ];
 
         return {
             ...anno,
-            bbox: [pixelBox.x, pixelBox.y, pixelBox.width, pixelBox.height],
+            bbox: finalBox,
+            snappedBbox: finalBox,
             pageIndex: pageIndex,
             ocr_match_status: status as any,
             linked_ocr_id: activePointer,
-            student_text: latexToPlainText(studentText),   // [FIXED] Sanitize for SVG
-            studentText: latexToPlainText(studentText),    // [FIXED] Sanitize for Frontend
-            classification_text: latexToPlainText(classText), // [FIXED] Sanitize for SVG
-            classificationText: latexToPlainText(classText), // [FIXED] Sanitize for Frontend
+            student_text: latexToPlainText(studentText),
+            studentText: latexToPlainText(studentText),
+            classification_text: latexToPlainText(classText),
+            classificationText: latexToPlainText(classText),
             _debug_placement_method: method,
             hasLineData: hasLineData,
             isSplitBlock: isSplitBlock,
