@@ -322,6 +322,7 @@ export async function executeMarkingForQuestion(
       }))
     ];
 
+    /*
     // 🕵️ [COORDS-IDENTITY]: Print all OCR blocks to verify IDs vs Coordinates
     if (combinedLookupBlocks.length > 0) {
       console.log(`🕵️ [COORDS-IDENTITY] Q${questionId} OCR Pool Sample (Block 0):`, JSON.stringify(combinedLookupBlocks[0]));
@@ -332,6 +333,7 @@ export async function executeMarkingForQuestion(
         }
       });
     }
+    */
 
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations,

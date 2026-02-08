@@ -195,32 +195,34 @@ export class MarkingOutputService {
             }
         });
 
-        console.log('\n✅ [OUTPUT SERVICE] Final Page Order (Verified Content):');
-        console.log('---------------------------------------------------------------------------------');
-        console.log('| Seq | Index | Original Filename      | Content (Questions)                  |');
-        console.log('---------------------------------------------------------------------------------');
-
-        sortedStandardizedPages.forEach((p, i) => {
-            // Get questions on this page, naturally sorted
-            const contentSet = pageToContent.get(i);
-            let content = contentSet ? Array.from(contentSet).sort(getQuestionSortValue).join(', ') : '';
-
-            if (!content || content.length === 0) {
-                // If no questions, check if it was metadata
-                const classification = allClassificationResults.find(c => c.pageIndex === i); // Look up by new index
-                if (classification?.result?.category === 'metadata' || classification?.result?.category === 'frontPage') {
-                    content = "METADATA / FRONT PAGE";
-                } else {
-                    content = "--- (Empty/Ghost) ---";
-                }
-            }
-
-            const fileName = (p.originalFileName || 'unknown').padEnd(22).slice(0, 22);
-            const contentStr = content.padEnd(36);
-
-            console.log(`| [${i}] |  ${String(p.pageIndex).padEnd(3)}  | ${fileName} | ${contentStr} |`);
-        });
-        console.log('---------------------------------------------------------------------------------\n');
+        /*
+198:         console.log('\n✅ [OUTPUT SERVICE] Final Page Order (Verified Content):');
+199:         console.log('---------------------------------------------------------------------------------');
+200:         console.log('| Seq | Index | Original Filename      | Content (Questions)                  |');
+201:         console.log('---------------------------------------------------------------------------------');
+202: 
+203:         sortedStandardizedPages.forEach((p, i) => {
+204:             // Get questions on this page, naturally sorted
+205:             const contentSet = pageToContent.get(i);
+206:             let content = contentSet ? Array.from(contentSet).sort(getQuestionSortValue).join(', ') : '';
+207: 
+208:             if (!content || content.length === 0) {
+209:                 // If no questions, check if it was metadata
+210:                 const classification = allClassificationResults.find(c => c.pageIndex === i); // Look up by new index
+211:                 if (classification?.result?.category === 'metadata' || classification?.result?.category === 'frontPage') {
+212:                     content = "METADATA / FRONT PAGE";
+213:                 } else {
+214:                     content = "--- (Empty/Ghost) ---";
+215:                 }
+216:             }
+217: 
+218:             const fileName = (p.originalFileName || 'unknown').padEnd(22).slice(0, 22);
+219:             const contentStr = content.padEnd(36);
+220: 
+221:             console.log(`| [${i}] |  ${String(p.pageIndex).padEnd(3)}  | ${fileName} | ${contentStr} |`);
+222:         });
+223:         console.log('---------------------------------------------------------------------------------\n');
+        */
 
         return {
             finalAnnotatedOutput,

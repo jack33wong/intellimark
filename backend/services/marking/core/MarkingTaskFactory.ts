@@ -146,7 +146,7 @@ export class MarkingTaskFactory {
 
                         const positionData = rawBox || { x: 0, y: 0, width: 0, height: 0 };
                         const forcedUnit = (l.ocrSource === 'classification' || !l.ocrSource) ? 'percentage' : 'pixels';
-                        console.log(`🛡️ [UNIT-SYNC] Q${baseQNum} Source: ${l.ocrSource} | Raw Y: ${l.position?.y} | Forced Unit: ${forcedUnit}`);
+                        // console.log(`🛡️ [UNIT-SYNC] Q${baseQNum} Source: ${l.ocrSource} | Raw Y: ${l.position?.y} | Forced Unit: ${forcedUnit}`);
 
                         group.aiSegmentationResults.push({
                             line_id: globalId,

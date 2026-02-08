@@ -173,7 +173,7 @@ export function createAnnotationFromAI(
             const match = probeId.match(/^p(\d+)_/);
             if (match) {
                 groundTruthPage = parseInt(match[1], 10);
-                console.log(` 🛡️ [TRUTH-EXTRACT] Found ground truth P${groundTruthPage} from ID: "${probeId}"`);
+                // console.log(` 🛡️ [TRUTH-EXTRACT] Found ground truth P${groundTruthPage} from ID: "${probeId}"`);
                 break; // Found physical ground truth!
             }
         }

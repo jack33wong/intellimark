@@ -248,7 +248,7 @@ export const enrichAnnotationsWithPositions = (
                 const zoneH = zone.endY - zone.startY;
 
                 // DYNAMIC MARGIN: 5% of zone height, capped between 10px and 100px
-                const margin = Math.max(10, Math.min(100, zoneH * 0.05));
+                const margin = Math.max(10, Math.min(100, zoneH * 0.1));
 
                 // LIMIT HEIGHT: Cap at 35% to ensure staggering room
                 let annoH = (rawAiBox[3] / 100) * pageHeight;
@@ -266,7 +266,7 @@ export const enrichAnnotationsWithPositions = (
                     Math.min(centeredY, zone.endY - annoH - margin)
                 );
 
-                console.log(`🛡️ [11b-FIX] Q${anno.subQuestion} | IntentY: ${intentY.toFixed(0)} | Floor: ${(zone.endY - annoH).toFixed(0)} | ResultY: ${finalY.toFixed(0)}`);
+                // console.log(`🛡️ [11b-FIX] Q${anno.subQuestion} | IntentY: ${intentY.toFixed(0)} | Floor: ${(zone.endY - annoH).toFixed(0)} | ResultY: ${finalY.toFixed(0)}`);
 
                 const annoW = (rawAiBox[2] / 100) * pageWidth;
                 // Apply the same logic for X (Center to Left)
@@ -304,10 +304,10 @@ export const enrichAnnotationsWithPositions = (
         // 5. FINAL LOGGING
         if (linkedOcrBlock?.isSplitBlock) isSplitBlock = true;
 
-        console.log(`🛡️ [DESIGN-RESCUE] Q${anno.subQuestion} | Status: ${status} | IntentY: ${intentY.toFixed(0)}px -> SnappedY: ${authorityBox[1].toFixed(0)}px`);
+        // console.log(`🛡️ [DESIGN-RESCUE] Q${anno.subQuestion} | Status: ${status} | IntentY: ${intentY.toFixed(0)}px -> SnappedY: ${authorityBox[1].toFixed(0)}px`);
 
         // 5. EVIDENCE LOG
-        console.log(`🛡️ [ENRICH-AUTHORITY] ${anno.subQuestion} | Status: ${status} | Snapped: [${Math.round(authorityBox[0])}, ${Math.round(authorityBox[1])}]px`);
+        // console.log(`🛡️ [ENRICH-AUTHORITY] ${anno.subQuestion} | Status: ${status} | Snapped: [${Math.round(authorityBox[0])}, ${Math.round(authorityBox[1])}]px`);
 
         // Resolve student/class text as before
         let studentText = "";

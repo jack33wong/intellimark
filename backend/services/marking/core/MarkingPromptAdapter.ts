@@ -105,7 +105,7 @@ export class MarkingPromptAdapter {
                         const oldId = anno[field];
                         anno[field] = anno[field].replace(/^p\d+_/, `p${physicalIdx}_`);
                         if (oldId !== anno[field]) {
-                            console.log(` ✅ [ADAPTER-RESTORE] Mapped ID ${oldId} -> ${anno[field]} (Rel: ${relIdx}, Phys: ${physicalIdx})`);
+                            // console.log(` ✅ [ADAPTER-RESTORE] Mapped ID ${oldId} -> ${anno[field]} (Rel: ${relIdx}, Phys: ${physicalIdx})`);
                         }
                     }
                 });

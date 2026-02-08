@@ -2095,7 +2095,7 @@ export class MarkingPipelineService {
                 combinedQuestionResponses = questionOnlyResponses;
                 console.log(`   - Sorted questionOnly: ${combinedQuestionResponses.map((r: any) => r.questionNumber).join(', ')}`);
             } else {
-                // console.log('⚠️  [COMBINATION] No questionResponses found');
+                console.log('⚠️  [COMBINATION] No questionResponses found');
             }
             //=================================================================================
 

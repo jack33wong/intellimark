@@ -74,14 +74,14 @@ export class ScoreAuditor {
 
             let currentVal = 0;
             const survivors: any[] = [];
-            console.log(` 💎 [BUDGET-CHECK] Q${subQ}: Max Marks = ${budget}. Items to Process: ${anns.length}`);
+            // console.log(` 💎 [BUDGET-CHECK] Q${subQ}: Max Marks = ${budget}. Items to Process: ${anns.length}`);
             for (const ann of anns) {
                 const val = sanitizeValue(ann.text || "0");
                 if (currentVal + val <= budget) {
                     survivors.push(ann);
                     currentVal += val;
                 } else {
-                    console.log(` ✂️ [GUILLOTINE] Q${subQ}: Cutting annotation "${ann.text}" (Value: ${val}). Budget: ${budget}, Already Awarded: ${currentVal}`);
+                    // console.log(` ✂️ [GUILLOTINE] Q${subQ}: Cutting annotation "${ann.text}" (Value: ${val}). Budget: ${budget}, Already Awarded: ${currentVal}`);
                 }
             }
             survivors.forEach(s => survivorList.push(s));

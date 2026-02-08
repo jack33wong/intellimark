@@ -682,10 +682,7 @@ export function buildExamPaperStructure(detectionResults: any[]) {
     // Use database text if available
     const questionText = match.databaseQuestionText || dr.question.text || '';
 
-    // ==================================================================================
     // [V2 CLEAN FIX] Standardize markingScheme as string
-    // We avoid the "See scheme details" placeholder and prefer the plain text scheme.
-    // ==================================================================================
     let markingSchemeStr = '';
 
     if (dr.detectionResult && dr.detectionResult.markingScheme) {

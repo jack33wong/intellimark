@@ -59,7 +59,7 @@ export class AnnotationCollisionService {
                         // If they are almost exactly on top of each other
                         if (Math.abs(mobileBox.y - fixedBox.y) < 30) {
                             // Apply a diagonal shift to uncover the reasoning box below
-                            mobile.bbox[1] += 90; // Move Down 90px
+                            mobile.bbox[1] += 120; // Move Down 120px
                             mobile.bbox[0] += 30; // Move Right 30px
 
                             // Boundary safety

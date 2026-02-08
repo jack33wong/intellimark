@@ -160,13 +160,13 @@ export class SVGOverlayService {
     // 🛡️ [SNAP-LOCK]: Burner is now "Dumb". It trusts absolute pixels.
     const scaleX = 1.0;
     const scaleY = 1.0;
-    console.log(`🎨 [BURN-SYNC] Scale Locked at ${scaleX.toFixed(3)} (Absolute Pixel Mode)`);
+    // console.log(`🎨 [BURN-SYNC] Scale Locked at ${scaleX.toFixed(3)} (Absolute Pixel Mode)`);
 
     // THE VERIFICATION LOG
     if (annotations.length > 0) {
       const ann = annotations[0] as any;
       const y = ann.snappedBbox ? ann.snappedBbox[1] : ann.bbox[1];
-      console.log(`🎨 [BURN-AUTHORITY] Drawing ${ann.text} | SnappedY: ${y} | Scale: 1:1 (Centralized)`);
+      // console.log(`🎨 [BURN-AUTHORITY] Drawing ${ann.text} | SnappedY: ${y} | Scale: 1:1 (Centralized)`);
     }
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
