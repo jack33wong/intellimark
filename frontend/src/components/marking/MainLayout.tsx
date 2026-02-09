@@ -320,7 +320,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
       const isAnnotated = img.messageRole === 'assistant' || img.messageType === 'marking_annotated';
 
       if (isAnnotated) {
-        const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
+        const match = groupedQuestions.find(g => g.allImageIndices.includes(idx));
         if (match) {
           const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
           return {
@@ -340,7 +340,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   // Enhanced Split Mode Entry
   const enterSplitModeEnriched = useCallback((images: any[], index: number, isGlobal?: boolean) => {
     // Determine the question associated with this image index to keep the Ribbon in sync
-    const match = groupedQuestions.find(g => g.sourceImageIndex === index);
+    const match = groupedQuestions.find(g => g.allImageIndices.includes(index));
     if (match && activeQuestionId !== match.questionNumber) {
       setActiveQuestionId(match.questionNumber);
     }
@@ -394,7 +394,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     if (activeImageIndex === index) return;
 
     // Find the question that maps to this page index
-    const question = groupedQuestions.find(q => q.sourceImageIndex === index);
+    const question = groupedQuestions.find(q => q.allImageIndices.includes(index));
     if (question) {
       navigateToQuestion(question.questionNumber, index, 'image');
     } else {

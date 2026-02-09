@@ -6,6 +6,7 @@ export interface GroupedQuestion {
     totalMarks: number;     // Sum of sub-questions
     awardedMarks: number | null; // Sum of awarded, or null if any missing
     sourceImageIndex: number; // Index of the first sub-question
+    allImageIndices: number[]; // All pages this question touches
     subQuestions: string[]; // List of sub-question numbers
     hasResults: boolean;
 }
@@ -41,10 +42,13 @@ export const useQuestionGrouping = (
                     totalMarks: 0,
                     awardedMarks: 0,
                     sourceImageIndex: q.sourceImageIndex || 0,
+                    allImageIndices: q.sourceImageIndex !== undefined ? [q.sourceImageIndex] : [0],
                     subQuestions: [],
                     hasResults: false
                 };
                 order.push(mainNum);
+            } else if (q.sourceImageIndex !== undefined && !groups[mainNum].allImageIndices.includes(q.sourceImageIndex)) {
+                groups[mainNum].allImageIndices.push(q.sourceImageIndex);
             }
 
             groups[mainNum].totalMarks += (q.marks || 0);
@@ -80,19 +84,30 @@ export const useQuestionGrouping = (
                     );
 
                     if (validPageResult) {
-                        if (validPageResult.pageIndex !== undefined && validPageResult.pageIndex >= 0) {
-                            group.sourceImageIndex = validPageResult.pageIndex;
-                        } else if (validPageResult.parts && validPageResult.parts.length > 0) {
-                            // Find first mark with pageIndex from parts
-                            for (const part of validPageResult.parts) {
-                                if (part.marks) {
-                                    const validMark = part.marks.find((m: any) => m.pageIndex !== undefined && m.pageIndex >= 0);
-                                    if (validMark) {
-                                        group.sourceImageIndex = (validMark as any).pageIndex;
-                                        break;
-                                    }
-                                }
+                        const pageIndices = new Set<number>(group.allImageIndices);
+
+                        relevantResults.forEach(r => {
+                            if (r.pageIndex !== undefined && r.pageIndex >= 0) {
+                                pageIndices.add(r.pageIndex);
                             }
+                            if (r.parts) {
+                                r.parts.forEach((p: any) => {
+                                    if (p.marks) {
+                                        p.marks.forEach((m: any) => {
+                                            if (m.pageIndex !== undefined && m.pageIndex >= 0) {
+                                                pageIndices.add(m.pageIndex);
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        });
+
+                        group.allImageIndices = Array.from(pageIndices).sort((a, b) => a - b);
+
+                        // Set the primary sourceImageIndex to the lowest index
+                        if (group.allImageIndices.length > 0) {
+                            group.sourceImageIndex = group.allImageIndices[0];
                         }
                     }
                 }
