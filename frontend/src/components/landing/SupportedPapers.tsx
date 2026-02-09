@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BookOpen, ShieldCheck } from 'lucide-react';
 import './SupportedPapers.css';
 
 const SupportedPapers: React.FC = () => {
+    const navigate = useNavigate();
     const boards = [
         {
             name: "Pearson Edexcel",
@@ -12,66 +14,66 @@ const SupportedPapers: React.FC = () => {
                     year: "November 2024",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2024",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "November 2023",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2023",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "November 2022",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2022",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "1MA1/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "1MA1/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
                 }
             ]
@@ -84,66 +86,66 @@ const SupportedPapers: React.FC = () => {
                     year: "November 2024",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2024",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "November 2023",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2023",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "November 2022",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2022",
                     papers: [
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2F", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
                         { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                        { count: "Paper 2", type: "Calc", code: "8300/2H", tier: "H" },
-                        { count: "Paper 3", type: "Calc", code: "8300/3H", tier: "H" }
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
                 }
             ]
@@ -155,67 +157,67 @@ const SupportedPapers: React.FC = () => {
                 {
                     year: "November 2024",
                     papers: [
-                        { count: "Paper 1", type: "Calc", code: "J560/01", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "J560/02", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "J560/03", tier: "F" },
-                        { count: "Paper 4", type: "Calc", code: "J560/04", tier: "H" },
-                        { count: "Paper 5", type: "Calc", code: "J560/05", tier: "H" },
-                        { count: "Paper 6", type: "Calc", code: "J560/06", tier: "H" }
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2024",
                     papers: [
-                        { count: "Paper 1", type: "Calc", code: "J560/01", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "J560/02", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "J560/03", tier: "F" },
-                        { count: "Paper 4", type: "Calc", code: "J560/04", tier: "H" },
-                        { count: "Paper 5", type: "Calc", code: "J560/05", tier: "H" },
-                        { count: "Paper 6", type: "Calc", code: "J560/06", tier: "H" }
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                     ]
                 },
                 {
                     year: "November 2023",
                     papers: [
-                        { count: "Paper 1", type: "Calc", code: "J560/01", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "J560/02", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "J560/03", tier: "F" },
-                        { count: "Paper 4", type: "Calc", code: "J560/04", tier: "H" },
-                        { count: "Paper 5", type: "Calc", code: "J560/05", tier: "H" },
-                        { count: "Paper 6", type: "Calc", code: "J560/06", tier: "H" }
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2023",
                     papers: [
-                        { count: "Paper 1", type: "Calc", code: "J560/01", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "J560/02", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "J560/03", tier: "F" },
-                        { count: "Paper 4", type: "Calc", code: "J560/04", tier: "H" },
-                        { count: "Paper 5", type: "Calc", code: "J560/05", tier: "H" },
-                        { count: "Paper 6", type: "Calc", code: "J560/06", tier: "H" }
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                     ]
                 },
                 {
                     year: "November 2022",
                     papers: [
-                        { count: "Paper 1", type: "Calc", code: "J560/01", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "J560/02", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "J560/03", tier: "F" },
-                        { count: "Paper 4", type: "Calc", code: "J560/04", tier: "H" },
-                        { count: "Paper 5", type: "Calc", code: "J560/05", tier: "H" },
-                        { count: "Paper 6", type: "Calc", code: "J560/06", tier: "H" }
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                     ]
                 },
                 {
                     year: "June 2022",
                     papers: [
-                        { count: "Paper 1", type: "Calc", code: "J560/01", tier: "F" },
-                        { count: "Paper 2", type: "Calc", code: "J560/02", tier: "F" },
-                        { count: "Paper 3", type: "Calc", code: "J560/03", tier: "F" },
-                        { count: "Paper 4", type: "Calc", code: "J560/04", tier: "H" },
-                        { count: "Paper 5", type: "Calc", code: "J560/05", tier: "H" },
-                        { count: "Paper 6", type: "Calc", code: "J560/06", tier: "H" }
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                     ]
                 }
             ]
@@ -262,7 +264,20 @@ const SupportedPapers: React.FC = () => {
                                                     </div>
                                                     <div className="paper-meta">
                                                         <span className="paper-code-tag">{paper.code}</span>
-                                                        <span className="paper-tier-tag">- {paper.tier}</span>
+                                                    </div>
+                                                    <div className="paper-actions">
+                                                        <button
+                                                            onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${s.year.split(' ')[0].substring(0, 3).toUpperCase()}${s.year.split(' ')[1]}&mode=model`)}
+                                                            className="action-link model"
+                                                        >
+                                                            Model
+                                                        </button>
+                                                        <button
+                                                            onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${s.year.split(' ')[0].substring(0, 3).toUpperCase()}${s.year.split(' ')[1]}&mode=mark`)}
+                                                            className="action-link mark"
+                                                        >
+                                                            Mark
+                                                        </button>
                                                     </div>
                                                 </div>
                                             ))}

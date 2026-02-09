@@ -195,54 +195,155 @@
     text-align: center;
 }
 
-.ocr-resources-grid {
+/* 3-Column Year Hub */
+.ocr-year-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 32px;
+    margin-top: 40px;
+    width: 100%;
     max-width: 1200px;
-    margin: 48px auto 0;
+    /* Aligned with standard container */
+    margin: 40px auto 0;
 }
 
-.ocr-resource-card {
+.ocr-year-card.static {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 40px;
+    border-radius: 16px;
+    padding: 28px;
     text-align: left;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
     transition: all 0.3s ease;
 }
 
-.ocr-resource-card:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
-    border-color: #007a33;
+.ocr-year-card.static:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
 }
 
-.ocr-resource-card h3 {
-    font-size: 1.5rem;
+.year-card-header {
+    border-bottom: 2px solid #007a33;
+    /* OCR Green */
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.year-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.new-tag {
+    font-size: 10px;
     font-weight: 700;
-    margin-bottom: 20px;
-    color: #1a1a1a;
-}
-
-.ocr-resource-card ul {
-    list-style: none;
-    padding: 0;
-}
-
-.ocr-resource-card li {
-    font-size: 1rem;
-    color: #4a5568;
-    margin-bottom: 12px;
-    padding-left: 20px;
-    position: relative;
-}
-
-.ocr-resource-card li::before {
-    content: '→';
-    position: absolute;
-    left: 0;
     color: #007a33;
+    background: #f0fff4;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+/* Internal Tier Grouping */
+.tier-groups-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.tier-sublabel {
+    font-size: 11px;
+    font-weight: 700;
+    color: #007a33;
+    /* OCR Green */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+.internal-tier-group {
+    border-left: 2px solid #007a33;
+    /* OCR Green */
+    padding-left: 16px;
+}
+
+/* Paper-Level Interaction */
+.paper-item-row.interactive {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin: 0 -12px 8px -12px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.paper-item-row.interactive:hover {
+    background: #f7fafc;
+    transform: translateX(4px);
+    /* Professional shift effect */
+}
+
+.paper-actions {
+    display: flex;
+    gap: 8px;
+    /* Separates the two buttons */
+}
+
+.paper-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4a5568;
+}
+
+.paper-type {
+    font-size: 10px;
+    color: #718096;
+    background: #f7fafc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+
+.ocr-landing-page .action-link {
+    padding: 6px 12px;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.ocr-landing-page .action-link.model {
+    background: var(--text-brand);
+    color: white;
+    border: none;
+}
+
+.ocr-landing-page .action-link.mark {
+    background: transparent;
+    color: var(--text-brand);
+    border: 1px solid var(--text-brand);
+}
+
+.ocr-landing-page .action-link.model:hover {
+    background: var(--text-brand);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(127, 0, 255, 0.2);
+}
+
+.ocr-landing-page .action-link.mark:hover {
+    background: rgba(127, 0, 255, 0.05);
+    border-color: var(--text-brand);
+    color: var(--text-brand);
+    transform: translateY(-1px);
 }
 
 .ocr-pill {

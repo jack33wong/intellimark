@@ -119,31 +119,111 @@ const OcrLandingPage: React.FC = () => {
                     <h2 className="ocr-section-title">OCR Resource Library</h2>
                     <p className="ocr-section-body">Fully updated for the latest OCR examiner guidance and J560 series.</p>
 
-                    <div className="ocr-resources-grid">
-                        <div className="ocr-resource-card">
-                            <h3>OCR GCSE Maths 2024</h3>
-                            <ul>
-                                <li>Summer Series Added</li>
-                                <li>November Series Added</li>
-                            </ul>
-                            <span className="ocr-pill ocr-pill-new">New</span>
-                        </div>
-                        <div className="ocr-resource-card">
-                            <h3>OCR GCSE Maths 2023</h3>
-                            <ul>
-                                <li>Full Analysis of J560/01-06</li>
-                                <li>Higher & Foundation Tiers</li>
-                            </ul>
-                            <span className="ocr-pill">Indexed</span>
-                        </div>
-                        <div className="ocr-resource-card">
-                            <h3>OCR GCSE Maths 2022</h3>
-                            <ul>
-                                <li>Calibrated J560 Series</li>
-                                <li>Follow-Through Logic Check</li>
-                            </ul>
-                            <span className="ocr-pill">Indexed</span>
-                        </div>
+                    <div className="ocr-year-card-grid">
+                        {[
+                            {
+                                year: "November 2024",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "June 2024",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "November 2023",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "June 2023",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "November 2022",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "June 2022",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            }
+                        ].map((series, index) => (
+                            <div key={index} className="ocr-year-card static">
+                                <div className="year-card-header">
+                                    <span className="year-title">{series.year} Series</span>
+                                    {index === 0 && <span className="new-tag">Latest</span>}
+                                </div>
+
+                                <div className="tier-groups-stack">
+                                    {['F', 'H'].map(tierCode => {
+                                        const tierPapers = series.papers.filter(p => p.tier === tierCode);
+                                        if (tierPapers.length === 0) return null;
+
+                                        return (
+                                            <div key={tierCode} className="internal-tier-group">
+                                                <div className="tier-sublabel">
+                                                    {tierCode === 'H' ? 'Higher Tier' : 'Foundation Tier'}
+                                                </div>
+                                                <div className="paper-list-container">
+                                                    {tierPapers.map((paper, pIndex) => (
+                                                        <div key={pIndex} className="paper-item-row interactive">
+                                                            <div className="paper-meta">
+                                                                <span className="paper-name">{paper.count}</span>
+                                                                <span className="paper-type">{paper.type} {paper.code}</span>
+                                                            </div>
+                                                            <div className="paper-actions">
+                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=model`)} className="action-link model">Model</button>
+                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=mark`)} className="action-link mark">Mark</button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>

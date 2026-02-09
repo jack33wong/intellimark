@@ -173,3 +173,33 @@ database_persistence                0.2s (1%)
 💳 Deducted 0.58 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770624404781), remaining: 547.95
 💳 Deducted 0.0058 credits (session: sub-1770624404781) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 ✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770624404781
+[PERF] getUserUnifiedSessions: Fetch 148ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 150ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 1935ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1935ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 197ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 197ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 8312ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 8313ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 132ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 132ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 130ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 131ms for 50 sessions (limit: 50)
+ℹ️ [MODEL-ANSWER] Looking for paper: J560-04-NOV2022
+ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...
+✅ [MODEL-ANSWER] Single match found via keywords: dcd9b382-a153-40f7-9808-bf58de597e26
+💳 Deducted 0.16 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: temp-1770644195748), remaining: 547.79
+[PERF] getUserUnifiedSessions: Fetch 253ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 254ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 137ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 138ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 100ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 101ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 166ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 167ms for 50 sessions (limit: 50)
+ℹ️ [MODEL-ANSWER] Looking for paper: 8300-3F-JUN2024
+ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...
+✅ [MODEL-ANSWER] Single match found via keywords: 00576ee1-386e-465d-bc06-9dbc946a8398
+💳 Deducted 0.15 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: temp-1770646418407), remaining: 547.64
+[PERF] getUserUnifiedSessions: Fetch 141ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 141ms for 50 sessions (limit: 50)

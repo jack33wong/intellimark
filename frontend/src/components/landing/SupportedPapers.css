@@ -157,9 +157,9 @@
 }
 
 .paper-count {
-    font-weight: 700;
-    color: var(--text-primary);
-    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
 }
 
 .paper-type {
@@ -226,6 +226,53 @@
     display: inline-block;
     margin-bottom: 24px;
     border: 1px solid rgba(127, 0, 255, 0.2);
+}
+
+
+.supported-papers .paper-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    padding-left: 12px;
+}
+
+.supported-papers .action-link {
+    padding: 4px 10px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    text-decoration: none;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+}
+
+.supported-papers .action-link.model {
+    background: var(--text-brand);
+    color: white;
+    border: none;
+}
+
+.supported-papers .action-link.mark {
+    background: transparent;
+    color: var(--text-brand);
+    border: 1px solid var(--text-brand);
+}
+
+.supported-papers .action-link.model:hover {
+    background: var(--text-brand);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(127, 0, 255, 0.2);
+}
+
+.supported-papers .action-link.mark:hover {
+    background: rgba(127, 0, 255, 0.05);
+    border-color: var(--text-brand);
+    color: var(--text-brand);
+    transform: translateY(-1px);
 }
 
 .badge-container.center {

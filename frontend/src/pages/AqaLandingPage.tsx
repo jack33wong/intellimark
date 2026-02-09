@@ -17,9 +17,9 @@ const AqaLandingPage: React.FC = () => {
     ];
 
     const paperTypes = [
-        { id: '1', name: 'Paper 1', desc: 'Non-Calc' },
-        { id: '2', name: 'Paper 2', desc: 'Calculator' },
-        { id: '3', name: 'Paper 3', desc: 'Calculator' }
+        { id: '1', name: 'Paper 1', desc: 'Non-Calc 8300/1' },
+        { id: '2', name: 'Paper 2', desc: 'Calculator 8300/2' },
+        { id: '3', name: 'Paper 3', desc: 'Calculator 8300/3' }
     ];
 
     const handleAction = (code: string, mode: 'mark' | 'model') => {
@@ -96,33 +96,107 @@ const AqaLandingPage: React.FC = () => {
                     <h2 className="aqa-section-title">AQA 8300 Official Resource Archive</h2>
 
                     <div className="aqa-year-card-grid">
-                        {examYears.map(year => (
-                            <div key={year} className="aqa-year-card static">
+                        {[
+                            {
+                                year: "November 2024",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "June 2024",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "November 2023",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "June 2023",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "November 2022",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "June 2022",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            }
+                        ].map((series, index) => (
+                            <div key={index} className="aqa-year-card static">
                                 <div className="year-card-header">
-                                    <span className="year-title">{year} Series</span>
-                                    {year === 2024 && <span className="new-tag">Latest</span>}
+                                    <span className="year-title">{series.year} Series</span>
+                                    {index === 0 && <span className="new-tag">Latest</span>}
                                 </div>
 
                                 <div className="tier-groups-stack">
-                                    {tiers.map(tier => (
-                                        <div key={tier.suffix} className="internal-tier-group">
-                                            <div className="tier-sublabel">{tier.label}</div>
-                                            <div className="paper-list-container">
-                                                {paperTypes.map(paper => (
-                                                    <div key={`${tier.suffix}-${paper.id}`} className="paper-item-row interactive">
-                                                        <div className="paper-meta">
-                                                            <span className="paper-name">{paper.name}</span>
-                                                            <span className="paper-type">{paper.desc}</span>
+                                    {['F', 'H'].map(tierCode => {
+                                        const tierPapers = series.papers.filter(p => p.tier === tierCode);
+                                        if (tierPapers.length === 0) return null;
+
+                                        return (
+                                            <div key={tierCode} className="internal-tier-group">
+                                                <div className="tier-sublabel">
+                                                    {tierCode === 'H' ? 'Higher Tier' : 'Foundation Tier'}
+                                                </div>
+                                                <div className="paper-list-container">
+                                                    {tierPapers.map((paper, pIndex) => (
+                                                        <div key={pIndex} className="paper-item-row interactive">
+                                                            <div className="paper-meta">
+                                                                <span className="paper-name">{paper.count}</span>
+                                                                <span className="paper-type">{paper.type} {paper.code}</span>
+                                                            </div>
+                                                            <div className="paper-actions">
+                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=model`)} className="action-link model">Model</button>
+                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=mark`)} className="action-link mark">Mark</button>
+                                                            </div>
                                                         </div>
-                                                        <div className="paper-actions">
-                                                            <button onClick={() => handleAction(`8300-${paper.id}${tier.suffix}-JUN${year}`, 'model')} className="action-link model">Model</button>
-                                                            <button onClick={() => handleAction(`8300-${paper.id}${tier.suffix}-JUN${year}`, 'mark')} className="action-link mark">Mark</button>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ))}
