@@ -543,7 +543,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   };
 
   // Determine layout class
-  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`;
+  const hasImages = splitModeImages && splitModeImages.length > 0;
+  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${hasImages ? 'split-mode' : ''}`;
 
   return (
     <div className={layoutClass}>
@@ -552,7 +553,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
         schemaData={!isFollowUp ? productSchema : undefined}
         noIndex={noIndex}
       />
-      {splitModeImages ? (
+      {hasImages ? (
         <div className="split-view-container">
           <div className="split-chat-panel">
             {renderChatContent()}

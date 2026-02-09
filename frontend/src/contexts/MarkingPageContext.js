@@ -152,12 +152,11 @@ export const MarkingPageProvider = ({
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
-      // PROACTIVE: Load images from the result immediately if we are in split mode (or want to be)
       const images = getSessionImages(selectedMarkingResult);
-      if (state.splitModeImages || (images && images.length > 0)) {
+      if (images && images.length > 0) {
         dispatch({
           type: 'ENTER_SPLIT_MODE',
-          payload: { images: images || [], index: 0, isGlobal: true }
+          payload: { images: images, index: 0, isGlobal: true }
         });
         // Sync the ref now so the second useEffect knows we've already handled THIS session
         lastSyncedSessionId.current = selectedMarkingResult.id;
@@ -477,11 +476,72 @@ export const MarkingPageProvider = ({
   }, [user, isNegative, selectedModel, currentSession, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   const onExplainMarkingScheme = useCallback(async (input) => {
-    // TODO: Implement Marking Scheme explanation logic here
-    console.log("Explain Marking Scheme for:", input);
-    // For now, treat it similar to normal chat but we might want a specific prefix or API call later
-    return onSendMessage(`Explain the marking scheme for: ${input}`);
-  }, [onSendMessage]);
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
+
+    if (user && isNegative) {
+      setShowCreditsModal(true);
+      return false;
+    }
+
+    try {
+      startProcessing();
+
+      const userMessageId = `user-${Date.now()}`;
+      await addMessage({
+        id: userMessageId,
+        role: 'user',
+        content: `Explain marking scheme for: ${trimmedInput}`,
+        timestamp: new Date().toISOString(),
+        type: 'text'
+      });
+      dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
+
+      // Generate AI message ID
+      const aiMessageId = createAIMessageId(`markingscheme-${trimmedInput}-${Date.now()}`);
+
+      const progressData = {
+        isComplete: false,
+        currentStepDescription: 'Finding exam paper...',
+        allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is explaining marking scheme...'],
+        currentStepIndex: 0,
+      };
+
+      startAIThinking(progressData, aiMessageId, []);
+
+      // Call the new SSE endpoint
+      apiProcessor.processStreamRequest(
+        '/api/marking-scheme',
+        {
+          paper: trimmedInput,
+          model: selectedModel || 'gemini-2.0-flash',
+          sessionId: currentSession?.id || null,
+          aiMessageId: aiMessageId
+        },
+        // Step mapping
+        {
+          'retrieving_paper': 0,
+          'retrieving_schemes': 1,
+          'generating': 2
+        }
+      ).catch(err => {
+        console.error('Error in marking scheme explanation flow:', err);
+        if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+          setShowCreditsModal(true);
+        }
+        handleError(err);
+        stopAIThinking();
+        stopProcessing();
+      });
+
+      return true;
+    } catch (err) {
+      handleError(err);
+      stopAIThinking();
+      stopProcessing();
+      return false;
+    }
+  }, [user, isNegative, selectedModel, currentSession, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
@@ -497,7 +557,16 @@ export const MarkingPageProvider = ({
 
     if (mode === 'model' && paper) {
       setIsModelAnswerMode(true);
+      setIsMarkingSchemeMode(false); // Reset other mode
       setInitialInput(paper);
+      setPendingModelAnswerPaper(paper);
+      setShowModelAnswerConfirmation(true);
+    } else if (mode === 'markingscheme' && paper) {
+      setIsMarkingSchemeMode(true);
+      setIsModelAnswerMode(false); // Reset other mode
+      setInitialInput(paper);
+      // For marking scheme, we can trigger directly or via confirmation
+      // Reusing the same confirmation modal logic for simplicity in UX
       setPendingModelAnswerPaper(paper);
       setShowModelAnswerConfirmation(true);
     }
@@ -805,6 +874,7 @@ export const MarkingPageProvider = ({
     setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage,
     onGenerateModelAnswer,
+    onExplainMarkingScheme,
     isModelAnswerMode, setIsModelAnswerMode,
     isMarkingSchemeMode, setIsMarkingSchemeMode,
     initialInput, setInitialInput,
@@ -837,7 +907,7 @@ export const MarkingPageProvider = ({
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
-    onGenerateModelAnswer, isModelAnswerMode, setIsModelAnswerMode,
+    onGenerateModelAnswer, onExplainMarkingScheme, isModelAnswerMode, setIsModelAnswerMode,
     isMarkingSchemeMode, setIsMarkingSchemeMode,
     initialInput, setInitialInput,
     showModelAnswerConfirmation, setShowModelAnswerConfirmation,

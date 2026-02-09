@@ -168,9 +168,9 @@ export const useApiProcessor = () => {
         updateProgress(data);
       };
 
-      // Call simpleSessionService.generateModelAnswer (or we can make it more generic later)
-      // For now, it specifically handles the paper-based model answer flow
-      const result = await simpleSessionService.generateModelAnswer(
+      // Call the generic stream processor
+      const result = await (simpleSessionService as any).processStream(
+        endpoint,
         body.paper,
         body.model,
         onProgress as any,

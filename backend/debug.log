@@ -2,28 +2,69 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
+[PERF] getUserUnifiedSessions: Fetch 118ms, Process 0ms for 13 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 119ms for 13 sessions (limit: 50)
+⚠️ [MODEL_ANSWER] Rejecting temp session ID: temp-1770659232719 - Generating new ID
+[MODEL-ANSWER] Input "OCR OCR - J560/01 - June 2024, Foundation Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [MODEL-ANSWER] Looking for paper: OCR OCR - J560/01 - June 2024, Foundation Tier
+[DEBUG] SuggestedFollowUpService: mode=modelanswer, promptKey=modelAnswer
+💳 Deducted 0.11 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1770659233316), remaining: 541.88
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🚀 [MARKING] Controller started - Files: 24, Body Keys: model, aiMessageId
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.0486685, files: 1, bytes: 436685
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":548.53}
+💳 [CREDIT CHECK] Estimated cost: 0.9146956, files: 24, bytes: 7946956
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":541.88}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
 
 [1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Single Image (1 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[INPUT TYPE] Detected: Multiple Images (24 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m2.8s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 1 pages...
-   📦 [MAPPER-BUCKET] Processing pages 0 to 0...
+[MAPPER] Starting Map Pass for 24 pages...
+   📦 [MAPPER-BUCKET] Processing pages 0 to 9...
 
-🔍 [MAPPER AUDIT] Batch of 1 images:
-   ✅ Mapped Local[0] -> Global[0] | Content: 2a, 2b
-✅ [MAPPER] Map Pass complete in 2.61s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MAPPER AUDIT] Batch of 10 images:
+   ✅ Mapped Local[0] -> Global[0] | Content: 11c, 11d
+   ✅ Mapped Local[1] -> Global[1] | Content: 12a, 12b
+   ✅ Mapped Local[2] -> Global[2] | Content: 13
+   ✅ Mapped Local[3] -> Global[3] | Content: 14a
+   ✅ Mapped Local[4] -> Global[4] | Content: 14b, 15
+   ✅ Mapped Local[5] -> Global[5] | Content: 16
+   ✅ Mapped Local[6] -> Global[6] | Content: 17
+   ✅ Mapped Local[7] -> Global[7] | Content: 18
+   ✅ Mapped Local[8] -> Global[8] | Content: 19a, 19b
+   ✅ Mapped Local[9] -> Global[9] | Content: 20
+   📦 [MAPPER-BUCKET] Processing pages 8 to 17...
+
+🔍 [MAPPER AUDIT] Batch of 10 images:
+   ✅ Mapped Local[0] -> Global[8] | Content: 19a, 19b
+   ✅ Mapped Local[1] -> Global[9] | Content: 20
+   ✅ Mapped Local[2] -> Global[10] | Content: 21
+   ✅ Mapped Local[3] -> Global[11] | Content: 22
+   ✅ Mapped Local[4] -> Global[12] | Content: Empty/Meta
+   ✅ Mapped Local[5] -> Global[13] | Content: 1
+   ✅ Mapped Local[6] -> Global[14] | Content: 2a, 2b
+   ✅ Mapped Local[7] -> Global[15] | Content: 3
+   ✅ Mapped Local[8] -> Global[16] | Content: 4
+   ✅ Mapped Local[9] -> Global[17] | Content: 5a, 5b, 5c
+   📦 [MAPPER-BUCKET] Processing pages 16 to 23...
+
+🔍 [MAPPER AUDIT] Batch of 8 images:
+   ✅ Mapped Local[0] -> Global[16] | Content: 4
+   ✅ Mapped Local[1] -> Global[17] | Content: 5a, 5b, 5c
+   ✅ Mapped Local[2] -> Global[18] | Content: 6
+   ✅ Mapped Local[3] -> Global[19] | Content: 7
+   ✅ Mapped Local[4] -> Global[20] | Content: 8
+   ✅ Mapped Local[5] -> Global[21] | Content: 9a, 9b
+   ✅ Mapped Local[6] -> Global[22] | Content: 10
+   ✅ Mapped Local[7] -> Global[23] | Content: 11a, 11b
+✅ [MAPPER] Map Pass complete in 14.08s. Mapped 24 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m40.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🚀 [OVERRIDE] 90% Rule Triggered: 23/23 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -33,13 +74,13 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m40.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.7s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.1s[0m ([32m[1mMATHPIX[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -50,156 +91,346 @@
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 2ai  | Write 5.3 x 10' as an ordinary number.        | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.865 | [32m✅ SUCCESS[0m      |
-| 2aii | Write 7.4 x 10 as an ordinary number.         | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.865 | [32m✅ SUCCESS[0m      |
-| 2b   | Calculate the value of 9.7 x 10+ 2.45 × 10... | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.865 | [32m✅ SUCCESS[0m      |
+| 1    | ABC is a right-angled triangle. Work out t... | Edexcel GCSE 1MA1/2H June 2024 Q1                  | 1.000 | [32m✅ SUCCESS[0m      |
+| 2a   | Write 90 as a product of its prime factors.   | Edexcel GCSE 1MA1/2H June 2024 Q2                  | 0.975 | [32m✅ SUCCESS[0m      |
+| 2b   | Write down the lowest common multiple (LCM... | Edexcel GCSE 1MA1/2H June 2024 Q2                  | 0.975 | [32m✅ SUCCESS[0m      |
+| 3    | The number of hours, H, that some machines... | Edexcel GCSE 1MA1/2H June 2024 Q3                  | 1.000 | [32m✅ SUCCESS[0m      |
+| 4    | There are only red discs, blue discs and y... | Edexcel GCSE 1MA1/2H June 2024 Q4                  | 1.000 | [32m✅ SUCCESS[0m      |
+| 5    | Complete the table of values for y = x²-x ... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.991 | [32m✅ SUCCESS[0m      |
+| 5a   | Complete the table of values for y = x²-x     | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.991 | [32m✅ SUCCESS[0m      |
+| 5b   | On the grid, draw the graph of y = x²-x fo... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.991 | [32m✅ SUCCESS[0m      |
+| 5c   | Use your graph to find estimates for the s... | Edexcel GCSE 1MA1/2H June 2024 Q5                  | 0.991 | [32m✅ SUCCESS[0m      |
+| 6    | Andy, Luke and Tina share some sweets in t... | Edexcel GCSE 1MA1/2H June 2024 Q6                  | 1.000 | [32m✅ SUCCESS[0m      |
+| 7    | ABCD is a quadrilateral. All angles are me... | Edexcel GCSE 1MA1/2H June 2024 Q7                  | 0.895 | [32m✅ SUCCESS[0m      |
+| 8    | A playground is in the shape of a right-an... | Edexcel GCSE 1MA1/2H June 2024 Q8                  | 0.953 | [32m✅ SUCCESS[0m      |
+| 9    | A number N is rounded to 2 significant fig... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.802 | [32m✅ SUCCESS[0m      |
+| 9a   | Write down the least possible value of N.     | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.802 | [32m✅ SUCCESS[0m      |
+| 9b   | Is Leila correct? You must give a reason f... | Edexcel GCSE 1MA1/2H June 2024 Q9                  | 0.802 | [32m✅ SUCCESS[0m      |
+| 10   | The diagram shows two right-angled triangl... | Edexcel GCSE 1MA1/2H June 2024 Q10                 | 0.895 | [32m✅ SUCCESS[0m      |
+| 11   | The frequency table gives information abou... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.994 | [32m✅ SUCCESS[0m      |
+| 11c  | Use your graph to find an estimate for the... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.994 | [32m✅ SUCCESS[0m      |
+| 11d  | Use your graph to find an estimate for the... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.994 | [32m✅ SUCCESS[0m      |
+| 11a  | Complete the cumulative frequency table.      | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.994 | [32m✅ SUCCESS[0m      |
+| 11b  | On the grid opposite, draw a cumulative fr... | Edexcel GCSE 1MA1/2H June 2024 Q11                 | 0.994 | [32m✅ SUCCESS[0m      |
+| 12   | f is inversely proportional to d² f=3.5 wh... | Edexcel GCSE 1MA1/2H June 2024 Q12                 | 0.953 | [32m✅ SUCCESS[0m      |
+| 12a  | Find an equation for f in terms of d.         | Edexcel GCSE 1MA1/2H June 2024 Q12                 | 0.953 | [32m✅ SUCCESS[0m      |
+| 12b  | Find the positive value of d when f= 10 Gi... | Edexcel GCSE 1MA1/2H June 2024 Q12                 | 0.953 | [32m✅ SUCCESS[0m      |
+| 13   | On the grid, shade the region R that satis... | Edexcel GCSE 1MA1/2H June 2024 Q13                 | 0.715 | [33m⚠️  RESCUED[0m    |
+   └─ Runners Up (Audit Trail):
+      [32m○[0m [0.715] 1MA1/2H Q13                    | Txt:0.85 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.522] 8300/3F Q13                    | Txt:0.45 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.513] 8300/2F Q13                    | Txt:0.44 Num:0.00 Str:1.00 Sem:PASS
+| 14   | The graph shows the velocity of a car, in ... | Edexcel GCSE 1MA1/2H June 2024 Q14                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 14a  | Calculate an estimate for the acceleration... | Edexcel GCSE 1MA1/2H June 2024 Q14                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 14b  | Work out an estimate for the distance the ... | Edexcel GCSE 1MA1/2H June 2024 Q14                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 15   | Given that a is a prime number, rationalis... | Edexcel GCSE 1MA1/2H June 2024 Q15                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 16   | Solve (4x-3) (x + 5) < 0                      | Edexcel GCSE 1MA1/2H June 2024 Q16                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 17   | L, M and P are three similar solid cylinde... | Edexcel GCSE 1MA1/2H June 2024 Q17                 | 0.946 | [32m✅ SUCCESS[0m      |
+| 18   | There are only 4 red counters, 3 yellow co... | Edexcel GCSE 1MA1/2H June 2024 Q18                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 19   | The diagram shows quadrilateral OACB.         | N/A                                                | 0.000 | [31m❌ FAILED (Low Similarity)[0m |
+   └─ Runners Up (Audit Trail):
+      ○ [0.679] 1MA1/2H Q19                    | Txt:0.77 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.605] J560/02 Q19                    | Txt:0.41 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.603] J560/03 Q19                    | Txt:0.40 Num:0.50 Str:1.00 Sem:PASS
+| 19a  | Express \(\overrightarrow{MN}\) in terms o... | N/A                                                | 0.000 | [31m❌ FAILED (Low Similarity)[0m |
+   └─ Runners Up (Audit Trail):
+      ○ [0.679] 1MA1/2H Q19                    | Txt:0.77 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.605] J560/02 Q19                    | Txt:0.41 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.603] J560/03 Q19                    | Txt:0.40 Num:0.50 Str:1.00 Sem:PASS
+| 19b  | Is MN parallel to OB? Give a reason for yo... | N/A                                                | 0.000 | [31m❌ FAILED (Low Similarity)[0m |
+   └─ Runners Up (Audit Trail):
+      ○ [0.679] 1MA1/2H Q19                    | Txt:0.77 Num:0.00 Str:1.00 Sem:PASS
+      ○ [0.605] J560/02 Q19                    | Txt:0.41 Num:0.50 Str:1.00 Sem:PASS
+      ○ [0.603] J560/03 Q19                    | Txt:0.40 Num:0.50 Str:1.00 Sem:PASS
+| 20   | The curve C has equation y = 2x² - 12x + 7... | Edexcel GCSE 1MA1/2H June 2024 Q20                 | 0.986 | [32m✅ SUCCESS[0m      |
+| 21   | The graph of y = g(x) is shown on the grid... | Edexcel GCSE 1MA1/2H June 2024 Q21                 | 1.000 | [32m✅ SUCCESS[0m      |
+| 22   | A and B are points on a circle, centre O. ... | Edexcel GCSE 1MA1/2H June 2024 Q22                 | 0.895 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
 📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 3
-   Detected: 3/3
-   Not detected: 0
+   Total questions: 38
+   Detected: 35/38
+   Not detected: 3
    [HINT] Hint Used: "Global Search"
    [HINT] Matched Papers: 108
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m8.7s[0m ([32m[1mQUESTION-DETECTION[0m)
 
 🔄 [RE-INDEXING] 🛡️ Aligning physical pages...
-   ⚖️ [PAGE-WEIGHT] Page 0: Weights=[2:2, 2ai:2.0101, 2aii:2.0101999999999998, 2b:2.02] -> Selected: 2.0101999999999998
+🕵️ [PROBE] Q1 | sourceImageIndex: 13 | text: ABC is a right-angled triangle...
+🕵️ [PROBE] Q11 | sourceImageIndex: 0 | text: The frequency table gives info...
+   ⚖️ [PAGE-WEIGHT] Page 0: Weights=[11:11, 11c:11.03, 11d:11.04] -> Selected: 11.03
+   ⚖️ [PAGE-WEIGHT] Page 1: Weights=[12:12, 12a:12.01, 12b:12.02] -> Selected: 12.01
+   ⚖️ [PAGE-WEIGHT] Page 2: Weights=[13:13] -> Selected: 13
+   ⚖️ [PAGE-WEIGHT] Page 3: Weights=[14:14, 14a:14.01] -> Selected: 14.01
+   ⚖️ [PAGE-WEIGHT] Page 4: Weights=[14:14, 14b:14.02, 15:15] -> Selected: 14.02
+   ⚖️ [PAGE-WEIGHT] Page 5: Weights=[16:16] -> Selected: 16
+   ⚖️ [PAGE-WEIGHT] Page 6: Weights=[17:17] -> Selected: 17
+   ⚖️ [PAGE-WEIGHT] Page 7: Weights=[18:18] -> Selected: 18
+   ⚖️ [PAGE-WEIGHT] Page 8: Weights=[19:19, 19a:19.01, 19b:19.02] -> Selected: 19.01
+   ⚖️ [PAGE-WEIGHT] Page 9: Weights=[20:20] -> Selected: 20
+   ⚖️ [PAGE-WEIGHT] Page 10: Weights=[21:21] -> Selected: 21
+   ⚖️ [PAGE-WEIGHT] Page 11: Weights=[22:22] -> Selected: 22
+   ⚖️ [PAGE-WEIGHT] Page 13: Weights=[1:1] -> Selected: 1
+   ⚖️ [PAGE-WEIGHT] Page 14: Weights=[2:2, 2a:2.01, 2b:2.02] -> Selected: 2.01
+   ⚖️ [PAGE-WEIGHT] Page 15: Weights=[3:3] -> Selected: 3
+   ⚖️ [PAGE-WEIGHT] Page 16: Weights=[4:4] -> Selected: 4
+   ⚖️ [PAGE-WEIGHT] Page 17: Weights=[5:5, 5a:5.01, 5b:5.02, 5c:5.03] -> Selected: 5.01
+   ⚖️ [PAGE-WEIGHT] Page 18: Weights=[6:6] -> Selected: 6
+   ⚖️ [PAGE-WEIGHT] Page 19: Weights=[7:7] -> Selected: 7
+   ⚖️ [PAGE-WEIGHT] Page 20: Weights=[8:8] -> Selected: 8
+   ⚖️ [PAGE-WEIGHT] Page 21: Weights=[9:9, 9a:9.01, 9b:9.02] -> Selected: 9.01
+   ⚖️ [PAGE-WEIGHT] Page 22: Weights=[10:10] -> Selected: 10
+   ⚖️ [PAGE-WEIGHT] Page 23: Weights=[11:11, 11a:11.01, 11b:11.02] -> Selected: 11.01
 🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:
 -----------------------------------------------------------------------------------------
 | OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |
 -----------------------------------------------------------------------------------------
-| 0       | c38856a4-b989-41cc-8 | false  | 2.0101999999999998 | 2, 2ai, 2aii, 2b                   |
+| 0       | new doc 2025-11-23 1 | false  | 11.03  | 11, 11c, 11d                       |
+| 1       | new doc 2025-11-23 1 | false  | 12.01  | 12, 12a, 12b                       |
+| 2       | new doc 2025-11-23 1 | false  | 13     | 13                                 |
+| 3       | new doc 2025-11-23 1 | false  | 14.01  | 14, 14a                            |
+| 4       | new doc 2025-11-23 1 | false  | 14.02  | 14, 14b, 15                        |
+| 5       | new doc 2025-11-23 1 | false  | 16     | 16                                 |
+| 6       | new doc 2025-11-23 1 | false  | 17     | 17                                 |
+| 7       | new doc 2025-11-23 1 | false  | 18     | 18                                 |
+| 8       | new doc 2025-11-23 1 | false  | 19.01  | 19, 19a, 19b                       |
+| 9       | new doc 2025-11-23 1 | false  | 20     | 20                                 |
+| 10      | new doc 2025-11-23 1 | false  | 21     | 21                                 |
+| 11      | new doc 2025-11-23 1 | false  | 22     | 22                                 |
+| 12      | new doc 2025-11-23 1 | true   | 999999 |                                    |
+| 13      | new doc 2025-11-23 1 | false  | 1      | 1                                  |
+| 14      | new doc 2025-11-23 1 | false  | 2.01   | 2, 2a, 2b                          |
+| 15      | new doc 2025-11-23 1 | false  | 3      | 3                                  |
+| 16      | new doc 2025-11-23 1 | false  | 4      | 4                                  |
+| 17      | new doc 2025-11-23 1 | false  | 5.01   | 5, 5a, 5b, 5c                      |
+| 18      | new doc 2025-11-23 1 | false  | 6      | 6                                  |
+| 19      | new doc 2025-11-23 1 | false  | 7      | 7                                  |
+| 20      | new doc 2025-11-23 1 | false  | 8      | 8                                  |
+| 21      | new doc 2025-11-23 1 | false  | 9.01   | 9, 9a, 9b                          |
+| 22      | new doc 2025-11-23 1 | false  | 10     | 10                                 |
+| 23      | new doc 2025-11-23 1 | false  | 11.01  | 11, 11a, 11b                       |
 -----------------------------------------------------------------------------------------
 
 🚀 [SORT-RESULT] Final Logical Order:
 -----------------------------------------------------------------------------------------
-| Seq 0 | OrigIdx 0 | isMeta: false | minQ: 2.0101999999999998 |
+| Seq 0 | OrigIdx 12 | isMeta: true | minQ: 999999 |
+| Seq 1 | OrigIdx 13 | isMeta: false | minQ: 1 |
+| Seq 2 | OrigIdx 14 | isMeta: false | minQ: 2.01 |
+| Seq 3 | OrigIdx 15 | isMeta: false | minQ: 3 |
+| Seq 4 | OrigIdx 16 | isMeta: false | minQ: 4 |
+| Seq 5 | OrigIdx 17 | isMeta: false | minQ: 5.01 |
+| Seq 6 | OrigIdx 18 | isMeta: false | minQ: 6 |
+| Seq 7 | OrigIdx 19 | isMeta: false | minQ: 7 |
+| Seq 8 | OrigIdx 20 | isMeta: false | minQ: 8 |
+| Seq 9 | OrigIdx 21 | isMeta: false | minQ: 9.01 |
+| Seq 10 | OrigIdx 22 | isMeta: false | minQ: 10 |
+| Seq 11 | OrigIdx 23 | isMeta: false | minQ: 11.01 |
+| Seq 12 | OrigIdx 0 | isMeta: false | minQ: 11.03 |
+| Seq 13 | OrigIdx 1 | isMeta: false | minQ: 12.01 |
+| Seq 14 | OrigIdx 2 | isMeta: false | minQ: 13 |
+| Seq 15 | OrigIdx 3 | isMeta: false | minQ: 14.01 |
+| Seq 16 | OrigIdx 4 | isMeta: false | minQ: 14.02 |
+| Seq 17 | OrigIdx 5 | isMeta: false | minQ: 16 |
+| Seq 18 | OrigIdx 6 | isMeta: false | minQ: 17 |
+| Seq 19 | OrigIdx 7 | isMeta: false | minQ: 18 |
+| Seq 20 | OrigIdx 8 | isMeta: false | minQ: 19.01 |
+| Seq 21 | OrigIdx 9 | isMeta: false | minQ: 20 |
+| Seq 22 | OrigIdx 10 | isMeta: false | minQ: 21 |
+| Seq 23 | OrigIdx 11 | isMeta: false | minQ: 22 |
 -----------------------------------------------------------------------------------------
 ✅ [RE-INDEXING] Completed. Pages have been straightened into Logical Order.
 ✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.
 
 🔄 [OCR RE-ID] Regenerating Global Block IDs to match new Page Indices...
 ✅ [OCR RE-ID] Completed. Blocks are now synchronized with physical pages.
-✅ [DIMENSIONS REBUILD] Map refreshed for 1 re-indexed pages.
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
-🔍 [DIMENSIONS DEBUG] Pages: 1
-🔍 [DIMENSIONS DEBUG] Map Size: 1
- ⚖️ [RECONCILE] Parent "2" was anchored at block index 8 (P0).
- ⚖️ [RECONCILE] SNAPPING "2" to match child "2ai" at block index 0 (P0).
+✅ [DIMENSIONS REBUILD] Map refreshed for 24 re-indexed pages.
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m8.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m8.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+🔍 [DIMENSIONS DEBUG] Pages: 24
+🔍 [DIMENSIONS DEBUG] Map Size: 24
+ ⚖️ [RECONCILE] Parent "2" was anchored at block index 58 (P2).
+ ⚖️ [RECONCILE] SNAPPING "2" to match child "2a" at block index 56 (P2).
+ ⚖️ [RECONCILE] Parent "5" was anchored at block index 94 (P5).
+ ⚖️ [RECONCILE] SNAPPING "5" to match child "5a" at block index 90 (P5).
 
 📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:
-   ✅ 2ai    | P0 | Y:  210 (6.0%) to  844 | X: 148 (Margin: 6.0%) | W: 2183
-   ✅ 2aii   | P0 | Y:  844 (24.1%) to 1370 | X: 148 (Margin: 6.0%) | W: 2183
-   ✅ 2b     | P0 | Y: 1370 (39.1%) to 3298 | X: 148 (Margin: 6.0%) | W: 2183
+   ✅ 1      | P1 | Y:  145 (6.0%) to 2287 | X: 102 (Margin: 6.0%) | W: 1500
+   ✅ 3      | P3 | Y:  167 (7.1%) to 2208 | X: 97 (Margin: 5.9%) | W: 1438
+   ✅ 4      | P4 | Y:  239 (10.4%) to 2162 | X: 97 (Margin: 5.9%) | W: 1438
+   ✅ 6      | P6 | Y:  212 (8.5%) to 2343 | X: 105 (Margin: 6.0%) | W: 1546
+   ✅ 7      | P7 | Y:  194 (7.6%) to 2388 | X: 109 (Margin: 6.0%) | W: 1606
+   ✅ 8      | P8 | Y:  204 (8.4%) to 2275 | X: 102 (Margin: 5.9%) | W: 1512
+   ✅ 10     | P10 | Y:  193 (8.6%) to 2114 | X: 96 (Margin: 5.9%) | W: 1424
+   ✅ 13     | P14 | Y:  208 (8.7%) to 2238 | X: 102 (Margin: 6.0%) | W: 1500
+   ✅ 15     | P16 | Y:  833 (39.7%) to 1974 | X: 88 (Margin: 5.9%) | W: 1304
+   ✅ 16     | P17 | Y:  168 (7.4%) to 2147 | X: 96 (Margin: 6.0%) | W: 1412
+   ✅ 17     | P18 | Y:  196 (8.5%) to 2162 | X: 97 (Margin: 6.0%) | W: 1426
+   ✅ 18     | P19 | Y:  179 (7.6%) to 2200 | X: 100 (Margin: 6.0%) | W: 1472
+   ✅ 20     | P21 | Y:  167 (7.3%) to 2140 | X: 97 (Margin: 6.0%) | W: 1426
+   ✅ 21     | P22 | Y:  187 (8.1%) to 2159 | X: 98 (Margin: 5.9%) | W: 1452
+   ✅ 22     | P23 | Y:  171 (7.5%) to 2147 | X: 97 (Margin: 6.0%) | W: 1426
+   ✅ 2a     | P2 | Y:  200 (8.4%) to 1221 | X: 101 (Margin: 6.0%) | W: 1494
+   ✅ 2b     | P2 | Y: 1221 (51.6%) to 2226 | X: 101 (Margin: 6.0%) | W: 1494
+   ✅ 5a     | P5 | Y:  172 (7.2%) to  490 | X: 98 (Margin: 6.0%) | W: 1448
+   ✅ 5b     | P5 | Y:  490 (20.5%) to 1621 | X: 98 (Margin: 6.0%) | W: 1448
+   ✅ 5c     | P5 | Y: 1621 (67.8%) to 2249 | X: 98 (Margin: 6.0%) | W: 1448
+   ✅ 9a     | P9 | Y:  180 (7.7%) to  684 | X: 99 (Margin: 5.9%) | W: 1466
+   ✅ 9b     | P9 | Y:  684 (29.1%) to 2211 | X: 99 (Margin: 5.9%) | W: 1466
+   ✅ 11a    | P11 | Y:  154 (7.2%) to 1253 | X: 90 (Margin: 5.9%) | W: 1336
+   ✅ 11b    | P11 | Y: 1253 (58.4%) to 2016 | X: 90 (Margin: 5.9%) | W: 1336
+   ✅ 11b    | P12 | Y:  138 (6.0%) to 1279 | X: 97 (Margin: 6.0%) | W: 1430
+   ✅ 11c    | P12 | Y: 1279 (55.6%) to 1592 | X: 97 (Margin: 6.0%) | W: 1430
+   ✅ 11d    | P12 | Y: 1592 (69.2%) to 2162 | X: 97 (Margin: 6.0%) | W: 1430
+   ✅ 12a    | P13 | Y:  164 (7.4%) to  705 | X: 95 (Margin: 6.0%) | W: 1406
+   ✅ 12b    | P13 | Y:  705 (31.6%) to 2095 | X: 95 (Margin: 6.0%) | W: 1406
+   ✅ 14a    | P15 | Y:  163 (7.6%) to 2005 | X: 90 (Margin: 5.9%) | W: 1336
+   ✅ 14b    | P16 | Y:  169 (8.0%) to  833 | X: 88 (Margin: 5.9%) | W: 1304
+   ✅ 19a    | P20 | Y:  195 (8.4%) to 1694 | X: 99 (Margin: 5.9%) | W: 1466
+   ✅ 19b    | P20 | Y: 1694 (73.1%) to 2178 | X: 99 (Margin: 5.9%) | W: 1466
 -------------------------------------------
 
 [1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
- 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Content: "2 (a) (i) Write \( 5.3 \times 10^{4} \) as an ordinary number. [PRINTED_INSTRUCTION [Q2ai]]"
- 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Has Tag? true
- 🚫 [VETO-REJECT] Candidate "(1)" matches Veto "write 53 x 10 as an ordinary number"
- 🚫 [VETO-REJECT] Candidate "Give your answer in standard form." matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
- 🚫 [VETO-REJECT] Candidate "(2)" matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
- 🚫 [VETO-REJECT] Candidate "3" matches Veto "write 53 x 10 as an ordinary number"
- 🧲 [LINKER-RESCUE] 2b: Snapped UNMATCHED "3.42×10" to Block p0_ocr_7
- 🚫 [VETO-REJECT] Candidate "Give your answer in standard form." matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
- 🚫 [VETO-REJECT] Candidate "(2)" matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
- 🚫 [VETO-REJECT] Candidate "3" matches Veto "write 53 x 10 as an ordinary number"
- 🧲 [LINKER-RESCUE] 2b: Snapped UNMATCHED "3.42×10" to Block p0_ocr_7
- 📍 [PATH 3] Q2aii: Line "p0_q2_line_2" is UNMATCHED. Recovering position.
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m5.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m5.4s[0m ([32m[1mAI-MARKING[0m)
+ 🚫 [VETO-REJECT] Candidate "Tina gives \( \frac{3}{7} \) of her sweets to Andy." matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 🚫 [VETO-REJECT] Candidate "Tina then gives \( 12 \frac{1}{2} \% \) of the rest of her sweets to Luke." matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 🚫 [VETO-REJECT] Candidate "Tina says," matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 🚫 [VETO-REJECT] Candidate ""Now all three of us have the same number of sweets."" matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 🚫 [VETO-REJECT] Candidate "Is Tina correct?" matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 🚫 [VETO-REJECT] Candidate "You must show how you get your answer." matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 🚫 [VETO-REJECT] Candidate "7" matches Veto "andy luke and tina share some sweets in the ratio 1614 tina gives 37 of her sweets to andy tina then gives 12 12 of the rest of her sweets to luke tina says now all three of us have the same number of sweets is tina correct you must show how you get your answer"
+ 📍 [PATH 3] Q6: Line "p6_q6_line_5" is UNMATCHED. Recovering position.
+ 🛡️ [HEADER-DETACH] Q15: Detaching from printed header "15 Given that \( a \) is a prime number, rationalise the denominator of \( \frac{1}{\sqrt{a}+1} \) [PRINTED_INSTRUCTION [Q15]]" (ID p16_ocr_7)
+ 🚫 [VETO-REJECT] Candidate "Give your answer in its simplest form." matches Veto "given that a is a prime number rationalise the denominator of 1 a1 give your answer in its simplest form"
+ 🛡️ [HEADER-DETACH] Q15: Detaching from printed header "15 Given that \( a \) is a prime number, rationalise the denominator of \( \frac{1}{\sqrt{a}+1} \) [PRINTED_INSTRUCTION [Q15]]" (ID p16_ocr_7)
+ 🚫 [VETO-REJECT] Candidate "Give your answer in its simplest form." matches Veto "given that a is a prime number rationalise the denominator of 1 a1 give your answer in its simplest form"
+ 📍 [PATH 3] Q15: Line "p16_q15_line_1" is UNMATCHED. Recovering position.
+ 📍 [PATH 3] Q15: Line "p16_q15_line_2" is UNMATCHED. Recovering position.
+ 🧲 [IRON-DOME-PATCH] Snapping Q11b from P0 -> P11
+ 🧲 [IRON-DOME-PATCH] Snapping Q11b from P0 -> P11
+ 🚀 [HIGH-PAGE] Shifting VISUAL Q11b from P11 -> P12 (Drawing preference)
+ 🚀 [HIGH-PAGE] Shifting VISUAL Q11b from P11 -> P12 (Drawing preference)
+[GUILLOTINE] Q11a exceeded budget! Kept 1/5, Budget 1.
+ 📍 [PATH 3] Q20: Line "p21_q20_line_4" is UNMATCHED. Recovering position.
+ 🚫 [VETO-REJECT] Candidate "Give a reason for your answer." matches Veto "is mn parallel to ob give a reason for your answer"
+ 📍 [PATH 3] Q19b: Line "p20_q19_line_9" is UNMATCHED. Recovering position.
+[GUILLOTINE] Q19 GLOBAL exceeded budget! Total 5. Executing final cut...
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m26.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m26.9s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
-   📊 Marking Results: 1 questions
+   📊 Marking Results: 22 questions
    📝 Question Results: NO
    ✅ Both modes triggered: NO
-[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mOUTPUT-GENERATION[0m)
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m4.6s[0m ([32m[1mOUTPUT-GENERATION[0m)
 ⚠️  [COMBINATION] No questionResponses found
-[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 22 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
-[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m1.6s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 22 Engine Results...
 [V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
 
 📊 [ANNOTATION SUMMARY]
 -----------------------------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
 |----------|-------|-------------------------|----------------------------------------|
-| [32m2       [0m | 2/4   | B1, A0, M0, B1          | AI:1/4 → M:3 S:0 U:1                   |
-| [90m  ai    [0m | 1     | B1                      | AI:1/1 → M:1 S:0 U:0                   |
-| [90m  aii   [0m | 1     | B1                      | AI:0/1 → M:0 S:0 U:1                   |
-| [90m  b     [0m | 0     | A0, M0                  | AI:0/2 → M:2 S:0 U:0                   |
+| [32m1       [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m2       [0m | 3/3   | A1, M1, B1              | AI:3/3 → M:3 S:0 U:0                   |
+| [90m  a     [0m | 2     | A1, M1                  | AI:2/2 → M:2 S:0 U:0                   |
+| [90m  b     [0m | 1     | B1                      | AI:1/1 → M:1 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m3       [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m4       [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:0 S:4 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m5       [0m | 6/6   | B2, A1, M1, B2          | AI:2/4 → M:1 S:1 U:0                   |
+| [90m  a     [0m | 2     | B2                      | AI:1/1 → M:0 S:1 U:0                   |
+| [90m  b     [0m | 2     | B2                      | AI:0/1 → M:0 S:0 U:0                   |
+| [90m  c     [0m | 2     | A1, M1                  | AI:1/2 → M:1 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m6       [0m | 4/4   | P1, P1, C1, P1          | AI:3/4 → M:0 S:3 U:1                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m7       [0m | 4/4   | A1, M1, M1, C1          | AI:4/4 → M:0 S:4 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m8       [0m | 3/3   | A1, P1, P1              | AI:3/3 → M:0 S:3 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m9       [0m | 2/2   | B1, C1                  | AI:2/2 → M:2 S:0 U:0                   |
+| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 S:0 U:0                   |
+| [90m  b     [0m | 1     | C1                      | AI:1/1 → M:1 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m10      [0m | 3/3   | B1, B1, P1              | AI:3/3 → M:0 S:3 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m11      [0m | 7/7   | B1, A1, M1, A1, M1, A1, M1 | AI:5/7 → M:3 S:2 U:0                   |
+| [90m  a     [0m | 1     | B1                      | AI:1/1 → M:1 S:0 U:0                   |
+| [90m  b     [0m | 2     | A1, M1                  | AI:0/2 → M:0 S:0 U:0                   |
+| [90m  c     [0m | 2     | A1, M1                  | AI:2/2 → M:2 S:0 U:0                   |
+| [90m  d     [0m | 2     | A1, M1                  | AI:2/2 → M:0 S:2 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m12      [0m | 4/4   | A1, M1, A1, M1          | AI:4/4 → M:2 S:2 U:0                   |
+| [90m  a     [0m | 2     | A1, M1                  | AI:2/2 → M:1 S:1 U:0                   |
+| [90m  b     [0m | 2     | A1, M1                  | AI:2/2 → M:1 S:1 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m13      [0m | 3/3   | M1, M1, C1              | AI:0/3 → M:0 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m14      [0m | 5/6   | A1, M1, M1, A0, M1      | AI:5/5 → M:5 S:0 U:0                   |
+| [90m  a     [0m | 1     | A0, M1                  | AI:2/2 → M:2 S:0 U:0                   |
+| [90m  b     [0m | 3     | A1, M1, M1              | AI:3/3 → M:3 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m15      [0m | 2/2   | A1, M1                  | AI:2/2 → M:0 S:0 U:2                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m16      [0m | 2/2   | A1, M1                  | AI:2/2 → M:2 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m17      [0m | 4/4   | A1, P1, P1, P1          | AI:4/4 → M:4 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m18      [0m | 5/5   | A1, P1, P1, P1, P1      | AI:5/5 → M:1 S:4 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m19      [0m | 5/5   | A1, A1, M1, M1, M1      | AI:4/5 → M:0 S:4 U:1                   |
+| [90m  a     [0m | 4     | A1, M1, M1, M1          | AI:4/4 → M:0 S:4 U:0                   |
+| [90m  b     [0m | 1     | A1                      | AI:0/1 → M:0 S:0 U:1                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m20      [0m | 3/3   | A1, P1, P1              | AI:3/3 → M:0 S:2 U:1                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m21      [0m | 2/2   | C2                      | AI:0/1 → M:0 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m22      [0m | 4/4   | C1, C1, C1, C1          | AI:4/4 → M:4 S:0 U:0                   |
 |----------|-------|-------------------------|----------------------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 19.4s
+Total Processing Time: 89.9s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      7.3s (38%)
-marking                             5.4s (28%)
-output_generation                   1.9s (10%)
-ocr_processing                      1.7s (9%)
-performance_summary                 0.9s (5%)
-question_detection                  0.7s (3%)
-preprocessing                       0.4s (2%)
-database_persistence                0.2s (1%)
+classification                      40.5s (45%)
+marking                             26.9s (30%)
+question_detection                  8.7s (10%)
+output_generation                   4.6s (5%)
+ocr_processing                      3.1s (3%)
+preprocessing                       2.8s (3%)
+performance_summary                 1.6s (2%)
+database_persistence                0.5s (1%)
 ============================
 
 
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
-   API Requests: 4 total
-   Total Tokens: 18,971 (17,668 in + 1,303 out)
-   Total Cost: $0.005833
-   Mathpix OCR: 1 pages → $0.004000
+   API Requests: 47 total
+   Total Tokens: 339,358 (309,478 in + 29,880 out)
+   Total Cost: $0.137329
+   Mathpix OCR: 24 pages → $0.096000
 
    Breakdown by Phase:
-   • Mapper (Map Pass): 4,341 tokens (1 requests) → $0.000455
-   • Classification (Marking Pass): 6,709 tokens (1 requests) → $0.000805
-   • Marking: 7,336 tokens (1 requests) → $0.000952
-   • Performance Summary: 585 tokens (1 requests) → $0.000075
+   • Mapper (Map Pass): 11,619 tokens (3 requests) → $0.001571
+   • Classification (Marking Pass): 133,443 tokens (21 requests) → $0.017488
+   • Marking: 191,086 tokens (22 requests) → $0.023497
+   • Performance Summary: 3,210 tokens (1 requests) → $0.000344
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1770624404781
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1770624404781
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0058326
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1770659257100
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1770659257100
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.13732930000000002
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.58 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770624404781), remaining: 547.95
-💳 Deducted 0.0058 credits (session: sub-1770624404781) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770624404781
-[PERF] getUserUnifiedSessions: Fetch 148ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 150ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 1935ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1935ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 197ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 197ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 8312ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 8313ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 132ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 132ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 130ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 131ms for 50 sessions (limit: 50)
-ℹ️ [MODEL-ANSWER] Looking for paper: J560-04-NOV2022
-ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...
-✅ [MODEL-ANSWER] Single match found via keywords: dcd9b382-a153-40f7-9808-bf58de597e26
-💳 Deducted 0.16 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: temp-1770644195748), remaining: 547.79
-[PERF] getUserUnifiedSessions: Fetch 253ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 254ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 137ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 138ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 100ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 101ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 166ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 167ms for 50 sessions (limit: 50)
-ℹ️ [MODEL-ANSWER] Looking for paper: 8300-3F-JUN2024
-ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...
-✅ [MODEL-ANSWER] Single match found via keywords: 00576ee1-386e-465d-bc06-9dbc946a8398
-💳 Deducted 0.15 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: temp-1770646418407), remaining: 547.64
-[PERF] getUserUnifiedSessions: Fetch 141ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 141ms for 50 sessions (limit: 50)
+💳 Deducted 13.73 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770659257100), remaining: 528.15
+💳 Deducted 0.1373 credits (session: sub-1770659257100) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770659257100

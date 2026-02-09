@@ -1,429 +1,148 @@
-/**
- * Centralized AI Prompts Configuration
- * 
- * This file contains all AI prompts used throughout the application.
- * Edit prompts here for easy maintenance and consistency.
- */
-
-import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
-
-// Static Import for all AI prompts (Bundled by esbuild or directly loaded by tsx)
+import marking_basic_system_prompt from './prompts/marking_basic_system_prompt.js';
+import marking_scheme_system_prompt from './prompts/marking_scheme_system_prompt.js';
+import question_only_system_prompt from './prompts/question_only_system_prompt.js';
+import question_only_user_prompt from './prompts/question_only_user_prompt.js';
+import contextual_system_prompt from './prompts/contextual_system_prompt.js';
+import model_answer_system_prompt from './prompts/model_answer_system_prompt.js';
+import marking_scheme_explanation_system_prompt from './prompts/marking_scheme_explanation_system_prompt.js';
+import similar_questions_system_prompt from './prompts/similar_questions_system_prompt.js';
+import master_summary_system_prompt from './prompts/master_summary_system_prompt.js';
 import classification_light_system_prompt from './prompts/classification_light_system_prompt.js';
 import classification_mapper_system_prompt from './prompts/classification_mapper_system_prompt.js';
 import classification_system_prompt from './prompts/classification_system_prompt.js';
-import contextual_system_prompt from './prompts/contextual_system_prompt.js';
-import marking_basic_system_prompt from './prompts/marking_basic_system_prompt.js';
-import marking_scheme_explanation_system_prompt from './prompts/marking_scheme_explanation_system_prompt.js';
-import marking_scheme_system_prompt from './prompts/marking_scheme_system_prompt.js';
-import master_summary_system_prompt from './prompts/master_summary_system_prompt.js';
-import model_answer_system_prompt from './prompts/model_answer_system_prompt.js';
-import question_only_system_prompt from './prompts/question_only_system_prompt.js';
-import question_only_user_prompt from './prompts/question_only_user_prompt.js';
-import similar_questions_system_prompt from './prompts/similar_questions_system_prompt.js';
+import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
 
-
-
-// Force valid structure for all system prompts
-// Note: System prompts are loaded synchronously at startup
-// Trigger restart 7
-
+/**
+ * Interface and Types for AI Prompting System
+ * All prompts are stored here and resolved by the getPrompt utility.
+ * Braces MUST be perfectly balanced to prevent runtime errors.
+ */
 export const AI_PROMPTS = {
   // ============================================================================
   // CLASSIFICATION SERVICE PROMPTS
   // ============================================================================
-
   classification: {
     mapper: {
       system: (imageCount: number) => classification_mapper_system_prompt.replace('{{IMAGE_COUNT}}', imageCount.toString()),
-      user: (imageCount: number) => `Scan these ${imageCount} pages and list question numbers.`
+      user: (imageCount: number) => `Please scan these ${imageCount} pages and list out every printed question number you see (e.g. 1a, 1b, 2, 3...) in the order they appear.`
     },
-
-    // Light classification (OCR-only for questionOnly pages - NO POSITIONS)
     light: {
       system: classification_light_system_prompt,
-      user: `Extract all printed question text from the image. Ignore handwriting.`
+      user: `Please extract all printed question text from the provided image. Ignore any handwritten marks, annotations, or student work. Respond with ONLY the question text.`
     },
-
-    // Heavy classification (full extraction with POSITIONS for questionAnswer pages)
     heavy: {
       system: classification_system_prompt,
-      user: `Please classify this uploaded image and extract ALL question text and student work.
-    
-    CRITICAL INSTRUCTION:
-    Transcribe student work EXACTLY as written.
-    - Do NOT simplify fractions (e.g., write "4+3+1" NOT "8").
-    - Do NOT perform arithmetic.
-    - Do NOT correct spelling or grammar.
-    - Capture every single character, number, and symbol verbatim.`
+      user: `Please classify the image and extract the question text verbatim, including any mathematical expressions in LaTeX.`
     }
   },
 
-
   // ============================================================================
-  // AI MARKING SERVICE PROMPTS
+  // AI MARKING SERVICE PROMPTS (QUESTION MODE)
   // ============================================================================
-
   marking: {
-    // Question-only mode (when student asks for help with a question)
     questionOnly: {
       system: question_only_system_prompt,
-
       user: (message: string, markingScheme: string) => question_only_user_prompt
         .replace('{{QUESTION_TEXT}}', message)
         .replace('{{MARKING_SCHEME}}', markingScheme)
     },
-
-
-
-    // Contextual response (for follow-up chat)
     contextual: {
       system: contextual_system_prompt,
-
-      user: (message: string, contextPrompt: string) => `Math problem: "${message}"${contextPrompt}`
+      user: (message: string, contextPrompt: string) => `You are helping a student. Based on the following context, help them with this question: "${message}"\n\nContext:\n${contextPrompt}`
     }
   },
 
-
-
   // ============================================================================
-  // MARKING INSTRUCTION SERVICE PROMPTS
+  // MARKING INSTRUCTION SERVICE PROMPTS (MARKING FLOW)
   // ============================================================================
-
   markingInstructions: {
-    // Basic marking (without marking scheme)
-    basic: {
-      system: marking_basic_system_prompt,
-
-      user: (ocrText: string, classificationStudentWork?: string | null) => `Here is the OCR TEXT:
-
-       ${ocrText}
-       
-       ${classificationStudentWork ? `\nSTUDENT WORK (STRUCTURED):\n${classificationStudentWork}\n` : ''}
-       
-       Please analyze this work and generate appropriate marking annotations.Focus on mathematical correctness, method accuracy.Do not generate any feedback text.`
-    },
-
     withMarkingScheme: {
       system: (isGeneric: boolean = false) => marking_scheme_system_prompt(isGeneric),
-
-      user: (
-        questionNumber: string,
-        markingScheme: string,
-        classificationStudentWork: string,
-        rawOcrBlocks?: any[],
-        questionText?: string | null,
-        subQuestionPageMap?: Record<string, number>,
-        generalMarkingGuidance?: string,
-        isGeneric: boolean = false
-      ) => `
-# MARKING TASK: Question ${questionNumber}
-
-${questionText ? `## QUESTION TEXT
-${questionText}
-` : ''}
-
-${generalMarkingGuidance ? `## GENERAL MARKING GUIDANCE (CHIEF EXAMINER INSTRUCTION)
-${generalMarkingGuidance}
-
-` : ''}
-
+      user: (qNum: string, scheme: string, studentWork: string, blocks: any, questionText: string, pageMap: any, guidance: string, isGeneric: boolean) => {
+        return `# MARKING TASK: Question ${qNum}
+        
 ## MARKING SCHEME
-${markingScheme}
+${scheme}
 
-${!isGeneric ? `
-> [!IMPORTANT]
-> The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
-> - If the marking scheme has 4 potential marks (e.g., M1, M1, A1, B1), you MUST return exactly 4 annotations.
-> - Do NOT omit marks that were not awarded; return them as 0 (e.g., M0, A0) to ensure the count matches exactly.
-` : `
-> [!IMPORTANT]
-> This is a GENERIC marking pool. 
-> - Discover the actual total marks from the student paper (e.g. "Total 4 marks").
-> - ONLY return annotations for the marks actually identified/needed.
-> - Do NOT generate filler annotations to "coverage" the entire M1-M8 pool.
-> - [CRITICAL CONSTRAINT] STRUCTURE FIDELITY: You MUST use the provided Question Number (e.g. "12") as the key. DO NOT split into "12a", "12b" unless those labels are EXPLICITLY printed in the Question Text. If implicit, use "12".
-`}
+## STUDENT WORK
+${studentWork}
 
-## STUDENT WORK (STRUCTURED)
-${classificationStudentWork}
-${subQuestionPageMap && Object.keys(subQuestionPageMap).length > 0 ? `
-## PAGE ASSIGNMENT CONSTRAINTS (HIGHEST PRIORITY)
-You MUST respect the page assignments provided below. The images passed to you correspond to these Image Index values (marked with "--- Image X ---" labels above the images):
-${Object.entries(subQuestionPageMap).map(([part, pageIdx]) => `- Sub-question ${part}: Image ${pageIdx}`).join('\n')}
-
-Do NOT search for work on other pages for these sub-questions, even if you see a question header there. Focus ONLY on the assigned image.
-` : ''}
- 
 ## RAW OCR BLOCKS
-Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+${typeof blocks === 'string' ? blocks : JSON.stringify(blocks)}
 
-${rawOcrBlocks && rawOcrBlocks.length > 0 ? (
-          rawOcrBlocks.map(b => `[${b.id}]: "${b.text.replace(/\n/g, ' ')}"`).join('\n')
-        ) : 'No raw OCR blocks available.'}
-
---------------------------------------------------
-FINAL QUALITY CHECK (DO NOT IGNORE):
-1. **PARTIAL MATCH TRAP:** Did you match a number like "36" to a digit like "3"? -> STOP. Return UNMATCHED.
-2. **LABEL TRAP:** Did you anchor to a label like "(a)", "(ii)", or "Q1"? -> STOP. Return UNMATCHED.
-3. **MISSING DATA:** If the exact whole number is not in the list, use "UNMATCHED".
---------------------------------------------------
-`,
-    },
-
-    // ============================================================================
-    // MODEL ANSWER SERVICE PROMPTS (Call #2)
-    // ============================================================================
-
-    modelAnswer: {
-      system: model_answer_system_prompt,
-
-      user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
-        // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
-        // Fail-fast if it looks like JSON (old format)
-        if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-          try {
-            JSON.parse(schemeText);
-            throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
-          } catch (e) {
-            // Not valid JSON, proceed
-          }
-        }
-
-        const marksInfo = totalMarks ? `\n ** TOTAL MARKS:** ${totalMarks} ` : '';
-
-        return `** QUESTION NUMBER:** ${questionNumber || 'Unknown'}
-** QUESTION:**
-  ${questionText}${marksInfo}
-
-** MARKING SCHEME:**
-  ${schemeText}
-
-** WHAT WE PASS TO YOU:**
-  - The question text above is already formatted with proper numbering and labels:
-  * Main question has number prefix(e.g., "5. Sophie drives...")
-  * Sub - questions have labels(e.g., "a) Work out...", "b) Is your answer...")
-    * The format is: "{number}. {main question text}\\n\\n{part}) {sub-question text}\\n\\n{part}) {sub-question text}"
-      - The marking scheme includes marks for ALL sub - questions combined.
-
-** WHAT WE EXPECT IN YOUR RESPONSE:**
-  1. ** Start with "Question ${questionNumber || 'X'}" header ** (use the exact number provided above: ${questionNumber || 'X'}, do NOT infer it from the question text).
-
-2. ** Wrap EACH question text part SEPARATELY in its own < span class="model_question" >...</span> tag:**
-  - The question text we pass to you has format: "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
-    - ** Main question text:** Remove the "5. " prefix, then wrap the question text in <span class="model_question" > Sophie drives...</span>
-      - ** Each sub - question:** Keep the "a)", "b)" label and wrap the entire sub - question text(including label) in its own < span class="model_question" > a) Work out...</span>
-        - Example format:
-     * <span class="model_question" > Sophie drives a distance of 513 kilometres...</span>
-  * <span class="model_question" > a) Work out an estimate...</span>
-    * [Model answer for a) with mark codes]
-     * <span class="model_question" > b) Is your answer...</span>
-  * [Model answer for b) with mark codes]
-
-3. ** After each wrapped sub - question, provide model answers:**
-  - For each sub - question, provide the model answer with mark codes(do NOT repeat the sub - question text)
-- Format: After < span class="model_question" > a) Work out...</span>, provide [model answer for a with mark codes]
-  - Then after < span class="model_question" > b) Is your answer...</span>, provide [model answer for b with mark codes]
-    - Each sub - question's model answer should be complete and include all required mark codes.
-      - ** IMPORTANT:** Do NOT repeat the sub - question text when providing model answers(it's already in the wrapped span above)
-
-        ** IMPORTANT:**
-      - The question text we provide has "5. " prefix and "a)", "b)" labels
-      - When wrapping, REMOVE the "5. " prefix from main question text(but keep the text itself)
-      - When wrapping sub - questions, KEEP the "a)", "b)" labels
-      - Do NOT add "Question" prefix to sub - question labels(they already have "a)", "b)" format)
-      - Wrap each part separately and provide model answers after each sub - question span
-
-Please generate a model answer that would receive full marks according to the marking scheme. CRITICAL: Every single line (math, text, or marking codes) MUST end with a <br> tag. Use double <br><br> between major steps.`;
-      }
-    },
-
-    // ============================================================================
-    // SUGGESTED FOLLOW-UP PROMPTS
-    // ============================================================================
-
-    markingScheme: {
-      system: marking_scheme_explanation_system_prompt,
-
-      user: (questionText: string, schemeText: string) => {
-        // schemeText must be plain text (same format as stored in detectedQuestion)
-        // Fail-fast if it looks like JSON (old format)
-        if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-          try {
-            JSON.parse(schemeText);
-            // If valid JSON, throw error
-            throw new Error(`[MARKING SCHEME PROMPT]Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
-          } catch (e) {
-            // Not valid JSON (likely plain text starting with [Tag]), allow it
-          }
-        }
-
-        return `** QUESTION:**
+## QUESTION CONTEXT
 ${questionText}
 
-** MARKING SCHEME:**
-${schemeText}
+## PAGE MAP
+${JSON.stringify(pageMap)}
 
-Provide a brief explanation of this marking scheme.Keep it simple and concise.`;
+${guidance}`;
       }
     },
-    similarquestions: {
-      system: similar_questions_system_prompt,
-
-      user: (questionText: string, schemeJson: string, questionCount?: number) => {
-        // Convert JSON marking scheme to clean bulleted list format
-        const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
-
-        // Number of similar questions to generate per original question
-        const numSimilarQuestionsPerQuestion = 3;
-
-        // Check if multiple questions are provided
-        const hasMultipleQuestions = questionCount && questionCount > 1;
-
-        if (hasMultipleQuestions) {
-          return `** ORIGINAL QUESTIONS(${questionCount} questions):**
-      ${questionText}
-
-      ** MARKING SCHEMES:**
-      ${formattedScheme}
-
-      ** CRITICAL INSTRUCTIONS:**
-      - You have received ${questionCount} original questions above
-      - You MUST generate ${numSimilarQuestionsPerQuestion} similar practice questions for EACH original question
-        - Organize your response by original question number in ascending order(Q1, Q2, Q3, etc.)
-          - For each original question, clearly label the section: "**Similar Questions for Question X:**"
-            - Under each section, list ${numSimilarQuestionsPerQuestion} similar questions numbered 1, 2, 3
-              - Format your response as:
-
-** Similar Questions for Question 1:**
-
-  1.[Similar question 1 for Q1]
-2.[Similar question 2 for Q1]
-3.[Similar question 3 for Q1]
-
-** Similar Questions for Question 2:**
-
-  1.[Similar question 1 for Q2]
-2.[Similar question 2 for Q2]
-3.[Similar question 3 for Q2]
-
-... (continue for all ${questionCount} questions)
-
-** IMPORTANT:** Generate similar questions for ALL ${questionCount} questions, not just the first one.`;
-        } else {
-          return `** ORIGINAL QUESTION:**
-  ${questionText}
-
-** MARKING SCHEME:**
-  ${formattedScheme}
-
-Generate exactly ${numSimilarQuestionsPerQuestion} similar practice questions.Format your response as:
-
-Similar Practice Questions
-
-${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Question ${i + 1}]`).join('\n')}
-`;
-        }
+    basic: {
+      system: marking_basic_system_prompt,
+      user: (ocrText: string, classificationStudentWork: string) => {
+        return `OCR TEXT:\n${ocrText}\n\nCLASSIFICATION STUDENT WORK:\n${classificationStudentWork}`;
       }
-    },
+    }
   },
-
-
-
-
-
-
-
 
   // ============================================================================
   // ANALYSIS SERVICE PROMPTS
   // ============================================================================
-
   analysis: {
-    system: `You are an expert mathematics tutor analyzing student exam performance.
-
-Your task is to analyze marking results and generate a comprehensive performance report.
-
-** Key Responsibilities:**
-  1. Analyze overall performance(score, percentage, grade if available)
-  2. Identify key strengths and weaknesses
-3. ** CRITICAL - Strategic Grade Improvement Analysis(CONCISE):**
-  - If grade boundaries are provided, calculate the exact gap to the next higher grade(or marks to perfect if at highest grade)
-   - ** ANALYZE QUESTION - BY - QUESTION RESULTS to identify:**
-     * Which specific questions the student got wrong or partially correct
-  * Patterns of errors(e.g., calculation errors, method errors, presentation issues)
-    * Topics / question types where student consistently struggles
-      - Provide a single paragraph with 2 - 3 lines of improvement strategy
-        - ** MUST reference SPECIFIC question numbers from WEAK QUESTIONS ** - these show actual student weaknesses
-          - Identify what the student usually gets wrong based on the data(e.g., "Q12 geometry shows calculation errors", "Q8 algebra shows method mark losses")
-            - Advise how to improve based on actual weaknesses identified in the marked results
-              - Focus on top 2 - 3 prioritized actions with specific mark potential
-                - Be specific but brief: mention exact question numbers, what went wrong, and how to improve
-                  - ** FORMAT: One paragraph, 2 - 3 lines maximum.No bullet points or lists.No generic phrases.**
-
-** If a previous analysis report is provided:**
-  - Use it as context to understand the student's progress
-    - Build upon the previous analysis, highlighting what has improved
-      - Identify areas that still need work
-        - Show progression and continuity in your analysis
-
-          ** Output Format:**
-            You must return a valid JSON object with the following structure:
-{
-  "performance": {
-    "overallScore": "76/80",
-      "percentage": 95,
-        "grade": "9",
-          "summary": "A comprehensive paragraph summarizing overall performance...",
-            "gradeAnalysis": "One paragraph (2-3 lines): State gap to next grade, then list 2-3 prioritized improvement actions with mark potential. Format as continuous text, not bullet points."
-  },
-  "strengths": [
-    "Strong understanding of algebra",
-    "Excellent problem-solving skills"
-  ],
-    "weaknesses": [
-      "Struggles with geometry concepts",
-      "Needs improvement in statistical analysis"
-    ]
-}
-
-Keep the analysis concise, educational, and actionable.Focus on helping the student improve.`,
-
-    user: (markingData: string, lastAnalysis?: any) => {
-      let prompt = `Analyze the following marking results and generate a comprehensive performance report: \n\n${markingData} `;
-
-      // Add strategic grade improvement instruction
-      if (markingData.includes('GRADE BOUNDARIES:') || markingData.includes('GRADE IMPROVEMENT ANALYSIS:')) {
-        prompt += `\n\nCRITICAL: For the gradeAnalysis field, provide ONE PARAGRAPH(2 - 3 lines maximum) with improvement strategy: \n`;
-        prompt += `- Format as continuous text(no bullet points, no lists) \n`;
-        prompt += `- First line: State gap to next grade OR if at highest grade, state marks to perfect score\n`;
-        prompt += `- ** CRITICAL: Use the EXACT overall score from "OVERALL PERFORMANCE" section(e.g., ${markingData.includes('Average Score:') ? 'use that exact score' : '76/80'}), NOT the sum of question results **\n`;
-        prompt += `- Next 1 - 2 lines: MUST analyze WEAK QUESTIONS to identify what student usually gets wrong\n`;
-        prompt += `- Be SPECIFIC: Reference actual question numbers from WEAK QUESTIONS section and explain the weakness(e.g., "Q12 geometry shows calculation errors (3/5, +2 marks available) - focus on double-checking arithmetic. Q8 algebra shows method mark losses (4/5, +1 mark) - show all working steps clearly.") \n`;
-        prompt += `- Identify patterns: What type of errors does the student make ? (calculation, method, presentation, understanding) \n`;
-        prompt += `- Provide targeted advice: How to fix the specific weaknesses identified in the marked results\n`;
-        prompt += `- Avoid generic phrases like "various problem-solving questions" or "check for errors" - reference specific Q numbers and actual weaknesses\n`;
-        prompt += `- Keep it brief, specific, and actionable - one flowing paragraph only\n`;
+    system: `You are an expert mathematics tutor analyzing student exam performance. 
+    Your goal is to provide a structured, strategic analysis of the student's results.
+    
+    OUTPUT RULES:
+    1. Respond with valid JSON only.
+    2. Include "performance" object with "overallScore" (string), "percentage" (number), "summary" (string), and "gradeAnalysis" (optional string).
+    3. Include "strengths" (array of strings) and "weaknesses" (array of strings).
+    4. "summary" should be 3-4 sentences highlighting the main points.
+    5. "gradeAnalysis" should focus on strategic mark gains needed for the next grade boundary.`,
+    user: (formattedData: string, lastAnalysisReport?: any) => {
+      let prompt = `Please analyze the following marking results and grade boundaries:\n\n${formattedData}`;
+      if (lastAnalysisReport) {
+        prompt += `\n\nPrevious Analysis context for continuity:\n${JSON.stringify(lastAnalysisReport)}`;
       }
-
-      if (lastAnalysis) {
-        prompt += `\n\n-- - PREVIOUS ANALYSIS REPORT-- -\n`;
-        prompt += `Summary: ${lastAnalysis.performance?.summary || 'N/A'} \n`;
-        prompt += `Strengths: ${lastAnalysis.strengths?.join(', ') || 'N/A'} \n`;
-        prompt += `Weaknesses: ${lastAnalysis.weaknesses?.join(', ') || 'N/A'} \n`;
-        prompt += `\nPlease build upon this previous analysis, highlighting what has improved and what still needs work.Show progression in the student's learning journey.\n`;
-      }
-
-      prompt += `\n\nGenerate a comprehensive analysis report in the JSON format specified in the system prompt.`;
-
       return prompt;
     }
   },
+
   // ============================================================================
   // MASTER PERFORMANCE SUMMARY PROMPTS
   // ============================================================================
   masterSummary: {
     system: master_summary_system_prompt,
-    user: (distilledData: string) => `Here are the distilled results for the exam paper:\n\n${distilledData}\n\nPlease generate a cohesive master performance summary based on this data.`
+    user: (distilledData: string) => `Generate a master performance summary for this paper based on the following distilled data:\n\n${distilledData}`
+  },
+
+  // ============================================================================
+  // SUGGESTED FOLLOW-UP PROMPTS (Root Level for Orchestration)
+  // ============================================================================
+  markingScheme: {
+    system: marking_scheme_explanation_system_prompt,
+    user: (questionText: string, schemeText: string, questionNumber: string) => `**Question ${questionNumber}:**\n\n${questionText}\n\n**MARKING SCHEME:**\n${schemeText}\n\nProvide a clear, pedagogical explanation of the marking scheme for a student. Group sub-questions under the main question header.`
+  },
+
+  modelAnswer: {
+    system: model_answer_system_prompt,
+    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
+      const markLabel = totalMarks ? ` [${totalMarks} marks]` : '';
+      return `**QUESTION ${questionNumber || ''}**${markLabel}\n\n${questionText}\n\n**OFFICIAL MARKING SCHEME:**\n${schemeText}\n\nGenerate a perfect model answer following the scheme.`;
+    }
+  },
+
+  similarquestions: {
+    system: similar_questions_system_prompt,
+    user: (questionText: string, schemeJson: string, questionCount: number = 3) => {
+      const scheme = formatMarkingSchemeAsBullets(schemeJson);
+      return `Based on the following question and marking scheme, generate ${questionCount} similar practice questions that test the same skills but with different numbers or scenarios:
+
+Original Question: ${questionText}
+Marking Scheme:
+${scheme}`;
+    }
   }
 };
 
@@ -432,25 +151,22 @@ Keep the analysis concise, educational, and actionable.Focus on helping the stud
 // ============================================================================
 
 /**
- * Minimal formatter for marking schemes (used for Similar Questions and other minor tasks)
+ * Utility to format marking scheme JSON as readable bullet points
  */
-export function formatMarkingSchemeAsBullets(
-  schemeJson: string,
-  subQuestionNumbers?: string[],
-  subQuestionAnswers?: string[]
-): string {
+export function formatMarkingSchemeAsBullets(schemeJson: any): string {
+  if (!schemeJson) return 'No marking scheme available.';
   try {
-    const scheme = JSON.parse(schemeJson);
+    const scheme = typeof schemeJson === 'string' ? JSON.parse(schemeJson) : schemeJson;
     const marks = scheme.marks || [];
-    if (!Array.isArray(marks)) return schemeJson;
-    return marks.map((m: any) => `- ${m.mark || '1'}: ${m.answer || ''}`).join('\n');
-  } catch {
-    return schemeJson;
+    if (!Array.isArray(marks)) return typeof schemeJson === 'string' ? schemeJson : JSON.stringify(schemeJson);
+    return marks.map((m: any) => `- ${m.mark || 'Mark'}: ${m.answer || m.text || ''}`).join('\n');
+  } catch (e) {
+    return String(schemeJson);
   }
 }
 
 /**
- * Get a prompt by path (e.g., 'classification.system', 'marking.questionOnly.user')
+ * Resolves a prompt path to its final string content
  */
 export function getPrompt(path: string, ...args: any[]): string {
   const keys = path.split('.');
@@ -471,18 +187,21 @@ export function getPrompt(path: string, ...args: any[]): string {
 }
 
 /**
- * Get all available prompt paths
+ * Returns the valid paths for all prompts in the system
  */
 export function getPromptPaths(): string[] {
   const paths: string[] = [];
-
-  function traverse(obj: any, prefix: string = '') {
+  const traverse = (obj: any, currentPath: string = '') => {
     for (const key in obj) {
-      const currentPath = prefix ? `${prefix}.${key}` : key;
+      const path = currentPath ? `${currentPath}.${key}` : key;
+      // Skip utility fields or templates that look like templates but aren't prompt holders
       if (typeof obj[key] === 'object' && obj[key] !== null) {
-        traverse(obj[key], currentPath);
-      } else {
-        paths.push(currentPath);
+        // Only traverse if it doesn't look like a leaf prompt object (which has system/user)
+        if (obj[key].system || obj[key].user) {
+          paths.push(currentPath);
+        } else {
+          traverse(obj[key], currentPath);
+        }
       }
     }
   }
@@ -490,4 +209,3 @@ export function getPromptPaths(): string[] {
   traverse(AI_PROMPTS);
   return paths;
 }
-

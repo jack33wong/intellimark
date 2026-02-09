@@ -546,7 +546,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         fileInput.value = '';
       }
     }
-  }, [isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode, onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage]);
+  }, [
+    isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode,
+    onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage,
+    onGenerateModelAnswer, onExplainMarkingScheme, isModelAnswerMode, isMarkingSchemeMode
+  ]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -972,7 +976,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         />
       )}
 
-      {/* Model Answer Confirmation Modal */}
+      {/* Model Answer / Marking Scheme Confirmation Modal */}
       <ConfirmationModal
         isOpen={showModelAnswerConfirmation}
         onClose={() => {
@@ -981,14 +985,21 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         }}
         onConfirm={() => {
           if (pendingModelAnswerPaper) {
-            onGenerateModelAnswer(pendingModelAnswerPaper);
+            if (isMarkingSchemeMode) {
+              onExplainMarkingScheme(pendingModelAnswerPaper);
+            } else {
+              onGenerateModelAnswer(pendingModelAnswerPaper);
+            }
           }
           setShowModelAnswerConfirmation(false);
           setPendingModelAnswerPaper(null);
         }}
-        title="Generate Model Answers"
-        message={`Would you like to generate model answers for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`}
-        confirmText="Generate"
+        title={isMarkingSchemeMode ? "Explain Marking Scheme" : "Generate Model Answers"}
+        message={isMarkingSchemeMode
+          ? `Would you like to explain the marking scheme for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`
+          : `Would you like to generate model answers for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`
+        }
+        confirmText={isMarkingSchemeMode ? "Explain" : "Generate"}
         cancelText="Cancel"
         variant="primary"
       />

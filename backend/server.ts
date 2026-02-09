@@ -1,3 +1,4 @@
+// [PROMPT FIX] Triggering restart 12
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -83,6 +84,7 @@ import creditsRoutes from './routes/credits.js';
 import adminCreditsRoutes from './routes/admin/credits.js';
 import debugRoutes from './routes/debug.js';
 import modelAnswerRouter from './routes/modelAnswerRouter.js';
+import markingSchemeRouter from './routes/markingSchemeRouter.js';
 
 // Enable auth routes (Apply JSON/URLENCODED here)
 app.use('/api/auth', express.json({ limit: '50mb' }), express.urlencoded({ extended: true, limit: '50mb' }), authRoutes);
@@ -104,6 +106,7 @@ app.use('/api/credits', jsonParser, urlParser, creditsRoutes);
 app.use('/api/admin/credits', jsonParser, urlParser, adminCreditsRoutes);
 app.use('/api/debug', jsonParser, urlParser, debugRoutes);
 app.use('/api/model-answer', jsonParser, urlParser, modelAnswerRouter);
+app.use('/api/marking-scheme', jsonParser, urlParser, markingSchemeRouter);
 
 
 

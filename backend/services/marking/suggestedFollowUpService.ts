@@ -138,6 +138,7 @@ export class SuggestedFollowUpService {
     if (!config) {
       throw new Error(`No configuration found for suggested follow-up mode: ${mode}`);
     }
+    console.log(`[DEBUG] SuggestedFollowUpService: mode=${mode}, promptKey=${config.promptKey}`);
 
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
@@ -190,9 +191,10 @@ export class SuggestedFollowUpService {
 
 
 
-      // For model answer mode: Group sub-questions (e.g., 8a, 8b) under main question (Question 8)
-      if (mode === 'modelanswer') {
+      // For model answer and marking scheme modes: Group sub-questions (e.g., 8a, 8b) under main question (Question 8)
+      if (mode === 'modelanswer' || mode === 'markingscheme') {
         const { ModelProvider } = await import('../../utils/ModelProvider.js');
+        const isModelAnswer = mode === 'modelanswer';
         const systemPrompt = getPrompt(`${config.promptKey}.system`);
 
         // Group questions by base number (regex for leading digits)
@@ -251,11 +253,13 @@ export class SuggestedFollowUpService {
             // Pass the group's "Question X" number explicitly
             const questionNumberStr = baseNum;
 
-            const userPrompt = getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr);
+            const userPrompt = isModelAnswer
+              ? getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr)
+              : getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, questionNumberStr);
 
             // --- DEBUG LOGGING: Print Prompt ---
-            if (process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') {
-              console.log(`\n🔍 [DEBUG] MODEL ANSWER PROMPT (Group ${baseNum}):`);
+            if ((isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') || (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true')) {
+              console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Group ${baseNum}):`);
               console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
               console.log(`--- USER ---\n${userPrompt}\n`);
             }
@@ -267,8 +271,8 @@ export class SuggestedFollowUpService {
             const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
 
             // --- DEBUG LOGGING: Print Response ---
-            if (process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') {
-              console.log(`\n✅ [DEBUG] MODEL ANSWER RESPONSE (Group ${baseNum}):`);
+            if ((isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') || (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true')) {
+              console.log(`\n✅ [DEBUG] ${mode.toUpperCase()} RESPONSE (Group ${baseNum}):`);
               console.log(`${aiResult.content}\n`);
             }
 
@@ -284,21 +288,24 @@ export class SuggestedFollowUpService {
         const separator = '\n\n<br><br>\n\n';
         const combinedResponse = parallelResults
           .map(result => {
-            // STRICT POST-PROCESSING: Remove any markdown code blocks or bold syntax that slipped through
-            // The prompt says "NO MARKDOWN", but AI can be stubborn.
+            // STRICT POST-PROCESSING: Remove any markdown code blocks that slipped through
+            // For marking schemes, we PRESERVE list bullets (*) and bold (**) for structural rendering
             let cleanResponse = result.response;
 
             // Remove code block wrappers (```markdown ... ``` or ```html ... ```)
             cleanResponse = cleanResponse.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '');
 
-            // Remove bold syntax (**Answer:** -> Answer:)
-            cleanResponse = cleanResponse.replace(/\*\*(.*?)\*\*/g, '$1');
+            if (mode === 'modelanswer') {
+              // Only strip formatting for model answer flow which uses specialized component containers
+              // Remove bold syntax (**Answer:** -> Answer:)
+              cleanResponse = cleanResponse.replace(/\*\*(.*?)\*\*/g, '$1');
 
-            // Also remove any single asterisks used for list items if they appear at start of line
-            cleanResponse = cleanResponse.replace(/^\s*\*\s+/gm, '');
+              // Also remove any single asterisks used for list items if they appear at start of line
+              cleanResponse = cleanResponse.replace(/^\s*\*\s+/gm, '');
 
-            // Remove HTML bold tags around "Answer:" (e.g. <b>Answer:</b> -> Answer:)
-            cleanResponse = cleanResponse.replace(/<b>\s*Answer:\s*<\/b>/gi, 'Answer:');
+              // Remove HTML bold tags around "Answer:" (e.g. <b>Answer:</b> -> Answer:)
+              cleanResponse = cleanResponse.replace(/<b>\s*Answer:\s*<\/b>/gi, 'Answer:');
+            }
 
             return cleanResponse;
           })

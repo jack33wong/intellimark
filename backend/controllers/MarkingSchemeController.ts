@@ -8,12 +8,12 @@ import UsageTracker from '../utils/UsageTracker.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 
-export class ModelAnswerController {
+export class MarkingSchemeController {
     /**
-     * Generates model answers for a specific exam paper or custom text
+     * Explains marking schemes for a specific exam paper
      * Handled via SSE for consistent progress tracking
      */
-    public static async generateModelAnswers(req: Request, res: Response): Promise<void> {
+    public static async explainMarkingScheme(req: Request, res: Response): Promise<void> {
         const usageTracker = new UsageTracker();
         const startTime = Date.now();
 
@@ -23,7 +23,7 @@ export class ModelAnswerController {
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
 
-        sendSseUpdate(res, { type: 'connected', message: 'Generating model answers...' });
+        sendSseUpdate(res, { type: 'connected', message: 'Retrieving marking scheme...' });
 
         try {
             const { paper, model = 'auto', sessionId: providedSessionId } = req.body;
@@ -31,7 +31,7 @@ export class ModelAnswerController {
 
             // Sanitization: Reject temp- IDs from frontend
             if (sessionId && sessionId.startsWith('temp-')) {
-                console.log(`⚠️ [MODEL_ANSWER] Rejecting temp session ID: ${sessionId} - Generating new ID`);
+                console.log(`⚠️ [MARKING_SCHEME] Rejecting temp session ID: ${sessionId} - Generating new ID`);
                 sessionId = null;
             }
             const userId = (req as any).user?.uid || 'anonymous';
@@ -44,7 +44,7 @@ export class ModelAnswerController {
                 if (!limitInfo.allowed) {
                     sendSseUpdate(res, {
                         type: 'error',
-                        message: 'Guest limit reached. Please sign up to see more model answers.',
+                        message: 'Guest limit reached. Please sign up to see more marking scheme explanations.',
                         details: 'guest_limit_reached'
                     });
                     res.end();
@@ -52,7 +52,7 @@ export class ModelAnswerController {
                 }
             }
 
-            // 3. Retrieve Paper Data
+            // 3. Retrieve Paper Data (Mirrors ModelAnswerController lookup)
             const db = getFirestore();
             let detectedQuestion: any = null;
             let metadataHeader = '';
@@ -68,71 +68,61 @@ export class ModelAnswerController {
                         paperDoc = directDoc.data();
                     }
                 } catch (err) {
-                    // Ignore errors if paper ID is invalid (e.g. contains slashes which Firestore treats as path)
-                    console.log(`[MODEL-ANSWER] Input "${paper}" is not a valid doc ID, proceeding to search.`);
+                    console.log(`[MARKING-SCHEME] Input "${paper}" is not a valid doc ID, proceeding to search.`);
                 }
 
                 if (!paperDoc) {
-                    console.log(`ℹ️ [MODEL-ANSWER] Looking for paper: ${paper}`);
+                    console.log(`ℹ️ [MARKING-SCHEME] Looking for paper: ${paper}`);
                     const paperSnapshot = await db.collection('fullExamPapers').get();
                     const papers = paperSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
                     const normalizedInput = paper.toLowerCase().trim();
 
                     // Case 1: Status Link Match (Key Fields: Code + Series)
-                    // Matches if input contains both exact code and exact series
                     paperDoc = papers.find((p: any) => {
                         const meta = p.metadata;
                         if (!meta) return false;
                         const dbCode = (meta.exam_code || '').toLowerCase();
                         const dbSeries = (meta.exam_series || '').toLowerCase();
 
-                        // Handle / vs - in code, and allow partial containment if it's a specific link string
                         const codeMatch = normalizedInput.includes(dbCode) || normalizedInput.includes(dbCode.replace(/\//g, '-'));
                         const seriesMatch = normalizedInput.includes(dbSeries);
                         return codeMatch && seriesMatch;
                     });
 
-                    // Case 2: Main Upload Page (Keyword Fallback - Idea from QuestionDetectionService)
+                    // Case 2: Keyword Fallback
                     if (!paperDoc) {
-                        console.log(`ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...`);
-
-                        // Copying keyword parsing idea from QuestionDetectionService.filterPapersByHint
+                        console.log(`ℹ️ [MARKING-SCHEME] No exact match, applying keyword search...`);
                         const processedHint = normalizedInput;
                         const keywords = processedHint
-                            .replace(/([a-z])(\d)/gi, '$1 $2') // Split letters and numbers (e.g., JUN2024 -> JUN 2024)
+                            .replace(/([a-z])(\d)/gi, '$1 $2')
                             .replace(/(\d)([a-z])/gi, '$1 $2')
-                            .replace(/[-,/]/g, ' ') // Split on common delimiters
+                            .replace(/[-,/]/g, ' ')
                             .split(/\s+/)
                             .filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
 
                         const matches = papers.filter((p: any) => {
                             const meta = p.metadata;
                             if (!meta) return false;
-
-                            // Combine only key fields for high-precision search
                             const combined = `${meta.exam_board} ${meta.exam_code} ${meta.exam_series}`.toLowerCase();
                             return keywords.every(kw => combined.includes(kw));
                         });
 
-                        // Limit to exactly 1 record if multiple found
                         if (matches.length > 0) {
                             paperDoc = matches[0];
-                            console.log(`✅ [MODEL-ANSWER] Single match found via keywords: ${paperDoc.id}`);
+                            console.log(`✅ [MARKING-SCHEME] Single match found via keywords: ${paperDoc.id}`);
                         }
                     }
 
                     if (!paperDoc) {
-                        console.log(`❌ [MODEL-ANSWER] No paper found for request: "${paper}"`);
-                        const sampleIds = papers.slice(0, 5).map((p: any) => `${p.metadata?.exam_code} (${p.metadata?.exam_series})`);
-                        console.log(`ℹ️ [MODEL-ANSWER] Sample DB Patterns: ${sampleIds.join(', ')}`);
+                        console.log(`❌ [MARKING-SCHEME] No paper found for request: "${paper}"`);
                     }
                 }
 
                 if (paperDoc) {
                     const meta = paperDoc.metadata;
 
-                    // Format Series (e.g., JUN2024 -> June 2024)
+                    // Format Metadata Display
                     let formattedSeries = meta.exam_series;
                     if (formattedSeries && /^[A-Z]{3}\d{4}$/.test(formattedSeries)) {
                         const monthMap: Record<string, string> = {
@@ -141,17 +131,14 @@ export class ModelAnswerController {
                         };
                         const monthCode = formattedSeries.substring(0, 3).toUpperCase();
                         const year = formattedSeries.substring(3);
-                        if (monthMap[monthCode]) {
-                            formattedSeries = `${monthMap[monthCode]} ${year}`;
-                        }
+                        if (monthMap[monthCode]) formattedSeries = `${monthMap[monthCode]} ${year}`;
                     }
 
-                    // Format Tier (e.g., H -> Higher Tier)
                     let formattedTier = meta.tier;
                     if (meta.tier === 'H' || meta.tier === 'Higher') formattedTier = 'Higher Tier';
                     else if (meta.tier === 'F' || meta.tier === 'Foundation') formattedTier = 'Foundation Tier';
 
-                    // Use specific CSS class for header, no ###, no markdown separator, add extra spacing
+                    // Metadata Header matching the requested format
                     metadataHeader = `<div class="model-exam-header">${meta.exam_board} - ${meta.exam_code} - ${formattedSeries}${formattedTier ? `, ${formattedTier}` : ''}</div>\n\n<br><br>\n\n`;
 
                     // Strict Limits for AI Usage
@@ -206,33 +193,31 @@ export class ModelAnswerController {
 
             // 4. Create Session & Messages
             if (!sessionId) {
-                sessionId = `session-model-${Date.now()}`;
+                sessionId = `session-marking-scheme-${Date.now()}`;
             }
 
-            // Create user message
             const userMessage = createUserMessage({
-                content: `Generate model answers for: ${paper}`,
+                content: `Explain marking scheme for: ${paper}`,
                 sessionId: sessionId,
                 model: model
             });
 
-            // If authenticated, pre-create session
             if (isAuthenticated) {
                 await FirestoreService.createUnifiedSessionWithMessages({
                     sessionId: sessionId,
-                    title: `Model Answer: ${paper}`,
+                    title: `Marking Scheme: ${paper}`,
                     userId: userId,
                     messageType: 'Chat',
                     messages: [userMessage],
-                    usageMode: 'modelanswer'
+                    usageMode: 'markingscheme'
                 });
             }
 
-            // 5. Generate Model Answer
-            sendSseUpdate(res, { type: 'progress', step: 'generating', currentStepDescription: 'AI is writing model answers...' });
+            // 5. Generate Explanation
+            sendSseUpdate(res, { type: 'progress', step: 'generating', currentStepDescription: 'AI is explaining marking schemes...' });
 
             const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
-                mode: 'modelanswer',
+                mode: 'markingscheme',
                 sessionId: sessionId,
                 sourceMessageId: userMessage.id,
                 model: model === 'auto' ? 'gemini-2.0-flash' : model,
@@ -240,8 +225,7 @@ export class ModelAnswerController {
                 tracker: usageTracker
             });
 
-            // 6. Prepend Header & Format
-            // Wrap in the specific HTML structure requested by frontend for "notebook" styling
+            // 6. Prepend Header & Wrap in requested CSS classes
             const finalResponse = `
 <div class="has-your-work-outer-container">
 <div class="markdown-math-renderer chat-message-renderer has-your-work">
@@ -264,15 +248,12 @@ ${followUpResult.response}
             });
 
             if (isAuthenticated) {
-                await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'modelanswer');
-
-                // Deduct credits
+                await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'markingscheme');
                 const cost = usageTracker.calculateCost(model).total;
                 if (cost > 0) {
                     await deductCredits(userId, cost, sessionId);
                 }
             } else {
-                // Increment guest usage
                 await GuestUsageService.incrementUsage(userIP);
             }
 
@@ -282,7 +263,7 @@ ${followUpResult.response}
                 result: {
                     success: true,
                     sessionId,
-                    sessionTitle: `Model Answer: ${paper}`,
+                    sessionTitle: `Marking Scheme: ${paper}`,
                     aiMessage
                 }
             });
@@ -290,10 +271,10 @@ ${followUpResult.response}
             res.end();
 
         } catch (error: any) {
-            console.error('❌ [MODEL-ANSWER] Generation failed:', error);
+            console.error('❌ [MARKING_SCHEME] Explanation failed:', error);
             sendSseUpdate(res, {
                 type: 'error',
-                message: error.message || 'Failed to generate model answers.'
+                message: error.message || 'Failed to explain marking scheme.'
             });
             res.end();
         }

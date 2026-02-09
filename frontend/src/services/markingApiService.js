@@ -502,13 +502,13 @@ class SimpleSessionService {
     }
   }
 
-  async generateModelAnswer(paper, model = 'gemini-2.0-flash', onProgress = null, aiMessageId = null) {
+  async processStream(endpoint, paper, model = 'gemini-2.0-flash', onProgress = null, aiMessageId = null) {
     try {
       const authToken = await this.getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/model-answer`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
