@@ -189,7 +189,7 @@ const AqaLandingPage: React.FC = () => {
                                                             </div>
                                                             <div className="paper-actions">
                                                                 <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=model`)} className="action-link model">Model</button>
-                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=mark`)} className="action-link mark">Mark</button>
+                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=markingscheme`)} className="action-link mark">Mark</button>
                                                             </div>
                                                         </div>
                                                     ))}

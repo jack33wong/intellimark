@@ -2,3 +2,21 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
+[PERF] getUserUnifiedSessions: Fetch 58ms, Process 1ms for 20 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 60ms for 20 sessions (limit: 50)
+⚠️ [MARKING_SCHEME] Rejecting temp session ID: temp-1770664218049 - Generating new ID
+ℹ️ [MARKING-SCHEME] Looking for paper: 8300-1F-JUN2023
+ℹ️ [MARKING-SCHEME] No exact match, applying keyword search...
+✅ [MARKING-SCHEME] Single match found via keywords: c5e67786-c32d-4710-97ea-14a27784ea39
+[DEBUG] SuggestedFollowUpService: mode=markingscheme, promptKey=markingScheme
+💳 Deducted 0.03 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-marking-scheme-1770664218641), remaining: 521.20
+[PERF] getUserUnifiedSessions: Fetch 97ms, Process 0ms for 21 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 97ms for 21 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 105ms, Process 0ms for 21 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 105ms for 21 sessions (limit: 50)
+⚠️ [MODEL_ANSWER] Rejecting temp session ID: temp-1770664290186 - Generating new ID
+ℹ️ [MODEL-ANSWER] Looking for paper: 1MA1-1F-NOV2024
+ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...
+✅ [MODEL-ANSWER] Single match found via keywords: 3e7de633-587a-4729-b168-86b6b8a912c8
+[DEBUG] SuggestedFollowUpService: mode=modelanswer, promptKey=modelAnswer
+💳 Deducted 0.11 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1770664290751), remaining: 521.09

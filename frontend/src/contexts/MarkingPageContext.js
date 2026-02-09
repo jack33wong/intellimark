@@ -569,6 +569,10 @@ export const MarkingPageProvider = ({
       // Reusing the same confirmation modal logic for simplicity in UX
       setPendingModelAnswerPaper(paper);
       setShowModelAnswerConfirmation(true);
+    } else if (mode === 'mark' && paper) {
+      setIsModelAnswerMode(false);
+      setIsMarkingSchemeMode(false);
+      setInitialInput(paper);
     }
   }, [location.search]);
 

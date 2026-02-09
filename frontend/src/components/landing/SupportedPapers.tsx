@@ -273,7 +273,7 @@ const SupportedPapers: React.FC = () => {
                                                             Model
                                                         </button>
                                                         <button
-                                                            onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${s.year.split(' ')[0].substring(0, 3).toUpperCase()}${s.year.split(' ')[1]}&mode=mark`)}
+                                                            onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${s.year.split(' ')[0].substring(0, 3).toUpperCase()}${s.year.split(' ')[1]}&mode=markingscheme`)}
                                                             className="action-link mark"
                                                         >
                                                             Mark
