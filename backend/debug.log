@@ -20,3 +20,19 @@
 ✅ [MODEL-ANSWER] Single match found via keywords: 3e7de633-587a-4729-b168-86b6b8a912c8
 [DEBUG] SuggestedFollowUpService: mode=modelanswer, promptKey=modelAnswer
 💳 Deducted 0.11 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1770664290751), remaining: 521.09
+[PERF] getUserUnifiedSessions: Fetch 66ms, Process 0ms for 22 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 66ms for 22 sessions (limit: 50)
+⚠️ [MARKING_SCHEME] Rejecting temp session ID: temp-1770664456785 - Generating new ID
+ℹ️ [MARKING-SCHEME] Looking for paper: 1MA1-1F-NOV2024
+ℹ️ [MARKING-SCHEME] No exact match, applying keyword search...
+✅ [MARKING-SCHEME] Single match found via keywords: 3e7de633-587a-4729-b168-86b6b8a912c8
+[DEBUG] SuggestedFollowUpService: mode=markingscheme, promptKey=markingScheme
+💳 Deducted 0.03 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-marking-scheme-1770664457317), remaining: 521.06
+[PERF] getUserUnifiedSessions: Fetch 57ms, Process 0ms for 23 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 57ms for 23 sessions (limit: 50)
+⚠️ [MARKING_SCHEME] Rejecting temp session ID: temp-1770664473006 - Generating new ID
+ℹ️ [MARKING-SCHEME] Looking for paper: 8300-3F-JUN2022
+ℹ️ [MARKING-SCHEME] No exact match, applying keyword search...
+✅ [MARKING-SCHEME] Single match found via keywords: 1bf89f28-6140-4b47-9a85-83ad6d3969cd
+[DEBUG] SuggestedFollowUpService: mode=markingscheme, promptKey=markingScheme
+💳 Deducted 0.03 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-marking-scheme-1770664473519), remaining: 521.03

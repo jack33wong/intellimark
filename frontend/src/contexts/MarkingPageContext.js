@@ -561,6 +561,10 @@ export const MarkingPageProvider = ({
       setInitialInput(paper);
       setPendingModelAnswerPaper(paper);
       setShowModelAnswerConfirmation(true);
+
+      // [FIX] Clear URL parameters to prevent re-triggering on fresh context mounts (e.g. New Chat)
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     } else if (mode === 'markingscheme' && paper) {
       setIsMarkingSchemeMode(true);
       setIsModelAnswerMode(false); // Reset other mode
@@ -569,10 +573,18 @@ export const MarkingPageProvider = ({
       // Reusing the same confirmation modal logic for simplicity in UX
       setPendingModelAnswerPaper(paper);
       setShowModelAnswerConfirmation(true);
+
+      // [FIX] Clear URL parameters to prevent re-triggering on fresh context mounts (e.g. New Chat)
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     } else if (mode === 'mark' && paper) {
       setIsModelAnswerMode(false);
       setIsMarkingSchemeMode(false);
       setInitialInput(paper);
+
+      // [FIX] Clear URL parameters to prevent re-triggering on fresh context mounts (e.g. New Chat)
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     }
   }, [location.search]);
 
