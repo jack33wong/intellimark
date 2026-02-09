@@ -3,7 +3,7 @@
  * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Plus, Brain, X, Check, Sparkles, Smartphone, UploadCloud } from 'lucide-react';
+import { Plus, Brain, X, Check, Sparkles, Smartphone, UploadCloud, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LandingPageUploadWidget from '../common/LandingPageUploadWidget';
 import MobileUploadModal from '../upload/MobileUploadModal';
@@ -56,6 +56,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     onGenerateModelAnswer,
     isModelAnswerMode,
     setIsModelAnswerMode,
+    isMarkingSchemeMode,
+    setIsMarkingSchemeMode,
+    onExplainMarkingScheme,
     initialInput,
     setInitialInput,
     showModelAnswerConfirmation,
@@ -512,6 +515,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       if (isModelAnswerMode) {
         const result = await (onGenerateModelAnswer as any)(textToSend);
         if (result === false) success = false;
+      } else if (isMarkingSchemeMode) {
+        const result = await (onExplainMarkingScheme as any)(textToSend);
+        if (result === false) success = false;
       } else {
         const result = await (onSendMessage as any)(textToSend);
         if (result === false) success = false;
@@ -770,9 +776,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       ? "AI is processing..."
                       : isModelAnswerMode
                         ? "Search for an exam paper..."
-                        : mode === 'follow-up'
-                          ? "Ask a follow-up question about your marks..."
-                          : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
+                        : isMarkingSchemeMode
+                          ? "Search for an exam paper to explain marking scheme..."
+                          : mode === 'follow-up'
+                            ? "Ask a follow-up question about your marks..."
+                            : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"
@@ -785,34 +793,62 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
               <div className="followup-buttons-row">
                 <div className="followup-left-buttons">
-                  {!isModelAnswerMode && (
-                    <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
-                      <Plus size={14} />
+                  {!isModelAnswerMode && !isMarkingSchemeMode && (
+                    <button className="followup-upload-button add-files-btn" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
+                      <span className="btn-icon"><Plus size={16} /></span>
+                      <span className="btn-text">Add Files</span>
                     </button>
                   )}
-                  <button
-                    className={`followup-upload-button mode-toggle-btn ${isModelAnswerMode ? 'active' : ''}`}
-                    onClick={() => setIsModelAnswerMode(!isModelAnswerMode)}
-                    disabled={isProcessing}
-                    title={isModelAnswerMode ? "Switch to Mark Mode" : "Switch to Model Answer Mode"}
-                  >
-                    <Sparkles size={14} />
-                  </button>
-                  <button
-                    className="followup-upload-button mobile-scan-btn"
-                    onClick={() => {
-                      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                      if (isMobile) {
-                        handleOpenCameraHandoff();
-                      } else {
-                        setIsMobileUploadOpen(true);
-                      }
-                    }}
-                    disabled={isProcessing}
-                    title="Scan from Mobile"
-                  >
-                    <Smartphone size={14} />
-                  </button>
+
+                  {!isMarkingSchemeMode && (
+                    <button
+                      className={`followup-upload-button mode-toggle-btn model-answer-btn ${isModelAnswerMode ? 'active' : ''}`}
+                      onClick={() => {
+                        if (isMarkingSchemeMode) setIsMarkingSchemeMode(false);
+                        setIsModelAnswerMode(!isModelAnswerMode);
+                      }}
+                      disabled={isProcessing}
+                      title={isModelAnswerMode ? "Switch to Normal Mode" : "Generate Model Answer"}
+                    >
+                      <span className="btn-icon"><Sparkles size={16} /></span>
+                      <span className="btn-text">Generate Model Answer</span>
+                    </button>
+                  )}
+
+                  {!isModelAnswerMode && (
+                    <button
+                      className={`followup-upload-button mode-toggle-btn marking-scheme-btn ${isMarkingSchemeMode ? 'active' : ''}`}
+                      onClick={() => {
+                        if (isModelAnswerMode) setIsModelAnswerMode(false);
+                        setIsMarkingSchemeMode(!isMarkingSchemeMode);
+                      }}
+                      disabled={isProcessing}
+                      title={isMarkingSchemeMode ? "Switch to Normal Mode" : "Explain Marking Scheme"}
+                    >
+                      <span className="btn-icon"><BookOpen size={16} /></span>
+                      <span className="btn-text">Explain Marking Scheme</span>
+                    </button>
+                  )}
+
+                  {!isModelAnswerMode && !isMarkingSchemeMode && (
+                    <button
+                      className="followup-upload-button mobile-scan-btn scan-camera-btn"
+                      onClick={() => {
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                        if (isMobile) {
+                          handleOpenCameraHandoff();
+                        } else {
+                          setIsMobileUploadOpen(true);
+                        }
+                      }}
+                      disabled={isProcessing}
+                      title="Scan from Mobile"
+                    >
+                      <span className="btn-icon"><Smartphone size={16} /></span>
+                      <span className="btn-text">Scan with Camera</span>
+                    </button>
+                  )}
+
                 </div>
                 <div className="followup-right-buttons">
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}

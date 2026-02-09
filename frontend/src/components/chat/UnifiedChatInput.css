@@ -279,6 +279,19 @@
     font-weight: 300;
     /* Thinner */
   }
+
+  /* Hide button text on mobile to save space */
+  .followup-chat-input-bar .button-text,
+  .followup-chat-input-bar .button-text-only {
+    display: none;
+  }
+
+  /* Revert to circle buttons on mobile */
+  .followup-chat-input-bar .followup-upload-button {
+    width: 32px;
+    padding: 0;
+    border-radius: 50%;
+  }
 }
 
 .main-upload-input {
@@ -570,22 +583,108 @@
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
-/* Upload Button */
+/* ============================================================================
+   BUTTON STYLE LOGIC (Mode Dependent)
+   ============================================================================ */
+
+/* SHARED: Base Button Styles */
 .followup-chat-input-bar .followup-upload-button {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 32px;
-  width: 32px;
-  padding: 0;
+  width: auto;
+  padding: 0 12px;
   background: var(--background-white-main);
   border: 1px solid var(--border-primary);
-  border-radius: 50%;
+  border-radius: 16px;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
   box-sizing: border-box;
+  gap: 6px;
+  /* Space between icon and text */
+}
+
+/* SHARED: Text Styles */
+.followup-chat-input-bar .btn-text {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* SHARED: Icon Styles */
+.followup-chat-input-bar .btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ----------------------------------------------------------------------------
+   FIRST-TIME MODE (Main Page) - Matches User Request
+   ---------------------------------------------------------------------------- */
+
+/* 1. Add Files: Icon Only */
+.followup-chat-input-bar.first-time .add-files-btn .btn-text {
+  display: none;
+}
+
+.followup-chat-input-bar.first-time .add-files-btn {
+  width: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* 2. Generate Model Answer: Text Only */
+.followup-chat-input-bar.first-time .model-answer-btn .btn-icon {
+  display: none;
+}
+
+/* 3. Explain Marking Scheme: Text Only */
+.followup-chat-input-bar.first-time .marking-scheme-btn .btn-icon {
+  display: none;
+}
+
+/* 4. Scan with Camera: Icon + Text (Default) -> No override needed */
+
+
+/* ----------------------------------------------------------------------------
+   FOLLOW-UP MODE (Chat Bar) - Icon Only for Cleanliness
+   ---------------------------------------------------------------------------- */
+
+/* Hide text for ALL buttons in follow-up mode to prevent overlap */
+.followup-chat-input-bar:not(.first-time) .btn-text {
+  display: none;
+}
+
+/* Ensure all buttons are circular keys in follow-up mode */
+.followup-chat-input-bar:not(.first-time) .followup-upload-button {
+  width: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* Ensure icons are visible in follow-up mode (overriding any first-time hides) */
+.followup-chat-input-bar:not(.first-time) .btn-icon {
+  display: flex !important;
+}
+
+/* Mobile: Ensure text is hidden everywhere anyway (redundant safety) */
+@media (max-width: 768px) {
+  .followup-chat-input-bar .btn-text {
+    display: none !important;
+  }
+
+  .followup-chat-input-bar .followup-upload-button {
+    width: 32px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+  }
+
+  .followup-chat-input-bar .btn-icon {
+    display: flex !important;
+  }
 }
 
 .followup-chat-input-bar .followup-upload-button:hover:not(:disabled) {

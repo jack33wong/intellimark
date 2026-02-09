@@ -27,6 +27,13 @@ export class ModelAnswerController {
 
         try {
             const { paper, model = 'auto', sessionId: providedSessionId } = req.body;
+            let sessionId = providedSessionId;
+
+            // Sanitization: Reject temp- IDs from frontend
+            if (sessionId && sessionId.startsWith('temp-')) {
+                console.log(`⚠️ [MODEL_ANSWER] Rejecting temp session ID: ${sessionId} - Generating new ID`);
+                sessionId = null;
+            }
             const userId = (req as any).user?.uid || 'anonymous';
             const isAuthenticated = userId !== 'anonymous';
             const userIP = req.ip || '0.0.0.0';
@@ -54,8 +61,16 @@ export class ModelAnswerController {
                 sendSseUpdate(res, { type: 'progress', step: 'retrieving_paper', currentStepDescription: 'Finding exam paper...' });
 
                 // 1. Try direct ID lookup first (most efficient)
-                const directDoc = await db.collection('fullExamPapers').doc(paper).get();
-                let paperDoc = directDoc.exists ? directDoc.data() : null;
+                let paperDoc = null;
+                try {
+                    const directDoc = await db.collection('fullExamPapers').doc(paper).get();
+                    if (directDoc.exists) {
+                        paperDoc = directDoc.data();
+                    }
+                } catch (err) {
+                    // Ignore errors if paper ID is invalid (e.g. contains slashes which Firestore treats as path)
+                    console.log(`[MODEL-ANSWER] Input "${paper}" is not a valid doc ID, proceeding to search.`);
+                }
 
                 if (!paperDoc) {
                     console.log(`ℹ️ [MODEL-ANSWER] Looking for paper: ${paper}`);
@@ -188,7 +203,9 @@ export class ModelAnswerController {
             }
 
             // 4. Create Session & Messages
-            const sessionId = providedSessionId || `session-model-${Date.now()}`;
+            if (!sessionId) {
+                sessionId = `session-model-${Date.now()}`;
+            }
 
             // Create user message
             const userMessage = createUserMessage({

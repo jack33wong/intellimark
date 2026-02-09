@@ -228,15 +228,29 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (!user?.uid) return;
 
       setChatSessions(prevSessions => {
-        const sessionsWithoutTemp = prevSessions.filter(s => !s.id.startsWith('temp-'));
+        // If we have very few sessions, or the list seems empty/incomplete, 
+        // we might want to just append if it's new. 
+        // But "disappearing" suggests the list is being replaced by a single item array.
 
+        // CRITICAL FIX: Ensure we are NOT replacing the entire list with a filtered result of just one item
+        // The previous code was:
+        // const sessionsWithoutTemp = prevSessions.filter(s => !s.id.startsWith('temp-'));
+        // ... 
+
+        // If prevSessions is somehow undefined or empty, handle it
+        const safePrevSessions = Array.isArray(prevSessions) ? prevSessions : [];
+
+        // Don't filter out temp- sessions as Model Answer sessions use temp- IDs permanently
+        const sessionsWithoutTemp = safePrevSessions;
         const existingIndex = sessionsWithoutTemp.findIndex(s => s.id === updatedSession.id);
-        let newSessions;
 
+        let newSessions;
         if (existingIndex !== -1) {
+          // Update existing
           newSessions = [...sessionsWithoutTemp];
-          newSessions[existingIndex] = updatedSession;
+          newSessions[existingIndex] = { ...newSessions[existingIndex], ...updatedSession };
         } else {
+          // Add new
           newSessions = [updatedSession, ...sessionsWithoutTemp];
         }
 
@@ -455,10 +469,27 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getLastMessage = (session: any) => {
+    // Helper to detect model answer content
+    const isModelAnswer = (content: string) => {
+      return content && (
+        content.includes('model-exam-header') ||
+        content.includes('has-your-work-outer-container') ||
+        content.includes('class="model_answer"')
+      );
+    };
+
     const cleanContent = (content: string) => {
       if (!content) return '';
+
+      // Immediate check for Model Answer HTML signatures
+      if (isModelAnswer(content)) {
+        return "Model Answers Generated";
+      }
+
       let clean = content;
       clean = clean.replace(/:::[^\s\n]+/g, '');
+      // Strip HTML tags
+      clean = clean.replace(/<[^>]*>/g, '');
       const labels = ['YOUR WORK:', 'REASONING:', 'SUMMARY:', 'CONTEXT:', 'STUDENT WORK:'];
       labels.forEach(label => {
         const regex = new RegExp(label, 'gi');

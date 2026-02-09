@@ -80,10 +80,17 @@ export class MarkingController {
         sendSseUpdate(res, { type: 'connected', message: 'Connection established' });
 
         try {
+            let sessionId = req.body.sessionId;
+            // Sanitization: Reject temp- IDs from frontend
+            if (sessionId && sessionId.startsWith('temp-')) {
+                console.log(`⚠️ [MARKING] Rejecting temp session ID: ${sessionId}`);
+                sessionId = undefined;
+            }
+
             // 3. Prepare Options
             const options = {
                 userId: (req as any).user?.uid, // Assuming auth middleware populates this
-                sessionId: req.body.sessionId,
+                sessionId: sessionId,
                 customText: req.body.customText,
                 model: req.body.model
             };

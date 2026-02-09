@@ -120,6 +120,7 @@ export const MarkingPageProvider = ({
   const { credits, isNegative, refreshCredits } = useCredits();
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
   const [isModelAnswerMode, setIsModelAnswerMode] = React.useState(false);
+  const [isMarkingSchemeMode, setIsMarkingSchemeMode] = React.useState(false);
   const [initialInput, setInitialInput] = React.useState('');
   const [showModelAnswerConfirmation, setShowModelAnswerConfirmation] = React.useState(false);
   const [pendingModelAnswerPaper, setPendingModelAnswerPaper] = React.useState(null);
@@ -475,6 +476,13 @@ export const MarkingPageProvider = ({
     }
   }, [user, isNegative, selectedModel, currentSession, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
+  const onExplainMarkingScheme = useCallback(async (input) => {
+    // TODO: Implement Marking Scheme explanation logic here
+    console.log("Explain Marking Scheme for:", input);
+    // For now, treat it similar to normal chat but we might want a specific prefix or API call later
+    return onSendMessage(`Explain the marking scheme for: ${input}`);
+  }, [onSendMessage]);
+
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
   const location = useLocation();
@@ -798,6 +806,7 @@ export const MarkingPageProvider = ({
     onSendMessage, addMessage,
     onGenerateModelAnswer,
     isModelAnswerMode, setIsModelAnswerMode,
+    isMarkingSchemeMode, setIsMarkingSchemeMode,
     initialInput, setInitialInput,
     showModelAnswerConfirmation, setShowModelAnswerConfirmation,
     pendingModelAnswerPaper, setPendingModelAnswerPaper,
@@ -819,21 +828,33 @@ export const MarkingPageProvider = ({
     visibleTableIds: state.visibleTableIds,
     isNegative,
     setShowCreditsModal,
+    showCreditsModal,
+    credits,
+    refreshCredits,
     setSidebarOpen,
+    lastHandledSessionIdRef, // Expose ref if needed
     ...progressProps
   }), [
-    user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
-    handleModelChange, handleImageAnalysis, handleMultiImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
-    onGenerateModelAnswer, isModelAnswerMode, initialInput, showModelAnswerConfirmation, pendingModelAnswerPaper,
+    user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
+    handleFileSelect, clearFile, handleModelChange, handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
+    onGenerateModelAnswer, isModelAnswerMode, setIsModelAnswerMode,
+    isMarkingSchemeMode, setIsMarkingSchemeMode,
+    initialInput, setInitialInput,
+    showModelAnswerConfirmation, setShowModelAnswerConfirmation,
+    pendingModelAnswerPaper, setPendingModelAnswerPaper,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage, progressProps, getImageSrc, startAIThinking,
+    onSendMessage, addMessage, chatContainerRef,
+    scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage,
+    handleMultiImageAnalysis, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,
     state.visibleTableIds,
     isNegative,
     setShowCreditsModal,
-    setSidebarOpen
+    showCreditsModal, credits, refreshCredits,
+    setSidebarOpen,
+    lastHandledSessionIdRef
   ]);
 
 
