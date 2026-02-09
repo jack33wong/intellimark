@@ -562,9 +562,8 @@ export const MarkingPageProvider = ({
       setPendingModelAnswerPaper(paper);
       setShowModelAnswerConfirmation(true);
 
-      // [FIX] Clear URL parameters to prevent re-triggering on fresh context mounts (e.g. New Chat)
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      // [FIX] Clear URL parameters using Router to prevent re-triggering
+      navigate(location.pathname, { replace: true });
     } else if (mode === 'markingscheme' && paper) {
       setIsMarkingSchemeMode(true);
       setIsModelAnswerMode(false); // Reset other mode
@@ -574,17 +573,15 @@ export const MarkingPageProvider = ({
       setPendingModelAnswerPaper(paper);
       setShowModelAnswerConfirmation(true);
 
-      // [FIX] Clear URL parameters to prevent re-triggering on fresh context mounts (e.g. New Chat)
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      // [FIX] Clear URL parameters using Router to prevent re-triggering
+      navigate(location.pathname, { replace: true });
     } else if (mode === 'mark' && paper) {
       setIsModelAnswerMode(false);
       setIsMarkingSchemeMode(false);
       setInitialInput(paper);
 
-      // [FIX] Clear URL parameters to prevent re-triggering on fresh context mounts (e.g. New Chat)
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      // [FIX] Clear URL parameters using Router to prevent re-triggering
+      navigate(location.pathname, { replace: true });
     }
   }, [location.search]);
 
