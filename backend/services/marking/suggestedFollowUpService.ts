@@ -280,9 +280,28 @@ export class SuggestedFollowUpService {
         );
 
         // Simply combine all responses with separators
-        const separator = '\n\n---\n\n';
+        // Use simple spacing instead of markdown horizontal rule as requested
+        const separator = '\n\n<br><br>\n\n';
         const combinedResponse = parallelResults
-          .map(result => result.response)
+          .map(result => {
+            // STRICT POST-PROCESSING: Remove any markdown code blocks or bold syntax that slipped through
+            // The prompt says "NO MARKDOWN", but AI can be stubborn.
+            let cleanResponse = result.response;
+
+            // Remove code block wrappers (```markdown ... ``` or ```html ... ```)
+            cleanResponse = cleanResponse.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '');
+
+            // Remove bold syntax (**Answer:** -> Answer:)
+            cleanResponse = cleanResponse.replace(/\*\*(.*?)\*\*/g, '$1');
+
+            // Also remove any single asterisks used for list items if they appear at start of line
+            cleanResponse = cleanResponse.replace(/^\s*\*\s+/gm, '');
+
+            // Remove HTML bold tags around "Answer:" (e.g. <b>Answer:</b> -> Answer:)
+            cleanResponse = cleanResponse.replace(/<b>\s*Answer:\s*<\/b>/gi, 'Answer:');
+
+            return cleanResponse;
+          })
           .join(separator);
 
         const totalUsageTokens = parallelResults.reduce((sum, r) => sum + r.usageTokens, 0);
@@ -341,7 +360,7 @@ export class SuggestedFollowUpService {
           if (!schemeText && q.markingScheme) {
             console.warn(`[MULTI-QUESTION] Could not stringify marking scheme for Q${q.questionNumber} (type: ${typeof q.markingScheme})`);
           }
-          return `**Question ${q.questionNumber} (${q.marks} marks):**\n${schemeText}`;
+          return `Question ${q.questionNumber} (${q.marks} marks):\n${schemeText}`;
         }).join('\n\n');
 
         markingScheme = combinedSchemeText;

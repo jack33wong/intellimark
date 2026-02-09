@@ -162,3 +162,90 @@
         gap: 8px;
     }
 }
+
+/* Dropdown Menu Styles */
+.nav-item-dropdown {
+    position: relative;
+    display: inline-block;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.dropdown-trigger {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    height: 40px;
+    transition: color 0.2s ease;
+}
+
+.dropdown-trigger:hover {
+    color: var(--text-brand);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--background-white-main);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+    min-width: 240px;
+    display: none;
+    flex-direction: column;
+    padding: 8px;
+    z-index: 10000;
+    margin-top: 0px;
+}
+
+.nav-item-dropdown:hover .dropdown-menu {
+    display: flex;
+    animation: fadeIn 0.2s ease;
+}
+
+.dropdown-menu a {
+    padding: 10px 16px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: block;
+}
+
+.dropdown-menu a:hover {
+    background: var(--background-brand-light);
+    color: var(--text-brand);
+}
+
+/* Ensure the chevron rotates on hover */
+.chevron {
+    transition: transform 0.2s ease;
+}
+
+.nav-item-dropdown:hover .chevron {
+    transform: rotate(180deg);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}

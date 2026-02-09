@@ -148,6 +148,41 @@ export const useApiProcessor = () => {
     }
   }, [updateProgress, handleError]);
 
+  const processStreamRequest = useCallback(async (
+    endpoint: string,
+    body: any,
+    stepMapping: Record<string, number> = {}
+  ) => {
+    try {
+      // Wrapper to handle progress updates from stream
+      const onProgress = (data: any) => {
+        // Handle common variations in progress data
+        if (data.description && !data.currentStepDescription) {
+          data.currentStepDescription = data.description;
+        }
+
+        // If the backend sends a 'step' string, map it to an index
+        if (data.step && stepMapping[data.step] !== undefined) {
+          data.currentStepIndex = stepMapping[data.step];
+        }
+        updateProgress(data);
+      };
+
+      // Call simpleSessionService.generateModelAnswer (or we can make it more generic later)
+      // For now, it specifically handles the paper-based model answer flow
+      const result = await simpleSessionService.generateModelAnswer(
+        body.paper,
+        body.model,
+        onProgress as any,
+        body.aiMessageId
+      );
+      return result;
+    } catch (error) {
+      handleError(error as Error);
+      throw error;
+    }
+  }, [updateProgress, handleError]);
+
   const setShowProgressDetails = useCallback((show: boolean) => {
     setApiState(prev => ({ ...prev, showProgressDetails: show }));
   }, []);
@@ -162,6 +197,7 @@ export const useApiProcessor = () => {
     updateProgress,
     processImageAPI,
     processMultiImageAPI,
+    processStreamRequest,
     setShowProgressDetails,
   }), [
     apiState,

@@ -78,10 +78,19 @@ b) Is your answer..."
         * Then: [Model answer for b) with mark codes]
       - After each wrapped sub-question, provide the model answer with mark codes
       - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
-      - **CRITICAL RULE FOR MODEL ANSWERS:**
-        * Every single line of your model answer MUST end with a <br> tag.
-        * This includes lines with math, text, and marking codes.
-        * Use double <br><br> to separate major steps.
+      - Wrap each part separately and provide model answers after each sub - question span
+      - Wrap each part separately and provide model answers after each sub - question span
+      - ** CRITICAL:** The model answer part MUST be wrapped in its own <div class="model_answer">...</div> tag to allow distinct styling.
+        - Example: <span class="model_question">a) Work out...</span> <div class="model_answer">[Model answer for a]</div>
+      - Use "Answer:" for the final answer line (normal text, NO bold, NO asterisks, NO markdown, NO HTML bold tags like <b>).
+      - **FORBIDDEN:** Do NOT use markdown syntax like \`**bold**\` or \`> blockquotes\`. Do NOT use \`<b>Answer:</b>\`.
+      - **CRITICAL:** Do NOT wrap your response in markdown code blocks (like \`\`\`html or \`\`\`markdown). Return RAW HTML only.
+
+Please generate a model answer that would receive full marks according to the marking scheme. CRITICAL: Every single line (math, text, or marking codes) INSIDE the answer block MUST end with a <br> tag. Use single <br> between major steps. Wraps the ANSWER part in <div class="model_answer">...</div>.
+
+      - **QUESTION HEADER STYLING:**
+        * Start with <div class="model-question-number">Question X</div> header (use the exact number provided above, e.g. Question 1, do NOT infer it from the question text).
+
       - **QUESTION TEXT STYLING:** Wrap EACH question text part separately:
         * Main question text: Remove "5. " prefix, wrap in <span class="model_question">...</span>
         * Each sub-question: Keep "a)", "b)" label, wrap in its own <span class="model_question">...</span>

@@ -497,6 +497,96 @@ class SimpleSessionService {
     }
   }
 
+  async generateModelAnswer(paper, model = 'gemini-2.0-flash', onProgress = null, aiMessageId = null) {
+    try {
+      const authToken = await this.getAuthToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/model-answer`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          paper,
+          model,
+          sessionId: this.state.currentSession?.id || null,
+          aiMessageId
+        })
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      try {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        const processChunk = (chunk) => {
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              let data;
+              try {
+                data = JSON.parse(line.slice(6));
+              } catch (e) {
+                continue;
+              }
+
+              if (data && data.currentStepDescription) {
+                if (onProgress) onProgress(data);
+                continue;
+              }
+
+              if (data.type === 'complete') {
+                this.handleTextChatComplete(data.result, model);
+                return true; // Stop processing
+              }
+
+              if (data.type === 'error') {
+                throw new Error(data.error || 'Unknown error from server');
+              }
+
+              if (onProgress) onProgress(data);
+            }
+          }
+          return false;
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              if (buffer) processChunk(buffer);
+              break;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (processChunk(line)) {
+                reader.releaseLock();
+                return; // Exit success
+              }
+            }
+          }
+        } finally {
+          if (reader.locked) reader.releaseLock();
+        }
+      } finally {
+        // Ensure thinking state is stopped even if we return early from processChunk
+        apiControls.stopAIThinking();
+        apiControls.stopProcessing();
+      }
+    } catch (error) {
+      this.setState({ error: error.message });
+      apiControls.handleError(error);
+      apiControls.stopAIThinking();
+      apiControls.stopProcessing();
+      throw error;
+    }
+  }
+
   async processMultiImageWithProgress(files, model = 'gemini-2.0-flash', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
     try {
       const authToken = await this.getAuthToken();

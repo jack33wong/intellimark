@@ -21,6 +21,15 @@ interface FollowUpChatInputProps {
   contextQuestionId?: string | null;
   setContextQuestionId?: (id: string | null) => void;
   isNegative?: boolean;
+  onGenerateModelAnswer?: (text: string) => Promise<boolean> | any;
+  isModelAnswerMode?: boolean;
+  setIsModelAnswerMode?: (active: boolean) => void;
+  initialInput?: string;
+  setInitialInput?: (text: string) => void;
+  showModelAnswerConfirmation?: boolean;
+  setShowModelAnswerConfirmation?: (show: boolean) => void;
+  pendingModelAnswerPaper?: string | null;
+  setPendingModelAnswerPaper?: (paper: string | null) => void;
 }
 
 const FollowUpChatInput: React.FC<FollowUpChatInputProps> = (props) => {

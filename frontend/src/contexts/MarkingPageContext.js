@@ -119,6 +119,10 @@ export const MarkingPageProvider = ({
 
   const { credits, isNegative, refreshCredits } = useCredits();
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
+  const [isModelAnswerMode, setIsModelAnswerMode] = React.useState(false);
+  const [initialInput, setInitialInput] = React.useState('');
+  const [showModelAnswerConfirmation, setShowModelAnswerConfirmation] = React.useState(false);
+  const [pendingModelAnswerPaper, setPendingModelAnswerPaper] = React.useState(null);
 
   const apiProcessor = useApiProcessor();
   const { isProcessing, isAIThinking, error } = apiProcessor;
@@ -403,9 +407,93 @@ export const MarkingPageProvider = ({
     }
   }, [user, isNegative, getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
 
+  const onGenerateModelAnswer = useCallback(async (input) => {
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
+
+    if (user && isNegative) {
+      setShowCreditsModal(true);
+      return false;
+    }
+
+    try {
+      startProcessing();
+
+      const userMessageId = `user-${Date.now()}`;
+      await addMessage({
+        id: userMessageId,
+        role: 'user',
+        content: `Generate model answers for: ${trimmedInput}`,
+        timestamp: new Date().toISOString(),
+        type: 'text'
+      });
+      dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
+
+      // Generate AI message ID
+      const aiMessageId = createAIMessageId(`model-${trimmedInput}-${Date.now()}`);
+
+      const progressData = {
+        isComplete: false,
+        currentStepDescription: 'Finding exam paper...',
+        allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is writing model answers...'],
+        currentStepIndex: 0,
+      };
+
+      startAIThinking(progressData, aiMessageId, []);
+
+      // Call the new SSE endpoint
+      apiProcessor.processStreamRequest(
+        '/api/model-answer',
+        {
+          paper: trimmedInput,
+          model: selectedModel || 'gemini-2.0-flash',
+          sessionId: currentSession?.id || null,
+          aiMessageId: aiMessageId
+        },
+        // Step mapping
+        {
+          'retrieving_paper': 0,
+          'retrieving_schemes': 1,
+          'generating': 2
+        }
+      ).catch(err => {
+        console.error('Error in model answer flow:', err);
+        if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+          setShowCreditsModal(true);
+        }
+        handleError(err);
+        stopAIThinking();
+        stopProcessing();
+      });
+
+      return true;
+    } catch (err) {
+      handleError(err);
+      stopAIThinking();
+      stopProcessing();
+      return false;
+    }
+  }, [user, isNegative, selectedModel, currentSession, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
+  const location = useLocation();
+
+  /**
+   * Handle deep-links and URL parameters
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode');
+    const paper = params.get('paper') || params.get('code');
+
+    if (mode === 'model' && paper) {
+      setIsModelAnswerMode(true);
+      setInitialInput(paper);
+      setPendingModelAnswerPaper(paper);
+      setShowModelAnswerConfirmation(true);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     if (selectedMarkingResult && currentSession?.id === selectedMarkingResult.id) {
@@ -638,7 +726,6 @@ export const MarkingPageProvider = ({
   }, [user, isNegative, selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
 
   // Handle files passed from Landing Pages (SEO Phase 2)
-  const location = useLocation();
   const handoverProcessedRef = useRef(false);
 
   useEffect(() => {
@@ -709,6 +796,11 @@ export const MarkingPageProvider = ({
     handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating, onFavoriteToggle, onRatingChange, onTitleUpdate,
     setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage,
+    onGenerateModelAnswer,
+    isModelAnswerMode, setIsModelAnswerMode,
+    initialInput, setInitialInput,
+    showModelAnswerConfirmation, setShowModelAnswerConfirmation,
+    pendingModelAnswerPaper, setPendingModelAnswerPaper,
     chatContainerRef,
     scrollToBottom,
     showScrollButton,
@@ -732,6 +824,7 @@ export const MarkingPageProvider = ({
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, handleMultiImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
+    onGenerateModelAnswer, isModelAnswerMode, initialInput, showModelAnswerConfirmation, pendingModelAnswerPaper,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,

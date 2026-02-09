@@ -611,6 +611,12 @@
   box-shadow: 0 0 10px rgba(127, 0, 255, 0.4);
 }
 
+.mode-toggle-btn.active {
+  background-color: var(--accent-color, #3772ff);
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(55, 114, 255, 0.3);
+}
+
 .followup-chat-input-bar .followup-upload-button:disabled {
   background: var(--background-white-main);
   color: var(--text-tertiary);

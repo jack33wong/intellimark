@@ -604,7 +604,7 @@
 
 /* AI Response Styling for Question text and Answer body */
 .markdown-math-renderer .model_question {
-  color: var(--text-primary);
+  color: var(--text-tertiary);
   display: block;
   margin-bottom: 0.5em;
   font-weight: 500;
@@ -627,6 +627,14 @@
   /* Ensure visibility */
   /* Ensure it stands out slightly */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.markdown-math-renderer .model-exam-header {
+  color: var(--text-brand);
+}
+
+.markdown-math-renderer .model-question-number {
+  font-weight: 600;
 }
 
 /* Marking Code Styling: Red and Right-Aligned */

@@ -10,6 +10,7 @@ import MobileUploadModal from '../upload/MobileUploadModal';
 import ImageModeModal from '../common/ImageModeModal';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import { useSubscription } from '../../hooks/useSubscription';
 import ApiClient from '../../services/apiClient';
 import ConfigService from '../../services/configService';
@@ -51,6 +52,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   setContextQuestionId,
   isNegative = false,
 }) => {
+  const {
+    onGenerateModelAnswer,
+    isModelAnswerMode,
+    setIsModelAnswerMode,
+    initialInput,
+    setInitialInput,
+    showModelAnswerConfirmation,
+    setShowModelAnswerConfirmation,
+    pendingModelAnswerPaper,
+    setPendingModelAnswerPaper
+  } = useMarkingPage();
+
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -132,6 +145,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     };
     fetchMetadata();
   }, []);
+
+  // V16.7 Sync input with initialInput from context (for redirection)
+  useEffect(() => {
+    if (initialInput) {
+      setChatInput(initialInput);
+      setInitialInput(''); // Clear after syncing
+    }
+  }, [initialInput, setInitialInput]);
 
   // Autocomplete will now stay open as long as there is input (no outside-click close)
 
@@ -488,8 +509,13 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       if (result === false) success = false;
     } else if (textToSend) {
       // Text only
-      const result = await (onSendMessage as any)(textToSend);
-      if (result === false) success = false;
+      if (isModelAnswerMode) {
+        const result = await (onGenerateModelAnswer as any)(textToSend);
+        if (result === false) success = false;
+      } else {
+        const result = await (onSendMessage as any)(textToSend);
+        if (result === false) success = false;
+      }
     }
 
     if (success) {
@@ -742,9 +768,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   placeholder={
                     isProcessing
                       ? "AI is processing..."
-                      : mode === 'follow-up'
-                        ? "Ask a follow-up question about your marks..."
-                        : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
+                      : isModelAnswerMode
+                        ? "Search for an exam paper..."
+                        : mode === 'follow-up'
+                          ? "Ask a follow-up question about your marks..."
+                          : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"
@@ -757,8 +785,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
               <div className="followup-buttons-row">
                 <div className="followup-left-buttons">
-                  <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
-                    <Plus size={14} />
+                  {!isModelAnswerMode && (
+                    <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
+                      <Plus size={14} />
+                    </button>
+                  )}
+                  <button
+                    className={`followup-upload-button mode-toggle-btn ${isModelAnswerMode ? 'active' : ''}`}
+                    onClick={() => setIsModelAnswerMode(!isModelAnswerMode)}
+                    disabled={isProcessing}
+                    title={isModelAnswerMode ? "Switch to Mark Mode" : "Switch to Model Answer Mode"}
+                  >
+                    <Sparkles size={14} />
                   </button>
                   <button
                     className="followup-upload-button mobile-scan-btn"
@@ -897,6 +935,27 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
           onClose={() => setShowImageMode(false)}
         />
       )}
+
+      {/* Model Answer Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showModelAnswerConfirmation}
+        onClose={() => {
+          setShowModelAnswerConfirmation(false);
+          setPendingModelAnswerPaper(null);
+        }}
+        onConfirm={() => {
+          if (pendingModelAnswerPaper) {
+            onGenerateModelAnswer(pendingModelAnswerPaper);
+          }
+          setShowModelAnswerConfirmation(false);
+          setPendingModelAnswerPaper(null);
+        }}
+        title="Generate Model Answers"
+        message={`Would you like to generate model answers for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`}
+        confirmText="Generate"
+        cancelText="Cancel"
+        variant="primary"
+      />
     </>
   );
 };

@@ -233,7 +233,7 @@ FINAL QUALITY CHECK (DO NOT IGNORE):
       - Do NOT add "Question" prefix to sub - question labels(they already have "a)", "b)" format)
       - Wrap each part separately and provide model answers after each sub - question span
 
-Please generate a model answer that would receive full marks according to the marking scheme.`;
+Please generate a model answer that would receive full marks according to the marking scheme. CRITICAL: Every single line (math, text, or marking codes) MUST end with a <br> tag. Use double <br><br> between major steps.`;
       }
     },
 

@@ -2,3 +2,174 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
+👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: ultra
+📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
+🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
+💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+💳 [CREDIT CHECK] Estimated cost: 0.0486685, files: 1, bytes: 436685
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":548.53}
+
+🔄 ========== UNIFIED PIPELINE START ==========
+🔄 ============================================
+
+[1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.4s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[MAPPER] Using model: gemini-2.0-flash
+[MAPPER] Starting Map Pass for 1 pages...
+   📦 [MAPPER-BUCKET] Processing pages 0 to 0...
+
+🔍 [MAPPER AUDIT] Batch of 1 images:
+   ✅ Mapped Local[0] -> Global[0] | Content: 2a, 2b
+✅ [MAPPER] Map Pass complete in 2.61s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 [MODE ROUTING] Pure marking mode
+
+✅ Perfect split complete - each mode has consecutive 0-based indices
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m7.3s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+🔍 [MODE DETECTION] Analysis (AFTER overrides):
+  - All question-only: false
+  - Has mixed content: false
+  - Has any student work: true
+  - Selected mode: Marking Mode
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.7s[0m ([32m[1mMATHPIX[0m)
+
+🔍 [DETECTION CONTEXT]
+   Strategy: Global Search
+   Pool Size: 108 papers, 2709 total question candidates
+------------------------------------------------------------------------------------------------------------------------------------
+
+📋 [DETECTION AUDIT REPORT]
+------------------------------------------------------------------------------------------------------------------------------------
+| Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
+------------------------------------------------------------------------------------------------------------------------------------
+| 2ai  | Write 5.3 x 10' as an ordinary number.        | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.865 | [32m✅ SUCCESS[0m      |
+| 2aii | Write 7.4 x 10 as an ordinary number.         | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.865 | [32m✅ SUCCESS[0m      |
+| 2b   | Calculate the value of 9.7 x 10+ 2.45 × 10... | Edexcel GCSE 1MA1/3H June 2024 Q2                  | 0.865 | [32m✅ SUCCESS[0m      |
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+📊 [QUESTION DETECTION STATISTICS]
+   Total questions: 3
+   Detected: 3/3
+   Not detected: 0
+   [HINT] Hint Used: "Global Search"
+   [HINT] Matched Papers: 108
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+
+🔄 [RE-INDEXING] 🛡️ Aligning physical pages...
+   ⚖️ [PAGE-WEIGHT] Page 0: Weights=[2:2, 2ai:2.0101, 2aii:2.0101999999999998, 2b:2.02] -> Selected: 2.0101999999999998
+🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:
+-----------------------------------------------------------------------------------------
+| OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |
+-----------------------------------------------------------------------------------------
+| 0       | c38856a4-b989-41cc-8 | false  | 2.0101999999999998 | 2, 2ai, 2aii, 2b                   |
+-----------------------------------------------------------------------------------------
+
+🚀 [SORT-RESULT] Final Logical Order:
+-----------------------------------------------------------------------------------------
+| Seq 0 | OrigIdx 0 | isMeta: false | minQ: 2.0101999999999998 |
+-----------------------------------------------------------------------------------------
+✅ [RE-INDEXING] Completed. Pages have been straightened into Logical Order.
+✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.
+
+🔄 [OCR RE-ID] Regenerating Global Block IDs to match new Page Indices...
+✅ [OCR RE-ID] Completed. Blocks are now synchronized with physical pages.
+✅ [DIMENSIONS REBUILD] Map refreshed for 1 re-indexed pages.
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+🔍 [DIMENSIONS DEBUG] Pages: 1
+🔍 [DIMENSIONS DEBUG] Map Size: 1
+ ⚖️ [RECONCILE] Parent "2" was anchored at block index 8 (P0).
+ ⚖️ [RECONCILE] SNAPPING "2" to match child "2ai" at block index 0 (P0).
+
+📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:
+   ✅ 2ai    | P0 | Y:  210 (6.0%) to  844 | X: 148 (Margin: 6.0%) | W: 2183
+   ✅ 2aii   | P0 | Y:  844 (24.1%) to 1370 | X: 148 (Margin: 6.0%) | W: 2183
+   ✅ 2b     | P0 | Y: 1370 (39.1%) to 3298 | X: 148 (Margin: 6.0%) | W: 2183
+-------------------------------------------
+
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+ 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Content: "2 (a) (i) Write \( 5.3 \times 10^{4} \) as an ordinary number. [PRINTED_INSTRUCTION [Q2ai]]"
+ 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Has Tag? true
+ 🚫 [VETO-REJECT] Candidate "(1)" matches Veto "write 53 x 10 as an ordinary number"
+ 🚫 [VETO-REJECT] Candidate "Give your answer in standard form." matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
+ 🚫 [VETO-REJECT] Candidate "(2)" matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
+ 🚫 [VETO-REJECT] Candidate "3" matches Veto "write 53 x 10 as an ordinary number"
+ 🧲 [LINKER-RESCUE] 2b: Snapped UNMATCHED "3.42×10" to Block p0_ocr_7
+ 🚫 [VETO-REJECT] Candidate "Give your answer in standard form." matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
+ 🚫 [VETO-REJECT] Candidate "(2)" matches Veto "calculate the value of 97 x 10 245 10 give your answer in standard form"
+ 🚫 [VETO-REJECT] Candidate "3" matches Veto "write 53 x 10 as an ordinary number"
+ 🧲 [LINKER-RESCUE] 2b: Snapped UNMATCHED "3.42×10" to Block p0_ocr_7
+ 📍 [PATH 3] Q2aii: Line "p0_q2_line_2" is UNMATCHED. Recovering position.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m5.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m5.4s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mOUTPUT-GENERATION[0m)
+⚠️  [COMBINATION] No questionResponses found
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m2       [0m | 2/4   | B1, A0, M0, B1          | AI:1/4 → M:3 S:0 U:1                   |
+| [90m  ai    [0m | 1     | B1                      | AI:1/1 → M:1 S:0 U:0                   |
+| [90m  aii   [0m | 1     | B1                      | AI:0/1 → M:0 S:0 U:1                   |
+| [90m  b     [0m | 0     | A0, M0                  | AI:0/2 → M:2 S:0 U:0                   |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 19.4s
+Model Used: gemini-2.0-flash
+----------------------------
+classification                      7.3s (38%)
+marking                             5.4s (28%)
+output_generation                   1.9s (10%)
+ocr_processing                      1.7s (9%)
+performance_summary                 0.9s (5%)
+question_detection                  0.7s (3%)
+preprocessing                       0.4s (2%)
+database_persistence                0.2s (1%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 4 total
+   Total Tokens: 18,971 (17,668 in + 1,303 out)
+   Total Cost: $0.005833
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Mapper (Map Pass): 4,341 tokens (1 requests) → $0.000455
+   • Classification (Marking Pass): 6,709 tokens (1 requests) → $0.000805
+   • Marking: 7,336 tokens (1 requests) → $0.000952
+   • Performance Summary: 585 tokens (1 requests) → $0.000075
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1770624404781
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1770624404781
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0058326
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.58 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1770624404781), remaining: 547.95
+💳 Deducted 0.0058 credits (session: sub-1770624404781) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1770624404781
