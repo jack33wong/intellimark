@@ -462,6 +462,11 @@ class SimpleSessionService {
             updatedAt: new Date().toISOString() // Add last updated time
           };
           this.updateCurrentSessionOnly(updatedSession);
+
+          // FIX: Also update sidebar so changes (like "Model Answers Generated" preview) show immediately
+          if (data.sessionId && !data.sessionId.startsWith('temp-')) {
+            this.updateSidebarSession(updatedSession);
+          }
         }
 
         return this.state.currentSession;
