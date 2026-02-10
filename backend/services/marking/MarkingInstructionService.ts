@@ -25,7 +25,7 @@ import {
 // ========================================================================================
 
 // ========================= START: NORMALIZATION FUNCTION =========================
-function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
+export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
   if (!input || typeof input !== 'object') {
     return null;
   }
@@ -33,7 +33,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
   if (input.markingScheme && typeof input.markingScheme === 'string') {
     try {
       const parsed = JSON.parse(input.markingScheme);
-      return {
+      const normalized = {
         marks: parsed.marks || [],
         totalMarks: input.match?.marks || 0,
         questionNumber: input.match?.questionNumber || '1',
@@ -41,18 +41,20 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
         parentQuestionMarks: input.match?.parentQuestionMarks || input.match?.marks,
         isGeneric: input.isGeneric === true
       };
+      return expandMarkingScheme(normalized);
     } catch (error) { return null; }
   }
   // [DB Record]
-  if ((input.marks || input.question_marks) && (input.question_text || input.questionText)) {
+  if (input.marks || input.question_marks) {
     const totalMarks = typeof input.marks === 'number' ? input.marks : (typeof input.question_marks === 'number' ? input.question_marks : 0);
-    return {
-      marks: [],
+    const normalized = {
+      marks: Array.isArray(input.marks) ? input.marks : [],
       totalMarks: totalMarks,
       questionNumber: input.question_number || input.questionNumber || '1',
-      questionLevelAnswer: undefined,
+      questionLevelAnswer: input.answer || input.question_answer || undefined,
       parentQuestionMarks: totalMarks
     };
+    return expandMarkingScheme(normalized);
   }
   // [Unified Pipeline]
   if (input.questionMarks && input.totalMarks !== undefined) {
@@ -113,7 +115,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       throw new Error(`[CRITICAL] Missing subQuestionMaxScores for questions: ${Object.keys(subQuestionMarks).join(', ')}. System refuses to guess.`);
     }
 
-    return {
+    const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
       questionNumber: input.questionNumber || '1',
@@ -129,21 +131,170 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       parentQuestionMarks: input.parentQuestionMarks,
       isGeneric: input.isGeneric === true
     };
+
+    return expandMarkingScheme(normalized);
   }
   // [Fallback Match]
   if (input.match?.markingScheme?.questionMarks) {
     let marksArray = [];
     if (input.match.markingScheme.questionMarks.marks) marksArray = input.match.markingScheme.questionMarks.marks;
     else if (Array.isArray(input.match.markingScheme.questionMarks)) marksArray = input.match.markingScheme.questionMarks;
-    return {
+    const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.match.marks || 0,
       questionNumber: input.match.questionNumber || '1',
       questionLevelAnswer: input.answer || input.match.answer || input.match.markingScheme.answer,
       parentQuestionMarks: input.match.parentQuestionMarks || input.match.marks
     };
+    return expandMarkingScheme(normalized);
+  }
+  // [Sub-question Only (Rare but possible)]
+  if (input.subQuestionMarks) {
+    const normalized = {
+      marks: Array.isArray(input.marks) ? input.marks : [],
+      totalMarks: input.totalMarks || 0,
+      questionNumber: input.questionNumber || input.question_number || '1',
+      questionLevelAnswer: input.answer || input.question_answer || undefined,
+      subQuestionMarks: input.subQuestionMarks,
+      subQuestionMaxScores: input.subQuestionMaxScores,
+      subQuestionAnswersMap: input.subQuestionAnswersMap,
+      parentQuestionMarks: input.parentQuestionMarks || input.totalMarks
+    };
+    return expandMarkingScheme(normalized);
   }
   return null;
+}
+
+/**
+ * CAO (Correct Answer Only) resolution logic.
+ * Replaces 'cao' with the actual answer if available.
+ */
+function resolveCao(markText: string, normalizedScheme: Partial<NormalizedMarkingScheme>, subKey?: string): string {
+  if (!markText) return markText;
+  const caoRegex = /\bcao\b/i;
+  if (!caoRegex.test(markText)) return markText;
+
+  let replacement: string | undefined;
+  if (subKey && normalizedScheme.subQuestionAnswersMap && normalizedScheme.subQuestionAnswersMap[subKey]) {
+    replacement = normalizedScheme.subQuestionAnswersMap[subKey];
+  }
+
+  if (!replacement && subKey) {
+    const label = subKey.replace(/^\d+/, '');
+    if (label && normalizedScheme.subQuestionAnswersMap && normalizedScheme.subQuestionAnswersMap[label]) {
+      replacement = normalizedScheme.subQuestionAnswersMap[label];
+    }
+  }
+
+  if (!replacement && (normalizedScheme.questionLevelAnswer || (normalizedScheme as any).answer || (normalizedScheme as any).question_answer)) {
+    replacement = normalizedScheme.questionLevelAnswer || (normalizedScheme as any).answer || (normalizedScheme as any).question_answer;
+  }
+
+  if (replacement) {
+    return markText.replace(caoRegex, replacement);
+  }
+  return markText;
+}
+
+/**
+ * Extracts atomic marks (M1, A1, etc.) from a potentially concatenated OCR scheme string.
+ */
+function extractAtomicMarks(markObj: any, normalizedScheme?: Partial<NormalizedMarkingScheme>, subKey?: string): any[] {
+  const mark = String(markObj.mark || '');
+  const isNumeric = /^\d+$/.test(mark);
+  const comments = String(markObj.comments || '');
+  // Support both "B1 for" and "B1:"
+  const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s*(?:for|:)/i.test(comments);
+
+  if (!isNumeric || !hasAtomicCodes) {
+    if (normalizedScheme && markObj.answer) {
+      markObj.answer = resolveCao(markObj.answer, normalizedScheme, subKey);
+    }
+    // [OCR-SPECIFIC]: If mark is purely numeric (e.g. "1"), default to "A" prefix (e.g. "A1")
+    if (isNumeric && !/^[a-z]/i.test(mark)) {
+      return [{ ...markObj, mark: `A${mark}` }];
+    }
+    return [markObj];
+  }
+
+  const results: any[] = [];
+  // Updated regex to support both "for" and ":" as separators
+  const regex = /([BMA][1-9]|SC[1-9])\s*(?:for|:)\s*((?:(?![BMA][1-9]\s*(?:for|:)|SC[1-9]\s*(?:for|:)|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
+  let match;
+  let firstPrefix = 'A';
+
+  while ((match = regex.exec(comments)) !== null) {
+    const markCode = match[1].toUpperCase();
+    if (results.length === 0) {
+      firstPrefix = markCode.charAt(0);
+    }
+
+    let answerText = match[2].trim().replace(/\n+/g, ' ');
+    if (normalizedScheme) {
+      answerText = resolveCao(answerText, normalizedScheme, subKey);
+    }
+
+    results.push({
+      mark: markCode,
+      value: parseInt(markCode.substring(1)) || 1,
+      answer: answerText,
+      comments: ''
+    });
+  }
+
+  const numericTargetMark = parseInt(mark) || 0;
+  const currentExtractedTotal = results.reduce((sum, r) => sum + (r.value || 1), 0);
+  if (numericTargetMark > currentExtractedTotal) {
+    // Use the first prefix found (e.g., B) instead of hardcoded A
+    const prefix = firstPrefix || 'A';
+
+    let balancedAnswer = markObj.answer || 'Correct solution.';
+    if (normalizedScheme) {
+      balancedAnswer = resolveCao(balancedAnswer, normalizedScheme, subKey);
+    }
+
+    results.push({
+      mark: `${prefix}${numericTargetMark - currentExtractedTotal}`,
+      value: numericTargetMark - currentExtractedTotal,
+      answer: balancedAnswer,
+      comments: 'Auto-balanced'
+    });
+  }
+  return results.length > 0 ? results : [markObj];
+}
+
+/**
+ * Expands a marking scheme by splitting OCR numeric marks into atomic ones.
+ */
+function expandMarkingScheme(scheme: NormalizedMarkingScheme): NormalizedMarkingScheme {
+  // 1. Expand top-level marks
+  const expandedMarks: any[] = [];
+  if (scheme.marks) {
+    scheme.marks.forEach(m => {
+      expandedMarks.push(...extractAtomicMarks(m, scheme));
+    });
+  }
+  scheme.marks = expandedMarks;
+
+  // 2. Expand sub-question marks
+  if (scheme.subQuestionMarks) {
+    const newSubQuestionMarks: { [key: string]: any[] } = {};
+    for (const [subQ, marks] of Object.entries(scheme.subQuestionMarks)) {
+      const expandedSubMarks: any[] = [];
+      let marksArray = marks;
+      if (!Array.isArray(marksArray) && (marksArray as any).marks) marksArray = (marksArray as any).marks;
+
+      if (Array.isArray(marksArray)) {
+        marksArray.forEach(m => {
+          expandedSubMarks.push(...extractAtomicMarks(m, scheme, subQ));
+        });
+      }
+      newSubQuestionMarks[subQ] = expandedSubMarks;
+    }
+    scheme.subQuestionMarks = newSubQuestionMarks;
+  }
+
+  return scheme;
 }
 // ========================== END: NORMALIZATION FUNCTION ==========================
 
@@ -621,7 +772,6 @@ export class MarkingInstructionService {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;
 
-      MarkingPromptService.replaceCaoInScheme(normalizedScheme);
       schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
 
       liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);

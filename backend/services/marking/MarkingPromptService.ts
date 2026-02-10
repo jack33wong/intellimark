@@ -32,64 +32,8 @@ export class MarkingPromptService {
     }
 
     /**
-     * Mutates the normalizedScheme in-place to replace 'cao' with actual answers.
-     */
-    public static replaceCaoInScheme(normalizedScheme: NormalizedMarkingScheme): void {
-        if (!normalizedScheme.marks || normalizedScheme.marks.length === 0) {
-            if (!normalizedScheme.subQuestionMarks) return;
-        }
-
-        if (normalizedScheme.marks) {
-            normalizedScheme.marks.forEach((mark: any) => {
-                if (typeof mark.answer === 'string' && mark.answer.toLowerCase() === 'cao') {
-                    mark.answer = this.resolveCao(mark.answer, normalizedScheme);
-                }
-            });
-        }
-
-        if (normalizedScheme.subQuestionMarks) {
-            Object.keys(normalizedScheme.subQuestionMarks).forEach(key => {
-                const marks = normalizedScheme.subQuestionMarks![key];
-                if (Array.isArray(marks)) {
-                    marks.forEach((mark: any) => {
-                        if (typeof mark.answer === 'string' && mark.answer.toLowerCase() === 'cao') {
-                            mark.answer = this.resolveCao(mark.answer, normalizedScheme, key);
-                        }
-                    });
-                }
-            });
-        }
-    }
-
-    public static resolveCao(markText: string, normalizedScheme: NormalizedMarkingScheme, subKey?: string): string {
-        if (!markText) return markText;
-        const caoRegex = /\bcao\b/i;
-        if (!caoRegex.test(markText)) return markText;
-
-        let replacement: string | undefined;
-        if (subKey && normalizedScheme.subQuestionAnswersMap && normalizedScheme.subQuestionAnswersMap[subKey]) {
-            replacement = normalizedScheme.subQuestionAnswersMap[subKey];
-        }
-
-        if (!replacement && subKey) {
-            const label = subKey.replace(/^\d+/, '');
-            if (label && normalizedScheme.subQuestionAnswersMap && normalizedScheme.subQuestionAnswersMap[label]) {
-                replacement = normalizedScheme.subQuestionAnswersMap[label];
-            }
-        }
-
-        if (!replacement && normalizedScheme.questionLevelAnswer) {
-            replacement = normalizedScheme.questionLevelAnswer;
-        }
-
-        if (replacement) {
-            return markText.replace(caoRegex, replacement);
-        }
-        return markText;
-    }
-
-    /**
      * Formats the marking scheme into a concise text-based format for the AI prompt.
+     * Expects the scheme to be already normalized and expanded (e.g. by MarkingInstructionService).
      */
     public static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
         const hasGenericSignature = normalizedScheme.marks.some((m: any) =>
@@ -131,23 +75,17 @@ ${genericHeader}
                 if (maxScore) output += ` [MAX SCORE: ${maxScore}]`;
                 output += '\n';
 
-                const expandedMarks: any[] = [];
                 if (Array.isArray(marks)) {
                     // V28 FIX: "Virtual Scheme Update" - Inject B3 for Q10a to solve the 2+2=6 overflow bug
                     if (subQ === '10a' && !marks.some(m => String(m.mark).includes('B3'))) {
                         console.log(`💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.`);
-                        expandedMarks.push({ mark: 'B3', answer: 'Fully correct diagram (36, 19, 41) [3 marks]' });
+                        output += `- B3: Fully correct diagram (36, 19, 41) [3 marks]\n`;
                     }
 
                     marks.forEach((m: any) => {
-                        const atomics = this.extractAtomicMarks(m, normalizedScheme, subQ);
-                        expandedMarks.push(...atomics);
+                        output += `- ${m.mark}: ${m.answer}\n`;
                     });
                 }
-
-                expandedMarks.forEach((m: any) => {
-                    output += `- ${m.mark}: ${m.answer}\n`;
-                });
                 output += '\n';
             }
         } else {
@@ -155,13 +93,7 @@ ${genericHeader}
             if (normalizedScheme.totalMarks) output += ` [MAX SCORE: ${normalizedScheme.totalMarks}]`;
             output += '\n';
 
-            const expandedMarks: any[] = [];
             normalizedScheme.marks.forEach((m: any) => {
-                const atomics = this.extractAtomicMarks(m, normalizedScheme);
-                expandedMarks.push(...atomics);
-            });
-
-            expandedMarks.forEach((m: any) => {
                 output += `- ${m.mark}: ${m.answer}\n`;
             });
         }
@@ -181,66 +113,6 @@ ${genericHeader}
 [OFFICIAL SCHEME]
 ${output.trim()}
 `.trim();
-    }
-
-    private static extractAtomicMarks(markObj: any, normalizedScheme?: NormalizedMarkingScheme, subKey?: string): any[] {
-        const mark = String(markObj.mark || '');
-        const isNumeric = /^\d+$/.test(mark);
-        const comments = String(markObj.comments || '');
-        // Support both "B1 for" and "B1:"
-        const hasAtomicCodes = /([BMA][1-9]|SC[1-9])\s*(?:for|:)/i.test(comments);
-
-        if (!isNumeric || !hasAtomicCodes) {
-            if (normalizedScheme && markObj.answer) {
-                markObj.answer = this.resolveCao(markObj.answer, normalizedScheme, subKey);
-            }
-            return [markObj];
-        }
-
-        const results: any[] = [];
-        // Updated regex to support both "for" and ":" as separators
-        const regex = /([BMA][1-9]|SC[1-9])\s*(?:for|:)\s*((?:(?![BMA][1-9]\s*(?:for|:)|SC[1-9]\s*(?:for|:)|Listing:|Ratios:|Alternative|Fractions).|[\n\r])*)/gi;
-        let match;
-        let firstPrefix = 'A';
-
-        while ((match = regex.exec(comments)) !== null) {
-            const markCode = match[1].toUpperCase();
-            if (results.length === 0) {
-                firstPrefix = markCode.charAt(0);
-            }
-
-            let answerText = match[2].trim().replace(/\n+/g, ' ');
-            if (normalizedScheme) {
-                answerText = this.resolveCao(answerText, normalizedScheme, subKey);
-            }
-
-            results.push({
-                mark: markCode,
-                value: parseInt(markCode.substring(1)) || 1,
-                answer: answerText,
-                comments: ''
-            });
-        }
-
-        const numericTargetMark = parseInt(mark) || 0;
-        const currentExtractedTotal = results.reduce((sum, r) => sum + (r.value || 1), 0);
-        if (numericTargetMark > currentExtractedTotal) {
-            // Use the first prefix found (e.g., B) instead of hardcoded A
-            const prefix = firstPrefix || 'A';
-
-            let balancedAnswer = markObj.answer || 'Correct solution.';
-            if (normalizedScheme) {
-                balancedAnswer = this.resolveCao(balancedAnswer, normalizedScheme, subKey);
-            }
-
-            results.push({
-                mark: `${prefix}${numericTargetMark - currentExtractedTotal}`,
-                value: numericTargetMark - currentExtractedTotal,
-                answer: balancedAnswer,
-                comments: '(Auto-balanced)'
-            });
-        }
-        return results.length > 0 ? results : [markObj];
     }
 
     /**

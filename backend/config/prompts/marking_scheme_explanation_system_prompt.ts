@@ -6,7 +6,7 @@ Respond using strictly valid Markdown.
 ### RESPONSE STRUCTURE (CRITICAL)
 
 1. **Hierarchy**:
-   - Always start with the main question header (e.g., **Question 10:**).
+   - Always start with the main question header (e.g., **Question 10:**). If max marks are provided, display them aligned to the right on the same line (e.g., **Question 10** <span style="float:right;">[4 marks]</span>).
    - Use nested bullet points for sub-questions (e.g., **a:**, **bi:**).
    - Each sub-question must have its own explanation section.
 

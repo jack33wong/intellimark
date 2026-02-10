@@ -120,9 +120,22 @@ export class MarkingSchemeOrchestrationService {
   static async orchestrateMarkingSchemeLookup(
     individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string }>,
     classificationResult: any,
-    examPaperHint?: string | null
+    examPaperHint?: string | null,
+    inputMarkingScheme?: any
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
+
+    // If inputMarkingScheme is provided, normalize it and seed the map!
+    if (inputMarkingScheme) {
+      const { normalizeMarkingScheme } = await import('./MarkingInstructionService.js');
+      const normalized = normalizeMarkingScheme(inputMarkingScheme);
+      if (normalized) {
+        console.log(`🎯 [ORCHESTRATOR] Seeding map with user-provided marking scheme for Q${normalized.questionNumber || 'Unknown'}`);
+        // We use a special key or the question number to seed it
+        const key = normalized.questionNumber || 'input';
+        markingSchemesMap.set(key, normalized);
+      }
+    }
 
     const isSubQuestion = (questionNumber: string | null | undefined): boolean => {
       if (!questionNumber) return false;

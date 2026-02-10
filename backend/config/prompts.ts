@@ -122,14 +122,35 @@ ${guidance}`;
   // ============================================================================
   markingScheme: {
     system: marking_scheme_explanation_system_prompt,
-    user: (questionText: string, schemeText: string, questionNumber: string) => `**Question ${questionNumber}:**\n\n${questionText}\n\n**MARKING SCHEME:**\n${schemeText}\n\nProvide a clear, pedagogical explanation of the marking scheme for a student. Group sub-questions under the main question header.`
+    user: (questionText: string, schemeText: string, questionNumber: string, totalMarks?: number) => {
+      return `# TASK DATA
+QUESTION NUMBER: ${questionNumber}
+MAX MARKS: ${totalMarks || 0}
+
+## QUESTION TEXT
+${questionText}
+
+## MARKING SCHEME
+${schemeText}
+
+Please provide a clear, pedagogical explanation of the marking scheme for a student. Group sub-questions under the main question header.`;
+    }
   },
 
   modelAnswer: {
     system: model_answer_system_prompt,
     user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
-      const markLabel = totalMarks ? ` [${totalMarks} marks]` : '';
-      return `**QUESTION ${questionNumber || ''}**${markLabel}\n\n${questionText}\n\n**OFFICIAL MARKING SCHEME:**\n${schemeText}\n\nGenerate a perfect model answer following the scheme.`;
+      return `# TASK DATA
+QUESTION NUMBER: ${questionNumber || 'Unknown'}
+MAX MARKS: ${totalMarks || 0}
+
+## QUESTION TEXT
+${questionText}
+
+## MARKING SCHEME
+${schemeText}
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.`;
     }
   },
 
@@ -137,11 +158,16 @@ ${guidance}`;
     system: similar_questions_system_prompt,
     user: (questionText: string, schemeJson: string, questionCount: number = 3) => {
       const scheme = formatMarkingSchemeAsBullets(schemeJson);
-      return `Based on the following question and marking scheme, generate ${questionCount} similar practice questions that test the same skills but with different numbers or scenarios:
+      return `# TASK DATA
+QUESTION COUNT: ${questionCount}
 
-Original Question: ${questionText}
-Marking Scheme:
-${scheme}`;
+## ORIGINAL QUESTION TEXT
+${questionText}
+
+## MARKING SCHEME
+${scheme}
+
+Please generate ${questionCount} similar practice questions that test the same skills but with different numbers or scenarios.`;
     }
   }
 };
@@ -153,13 +179,19 @@ ${scheme}`;
 /**
  * Utility to format marking scheme JSON as readable bullet points
  */
-export function formatMarkingSchemeAsBullets(schemeJson: any): string {
+export function formatMarkingSchemeAsBullets(schemeJson: any, subQuestionNumbers?: string[], subQuestionAnswers?: string[]): string {
   if (!schemeJson) return 'No marking scheme available.';
   try {
     const scheme = typeof schemeJson === 'string' ? JSON.parse(schemeJson) : schemeJson;
-    const marks = scheme.marks || [];
+    let marks = scheme.marks || [];
     if (!Array.isArray(marks)) return typeof schemeJson === 'string' ? schemeJson : JSON.stringify(schemeJson);
-    return marks.map((m: any) => `- ${m.mark || 'Mark'}: ${m.answer || m.text || ''}`).join('\n');
+
+    // Filter by sub-questions if provided
+    if (subQuestionNumbers && subQuestionNumbers.length > 0) {
+      marks = marks.filter((m: any) => !m.subQuestion || subQuestionNumbers.includes(m.subQuestion));
+    }
+
+    return marks.map((m: any) => `- ${m.mark || 'Mark'}${m.subQuestion ? ` (${m.subQuestion})` : ''}: ${m.answer || m.text || ''}`).join('\n');
   } catch (e) {
     return String(schemeJson);
   }

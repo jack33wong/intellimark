@@ -5,6 +5,7 @@
 
 import { FirestoreService } from '../firestoreService.js';
 import { MarkingServiceLocator } from './MarkingServiceLocator.js';
+import { MarkingPromptService } from './MarkingPromptService.js';
 import { ProgressTracker, getStepsForMode } from '../../utils/progressTracker.js';
 import { getSuggestedFollowUpConfig, isValidSuggestedFollowUpMode } from '../../config/suggestedFollowUpConfig.js';
 import { UsageTracker } from '../../utils/UsageTracker.js';
@@ -117,6 +118,36 @@ export class SuggestedFollowUpService {
   }
 
   /**
+   * Helper to stringify marking scheme (handles text, array, and object formats)
+   * Public for testing purposes.
+   */
+  public static stringifyMarkingScheme(scheme: any): string {
+    if (!scheme) return '';
+    if (typeof scheme === 'string') return scheme;
+
+    // Handle Object Wrapper (Sanitized Scheme) - extract the marks array
+    let marksArray = scheme;
+    if (!Array.isArray(scheme) && scheme.marks && Array.isArray(scheme.marks)) {
+      marksArray = scheme.marks;
+    }
+
+    // Case 1: Standard Array (or extracted array)
+    if (Array.isArray(marksArray)) {
+      return marksArray.map((s: any) => {
+        let comment = s.comments ? `(${s.comments})` : '';
+        // Remove "Auto-balanced" from prompt - it doesn't help the AI write model answers
+        if (s.comments === 'Auto-balanced' || s.comments === '(Auto-balanced)') {
+          comment = '';
+        }
+        return `- ${s.mark || 'Mark'}: ${s.answer} ${comment}`;
+      }).join('\n');
+    }
+
+    // Fallback: JSON stringify for unknown object structures to ensure data is passed to AI
+    return JSON.stringify(scheme, null, 2);
+  }
+
+  /**
    * Execute the specific follow-up action based on mode
    */
   private static async executeFollowUpAction(
@@ -149,23 +180,7 @@ export class SuggestedFollowUpService {
     // Use new clean structure if available, otherwise fall back to legacy
     const detectedQuestion = targetMessage.detectedQuestion;
 
-    // Helper to stringify marking scheme (handles text, array, and object formats)
-    const stringifyMarkingScheme = (scheme: any): string => {
-      if (!scheme) return '';
-      if (typeof scheme === 'string') return scheme;
 
-      // Handle Object Wrapper (Sanitized Scheme) - extract the marks array
-      let marksArray = scheme;
-      if (!Array.isArray(scheme) && scheme.marks && Array.isArray(scheme.marks)) {
-        marksArray = scheme.marks;
-      }
-
-      // Case 1: Standard Array (or extracted array)
-      if (Array.isArray(marksArray)) {
-        return marksArray.map((s: any) => `- ${s.mark || 'Mark'}: ${s.answer} ${s.comments ? `(${s.comments})` : ''}`).join('\n');
-      }
-      return '';
-    };
 
     if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
       // Extract all questions from examPapers
@@ -235,18 +250,38 @@ export class SuggestedFollowUpService {
             }).join('\n\n');
 
             // markingScheme must be plain text
-            const combinedMarkingScheme = questions.map(q => {
-              // Convert array format to string if needed
-              if (Array.isArray(q.markingScheme)) {
-                return stringifyMarkingScheme(q.markingScheme);
+            const markingSchemeParts: string[] = [];
+            for (const q of questions) {
+              const qNumLabel = q.questionNumber || 'Unknown';
+
+              if (!q.markingScheme) {
+                console.warn(`[MODEL ANSWER] Marking scheme missing/null for Q${qNumLabel}`);
+                markingSchemeParts.push('');
+                continue;
               }
-              if (typeof q.markingScheme !== 'string') {
-                // Return empty if invalid, or throw? Better to return empty to avoid crashing if data is weird
-                console.warn(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected string/array, got ${typeof q.markingScheme}`);
-                return '';
+
+              // Convert array OR object format to string if needed
+              if (typeof q.markingScheme === 'object') {
+                // [FEATURE] Expand 'cao' to full answer text and split atomic marks for better AI understanding
+                try {
+                  const { normalizeMarkingScheme } = await import('./MarkingInstructionService.js');
+                  const normalized = normalizeMarkingScheme(q.markingScheme);
+                  if (normalized) {
+                    markingSchemeParts.push(SuggestedFollowUpService.stringifyMarkingScheme(normalized));
+                    continue;
+                  }
+                } catch (e) {
+                  console.warn(`[NORMALIZE] Failed to normalize scheme in Q${qNumLabel}:`, e);
+                }
+                markingSchemeParts.push(SuggestedFollowUpService.stringifyMarkingScheme(q.markingScheme));
+              } else if (typeof q.markingScheme === 'string') {
+                markingSchemeParts.push(q.markingScheme);
+              } else {
+                console.warn(`[MODEL ANSWER] Unexpected marking scheme type for Q${qNumLabel}: ${typeof q.markingScheme}`);
+                markingSchemeParts.push('');
               }
-              return q.markingScheme;
-            }).join('\n\n');
+            }
+            const combinedMarkingScheme = markingSchemeParts.join('\n\n');
 
             const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
@@ -255,12 +290,20 @@ export class SuggestedFollowUpService {
 
             const userPrompt = isModelAnswer
               ? getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr)
-              : getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, questionNumberStr);
+              : getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, questionNumberStr, totalMarks);
 
             // --- DEBUG LOGGING: Print Prompt ---
             if ((isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') || (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true')) {
               console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Group ${baseNum}):`);
-              console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+
+              // Only log system prompt for the first group to avoid spam
+              if (baseNum === sortedGroups[0].baseNum) { // Log mainly for the first group
+                console.log(`--- SYSTEM (Printed once) ---\n${systemPrompt}\n`);
+              }
+
+              if (!combinedQuestionText.trim()) console.warn(`⚠️ [WARNING] Question text for Group ${baseNum} is empty! Check database.`);
+              if (!combinedMarkingScheme.trim()) console.warn(`⚠️ [WARNING] Marking scheme for Group ${baseNum} is empty! Check database/normalization.`);
+
               console.log(`--- USER ---\n${userPrompt}\n`);
             }
 
@@ -363,7 +406,7 @@ export class SuggestedFollowUpService {
         // Aggregate all marking schemes (matches plain text requirement)
         // Format them with question labels for clarity (already sorted by question number)
         const combinedSchemeText = uniqueSortedQuestions.map(q => {
-          const schemeText = stringifyMarkingScheme(q.markingScheme);
+          const schemeText = SuggestedFollowUpService.stringifyMarkingScheme(q.markingScheme);
           if (!schemeText && q.markingScheme) {
             console.warn(`[MULTI-QUESTION] Could not stringify marking scheme for Q${q.questionNumber} (type: ${typeof q.markingScheme})`);
           }
@@ -386,7 +429,7 @@ export class SuggestedFollowUpService {
           console.log(`[DEBUG_FOLLOWUP] Raw marking scheme input for Q${q.questionNumber}:`, JSON.stringify(q.markingScheme, null, 2));
         }
 
-        markingScheme = stringifyMarkingScheme(q.markingScheme);
+        markingScheme = SuggestedFollowUpService.stringifyMarkingScheme(q.markingScheme);
         if (!markingScheme && q.markingScheme) {
           console.warn(`[SINGLE QUESTION] Could not stringify marking scheme for Q${q.questionNumber}`);
         }

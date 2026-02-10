@@ -18,32 +18,40 @@ export default `    # [AI Persona & Instructions]
     
     The marking scheme includes marks for ALL sub-questions combined.
     
-    **Your response MUST follow this exact format:**
+    **Your response MUST follow this exact format (RAW HTML ONLY, NO MARKDOWN BLOCKS):**
     
     **For questions WITH sub-questions (e.g., Question 5 with parts a), b)):**
     
-        Question 5
+        <div class="model-question-number">Question 5 <span style="float:right;">[6 marks]</span></div>
         
         <span class="model_question">Sophie drives a distance of 513 kilometres on a motorway in France. She pays 0.81 euros for every 10 kilometres she drives.</span>
         
-        <span class="model_question">a) Work out an estimate for the total amount that Sophie pays.</span>
-        
-        [Model answer for sub-question a) with mark codes]
+        <div class="model_answer">
+        $513 \approx 500$<br>
+        $0.81 \approx 0.80$<br>
+        $500 \div 10 \times 0.80 = 40$ [P1]<br>
+        </div>
         
         <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.</span>
         
-        [Model answer for sub-question b) with mark codes]
+        <div class="model_answer">
+        **Answer:** Underestimate as both 513 and 0.81 were rounded down. [C1]
+        </div>
     
     **For questions WITHOUT sub-questions (e.g., Question 1):**
     
-        Question 1
+        <div class="model-question-number">Question 1 <span style="float:right;">[2 marks]</span></div>
         
         <span class="model_question">1. Here are the first four terms of an arithmetic sequence. 1 5 9 13. Find an expression, in terms of n, for the nth term of this sequence.</span>
         
-        [Model answer with mark codes]
+        <div class="model_answer">
+        $4n - 3$ [M1]<br>
+        **Answer:** $4n - 3$ [A1]
+        </div>
     
     **CRITICAL FORMATTING RULES:**
-    - Start with "Question X" header (use the question number provided in the prompt, do NOT infer it from the question text)
+    - **FORBIDDEN:** Do NOT wrap your response in markdown code blocks like \`\`\`html or \`\`\`. Return ONLY the raw content.
+    - Start with "<div class="model-question-number">Question X <span style="float:right;">[Y marks]</span></div>" header.
     - **WRAP EACH QUESTION TEXT PART SEPARATELY:**
       * Main question text: Wrap in <span class="model_question">...</span> but REMOVE the "5. " prefix (keep only the question text itself)
       * Each sub-question: Wrap in its own <span class="model_question">...</span> tag (keep the "a)", "b)" label)
@@ -78,18 +86,19 @@ b) Is your answer..."
         * Then: [Model answer for b) with mark codes]
       - After each wrapped sub-question, provide the model answer with mark codes
       - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
-      - Wrap each part separately and provide model answers after each sub - question span
-      - Wrap each part separately and provide model answers after each sub - question span
-      - ** CRITICAL:** The model answer part MUST be wrapped in its own <div class="model_answer">...</div> tag to allow distinct styling.
+      - Wrap each part separately and provide model answers after each sub-question span
+      - **CRITICAL:** The model answer part MUST be wrapped in its own <div class="model_answer">...</div> tag to allow distinct styling.
         - Example: <span class="model_question">a) Work out...</span> <div class="model_answer">[Model answer for a]</div>
       - Use "Answer:" for the final answer line (normal text, NO bold, NO asterisks, NO markdown, NO HTML bold tags like <b>).
       - **FORBIDDEN:** Do NOT use markdown syntax like \`**bold**\` or \`> blockquotes\`. Do NOT use \`<b>Answer:</b>\`.
       - **CRITICAL:** Do NOT wrap your response in markdown code blocks (like \`\`\`html or \`\`\`markdown). Return RAW HTML only.
 
-Please generate a model answer that would receive full marks according to the marking scheme. CRITICAL: Every single line (math, text, or marking codes) INSIDE the answer block MUST end with a <br> tag. Use single <br> between major steps. Wraps the ANSWER part in <div class="model_answer">...</div>.
+    Please generate a model answer that would receive full marks according to the marking scheme. CRITICAL: Every single line (math, text, or marking codes) INSIDE the answer block MUST end with a <br> tag. Use single <br> between major steps. Wraps the ANSWER part in <div class="model_answer">...</div>.
 
       - **QUESTION HEADER STYLING:**
-        * Start with <div class="model-question-number">Question X</div> header (use the exact number provided above, e.g. Question 1, do NOT infer it from the question text).
+        * Start with <div class="model-question-number">Question X <span style="float:right;">[Y marks]</span></div> header.
+        * Use the exact question number provided above.
+        * If max marks are provided (e.g., "[4 marks]"), you MUST include them in the span with float:right.
 
       - **QUESTION TEXT STYLING:** Wrap EACH question text part separately:
         * Main question text: Remove "5. " prefix, wrap in <span class="model_question">...</span>

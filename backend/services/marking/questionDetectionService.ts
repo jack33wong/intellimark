@@ -481,17 +481,21 @@ export class QuestionDetectionService {
   private filterPapersByHint(papers: any[], hint: string): any[] {
     const normalizedHint = hint.toLowerCase().trim();
     if (!normalizedHint) return papers;
-    let processedHint = normalizedHint;
-    if (processedHint.includes('edexcel') && processedHint.includes('may')) processedHint = processedHint.replace(/\bmay\b/gi, 'june');
-    else if (processedHint.includes('may')) processedHint = processedHint.replace(/\bmay\b/gi, 'june');
+    const normalizeForSearch = (t: string) => {
+      return t.toLowerCase()
+        .replace(/\b(june|may|summer)\b/g, 'summer')
+        .replace(/[-,/]/g, ' ')
+        .trim();
+    };
 
-    const keywords = processedHint.replace(/[-,]/g, ' ').split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
+    const processedHint = normalizeForSearch(normalizedHint);
+    const keywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
     if (keywords.length === 0) return papers;
 
     return papers.filter(paper => {
       const metadata = paper.metadata;
       if (!metadata) return false;
-      const combined = `${metadata.exam_board} ${metadata.exam_code} ${metadata.exam_series} ${metadata.tier} ${metadata.subject}`.toLowerCase();
+      const combined = normalizeForSearch(`${metadata.exam_board} ${metadata.exam_code} ${metadata.exam_series} ${metadata.tier} ${metadata.subject}`);
       return keywords.every(keyword => combined.includes(keyword));
     });
   }
@@ -571,7 +575,30 @@ export class QuestionDetectionService {
       if (!examDetails) return null;
       if (examPaperMatch.paperCode !== examDetails.paperCode) return null;
       const boardMatch = this.calculateSimilarity(examPaperMatch.board, examDetails.board || '');
-      const seriesMatch = this.calculateSimilarity(examPaperMatch.examSeries, examDetails.exam_series || '');
+
+      // [FIX] Series Equivalence: June/May/Summer
+      const series1 = (examPaperMatch.examSeries || '').toLowerCase();
+      const series2 = (examDetails.exam_series || '').toLowerCase();
+
+      let seriesMatch = this.calculateSimilarity(series1, series2);
+
+      const isSummer1 = /\b(june|may|summer)\b/.test(series1);
+      const isSummer2 = /\b(june|may|summer)\b/.test(series2);
+
+      const year1 = series1.match(/\d{4}/)?.[0];
+      const year2 = series2.match(/\d{4}/)?.[0];
+
+      if (isSummer1 && isSummer2) {
+        if (year1 === year2 || !year1 || !year2) {
+          // Exact summer match (same year or missing year)
+          seriesMatch = Math.max(seriesMatch, 0.9);
+        } else {
+          // Year mismatch but both are summer - allow as weak match (0.5) 
+          // to find papers across years if no better match exists.
+          seriesMatch = Math.max(seriesMatch, 0.5);
+        }
+      }
+
       const overallScore = (boardMatch + 1.0 + seriesMatch) / 3;
       if (overallScore > 0.7) {
         let questionMarks = null;

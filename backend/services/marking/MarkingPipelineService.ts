@@ -1085,7 +1085,8 @@ export class MarkingPipelineService {
             const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
                 classificationResult,
-                options.customText
+                options.customText,
+                inputMarkingScheme
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;

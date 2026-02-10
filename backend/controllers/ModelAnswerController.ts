@@ -7,6 +7,9 @@ import { sendSseUpdate } from '../utils/sseUtils.js';
 import UsageTracker from '../utils/UsageTracker.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
+import { normalizeMarkingScheme } from '../services/marking/MarkingInstructionService.js';
+import { MarkingPromptService } from '../services/marking/MarkingPromptService.js';
+import { ExamReferenceService } from '../services/ExamReferenceService.js';
 
 export class ModelAnswerController {
     /**
@@ -27,11 +30,11 @@ export class ModelAnswerController {
 
         try {
             const { paper, model = 'auto', sessionId: providedSessionId } = req.body;
+            console.log(`🚀 [MODEL-ANSWER] Controller HIT! Request for paper: ${paper}`);
             let sessionId = providedSessionId;
 
-            // Sanitization: Reject temp- IDs from frontend
+            // Sanitization: Silent handle temp- IDs from frontend
             if (sessionId && sessionId.startsWith('temp-')) {
-                console.log(`⚠️ [MODEL_ANSWER] Rejecting temp session ID: ${sessionId} - Generating new ID`);
                 sessionId = null;
             }
             const userId = (req as any).user?.uid || 'anonymous';
@@ -60,96 +63,13 @@ export class ModelAnswerController {
             if (paper) {
                 sendSseUpdate(res, { type: 'progress', step: 'retrieving_paper', currentStepDescription: 'Finding exam paper...' });
 
-                // 1. Try direct ID lookup first (most efficient)
-                let paperDoc = null;
-                try {
-                    const directDoc = await db.collection('fullExamPapers').doc(paper).get();
-                    if (directDoc.exists) {
-                        paperDoc = directDoc.data();
-                    }
-                } catch (err) {
-                    // Ignore errors if paper ID is invalid (e.g. contains slashes which Firestore treats as path)
-                    console.log(`[MODEL-ANSWER] Input "${paper}" is not a valid doc ID, proceeding to search.`);
-                }
-
-                if (!paperDoc) {
-                    console.log(`ℹ️ [MODEL-ANSWER] Looking for paper: ${paper}`);
-                    const paperSnapshot = await db.collection('fullExamPapers').get();
-                    const papers = paperSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-                    const normalizedInput = paper.toLowerCase().trim();
-
-                    // Case 1: Status Link Match (Key Fields: Code + Series)
-                    // Matches if input contains both exact code and exact series
-                    paperDoc = papers.find((p: any) => {
-                        const meta = p.metadata;
-                        if (!meta) return false;
-                        const dbCode = (meta.exam_code || '').toLowerCase();
-                        const dbSeries = (meta.exam_series || '').toLowerCase();
-
-                        // Handle / vs - in code, and allow partial containment if it's a specific link string
-                        const codeMatch = normalizedInput.includes(dbCode) || normalizedInput.includes(dbCode.replace(/\//g, '-'));
-                        const seriesMatch = normalizedInput.includes(dbSeries);
-                        return codeMatch && seriesMatch;
-                    });
-
-                    // Case 2: Main Upload Page (Keyword Fallback - Idea from QuestionDetectionService)
-                    if (!paperDoc) {
-                        console.log(`ℹ️ [MODEL-ANSWER] No exact match, applying keyword search...`);
-
-                        // Copying keyword parsing idea from QuestionDetectionService.filterPapersByHint
-                        const processedHint = normalizedInput;
-                        const keywords = processedHint
-                            .replace(/([a-z])(\d)/gi, '$1 $2') // Split letters and numbers (e.g., JUN2024 -> JUN 2024)
-                            .replace(/(\d)([a-z])/gi, '$1 $2')
-                            .replace(/[-,/]/g, ' ') // Split on common delimiters
-                            .split(/\s+/)
-                            .filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
-
-                        const matches = papers.filter((p: any) => {
-                            const meta = p.metadata;
-                            if (!meta) return false;
-
-                            // Combine only key fields for high-precision search
-                            const combined = `${meta.exam_board} ${meta.exam_code} ${meta.exam_series}`.toLowerCase();
-                            return keywords.every(kw => combined.includes(kw));
-                        });
-
-                        // Limit to exactly 1 record if multiple found
-                        if (matches.length > 0) {
-                            paperDoc = matches[0];
-                            console.log(`✅ [MODEL-ANSWER] Single match found via keywords: ${paperDoc.id}`);
-                        }
-                    }
-
-                    if (!paperDoc) {
-                        console.log(`❌ [MODEL-ANSWER] No paper found for request: "${paper}"`);
-                        const sampleIds = papers.slice(0, 5).map((p: any) => `${p.metadata?.exam_code} (${p.metadata?.exam_series})`);
-                        console.log(`ℹ️ [MODEL-ANSWER] Sample DB Patterns: ${sampleIds.join(', ')}`);
-                    }
-                }
+                const paperDoc = await ExamReferenceService.findPaper(paper);
 
                 if (paperDoc) {
                     const meta = paperDoc.metadata;
 
-                    // Format Series (e.g., JUN2024 -> June 2024)
-                    let formattedSeries = meta.exam_series;
-                    if (formattedSeries && /^[A-Z]{3}\d{4}$/.test(formattedSeries)) {
-                        const monthMap: Record<string, string> = {
-                            'JAN': 'January', 'FEB': 'February', 'MAR': 'March', 'APR': 'April', 'MAY': 'May', 'JUN': 'June',
-                            'JUL': 'July', 'AUG': 'August', 'SEP': 'September', 'OCT': 'October', 'NOV': 'November', 'DEC': 'December'
-                        };
-                        const monthCode = formattedSeries.substring(0, 3).toUpperCase();
-                        const year = formattedSeries.substring(3);
-                        if (monthMap[monthCode]) {
-                            formattedSeries = `${monthMap[monthCode]} ${year}`;
-                        }
-                    }
-
-                    // Format Tier (e.g., H -> Higher Tier)
-                    let formattedTier = meta.tier;
-                    if (meta.tier === 'H' || meta.tier === 'Higher') formattedTier = 'Higher Tier';
-                    else if (meta.tier === 'F' || meta.tier === 'Foundation') formattedTier = 'Foundation Tier';
+                    // Format Metadata Display
+                    const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(meta);
 
                     // Use specific CSS class for header, no ###, no markdown separator, add extra spacing
                     metadataHeader = `<div class="model-exam-header">${meta.exam_board} - ${meta.exam_code} - ${formattedSeries}${formattedTier ? `, ${formattedTier}` : ''}</div>\n\n<br><br>\n\n`;
@@ -158,11 +78,8 @@ export class ModelAnswerController {
                     let questionsToProcess = paperDoc.questions || [];
 
                     if (isAuthenticated) {
-                        // Testing Mode: Limit to 5 for authenticated users
-                        if (questionsToProcess.length > 5) {
-                            questionsToProcess = questionsToProcess.slice(0, 5);
-                            metadataHeader += `<div class="model-alert-important"><strong>IMPORTANT:</strong> Testing Mode: Limited to first 5 questions.</div><br><br>\n\n`;
-                        }
+                        // Testing Mode: NO LIMIT for authenticated users
+                        // questionsToProcess = questionsToProcess; 
                     } else {
                         // Strict Guest Limit: Max 3
                         if (questionsToProcess.length > 3) {
@@ -171,14 +88,16 @@ export class ModelAnswerController {
                         }
                     }
 
-                    // Retrieve Marking Schemes
-                    sendSseUpdate(res, { type: 'progress', step: 'retrieving_schemes', currentStepDescription: 'Loading marking schemes...' });
-                    const schemeSnapshot = await db.collection('markingSchemes')
-                        .where('id', '==', paperDoc.id)
-                        .limit(1)
-                        .get();
+                    // Retrieve Marking Schemes - Using Metadata Match ONLY (ID lookup is unreliable)
+                    sendSseUpdate(res, { type: 'progress', step: 'retrieving_schemes', currentStepDescription: 'Loading marking schemes (Metadata Match)...' });
 
-                    const schemeData = !schemeSnapshot.empty ? schemeSnapshot.docs[0].data() : null;
+                    let schemeData = null;
+
+                    // Strategy: Metadata Match (Board + Code + Series)
+                    const schemeResult = await ExamReferenceService.findMarkingScheme(meta);
+                    if (schemeResult) {
+                        schemeData = schemeResult.data;
+                    }
 
                     detectedQuestion = {
                         found: true,
@@ -189,12 +108,79 @@ export class ModelAnswerController {
                             tier: meta.tier,
                             subject: meta.subject || 'Mathematics',
                             paperTitle: `${meta.exam_board} ${meta.exam_code}`,
-                            questions: questionsToProcess.map((q: any) => ({
-                                questionNumber: String(q.question_number),
-                                questionText: q.question_text || q.text || '',
-                                marks: q.marks,
-                                markingScheme: schemeData?.questions?.[q.question_number] || schemeData?.[q.question_number] || null
-                            }))
+                            questions: questionsToProcess.map((q: any) => {
+                                const qNum = String(q.question_number);
+                                let scheme = null;
+
+                                // [FIX] Robust Lookup: Handle both Array and Map structures
+                                const qData = schemeData?.questions || schemeData; // Fallback to root if needed
+
+                                if (qData) {
+                                    if (Array.isArray(qData)) {
+                                        scheme = qData.find((s: any) => String(s.question_number) === qNum);
+                                    } else {
+                                        // 1. Try exact match
+                                        scheme = qData[qNum];
+
+                                        // 2. If not found, look for sub-questions (e.g., "5" -> "5a", "5b", "5a(i)")
+                                        if (!scheme) {
+                                            // More relaxed filter for sub-questions: starts with qNum
+                                            // [FIX] Strict check: The character immediately following qNum MUST NOT be a digit
+                                            // This prevents "1" matching "10", "11", etc.
+                                            const subKeys = Object.keys(qData).filter(k => {
+                                                if (!k.startsWith(qNum)) return false;
+                                                if (k === qNum) return false;
+
+                                                const suffix = k.slice(qNum.length);
+                                                // If suffix starts with a digit, it's a different question (e.g. 1 -> 10)
+                                                if (/^\d/.test(suffix)) return false;
+
+                                                // Allow letters, parens, Roman numerals in suffix
+                                                return /^[a-z0-9()\[\]]+$/i.test(suffix);
+                                            });
+
+                                            if (subKeys.length > 0) {
+                                                // Sort to ensure a, b, c order (aware of complex labels)
+                                                subKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                                                console.log(`[MODEL-ANSWER] Found sub-questions for ${qNum}: ${subKeys.join(', ')}`);
+
+                                                // Aggregate schemes
+                                                scheme = {
+                                                    answer: subKeys.map(k => `(${k.replace(qNum, '')}) ${qData[k].answer || qData[k].question_answer || ''}`).join('; '),
+                                                    marks: subKeys.flatMap(k => (qData[k].marks || qData[k].question_marks || []).map((m: any) => ({ ...m, question_part: k.replace(qNum, '') }))),
+                                                    guidance: subKeys.flatMap(k => qData[k].guidance || qData[k].generalMarkingGuidance || [])
+                                                };
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!scheme) {
+                                    console.warn(`[MODEL-ANSWER] Scheme not found for Q${qNum} in ${meta.exam_board} ${meta.exam_code}`);
+                                }
+
+                                // [FEATURE] Normalize & Process Scheme (CAO expansion)
+                                if (scheme) {
+                                    const normalized = normalizeMarkingScheme(scheme);
+                                    if (normalized) {
+                                        scheme = normalized; // Pass the processed object
+                                    }
+                                }
+
+                                let questionText = q.question_text || q.text || '';
+                                if (!questionText && q.sub_questions && Array.isArray(q.sub_questions)) {
+                                    questionText = q.sub_questions
+                                        .map((sq: any) => `${sq.question_part}) ${sq.question_text}`)
+                                        .join('\n\n');
+                                }
+
+                                return {
+                                    questionNumber: String(q.question_number),
+                                    questionText: questionText,
+                                    marks: q.marks,
+                                    markingScheme: scheme
+                                };
+                            })
                         }]
                     };
                 }
