@@ -3,38 +3,77 @@ import { getFirestore } from '../config/firebase.js';
 export class ExamReferenceService {
     private static db = getFirestore();
 
-    // [HELPER] Generate simplified fallbacks for Summer/June/May equivalence in the SAME year
+    // [HELPER] Generate simplified fallbacks for Summer/June/May equivalence AND slug parsing
     public static generateFallbacks(input: string): string[] {
+        // Normalize input for base generation
+        const lowerInput = input.toLowerCase();
+        let variations = [input, lowerInput];
+
+        // 1. Handle Slugs (replace - and _ with spaces or slashes)
+        if (/[_\-]/.test(lowerInput)) {
+            const spaceVariation = lowerInput.replace(/[_\-]/g, ' ');
+            const slashVariation = lowerInput.replace(/[_\-]/g, '/');
+            variations.push(spaceVariation, slashVariation);
+        }
+
+        // 2. Handle MonthYear concatenation (e.g. "nov2024" -> "nov 2024")
+        const monthYearRegex = /([a-z]{3,})(\d{4})/i;
+        const expandedVariations = [...variations];
+
+        variations.forEach(v => {
+            if (monthYearRegex.test(v)) {
+                const separated = v.replace(monthYearRegex, '$1 $2'); // "nov 2024"
+                expandedVariations.push(separated);
+            }
+        });
+        variations = expandedVariations;
+
+        // 3. Map Short Months to Full Months (e.g. "nov" -> "november")
+        const monthMap: Record<string, string> = {
+            'jan': 'january', 'feb': 'february', 'mar': 'march', 'apr': 'april', 'may': 'may', 'jun': 'june',
+            'jul': 'july', 'aug': 'august', 'sep': 'september', 'oct': 'october', 'nov': 'november', 'dec': 'december'
+        };
+
+        const mappedVariations: string[] = [];
+        variations.forEach(v => {
+            // Check for short months
+            for (const [short, full] of Object.entries(monthMap)) {
+                if (v.includes(short) && !v.includes(full)) {
+                    mappedVariations.push(v.replace(short, full));
+                }
+            }
+        });
+        variations.push(...mappedVariations);
+
+
+        // 4. Handle Summer/June/May equivalence (Existing Logic)
         const yearMatch = input.match(/\d{4}/);
         const yearStr = yearMatch ? yearMatch[0] : '';
         const suffix = yearStr ? ` ${yearStr}` : '';
 
-        // Normalize input for base generation
-        const lowerInput = input.toLowerCase();
-        const fallbacks = [input]; // Always keep original input
+        const summerMonths = ['Summer', 'June', 'May'];
+        const summerRegex = /\b(june|may|summer)\b/i;
 
-        if (/\b(june|may|summer)\b/i.test(lowerInput)) {
-            // Mapped months as per design
-            const months = ['Summer', 'June', 'May']; // Title Case for DB matching
-            for (const m of months) {
-                // Replace any summer-group month with others in the same group (case-insensitive replace, preserve format/casing of 'm')
-                const variation = lowerInput.replace(/\b(june|may|summer)\b/gi, m);
+        const summerVariations: string[] = [];
+        variations.forEach(v => {
+            if (summerRegex.test(v)) {
+                for (const m of summerMonths) {
+                    const sv = v.replace(summerRegex, m);
+                    if (!variations.includes(sv)) summerVariations.push(sv);
 
-                // Add Title Case variation (e.g. "June 2023")
-                if (!fallbacks.includes(variation)) fallbacks.push(variation);
-
-                // Also try adding/removing year if slightly different formatting
-                if (yearStr) {
-                    const variationWithYear = variation.includes(yearStr) ? variation : `${variation}${suffix}`;
-                    if (!fallbacks.includes(variationWithYear)) fallbacks.push(variationWithYear);
+                    // Year handling
+                    if (yearStr) {
+                        const svWithYear = sv.includes(yearStr) ? sv : `${sv}${suffix}`;
+                        if (!variations.includes(svWithYear)) summerVariations.push(svWithYear);
+                    }
                 }
             }
+        });
 
-            // Also add lowercase versions just in case
-            const lowerFallbacks = fallbacks.map(f => f.toLowerCase());
-            fallbacks.push(...lowerFallbacks);
-        }
-        return Array.from(new Set(fallbacks));
+        // Final Merge
+        const all = [...variations, ...summerVariations];
+        // Deduplicate and lower-case checks
+        return Array.from(new Set(all));
     }
 
     /**
