@@ -299,16 +299,37 @@ export class AnnotationLinker {
             const validPageIndices = validZones.map((z: any) => z.pageIndex);
 
             if (validPageIndices.length > 0 && !validPageIndices.includes(anno.pageIndex ?? 1000)) {
-                const targetZone = validZones.sort((a: any, b: any) => a.pageIndex - b.pageIndex)[0];
-                if (targetZone) {
-                    const isVisual = (anno.ocr_match_status === 'VISUAL') ||
-                        (anno.line_id === null) ||
-                        (anno.text && ['M1', 'A1', 'B1', 'B2', 'B3'].includes(anno.text));
+                // 🚨 [PARENT-AWARE FIX]: Extract parent question to prevent cross-question teleportation
+                const getParentQuestion = (label: string) => label.replace(/[a-z()]/gi, '').trim();
+                const currentParent = getParentQuestion(subQ || '');
 
-                    if (isVisual) {
-                        console.log(` 🧲 [IRON-DOME-PATCH] Snapping Q${anno.subQuestion} from P${anno.pageIndex} -> P${targetZone.pageIndex}`);
-                        anno.pageIndex = targetZone.pageIndex;
+                // Check if any of the valid zones belong to a different parent question
+                const differentParentZones = validZones.filter((z: any) => {
+                    // Find the zone key in semanticZones to determine its parent
+                    const zoneKey = Object.keys(semanticZones || {}).find(key =>
+                        (semanticZones[key] || []).some((item: any) => item === z)
+                    );
+                    const zoneParent = zoneKey ? getParentQuestion(zoneKey) : currentParent;
+                    return zoneParent !== currentParent;
+                });
+
+                // Filter to only same-parent zones
+                const sameParentZones = validZones.filter((z: any) => !differentParentZones.includes(z));
+
+                if (sameParentZones.length > 0) {
+                    const targetZone = sameParentZones.sort((a: any, b: any) => a.pageIndex - b.pageIndex)[0];
+                    if (targetZone) {
+                        const isVisual = (anno.ocr_match_status === 'VISUAL') ||
+                            (anno.line_id === null) ||
+                            (anno.text && ['M1', 'A1', 'B1', 'B2', 'B3'].includes(anno.text));
+
+                        if (isVisual) {
+                            console.log(` 🧲 [IRON-DOME-PATCH] Snapping Q${anno.subQuestion} from P${anno.pageIndex} -> P${targetZone.pageIndex}`);
+                            anno.pageIndex = targetZone.pageIndex;
+                        }
                     }
+                } else if (differentParentZones.length > 0) {
+                    console.log(` 🚫 [IRON-DOME-BLOCKED] Q${anno.subQuestion} stays on P${anno.pageIndex} (All zones belong to different parent: ${differentParentZones.map((z: any) => z.pageIndex).join(', ')})`);
                 }
             }
 
