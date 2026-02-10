@@ -252,6 +252,26 @@ export class MarkingSchemeOrchestrationService {
         examPaperHint
       );
 
+      // 🔍 [DEBUG] Question Detection Result for the group
+      if (process.env.LOG_QUESTION_DETECTION === 'true') {
+        console.log(`\n🔍 [QUESTION DETECTION] Group Q${baseNum}:`);
+        console.log(`   Found: ${groupDetectionResult.found}`);
+        if (groupDetectionResult.match) {
+          console.log(`   Paper: ${groupDetectionResult.match.paperCode} (${groupDetectionResult.match.paperTitle})`);
+          console.log(`   Confidence: ${groupDetectionResult.match.confidence?.toFixed(3) || 'N/A'}`);
+          console.log(`   Marks: ${groupDetectionResult.match.marks}`);
+          console.log(`   Is Generic: ${groupDetectionResult.match.isGeneric || false}`);
+        } else {
+          console.log(`   Match: NULL - Will trigger Generic Mode`);
+        }
+        if (groupDetectionResult.hintMetadata?.auditTrail) {
+          console.log(`   Top Candidates:`);
+          groupDetectionResult.hintMetadata.auditTrail.slice(0, 3).forEach((c: any) => {
+            console.log(`     ${c.rank}. ${c.candidateId}: ${c.score} (${c.scoreBreakdown})`);
+          });
+        }
+      }
+
       for (const question of group) {
         const effectiveResult = { ...groupDetectionResult };
 
@@ -362,30 +382,106 @@ export class MarkingSchemeOrchestrationService {
       }
     });
 
+    if (process.env.LOG_QUESTION_DETECTION === 'true') {
+      console.log(`\n🗳️ [CONSENSUS CHECK] Vote Count:`);
+      paperCounts.forEach((count, title) => {
+        console.log(`   ${title}: ${count} votes`);
+      });
+      console.log(`   Total votes: ${Array.from(paperCounts.values()).reduce((a, b) => a + b, 0)}`);
+      console.log(`   Failed detections: ${detectionStats.notDetected}`);
+    }
+
     let dominantPaper: string | null = null;
     const totalVotes = Array.from(paperCounts.values()).reduce((a, b) => a + b, 0);
     for (const [title, count] of paperCounts.entries()) {
-      if (count / totalVotes >= 0.8 && (count > 1 || paperCounts.size === 1)) {
+      const percentage = totalVotes > 0 ? (count / totalVotes) : 0;
+      const meetsThreshold = percentage >= 0.8;
+      const meetsCountRule = count > 1 || paperCounts.size === 1;
+
+      if (process.env.LOG_QUESTION_DETECTION === 'true') {
+        console.log(`   🔍 Checking "${title}":`);
+        console.log(`      Percentage: ${(percentage * 100).toFixed(1)}% (need >= 80%)`);
+        console.log(`      Count: ${count} (need > 1 OR only paper)`);
+        console.log(`      Meets threshold: ${meetsThreshold}`);
+        console.log(`      Meets count rule: ${meetsCountRule}`);
+      }
+
+      if (meetsThreshold && meetsCountRule) {
         dominantPaper = title;
+        if (process.env.LOG_QUESTION_DETECTION === 'true') {
+          console.log(`   ✅ DOMINANT PAPER SET: "${dominantPaper}"`);
+        }
         break;
       }
+    }
+
+    if (process.env.LOG_QUESTION_DETECTION === 'true') {
+      console.log(`\n🚑 [RESCUE MODE CHECK]:`);
+      console.log(`   Dominant paper: ${dominantPaper || 'NONE'}`);
+      console.log(`   Multiple papers detected: ${paperCounts.size > 1}`);
+      console.log(`   Failed detections: ${detectionStats.notDetected}`);
+      console.log(`   Will trigger rescue: ${!!(dominantPaper && (paperCounts.size > 1 || detectionStats.notDetected > 0))}`);
     }
 
     if (dominantPaper && (paperCounts.size > 1 || detectionStats.notDetected > 0)) {
       const dominantMatchBase = paperToMatch.get(dominantPaper);
       const processedGroups = new Set<string>();
 
+      if (process.env.LOG_QUESTION_DETECTION === 'true') {
+        console.log(`\n🚑 [RESCUE MODE ACTIVATED] Attempting to rescue failed questions...`);
+        console.log(`   Using forced hint from: ${dominantPaper}`);
+      }
+
       for (const dr of detectionResults) {
         const baseNum = getBaseQuestionNumber(dr.question.questionNumber);
-        if ((dr.detectionResult.match?.paperTitle !== dominantPaper || !dr.detectionResult.found) && !processedGroups.has(baseNum)) {
-          processedGroups.add(baseNum);
+        const needsRescue = (dr.detectionResult.match?.paperTitle !== dominantPaper || !dr.detectionResult.found);
+        const notProcessed = !processedGroups.has(baseNum);
+
+        if (needsRescue && notProcessed) {
           const forcedHint = `${dominantMatchBase.board} ${dominantMatchBase.paperCode} ${dominantMatchBase.examSeries} ${dominantMatchBase.tier}`;
+
+          if (process.env.LOG_QUESTION_DETECTION === 'true') {
+            console.log(`\n   🔄 Attempting rescue for Q${dr.question.questionNumber} (Group ${baseNum}):`);
+            console.log(`      Forced hint: "${forcedHint}"`);
+          }
+
           const rescuedResult = await questionDetectionService.detectQuestion(dr.question.text, dr.question.questionNumber, forcedHint);
+
+          if (process.env.LOG_QUESTION_DETECTION === 'true') {
+            console.log(`      Rescue result: ${rescuedResult.found ? '✅ SUCCESS' : '❌ STILL FAILED'}`);
+            if (rescuedResult.found) {
+              console.log(`      Rescued paper: ${rescuedResult.match?.paperTitle}`);
+            }
+          }
+
+          // [UPSTREAM-FIX]: Only mark as processed IF the rescue actually found a match for the dominant paper!
+          // This allows the loop to try the NEXT sub-question in the group if this one failed.
           if (rescuedResult.found && rescuedResult.match?.paperTitle === dominantPaper) {
-            detectionResults.filter(d => getBaseQuestionNumber(d.question.questionNumber) === baseNum).forEach(d => d.detectionResult = rescuedResult);
+            processedGroups.add(baseNum);
+            detectionResults.filter(d => getBaseQuestionNumber(d.question.questionNumber) === baseNum)
+              .forEach(d => {
+                d.detectionResult = rescuedResult;
+                d.detectionResult.match.isRescued = true;
+              });
+
+            if (process.env.LOG_QUESTION_DETECTION === 'true') {
+              console.log(`      ✅ Applied rescue to all Q${baseNum} variants`);
+            }
           }
         }
       }
+
+      // 🔍 [RE-AUDIT]: Update detection stats after rescue pass to ensure logs/reporting are accurate
+      const finalDetected = detectionResults.filter(r => r.detectionResult.found).length;
+      detectionStats.detected = finalDetected;
+      detectionStats.notDetected = detectionStats.totalQuestions - finalDetected;
+      detectionStats.questionDetails = detectionResults.map(r => ({
+        questionNumber: r.question.questionNumber,
+        detected: r.detectionResult.found,
+        similarity: r.detectionResult.match?.confidence,
+        matchedPaperTitle: r.detectionResult.match?.paperTitle,
+        hasMarkingScheme: !!r.detectionResult.match?.markingScheme
+      }));
     }
 
     // --- STEP 5: MERGE & FORMAT OUTPUT (SIMPLIFIED PREFIX-FIRST) ---
@@ -397,6 +493,10 @@ export class MarkingSchemeOrchestrationService {
         const detectedMarks = this.smartEstimateMaxMarks(item.question.text);
         const sequentialRubric = this.generateSequentialRubric(detectedMarks);
         const subQMarks = { [qNum]: sequentialRubric };
+
+        if (process.env.LOG_QUESTION_DETECTION === 'true') {
+          console.log(`\n🔴 [GENERIC MODE ACTIVATED] Q${qNum}: No match found, creating fallback scheme with ${detectedMarks} marks`);
+        }
 
         item.detectionResult.match = {
           board: 'Unknown', qualification: 'General', paperCode: 'Generic Question', examSeries: 'N/A', tier: 'N/A', subject: 'General',

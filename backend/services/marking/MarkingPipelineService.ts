@@ -1292,7 +1292,9 @@ export class MarkingPipelineService {
 
                     // Update Array of Indices
                     if (node.sourceImageIndices && Array.isArray(node.sourceImageIndices)) {
-                        node.sourceImageIndices = node.sourceImageIndices.map((idx: number) => originalToNewIndexMap.get(idx) ?? idx);
+                        node.sourceImageIndices = node.sourceImageIndices
+                            .map((idx: number) => originalToNewIndexMap.get(idx) ?? idx)
+                            .sort((a, b) => a - b);
                     }
 
                     // CRITICAL: Update Student Work Lines

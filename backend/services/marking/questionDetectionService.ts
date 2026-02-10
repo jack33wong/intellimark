@@ -34,6 +34,7 @@ export interface ExamPaperMatch {
   subQuestionMaxScores?: { [key: string]: number };
   subQuestionTexts?: { [key: string]: string };
   isRescued?: boolean;
+  isGeneric?: boolean;
 }
 
 export interface MarkingSchemeMatch {

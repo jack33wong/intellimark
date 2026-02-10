@@ -42,11 +42,11 @@ const OcrLandingPage: React.FC = () => {
             </Helmet>
 
             <SeoHeader
-                title="OCR GCSE Maths AI Marking | Instant Feedback (J560 Specification)"
-                description="Instantly mark your OCR GCSE Maths past papers. Get board-specific J560 feedback, B marks for independent stages, and Follow-Through (FT) logic for Higher and Foundation tiers."
+                title="OCR GCSE Maths Model Answers & AI Marking | J560 Spec"
+                description="Get instant OCR GCSE Maths model answers and AI marking for J560 past papers. Accurate marking schemes, B marks, and FT logic for 2022-2024 Higher & Foundation tiers."
                 canonicalUrl="https://aimarking.ai/mark-ocr-gcse-maths-past-papers"
-                ogTitle="OCR GCSE Maths AI Marking | Grade Your Past Papers Instantly"
-                ogDescription="Stop waiting for a tutor. Upload your handwritten OCR J560 papers and get an examiner-grade score in 30 seconds."
+                ogTitle="OCR GCSE Maths Model Answers | Instant AI Marking & Grades"
+                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for OCR J560 maths papers."
                 ogUrl="https://aimarking.ai/mark-ocr-gcse-maths-past-papers"
             />
 

@@ -101,7 +101,7 @@
   /* Increased margin to push input down */
   max-width: 1000px;
   width: 100%;
-  padding-left: 0;
+  padding-left: 32px;
   position: relative;
   z-index: 50;
   /* Remove padding as star is gone */

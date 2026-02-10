@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useReducer, useMemo, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useApiProcessor } from '../hooks/useApiProcessor';
@@ -546,6 +546,7 @@ export const MarkingPageProvider = ({
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   /**
    * Handle deep-links and URL parameters

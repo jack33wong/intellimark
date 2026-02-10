@@ -260,11 +260,22 @@ export class MarkingTaskFactory {
                     partLabel = basePrefix;
                 }
                 if (!globalExpectedQuestions.some(eq => eq.label === partLabel)) {
-                    const sourceImageIndices = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
+                    // 🛡️ [SUB-SPECIFIC]: Prefer node's specific page indices over parent's multi-page array.
+                    // However, for Drawing questions, we must allow the full parent context (bridge questions).
+                    const parentPages = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
+                    let targetPages = (node.sourceImageIndices && node.sourceImageIndices.length > 0)
+                        ? node.sourceImageIndices
+                        : (node.pageIndex !== undefined ? [node.pageIndex] : (node.sourceImageIndex !== undefined ? [node.sourceImageIndex] : parentPages));
+
+                    // 🗺️ [BRIDGE-EXPANSION]: If it's a drawing question, it likely needs the full context (e.g. grid opposite).
+                    if (node.hasStudentDrawing && parentPages.length > 1) {
+                        targetPages = parentPages;
+                    }
+
                     globalExpectedQuestions.push({
                         label: partLabel,
                         text: node.text || "",
-                        targetPages: sourceImageIndices
+                        targetPages: targetPages
                     });
                 }
             });

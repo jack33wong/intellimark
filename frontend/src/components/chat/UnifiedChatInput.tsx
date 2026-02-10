@@ -204,6 +204,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
   const handleSuggestionClick = (suggestion: string) => {
     // Click selected paper suggestion: populate input for confirmation
+    setSelectedTags([]); // Clear tags to prevent duplication in combinedInput
     setChatInput(suggestion);
     setShowAutocomplete(false);
     inputRef.current?.focus();

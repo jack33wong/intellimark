@@ -61,6 +61,9 @@ export const AI_PROMPTS = {
       user: (qNum: string, scheme: string, studentWork: string, blocks: any, questionText: string, pageMap: any, guidance: string, isGeneric: boolean) => {
         return `# MARKING TASK: Question ${qNum}
         
+## QUESTION TEXT
+${questionText}
+
 ## MARKING SCHEME
 ${scheme}
 
@@ -68,10 +71,11 @@ ${scheme}
 ${studentWork}
 
 ## RAW OCR BLOCKS
-${typeof blocks === 'string' ? blocks : JSON.stringify(blocks)}
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
 
-## QUESTION CONTEXT
-${questionText}
+${Array.isArray(blocks) && blocks.length > 0 ? (
+            blocks.map(b => `[${b.id}]: "${(b.text || '').replace(/\n/g, ' ')}"`).join('\n')
+          ) : (typeof blocks === 'string' ? blocks : 'No raw OCR blocks available.')}
 
 ## PAGE MAP
 ${JSON.stringify(pageMap)}

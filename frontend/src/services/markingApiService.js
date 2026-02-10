@@ -508,13 +508,17 @@ class SimpleSessionService {
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
+      const sessionId = (this.state.currentSession?.id || '').startsWith('temp-')
+        ? null
+        : this.state.currentSession?.id;
+
       const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           paper,
           model,
-          sessionId: this.state.currentSession?.id || null,
+          sessionId: sessionId || null,
           aiMessageId
         })
       });
