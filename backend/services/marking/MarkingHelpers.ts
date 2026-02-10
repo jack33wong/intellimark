@@ -13,6 +13,7 @@ import {
   normalizeSubQuestionPart,
   generateGenericTitleFromText
 } from '../../utils/TextNormalizationUtils.js';
+import { ZoneUtils } from '../../utils/ZoneUtils.js';
 
 // Simple step logging helper
 export function createStepLogger(totalSteps: number, startStep: number = 0) {
@@ -260,6 +261,10 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     return { m, v, u, s, ai_m };
   };
 
+  const getStatusStr = (stats: any, total: number) => {
+    return `AI:${stats.ai_m}/${total} → M:${stats.m} S:${stats.s} V:${stats.v} U:${stats.u}`;
+  };
+
   sortedResults.forEach(result => {
     // 1. Prepare Main Row Data
     const qNum = String(result.questionNumber).padEnd(8);
@@ -283,7 +288,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
     // Calculate Main Status
     const stats = calcStats(questionAnns);
-    const statusStr = `AI:${stats.ai_m}/${questionAnns.length} → M:${stats.m} S:${stats.s} U:${stats.u}`;
+    const statusStr = getStatusStr(stats, questionAnns.length);
 
     console.log(`| ${coloredQNum} | ${paddedScore} | ${mainMarks.padEnd(23)} | ${statusStr.padEnd(38)} |`);
 
@@ -341,7 +346,11 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
           else if (scheme.marks) allMarks = scheme.marks;
           else if (scheme.questionMarks?.marks) allMarks = scheme.questionMarks.marks;
 
-          const subSchemeMarks = allMarks.filter((m: any) => m.subQuestion === key);
+          const normKey = ZoneUtils.normalizeLabel(key);
+          const subSchemeMarks = allMarks.filter((m: any) => {
+            const mSub = ZoneUtils.normalizeLabel(m.subQuestion || "");
+            return mSub === normKey || mSub === `${result.questionNumber}${normKey}`;
+          });
           subTotal = subSchemeMarks.reduce((acc: number, m: any) => acc + (m.mark ? parseInt(m.mark.match(/(\d+)$/)?.[1] || '1') : 1), 0);
         }
         const subScoreStr = subTotal > 0 ? `${subAwarded}/${subTotal}` : `${subAwarded}`;
@@ -349,7 +358,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         // Calculate Sub Status
         const subStats = calcStats(subAnnsMap.get(key) || []);
         const subTotalCount = (subAnnsMap.get(key) || []).length;
-        const subStatusStr = `AI:${subStats.ai_m}/${subTotalCount} → M:${subStats.m} S:${subStats.s} U:${subStats.u}`;
+        const subStatusStr = getStatusStr(subStats, subTotalCount);
 
         console.log(`| ${coloredLabel} | ${subScoreStr.padEnd(5)} | ${subMarks.padEnd(23)} | ${subStatusStr.padEnd(38)} |`);
       });

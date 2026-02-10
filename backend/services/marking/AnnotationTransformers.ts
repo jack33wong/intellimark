@@ -16,6 +16,7 @@ import {
     AIPosition,
     hasRelativePage
 } from './PageIndexTypes.js';
+import { CoordinateAuditLogger } from '../../utils/LoggerUtils.js';
 
 // ============================================================================
 // HELPER TYPES
@@ -91,20 +92,24 @@ function parseAIPosition(
 ): Readonly<AIPosition> | undefined {
     let aiPosition: AIPosition | undefined;
 
-    // 1. Try visual_position from AI (NEW DESIGN)
-    if (anno.visual_position) {
-        const vp = anno.visual_position;
-        // Parse values even if strings
-        let x = parseFloat(vp.x as any);
-        let y = parseFloat(vp.y as any);
-        let w = parseFloat(vp.width as any);
-        let h = parseFloat(vp.height as any);
+    // 1. Try visual_position or bbox from AI
+    if (anno.visual_position || (anno as any).bbox) {
+        const vp = anno.visual_position || (anno as any).bbox;
+        // Parse values even if strings or from array/object
+        let x = 0, y = 0, w = 10, h = 5;
+
+        if (Array.isArray(vp)) {
+            [x, y, w, h] = vp.map(v => parseFloat(v as any));
+        } else {
+            x = parseFloat(vp.x ?? vp[0] ?? 0);
+            y = parseFloat(vp.y ?? vp[1] ?? 0);
+            w = parseFloat(vp.width ?? vp[2] ?? 10);
+            h = parseFloat(vp.height ?? vp[3] ?? 5);
+        }
 
         if (!isNaN(x) && !isNaN(y)) {
-            w = !isNaN(w) ? w : 10;
-            h = !isNaN(h) ? h : 5;
-
             aiPosition = { x, y, width: w, height: h };
+            CoordinateAuditLogger.audit(3, `ParseAI Q${anno.subQuestion}`, `Restored from ${anno.visual_position ? 'visual_position' : 'bbox'}: ${JSON.stringify(aiPosition)}`);
         }
     }
 
@@ -119,6 +124,7 @@ function parseAIPosition(
             const p = positionMatch[3] ? parseInt(positionMatch[3], 10) : undefined;
             if (!isNaN(x) && !isNaN(y)) {
                 aiPosition = { x, y, width: 10, height: 5, pageIndex: p };
+                CoordinateAuditLogger.audit(3, `ParseAI Q${anno.subQuestion}`, `Found in reasoning tag: ${JSON.stringify(aiPosition)}`);
             }
         }
     }
@@ -135,6 +141,7 @@ function parseAIPosition(
 
         // Default drawing box
         aiPosition = { x: 50, y: 50, width: 50, height: 50 };
+        CoordinateAuditLogger.audit(3, `ParseAI Q${anno.subQuestion}`, `FALLBACK: Using default 50/50 box because no position found.`);
     }
 
     return aiPosition;
@@ -198,9 +205,21 @@ export function createAnnotationFromAI(
         isPhysicalPage: (groundTruthPage !== undefined)
     };
 
+    // 4. Extract Text & Action
+    let text = (aiAnnotation.text || "").trim();
+    const action = (aiAnnotation.action || "tick").toLowerCase() as "tick" | "cross";
+
+    // 🛡️ [ACTION-LIFT]: If text is empty (e.g. AI just says "tick"), 
+    // we lift the action to the text field to ensure it survives 
+    // score parsing and display logic.
+    if (!text && action) {
+        text = action.charAt(0).toUpperCase() + action.slice(1); // "tick" -> "Tick"
+    }
+
+    // 5. Build the immutable Annotation object
     return {
         id: generateAnnotationId(),
-        text: aiAnnotation.text,
+        text,
         subQuestion: aiAnnotation.subQuestion,
         page,
         aiPosition,

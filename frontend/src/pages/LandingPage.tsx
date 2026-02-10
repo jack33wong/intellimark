@@ -90,9 +90,10 @@ const ImageMagnifier = ({
 
 /* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "AI Marking that reads your handwriting" },
+    { text: "AI Marking that reads your handwriting" }, // No trailing space needed
     { text: "Exactly like an Examiner", className: "hero-highlight-blue" }
 ];
+
 
 /* --- Main Page Component --- */
 const LandingPage: React.FC = () => {
@@ -137,7 +138,8 @@ const LandingPage: React.FC = () => {
                     <AntigravityTypewriter
                         className="hero-main-title"
                         segments={HERO_SEGMENTS}
-                        // Trigger animation 150ms after typing finishes
+                        // Added cursorOffset to keep it tight to text
+                        cursorOffset={-2}
                         onComplete={() => setTimeout(() => setStartAnimations(true), 150)}
                     />
 

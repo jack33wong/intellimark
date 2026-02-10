@@ -1,5 +1,6 @@
 
 import { ZoneUtils } from '../../../utils/ZoneUtils.js';
+import { CoordinateAuditLogger } from '../../../utils/LoggerUtils.js';
 import { sanitizeAiLineId } from '../MarkingHelpers.js';
 
 export class AnnotationLinker {
@@ -324,11 +325,12 @@ export class AnnotationLinker {
                             (anno.text && ['M1', 'A1', 'B1', 'B2', 'B3'].includes(anno.text));
 
                         if (isVisual) {
-                            console.log(` 🧲 [IRON-DOME-PATCH] Snapping Q${anno.subQuestion} from P${anno.pageIndex} -> P${targetZone.pageIndex}`);
+                            CoordinateAuditLogger.audit(4, `Iron Dome Q${anno.subQuestion}`, `Snapping P${anno.pageIndex} -> P${targetZone.pageIndex} (Target Zone for ${subQ})`);
                             anno.pageIndex = targetZone.pageIndex;
                         }
                     }
                 } else if (differentParentZones.length > 0) {
+                    CoordinateAuditLogger.audit(4, `Iron Dome Q${anno.subQuestion}`, `Snap BLOCKED (Parent mismatch). Staying on P${anno.pageIndex}`);
                     console.log(` 🚫 [IRON-DOME-BLOCKED] Q${anno.subQuestion} stays on P${anno.pageIndex} (All zones belong to different parent: ${differentParentZones.map((z: any) => z.pageIndex).join(', ')})`);
                 }
             }

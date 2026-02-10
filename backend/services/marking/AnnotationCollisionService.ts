@@ -36,13 +36,21 @@ export class AnnotationCollisionService {
             const mobile = sorted[i];
             if (mobile.ocr_match_status === 'MATCHED' || !mobile.bbox) continue;
 
-            // Find the "Legal Territory" for this specific annotation
-            const zone = ZoneUtils.findMatchingZone(mobile.subQuestion || "", semanticZones || {});
+            // 🛡️ [PAGE-AWARE LOOKUP]: Find the specific zone for this exact page
+            const zone = ZoneUtils.findMatchingZone(
+                mobile.subQuestion || "",
+                semanticZones || {},
+                undefined,
+                mobile.pageIndex
+            );
 
             for (let j = 0; j < sorted.length; j++) {
                 if (i === j) continue;
                 const fixed = sorted[j];
                 if (!fixed.bbox) continue;
+
+                // 🛡️ [PAGE-ISOLATION]: Only bonk into things on the same physical page
+                if (mobile.pageIndex !== fixed.pageIndex) continue;
 
                 const mobileBox = { x: mobile.bbox[0], y: mobile.bbox[1], w: mobile.bbox[2], h: mobile.bbox[3] };
                 const fixedBox = { x: fixed.bbox[0], y: fixed.bbox[1], w: fixed.bbox[2], h: fixed.bbox[3] };

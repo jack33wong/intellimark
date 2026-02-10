@@ -2,6 +2,7 @@
 import { getBaseQuestionNumber } from '../../../utils/TextNormalizationUtils.js';
 import { MarkingTask } from '../../../types/index.js';
 import { MarkingZoneService } from '../MarkingZoneService.js';
+import { CoordinateAuditLogger } from '../../../utils/LoggerUtils.js';
 
 export class MarkingTaskFactory {
 
@@ -100,6 +101,10 @@ export class MarkingTaskFactory {
                         pageIndex: node.pageIndex ?? currentQPageIndex,
                         part: node.part || 'main'
                     });
+
+                    // 🛡️ [AUDIT-1] Initial Question Mapping
+                    const auditBox = nodeBox || node.bbox;
+                    CoordinateAuditLogger.audit(1, `Q${baseQNum} Classification`, `Part: ${node.part || 'main'} | Page: ${node.pageIndex ?? currentQPageIndex} | Box: ${JSON.stringify(auditBox)}`);
                 }
 
                 if (node.part && node.part !== 'main') {
@@ -120,11 +125,12 @@ export class MarkingTaskFactory {
                         const globalId = `p${pIdx}_q${baseQNum}_line_${group.lineCounter++}`;
 
                         if (l.text === '[DRAWING]') {
+                            const drawingId = `p${pIdx}_visual_drawing_${baseQNum}_${group.lineCounter}`;
                             group.aiSegmentationResults.push({
-                                line_id: `visual_drawing_${baseQNum}_${group.lineCounter}`,
+                                line_id: drawingId,
                                 content: '[DRAWING]',
                                 source: 'classification',
-                                blockId: `drawing_${baseQNum}_${group.lineCounter}`,
+                                blockId: drawingId,
                                 subQuestionLabel: node.part || 'main',
                                 pageIndex: pIdx,
                                 bbox: [
@@ -347,6 +353,9 @@ export class MarkingTaskFactory {
             });
 
             group.aiSegmentationResults.forEach((seg: any) => {
+                // 🛡️ [VISUAL-FILTER]: Only include student work/drawings that belong to the current task's pages.
+                if (seg.pageIndex !== undefined && !group.sourceImageIndices.includes(seg.pageIndex)) return;
+
                 const clean = seg.content.replace(/\s+/g, ' ').trim();
                 const isContentValid = (clean.length > 0 && clean !== '--') || seg.isVisualPlaceholder;
 
@@ -370,8 +379,9 @@ export class MarkingTaskFactory {
                             const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
                             if (uniquePages.length > 0) {
                                 uniquePages.forEach(pIdx => {
-                                    const relIdx = pageMap[pIdx] ?? 0;
-                                    const pageSpecificId = `p${relIdx}_${seg.line_id}`; // e.g. p0_visual_drawing_11_1
+                                    // [FIX]: Strip any existing pX_ prefix to prevent p0_p0_...
+                                    const cleanId = seg.line_id.replace(/^p\d+_/, '');
+                                    const pageSpecificId = `p${pIdx}_${cleanId}`; // e.g. p2_visual_drawing_11_1
                                     promptMainWork += `[ID: ${pageSpecificId}] [DRAWING]\n`;
                                 });
                                 return; // Skip default generic line
@@ -401,8 +411,8 @@ export class MarkingTaskFactory {
                     if (zones && zones.length > 0) {
                         const uniquePages = [...new Set(zones.map((z: any) => z.pageIndex))].sort((a, b) => a - b);
                         uniquePages.forEach(pIdx => {
-                            const relIdx = pageMap[pIdx] ?? 0;
-                            const newId = `p${pIdx}_${seg.line_id}`;
+                            const cleanId = seg.line_id.replace(/^p\d+_/, '');
+                            const newId = `p${pIdx}_${cleanId}`;
                             explodedResults.push({
                                 ...seg,
                                 line_id: newId,
@@ -476,6 +486,10 @@ export class MarkingTaskFactory {
             // 🛡️ [STRICT-LOOKUP]: Populate the sub-question page map for downstream safety checks.
             const subQuestionPageMap: Record<string, number[]> = {};
             globalExpectedQuestions.forEach(eq => {
+                // [FIX]: Only include questions relevant to the current group (e.g. "1", "1a", "1b")
+                const isRelevant = eq.label === baseQNum || (eq.label.startsWith(baseQNum) && isNaN(Number(eq.label.charAt(baseQNum.length))));
+                if (!isRelevant) return;
+
                 if (eq.targetPages && eq.targetPages.length > 0) {
                     // Store both full label (3a) and normalized suffix (a) for maximum coverage
                     subQuestionPageMap[eq.label] = eq.targetPages;

@@ -33,11 +33,22 @@ export class MarkingPromptAdapter {
         const filteredSubQuestionPageMap: Record<string, number | number[]> = {};
         if (subQuestionPageMap && sourceImageIndices) {
             Object.entries(subQuestionPageMap).forEach(([label, absPages]) => {
-                const isRelevant = label.startsWith(baseQNum) || label === baseQNum;
-                if (isRelevant) {
+                // [FIX]: Use strict matching to prevent "1" matching "11", "19"
+                // Check if label is exactly baseQNum OR a sub-question of it (e.g. "1a")
+                const isExactMatch = label === baseQNum;
+                const isSubOfCurrent = label.startsWith(baseQNum) && isNaN(Number(label.charAt(baseQNum.length)));
+
+                if (isExactMatch || isSubOfCurrent) {
                     const absArray = Array.isArray(absPages) ? absPages : [absPages];
-                    const relPages = absArray.map(abs => physicalToRelative[abs] ?? 0).sort((a, b) => a - b);
-                    filteredSubQuestionPageMap[label] = relPages.length === 1 ? relPages[0] : relPages;
+                    // [FIX]: Skip pages that aren't in the current task's scope
+                    const relPages = absArray
+                        .filter(abs => abs in physicalToRelative)
+                        .map(abs => physicalToRelative[abs])
+                        .sort((a, b) => a - b);
+
+                    if (relPages.length > 0) {
+                        filteredSubQuestionPageMap[label] = relPages.length === 1 ? relPages[0] : relPages;
+                    }
                 }
             });
         }

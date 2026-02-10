@@ -8,6 +8,7 @@ import UsageTracker from '../../utils/UsageTracker.js';
 import { MarkingTaskFactory } from './core/MarkingTaskFactory.js';
 import { ZoneArchitect } from './core/ZoneArchitect.js';
 import { MarkingZoneService } from './MarkingZoneService.js';
+import { CoordinateAuditLogger } from '../../utils/LoggerUtils.js';
 import { AnnotationLinker } from './core/AnnotationLinker.js';
 import { ScoreAuditor } from './core/ScoreAuditor.js';
 
@@ -273,6 +274,16 @@ export async function executeMarkingForQuestion(
         allLabels
       );
     }
+
+    (markingResult.annotations || []).forEach((anno: any) => {
+      // 🛡️ [AUDIT-2] AI Raw Response
+      CoordinateAuditLogger.audit(2, `AI Marking Q${questionId}`, `Action: ${anno.action} | SubQ: ${anno.subQuestion} | Text: "${anno.text}" | Box: ${JSON.stringify(anno.bbox)}`);
+
+      if (!anno.line_id && (anno.visual_position || anno.ai_visual_position || anno.bbox)) {
+        // 🛡️ [AUDIT-3] AI Visual Intent
+        CoordinateAuditLogger.audit(3, `AI Visual Q${anno.subQuestion}`, `Text: "${anno.text}" | Pos: ${JSON.stringify(anno.visual_position || anno.ai_visual_position || anno.bbox)}`);
+      }
+    });
 
     const rawAnnotationsFromAI = JSON.parse(JSON.stringify(markingResult.annotations || []));
 

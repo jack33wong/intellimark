@@ -32,19 +32,31 @@ export class ZoneUtils {
     /**
      * Finds the correct zone for a given sub-question label.
      * Implements "Container Matching" to handle partial labels (e.g., "bi" -> "10bi").
-     * * @param subQuestionLabel - The label from the AI (e.g., "bi", "a", "10bi")
+     * @param subQuestionLabel - The label from the AI (e.g., "bi", "a", "10bi")
      * @param zoneMap - The master map of physical zones
+     * @param questionPrefix - Optional prefix to restrict search (e.g., "11")
+     * @param pageIndex - Optional pageIndex to prioritize
      * @returns The best matching zone, or null if not found.
      */
-    static findMatchingZone(subQuestionLabel: string, zoneMap: SemanticZoneMap, questionPrefix?: string): SemanticZone | null {
-        const matches = this.findAllMatchingZones(subQuestionLabel, zoneMap, questionPrefix);
+    static findMatchingZone(
+        subQuestionLabel: string,
+        zoneMap: SemanticZoneMap,
+        questionPrefix?: string,
+        pageIndex?: number
+    ): SemanticZone | null {
+        const matches = this.findAllMatchingZones(subQuestionLabel, zoneMap, questionPrefix, pageIndex);
         return matches.length > 0 ? matches[0] : null;
     }
 
     /**
      * Finds ALL correct zones for a given sub-question label (useful for questions spanning pages).
      */
-    static findAllMatchingZones(subQuestionLabel: string, zoneMap: SemanticZoneMap, questionPrefix?: string): SemanticZone[] {
+    static findAllMatchingZones(
+        subQuestionLabel: string,
+        zoneMap: SemanticZoneMap,
+        questionPrefix?: string,
+        pageIndex?: number
+    ): SemanticZone[] {
         if (!subQuestionLabel || !zoneMap) return [];
 
         const target = this.normalizeLabel(subQuestionLabel); // e.g. "bi"
@@ -68,14 +80,21 @@ export class ZoneUtils {
                 target.endsWith(normalizedKey);
 
             if (isMatch) {
-                // console.log(`🎯 [ZONE-MATCH] Target: ${target} | Key: ${key} | Normalized: ${normalizedKey}) | MATCHED!`);
                 bestMatchKey = key;
                 break; // Stop at the first (longest) valid match
             }
         }
 
         if (bestMatchKey && zoneMap[bestMatchKey]?.length > 0) {
-            return zoneMap[bestMatchKey];
+            const zones = zoneMap[bestMatchKey];
+
+            // 🛡️ [PAGE-PRIORITY]: If a specific page is requested, prioritize zones on that page.
+            if (pageIndex !== undefined) {
+                const onPage = zones.filter(z => z.pageIndex === pageIndex);
+                if (onPage.length > 0) return onPage;
+            }
+
+            return zones;
         }
 
         return [];

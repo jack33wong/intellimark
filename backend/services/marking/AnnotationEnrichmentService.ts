@@ -1,6 +1,7 @@
 import type { Annotation, EnrichedAnnotation, MarkingTask } from '../../types/index.js';
 import { CoordinateTransformationService } from './CoordinateTransformationService.js';
 import { ZoneUtils } from '../../utils/ZoneUtils.js';
+import { CoordinateAuditLogger } from '../../utils/LoggerUtils.js';
 import { AnnotationCollisionService } from './AnnotationCollisionService.js';
 import { latexToPlainText } from '../../utils/TextNormalizationUtils.js';
 
@@ -242,8 +243,8 @@ export const enrichAnnotationsWithPositions = (
             : [(anno.bbox as any)?.x || 0, (anno.bbox as any)?.y || 0, (anno.bbox as any)?.width || 0, (anno.bbox as any)?.height || 0];
 
         // 🛡️ STRENGTHEN EXTRACTION: Use multiple potential coordinate sources to avoid "0px Jump"
-        const rawX = (anno as any).visual_position?.x ?? (anno as any).aiPosition?.x ?? rawAiBox[0];
-        const rawY = (anno as any).visual_position?.y ?? (anno as any).aiPosition?.y ?? rawAiBox[1];
+        const rawX = (anno as any).visual_position?.x ?? (anno as any).aiPosition?.x ?? (anno as any).bbox?.x ?? (Array.isArray((anno as any).bbox) ? (anno as any).bbox[0] : rawAiBox[0]);
+        const rawY = (anno as any).visual_position?.y ?? (anno as any).aiPosition?.y ?? (anno as any).bbox?.y ?? (Array.isArray((anno as any).bbox) ? (anno as any).bbox[1] : rawAiBox[1]);
 
         const intentX = (rawX / 100) * pageWidth;
         const intentY = (rawY / 100) * pageHeight;
@@ -262,14 +263,23 @@ export const enrichAnnotationsWithPositions = (
 
         if (semanticZones) {
             const currentQuestionId = (questionId || "").replace(/\D/g, '');
-            const zone = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId)
-                .find(z => z.pageIndex === pageIndex);
+            const allMatchingZones = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId);
+            const zone = allMatchingZones.find(z => z.pageIndex === pageIndex);
+
+            if (!zone && allMatchingZones.length > 0) {
+                CoordinateAuditLogger.audit(5, `Enrichment Q${anno.subQuestion}`, `Zone MISS for P${pageIndex}. Available: [${allMatchingZones.map(z => z.pageIndex).join(', ')}]`);
+            } else if (!zone) {
+                CoordinateAuditLogger.audit(5, `Enrichment Q${anno.subQuestion}`, `NO ZONES FOUND at all for Q${currentQuestionId}`);
+            }
 
             if (zone) {
                 const zoneH = zone.endY - zone.startY;
 
                 // DYNAMIC MARGIN: 5% of zone height, capped between 10px and 100px
                 const margin = Math.max(10, Math.min(100, zoneH * 0.1));
+
+                // 🕵️ [AUDIT-5-ENRICH]: Final Zone Clamping
+                CoordinateAuditLogger.audit(5, `Enrichment Q${anno.subQuestion}`, `Zone P${zone.pageIndex} [${zone.startY}-${zone.endY}] | Pre-Clamp Y: ${intentY.toFixed(0)}`);
 
                 // LIMIT HEIGHT: Cap at 35% to ensure staggering room
                 let annoH = (rawAiBox[3] / 100) * pageHeight;
