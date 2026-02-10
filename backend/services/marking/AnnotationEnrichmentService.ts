@@ -130,15 +130,36 @@ export const enrichAnnotationsWithPositions = (
 
         // 🛡️ [HIGH-PAGE PREFERENCE]: For Drawings/Visuals on multi-page questions.
         // If AI didn't provide a specific ID, default to the HIGHEST valid page index.
+        // 🚨 [PARENT-AWARE FIX]: Only shift if target page belongs to same main question.
         if (status === "VISUAL" && !activePointer && semanticZones) {
             const currentQuestionId = (questionId || "").replace(/\D/g, '');
             const zones = ZoneUtils.findAllMatchingZones(anno.subQuestion, semanticZones, currentQuestionId);
             if (zones.length > 1) {
                 const highestPage = Math.max(...zones.map(z => z.pageIndex));
-                if (pageIndex !== highestPage) {
+
+                // Extract parent question number (e.g., "11b" -> "11", "5a" -> "5")
+                const getParentQuestion = (label: string) => label.replace(/[a-z()]/gi, '').trim();
+
+                const currentParent = getParentQuestion(anno.subQuestion || '');
+                const currentZone = zones.find(z => z.pageIndex === pageIndex);
+                const targetZone = zones.find(z => z.pageIndex === highestPage);
+
+                // Check if target page belongs to same parent question
+                const targetParent = targetZone ? getParentQuestion(
+                    // Try to extract parent from zone label or use current parent as fallback
+                    Object.keys(semanticZones).find(key =>
+                        semanticZones[key].some((z: any) => z === targetZone)
+                    ) || anno.subQuestion || ''
+                ) : currentParent;
+
+                const nextPageHasSameParent = currentParent === targetParent && currentParent !== '';
+
+                if (nextPageHasSameParent && pageIndex !== highestPage) {
                     console.log(` 🚀 [HIGH-PAGE] Shifting VISUAL Q${anno.subQuestion} from P${pageIndex} -> P${highestPage} (Drawing preference)`);
                     pageIndex = highestPage;
                     (anno as any).pageIndex = highestPage;
+                } else if (!nextPageHasSameParent) {
+                    console.log(` 🚫 [HIGH-PAGE-BLOCKED] Q${anno.subQuestion} stays on P${pageIndex} (Parent mismatch: current=${currentParent}, target=${targetParent})`);
                 }
             }
         }
