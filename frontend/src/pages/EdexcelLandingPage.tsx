@@ -42,11 +42,11 @@ const EdexcelLandingPage: React.FC = () => {
             </Helmet>
 
             <SeoHeader
-                title="Edexcel GCSE Maths AI Marking | Grade Your Past Papers (1MA1)"
-                description="Instantly mark your Edexcel GCSE Maths past papers with AI. Get board-specific feedback, method marks (M), process marks (P), and instant grades for Foundation and Higher tiers."
+                title="Edexcel GCSE Maths Model Answers & AI Marking | 1MA1 Spec"
+                description="Get instant Edexcel GCSE Maths model answers and AI marking for 1MA1 past papers. Features accurate marking schemes, M/P/A marks, and step-by-step solutions for 2022-2024 Higher & Foundation."
                 canonicalUrl="https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"
-                ogTitle="Edexcel GCSE Maths AI Marking | Grade Your Past Papers Instantly"
-                ogDescription="Stop waiting for a tutor. Upload your handwritten Edexcel 1MA1 papers and get an examiner-grade score in 30 seconds."
+                ogTitle="Edexcel GCSE Maths Model Answers | Instant AI Marking & Grades"
+                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for Edexcel 1MA1 maths papers."
                 ogUrl="https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"
             />
 

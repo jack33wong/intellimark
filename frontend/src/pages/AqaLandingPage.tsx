@@ -30,8 +30,11 @@ const AqaLandingPage: React.FC = () => {
         <div className="light-mode-forced aqa-landing-page">
             <SeoHeader
                 title="AQA GCSE Maths Model Answers & AI Marking | Spec 8300"
-                description="Instant AQA GCSE Maths model answers and AI marking for 8300 papers (2024-2033). Step-by-step solutions for Higher and Foundation tiers."
+                description="Get instant AQA GCSE Maths model answers and AI marking for 8300 past papers. Accurate marking schemes and step-by-step solutions for Higher & Foundation (2022-2024)."
                 canonicalUrl="https://aimarking.ai/mark-aqa-gcse-maths-past-papers"
+                ogTitle="AQA GCSE Maths Model Answers | Instant AI Marking & Grades"
+                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all AQA 8300 maths papers."
+                ogUrl="https://aimarking.ai/mark-aqa-gcse-maths-past-papers"
             />
 
             <LandingPageHeader />
