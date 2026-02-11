@@ -373,11 +373,18 @@
 
   /* Overlay header to save space */
   .image-mode-header {
+    position: fixed;
+    /* Keep it at the top of the viewport */
+    top: 0;
+    left: 0;
+    right: 0;
     pointer-events: none;
     /* Let clicks pass through empty space */
     padding: 10px;
     justify-content: space-between;
     /* Separate controls and close button */
+    z-index: 10000;
+    /* Above everything */
   }
 
   .image-mode-controls,

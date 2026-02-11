@@ -175,6 +175,7 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   /* Crucial for scrolling inside flex */
   overflow-y: auto;
   width: 100%;
+  position: relative;
 }
 
 
@@ -439,6 +440,42 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 
 .chat-container::-webkit-scrollbar-thumb:hover {
   background: var(--text-primary) !important;
+}
+
+/* History Loading Overlay */
+.history-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  background: rgba(var(--background-gray-rgb, 248, 249, 250), 0.7);
+  backdrop-filter: blur(2px);
+}
+
+.history-loading-overlay .loading-spinner {
+  background: var(--background-card, #ffffff);
+  padding: 32px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-main);
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 
@@ -1483,37 +1520,102 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   }
 
   /* Full Screen Image Mode on Mobile */
-  .split-view-container {
+  /* Full-width Chat on Mobile */
+  .mark-homework-main-content {
+    width: 100%;
+    display: flex;
     flex-direction: column;
-    padding: 0;
-    gap: 0;
+    min-height: 0;
+    flex: 1;
   }
 
-  .split-chat-panel {
-    display: none;
-    /* Hide chat when in split/image mode */
+  /* Mobile Image Viewer Overlay */
+  .mobile-image-viewer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20000;
+    /* Above everything including loading spinner */
+    background: var(--background-gray-main);
   }
 
-  .split-canvas-panel {
-    width: 100vw;
-    height: 100vh;
-    margin: 0;
-    border-radius: 0;
-    border: none;
-    z-index: 1000;
-    /* Ensure on top */
+  .mobile-image-viewer-overlay .image-viewer-root {
+    height: 100%;
+    width: 100%;
+  }
+
+  /* Compact Headers on Mobile */
+  .marking-header-unified {
+    padding: 4px 8px !important;
+  }
+
+  .session-management-header {
+    margin-bottom: 2px !important;
+    padding: 0 !important;
+  }
+
+  .chat-header {
+    height: 32px !important;
+    padding: 0 8px !important;
+  }
+
+  .chat-header h1 {
+    font-size: 13px !important;
+    margin-bottom: 0 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Hide non-essential header icons on very small screens */
+  .chat-header .header-btn:not(.info-btn):not(.favorite-btn) {
+    display: none !important;
+  }
+
+  .marking-header-ribbon-row {
+    padding: 0 !important;
+    margin-top: 2px;
+    gap: 4px !important;
+  }
+
+  /* Compact Question Navigator */
+  .question-breakdown-container {
+    padding: 2px 0 !important;
+  }
+
+  .question-badge {
+    padding: 2px 6px !important;
+    font-size: 11px !important;
   }
 
   /* Chat Container Width Fix */
   .chat-messages {
     width: 100%;
     max-width: 100%;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 8px;
+    padding-bottom: 120px;
+    /* Reduced since input is smaller */
   }
 
-  .chat-header {
-    width: 100% !important;
-    padding: 0 16px !important;
+  .chat-panel-layout {
+    background: var(--background-gray-main);
+  }
+
+  /* Move scroll button to bottom-right on mobile to avoid overlap */
+  .scroll-to-bottom-container {
+    bottom: 90px;
+    left: auto;
+    right: 20px;
+    transform: none;
+  }
+
+  .scroll-to-bottom-btn {
+    width: 40px;
+    height: 40px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   }
 }

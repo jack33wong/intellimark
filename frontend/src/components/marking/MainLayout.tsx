@@ -17,6 +17,7 @@ import { getSessionImages } from '../../utils/imageCollectionUtils';
 import { useQuestionGrouping } from '../../hooks/useQuestionGrouping';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
+import '../common/LoadingSpinner.css';
 import QuestionNavigator from './QuestionNavigator';
 import SEO from '../common/SEO';
 import ImageViewer from '../common/ImageViewer';
@@ -77,7 +78,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     setContextFilterActive,
     isQuestionTableVisible,
     visibleTableIds,
-    isNegative
+    isNegative,
+    isHistoryLoading
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -446,6 +448,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
         </div>
 
         <div className="chat-container" ref={setChatContainerRef}>
+          {/* Loading Spinner for History Transitions */}
+          {isHistoryLoading && (
+            <div className="history-loading-overlay">
+              <div className="loading-spinner loading-spinner-large">
+                <div className="spinner spinner-primary"></div>
+                <p className="loading-text">Loading...</p>
+              </div>
+            </div>
+          )}
+
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
             <div className="focused-app-entry">
@@ -543,8 +555,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   };
 
   // Determine layout class
+  const isMobile = window.innerWidth <= 768;
   const hasImages = splitModeImages && splitModeImages.length > 0;
-  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${hasImages ? 'split-mode' : ''}`;
+  const showSplitView = hasImages && !isMobile;
+
+  const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${showSplitView ? 'split-mode' : ''}`;
 
   return (
     <div className={layoutClass}>
@@ -553,7 +568,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
         schemaData={!isFollowUp ? productSchema : undefined}
         noIndex={noIndex}
       />
-      {hasImages ? (
+      {showSplitView ? (
         <div className="split-view-container">
           <div className="split-chat-panel">
             {renderChatContent()}
@@ -570,9 +585,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
           </div>
         </div>
       ) : (
-        <div className="mark-homework-main-content">
-          {renderChatContent()}
-        </div>
+        <>
+          <div className="mark-homework-main-content">
+            {renderChatContent()}
+          </div>
+          {isMobile && hasImages && (
+            <div className="mobile-image-viewer-overlay">
+              <ImageViewer
+                key={currentSession?.id || 'viewer-mobile'}
+                images={enrichedSplitModeImages || []}
+                initialImageIndex={activeImageIndex || 0}
+                onClose={exitSplitMode}
+                isOpen={true}
+                onImageChange={handleImageChange}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

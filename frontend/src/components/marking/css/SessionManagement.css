@@ -421,7 +421,7 @@
   background: var(--background-gray-main);
   flex-shrink: 0;
   width: 100%;
-  height: 55px;
+  height: 42px;
 }
 
 .session-title-section {
@@ -570,12 +570,12 @@
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .session-header {
-    padding: 0 12px;
+    padding: 0 8px;
     /* Reduce padding to save space */
     flex-direction: row;
     /* Single line */
     flex-wrap: nowrap;
-    height: 55px;
+    height: 42px;
     align-items: center;
     gap: 8px;
   }

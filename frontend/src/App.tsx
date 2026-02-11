@@ -97,6 +97,7 @@ function AppContent() {
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState<number>(0);
   const [isChatMode, setIsChatMode] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState<boolean>(false);
 
   const [autoSplit, setAutoSplit] = useState<boolean>(false);
   const [initialImageIndex, setInitialImageIndex] = useState<number>(0);
@@ -154,6 +155,8 @@ function AppContent() {
   }, [navigate]);
 
   const handleMarkingHistoryClick = async (result: MarkingResult & { id: string }) => {
+    setIsHistoryLoading(true);
+    navigate('/app');
     try {
       const { simpleSessionService } = await import('./services/markingApiService');
       const response = await simpleSessionService.getSession(result.id);
@@ -162,11 +165,11 @@ function AppContent() {
       } else {
         setSelectedMarkingResult(result);
       }
-      navigate('/app');
     } catch (error) {
       console.error('Error fetching session data:', error);
       setSelectedMarkingResult(result);
-      navigate('/app');
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -243,6 +246,7 @@ function AppContent() {
                 <MarkingPageProvider
                   key={markHomeworkResetKey}
                   selectedMarkingResult={selectedMarkingResult}
+                  isHistoryLoading={isHistoryLoading}
                   onPageModeChange={setIsChatMode}
                   onProcessingChange={setIsProcessing}
                   setSidebarOpen={setIsSidebarOpen}

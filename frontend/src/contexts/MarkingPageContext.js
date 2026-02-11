@@ -103,6 +103,7 @@ function markingPageReducer(state, action) {
 export const MarkingPageProvider = ({
   children,
   selectedMarkingResult,
+  isHistoryLoading = false,
   onPageModeChange,
   onProcessingChange,
   setSidebarOpen,
@@ -895,6 +896,7 @@ export const MarkingPageProvider = ({
     showModelAnswerConfirmation, setShowModelAnswerConfirmation,
     pendingModelAnswerPaper, setPendingModelAnswerPaper,
     chatContainerRef,
+    isHistoryLoading,
     scrollToBottom,
     showScrollButton,
     hasNewResponse,
@@ -928,6 +930,7 @@ export const MarkingPageProvider = ({
     pendingModelAnswerPaper, setPendingModelAnswerPaper,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef,
+    isHistoryLoading,
     scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage,
     handleMultiImageAnalysis, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
