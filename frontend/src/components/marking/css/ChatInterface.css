@@ -478,6 +478,13 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   gap: 16px;
   animation: spinnerPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   backdrop-filter: blur(8px);
+  min-width: 220px;
+  /* Ensure container is professional and wide enough */
+}
+
+.history-loading-overlay .loading-text {
+  white-space: nowrap;
+  /* Prevent text wrapping */
 }
 
 @keyframes spinnerPopIn {
