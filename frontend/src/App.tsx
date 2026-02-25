@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Brain } from 'lucide-react';
 import { AuthProvider } from './contexts/AuthContext';
 import { MarkingPageProvider } from './contexts/MarkingPageContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -86,15 +85,9 @@ const MainLayoutWrapper = ({
       {/* Full-panel Loading Overlay */}
       {isHistoryLoading && (
         <div className="history-loading-overlay">
-          <div className="premium-loader-container">
-            <div className="loader-icon-wrapper">
-              <Brain className="loader-brain-icon" />
-              <div className="loader-pulse-ring"></div>
-            </div>
-            <div className="loader-text-wrapper">
-              <span className="loader-text-main">Intellimark AI</span>
-              <span className="loader-text-sub">Retrieving your history...</span>
-            </div>
+          <div className="loading-spinner loading-spinner-large">
+            <div className="spinner spinner-primary"></div>
+            <p className="loading-text">Loading History...</p>
           </div>
         </div>
       )}
