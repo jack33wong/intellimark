@@ -33,79 +33,39 @@ export class ClassificationMapper {
         const startTime = Date.now(); // Track performance
 
         // SINGLE BATCH HELPER: Process a subset of pages
-        const processAllPages = async (imagesToProcess: typeof images, debug: boolean = false) => {
+        const processAllPages = async (imagesToProcess: typeof images, debugLog: boolean = false): Promise<PageMap[]> => {
             const systemPrompt = getPrompt('classification.mapper.system', imagesToProcess.length);
             const userPrompt = getPrompt('classification.mapper.user', imagesToProcess.length);
-            const accessToken = ModelProvider.getGeminiApiKey();
 
-            const parts: any[] = [
-                { text: systemPrompt },
-                { text: userPrompt }
-            ];
+            const isOpenAI = MAPPING_MODEL.startsWith('openai-');
+            let content: string;
 
-            imagesToProcess.forEach((img, index) => {
-                let mimeType = 'image/jpeg';
-                let cleanData = img.imageData;
-
-                if (img.imageData.includes(';base64,')) {
-                    const parts = img.imageData.split(';base64,');
-                    mimeType = parts[0].replace('data:', '');
-                    cleanData = parts[1];
-                } else if (img.imageData.includes(',')) {
-                    cleanData = img.imageData.split(',')[1];
-                }
-
-                parts.push({ text: `\n--- Page Index ${img.pageIndex} ---` });
-                parts.push({ inline_data: { mime_type: mimeType, data: cleanData } });
-            });
-
-            const { getModelConfig } = await import('../../config/aiModels.js');
-            const config = getModelConfig(MAPPING_MODEL as any);
-
-            const response = await ModelProvider.withRetry(async () => {
-                const res = await fetch(`${config.apiEndpoint}?key=${accessToken}`, {
-                    method: 'POST',
-                    signal: AbortSignal.timeout(60000),
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts }],
-                        generationConfig: {
-                            temperature: 0.1,
-                            maxOutputTokens: 8192,
-                            responseMimeType: "application/json"
-                        }
-                    })
-                });
-
-                if (!res.ok) {
-                    if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`);
-                    if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
-                    const txt = await res.text();
-                    throw new Error(`Gemini API error: ${res.status} - ${txt}`);
-                }
-                return res;
-            });
-
-            if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
-
-            const result = await response.json() as any;
-            const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-            if (tracker) {
-                const inputTokens = result.usageMetadata?.promptTokenCount || 0;
-                const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
-                tracker.recordMapper(inputTokens, outputTokens);
+            if (isOpenAI) {
+                const openaiModel = MAPPING_MODEL.replace('openai-', '');
+                const aiResponse = await ModelProvider.callOpenAIChat(
+                    systemPrompt,
+                    userPrompt,
+                    imagesToProcess.map(img => img.imageData),
+                    openaiModel,
+                    true, // forceJsonResponse
+                    tracker,
+                    'classification'
+                );
+                content = aiResponse.content;
+            } else {
+                const aiResponse = await ModelProvider.callGeminiChat(
+                    systemPrompt,
+                    userPrompt,
+                    imagesToProcess.map(img => img.imageData),
+                    MAPPING_MODEL as any,
+                    tracker,
+                    'classification'
+                );
+                content = aiResponse.content;
             }
 
             let parsed: any;
             const cleanContent = content.replace(/```json\n|\n```/g, '');
-
-            // 🔍 [RAW AI DEBUG] Uncomment if you want to see the raw JSON string
-            // if (debug) {
-            //     console.log(`\n\x1b[35m[MAPPER RAW JSON]\x1b[0m`);
-            //     console.log(cleanContent.substring(0, 500) + "..."); 
-            // }
-
             try {
                 parsed = JSON.parse(cleanContent);
             } catch (e) { parsed = { pages: [] }; }

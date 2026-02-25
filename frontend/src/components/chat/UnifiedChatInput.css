@@ -117,7 +117,7 @@
 /* Removed chat-title-greeting-container and greeting-star-icon */
 
 .chat-title-greeting {
-  font-size: 40px;
+  font-size: 32px;
   font-weight: 500;
   color: var(--text-primary);
   margin: 0 0 12px 0;
@@ -126,7 +126,7 @@
 }
 
 .chat-title-description {
-  font-size: 18px;
+  font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;

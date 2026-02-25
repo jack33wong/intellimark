@@ -58,17 +58,33 @@ const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Extract exam metadata from session
-  const getExamMetadata = (session: UnifiedSession): { examBoard: string; subject: string; examSeries: string; examCode: string; tier: string } | null => {
+  const getExamMetadata = (session: UnifiedSession): { examBoard: string; subject: string; examSeries: string; examCode: string; tier: string } => {
     // Check session-level detectedQuestion first
-    if (session.detectedQuestion?.found && session.detectedQuestion.examPapers?.length) {
-      const firstExamPaper = session.detectedQuestion.examPapers[0];
-      return {
-        examBoard: firstExamPaper.examBoard || 'Unknown',
-        subject: firstExamPaper.subject || 'Unknown',
-        examSeries: firstExamPaper.examSeries || 'Unknown',
-        examCode: firstExamPaper.examCode || '',
-        tier: firstExamPaper.tier || ''
-      };
+    if (session.detectedQuestion?.found) {
+      const dq = (session as any).detectedQuestion;
+
+      // Handle array structure (from full message)
+      if (dq.examPapers?.length > 0) {
+        const firstExamPaper = dq.examPapers[0];
+        return {
+          examBoard: firstExamPaper.examBoard || 'Unknown',
+          subject: firstExamPaper.subject || 'Unknown',
+          examSeries: firstExamPaper.examSeries || 'Unknown',
+          examCode: firstExamPaper.examCode || '',
+          tier: firstExamPaper.tier || ''
+        };
+      }
+
+      // Handle flat structure (from denormalization)
+      if (dq.examBoard || dq.subject) {
+        return {
+          examBoard: dq.examBoard || 'Unknown',
+          subject: dq.subject || 'Unknown',
+          examSeries: dq.examSeries || 'Unknown',
+          examCode: dq.examCode || '',
+          tier: dq.tier || ''
+        };
+      }
     }
 
     // Fallback: Find assistant message with detectedQuestion
@@ -77,7 +93,15 @@ const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
     );
 
     if (!assistantMessage?.detectedQuestion?.examPapers?.length) {
-      return null; // Skip sessions without exam metadata
+      // Return a default "General Marking" metadata instead of null
+      // This prevents thousands of sessions from being silently skipped
+      return {
+        examBoard: 'General',
+        subject: 'General Marking',
+        examSeries: 'Other',
+        examCode: '',
+        tier: ''
+      };
     }
 
     // Use first exam paper for grouping
@@ -117,6 +141,7 @@ const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
         return;
       }
 
+      console.log('🔍 [LibraryPage] Fetching sessions from MarkingHistoryService...');
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 100, authToken) as {
         success: boolean;
         sessions?: UnifiedSession[];
@@ -149,12 +174,18 @@ const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
   // Process sessions into library items
   useEffect(() => {
     const items: LibraryItem[] = [];
+    console.log(`🔍 [LibraryPage] Processing ${sessions.length} sessions into library items...`);
 
-    sessions.forEach(session => {
+    sessions.forEach((session, index) => {
       const metadata = getExamMetadata(session);
-      if (!metadata) {
-        return; // Skip if no exam metadata
-      }
+      // Ensure metadata is always an object (fallback handled in getExamMetadata)
+      const validMetadata = metadata || {
+        examBoard: 'General',
+        subject: 'General Marking',
+        examSeries: 'Other',
+        examCode: '',
+        tier: ''
+      };
 
       const images = getSessionImages(session);
       if (images.length === 0) {
@@ -182,7 +213,7 @@ const LibraryPage: React.FC<LibraryPageProps> = ({ setSidebarOpen }) => {
         sessionTitle: session.title || 'Untitled Session',
         date: formatLibraryDate(session.updatedAt || session.createdAt || ''),
         favorite: session.favorite || false,
-        ...metadata,
+        ...validMetadata,
         images,
         totalFiles: images.length,
         studentScore: validStudentScore

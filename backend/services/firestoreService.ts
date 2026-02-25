@@ -596,14 +596,20 @@ export class FirestoreService {
         });
         sessionDoc.imagesPreview = images.slice(0, 5); // Keep top 5
 
-        // Extract studentScore from messages if available (for Library performance)
-        const assistantMarkingMsg = unifiedMessages.find((m: any) => m.role === 'assistant' && m.studentScore);
+        // Extract metadata from messages if available (for Library performance)
+        const assistantMarkingMsg = unifiedMessages.find((m: any) => m.role === 'assistant' && (m.studentScore || m.detectedQuestion));
+
         if (assistantMarkingMsg) {
-          sessionDoc.studentScore = assistantMarkingMsg.studentScore;
+          if (assistantMarkingMsg.studentScore) {
+            sessionDoc.studentScore = assistantMarkingMsg.studentScore;
+          }
+          if (assistantMarkingMsg.detectedQuestion && !sessionDoc.detectedQuestion) {
+            sessionDoc.detectedQuestion = assistantMarkingMsg.detectedQuestion;
+          }
         }
       }
 
-      // Only include detectedQuestion if it exists and is not null
+      // Explicit detectedQuestion override if provided
       if (detectedQuestion) {
         sessionDoc.detectedQuestion = detectedQuestion;
       }
@@ -1270,9 +1276,14 @@ export class FirestoreService {
         usageMode: usageMode.toLowerCase() // Ensure session usageMode is always current
       };
 
-      // Add studentScore to update if present in the new message
-      if (sanitizedMessage.role === 'assistant' && sanitizedMessage.studentScore) {
-        (updateData as any).studentScore = sanitizedMessage.studentScore;
+      // Denormalize studentScore and detectedQuestion to session level if present in the new message
+      if (sanitizedMessage.role === 'assistant') {
+        if (sanitizedMessage.studentScore) {
+          (updateData as any).studentScore = sanitizedMessage.studentScore;
+        }
+        if (sanitizedMessage.detectedQuestion) {
+          (updateData as any).detectedQuestion = sanitizedMessage.detectedQuestion;
+        }
       }
 
       await sessionRef.update(updateData);

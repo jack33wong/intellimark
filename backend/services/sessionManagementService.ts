@@ -399,6 +399,7 @@ export class SessionManagementService {
       messages: [context.userMessage, dbAiMessage],
       isPastPaper: false,
       sessionStats,
+      detectedQuestion: dbAiMessage.detectedQuestion, // Pass explicitly for session-level denormalization
       usageMode
     });
   }

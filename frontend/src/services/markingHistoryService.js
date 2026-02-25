@@ -58,10 +58,10 @@ class MarkingHistoryService {
         // Check if the response has sessions array
         const sessions = result.sessions || result;
 
-        // Filter sessions that contain any messages OR have a lastMessage preview
+        // Filter sessions that contain any messages OR have a lastMessage/lastMessagePreview
         // This is necessary because optimized sessions return messages as an empty array
         const markingSessions = sessions.filter(session =>
-          (session.messages && session.messages.length > 0) || session.lastMessage
+          (session.messages && session.messages.length > 0) || session.lastMessage || session.lastMessagePreview
         );
 
         return {

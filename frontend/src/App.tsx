@@ -85,8 +85,8 @@ const MainLayoutWrapper = ({
       {/* Full-panel Loading Overlay */}
       {isHistoryLoading && (
         <div className="history-loading-overlay">
-          <div className="loading-spinner loading-spinner-large">
-            <div className="spinner spinner-primary"></div>
+          <div className="history-loading-content">
+            <div className="loading-spinner" />
             <p className="loading-text">Loading History...</p>
           </div>
         </div>

@@ -5,7 +5,7 @@
  */
 export class CoordinateAuditLogger {
     private static isEnabled(): boolean {
-        return process.env.DEBUG_COORDINATE_AUDIT === 'true';
+        return process.env.LOG_COORDINATE_AUDIT === 'true' || process.env.DEBUG_COORDINATE_AUDIT === 'true';
     }
 
     /**

@@ -303,9 +303,6 @@ ${pageHints}
         // For now, I will inline the essential parts or call a helper if I create one.
         // Let's use the existing logic structure but applied to taskImages.
 
-        let content: string;
-        let usageTokens = 0;
-        let apiUsed: string;
         let parsed: any;
 
         // ... (Reuse existing AI call logic, adapted for taskImages) ...
@@ -313,37 +310,49 @@ ${pageHints}
         // For now, I will inline the essential parts or call a helper if I create one.
         // Let's use the existing logic structure but applied to taskImages.
 
-        const accessToken = ModelProvider.getGeminiApiKey();
-        const parts: any[] = [
-          { text: taskSystemPrompt },
-          { text: taskUserPrompt }
-        ];
+        const isOpenAI = (validatedModel as string).startsWith('openai-');
+        let content: string;
+        let usageTokens = 0;
+        let apiUsed: string;
+        let inputTokens = 0;
+        let outputTokens = 0;
 
-        taskImages.forEach((img, idx) => {
-          const imageData = img.imageData.includes(',') ? img.imageData.split(',')[1] : img.imageData;
-          parts.push({
-            text: `\n--- Page ${pageIndices[idx] + 1} ${img.fileName ? `(${img.fileName})` : ''} ---`
-          });
-          parts.push({
-            inline_data: {
-              mime_type: 'image/jpeg',
-              data: imageData
-            }
-          });
-        });
+        const imagePayload = taskImages.map(img => img.imageData);
 
-        const response = await this.makeGeminiMultiImageRequest(accessToken, parts, validatedModel);
-        const result = await response.json() as any;
-        content = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        usageTokens = result.usageMetadata?.totalTokenCount || 0;
-        const inputTokens = result.usageMetadata?.promptTokenCount || 0;
-        const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
-        apiUsed = `Google Gemini ${model}`;
+        if (isOpenAI) {
+          const openaiModel = (validatedModel as string).replace('openai-', '');
+          const aiResponse = await ModelProvider.callOpenAIChat(
+            taskSystemPrompt,
+            taskUserPrompt,
+            imagePayload,
+            openaiModel,
+            true, // forceJsonResponse
+            tracker,
+            'classification'
+          );
+          content = aiResponse.content;
+          usageTokens = aiResponse.usageTokens;
+          apiUsed = `OpenAI ${aiResponse.modelName}`;
+          inputTokens = aiResponse.inputTokens || 0;
+          outputTokens = aiResponse.outputTokens || 0;
+        } else {
+          const aiResponse = await ModelProvider.callGeminiChat(
+            taskSystemPrompt,
+            taskUserPrompt,
+            imagePayload,
+            validatedModel as any,
+            tracker,
+            'classification'
+          );
+          content = aiResponse.content;
+          usageTokens = aiResponse.usageTokens;
+          apiUsed = `Google Gemini ${validatedModel}`;
+          inputTokens = aiResponse.inputTokens || 0;
+          outputTokens = aiResponse.outputTokens || 0;
+        }
 
         // Extract real input/output split and record via tracker
         if (tracker) {
-          const inputTokens = result.usageMetadata?.promptTokenCount || 0;
-          const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
           tracker.recordClassification(inputTokens, outputTokens);  // Classification Marking Pass
         }
         const cleanContent = this.cleanGeminiResponse(content);
@@ -429,8 +438,8 @@ ${pageHints}
                 questions: processedQuestions,
                 apiUsed,
                 usageTokens: isFirstPageOfQuestion ? usageTokens : 0,
-                llmInputTokens: isFirstPageOfQuestion ? result.usageMetadata?.promptTokenCount : 0,
-                llmOutputTokens: isFirstPageOfQuestion ? result.usageMetadata?.candidatesTokenCount : 0
+                llmInputTokens: isFirstPageOfQuestion ? inputTokens : 0,
+                llmOutputTokens: isFirstPageOfQuestion ? outputTokens : 0
               }
             });
           });
@@ -613,9 +622,68 @@ ${pageHints}
         };
       }
 
-      // Normal Gemini call for all other files
       const validatedModel = validateModel(model);
-      return await this.callGeminiForClassification(imageData, systemPrompt, userPrompt, validatedModel, debug);
+      const isOpenAI = (validatedModel as string).startsWith('openai-');
+
+      let content: string;
+      let usageTokens = 0;
+      let apiUsed: string;
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      if (isOpenAI) {
+        const openaiModel = (validatedModel as string).replace('openai-', '');
+        const aiResponse = await ModelProvider.callOpenAIChat(
+          systemPrompt,
+          userPrompt,
+          imageData,
+          openaiModel,
+          true, // forceJsonResponse
+          undefined, // tracker
+          'classification'
+        );
+        content = aiResponse.content;
+        usageTokens = aiResponse.usageTokens;
+        apiUsed = `OpenAI ${aiResponse.modelName}`;
+        inputTokens = aiResponse.inputTokens || 0;
+        outputTokens = aiResponse.outputTokens || 0;
+      } else {
+        // Normal Gemini call
+        const aiResponse = await ModelProvider.callGeminiChat(
+          systemPrompt,
+          userPrompt,
+          imageData,
+          validatedModel as any,
+          undefined, // tracker (will record manually if needed)
+          'classification'
+        );
+        content = aiResponse.content;
+        usageTokens = aiResponse.usageTokens;
+        apiUsed = `Google Gemini ${validatedModel}`;
+        inputTokens = aiResponse.inputTokens || 0;
+        outputTokens = aiResponse.outputTokens || 0;
+      }
+
+      const cleanContent = this.cleanGeminiResponse(content);
+      let parsed;
+      try {
+        parsed = this.parseJsonWithSanitization(cleanContent);
+      } catch (e) {
+        throw new Error(`AI returned malformed JSON: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      // Reuse same shared parsing function as Gemini for consistency
+      const processedQuestions = this.parseQuestionsFromResponse(parsed, 0.9);
+
+      return {
+        category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"),
+        reasoning: parsed.reasoning || '',
+        questions: processedQuestions,
+        apiUsed,
+        usageTokens,
+        llmInputTokens: inputTokens,
+        llmOutputTokens: outputTokens
+      };
     } catch (error) {
       // Check if this is our validation error (fail fast)
       if (error instanceof Error && error.message.includes('Unsupported model')) {
@@ -665,7 +733,8 @@ ${pageHints}
           const openai = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData);
           let parsed;
           try {
-            parsed = JSON.parse(openai.content);
+            const cleanOpenAIContent = this.cleanGeminiResponse(openai.content);
+            parsed = this.parseJsonWithSanitization(cleanOpenAIContent);
           } catch (parseErr) {
             console.error('❌ [CLASSIFICATION FALLBACK] OpenAI JSON parse failed:', parseErr);
             throw new Error('OpenAI fallback returned non-JSON content');
@@ -703,179 +772,7 @@ ${pageHints}
     }
   }
 
-  private static async callGeminiForClassification(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    model: ModelType = 'gemini-2.0-flash',
-    debug: boolean = false
-  ): Promise<ClassificationResult> {
-    try {
-      const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const accessToken = ModelProvider.getGeminiApiKey();
-      const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, model);
 
-      // Check if response is HTML (error page)
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('text/html')) {
-        const htmlContent = await response.text();
-        console.error('❌ [CLASSIFICATION] Received HTML response instead of JSON:');
-        console.error('❌ [CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
-        throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
-      }
-
-      const result = await response.json() as any;
-      const content = await this.extractGeminiContent(result);
-      const cleanContent = this.cleanGeminiResponse(content);
-
-      if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
-        console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Raw Response:\x1b[0m`);
-        console.log(cleanContent);
-      }
-
-      const sanitizedContent = this.parseJsonWithSanitization(cleanContent, true); // true = return string for parseGeminiResponse
-      const finalResult = await this.parseGeminiResponse(sanitizedContent, result, model);
-
-      return finalResult;
-    } catch (error) {
-      console.error(`❌ [CLASSIFICATION] Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      throw error;
-    }
-  }
-
-
-
-
-  private static async makeGeminiMultiImageRequest(
-    accessToken: string,
-    parts: any[],
-    model: ModelType = 'gemini-2.0-flash'
-  ): Promise<Response> {
-    // Use centralized model configuration
-    const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig(model);
-    const endpoint = config.apiEndpoint;
-
-    const requestBody = {
-      contents: [{
-        parts: parts
-      }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.0-flash').maxTokens
-      },
-      safetySettings: this.SAFETY_SETTINGS
-    };
-
-    // Gemini 2.5 Pro can be slow, so we increase the timeout to 10 minutes
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
-
-    try {
-      const response = await ModelProvider.withRetry(async () => {
-        const res = await fetch(`${endpoint}?key=${accessToken}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
-        });
-
-        if (!res.ok) {
-          // If we hit 429, throw standard error for withRetry to catch
-          if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`);
-          if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
-
-          const errorText = await res.text();
-          const { getModelConfig } = await import('../../config/aiModels.js');
-          const modelConfig = getModelConfig(model);
-          const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-          const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-
-          console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-          console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-          console.error(`❌ [HTTP STATUS] ${res.status} ${res.statusText}`);
-          console.error(`❌ [ERROR DETAILS] ${errorText}`);
-
-          throw new Error(`Gemini API request failed: ${res.status} ${res.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
-        }
-        return res;
-      }, 5, 2000); // 5 retries, 2s initial delay
-
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  }
-
-
-  private static async makeGeminiRequest(
-    accessToken: string,
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    model: ModelType = 'gemini-2.0-flash'
-  ): Promise<Response> {
-    // Use centralized model configuration
-    const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig(model);
-    const endpoint = config.apiEndpoint;
-
-    const requestBody = {
-      contents: [{
-        parts: [
-          { text: systemPrompt },
-          { text: userPrompt },
-          { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.0-flash').maxTokens
-      }, // Use centralized config
-      safetySettings: this.SAFETY_SETTINGS
-    };
-
-    const response = await ModelProvider.withRetry(async () => {
-      const res = await fetch(`${endpoint}?key=${accessToken}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!res.ok) {
-        if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`);
-        if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
-
-        const errorText = await res.text();
-        const { getModelConfig } = await import('../../config/aiModels.js');
-        const modelConfig = getModelConfig(model);
-        const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-
-        console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName}`);
-        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-        console.error(`❌ [HTTP STATUS] ${res.status} ${res.statusText}`);
-        console.error(`❌ [ERROR DETAILS] ${errorText}`);
-
-        throw new Error(`Gemini API request failed: ${res.status} ${res.statusText} - ${errorText}`);
-      }
-      return res;
-    }, 5, 2000);
-
-    return response;
-  }
-
-
-
-  private static async extractGeminiContent(result: any): Promise<string> {
-    const { ModelProvider } = await import('../../utils/ModelProvider.js');
-    return ModelProvider.extractGeminiTextContent(result);
-  }
 
   private static cleanGeminiResponse(content: string): string {
     let cleanContent = content.trim();

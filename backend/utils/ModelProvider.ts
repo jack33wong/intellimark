@@ -400,7 +400,7 @@ export class ModelProvider {
   static async callOpenAIChat(
     systemPrompt: string,
     userPrompt: string,
-    imageData?: string,
+    imageData?: string | string[],
     modelName?: string,
     forceJsonResponse: boolean = true,
     tracker?: any,
@@ -415,12 +415,20 @@ export class ModelProvider {
     const model = modelName || getOpenAIModelName();
 
     // Build messages. If imageData is provided, use array content with image_url per OpenAI vision design
-    const userContent = imageData
-      ? [
-        { type: 'text', text: userPrompt },
-        { type: 'image_url', image_url: { url: imageData } }
-      ]
-      : userPrompt;
+    let userContent: any[] = [{ type: 'text', text: userPrompt }];
+
+    if (imageData) {
+      const images = Array.isArray(imageData) ? imageData : [imageData];
+      images.forEach(img => {
+        if (img && img.trim() !== '') {
+          const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
+          userContent.push({
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${cleanImageData}` }
+          });
+        }
+      });
+    }
 
     const messages: any[] = [
       { role: 'system', content: systemPrompt },

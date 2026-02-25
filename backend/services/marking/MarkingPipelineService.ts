@@ -46,6 +46,8 @@ import { executeMarkingForQuestion, createMarkingTasksFromClassification } from 
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { QuestionModeHandlerService } from './QuestionModeHandlerService.js';
 import { ModeSplitService } from './ModeSplitService.js';
+import { SessionManagementService } from '../sessionManagementService.js';
+import { createUserMessage, createAIMessage } from '../../utils/messageUtils.js';
 
 // Define the steps for multi-image processing
 const MULTI_IMAGE_STEPS = [
@@ -946,8 +948,12 @@ export class MarkingPipelineService {
             // ========================= ENHANCED MODE DETECTION =========================
             // Check ORIGINAL results (before split), not filtered marking-only results
             const hasStudentWorkPages = originalClassificationResults.some(r => r.result?.category === 'questionAnswer');
-            const hasQuestionOnlyPages = originalClassificationResults.every(r => r.result?.category === 'questionOnly');
-            const isQuestionMode = hasQuestionOnlyPages && originalClassificationResults.length > 0;
+            const hasQuestionOnlyPages = originalClassificationResults.every(r =>
+                r.result?.category === 'questionOnly' ||
+                r.result?.category === 'frontPage' ||
+                r.result?.category === 'metadata'
+            );
+            const isQuestionMode = hasQuestionOnlyPages && originalClassificationResults.length > 0 && !hasStudentWorkPages;
             const isMixedContent = hasStudentWorkPages && questionOnlyPages.length > 0;
 
             console.log(`🔍 [MODE DETECTION] Analysis (AFTER overrides):`);
@@ -1607,28 +1613,72 @@ export class MarkingPipelineService {
             if (markingTasks.length === 0) {
                 console.log('No marking tasks created, exiting early');
                 progressCallback(createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
+
+                // 🛡️ [SESSION-STABILITY]: Ensure we have a sessionId even if no tasks were found
+                let finalSessionId = questionOnlyResult?.sessionId || questionOnlyResult?.unifiedSession?.sessionId;
+                let finalUnifiedSession = questionOnlyResult?.unifiedSession;
+
+                if (!finalSessionId) {
+                    console.log(`📡 [EARLY EXIT] Generating fallback sessionId from submissionId: ${submissionId}`);
+                    finalSessionId = submissionId;
+
+                    // Persist an empty marking session so it shows in Library
+                    try {
+                        const userMessage = createUserMessage({
+                            content: 'Uploaded document for marking',
+                            pdfContexts: files.map(f => ({ url: f.path, originalFileName: f.originalname, fileSize: f.size }))
+                        });
+                        const aiMessage = createAIMessage({
+                            content: 'No student work was detected on the uploaded pages.'
+                        });
+
+                        const markingContext: MarkingSessionContext = {
+                            req,
+                            submissionId,
+                            startTime,
+                            userMessage,
+                            aiMessage,
+                            questionDetection: options.markingScheme,
+                            globalQuestionText: options.customText || '',
+                            mode: 'Marking',
+                            allQuestionResults: [],
+                            files,
+                            usageTokens: totalLLMTokens,
+                            apiRequests: usageTracker.getTotalRequests(),
+                            model: actualModel,
+                            mathpixCallCount: usageTracker.getMathpixPages(),
+                            totalCost: usageTracker.calculateCost(actualModel).total,
+                            detectionResults: detectionResults
+                        };
+
+                        const sessionResult = await SessionManagementService.persistMarkingSession(markingContext);
+                        finalSessionId = sessionResult.sessionId;
+                        finalUnifiedSession = sessionResult.unifiedSession;
+                        console.log(`✅ [EARLY EXIT] Persisted empty marking session: ${finalSessionId}`);
+                    } catch (persistError) {
+                        console.error('❌ [EARLY EXIT] Failed to persist empty session:', persistError);
+                    }
+                }
+
                 const finalOutput = {
                     submissionId, // Pass through submissionId
                     annotatedOutput: [],
                     results: [],
-                    mode: 'Question',
-                    unifiedSession: questionOnlyResult?.unifiedSession,
-                    // Add sessionId for credit deduction (Question Mode)
-                    sessionId: questionOnlyResult?.sessionId || questionOnlyResult?.unifiedSession?.sessionId,
+                    mode: isQuestionMode ? 'Question' : 'Marking',
+                    unifiedSession: finalUnifiedSession,
+                    // Add sessionId for credit deduction
+                    sessionId: finalSessionId,
                     // Add sessionStats for usageRecord lookup
-                    sessionStats: questionOnlyResult?.unifiedSession?.sessionStats || null,
+                    sessionStats: finalUnifiedSession?.sessionStats || null,
                     processingStats: {
                         totalLLMTokens,
                         mathpixCalls: usageTracker.getMathpixPages()
                     }
                 };
 
-
-                // console.log(`\n🔍 [RETURN DEBUG] No Marking Tasks - Returning:`);
                 console.log(`   - submissionId: ${finalOutput.submissionId}`);
+                console.log(`   - sessionId: ${finalOutput.sessionId}`);
                 console.log(`   - result object exists: true\n`);
-                // sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
-                // res.end();
                 return finalOutput; // Exit early
             }
             progressCallback(createProgressData(5, `Prepared ${markingTasks.length} marking task(s).`, MULTI_IMAGE_STEPS));
