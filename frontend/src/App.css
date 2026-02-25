@@ -87,6 +87,7 @@ body:has(.light-mode-forced) .app-container {
   /* Let chat-content handle scrolling */
   height: 100vh;
   /* Fixed height to contain scroll */
+  position: relative;
 }
 
 /* Library page specific - full height without header */

@@ -448,16 +448,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
         </div>
 
         <div className="chat-container" ref={setChatContainerRef}>
-          {/* Loading Spinner for History Transitions */}
-          {isHistoryLoading && (
-            <div className="history-loading-overlay">
-              <div className="loading-spinner loading-spinner-large">
-                <div className="spinner spinner-primary"></div>
-                <p className="loading-text">Loading...</p>
-              </div>
-            </div>
-          )}
-
           {/* Welcome Message or Chat Messages */}
           {!hasMessages ? (
             <div className="focused-app-entry">

@@ -51,6 +51,7 @@ interface MainLayoutWrapperProps {
   handleMarkingResultSaved: () => void;
   isChatMode: boolean;
   isProcessing: boolean;
+  isHistoryLoading: boolean;
 }
 
 const MainLayoutWrapper = ({
@@ -64,7 +65,8 @@ const MainLayoutWrapper = ({
   handleMarkHomeworkClick,
   handleMarkingResultSaved,
   isChatMode,
-  isProcessing
+  isProcessing,
+  isHistoryLoading
 }: MainLayoutWrapperProps) => (
   <div className="app-body">
     {isSidebarOpen && window.innerWidth <= 768 && (
@@ -80,6 +82,15 @@ const MainLayoutWrapper = ({
       />
     )}
     <div className={`right-side ${rightSideClass}`}>
+      {/* Full-panel Loading Overlay */}
+      {isHistoryLoading && (
+        <div className="history-loading-overlay">
+          <div className="loading-spinner loading-spinner-large">
+            <div className="spinner spinner-primary"></div>
+            <p className="loading-text">Loading History...</p>
+          </div>
+        </div>
+      )}
       {!hideHeader && !isSpecialRoute && (
         <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
       )}
@@ -199,7 +210,8 @@ function AppContent() {
     handleMarkHomeworkClick,
     handleMarkingResultSaved,
     isChatMode,
-    isProcessing
+    isProcessing,
+    isHistoryLoading
   };
 
   return (
