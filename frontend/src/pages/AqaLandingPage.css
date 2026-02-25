@@ -90,6 +90,16 @@
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
+.paper-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
 .aqa-microcopy {
     font-size: 0.9rem;
     color: #718096;
@@ -396,6 +406,8 @@
     margin: 0 -12px 8px -12px;
     border-radius: 6px;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .paper-item-row.interactive:hover {

@@ -281,6 +281,8 @@
     margin: 0 -12px 8px -12px;
     border-radius: 6px;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .paper-item-row.interactive:hover {
@@ -289,10 +291,15 @@
     /* Professional shift effect */
 }
 
-.paper-actions {
+.paper-meta {
     display: flex;
-    gap: 8px;
-    /* Separates the two buttons */
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex-wrap: nowrap;
 }
 
 .paper-name {
@@ -360,6 +367,28 @@
 .ocr-pill-new {
     background: #c6f6d5;
     color: #22543d;
+}
+
+@media (max-width: 1100px) {
+    .ocr-year-card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .ocr-year-card-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .ocr-hero-section {
+        padding-top: 100px;
+    }
+
+    .ocr-hero-title {
+        font-size: 2.5rem;
+    }
 }
 
 /* Responsive Overrides */

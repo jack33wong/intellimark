@@ -99,9 +99,11 @@
   text-align: left;
   margin: 0 auto 30px auto;
   /* Increased margin to push input down */
-  max-width: 1000px;
+  max-width: 900px;
+  /* Synchronized with input bar max-width */
   width: 100%;
   padding-left: 32px;
+  /* Base padding, refined below */
   position: relative;
   z-index: 50;
   /* Remove padding as star is gone */
@@ -229,7 +231,12 @@
 /* Mobile responsive - input bar takes full width when sidebar is hidden */
 @media (max-width: 768px) {
   .chat-title-section {
-    width: 90%;
+    width: 100%;
+    /* Match input bar width */
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 32px;
+    /* Matches total internal offset of input placeholder on mobile */
     margin-bottom: 20px;
     /* Mobile specific margin */
   }
@@ -261,6 +268,24 @@
   .followup-chat-input-bar.follow-up-bottom {
     left: 0;
     /* Full width on mobile */
+  }
+
+  .followup-single-line-container {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .followup-controls-row {
+    padding: 4px 0px 0px;
+  }
+
+  .followup-buttons-row {
+    gap: 8px;
+  }
+
+  .followup-left-buttons,
+  .followup-right-buttons {
+    gap: 6px;
   }
 
   .chat-title-description {
@@ -577,6 +602,13 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Hide model selector in the bottom bar on mobile - now in header */
+@media (max-width: 768px) {
+  .followup-right-buttons .model-selector {
+    display: none !important;
+  }
 }
 
 .followup-single-line-container:focus-within {

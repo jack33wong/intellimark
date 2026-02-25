@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import CreditIcon from '../common/CreditIcon';
@@ -24,6 +24,8 @@ import '../credits.css';
 import { useCredits } from '../../hooks/useCredits';
 import { useSubscription } from '../../hooks/useSubscription';
 import SubscriptionService from '../../services/subscriptionService';
+import ModelSelector from '../focused/ModelSelector';
+import { STORAGE_KEYS } from '../../utils/constants';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -35,9 +37,45 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [avatarError, setAvatarError] = useState(false);
   const profileRef = useRef(null);
   const subscriptionRef = useRef(null);
+
+  // New state for header model selection (syncing with MarkingPageContext)
+  const [headerModel, setHeaderModel] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || 'gemini-2.0-flash';
+    } catch (e) {
+      return 'gemini-2.0-flash';
+    }
+  });
+
+  // Sync model state with custom events
+  useEffect(() => {
+    const handleModelSync = (event) => {
+      const newModel = event.detail;
+      if (newModel && newModel !== headerModel) {
+        setHeaderModel(newModel);
+      }
+    };
+
+    window.addEventListener('modelChanged', handleModelSync);
+    return () => window.removeEventListener('modelChanged', handleModelSync);
+  }, [headerModel]);
+
+  const handleHeaderModelChange = (model) => {
+    setHeaderModel(model);
+    try {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, model);
+      // Dispatch event to sync with MarkingPageContext and model selector in chat input
+      window.dispatchEvent(new CustomEvent('modelChanged', { detail: model }));
+    } catch (e) {
+      console.error('Failed to save selected model to localStorage:', e);
+    }
+  };
+
+  const isAppPage = location.pathname === '/app';
 
 
 
@@ -273,11 +311,19 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           </Link>
         </div>
 
-        {/* Center - Navigation */}
-        {/* Center - Navigation - Removed Admin link from here */}
-        <nav className="header-nav">
-          {/* Empty or removed if no other items */}
-        </nav>
+        {/* Center - Navigation or Model Selector */}
+        <div className="header-center">
+          {isAppPage && (
+            <div className="header-model-selector-container">
+              <ModelSelector
+                selectedModel={headerModel}
+                onModelChange={handleHeaderModelChange}
+                size="small"
+                dropdownDirection="down"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Right side - Profile */}
         <div className="header-right">

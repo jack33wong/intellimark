@@ -76,6 +76,23 @@
   animation: dropdownSlideIn 0.2s ease-out;
 }
 
+@media (max-width: 768px) {
+  .model-selector-dropdown {
+    width: 260px;
+    max-width: calc(100vw - 32px);
+    right: auto;
+    left: 50%;
+    margin-left: -130px;
+    /* Half of 260px to center exactly */
+  }
+
+  /* Specific fix for header alignment - stays same but explicitly centered */
+  .header-model-selector-container .model-selector-dropdown {
+    left: 50%;
+    margin-left: -130px;
+  }
+}
+
 @keyframes dropdownSlideIn {
   from {
     opacity: 0;

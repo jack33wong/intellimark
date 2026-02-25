@@ -112,14 +112,14 @@
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
-    top: 0;
+    top: 60px;
     left: 0;
-    height: 100vh;
+    height: calc(100vh - 60px);
     width: 280px;
     max-width: 280px;
     transform: translateX(0);
     /* Visible state (isOpen = true, no 'collapsed' class) */
-    z-index: 1000;
+    z-index: 1100;
     box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
   }
 

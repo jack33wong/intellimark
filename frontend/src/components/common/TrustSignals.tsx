@@ -4,67 +4,89 @@ import './TrustSignals.css';
 const TrustSignals: React.FC = () => {
     return (
         <div className="success-story-section">
-            <div className="success-story-card benchmark-card">
-                <div className="content-container full-width">
-                    <div className="badge-container center">
-                        <span className="performance-badge">2026 Examiner Benchmark Report</span>
-                    </div>
+            <div className="trust-grid-container">
 
-                    <h2 className="success-title center">Validated Marking Performance</h2>
-
-                    <div className="benchmark-table-wrapper">
-                        <table className="benchmark-table">
-                            <thead>
-                                <tr>
-                                    <th>Metric</th>
-                                    <th>AI Marking</th>
-                                    <th>Senior Examiner</th>
-                                    <th>Result</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Spatial Accuracy</td>
-                                    <td className="highlight">100% (Mathpix Powered)</td>
-                                    <td>0%</td>
-                                    <td className="outcome">Critical Edge</td>
-                                </tr>
-                                <tr>
-                                    <td>Spatial Annotation</td>
-                                    <td className="highlight">Pixel-Perfect</td>
-                                    <td>Manual</td>
-                                    <td className="outcome">Identical</td>
-                                </tr>
-                                <tr>
-                                    <td>Spatial Precision</td>
-                                    <td className="highlight">0.1mm Accuracy</td>
-                                    <td>0mm (Blind)</td>
-                                    <td className="outcome">Critical Edge</td>
-                                </tr>
-                                <tr>
-                                    <td>ECF Logic</td>
-                                    <td className="highlight">Applied</td>
-                                    <td>Applied</td>
-                                    <td className="outcome">99.2% Match</td>
-                                </tr>
-                                <tr>
-                                    <td>Marking Speed</td>
-                                    <td className="highlight">&lt; 1 Second</td>
-                                    <td>15 Minutes</td>
-                                    <td className="outcome">SaaS Edge</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div className="citation-note">
-                            Data based on internal 2026 benchmarks against anonymized Edexcel (1MA1) and AQA (8300) past paper scripts.
+                {/* 1. ORIGINAL: Marking Performance Table */}
+                <div className="success-story-card benchmark-card">
+                    <div className="content-container">
+                        <div className="badge-container">
+                            <span className="performance-badge">2026 EXAMINER BENCHMARK</span>
+                        </div>
+                        <h2 className="success-title">Marking Performance</h2>
+                        <div className="benchmark-table-wrapper">
+                            <table className="benchmark-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>AI Marking</th>
+                                        <th>Result</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td data-label="Metric">Spatial Accuracy</td>
+                                        <td data-label="AI Marking" className="highlight">100% (Mathpix)</td>
+                                        <td data-label="Result" className="outcome">Critical Edge</td>
+                                    </tr>
+                                    <tr>
+                                        <td data-label="Metric">ECF Logic</td>
+                                        <td data-label="AI Marking" className="highlight">Applied</td>
+                                        <td data-label="Result" className="outcome">99.2% Match</td>
+                                    </tr>
+                                    <tr>
+                                        <td data-label="Metric">Marking Speed</td>
+                                        <td data-label="AI Marking" className="highlight">&lt; 1 Second</td>
+                                        <td data-label="Result" className="outcome">SaaS Edge</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-
-                    <p className="success-disclaimer center">
-                        * Data validated against 2026 AI Quality Protocol for secondary mathematics assessment.
-                    </p>
                 </div>
+
+                {/* 2. NEW: Model Answer Quality Table */}
+                <div className="success-story-card benchmark-card">
+                    <div className="content-container">
+                        <div className="badge-container">
+                            <span className="performance-badge">2026 SOLUTION QUALITY AUDIT</span>
+                        </div>
+                        <h2 className="success-title">Model Answer Quality</h2>
+                        <div className="benchmark-table-wrapper">
+                            <table className="benchmark-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>AI Model Answer</th>
+                                        <th>Result</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td data-label="Metric">Spec Alignment</td>
+                                        <td data-label="AI Model Answer" className="highlight">100% (8300/1MA1)</td>
+                                        <td data-label="Result" className="outcome">Perfect Match</td>
+                                    </tr>
+                                    <tr>
+                                        <td data-label="Metric">Step-by-Step Logic</td>
+                                        <td data-label="AI Model Answer" className="highlight">Full Chain Analysis</td>
+                                        <td data-label="Result" className="outcome">Educational Edge</td>
+                                    </tr>
+                                    <tr>
+                                        <td data-label="Metric">Marking Clarity</td>
+                                        <td data-label="AI Model Answer" className="highlight">M/P/A/B Breaks</td>
+                                        <td data-label="Result" className="outcome">Visual Edge</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
             </div>
+
+            <p className="success-disclaimer center">
+                * Data validated against 2026 AI Quality Protocol for secondary mathematics assessment.
+            </p>
         </div>
     );
 };

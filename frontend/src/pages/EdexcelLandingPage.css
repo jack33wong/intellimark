@@ -279,6 +279,8 @@
     margin: 0 -12px 8px -12px;
     border-radius: 6px;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .paper-item-row.interactive:hover {
@@ -287,10 +289,14 @@
     /* Professional shift effect */
 }
 
-.paper-actions {
+.paper-meta {
     display: flex;
-    gap: 8px;
-    /* Separates the two buttons */
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .paper-name {
@@ -368,6 +374,28 @@
 .edexcel-strategy-hub-row .edexcel-visual-large {
     flex: 1.3;
     transform: scale(1.02);
+}
+
+@media (max-width: 1100px) {
+    .edexcel-year-card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .edexcel-year-card-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .edexcel-hero-section {
+        padding-top: 100px;
+    }
+
+    .edexcel-hero-title {
+        font-size: 2.5rem;
+    }
 }
 
 @media (max-width: 900px) {

@@ -2,7 +2,6 @@
 .header {
   background: var(--background-gray-main);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 9998;
   flex-shrink: 0;
@@ -25,6 +24,22 @@
   align-items: center;
   gap: 16px;
   flex: 1;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+/* Hide model selector in header on desktop */
+.header-model-selector-container {
+  display: none;
 }
 
 .menu-toggle {
@@ -280,8 +295,14 @@
     height: 60px;
   }
 
+  /* Hide logo on mobile */
+  .header-logo {
+    display: none;
+  }
+
   .header-left {
     gap: 12px;
+    flex: 0 0 auto;
   }
 
   .logo-text {
@@ -298,6 +319,37 @@
 
   .header-nav {
     margin: 0 12px;
+  }
+
+  /* Hide credit section on mobile */
+  .subscription-section {
+    display: none;
+  }
+
+  /* Show model selector in header on mobile only */
+  .header-model-selector-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    z-index: 10;
+  }
+
+  /* Compact model selector for header */
+  .header-model-selector-container .model-selector-button {
+    height: 32px;
+    padding: 0 12px;
+    background: var(--background-menu-gray);
+    border-color: var(--border-main);
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .nav-item {
@@ -343,8 +395,6 @@
   border: none;
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
-  min-width: 400px;
-  width: 400px;
   z-index: 10000 !important;
   overflow: hidden;
   animation: dropdownSlideIn 0.2s ease-out;
@@ -740,7 +790,7 @@
   }
 
   .header-logo {
-    display: flex;
+    display: none !important;
   }
 
   .header-logo-text {
@@ -749,6 +799,11 @@
 
   .action-buttons {
     display: none;
+  }
+
+  /* Hide guest actions on mobile to avoid overcrowding */
+  .guest-header-actions {
+    display: none !important;
   }
 }
 

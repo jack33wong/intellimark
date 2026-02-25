@@ -3,84 +3,109 @@
     padding: 120px 24px;
     background-color: var(--background-white-main);
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+}
+
+/* Container for the side-by-side layout */
+.trust-grid-container {
+    display: flex;
+    gap: 32px;
+    width: 100%;
+    max-width: var(--landing-max-width, 1400px);
+    margin-bottom: 40px;
+    align-items: stretch;
+    /* Forces both cards to be the same height */
 }
 
 .success-story-card {
+    flex: 1;
     display: flex;
-    width: 100%;
-    max-width: var(--landing-max-width, 1200px);
+    flex-direction: column;
     background-color: #ffffff;
     border: 1px solid var(--border-light);
     border-radius: 40px;
-    overflow: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
 }
 
 .benchmark-card {
-    padding: 60px;
+    padding: 48px;
+    height: 100%;
+    /* Ensures internal container fills the card */
     background: linear-gradient(180deg, #ffffff 0%, #fcfcff 100%);
 }
 
-.content-container.full-width {
-    width: 100%;
-    padding: 0;
-}
-
-.center {
-    text-align: center;
-}
-
-.badge-container.center {
+.badge-container {
     display: flex;
-    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.performance-badge {
+    background: var(--fill-brand);
+    color: var(--text-brand);
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
 }
 
 .success-title {
-    font-family: LibreBaskerville, Georgia, Cambria, ui-serif, Times New Roman, Times, serif;
-    font-size: 2.5rem;
+    font-family: var(--page-title-font);
+    font-size: 2.2rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 48px;
+    margin-bottom: 32px;
     letter-spacing: -0.01em;
 }
 
 .benchmark-table-wrapper {
     width: 100%;
-    overflow-x: auto;
-    margin-bottom: 40px;
+    background: white;
     border: 1px solid #eeeeed;
     border-radius: 24px;
-    background: white;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+    overflow: hidden;
 }
 
 .benchmark-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 800px;
 }
 
-.benchmark-table th,
-.benchmark-table td {
-    padding: 24px 32px;
-    text-align: left;
-    border-bottom: 1px solid #f3f3f1;
+/* Row Normalization for Desktop */
+.benchmark-table tr {
+    height: 85px;
+    /* Fixed height ensures identical row alignment across tables */
 }
 
 .benchmark-table th {
     background-color: #fafafa;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border-bottom: 1px solid #f3f3f1;
+}
+
+.benchmark-table th,
+.benchmark-table td {
+    padding: 16px 24px;
+    text-align: left;
+    vertical-align: middle;
 }
 
 .benchmark-table td {
-    font-size: 1.1rem;
-    color: var(--text-primary);
+    border-bottom: 1px solid #f3f3f1;
+    font-size: 1.05rem;
     font-weight: 500;
+    color: var(--text-primary);
+}
+
+.benchmark-table tr:last-child td {
+    border-bottom: none;
 }
 
 .benchmark-table .highlight {
@@ -90,34 +115,119 @@
 
 .benchmark-table .outcome {
     font-weight: 600;
+    font-size: 0.9rem;
     color: #000;
     background-color: #f3f3f1;
     border-radius: 8px;
-}
-
-.citation-note {
-    padding: 16px 32px;
-    font-size: 0.85rem;
-    color: var(--text-tertiary);
-    background-color: #fafafa;
-    border-top: 1px solid #f3f3f1;
-    opacity: 0.8;
-    line-height: 1.4;
+    padding: 6px 12px;
+    display: inline-block;
 }
 
 .success-disclaimer {
     font-size: 0.9rem;
     color: var(--text-tertiary);
     opacity: 0.8;
+    margin-top: 24px;
 }
 
-@media (max-width: 900px) {
-    .benchmark-card {
-        padding: 40px 24px;
+.center {
+    text-align: center;
+}
+
+/* Mobile Alignment Overrides */
+@media (max-width: 1100px) {
+    .trust-grid-container {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .success-story-card {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .success-story-section {
+        padding: 60px 16px;
+        align-items: flex-start;
+        /* Aligns the section content left */
     }
 
     .success-title {
-        font-size: 2.5rem;
-        margin-bottom: 32px;
+        text-align: left;
+        /* Left align titles */
+        font-size: 1.6rem;
+    }
+
+    .badge-container {
+        justify-content: flex-start !important;
+        /* Forces badges to the left */
+    }
+
+    .benchmark-table-wrapper {
+        border: none;
+        background: transparent;
+    }
+
+    .benchmark-table tr {
+        height: auto;
+        /* Allow natural height on mobile stack */
+        padding: 16px 0;
+        text-align: left;
+        display: block;
+        margin-bottom: 16px;
+        background: white;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+    }
+
+    .benchmark-table thead {
+        display: none;
+    }
+
+    .benchmark-table td {
+        display: flex;
+        flex-direction: column;
+        /* Stack label and value for mobile */
+        align-items: flex-start;
+        /* Left align all mobile table data */
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: none;
+    }
+
+    .benchmark-table td:not(:first-child) {
+        border-top: 1px solid #f8f8f7;
+    }
+
+    .benchmark-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+        /* Space between label and value */
+    }
+
+    /* Style the Metric row as a header inside the card */
+    .benchmark-table td[data-label="Metric"] {
+        background: #fafafa;
+        border-top: none;
+    }
+
+    .benchmark-table td[data-label="Metric"]::before {
+        display: none;
+    }
+
+    .benchmark-table .outcome {
+        align-self: flex-start;
+        /* Left align the grey badges */
+        margin-top: 0;
+    }
+
+    .success-disclaimer {
+        text-align: left;
     }
 }

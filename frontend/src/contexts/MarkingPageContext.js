@@ -155,10 +155,14 @@ export const MarkingPageProvider = ({
     if (selectedMarkingResult) {
       const images = getSessionImages(selectedMarkingResult);
       if (images && images.length > 0) {
-        dispatch({
-          type: 'ENTER_SPLIT_MODE',
-          payload: { images: images, index: 0, isGlobal: true }
-        });
+        // Only auto-split on desktop
+        const isMobile = window.innerWidth <= 768;
+        if (!isMobile) {
+          dispatch({
+            type: 'ENTER_SPLIT_MODE',
+            payload: { images: images, index: 0, isGlobal: true }
+          });
+        }
         // Sync the ref now so the second useEffect knows we've already handled THIS session
         lastSyncedSessionId.current = selectedMarkingResult.id;
       } else {
@@ -203,10 +207,14 @@ export const MarkingPageProvider = ({
         }
 
         if (newImages && newImages.length > 0) {
-          dispatch({
-            type: 'ENTER_SPLIT_MODE',
-            payload: { images: newImages, index: 0, isGlobal: true }
-          });
+          // Only auto-split on desktop
+          const isMobile = window.innerWidth <= 768;
+          if (!isMobile) {
+            dispatch({
+              type: 'ENTER_SPLIT_MODE',
+              payload: { images: newImages, index: 0, isGlobal: true }
+            });
+          }
           lastSyncedSessionId.current = currentSession.id;
         } else {
           dispatch({ type: 'EXIT_SPLIT_MODE' });
@@ -265,10 +273,14 @@ export const MarkingPageProvider = ({
           ? initialImageIndex
           : 0;
 
-        dispatch({
-          type: 'ENTER_SPLIT_MODE',
-          payload: { images, index: validIndex, isGlobal: true }
-        });
+        // Only auto-split on desktop
+        const isMobile = window.innerWidth <= 768;
+        if (!isMobile) {
+          dispatch({
+            type: 'ENTER_SPLIT_MODE',
+            payload: { images, index: validIndex, isGlobal: true }
+          });
+        }
 
         // Also ensure page mode is chat so we see the results
         dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
