@@ -114,6 +114,10 @@
 }
 
 .benchmark-table .outcome {
+    vertical-align: middle;
+}
+
+.outcome-badge {
     font-weight: 600;
     font-size: 0.9rem;
     color: #000;
@@ -221,7 +225,7 @@
         display: none;
     }
 
-    .benchmark-table .outcome {
+    .benchmark-table .outcome-badge {
         align-self: flex-start;
         /* Left align the grey badges */
         margin-top: 0;
