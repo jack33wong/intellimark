@@ -391,10 +391,11 @@
   .close-btn {
     pointer-events: auto;
     /* Re-enable clicks on buttons */
-    background: rgba(255, 255, 255, 0.9);
-    /* More visible background */
+    background: var(--background-nav);
+    /* Theme-aware background */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-main);
   }
 
   .image-mode-controls {
@@ -405,6 +406,14 @@
     transform-origin: left top;
   }
 
+  /* Ensure icons are visible in both modes */
+  .image-mode-controls .zoom-btn,
+  .image-mode-controls .rotate-btn,
+  .image-mode-controls .download-btn,
+  .close-btn {
+    color: var(--icon-primary);
+  }
+
   .close-btn {
     position: absolute;
     top: 10px;
@@ -413,7 +422,6 @@
     height: 36px;
     border-radius: 50%;
     /* Circle */
-    background: rgba(255, 255, 255, 0.9);
     z-index: 100;
   }
 
@@ -421,7 +429,7 @@
   /* Safe top padding for header, align items to top */
   .image-mode-content {
     /* Remove max-width constraint */
-    padding: 60px 4px 10px 4px;
+    padding: 60px 10px 10px 10px;
     /* Top padding clears controls (approx 50px) */
     height: 100%;
     align-items: flex-start;
@@ -456,6 +464,17 @@
   .thumbnail-btn.active {
     width: 34px;
     height: 34px;
+  }
+
+  /* Mobile-friendly badges */
+  .thumbnail-badge {
+    font-size: 8px;
+    padding: 1px 2px;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 0;
+    /* Keep it full width at bottom */
   }
 }
 
