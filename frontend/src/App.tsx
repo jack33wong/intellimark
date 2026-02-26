@@ -23,6 +23,7 @@ import useTheme from './hooks/useTheme';
 import HeroAnimation from './components/layout/HeroAnimation';
 import LandingPage from './pages/LandingPage';
 import { HelmetProvider } from 'react-helmet-async';
+import ScrollToTop from './components/common/ScrollToTop';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
@@ -317,6 +318,7 @@ const App: React.FC = () => {
           v7_startTransition: true,
           v7_relativeSplatPath: true
         }}>
+          <ScrollToTop />
           <AnalyticsTracker />
           <AppContent />
           <UnifiedProfileModal />
