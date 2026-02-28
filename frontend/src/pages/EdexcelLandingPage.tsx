@@ -43,10 +43,10 @@ const EdexcelLandingPage: React.FC = () => {
 
             <SeoHeader
                 title="Edexcel GCSE Maths Model Answers & AI Marking | 1MA1 Spec"
-                description="Get instant Edexcel GCSE Maths model answers and AI marking for 1MA1 past papers. Features accurate marking schemes, M/P/A marks, and step-by-step solutions for 2022-2024 Higher & Foundation."
+                description="Get instant Edexcel GCSE Maths model answers and AI marking for 1MA1 past papers. Features accurate marking schemes, M/P/A marks, and step-by-step solutions for 2020-2024 Higher & Foundation."
                 canonicalUrl="https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"
                 ogTitle="Edexcel GCSE Maths Model Answers | Instant AI Marking & Grades"
-                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for Edexcel 1MA1 maths papers."
+                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for Edexcel 1MA1 maths papers (2020-2024)."
                 ogUrl="https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"
             />
 

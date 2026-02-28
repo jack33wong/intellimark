@@ -30,10 +30,10 @@ const AqaLandingPage: React.FC = () => {
         <div className="light-mode-forced aqa-landing-page">
             <SeoHeader
                 title="AQA GCSE Maths Model Answers & AI Marking | Spec 8300"
-                description="Get instant AQA GCSE Maths model answers and AI marking for 8300 past papers. Accurate marking schemes and step-by-step solutions for Higher & Foundation (2022-2024)."
+                description="Get instant AQA GCSE Maths model answers and AI marking for 8300 past papers. Accurate marking schemes and step-by-step solutions for Higher & Foundation (2020-2024)."
                 canonicalUrl="https://aimarking.ai/mark-aqa-gcse-maths-past-papers"
                 ogTitle="AQA GCSE Maths Model Answers | Instant AI Marking & Grades"
-                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all AQA 8300 maths papers."
+                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all AQA 8300 maths papers (2020-2024)."
                 ogUrl="https://aimarking.ai/mark-aqa-gcse-maths-past-papers"
             />
 
@@ -96,7 +96,7 @@ const AqaLandingPage: React.FC = () => {
             {/* 4. Tidy 3-Column Grid with Internal Tier Grouping */}
             <section className="landing-section aqa-resources-section">
                 <div className="aqa-resources-content">
-                    <h2 className="aqa-section-title">AQA 8300 Official Resource Archive</h2>
+                    <h2 className="aqa-section-title">AQA 8300 Resource Library</h2>
 
                     <div className="aqa-year-card-grid">
                         {[

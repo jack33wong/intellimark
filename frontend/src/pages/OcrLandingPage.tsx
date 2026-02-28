@@ -43,10 +43,10 @@ const OcrLandingPage: React.FC = () => {
 
             <SeoHeader
                 title="OCR GCSE Maths Model Answers & AI Marking | J560 Spec"
-                description="Get instant OCR GCSE Maths model answers and AI marking for J560 past papers. Accurate marking schemes, B marks, and FT logic for 2022-2024 Higher & Foundation tiers."
+                description="Get instant OCR GCSE Maths model answers and AI marking for J560 past papers. Accurate marking schemes, B marks, and FT logic for 2020-2024 Higher & Foundation tiers."
                 canonicalUrl="https://aimarking.ai/mark-ocr-gcse-maths-past-papers"
                 ogTitle="OCR GCSE Maths Model Answers | Instant AI Marking & Grades"
-                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for OCR J560 maths papers."
+                ogDescription="Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for OCR J560 maths papers (2020-2024)."
                 ogUrl="https://aimarking.ai/mark-ocr-gcse-maths-past-papers"
             />
 
