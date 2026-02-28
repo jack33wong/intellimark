@@ -15,6 +15,39 @@ import { NormalizationService } from '../services/marking/NormalizationService.j
 
 const router = express.Router();
 
+/**
+ * Helper to validate exam paper questions for 0 marks
+ * Returns error message if invalid, null if valid
+ */
+function validateExamPaper(data: any): string | null {
+  const questions = data?.questions;
+  if (!Array.isArray(questions)) return null;
+
+  for (const q of questions) {
+    const qNum = q.question_number || q.questionNumber || q.number || 'Unknown';
+    const marks = parseFloat(q.marks) || 0;
+
+    // Check if it's a leaf node OR if it's a container that MUST have marks
+    const subQs = q.sub_questions || q.subQuestions || [];
+    if (subQs.length === 0) {
+      if (marks === 0) return `Question ${qNum} has 0 marks.`;
+    } else {
+      // For compound questions, we still require top-level marks to be populated
+      // (This was the root cause of the AI's 0 marks issue)
+      if (marks === 0) return `Question ${qNum} is a compound question but missing top-level marks.`;
+
+      // Recursively check sub-questions
+      for (const sq of subQs) {
+        const sqPart = sq.question_part || sq.part || sq.subQuestionNumber || '';
+        if ((parseFloat(sq.marks) || 0) === 0) {
+          return `Question ${qNum}${sqPart} has 0 marks.`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // Apply admin authentication to all admin routes
 router.use(authenticateUser, requireAdmin);
 
@@ -236,6 +269,14 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
     // Save to Firestore if available
     const db = getFirestore();
     if (db) {
+      // 🛡️ Strict Validation for Full Exam Papers
+      if (collectionName === 'fullExamPapers') {
+        const validationError = validateExamPaper(newEntry);
+        if (validationError) {
+          return res.status(400).json({ error: `Validation Failed: ${validationError}` });
+        }
+      }
+
       try {
         await db.collection(collectionName).doc(newEntry.id).set(newEntry);
       } catch (firestoreError) {
@@ -422,6 +463,12 @@ router.post('/json/upload', async (req: Request, res: Response) => {
     // Save to Firestore if available
     const db = getFirestore();
     if (db) {
+      // 🛡️ Strict Validation
+      const validationError = validateExamPaper(newEntry);
+      if (validationError) {
+        return res.status(400).json({ error: `Validation Failed: ${validationError}` });
+      }
+
       try {
         await db.collection('fullExamPapers').doc(newEntry.id).set(newEntry);
       } catch (firestoreError) {

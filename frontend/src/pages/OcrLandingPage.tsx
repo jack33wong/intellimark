@@ -186,6 +186,28 @@ const OcrLandingPage: React.FC = () => {
                                     { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
                                     { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
                                 ]
+                            },
+                            {
+                                year: "November 2021",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "November 2020",
+                                papers: [
+                                    { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                                    { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                                    { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                                    { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                                    { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                                ]
                             }
                         ].map((series, index) => (
                             <div key={index} className="ocr-year-card static">

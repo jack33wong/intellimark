@@ -844,15 +844,34 @@ function AdminPage() {
     }
 
     data.questions.forEach((q, idx) => {
+      const qNum = String(q.number || q.questionNumber || q.question_number || (idx + 1));
       const subQs = q.subQuestions || q.sub_questions || [];
-      if (subQs.length > 0) {
+      const pMark = parseFloat(q.marks) || parseFloat(q.max_marks) || parseFloat(q.total_marks) || 0;
+
+      // 🛡️ STRICT 0-MARKS CHECK
+      if (subQs.length === 0) {
+        if (pMark === 0) {
+          if (!errors.audit[qNum]) errors.audit[qNum] = 0;
+          errors.missingMarks = true;
+        }
+      } else {
         const subSum = subQs.reduce((s, sq) => s + getQuestionMarksRecursive(sq), 0);
-        const pMark = parseFloat(q.marks) || parseFloat(q.max_marks) || parseFloat(q.total_marks) || 0;
-        // Only flag if parent has non-zero marks that conflict with sub-sum
-        // If parent is 0, we assume it's just a header/container (valid)
+
+        // Root Cause Fix: Check if compound question is missing top-level marks
+        if (pMark === 0) {
+          errors.missingMarks = true;
+        }
+
+        // Mismatch check (already existing)
         if (pMark > 0 && pMark !== subSum && subSum > 0) {
           errors.questionMismatches[idx] = { parent: pMark, sub: subSum };
         }
+
+        // Check sub-questions for 0 marks
+        subQs.forEach((sq, sIdx) => {
+          const sqMark = parseFloat(sq.marks) || parseFloat(sq.max_marks) || 0;
+          if (sqMark === 0) errors.missingMarks = true;
+        });
       }
     });
 
@@ -1053,7 +1072,22 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const { data: result } = await ApiClient.post('/api/admin/json/collections/fullExamPapers', JSON.parse(jsonForm.jsonData));
+      const jsonData = JSON.parse(jsonForm.jsonData);
+
+      // 🛡️ FRONTEND VALIDATION
+      const validation = getValidationErrors(jsonData);
+      if (validation.missingMarks) {
+        setError('❌ Upload Cancelled: Some questions have 0 marks. Fix the data before uploading.');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+      if (validation.totalMismatch) {
+        setError(`❌ Upload Cancelled: Total marks mismatch (Found ${calculateExamTotalMarks(jsonData.questions)}, Expected ${validation.expectedMarks}).`);
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
+      const { data: result } = await ApiClient.post('/api/admin/json/collections/fullExamPapers', jsonData);
       setJsonEntries(prev => [result.entry, ...prev]);
       resetJsonForm();
       setError(`✅ JSON data uploaded successfully to fullExamPapers collection.`);

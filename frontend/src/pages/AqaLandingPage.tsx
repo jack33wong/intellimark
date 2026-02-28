@@ -165,6 +165,28 @@ const AqaLandingPage: React.FC = () => {
                                     { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
                                     { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                                 ]
+                            },
+                            {
+                                year: "November 2021",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
+                            },
+                            {
+                                year: "November 2020",
+                                papers: [
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                                ]
                             }
                         ].map((series, index) => (
                             <div key={index} className="aqa-year-card static">

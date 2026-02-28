@@ -75,6 +75,28 @@ const SupportedPapers: React.FC = () => {
                         { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
                         { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
                     ]
+                },
+                {
+                    year: "November 2021",
+                    papers: [
+                        { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
+                    ]
+                },
+                {
+                    year: "November 2020",
+                    papers: [
+                        { count: "Paper 1", type: "Non-Calc", code: "1MA1/1F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3F", tier: "F" },
+                        { count: "Paper 1", type: "Non-Calc", code: "1MA1/1H", tier: "H" },
+                        { count: "Paper 2", type: "Calculator", code: "1MA1/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "1MA1/3H", tier: "H" }
+                    ]
                 }
             ]
         },
@@ -147,6 +169,28 @@ const SupportedPapers: React.FC = () => {
                         { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
                         { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
                     ]
+                },
+                {
+                    year: "November 2021",
+                    papers: [
+                        { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                        { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                    ]
+                },
+                {
+                    year: "November 2020",
+                    papers: [
+                        { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+                        { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
+                        { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+                        { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+                    ]
                 }
             ]
         },
@@ -211,6 +255,28 @@ const SupportedPapers: React.FC = () => {
                 },
                 {
                     year: "June 2022",
+                    papers: [
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                    ]
+                },
+                {
+                    year: "November 2021",
+                    papers: [
+                        { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
+                        { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
+                        { count: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+                        { count: "Paper 4", type: "Calculator", code: "J560/04", tier: "H" },
+                        { count: "Paper 5", type: "Non-Calc", code: "J560/05", tier: "H" },
+                        { count: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+                    ]
+                },
+                {
+                    year: "November 2020",
                     papers: [
                         { count: "Paper 1", type: "Calculator", code: "J560/01", tier: "F" },
                         { count: "Paper 2", type: "Non-Calc", code: "J560/02", tier: "F" },
