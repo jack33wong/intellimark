@@ -36,11 +36,11 @@ class SubscriptionService {
   static getPlanDisplayName(planId: string): string {
     switch (planId) {
       case 'free':
-        return 'Free';
+        return 'Free: The Quick Grader';
       case 'pro':
-        return 'Pro';
+        return 'Pro: The Exam Ready';
       case 'ultra':
-        return 'Ultra';
+        return 'Ultra: The Tutor Pro';
       default:
         return planId.charAt(0).toUpperCase() + planId.slice(1);
     }

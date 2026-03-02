@@ -93,6 +93,7 @@ const mockData: { [key: string]: any[] } = {
 router.get('/json/collections/:collectionName', async (req: Request, res: Response) => {
   try {
     const { collectionName } = req.params;
+    const listOnly = req.query.listOnly === 'true';
 
     if (!collectionName) {
       return res.status(400).json({ error: 'Collection name is required' });
@@ -107,6 +108,28 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
 
         snapshot.forEach(doc => {
           const data = doc.data();
+
+          if (listOnly) {
+            // EXCLUDE large arrays for list view performance
+            if (collectionName === 'fullExamPapers') {
+              // Pre-calculate total marks before deleting questions
+              if (data.questions && Array.isArray(data.questions)) {
+                const getQuestionMarksRecursive = (q: any): number => {
+                  const pMark = parseFloat(q.marks) || parseFloat(q.max_marks) || parseFloat(q.total_marks) || 0;
+                  const subQs = q.subQuestions || q.sub_questions || [];
+                  if (!Array.isArray(subQs) || subQs.length === 0) return pMark;
+                  const subSum = subQs.reduce((total: number, sq: any) => total + getQuestionMarksRecursive(sq), 0);
+                  return Math.max(pMark, subSum);
+                };
+                data.totalMarks = data.questions.reduce((sum: number, q: any) => sum + getQuestionMarksRecursive(q), 0);
+              }
+              delete data.questions;
+            } else if (collectionName === 'markingSchemes') {
+              delete data.questions; // markingSchemes has questions as an object or array depending on version
+              delete data.markingSchemeData; // Also potentially large
+            }
+          }
+
           const examMeta = data.exam || data.metadata || (data.examDetails || {});
           const board = examMeta.board || examMeta.exam_board || '';
           const series = examMeta.exam_series || examMeta.date || '';
@@ -148,6 +171,65 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
   } catch (error) {
     console.error('Get collection error:', error);
     res.status(500).json({ error: `Failed to get collection: ${error.message}` });
+  }
+});
+
+/**
+ * GET /api/admin/json/collections/:collectionName/:id
+ * Get a specific entry from a JSON collection by ID
+ */
+router.get('/json/collections/:collectionName/:id', async (req: Request, res: Response) => {
+  try {
+    const { collectionName, id } = req.params;
+
+    if (!collectionName || !id) {
+      return res.status(400).json({ error: 'Collection name and ID are required' });
+    }
+
+    const db = getFirestore();
+    if (db) {
+      try {
+        const doc = await db.collection(collectionName).doc(id).get();
+        if (!doc.exists) {
+          // Fallback to mock data if not found in db
+          const mockEntries = mockData[collectionName] || [];
+          const mockEntry = mockEntries.find(e => e.id === id);
+          if (mockEntry) return res.json({ entry: mockEntry });
+          return res.status(404).json({ error: 'Document not found' });
+        }
+
+        const data = doc.data();
+        const examMeta = data?.exam || data?.metadata || (data?.examDetails || {});
+        const board = examMeta.board || examMeta.exam_board || '';
+        const series = examMeta.exam_series || examMeta.date || '';
+        const normalizedSeries = series ? NormalizationService.normalizeExamSeries(series, board) : series;
+
+        res.json({
+          entry: {
+            id: doc.id,
+            ...data,
+            normalizedSeries,
+            uploadedAt: data?.uploadedAt ?
+              (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
+              new Date().toISOString()
+          }
+        });
+      } catch (err) {
+        console.error('Firestore fetch by ID error:', err);
+        return res.status(500).json({ error: 'Database fetch error' });
+      }
+    } else {
+      const mockEntries = mockData[collectionName] || [];
+      const mockEntry = mockEntries.find(e => e.id === id);
+      if (mockEntry) {
+        return res.json({ entry: mockEntry });
+      } else {
+        return res.status(404).json({ error: 'Document not found in mock data' });
+      }
+    }
+  } catch (error) {
+    console.error('Get individual entry error:', error);
+    res.status(500).json({ error: `Failed to get entry: ${error.message}` });
   }
 });
 

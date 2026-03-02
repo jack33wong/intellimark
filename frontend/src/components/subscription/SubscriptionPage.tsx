@@ -243,29 +243,33 @@ const SubscriptionPage: React.FC = () => {
       id: 'free' as Plan,
       name: 'Free',
       price: 0,
-      description: 'Perfect for getting started',
+      description: 'Best for a fast score check.',
       icon: <Zap size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `${planCredits.free} credits per month`,
+          text: `${planCredits.free} Monthly Credits`,
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
-          icon: <Database size={16} />,
-          text: 'Limited marking result storage'
-        },
-        {
-          icon: <Award size={16} />,
-          text: 'Full Method Mark (M1) Awarding'
-        },
-        {
-          icon: <RotateCcw size={16} />,
-          text: 'Applied Error Carried Forward (ECF) logic'
+          icon: <Zap size={16} />,
+          text: 'Instant AI Grading'
         },
         {
           icon: <Crosshair size={16} />,
-          text: 'Full Spatial AI Analysis (0.1mm Accuracy)'
+          text: 'Smart Handwriting Recognition'
+        },
+        {
+          icon: <Award size={16} />,
+          text: 'Step-by-Step Marking'
+        },
+        {
+          icon: <RotateCcw size={16} />,
+          text: 'Fair-Grade (ECF) Logic'
+        },
+        {
+          icon: <Database size={16} />,
+          text: 'Standard Result Vault'
         }
       ],
       popular: false
@@ -274,29 +278,33 @@ const SubscriptionPage: React.FC = () => {
       id: 'pro' as Plan,
       name: 'Pro',
       price: dynamicPlans?.pro?.[billingCycle]?.amount,
-      description: 'For serious students',
+      description: 'Best for active revision.',
       icon: <Users size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `${planCredits.pro} credits per month`,
+          text: `${planCredits.pro} Monthly Credits`,
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
-          icon: <Zap size={16} />,
-          text: 'All Free Features Included'
-        },
-        {
-          icon: <Database size={16} />,
-          text: 'Extended marking result storage'
-        },
-        {
-          icon: <TrendingUp size={16} />,
-          text: 'Full access to progress analysis'
+          icon: <FileText size={16} />,
+          text: 'Full Model Answers'
         },
         {
           icon: <Workflow size={16} />,
-          text: 'Examiner-Tuned Logic (OpenAI/Gemini Pipeline)'
+          text: 'Examiner-Tuned Logic'
+        },
+        {
+          icon: <TrendingUp size={16} />,
+          text: 'Smart Topic Analysis'
+        },
+        {
+          icon: <Layers size={16} />,
+          text: 'Extended Result Archive'
+        },
+        {
+          icon: <Users size={16} />,
+          text: 'Priority Support Hub'
         }
       ],
       popular: true
@@ -305,17 +313,25 @@ const SubscriptionPage: React.FC = () => {
       id: 'ultra' as Plan,
       name: 'Ultra',
       price: dynamicPlans?.ultra?.[billingCycle]?.amount,
-      description: 'For Serious Achievers',
+      description: 'Best for maximum progress.',
       icon: <Building2 size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
-          text: `${planCredits.ultra} credits per month`,
+          text: `${planCredits.ultra} Monthly Credits`,
           tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
         },
         {
-          icon: <Layers size={16} />,
+          icon: <Database size={16} />,
           text: '3x of everything in Pro'
+        },
+        {
+          icon: <Crown size={16} />,
+          text: 'Early A-Level Access'
+        },
+        {
+          icon: <FileText size={16} />,
+          text: 'Unlimited Result Vault'
         }
       ],
       popular: false

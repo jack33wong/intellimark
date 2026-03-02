@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 
 // Static import for API spec (bundled by esbuild)
 // @ts-ignore
-import apiSpec from './api-spec.json';
+import apiSpec from './api-spec.json' with { type: 'json' };
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
