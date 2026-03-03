@@ -1317,39 +1317,3 @@
 .context-chip-close:hover {
   color: var(--text-primary);
 }
-/* ============================================================================
-   FOLLOW-UP MODE LAYOUT FIX
-   Reorders the DOM elements into a single responsive line using CSS only.
-   ============================================================================ */
-.followup-chat-input-bar:not(.first-time) .followup-controls-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  width: 100%;
-  padding: 0;
-  gap: 12px;
-}
-
-.followup-chat-input-bar:not(.first-time) .followup-buttons-row {
-  display: contents;
-}
-
-.followup-chat-input-bar:not(.first-time) .followup-left-buttons {
-  order: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.followup-chat-input-bar:not(.first-time) .followup-text-wrapper {
-  order: 2;
-  flex: 1;
-  width: auto;
-}
-
-.followup-chat-input-bar:not(.first-time) .followup-right-buttons {
-  order: 3;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
