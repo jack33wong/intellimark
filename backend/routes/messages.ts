@@ -137,6 +137,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
     const isAuthenticated = !!req.user?.uid;
     const userIP = req.ip || '0.0.0.0';
 
+    console.log(`[CHAT DEBUG] Message: "${message.substring(0, 50)}...", Mode: ${mode}, Session: ${sessionId}`);
+
     // --- NEW: Guest Usage Limit Check ---
     if (!isAuthenticated) {
       const { GuestUsageService } = await import('../services/guestUsageService.js');

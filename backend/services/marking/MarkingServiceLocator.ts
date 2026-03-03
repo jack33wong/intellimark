@@ -68,9 +68,9 @@ export class MarkingServiceLocator {
 
     // [MODE-AWARENESS] Append mode-specific instructions to refine AI persona
     if (mode === 'model-answer') {
-      systemPrompt += `\n\n[MODE: MODEL ANSWER]\nThe user is in Model Answer mode. Prioritize providing perfect, exam-style solutions (Role 1). When the user asks to "explain" a question, provide a step-by-step model answer instead of just a marking scheme summary.`;
+      systemPrompt += `\n\n[MODE: MODEL ANSWER]\nThe user is in Model Answer mode. You MUST prioritize Role 1 (Math Solver). When the user asks to "explain" or "show" a question, do NOT use the Marking Explainer structure. Instead, provide a step-by-step model answer with [Step Title] and [Step Explanation] as defined in Role 1.`;
     } else if (mode === 'marking-scheme') {
-      systemPrompt += `\n\n[MODE: MARKING SCHEME]\nThe user is in Marking Scheme mode. Prioritize explaining the marking criteria and points (Role 2).`;
+      systemPrompt += `\n\n[MODE: MARKING SCHEME]\nThe user is in Marking Scheme mode. Prioritize Role 2 (Marking Explainer) and explain the marking criteria.`;
     }
 
     // Use context summary if available, otherwise fall back to recent messages
