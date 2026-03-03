@@ -16,7 +16,8 @@ const ScrollToTop = () => {
 
             containers.forEach(selector => {
                 const el = document.querySelector(selector);
-                if (el) {
+                // Only scroll to top if not in a chat-focused session or if the container is not the chat itself
+                if (el && !el.closest('.chat-container') && !el.classList.contains('chat-container')) {
                     el.scrollTo(0, 0);
                     (el as HTMLElement).scrollTop = 0;
                 }

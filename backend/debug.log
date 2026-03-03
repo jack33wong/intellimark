@@ -45,3 +45,5 @@
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 225ms for 50 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 217ms, Process 1ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 218ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 392ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 393ms for 50 sessions (limit: 50)

@@ -730,8 +730,8 @@ export const MarkingPageProvider = ({
       const timeoutId = setTimeout(() => {
         const lastUserMessage = [...(currentSession.messages || [])].reverse().find(m => m.role === 'user');
         if (lastUserMessage) {
-          // Align with new UX: Scroll to TOP to show dynamic spacer if present
-          scrollToMessage(lastUserMessage.id, { behavior: 'smooth', block: 'start' });
+          // Revert: Simply scroll to bottom to show the latest result, as students expect.
+          scrollToBottom();
         } else {
           scrollToBottom();
         }
