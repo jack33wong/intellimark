@@ -257,9 +257,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       return monthMap[lower] || lower;
     };
 
-    // Normalize and tokenize the input (split by non-alphanumeric)
+    // Normalize and tokenize the input
+    // Splits by non-alphanumeric AND at boundaries between letters and numbers (e.g. "JUN2024" -> "JUN", "2024")
     const inputTokens = trimmed.toLowerCase()
-      .split(/[^a-z0-9]+/)
+      .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
       .filter(token => token.length > 0)
       .map(normalizeToken);
 
@@ -269,9 +270,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const genericKeywords = ['paper', 'exam', 'specification', 'spec'];
 
     return metadata.papers.filter((p: string) => {
-      // Tokenize the paper description
+      // Tokenize the paper description using the same alpha-numeric splitting
       const paperTokens = p.toLowerCase()
-        .split(/[^a-z0-9]+/)
+        .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
         .filter(token => token.length > 0)
         .map(normalizeToken);
 
@@ -341,7 +342,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // [CLEAN FIX] Recoverable Trust:
       // 1. input remains trusted if it's the original pre-fill (isInputTrusted)
       // 2. OR if the user "undos" their edit and returns to the original pending code
-      const isTrustedMatch = pendingModelAnswerPaper && chatInput.trim() === pendingModelAnswerPaper;
+      const isTrustedMatch = pendingModelAnswerPaper && normalizeCode(chatInput.trim()) === normalizeCode(pendingModelAnswerPaper);
 
       if ((isFromTrustedLink && trimmedInput === params.get('code')) || isInputTrusted || isTrustedMatch) return true;
 
