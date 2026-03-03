@@ -336,6 +336,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const canSend = useMemo(() => {
     if (isProcessing) return false;
     if (isModelAnswerMode || isMarkingSchemeMode) {
+      // Bypassed for follow-up questions!
+      if (currentSession?.messages?.length > 0) return !!combinedInput.trim();
+
       const trimmedInput = combinedInput.trim();
       if (!trimmedInput) return false;
 
@@ -356,7 +359,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, normalizeCode]);
 
   const validationMessageType = useMemo(() => {
-    if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend) return null;
+    if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend || (currentSession?.messages?.length > 0)) return null;
 
     const matches = getMatchingPapers(combinedInput);
     if (matches.length === 0) return 'not_found';
@@ -993,12 +996,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
               <div className="followup-buttons-row">
                 <div className="followup-left-buttons">
-                  {!isModelAnswerMode && !isMarkingSchemeMode && (
-                    <button className="followup-upload-button add-files-btn" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
-                      <span className="btn-icon"><Plus size={16} /></span>
-                      <span className="btn-text">Add Files</span>
-                    </button>
-                  )}
+                  <button className="followup-upload-button add-files-btn" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
+                    <span className="btn-icon"><Plus size={16} /></span>
+                    <span className="btn-text">Add Files</span>
+                  </button>
 
                   {!isMarkingSchemeMode && (
                     <button
@@ -1030,24 +1031,22 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     </button>
                   )}
 
-                  {!isModelAnswerMode && !isMarkingSchemeMode && (
-                    <button
-                      className="followup-upload-button mobile-scan-btn scan-camera-btn"
-                      onClick={() => {
-                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                        if (isMobile) {
-                          handleOpenCameraHandoff();
-                        } else {
-                          setIsMobileUploadOpen(true);
-                        }
-                      }}
-                      disabled={isProcessing}
-                      title="Scan from Mobile"
-                    >
-                      <span className="btn-icon"><Smartphone size={16} /></span>
-                      <span className="btn-text">Scan with Camera</span>
-                    </button>
-                  )}
+                  <button
+                    className="followup-upload-button mobile-scan-btn scan-camera-btn"
+                    onClick={() => {
+                      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                      if (isMobile) {
+                        handleOpenCameraHandoff();
+                      } else {
+                        setIsMobileUploadOpen(true);
+                      }
+                    }}
+                    disabled={isProcessing}
+                    title="Scan from Mobile"
+                  >
+                    <span className="btn-icon"><Smartphone size={16} /></span>
+                    <span className="btn-text">Scan with Camera</span>
+                  </button>
 
                 </div>
                 <div className="followup-right-buttons">
