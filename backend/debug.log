@@ -2,7 +2,14 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 287ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 290ms for 50 sessions (limit: 50)
-💳 Deducted 0.03 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772536639656), remaining: 285.83
+[PERF] getUserUnifiedSessions: Fetch 3586ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 3588ms for 50 sessions (limit: 50)
+[CHAT DEBUG] Message: "explain q1...", Mode: chat, Session: session-model-1772536639656
+💳 Deducted 0.04 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772536639656), remaining: 285.79
 💳 Deducted 0.00 cost (session: session-model-1772536639656, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+[PERF] getUserUnifiedSessions: Fetch 565ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 566ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 16502ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 16503ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 204ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 206ms for 50 sessions (limit: 50)
