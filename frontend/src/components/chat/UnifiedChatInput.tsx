@@ -242,10 +242,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     return code.toLowerCase().replace(/[^a-z0-9]/g, '');
   }, []);
 
-  // V17.1: Token-based matching logic with month normalization
+  // V22.0: DEFINITIVE PRIORITY WATERFALL (Robust & Stable)
   const getMatchingPapers = useCallback((input: string) => {
     const trimmed = input.trim();
     if (!trimmed) return [];
+    const lowerTrimmed = trimmed.toLowerCase();
 
     const monthMap: Record<string, string> = {
       'jan': 'january', 'feb': 'february', 'mar': 'march', 'apr': 'april', 'may': 'may', 'jun': 'june',
@@ -257,77 +258,80 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       return monthMap[lower] || lower;
     };
 
-    // Normalize and tokenize the input
-    // Splits by non-alphanumeric AND at boundaries between letters and numbers (e.g. "JUN2024" -> "JUN", "2024")
+    // --- STAGE 1: EXACT DESCRIPTION MATCH (STRICTEST) ---
+    const exactMatch = metadata.papers.find(p => p.toLowerCase() === lowerTrimmed);
+    if (exactMatch) return [exactMatch];
+
+    const normalizedInput = normalizeCode(trimmed);
+    const nInputIdentity = trimmed.toLowerCase()
+      .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
+      .filter(Boolean).map(normalizeToken).join('');
+
+    // --- STAGE 2: HEURISTIC IDENTITY MATCH (BOARD+CODE+SERIES+TIER) ---
+    const identityMatches = metadata.papers.filter(p => {
+      const parts = p.split(' - ');
+      if (parts.length < 3) return normalizeCode(p) === normalizedInput;
+
+      const nBoard = normalizeCode(parts[0]);
+      const nCode = normalizeCode(parts[1]);
+      const nSeries = parts[2].split(',')[0].toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(normalizeToken).join('');
+      const nTier = normalizeCode(parts[2].split(',')[1] || '');
+
+      return normalizedInput === normalizeCode(p) ||
+        nInputIdentity === (nBoard + nCode + nSeries + nTier) ||
+        nInputIdentity === (nBoard + nCode + nSeries) ||
+        nInputIdentity === (nBoard + nCode) ||
+        nInputIdentity === (nCode + nSeries + nTier) ||
+        nInputIdentity === (nCode + nSeries) ||
+        nInputIdentity === nCode;
+    });
+
+    if (identityMatches.length > 0) return identityMatches;
+
+    // --- STAGE 3: FUZZY SEARCH (FALLBACK) ---
     const inputTokens = trimmed.toLowerCase()
       .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
-      .filter(token => token.length > 0)
-      .map(normalizeToken);
+      .filter(Boolean).map(normalizeToken);
 
     if (inputTokens.length === 0) return [];
-
-    // Generic keywords making matching too strict
     const genericKeywords = ['paper', 'exam', 'specification', 'spec'];
 
-    return metadata.papers.filter((p: string) => {
-      // Tokenize the paper description using the same alpha-numeric splitting
+    const fuzzyMatches = metadata.papers.filter((p: string) => {
       const paperTokens = p.toLowerCase()
         .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
-        .filter(token => token.length > 0)
-        .map(normalizeToken);
+        .filter(Boolean).map(normalizeToken);
 
-      // A paper matches if it contains ALL tokens provided by the user
-      // [FIX] Leniency: Ignore generic keywords if they are not in the paperTokens
-      return inputTokens.every(inputToken => {
-        const isMatch = paperTokens.some(paperToken => {
-          if (paperToken === inputToken) return true;
-
-          const isPStrictNum = /^\d+$/.test(paperToken);
-          const isIStrictNum = /^\d+$/.test(inputToken);
-
-          if (isPStrictNum && isIStrictNum) {
-            // Numeric comparison (e.g., "1" matches "01")
-            return parseInt(paperToken) === parseInt(inputToken);
-          }
-
-          // Text comparison (e.g., "nov" matches "november")
-          return paperToken.includes(inputToken);
+      return inputTokens.every(it => {
+        const isMatch = paperTokens.some(pt => {
+          if (pt === it) return true;
+          if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
+          return pt.includes(it);
         });
-
-        if (!isMatch && genericKeywords.includes(inputToken)) {
-          return true; // Ignore if generic and not found
-        }
-        return isMatch;
+        return isMatch || genericKeywords.includes(it);
       });
-    }).sort((a: string, b: string) => {
-      // Sort by Year and Month (Descending)
-      const monthOrder: Record<string, number> = {
-        'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
-        'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
-      };
+    });
 
-      const parseDate = (s: string) => {
-        const parts = s.toLowerCase().split(' - ');
-        if (parts.length < 3) return { year: 0, month: 0 };
-        // Format is usually "Board - Code - Month Year, Tier"
-        const datePart = parts[2].split(',')[0].trim(); // "november 2020"
-        const [month, year] = datePart.split(' ');
-        return {
-          year: parseInt(year) || 0,
-          month: monthOrder[month] || 0
-        };
-      };
+    const monthOrder: Record<string, number> = {
+      'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+      'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+    };
 
+    const parseDate = (s: string) => {
+      const parts = s.toLowerCase().split(' - ');
+      if (parts.length < 3) return { year: 0, month: 0 };
+      const datePart = parts[2].split(',')[0].trim();
+      const [month, year] = datePart.split(' ');
+      return { year: parseInt(year) || 0, month: monthOrder[month] || 0 };
+    };
+
+    return [...fuzzyMatches].sort((a, b) => {
       const dateA = parseDate(a);
       const dateB = parseDate(b);
-
       if (dateA.year !== dateB.year) return dateB.year - dateA.year;
       if (dateA.month !== dateB.month) return dateB.month - dateA.month;
-
-      // Secondary sort by paper code/name if dates are identical
       return a.localeCompare(b);
     });
-  }, [metadata.papers]);
+  }, [metadata.papers, normalizeCode]);
 
   const canSend = useMemo(() => {
     if (isProcessing) return false;
@@ -335,44 +339,40 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       const trimmedInput = combinedInput.trim();
       if (!trimmedInput) return false;
 
-      // 1. Check for link triggers (trusted sources)
-      const params = new URLSearchParams(location.search);
-      const isFromTrustedLink = (params.get('mode') === 'model' || params.get('mode') === 'markingscheme') && params.get('code');
-
-      // [CLEAN FIX] Recoverable Trust:
-      // 1. input remains trusted if it's the original pre-fill (isInputTrusted)
-      // 2. OR if the user "undos" their edit and returns to the original pending code
-      const isTrustedMatch = pendingModelAnswerPaper && normalizeCode(chatInput.trim()) === normalizeCode(pendingModelAnswerPaper);
-
-      if ((isFromTrustedLink && trimmedInput === params.get('code')) || isInputTrusted || isTrustedMatch) return true;
-
-      // 2. Resolve matches and ensure logical uniqueness
       const matches = getMatchingPapers(trimmedInput);
-      return matches.length === 1;
+      if (matches.length === 1) return true;
+      if (matches.length > 1) {
+        // If multiple matches but they all share the same Tier and Series, consider it unambiguous enough to send
+        const tiers = new Set(matches.map(p => p.toLowerCase().includes('foundation') ? 'foundation' : 'higher'));
+        const series = new Set(matches.map(p => {
+          const parts = p.split(' - ');
+          return parts.length >= 3 ? parts[2].split(',')[0].trim() : '';
+        }));
+        return tiers.size === 1 && series.size === 1;
+      }
+      return false;
     }
     return !!(imageFile || imageFiles.length > 0 || combinedInput.trim());
-  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, location.search]);
+  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, normalizeCode]);
 
   const validationMessageType = useMemo(() => {
-    // Suppress warning if not in paper mode, input is physically empty (no text typed), or already valid
     if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend) return null;
 
     const matches = getMatchingPapers(combinedInput);
     if (matches.length === 0) return 'not_found';
 
-    // Analyze matched papers for commonalities
     const tiers = new Set(matches.map(p => p.toLowerCase().includes('foundation') ? 'foundation' : 'higher'));
     const series = new Set(matches.map(p => {
       const parts = p.split(' - ');
       return parts.length >= 3 ? parts[2].split(',')[0].trim() : '';
     }));
 
+    if (matches.length === 1 || (tiers.size === 1 && series.size === 1)) return null;
+
     if (tiers.size > 1 && series.size === 1) return 'ambiguous_tier';
     if (series.size > 1 && tiers.size === 1) return 'ambiguous_series';
-    if (matches.length > 1) return 'ambiguous_both';
-
-    return 'not_found';
-  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, getMatchingPapers]);
+    return 'ambiguous_both';
+  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, getMatchingPapers, chatInput]);
 
   const showValidationWarning = useMemo(() => {
     return !!validationMessageType;
@@ -382,6 +382,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     // Click selected paper suggestion: populate input for confirmation
     setSelectedTags([]); // Clear tags to prevent duplication in combinedInput
     setChatInput(suggestion);
+    setIsInputTrusted(true); // MARK AS TRUSTED SOURCE (DIRECT SELECTION)
     setShowAutocomplete(false);
     inputRef.current?.focus();
   };
