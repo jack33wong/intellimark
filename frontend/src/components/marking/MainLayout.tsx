@@ -466,6 +466,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                   contextQuestionId={activeQuestionId}
                   setContextQuestionId={setActiveQuestionId}
                   isNegative={isNegative}
+                  isFollowUp={isFollowUp}
                 />
               </div>
             </div>
@@ -537,6 +538,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
               contextQuestionId={activeQuestionId}
               setContextQuestionId={setActiveQuestionId}
               isNegative={isNegative}
+              isFollowUp={isFollowUp}
             />
           </div>
         )}

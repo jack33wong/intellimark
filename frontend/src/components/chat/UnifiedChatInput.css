@@ -684,16 +684,16 @@
    FOLLOW-UP MODE (Chat Bar) - Icon Only for Cleanliness
    ---------------------------------------------------------------------------- */
 
-/* Hide text for ALL buttons in follow-up mode to prevent overlap */
+/* Ensure text is visible in follow-up mode to satisfy user requirement */
 .followup-chat-input-bar:not(.first-time) .btn-text {
-  display: none;
+  display: inline;
 }
 
-/* Ensure all buttons are circular keys in follow-up mode */
+/* Restore normal button shape in follow-up mode to allow labels */
 .followup-chat-input-bar:not(.first-time) .followup-upload-button {
-  width: 32px;
-  padding: 0;
-  border-radius: 50%;
+  width: auto;
+  padding: 0 12px;
+  border-radius: 16px;
 }
 
 /* Ensure icons are visible in follow-up mode (overriding any first-time hides) */

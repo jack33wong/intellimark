@@ -35,6 +35,7 @@ interface UnifiedChatInputProps {
   contextQuestionId?: string | null;
   setContextQuestionId?: (id: string | null) => void;
   isNegative?: boolean;
+  isFollowUp?: boolean;
 }
 
 const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
@@ -51,6 +52,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   contextQuestionId,
   setContextQuestionId,
   isNegative = false,
+  isFollowUp = false,
 }) => {
   const {
     onGenerateModelAnswer,
@@ -337,7 +339,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     if (isProcessing) return false;
     if (isModelAnswerMode || isMarkingSchemeMode) {
       // Bypassed for follow-up questions!
-      if (currentSession?.messages?.length > 0) return !!combinedInput.trim();
+      if (isFollowUp) return !!combinedInput.trim();
 
       const trimmedInput = combinedInput.trim();
       if (!trimmedInput) return false;
@@ -356,10 +358,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       return false;
     }
     return !!(imageFile || imageFiles.length > 0 || combinedInput.trim());
-  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, normalizeCode]);
+  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isFollowUp, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, normalizeCode]);
 
   const validationMessageType = useMemo(() => {
-    if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend || (currentSession?.messages?.length > 0)) return null;
+    if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend || isFollowUp) return null;
 
     const matches = getMatchingPapers(combinedInput);
     if (matches.length === 0) return 'not_found';
@@ -375,7 +377,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     if (tiers.size > 1 && series.size === 1) return 'ambiguous_tier';
     if (series.size > 1 && tiers.size === 1) return 'ambiguous_series';
     return 'ambiguous_both';
-  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, getMatchingPapers, chatInput]);
+  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, isFollowUp, getMatchingPapers, chatInput]);
 
   const showValidationWarning = useMemo(() => {
     return !!validationMessageType;
@@ -691,7 +693,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       if (result === false) success = false;
     } else if (textToSend) {
       // Text only
-      if (isModelAnswerMode) {
+      // 👇 ROUTING FIX: If we are in a follow-up session, ALWAYS use onSendMessage 
+      // regardless of isModelAnswerMode or isMarkingSchemeMode.
+      if (isFollowUp) {
+        const result = await (onSendMessage as any)(textToSend);
+        if (result === false) success = false;
+      } else if (isModelAnswerMode) {
         const result = await (onGenerateModelAnswer as any)(textToSend);
         if (result === false) success = false;
       } else if (isMarkingSchemeMode) {

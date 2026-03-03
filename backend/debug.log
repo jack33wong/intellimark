@@ -20,3 +20,10 @@
 [MODEL-ANSWER] Found sub-marks for 17: 17a, 17b
 [MODEL-ANSWER] Found sub-marks for 19: 19a, 19b(i), 19b(ii)
 💳 Deducted 0.35 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772536639656), remaining: 285.89
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: explain q1
+ℹ️ [EXAM-REF] Looking for paper via search: explain q1
+ℹ️ [EXAM-REF] Searching papers with variations: ["explain q1"]
+❌ [EXAM-REF] No paper found for request: "explain q1"
+ℹ️ [EXAM-REF] Sample DB Patterns: 8300/3F (June 2024), 1MA1/2F (November 2023), J560/04 (November 2020), 1MA1/1H (May 2023), 8300/3H (November 2024)
+[PERF] getUserUnifiedSessions: Fetch 162ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 162ms for 50 sessions (limit: 50)

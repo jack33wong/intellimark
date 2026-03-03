@@ -21,6 +21,7 @@ interface FollowUpChatInputProps {
   contextQuestionId?: string | null;
   setContextQuestionId?: (id: string | null) => void;
   isNegative?: boolean;
+  isFollowUp?: boolean;
   onGenerateModelAnswer?: (text: string) => Promise<boolean> | any;
   isModelAnswerMode?: boolean;
   setIsModelAnswerMode?: (active: boolean) => void;
