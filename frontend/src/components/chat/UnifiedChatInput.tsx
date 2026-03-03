@@ -180,10 +180,13 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     fetchMetadata();
   }, []);
 
+  const [isInputTrusted, setIsInputTrusted] = useState<boolean>(false);
+
   // V16.7 Sync input with initialInput from context (for redirection)
   useEffect(() => {
     if (initialInput) {
       setChatInput(initialInput);
+      setIsInputTrusted(true); // MARK AS TRUSTED SOURCE
       setInitialInput(''); // Clear after syncing
     }
   }, [initialInput, setInitialInput]);
@@ -195,6 +198,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setChatInput(value);
+    setIsInputTrusted(false); // USER TYPED: REVOKE TRUST (Fallback to strict search)
     if (mode === 'first-time') {
       setShowAutocomplete(true);
       setHighlightedIndex(-1);
@@ -333,16 +337,20 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // 1. Check for link triggers (trusted sources)
       const params = new URLSearchParams(location.search);
       const isFromTrustedLink = (params.get('mode') === 'model' || params.get('mode') === 'markingscheme') && params.get('code');
-      const isFromPendingRedirect = pendingModelAnswerPaper && trimmedInput === pendingModelAnswerPaper;
 
-      if ((isFromTrustedLink && trimmedInput === params.get('code')) || isFromPendingRedirect) return true;
+      // [CLEAN FIX] Recoverable Trust:
+      // 1. input remains trusted if it's the original pre-fill (isInputTrusted)
+      // 2. OR if the user "undos" their edit and returns to the original pending code
+      const isTrustedMatch = pendingModelAnswerPaper && chatInput.trim() === pendingModelAnswerPaper;
+
+      if ((isFromTrustedLink && trimmedInput === params.get('code')) || isInputTrusted || isTrustedMatch) return true;
 
       // 2. Resolve matches and ensure logical uniqueness
       const matches = getMatchingPapers(trimmedInput);
       return matches.length === 1;
     }
     return !!(imageFile || imageFiles.length > 0 || combinedInput.trim());
-  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search]);
+  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, location.search]);
 
   const validationMessageType = useMemo(() => {
     // Suppress warning if not in paper mode, input is physically empty (no text typed), or already valid
