@@ -384,6 +384,9 @@ export const MarkingPageProvider = ({
         }
       }
 
+      // Determine usageMode for prompt weighting
+      const usageMode = isModelAnswerMode ? 'model-answer' : (isMarkingSchemeMode ? 'marking-scheme' : 'chat');
+
       const response = await apiClient.post('/api/messages/chat', {
         message: trimmedText,
         messageId: userMessageId, // Pass the local user message ID to backend
@@ -391,7 +394,8 @@ export const MarkingPageProvider = ({
         sessionId: currentSession?.id || null,
         markingContext: guestMarkingContext, // Send context for guest users
         aiMessageId: aiMessageId, // Pass the AI message ID to backend
-        contextQuestionId: effectiveQuestionId // Pass the active or overridden context
+        contextQuestionId: effectiveQuestionId, // Pass the active or overridden context
+        mode: usageMode // Pass current mode to backend
       });
 
       const data = response.data;

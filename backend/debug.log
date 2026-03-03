@@ -2,28 +2,7 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 246ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 248ms for 50 sessions (limit: 50)
-🚀 [MODEL-ANSWER] Controller HIT! Request for paper: OCR - J560/06 - November 2020, Higher Tier
-[EXAM-REF] Input "OCR - J560/06 - November 2020, Higher Tier" is not a valid doc ID, proceeding to search.
-ℹ️ [EXAM-REF] Looking for paper via search: OCR - J560/06 - November 2020, Higher Tier
-ℹ️ [EXAM-REF] Searching papers with variations: ["ocr - j560/06 - november 2020, higher tier","ocr   j560/06   november 2020, higher tier","ocr / j560/06 / november 2020, higher tier"]
-ℹ️ [EXAM-REF] Looking for scheme via Metadata: J560/06 / November 2020 (Variations: ["November 2020","november 2020"])
-✅ [EXAM-REF] Found scheme via Metadata Match: ee41dd20-8808-4614-a2d5-482ab8770f28 (November 2020)
-[MODEL-ANSWER] Found sub-marks for 1: 1a, 1b, 1c(i), 1c(ii), 1d
-[MODEL-ANSWER] Found sub-marks for 3: 3a, 3b
-[MODEL-ANSWER] Found sub-marks for 4: 4a, 4b
-[MODEL-ANSWER] Found sub-marks for 5: 5a, 5b
-[MODEL-ANSWER] Found sub-marks for 7: 7a, 7b
-[MODEL-ANSWER] Found sub-marks for 11: 11a(i), 11a(ii), 11b
-[MODEL-ANSWER] Found sub-marks for 16: 16a, 16b
-[MODEL-ANSWER] Found sub-marks for 17: 17a, 17b
-[MODEL-ANSWER] Found sub-marks for 19: 19a, 19b(i), 19b(ii)
-💳 Deducted 0.35 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772536639656), remaining: 285.89
-🚀 [MODEL-ANSWER] Controller HIT! Request for paper: explain q1
-ℹ️ [EXAM-REF] Looking for paper via search: explain q1
-ℹ️ [EXAM-REF] Searching papers with variations: ["explain q1"]
-❌ [EXAM-REF] No paper found for request: "explain q1"
-ℹ️ [EXAM-REF] Sample DB Patterns: 8300/3F (June 2024), 1MA1/2F (November 2023), J560/04 (November 2020), 1MA1/1H (May 2023), 8300/3H (November 2024)
-[PERF] getUserUnifiedSessions: Fetch 162ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 162ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 242ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 246ms for 50 sessions (limit: 50)
+💳 Deducted 0.03 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772536639656), remaining: 285.86
+💳 Deducted 0.00 cost (session: session-model-1772536639656, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2

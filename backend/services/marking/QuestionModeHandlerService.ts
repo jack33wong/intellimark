@@ -515,8 +515,7 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
     // This enables "Right-Side Context" in follow-up chat
     try {
       const questionModeContext = await ChatContextBuilder.buildQuestionModeContext({
-        questionDetection: questionDetection,
-        examPaperHint: examPaperHint
+        detectedQuestion: questionDetection
       });
       // console.log('📝 [QUESTION MODE] Built MarkingContext for Chat:', questionModeContext.totalQuestionsMarked, 'questions');
       aiMessage.markingContext = questionModeContext;

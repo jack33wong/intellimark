@@ -397,7 +397,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           chatHistory,  // chat history for context (fallback if contextSummary used, or ignored)
           resolvedModel,
           contextSummary, // Pass the rich context summary
-          usageTracker    // Pass usage tracker
+          usageTracker,    // Pass usage tracker
+          mode || 'chat' // Pass mode for persona weighting
         );
         aiResponse = contextualResult.response;
         apiUsed = contextualResult.apiUsed;

@@ -60,15 +60,26 @@ export class MarkingServiceLocator {
     chatHistory: any[],
     model: ModelType,
     contextSummary?: string,
-    tracker?: UsageTracker // UsageTracker
+    tracker?: UsageTracker, // UsageTracker
+    mode?: string // NEW: Current chat mode (model-answer, marking-scheme, etc)
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens: number; outputTokens: number }> {
 
-    const systemPrompt = getPrompt('marking.contextual.system');
+    let systemPrompt = getPrompt('marking.contextual.system');
+
+    // [MODE-AWARENESS] Append mode-specific instructions to refine AI persona
+    if (mode === 'model-answer') {
+      systemPrompt += `\n\n[MODE: MODEL ANSWER]\nThe user is in Model Answer mode. Prioritize providing perfect, exam-style solutions (Role 1). When the user asks to "explain" a question, provide a step-by-step model answer instead of just a marking scheme summary.`;
+    } else if (mode === 'marking-scheme') {
+      systemPrompt += `\n\n[MODE: MARKING SCHEME]\nThe user is in Marking Scheme mode. Prioritize explaining the marking criteria and points (Role 2).`;
+    }
 
     // Use context summary if available, otherwise fall back to recent messages
     let contextPrompt = '';
     if (contextSummary) {
       contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
+
+      // Add explicit mode flag to context prompt as well
+      if (mode) contextPrompt += `\n[Current Session Mode: ${mode}]`;
       // Truncate log to show only Question 1 to reduce noise
       const q2Index = contextSummary.indexOf('### Q2');
       const logSummary = q2Index > 0 ? contextSummary.substring(0, q2Index) + '\n... [Remaining Questions Truncated]' : contextSummary.substring(0, 1000);
