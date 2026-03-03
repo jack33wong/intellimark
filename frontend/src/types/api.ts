@@ -1518,8 +1518,18 @@ export interface components {
             type?: "chat" | "marking_original" | "marking_annotated" | "question_original" | "question_response" | "follow_up";
             imageLink?: string;
             imageData?: string;
-            imageDataArray?: string[];
-            fileName?: string;
+            imageDataArray?: Array<{
+                url: string;
+                originalFileName: string;
+                fileSize: number;
+                pageIndex?: number;
+            }>;
+            pdfContexts?: Array<{
+                url: string;
+                originalFileName: string;
+                fileSize: number;
+                pageIndex?: number;
+            }>;
             isImageContext?: boolean;
             isProcessing?: boolean;
             detectedQuestion?: components["schemas"]["DetectedQuestion"];

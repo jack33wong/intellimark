@@ -15,8 +15,12 @@ describe('imageCollectionUtils', () => {
         messageId: 'msg1',
         role: 'user',
         content: 'Hello',
-        imageData: 'data:image/jpeg;base64,test1',
-        fileName: 'user-image.jpg',
+        imageDataArray: [{
+          url: 'data:image/jpeg;base64,test1',
+          originalFileName: 'user-image.jpg',
+          fileSize: 100,
+          pageIndex: 0
+        }],
         timestamp: '2024-01-01T00:00:00Z',
         userId: 'user1',
         sessionId: 'test-session'
@@ -35,8 +39,12 @@ describe('imageCollectionUtils', () => {
         messageId: 'msg3',
         role: 'assistant',
         content: 'Annotated response',
-        imageLink: 'https://example.com/annotated.jpg',
-        fileName: 'annotated-image.jpg',
+        imageDataArray: [{
+          url: 'https://example.com/annotated.jpg',
+          originalFileName: 'annotated-image.jpg',
+          fileSize: 200,
+          pageIndex: 0
+        }],
         type: 'marking_annotated',
         timestamp: '2024-01-01T00:02:00Z',
         userId: 'user1',
@@ -95,25 +103,27 @@ describe('imageCollectionUtils', () => {
   describe('getSessionImages', () => {
     it('should extract all images from session messages', () => {
       const images = getSessionImages(mockSession);
-      
+
       expect(images).toHaveLength(2);
       expect(images[0]).toEqual({
-        id: 'img-msg1',
+        id: 'img-msg1-0',
         src: 'data:image/jpeg;base64,test1',
         filename: 'user-image.jpg',
         messageId: 'msg1',
         messageRole: 'user',
         messageType: 'unknown',
-        alt: 'Image from user message'
+        alt: 'Original image 1 from user',
+        pageIndex: 0
       });
       expect(images[1]).toEqual({
-        id: 'img-msg3',
+        id: 'img-msg3-0',
         src: 'https://example.com/annotated.jpg',
         filename: 'annotated-image.jpg',
         messageId: 'msg3',
         messageRole: 'assistant',
         messageType: 'marking_annotated',
-        alt: 'Image from assistant message'
+        alt: 'Annotated image 1 from assistant',
+        pageIndex: 0
       });
     });
 
@@ -127,7 +137,7 @@ describe('imageCollectionUtils', () => {
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z'
       };
-      
+
       expect(getSessionImages(emptySession)).toEqual([]);
     });
 

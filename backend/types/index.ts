@@ -262,11 +262,13 @@ export interface UnifiedMessage {
     url: string;
     originalFileName: string;
     fileSize: number;
+    pageIndex?: number;
   }>; // For multi-image cases - new structured format
   pdfContexts?: Array<{
     url: string;
     originalFileName: string;
     fileSize: number;
+    pageIndex?: number;
   }>; // For PDF uploads - simplified to match imageDataArray structure
 
   // Display options

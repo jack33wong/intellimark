@@ -517,6 +517,7 @@ export class SessionManagementService {
           score: qr.score,
           annotations: qr.annotations,
           studentWork: qr.studentWork,
+          pageIndex: qr.pageIndex, // [SYNC FIX] Ensure navigator knows where this question is
           overallPerformanceSummary: qr.overallPerformanceSummary || qr.feedback
         }));
         console.log(`[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)`);
@@ -664,22 +665,25 @@ export class SessionManagementService {
       // For images, use imageDataArray for all users
       if (standardizedPages && standardizedPages.length > 0) {
         // PREFER standardizedPages for metadata sync (essential for re-indexing)
-        structuredImageDataArray = standardizedPages.map(page => ({
+        structuredImageDataArray = standardizedPages.map((page, idx) => ({
           url: null,
           originalFileName: page.originalFileName || 'unknown-page',
-          fileSize: page.fileSize || 0
+          fileSize: page.fileSize || 0,
+          pageIndex: idx // Essential for sync
         }));
       } else if (files.length === 1) {
         structuredImageDataArray = [{
           url: null, // Will be updated to Firebase URL for authenticated users
           originalFileName: files[0].originalname,
-          fileSize: files[0].size
+          fileSize: files[0].size,
+          pageIndex: 0
         }];
       } else {
-        structuredImageDataArray = files.map(f => ({
+        structuredImageDataArray = files.map((f, idx) => ({
           url: null, // Will be updated to Firebase URL for authenticated users
           originalFileName: f.originalname,
-          fileSize: f.size
+          fileSize: f.size,
+          pageIndex: idx
         }));
       }
     }
@@ -809,7 +813,8 @@ export class SessionManagementService {
       return {
         url: annotatedImage,
         originalFileName: fileName,
-        fileSize: size
+        fileSize: size,
+        pageIndex: index // Important: sync with original page
       };
     });
 
@@ -842,7 +847,9 @@ export class SessionManagementService {
           markingScheme: rawScheme, // [V2 CLEAN FIX] Cleaned scheme
 
           marks: r.marks ?? 0,
-          totalMarks: r.totalMarks ?? 0
+          totalMarks: r.totalMarks ?? 0,
+          pageIndex: r.pageIndex, // [SYNC FIX]
+          sourceImageIndex: r.pageIndex // [SYNC FIX] For ribbon navigation
         };
       });
 

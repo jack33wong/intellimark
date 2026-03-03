@@ -17,6 +17,7 @@ export interface SessionImage {
   alt: string;
   badgeText?: string;
   badgeColor?: string;
+  pageIndex?: number;
 }
 
 /**
@@ -104,14 +105,15 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             // Only prefix 'annotated-' if it's an assistant result
             const filename = isAnnotated ? `annotated-${finalFileName}` : finalFileName;
 
-            const imgObj = {
+            const imgObj: SessionImage = {
               id: `img-${message.id}-${index}`,
               src,
               filename,
               messageId: message.id,
               messageRole: message.role,
               messageType: message.type || 'unknown',
-              alt: `${isAnnotated ? 'Annotated' : 'Original'} image ${index + 1} from ${message.role}`
+              alt: `${isAnnotated ? 'Annotated' : 'Original'} image ${index + 1} from ${message.role}`,
+              pageIndex: (imageItem as any)?.pageIndex ?? index // Use explicit pageIndex if available
             };
 
             if (isAnnotated) {
@@ -132,14 +134,15 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             const originalFileName = (message as any)?.originalFileName || `image-${message.id}`;
             const filename = isAnnotated ? `annotated-${originalFileName}` : originalFileName;
 
-            const imgObj = {
+            const imgObj: SessionImage = {
               id: `img-${message.id}`,
               src,
               filename,
               messageId: message.id,
               messageRole: message.role,
               messageType: message.type || 'unknown',
-              alt: `${isAnnotated ? 'Annotated' : 'Original'} image from ${message.role}`
+              alt: `${isAnnotated ? 'Annotated' : 'Original'} image from ${message.role}`,
+              pageIndex: (message as any).pageIndex ?? 0
             };
 
             if (isAnnotated) {
@@ -155,9 +158,53 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     }
   });
 
-  // 👇 Deduplicate: If an annotated version of a filename exists, hide the original
-  const annotatedBasenames = new Set(annotatedImages.map(img => img.filename?.replace(/^annotated-/, '')));
-  const filteredOriginals = originalImages.filter(img => !annotatedBasenames.has(img.filename as string));
+  // 👇 Robust Deduplication
+  // Priority 1: pageIndex (if available on both)
+  // Priority 2: filename (case-insensitive, normalized)
+
+  // Track annotated pages by index and base filename
+  const annotatedPageIndexMap = new Map<number, SessionImage>();
+  const annotatedFilenameMap = new Map<string, SessionImage>();
+
+  annotatedImages.forEach(img => {
+    if (img.pageIndex !== undefined) {
+      annotatedPageIndexMap.set(img.pageIndex, img);
+    }
+    if (img.filename) {
+      // Normalize: remove prefix and remove random suffixes if possible
+      const base = img.filename.replace(/^annotated-/, '').toLowerCase();
+      annotatedFilenameMap.set(base, img);
+
+      // Also try even more aggressive base (strip everything after the last dash before extension)
+      const lastDashIdx = base.lastIndexOf('-');
+      if (lastDashIdx > 0) {
+        const aggressiveBase = base.substring(0, lastDashIdx);
+        annotatedFilenameMap.set(aggressiveBase, img);
+      }
+    }
+  });
+
+  const filteredOriginals = originalImages.filter(img => {
+    // 1. Try pageIndex match
+    if (img.pageIndex !== undefined && annotatedPageIndexMap.has(img.pageIndex)) {
+      return false;
+    }
+
+    // 2. Try filename match
+    if (img.filename) {
+      const base = img.filename.toLowerCase();
+      if (annotatedFilenameMap.has(base)) return false;
+
+      // Try aggressive base check
+      const lastDashIdx = base.lastIndexOf('-');
+      if (lastDashIdx > 0) {
+        const aggressiveBase = base.substring(0, lastDashIdx);
+        if (annotatedFilenameMap.has(aggressiveBase)) return false;
+      }
+    }
+
+    return true;
+  });
 
   return [...annotatedImages, ...filteredOriginals];
 };
