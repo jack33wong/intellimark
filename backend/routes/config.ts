@@ -6,6 +6,7 @@
 import express from 'express';
 import CREDIT_CONFIG from '../config/credit.config';
 import { getFirestore } from '../config/firebase.js';
+import { ExamReferenceService } from '../services/ExamReferenceService.js';
 
 const router = express.Router();
 
@@ -35,22 +36,25 @@ router.get('/exam-metadata', async (req, res) => {
         const boards = new Set<string>();
         const tiers = new Set<string>();
         const papers = new Set<string>();
+        const codes = new Set<string>();
 
         snapshot.forEach((doc: any) => {
             const data = doc.data();
             const metadata = data.metadata;
             if (metadata) {
                 const board = metadata.exam_board || '';
-                const tier = metadata.tier || '';
                 const code = metadata.exam_code || '';
-                const series = metadata.exam_series || '';
+
+                // Normalize Series and Tier using Centralized Service
+                const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(metadata);
 
                 if (board) boards.add(board);
-                if (tier) tiers.add(tier);
+                if (formattedTier) tiers.add(formattedTier);
+                if (code) codes.add(code);
 
-                if (board || code || series) {
+                if (board || code || formattedSeries) {
                     // Format: "Exam board - Exam Code - Exam Series, Tier"
-                    const fullDescription = `${board}${board && code ? ' - ' : ''}${code}${(board || code) && series ? ' - ' : ''}${series}${tier ? `, ${tier}` : ''}`;
+                    const fullDescription = `${board}${board && code ? ' - ' : ''}${code}${(board || code) && formattedSeries ? ' - ' : ''}${formattedSeries}${formattedTier ? `, ${formattedTier}` : ''}`;
                     if (fullDescription.trim()) {
                         papers.add(fullDescription);
                     }
@@ -61,7 +65,8 @@ router.get('/exam-metadata', async (req, res) => {
         res.json({
             boards: Array.from(boards).sort(),
             tiers: Array.from(tiers).sort(),
-            papers: Array.from(papers).sort()
+            papers: Array.from(papers).sort(),
+            codes: Array.from(codes).sort()
         });
     } catch (error) {
         console.error('Error fetching exam metadata:', error);

@@ -157,381 +157,101 @@ export class SuggestedFollowUpService {
     progressTracker: ProgressTracker,
     tracker?: UsageTracker
   ): Promise<SuggestedFollowUpResult> {
-    // Start AI thinking step
+    // 1. Setup
     progressTracker.startStep('ai_thinking');
-
-    // Complete AI thinking and start generating response
     progressTracker.completeCurrentStep();
     progressTracker.startStep('generating_response');
 
-    // Get configuration for this mode
     const config = getSuggestedFollowUpConfig(mode);
-    if (!config) {
-      throw new Error(`No configuration found for suggested follow-up mode: ${mode}`);
-    }
-    console.log(`[DEBUG] SuggestedFollowUpService: mode=${mode}, promptKey=${config.promptKey}`);
+    if (!config) throw new Error(`No configuration found for mode: ${mode}`);
 
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
-
-    // Get prompts and execute AI call
     const { getPrompt } = await import('../../config/prompts.js');
+    const { ModelProvider } = await import('../../utils/ModelProvider.js');
+    const isModelAnswer = mode === 'modelanswer';
+    const systemPrompt = getPrompt(`${config.promptKey}.system`);
 
-    // Use new clean structure if available, otherwise fall back to legacy
     const detectedQuestion = targetMessage.detectedQuestion;
+    if (!detectedQuestion?.examPapers || !Array.isArray(detectedQuestion.examPapers)) {
+      progressTracker.finish();
+      return { response: "(No paper data available)", apiUsed: model, progressData: null, usageTokens: 0 };
+    }
 
+    // 2. Process Questions directly (No redundant grouping)
+    // The controllers have already grouped these correctly from the database
+    const questions = detectedQuestion.examPapers.flatMap((ep: any) =>
+      ep.questions.map((q: any) => ({
+        ...q,
+        base: String(q.questionNumber || q.number || 'unknown'),
+        examBoard: ep.examBoard,
+        examCode: ep.examCode
+      }))
+    );
 
+    // 3. Parallel Execution
+    const results = await Promise.all(questions.map(async (q) => {
+      const { base, questionText: qText, markingScheme: qScheme, marks: qMarks, originalText: parentText } = q;
 
-    if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
-      // Extract all questions from examPapers
-      const allQuestions = detectedQuestion.examPapers.flatMap(examPaper =>
-        examPaper.questions.map(q => ({
-          ...q,
-          examBoard: examPaper.examBoard,
-          examCode: examPaper.examCode,
-          examSeries: examPaper.examSeries,
-          tier: examPaper.tier
-        }))
-      );
+      const userPrompt = isModelAnswer
+        ? getPrompt(`${config.promptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base)
+        : getPrompt(`${config.promptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), base, qMarks);
 
-      // Log all extracted questions for debugging
+      // [FEATURE] Restore Debug Logging
+      const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
+        (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
 
-
-      // Sort all questions by question number (ascending) for consistent ordering across all modes
-      const sortedAllQuestions = [...allQuestions].sort((a, b) => {
-        const numA = parseInt(String(a.questionNumber || '').replace(/\D/g, '')) || 0;
-        const numB = parseInt(String(b.questionNumber || '').replace(/\D/g, '')) || 0;
-        return numA - numB;
-      });
-
-
-
-      // For model answer and marking scheme modes: Group sub-questions (e.g., 8a, 8b) under main question (Question 8)
-      if (mode === 'modelanswer' || mode === 'markingscheme') {
-        const { ModelProvider } = await import('../../utils/ModelProvider.js');
-        const isModelAnswer = mode === 'modelanswer';
-        const systemPrompt = getPrompt(`${config.promptKey}.system`);
-
-        // Group questions by base number (regex for leading digits)
-        const groupedMap = new Map<string, typeof sortedAllQuestions>();
-        sortedAllQuestions.forEach(q => {
-          const qNumStr = String(q.questionNumber || '');
-          const match = qNumStr.match(/^(\d+)/);
-          const baseNum = match ? match[1] : qNumStr;
-          if (!groupedMap.has(baseNum)) {
-            groupedMap.set(baseNum, []);
-          }
-          groupedMap.get(baseNum)!.push(q);
-        });
-
-        // Sort groups by base number
-        const sortedGroups = Array.from(groupedMap.entries())
-          .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
-          .map(([baseNum, questions]) => ({ baseNum, questions }));
-
-
-
-        const parallelResults = await Promise.all(
-          sortedGroups.map(async ({ baseNum, questions }) => {
-            // Combine text and marking schemes for the group
-            // Join with double newlines to ensure separation
-            const combinedQuestionText = questions.map(q => {
-              const text = q.questionText || '';
-              const qNum = String(q.questionNumber || '');
-
-              // Extract sub-label (e.g., "2ai" -> "ai", "8a" -> "a")
-              const subLabel = qNum.replace(baseNum, '');
-
-              // If text already starts with label, don't double-add
-              if (subLabel && !text.trim().startsWith(subLabel)) {
-                return `${subLabel}) ${text}`;
-              }
-              return text;
-            }).join('\n\n');
-
-            // markingScheme must be plain text
-            const markingSchemeParts: string[] = [];
-            for (const q of questions) {
-              const qNumLabel = q.questionNumber || 'Unknown';
-
-              if (!q.markingScheme) {
-                console.warn(`[MODEL ANSWER] Marking scheme missing/null for Q${qNumLabel}`);
-                markingSchemeParts.push('');
-                continue;
-              }
-
-              // Convert array OR object format to string if needed
-              if (typeof q.markingScheme === 'object') {
-                // [FEATURE] Expand 'cao' to full answer text and split atomic marks for better AI understanding
-                try {
-                  const { normalizeMarkingScheme } = await import('./MarkingInstructionService.js');
-                  const normalized = normalizeMarkingScheme(q.markingScheme);
-                  if (normalized) {
-                    markingSchemeParts.push(SuggestedFollowUpService.stringifyMarkingScheme(normalized));
-                    continue;
-                  }
-                } catch (e) {
-                  console.warn(`[NORMALIZE] Failed to normalize scheme in Q${qNumLabel}:`, e);
-                }
-                markingSchemeParts.push(SuggestedFollowUpService.stringifyMarkingScheme(q.markingScheme));
-              } else if (typeof q.markingScheme === 'string') {
-                markingSchemeParts.push(q.markingScheme);
-              } else {
-                console.warn(`[MODEL ANSWER] Unexpected marking scheme type for Q${qNumLabel}: ${typeof q.markingScheme}`);
-                markingSchemeParts.push('');
-              }
-            }
-            const combinedMarkingScheme = markingSchemeParts.join('\n\n');
-
-            const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
-
-            // Pass the group's "Question X" number explicitly
-            const questionNumberStr = baseNum;
-
-            const userPrompt = isModelAnswer
-              ? getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr)
-              : getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, questionNumberStr, totalMarks);
-
-            // --- DEBUG LOGGING: Print Prompt ---
-            if ((isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') || (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true')) {
-              console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Group ${baseNum}):`);
-
-              // Only log system prompt for the first group to avoid spam
-              if (baseNum === sortedGroups[0].baseNum) { // Log mainly for the first group
-                console.log(`--- SYSTEM (Printed once) ---\n${systemPrompt}\n`);
-              }
-
-              if (!combinedQuestionText.trim()) console.warn(`⚠️ [WARNING] Question text for Group ${baseNum} is empty! Check database.`);
-              if (!combinedMarkingScheme.trim()) console.warn(`⚠️ [WARNING] Marking scheme for Group ${baseNum} is empty! Check database/normalization.`);
-
-              console.log(`--- USER ---\n${userPrompt}\n`);
-            }
-
-            // Determine appropriate phase for tracking
-            const phase = mode === 'modelanswer' ? 'modelAnswer' :
-              mode === 'markingscheme' ? 'markingScheme' : 'other';
-
-            const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
-
-            // --- DEBUG LOGGING: Print Response ---
-            if ((isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') || (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true')) {
-              console.log(`\n✅ [DEBUG] ${mode.toUpperCase()} RESPONSE (Group ${baseNum}):`);
-              console.log(`${aiResult.content}\n`);
-            }
-
-            return {
-              response: aiResult.content,
-              usageTokens: aiResult.usageTokens || 0
-            };
-          })
-        );
-
-        // Simply combine all responses with separators
-        // Use simple spacing instead of markdown horizontal rule as requested
-        const separator = '\n\n<br><br>\n\n';
-        const combinedResponse = parallelResults
-          .map(result => {
-            // STRICT POST-PROCESSING: Remove any markdown code blocks that slipped through
-            // For marking schemes, we PRESERVE list bullets (*) and bold (**) for structural rendering
-            let cleanResponse = result.response;
-
-            // Remove code block wrappers (```markdown ... ``` or ```html ... ```)
-            cleanResponse = cleanResponse.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '');
-
-            if (mode === 'modelanswer') {
-              // Only strip formatting for model answer flow which uses specialized component containers
-              // Remove bold syntax (**Answer:** -> Answer:)
-              cleanResponse = cleanResponse.replace(/\*\*(.*?)\*\*/g, '$1');
-
-              // Also remove any single asterisks used for list items if they appear at start of line
-              cleanResponse = cleanResponse.replace(/^\s*\*\s+/gm, '');
-
-              // Remove HTML bold tags around "Answer:" (e.g. <b>Answer:</b> -> Answer:)
-              cleanResponse = cleanResponse.replace(/<b>\s*Answer:\s*<\/b>/gi, 'Answer:');
-            }
-
-            return cleanResponse;
-          })
-          .join(separator);
-
-        const totalUsageTokens = parallelResults.reduce((sum, r) => sum + r.usageTokens, 0);
-
-        // Get real API name based on model
-        const getRealApiName = (modelName: string): string => {
-          if (modelName.includes('gemini')) {
-            return 'Google Gemini API';
-          }
-          if (modelName.includes('openai') || modelName.includes('gpt-')) {
-            return 'OpenAI API';
-          }
-          return 'Unknown API';
-        };
-
-        // Complete progress tracking
-        progressTracker.completeCurrentStep();
-        progressTracker.finish();
-
-        return {
-          response: combinedResponse,
-          apiUsed: `${getRealApiName(model)} (${model}) - Grouped execution`,
-          progressData: null,
-          usageTokens: totalUsageTokens
-        };
-      }
-
-      // For other modes or single question: use original sequential logic
-      let questionText: string;
-      let markingScheme: string;
-      let totalMarks: number | undefined;
-      let questionCount: number | undefined;
-
-      // Deduplicate questions by number to prevent repetition (e.g. same question from multiple pages)
-      const uniqueQuestionsMap = new Map();
-      sortedAllQuestions.forEach(q => {
-        if (q.questionNumber && !uniqueQuestionsMap.has(q.questionNumber)) {
-          uniqueQuestionsMap.set(q.questionNumber, q);
-        }
-      });
-      const uniqueSortedQuestions = Array.from(uniqueQuestionsMap.values());
-
-      questionCount = uniqueSortedQuestions.length;
-
-      // For multiple questions, format each separately in the prompt
-      if (uniqueSortedQuestions.length > 1) {
-        // Aggregate all question texts with clear separation (already sorted by question number)
-        questionText = uniqueSortedQuestions.map((q, index) => {
-          return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
-        }).join('\n\n---\n\n');
-
-        // Aggregate all marking schemes (matches plain text requirement)
-        // Format them with question labels for clarity (already sorted by question number)
-        const combinedSchemeText = uniqueSortedQuestions.map(q => {
-          const schemeText = SuggestedFollowUpService.stringifyMarkingScheme(q.markingScheme);
-          if (!schemeText && q.markingScheme) {
-            console.warn(`[MULTI-QUESTION] Could not stringify marking scheme for Q${q.questionNumber} (type: ${typeof q.markingScheme})`);
-          }
-          return `Question ${q.questionNumber} (${q.marks} marks):\n${schemeText}`;
-        }).join('\n\n');
-
-        markingScheme = combinedSchemeText;
-
-        // Sum total marks across all questions
-        totalMarks = uniqueSortedQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
-
-
-      } else {
-        // Single question (use sorted array for consistency)
-        const q = uniqueSortedQuestions[0];
-        questionText = q.questionText;
-        // markingScheme must be plain text (same format as sent to AI for marking instruction)
-        // DEBUG: Inspect raw marking scheme data
-        if (process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
-          console.log(`[DEBUG_FOLLOWUP] Raw marking scheme input for Q${q.questionNumber}:`, JSON.stringify(q.markingScheme, null, 2));
-        }
-
-        markingScheme = SuggestedFollowUpService.stringifyMarkingScheme(q.markingScheme);
-        if (!markingScheme && q.markingScheme) {
-          console.warn(`[SINGLE QUESTION] Could not stringify marking scheme for Q${q.questionNumber}`);
-        }
-        totalMarks = q.marks;
-      }
-
-      const systemPrompt = getPrompt(`${config.promptKey}.system`);
-      // For model answer mode, pass question number; for other modes (e.g., similar questions), pass questionCount
-      const singleQuestionNumber = mode === 'modelanswer' && uniqueSortedQuestions.length === 1
-        ? String(uniqueSortedQuestions[0].questionNumber || '')
-        : undefined;
-      const userPrompt = getPrompt(`${config.promptKey}.user`,
-        questionText,
-        markingScheme,
-        mode === 'modelanswer' ? totalMarks : questionCount,  // For model answer: pass totalMarks, for similar questions: pass questionCount
-        mode === 'modelanswer' ? singleQuestionNumber : undefined  // For model answer: pass question number
-      );
-
-      // --- DEBUG LOGGING: Print Prompt ---
-      if (mode === 'markingscheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
-        console.log(`\n🔍 [DEBUG] MARKING SCHEME EXPLAIN PROMPT:`);
+      if (isLoggingEnabled) {
+        console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
         console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
         console.log(`--- USER ---\n${userPrompt}\n`);
       }
 
-      // Use ModelProvider directly with custom prompts
-      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      try {
+        const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+        let content = ai.content.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
-      // Determine appropriate phase for tracking
-      const phase = mode === 'modelanswer' ? 'modelAnswer' :
-        mode === 'markingscheme' ? 'markingScheme' : 'other';
+        if (isLoggingEnabled) {
+          console.log(`✅ [DEBUG] ${mode.toUpperCase()} RESPONSE (Group ${base}):`);
+          console.log(`${content}\n`);
+        }
 
-      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
+        // [FIX] Global Regex and Strict Filtering
+        // Only strip the main header, keep the interleaved sub-questions if AI generated them
+        content = content.replace(/<div class="model-question-number">.*?<\/div>/sig, '').trim();
 
-      // --- DEBUG LOGGING: Print Response ---
-      if (mode === 'markingscheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') {
-        console.log(`\n✅ [DEBUG] MARKING SCHEME EXPLAIN RESPONSE:`);
-        console.log(`${aiResult.content}\n`);
+        // [FIX] Header Alignment: Align Max Marks to the right
+        // [FIX] Interleaved Layout: For model answers, we trust the AI to interleave sub-questions + answers.
+        // We only prepend the verified parent text if it's there.
+        const header = `<div class="model-question-number">Question ${base} <span style="float:right;">[${qMarks} marks]</span></div>`;
+
+        // [FIX] Layout Duplication: Prepend aggregated question text ONLY if the AI hasn't already provided it 
+        // Interleaved layout: AI provides sub-questions and answers mixed.
+        // We prepend the verified parent text (parentText) if it exists.
+        const html = `
+<div class="model-answer-block">
+    ${header}
+    <div class="model-question-content">
+        ${(isModelAnswer && parentText) ? `<span class="model_question">${parentText.trim().replace(/\n/g, '<br/>')}</span>` : (!isModelAnswer ? `<span class="model_question">${qText.trim().replace(/\n/g, '<br/>')}</span>` : '')}
+        <div class="model-ai-answer">${content}</div>
+    </div>
+</div>`.trim();
+        return { html, tokens: ai.usageTokens || 0 };
+      } catch (err) {
+        console.error(`[FOLLOW-UP] Error Q${base}:`, err);
+        return { html: `<div class="error">Error generating ${mode} for Q${base}</div>`, tokens: 0 };
       }
+    }));
 
-      // Get real API name based on model
-      const getRealApiName = (modelName: string): string => {
-        if (modelName.includes('gemini')) {
-          return 'Google Gemini API';
-        }
-        if (modelName.includes('openai') || modelName.includes('gpt-')) {
-          return 'OpenAI API';
-        }
-        return 'Unknown API';
-      };
+    // 4. Cleanup and Return
+    progressTracker.completeCurrentStep();
+    progressTracker.finish();
 
-      const contextualResult = {
-        response: aiResult.content,
-        apiUsed: `${getRealApiName(model)} (${model})`,
-        confidence: 0.85,
-        usageTokens: aiResult.usageTokens
-      };
+    const getRealApiName = (m: string) => m.includes('gemini') ? 'Google Gemini API' : m.includes('gpt') ? 'OpenAI API' : 'AI API';
 
-      // Complete progress tracking
-      progressTracker.completeCurrentStep();
-      progressTracker.finish();
-
-      return {
-        response: contextualResult.response,
-        apiUsed: contextualResult.apiUsed,
-        progressData: null, // Will be set by the calling method
-        usageTokens: contextualResult.usageTokens
-      };
-    } else {
-      // No exam papers found - fallback to empty
-      const systemPrompt = getPrompt(`${config.promptKey}.system`);
-      const userPrompt = getPrompt(`${config.promptKey}.user`, '', '', undefined);
-
-      const { ModelProvider } = await import('../../utils/ModelProvider.js');
-
-      // Determine appropriate phase for tracking
-      const phase = mode === 'modelanswer' ? 'modelAnswer' :
-        mode === 'markingscheme' ? 'markingScheme' : 'other';
-
-      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, phase as any);
-
-      // Get real API name based on model
-      const getRealApiName = (modelName: string): string => {
-        if (modelName.includes('gemini')) {
-          return 'Google Gemini API';
-        }
-        if (modelName.includes('openai') || modelName.includes('gpt-')) {
-          return 'OpenAI API';
-        }
-        return 'Unknown API';
-      };
-
-      progressTracker.completeCurrentStep();
-      progressTracker.finish();
-
-      return {
-        response: aiResult.content,
-        apiUsed: `${getRealApiName(model)} (${model})`,
-        progressData: null,
-        usageTokens: aiResult.usageTokens || 0
-      };
-    }
+    return {
+      response: results.map(r => r.html).join('\n\n<br><br>\n\n'),
+      apiUsed: `${getRealApiName(model)} (${model})`,
+      progressData: null,
+      usageTokens: results.reduce((s, r) => s + r.tokens, 0)
+    };
   }
-
 }

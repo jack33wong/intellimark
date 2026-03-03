@@ -29,7 +29,7 @@ export class ModelAnswerController {
         sendSseUpdate(res, { type: 'connected', message: 'Generating model answers...' });
 
         try {
-            const { paper, model = 'auto', sessionId: providedSessionId } = req.body;
+            const { paper, model = 'auto', sessionId: providedSessionId, aiMessageId: providedAiMessageId } = req.body;
             console.log(`🚀 [MODEL-ANSWER] Controller HIT! Request for paper: ${paper}`);
             let sessionId = providedSessionId;
 
@@ -61,7 +61,13 @@ export class ModelAnswerController {
             let metadataHeader = '';
 
             if (paper) {
-                sendSseUpdate(res, { type: 'progress', step: 'retrieving_paper', currentStepDescription: 'Finding exam paper...' });
+                sendSseUpdate(res, {
+                    type: 'progress',
+                    step: 'retrieving_paper',
+                    currentStepDescription: 'Finding exam paper...',
+                    allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is writing model answers...'],
+                    currentStepIndex: 0
+                });
 
                 const paperDoc = await ExamReferenceService.findPaper(paper);
 
@@ -71,16 +77,30 @@ export class ModelAnswerController {
                     // Format Metadata Display
                     const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(meta);
 
-                    // Use specific CSS class for header, no ###, no markdown separator, add extra spacing
-                    metadataHeader = `<div class="model-exam-header">${meta.exam_board} - ${meta.exam_code} - ${formattedSeries}${formattedTier ? `, ${formattedTier}` : ''}</div>\n\n<br><br>\n\n`;
+                    // Calculate totals from Paper Document
+                    const totalQuestions = paperDoc.questions?.length || 0;
+                    const totalMarks = (paperDoc.questions || []).reduce((sum: number, q: any) => sum + (q.marks || 0), 0);
+
+                    // Metadata Header matching the requested format
+                    metadataHeader = `
+<div class="model-exam-header">
+  <div class="exam-header-title">${meta.exam_board}</div>
+  <div class="exam-header-pills">
+    <span class="exam-pill pill-code">${meta.exam_code}</span>
+    <span class="exam-pill pill-series">${formattedSeries}</span>
+    ${formattedTier ? `<span class="exam-pill pill-tier">${formattedTier}</span>` : ''}
+    <span class="exam-pill pill-marks">${totalMarks} Marks</span>
+    <span class="exam-pill pill-count">${totalQuestions} Questions</span>
+  </div>
+</div>`.trim() + '\n\n';
 
                     // Strict Limits for AI Usage
+                    let rawQuestions = paperDoc.questions || [];
+
+                    // Use Paper Document questions directly (they are already grouped by question level)
                     let questionsToProcess = paperDoc.questions || [];
 
-                    if (isAuthenticated) {
-                        // Testing Mode: NO LIMIT for authenticated users
-                        // questionsToProcess = questionsToProcess; 
-                    } else {
+                    if (!isAuthenticated) {
                         // Strict Guest Limit: Max 3
                         if (questionsToProcess.length > 3) {
                             questionsToProcess = questionsToProcess.slice(0, 3);
@@ -89,7 +109,13 @@ export class ModelAnswerController {
                     }
 
                     // Retrieve Marking Schemes - Using Metadata Match ONLY (ID lookup is unreliable)
-                    sendSseUpdate(res, { type: 'progress', step: 'retrieving_schemes', currentStepDescription: 'Loading marking schemes (Metadata Match)...' });
+                    sendSseUpdate(res, {
+                        type: 'progress',
+                        step: 'retrieving_schemes',
+                        currentStepDescription: 'Loading marking schemes...',
+                        allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is writing model answers...'],
+                        currentStepIndex: 1
+                    });
 
                     let schemeData = null;
 
@@ -109,7 +135,10 @@ export class ModelAnswerController {
                             subject: meta.subject || 'Mathematics',
                             paperTitle: `${meta.exam_board} ${meta.exam_code}`,
                             questions: questionsToProcess.map((q: any) => {
-                                const qNum = String(q.question_number);
+                                // [FIX] Robust property handling for Paper Document (handle both sub_questions and subQuestions, number and question_number)
+                                const subQuestions = q.sub_questions || q.subQuestions || [];
+                                const qNum = String(q.question_number || q.number || '');
+
                                 let scheme = null;
 
                                 // [FIX] Robust Lookup: Handle both Array and Map structures
@@ -117,7 +146,7 @@ export class ModelAnswerController {
 
                                 if (qData) {
                                     if (Array.isArray(qData)) {
-                                        scheme = qData.find((s: any) => String(s.question_number) === qNum);
+                                        scheme = qData.find((s: any) => String(s.question_number || s.number) === qNum);
                                     } else {
                                         // 1. Try exact match
                                         scheme = qData[qNum];
@@ -142,7 +171,7 @@ export class ModelAnswerController {
                                             if (subKeys.length > 0) {
                                                 // Sort to ensure a, b, c order (aware of complex labels)
                                                 subKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-                                                console.log(`[MODEL-ANSWER] Found sub-questions for ${qNum}: ${subKeys.join(', ')}`);
+                                                console.log(`[MODEL-ANSWER] Found sub-marks for ${qNum}: ${subKeys.join(', ')}`);
 
                                                 // Aggregate schemes
                                                 scheme = {
@@ -167,17 +196,32 @@ export class ModelAnswerController {
                                     }
                                 }
 
+                                // [FIX] "Sub-Question Blindness": Always aggregate parent text + sub-question text
                                 let questionText = q.question_text || q.text || '';
-                                if (!questionText && q.sub_questions && Array.isArray(q.sub_questions)) {
-                                    questionText = q.sub_questions
-                                        .map((sq: any) => `${sq.question_part}) ${sq.question_text}`)
+                                if (Array.isArray(subQuestions) && subQuestions.length > 0) {
+                                    const subTextStr = subQuestions
+                                        .map((sq: any) => {
+                                            const part = sq.question_part || sq.part || '';
+                                            const text = sq.question_text || sq.text || '';
+                                            return part ? `${part}) ${text}` : text;
+                                        })
                                         .join('\n\n');
+
+                                    questionText = questionText
+                                        ? `${questionText.trim()}\n\n${subTextStr}`
+                                        : subTextStr;
+                                }
+
+                                let questionMarks = q.marks || 0;
+                                if (questionMarks === 0 && Array.isArray(subQuestions) && subQuestions.length > 0) {
+                                    questionMarks = subQuestions.reduce((sum: number, sq: any) => sum + (sq.marks || 0), 0);
                                 }
 
                                 return {
-                                    questionNumber: String(q.question_number),
+                                    questionNumber: qNum,
                                     questionText: questionText,
-                                    marks: q.marks,
+                                    originalText: q.question_text || q.text || '', // Root parent text
+                                    marks: questionMarks,
                                     markingScheme: scheme
                                 };
                             })
@@ -215,7 +259,13 @@ export class ModelAnswerController {
             }
 
             // 5. Generate Model Answer
-            sendSseUpdate(res, { type: 'progress', step: 'generating', currentStepDescription: 'AI is writing model answers...' });
+            sendSseUpdate(res, {
+                type: 'progress',
+                step: 'generating',
+                currentStepDescription: 'AI is writing model answers...',
+                allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is writing model answers...'],
+                currentStepIndex: 2
+            });
 
             const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
                 mode: 'modelanswer',
@@ -239,7 +289,18 @@ ${followUpResult.response}
             // 7. Store AI Message
             const aiMessage = createAIMessage({
                 content: finalResponse,
-                progressData: { type: 'text', steps: [], currentStep: null, isComplete: true },
+                messageId: providedAiMessageId,
+                progressData: {
+                    type: 'modelanswer',
+                    currentStepDescription: 'Model answers written',
+                    allSteps: [
+                        'Finding exam paper...',
+                        'Loading marking schemes...',
+                        'AI is writing model answers...'
+                    ],
+                    currentStepIndex: 2,
+                    isComplete: true
+                },
                 processingStats: {
                     modelUsed: model,
                     apiUsed: followUpResult.apiUsed || 'SuggestedFollowUpService',

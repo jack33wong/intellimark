@@ -105,10 +105,30 @@ export class ExamReferenceService {
 
             const normalize = (t: string) => t.toLowerCase().replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
             const pCode = normalize(meta.exam_board || '') + ' ' + normalize(meta.exam_code || '') + ' ' + normalize(meta.exam_series || '') + (meta.tier ? ' ' + normalize(meta.tier) : '');
+            const pTokens = pCode.split(/\s+/);
 
             return searchVariations.some(v => {
                 const nv = normalize(v);
-                return pCode === nv || pCode.includes(nv) || nv.includes(pCode);
+                const inputTokens = nv.split(/\s+/);
+
+                // Paper matches if it contains ALL tokens from the variation
+                return inputTokens.every(it => {
+                    const isMatch = pTokens.some(pt => {
+                        if (pt === it) return true;
+
+                        const isPStrictNum = /^\d+$/.test(pt);
+                        const isIStrictNum = /^\d+$/.test(it);
+
+                        if (isPStrictNum && isIStrictNum) {
+                            // Numeric comparison (e.g., "1" matches "01")
+                            return parseInt(pt) === parseInt(it);
+                        }
+
+                        // Text comparison (e.g., "nov" matches "november")
+                        return pt.includes(it);
+                    });
+                    return isMatch;
+                });
             });
         });
 

@@ -29,7 +29,7 @@ export class MarkingSchemeController {
         sendSseUpdate(res, { type: 'connected', message: 'Retrieving marking scheme...' });
 
         try {
-            const { paper, model = 'auto', sessionId: providedSessionId } = req.body;
+            const { paper, model = 'auto', sessionId: providedSessionId, aiMessageId: providedAiMessageId } = req.body;
             console.log(`🚀 [MARKING_SCHEME] Controller HIT! Request for paper: ${paper}`);
             let sessionId = providedSessionId;
 
@@ -61,7 +61,13 @@ export class MarkingSchemeController {
             let metadataHeader = '';
 
             if (paper) {
-                sendSseUpdate(res, { type: 'progress', step: 'retrieving_paper', currentStepDescription: 'Finding exam paper...' });
+                sendSseUpdate(res, {
+                    type: 'progress',
+                    step: 'retrieving_paper',
+                    currentStepDescription: 'Finding exam paper...',
+                    allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is explaining marking scheme...'],
+                    currentStepIndex: 0
+                });
 
                 const paperDoc = await ExamReferenceService.findPaper(paper);
 
@@ -71,8 +77,22 @@ export class MarkingSchemeController {
                     // Format Metadata Display
                     const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(meta);
 
+                    // Calculate totals from Paper Document
+                    const totalQuestions = paperDoc.questions?.length || 0;
+                    const totalMarks = (paperDoc.questions || []).reduce((sum: number, q: any) => sum + (q.marks || 0), 0);
+
                     // Metadata Header matching the requested format
-                    metadataHeader = `<div class="model-exam-header">${meta.exam_board} - ${meta.exam_code} - ${formattedSeries}${formattedTier ? `, ${formattedTier}` : ''}</div>\n\n<br><br>\n\n`;
+                    metadataHeader = `
+<div class="model-exam-header">
+  <div class="exam-header-title">${meta.exam_board}</div>
+  <div class="exam-header-pills">
+    <span class="exam-pill pill-code">${meta.exam_code}</span>
+    <span class="exam-pill pill-series">${formattedSeries}</span>
+    ${formattedTier ? `<span class="exam-pill pill-tier">${formattedTier}</span>` : ''}
+    <span class="exam-pill pill-marks">${totalMarks} Marks</span>
+    <span class="exam-pill pill-count">${totalQuestions} Questions</span>
+  </div>
+</div>`.trim() + '\n\n';
 
                     // Strict Limits for AI Usage
                     let questionsToProcess = paperDoc.questions || [];
@@ -89,7 +109,13 @@ export class MarkingSchemeController {
                     }
 
                     // Retrieve Marking Schemes - Using Centralized Service
-                    sendSseUpdate(res, { type: 'progress', step: 'retrieving_schemes', currentStepDescription: 'Loading marking schemes (Metadata Match)...' });
+                    sendSseUpdate(res, {
+                        type: 'progress',
+                        step: 'retrieving_schemes',
+                        currentStepDescription: 'Loading marking schemes...',
+                        allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is explaining marking scheme...'],
+                        currentStepIndex: 1
+                    });
 
                     let schemeData = null;
                     const schemeResult = await ExamReferenceService.findMarkingScheme(meta);
@@ -112,7 +138,10 @@ export class MarkingSchemeController {
                             subject: meta.subject || 'Mathematics',
                             paperTitle: `${meta.exam_board} ${meta.exam_code}`,
                             questions: questionsToProcess.map((q: any) => {
-                                const qNum = String(q.question_number);
+                                // [FIX] Robust property handling for Paper Document (handle both sub_questions and subQuestions, number and question_number)
+                                const subQuestions = q.sub_questions || q.subQuestions || [];
+                                const qNum = String(q.question_number || q.number || '');
+
                                 let scheme = null;
 
                                 // [FIX] Robust Lookup: Handle both Array and Map structures
@@ -120,33 +149,35 @@ export class MarkingSchemeController {
 
                                 if (qData) {
                                     if (Array.isArray(qData)) {
-                                        scheme = qData.find((s: any) => String(s.question_number) === qNum);
+                                        scheme = qData.find((s: any) => String(s.question_number || s.number) === qNum);
                                     } else {
                                         // 1. Try exact match
                                         scheme = qData[qNum];
 
-                                        // 2. If not found, look for sub-questions (e.g., "5" -> "5a", "5b")
+                                        // 2. If not found, look for sub-questions (e.g., "5" -> "5a", "5b", "5a(i)")
                                         if (!scheme) {
+                                            // More relaxed filter for sub-questions: starts with qNum
+                                            // [FIX] Strict check: The character immediately following qNum MUST NOT be a digit
                                             const subKeys = Object.keys(qData).filter(k => {
                                                 if (!k.startsWith(qNum)) return false;
                                                 if (k === qNum) return false;
 
                                                 const suffix = k.slice(qNum.length);
-                                                // [FIX] If suffix starts with a digit, it's a different question (e.g. 1 -> 10)
                                                 if (/^\d/.test(suffix)) return false;
 
-                                                return /^[a-z]+$/i.test(suffix); // MarkingSchemeController had stricter [a-z] regex originally
+                                                // Allow letters, parens, Roman numerals in suffix
+                                                return /^[a-z0-9()\[\]]+$/i.test(suffix);
                                             });
+
                                             if (subKeys.length > 0) {
-                                                // Sort to ensure a, b, c order
-                                                subKeys.sort();
-                                                console.log(`[MARKING-SCHEME] Found sub-questions for ${qNum}: ${subKeys.join(', ')}`);
+                                                subKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                                                console.log(`[MARKING-SCHEME] Found sub-marks for ${qNum}: ${subKeys.join(', ')}`);
 
                                                 // Aggregate schemes
                                                 scheme = {
-                                                    answer: subKeys.map(k => `(${k.replace(qNum, '')}) ${qData[k].answer}`).join('; '),
-                                                    marks: subKeys.flatMap(k => qData[k].marks.map((m: any) => ({ ...m, question_part: k.replace(qNum, '') }))),
-                                                    guidance: subKeys.flatMap(k => qData[k].guidance || [])
+                                                    answer: subKeys.map(k => `(${k.replace(qNum, '')}) ${qData[k].answer || qData[k].question_answer || ''}`).join('; '),
+                                                    marks: subKeys.flatMap(k => (qData[k].marks || qData[k].question_marks || []).map((m: any) => ({ ...m, question_part: k.replace(qNum, '') }))),
+                                                    guidance: subKeys.flatMap(k => qData[k].guidance || qData[k].generalMarkingGuidance || [])
                                                 };
                                             }
                                         }
@@ -162,19 +193,32 @@ export class MarkingSchemeController {
                                 }
 
 
+                                // [FIX] "Sub-Question Blindness": Always aggregate parent text + sub-question text
                                 let questionText = q.question_text || q.text || '';
-
-                                // [FIX] Handle questions that only have sub-questions (like Q2)
-                                if (!questionText && q.sub_questions && Array.isArray(q.sub_questions)) {
-                                    questionText = q.sub_questions
-                                        .map((sq: any) => `${sq.question_part}) ${sq.question_text}`)
+                                if (Array.isArray(subQuestions) && subQuestions.length > 0) {
+                                    const subTextStr = subQuestions
+                                        .map((sq: any) => {
+                                            const part = sq.question_part || sq.part || '';
+                                            const text = sq.question_text || sq.text || '';
+                                            return part ? `${part}) ${text}` : text;
+                                        })
                                         .join('\n\n');
+
+                                    questionText = questionText
+                                        ? `${questionText.trim()}\n\n${subTextStr}`
+                                        : subTextStr;
+                                }
+
+                                let questionMarks = q.marks || 0;
+                                if (questionMarks === 0 && Array.isArray(subQuestions) && subQuestions.length > 0) {
+                                    questionMarks = subQuestions.reduce((sum: number, sq: any) => sum + (sq.marks || 0), 0);
                                 }
 
                                 return {
                                     questionNumber: qNum,
                                     questionText: questionText,
-                                    marks: q.marks,
+                                    originalText: q.question_text || q.text || '', // Root parent text
+                                    marks: questionMarks,
                                     markingScheme: scheme
                                 };
                             })
@@ -210,7 +254,13 @@ export class MarkingSchemeController {
             }
 
             // 5. Generate Explanation
-            sendSseUpdate(res, { type: 'progress', step: 'generating', currentStepDescription: 'AI is explaining marking schemes...' });
+            sendSseUpdate(res, {
+                type: 'progress',
+                step: 'generating',
+                currentStepDescription: 'AI is explaining marking scheme...',
+                allSteps: ['Finding exam paper...', 'Loading marking schemes...', 'AI is explaining marking scheme...'],
+                currentStepIndex: 2
+            });
 
             const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
                 mode: 'markingscheme',
@@ -233,7 +283,18 @@ ${followUpResult.response}
             // 7. Store AI Message
             const aiMessage = createAIMessage({
                 content: finalResponse,
-                progressData: { type: 'text', steps: [], currentStep: null, isComplete: true },
+                messageId: providedAiMessageId,
+                progressData: {
+                    type: 'markingscheme',
+                    currentStepDescription: 'Marking schemes explained',
+                    allSteps: [
+                        'Finding exam paper...',
+                        'Loading marking schemes...',
+                        'AI is explaining marking scheme...'
+                    ],
+                    currentStepIndex: 2,
+                    isComplete: true
+                },
                 processingStats: {
                     modelUsed: model,
                     apiUsed: followUpResult.apiUsed || 'SuggestedFollowUpService',
