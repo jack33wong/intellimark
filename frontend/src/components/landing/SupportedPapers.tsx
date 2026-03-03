@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, ShieldCheck } from 'lucide-react';
+import { trackPaperInteraction } from '../../utils/analytics';
 import './SupportedPapers.css';
 
 const SupportedPapers: React.FC = () => {
@@ -333,13 +334,25 @@ const SupportedPapers: React.FC = () => {
                                                     </div>
                                                     <div className="paper-actions">
                                                         <button
-                                                            onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${s.year.split(' ')[0].substring(0, 3).toUpperCase()}${s.year.split(' ')[1]}&mode=model`)}
+                                                            onClick={() => {
+                                                                const paperCode = paper.code.replace('/', '-');
+                                                                const seriesYear = s.year.split(' ')[0].substring(0, 3).toUpperCase() + s.year.split(' ')[1];
+                                                                const finalCode = `${paperCode}-${seriesYear}`;
+                                                                trackPaperInteraction(finalCode, 'MODEL');
+                                                                navigate(`/app?code=${finalCode}&mode=model`);
+                                                            }}
                                                             className="action-link model"
                                                         >
                                                             Model
                                                         </button>
                                                         <button
-                                                            onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${s.year.split(' ')[0].substring(0, 3).toUpperCase()}${s.year.split(' ')[1]}&mode=markingscheme`)}
+                                                            onClick={() => {
+                                                                const paperCode = paper.code.replace('/', '-');
+                                                                const seriesYear = s.year.split(' ')[0].substring(0, 3).toUpperCase() + s.year.split(' ')[1];
+                                                                const finalCode = `${paperCode}-${seriesYear}`;
+                                                                trackPaperInteraction(finalCode, 'MARK');
+                                                                navigate(`/app?code=${finalCode}&mode=markingscheme`);
+                                                            }}
                                                             className="action-link mark"
                                                         >
                                                             Mark

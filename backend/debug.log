@@ -5855,3 +5855,2095 @@ database_persistence                0.3s (0%)
 💳 Deducted 15.10 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1772524099595), remaining: 287.04
 💳 Deducted 0.1510 credits (session: sub-1772524099595) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 ✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1772524099595
+[PERF] getUserUnifiedSessions: Fetch 280ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 282ms for 50 sessions (limit: 50)
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: J560-01-NOV2024
+ℹ️ [EXAM-REF] Looking for paper via search: J560-01-NOV2024
+ℹ️ [EXAM-REF] Searching papers with variations: ["j560-01-nov2024","j560 01 nov2024","j560/01/nov2024","j560-01-nov 2024","j560 01 nov 2024","j560/01/nov 2024","j560-01-november2024","j560 01 november2024","j560/01/november2024","j560-01-november 2024","j560 01 november 2024","j560/01/november 2024"]
+ℹ️ [EXAM-REF] Looking for scheme via Metadata: J560/01 / November 2024 (Variations: ["November 2024","november 2024"])
+✅ [EXAM-REF] Found scheme via Metadata Match: 8b5d76eb-2522-4658-81ad-4ea609e67b81 (November 2024)
+[MODEL-ANSWER] Found sub-marks for 1: 1a, 1b, 1c, 1d
+[MODEL-ANSWER] Found sub-marks for 2: 2a(i), 2a(ii), 2b
+[MODEL-ANSWER] Found sub-marks for 5: 5a(i), 5a(ii), 5b
+[MODEL-ANSWER] Found sub-marks for 8: 8a, 8b
+[MODEL-ANSWER] Found sub-marks for 9: 9a, 9b
+[MODEL-ANSWER] Found sub-marks for 13: 13a, 13b, 13c, 13d
+[MODEL-ANSWER] Found sub-marks for 17: 17a, 17b
+[MODEL-ANSWER] Found sub-marks for 18: 18a, 18b
+[MODEL-ANSWER] Found sub-marks for 19: 19a, 19b, 19c, 19d(i), 19d(ii), 19e
+[MODEL-ANSWER] Found sub-marks for 20: 20a, 20b
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 1):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 1
+MAX MARKS: 8
+
+## QUESTION TEXT
+a) 200 students at a school were asked how they travel to school. The pictogram shows the results for four of the ways they travel to school. [Pictogram: Walk (2 squares), Bus (3.5 squares), Cycle (Blank), Tram (2 squares), Car (1.5 squares). Key: Square represents 20 students]. How many students walk to school?
+
+b) How many more students travel by car to school than travel by tram to school?
+
+c) The rest of the 200 students cycle to school. Complete the pictogram to show the number of students who cycle to school.
+
+d) The total number of students at the school is 800. What fraction of the students at the school were asked how they travel to school? Give your answer in its simplest form.
+
+## MARKING SCHEME
+- A1: 40 
+- M1: 30-20 
+- M1: 10 
+- B2: 35 OR 
+- M2: 200 - (40+75+20+30) or 
+- M1: 40, 75, 20, 30 
+- M1: 200/800 oe 
+- M1: 1/4 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 2):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 2
+MAX MARKS: 4
+
+## QUESTION TEXT
+a(i)) Write down an odd number.
+
+a(ii)) Write down a common multiple of 3 and 17.
+
+b) Write 24:60 as a ratio in its simplest form.
+
+## MARKING SCHEME
+- A1: Any odd number 
+- A1: 51 
+- B1: any correct ratio not in simplest form 
+- B1: 2:5 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 3):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 3
+MAX MARKS: 3
+
+## QUESTION TEXT
+Complete this table of fractions, decimals and percentages. [Table: Row 1: 1/5, 0.2, ...; Row 2: ..., 0.03, 3%; Row 3: 145/100, 1.45, ...]
+
+## MARKING SCHEME
+- A1: 20 (Condone missing % symbols)
+- A1: 3/100 (oe must be integer numerator and denominator)
+- A1: 145 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 4):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 4
+MAX MARKS: 2
+
+## QUESTION TEXT
+Write the following numbers in order of size, smallest first. 0.329, 0.34, 0.3041, 0.346
+
+## MARKING SCHEME
+- B1: 3 in the correct order 
+- B1: 0.3041 0.329 0.34 0.346 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 5):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 5
+MAX MARKS: 4
+
+## QUESTION TEXT
+a(i)) The diagram shows a triangle, ABC. The angle at A is 30 degrees. What does the symbol at angle B mean? Choose from: An acute angle, An obtuse angle, A reflex angle, A right angle.
+
+a(ii)) Work out the angle at C. Give a geometrical reason for your answer.
+
+b) A student works out the size of angle x in this diagram. [Diagram showing angles around a point]. The student says the angle is 240 degrees. Explain why the student's answer cannot be correct.
+
+## MARKING SCHEME
+- A1: A right angle (May be indicated in list)
+- A1: 60 
+- A1: [Angles in a] triangle sum to 180 oe (Must refer to triangle. Do not accept just a calculation.)
+- A1: 160 and 240 do not make 360 oe (or sum correctly connecting 160, 240 and 400 and reference to 360 oe, or angles around a point add to 360 not 400)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 6):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 6
+MAX MARKS: 3
+
+## QUESTION TEXT
+The circumference of a circle is 17 cm. Calculate the diameter of the circle. Give your answer correct to 1 decimal place.
+
+## MARKING SCHEME
+- B2: 5.41... or 
+- M1: 17 / pi 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 7):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 7
+MAX MARKS: 2
+
+## QUESTION TEXT
+Sketch the graph of y = 4 on the axes below. Show clearly the value of any intercepts.
+
+## MARKING SCHEME
+- B1: horizontal line or line through the point (0,4) 
+- B1: Horizontal line with 4 marked on y-axis 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 8):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 8
+MAX MARKS: 4
+
+## QUESTION TEXT
+a) Insert two of these symbols +, -, x or / to make this calculation correct. 5 ... (3 ... 1) = 20
+
+b) Calculate sqrt((12.9^2 + 83)/5^2). Give your answer correct to 3 significant figures.
+
+## MARKING SCHEME
+- A1: X + (Mark intent)
+- B2: 3.158... or 3.159 or 
+- B1: 249.41 or 9.9764. 
+- SC1: answer to more than 3 figures correctly rounded to 3 sf 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 9):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 9
+MAX MARKS: 5
+
+## QUESTION TEXT
+a) Here is a list of five numbers: 14, 2, 26, 43, 9. Find the range.
+
+b) A sixth number is added to the list. The mean of the six numbers is 23.5. Work out the sixth number.
+
+## MARKING SCHEME
+- B1: only 2 and 43 identified 
+- B1: 41 
+- M2: 23.5 * 6 - (14 + 2 + 26 + 43 + 9) oe or 
+- M1: 23.5 * 6 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 10):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 10
+MAX MARKS: 2
+
+## QUESTION TEXT
+Simplify 8j + 4k - 10j + 7k.
+
+## MARKING SCHEME
+- B1: -2j or 11k in final answer or correct answer seen and spoilt 
+- B1: -2j + 11k 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 11):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 11
+MAX MARKS: 3
+
+## QUESTION TEXT
+A recipe for cookies uses only butter, flour and sugar in the ratio 2 : 4 : 1. Using this recipe, 160 g of butter is needed to make 10 cookies. Using this recipe, work out how much flour is needed to make 25 cookies.
+
+## MARKING SCHEME
+- M2: 160 * 2 * 2.5 oe or 
+- M1: 160 * 2 or 160/10 * 2 or 160/10 * 25 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 12):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 12
+MAX MARKS: 3
+
+## QUESTION TEXT
+The deposit for a holiday is 2/7 of the total cost. A customer pays a deposit of £618. Calculate the total cost of the holiday.
+
+## MARKING SCHEME
+- M2: 618/2 * 7 or 
+- M1: 618/2 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 13):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 13
+MAX MARKS: 6
+
+## QUESTION TEXT
+a) Zayn drives from home to a shopping centre. The graph shows information about the journey and the time spent at the shopping centre. State an assumption that has been made when the graph was drawn.
+
+b) Write down the distance from Zayn's home to the shopping centre.
+
+c) Calculate Zayn's average speed, in km/h, from home to the shopping centre.
+
+d) Zayn leaves the shopping centre at 11:00. Zayn drives home without stopping. The journey home takes 1 3/4 hours. Complete the graph to show this information.
+
+## MARKING SCHEME
+- A1: Zayn travels at a constant speed 
+- A1: 50 
+- M1: their (b) / 2 
+- M1: 25 
+- B1: line or curve reaching time axis after 1100 or for 12 45 soi 
+- B1: Line or curve from (1100, 50) to (1245, 0) 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 14):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 14
+MAX MARKS: 5
+
+## QUESTION TEXT
+Five adults and two children go to a theme park. The cost of an adult ticket is £6 more than the cost of a child ticket. The total cost of the seven tickets is £142. Work out the cost of an adult ticket. You must show your working.
+
+## MARKING SCHEME
+- M3: 5a + 2a - 12 = 142 or 5(c+6) + 2c = 142. 
+- M2: 5a + 2(a-6) or 5(c+6) + 2c. 
+- M1: a-6 or c+6. 
+- SC2: 22 with no working. 
+- SC1: 16 with no working. 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 15):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 15
+MAX MARKS: 6
+
+## QUESTION TEXT
+The cost of sending a child to nursery is £5.80 per hour on each weekday. On Saturday the cost is 1 1/4 times the weekday hourly rate. A child goes to nursery for: 6 hours on Wednesday, 5 hours on Thursday, 4 hours on Saturday. The total cost for the three days is reduced by 5% as a special offer. Work out the cost for the three days after the 5% reduction. You must show your working.
+
+## MARKING SCHEME
+- M1: (6+5)*5.8[0]. 
+- M2: 4*5.8[0]*1.25. 
+- M2: 0.95*(their 63.8 + their 29). 
+- SC3: 88.16 no working. 
+- SC2: 92.8[0] no working. 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 16):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 16
+MAX MARKS: 4
+
+## QUESTION TEXT
+Leo pays £44.98 for 26 litres of diesel. Mia puts 60 litres of the same diesel into her car. Mia has £103 with which to pay for her diesel. Does Mia have enough money to pay for her diesel? Show how you decide.
+
+## MARKING SCHEME
+- M1: 44.98 / 26 or 60 / 26. 
+- M1: 103 < their 1.73 * 60 or 60 * their 1.73 or 44.98 * their 2.3... 
+- M2: No, and 103.8[0] or No and 59.5... 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 17):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 17
+MAX MARKS: 4
+
+## QUESTION TEXT
+a) Factorise fully 6x^2 + 9x.
+
+b) Factorise x^2 + 8x + 15.
+
+## MARKING SCHEME
+- B1: x(6x + 9) or 3(2x^2 + 3x) or correct answer seen and spoilt 
+- B1: 3x(2x + 3) 
+- B1: (x + a)(x + b) where ab=15 or a+b=8 
+- B1: (x + 5)(x + 3) 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 18):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 18
+MAX MARKS: 4
+
+## QUESTION TEXT
+a) N is a number such that N = 3 * 5 * k where k is a prime number. N is greater than 400. Find the smallest possible value of N.
+
+b) a and b are different prime numbers. Explain why a * b is not a prime number.
+
+## MARKING SCHEME
+- B2: k=29 or answer satisfying both conditions. 
+- M1: 400 / (3*5) or 3*5*(their prime). 
+- A1: Any correct reason e.g. a and/or b are factors (see appendix)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 19):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 19
+MAX MARKS: 8
+
+## QUESTION TEXT
+a) Each week the manager of a petrol station records the average daily sales, in litres, and the average price, in pounds, of a litre of petrol for that week. The results for the first nine weeks are plotted on the scatter diagram. Plot the result for week 10. [Table data: Week 10, Price 1.46, Sales 715].
+
+b) Describe the type of correlation shown in the scatter diagram.
+
+c) In one week, there was a delay with petrol deliveries. Circle the most likely point on the scatter diagram for that week.
+
+d(i)) On the scatter diagram, draw a line of best fit.
+
+d(ii)) Use the line of best fit to estimate the average daily sales when the price per litre of petrol is £1.48.
+
+e) The manager says, 'As the sales go down, the total amount of money we take stays roughly the same.' Find evidence to support this statement.
+
+## MARKING SCHEME
+- A1: (1.46, 715) accurately plotted 
+- A1: Negative 
+- A1: (1.47, 620) ringed 
+- A1: Accurate line of best fit 
+- A1: FT their line (FT their line with negative gradient only)
+- B2: one product correctly calculated. 
+- B1: one product calculated with the incorrect result. 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 20):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 20
+MAX MARKS: 5
+
+## QUESTION TEXT
+a) The diagram shows an equilateral triangular prism. Each side of the equilateral triangle is 6 cm and the length of the prism is 7 cm. Draw an accurate plan view of the prism on the one-centimetre square grid below.
+
+b) Draw an accurate front elevation of the prism on the one-centimetre isometric grid below.
+
+## MARKING SCHEME
+- B2: a 7 by 6 rectangular outline or for any rectangular outline correctly splitting the shorter side in half by one line. 
+- B1: any rectangular outline. 
+- B1: equilateral triangle but the incorrect size or a correct equilateral triangle with one extra line 
+- B1: Equilateral triangle with side 6 cm and no extra lines 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 21):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 21
+MAX MARKS: 4
+
+## QUESTION TEXT
+At the start of 2020, the value of a particular caravan was £25000. The value of the caravan then decreased by 12% each year. Calculate the total loss in value of the caravan at the end of 3 years.
+
+## MARKING SCHEME
+- B3: 17036.8[0] or 3000, 2640 and 2323.2[0]. 
+- M2: 25000 * 0.88^3. 
+- M1: 1-0.12 or 25000 * 0.12. 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 22):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 22
+MAX MARKS: 2
+
+## QUESTION TEXT
+The width, w, of a car parking space is 2.8 metres, correct to 1 decimal place. Complete the error interval for the width, w.
+
+## MARKING SCHEME
+- B1: each. If 0 scored 
+- SC1: both correct but reversed. 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 23):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 23
+MAX MARKS: 2
+
+## QUESTION TEXT
+Force is measured in newtons (N). A force of 140 N is applied to a surface of area 8 cm^2. Work out the pressure, in N/cm^2, applied to this surface.
+
+## MARKING SCHEME
+- M1: 140 / 8 
+- M1: 17.5 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 24):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 24
+MAX MARKS: 3
+
+## QUESTION TEXT
+The diagram shows a rectangular garden ABCD. The region of the garden that is closer to DA than DC is to be made into a patio. Construct and shade the region for the patio. Show all your construction lines.
+
+## MARKING SCHEME
+- B1: accurate ruled angle bisector. Dep on at least 
+- B1: shading. 
+- B1: Accurate ruled angle bisector; Correct area shaded 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODELANSWER PROMPT (Question 25):
+--- SYSTEM ---
+    # [AI Persona & Instructions]
+
+    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
+
+    ## Guiding Principles
+    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate steps unless required by the marking scheme.
+    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code (e.g., [M1], [A1]).
+
+    ## Response Format (RAW HTML ONLY)
+    The system handles the main question header (e.g. Question 1 [4 marks]). 
+    You are responsible for the sub-questions and their answers.
+    
+    ### Question Structure
+    - You will receive question text that may contain sub-parts (a, b, c).
+    - You MUST wrap each sub-part's question text and its answer block separately to ensure the answer appears right after the question part.
+    
+    ### Formatting Rules (STRICT)
+    1. **NO Markdown:** Do NOT use markdown code blocks (```html) or markdown bold (**text**). Use RAW HTML only.
+    2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$").
+    3. **Tags & Containers:**
+       - Wrap EACH sub-question text (e.g., "a) Work out...") in a <span class="model_question">...</span> tag.
+       - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
+       - The <div class="model_answer"> MUST follow the <span class="model_question"> immediately.
+       - Every single line inside the <div class="model_answer"> MUST end with a <br> tag.
+    4. **Answer Line:** The final answer should be on its own line within the div, started with the literal text "Answer: " (no bolding, no HTML tags around it).
+    
+    ### Example Response (Multiple Parts)
+    <span class="model_question">a) Work out an estimate for the number of euros Sophie pays.</span>
+    <div class="model_answer">
+    $513 \approx 500$<br>
+    $0.81 \approx 0.80$<br>
+    $500 \div 10 \times 0.80 = 40$ [P1]<br>
+    Answer: 40 [A1]<br>
+    </div>
+    
+    <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason.</span>
+    <div class="model_answer">
+    Underestimate as both 513 and 0.81 were rounded down. [C1]<br>
+    Answer: Underestimate [A1]<br>
+    </div>
+    
+    ### Example Response (Single Part / No Sub-labels)
+    <div class="model_answer">
+    $4n - 3$ [M1]<br>
+    Answer: $4n - 3$ [A1]<br>
+    </div>
+
+    CRITICAL: Do NOT repeat the main question header. Do NOT use any code blocks. Output raw HTML fragments. Every line inside <div class="model_answer"> must end with <br>.
+    ---
+    # [Task Data]
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 25
+MAX MARKS: 4
+
+## QUESTION TEXT
+Triangles ABC and PQR are mathematically similar. Angle ACB = Angle PRQ. Angle ABC = Angle PQR. [Diagram shows Triangle ABC with side AB ~ 8cm (labeled B 8 cm), AC ~ 12cm (labeled A 12 cm), and Triangle PQR with side PR ~ 45cm (labeled R 45 cm)]. The perimeter of triangle PQR is 99 cm. Find the length of PQ.
+
+## MARKING SCHEME
+- M2: 45/12 * 8 or 30 or 
+- M1: 8/12 or 45/12. 
+- M1: 99 - 45 - their RQ or 24 correctly placed on diagram. 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 12):
+<div class="model_answer">
+$618 \div 2 \times 7$ [M2]<br>
+Answer: £2163 [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 23):
+<div class="model_answer">
+$140 \div 8$ [M1]<br>
+Answer: $17.5$ [M1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 6):
+<div class="model_answer">
+$\frac{17}{\pi}$ [M1]<br>
+Answer: 5.4 [B2]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 4):
+<div class="model_answer">
+Answer: 0.3041, 0.329, 0.34, 0.346 [B2]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 10):
+<div class="model_answer">
+$-2j + 11k$ [B1, B1]<br>
+Answer: $-2j + 11k$<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 7):
+<div class="model_answer">
+Horizontal line through (0,4) [B1]<br>
+Answer: See graph [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 24):
+<div class="model_answer">
+Accurate ruled angle bisector [B1]<br>
+Correct area shaded [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 22):
+<div class="model_answer">
+$2.75 \le w$ [B1]<br>
+$w < 2.85$ [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 3):
+<div class="model_answer">
+Answer: 20 [A1]<br>
+</div>
+<div class="model_answer">
+Answer: $\frac{3}{100}$ [A1]<br>
+</div>
+<div class="model_answer">
+Answer: 145 [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 11):
+<div class="model_answer">
+$160 \times 2 \times 2.5$ [M2]<br>
+Answer: 800 g [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 25):
+<div class="model_answer">
+$\frac{45}{12} \times 8$ [M2]<br>
+$RQ = 30$<br>
+$99 - 45 - 30$ [M1]<br>
+Answer: 24 cm [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 20):
+<span class="model_question">a) The diagram shows an equilateral triangular prism. Each side of the equilateral triangle is 6 cm and the length of the prism is 7 cm. Draw an accurate plan view of the prism on the one-centimetre square grid below.</span>
+<div class="model_answer">
+7 by 6 rectangular outline [B2]<br>
+</div>
+<span class="model_question">b) Draw an accurate front elevation of the prism on the one-centimetre isometric grid below.</span>
+<div class="model_answer">
+Equilateral triangle with side 6 cm and no extra lines [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 16):
+<div class="model_answer">
+$44.98 \div 26 = 1.73$ [M1]<br>
+$60 \times 1.73 = 103.80$ [M1]<br>
+No, Mia does not have enough money. [M2]<br>
+Answer: No, Mia does not have enough money.<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 9):
+<span class="model_question">a) Here is a list of five numbers: 14, 2, 26, 43, 9. Find the range.</span>
+<div class="model_answer">
+$43 - 2$ [B1]<br>
+Answer: 41 [B1]<br>
+</div>
+<span class="model_question">b) A sixth number is added to the list. The mean of the six numbers is 23.5. Work out the sixth number.</span>
+<div class="model_answer">
+$23.5 \times 6 - (14 + 2 + 26 + 43 + 9)$ [M2]<br>
+Answer: 47 [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 15):
+<div class="model_answer">
+$(6+5) \times 5.80 = 63.80$ [M1]<br>
+$4 \times 5.80 \times 1.25 = 29$ [M2]<br>
+$0.95 \times (63.80 + 29) = 88.11$ [M2]<br>
+Answer: 88.11 [SC3]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 14):
+<div class="model_answer">
+Let the cost of an adult ticket be $a$.<br>
+$5a + 2(a-6) = 142$ [M2]<br>
+$5a + 2a - 12 = 142$ [M3]<br>
+$7a = 154$<br>
+$a = 22$<br>
+Answer: £22 [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 21):
+<div class="model_answer">
+$25000 \times 0.12 = 3000$ [M1]<br>
+$25000 \times 0.88^3 = 17036.80$ [M2]<br>
+$25000 - 17036.80 = 7963.20$ [B3]<br>
+Answer: £7963.20<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 18):
+<span class="model_question">a) N is a number such that N = 3 * 5 * k where k is a prime number. N is greater than 400. Find the smallest possible value of N.</span>
+<div class="model_answer">
+$400 \div (3 \times 5) = 26.66...$ [M1]<br>
+$k = 29$<br>
+$3 \times 5 \times 29 = 435$ [M1]<br>
+Answer: 435 [B2]<br>
+</div>
+
+<span class="model_question">b) a and b are different prime numbers. Explain why a * b is not a prime number.</span>
+<div class="model_answer">
+$a$ and $b$ are factors [A1]<br>
+Answer: $a$ and $b$ are factors [A1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 17):
+<span class="model_question">a) Factorise fully $6x^2 + 9x$.</span>
+<div class="model_answer">
+$3x(2x + 3)$ [B1]<br>
+Answer: $3x(2x + 3)$ [B1]<br>
+</div>
+
+<span class="model_question">b) Factorise $x^2 + 8x + 15$.</span>
+<div class="model_answer">
+$(x + 5)(x + 3)$ [B1]<br>
+Answer: $(x + 5)(x + 3)$ [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 2):
+<span class="model_question">a(i)) Write down an odd number.</span>
+<div class="model_answer">
+Answer: 1 [A1]<br>
+</div>
+<span class="model_question">a(ii)) Write down a common multiple of 3 and 17.</span>
+<div class="model_answer">
+Answer: 51 [A1]<br>
+</div>
+<span class="model_question">b) Write 24:60 as a ratio in its simplest form.</span>
+<div class="model_answer">
+24:60 [B1]<br>
+Answer: 2:5 [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 8):
+<span class="model_question">a) Insert two of these symbols +, -, x or / to make this calculation correct. 5 ... (3 ... 1) = 20</span>
+<div class="model_answer">
+$5 \times (3 + 1) = 20$<br>
+Answer: $\times$ and $+$ [A1]<br>
+</div>
+
+<span class="model_question">b) Calculate sqrt((12.9^2 + 83)/5^2). Give your answer correct to 3 significant figures.</span>
+<div class="model_answer">
+$\sqrt{\frac{12.9^2 + 83}{5^2}} = \sqrt{\frac{166.41 + 83}{25}}$<br>
+$\sqrt{\frac{249.41}{25}} = \sqrt{9.9764}$ [B1]<br>
+$3.15854 \approx 3.16$ [B2]<br>
+Answer: 3.16 [B2]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 13):
+<span class="model_question">a) Zayn drives from home to a shopping centre. The graph shows information about the journey and the time spent at the shopping centre. State an assumption that has been made when the graph was drawn.</span>
+<div class="model_answer">
+Zayn travels at a constant speed [A1]<br>
+Answer: Zayn travels at a constant speed [A1]<br>
+</div>
+
+<span class="model_question">b) Write down the distance from Zayn's home to the shopping centre.</span>
+<div class="model_answer">
+Answer: 50 [A1]<br>
+</div>
+
+<span class="model_question">c) Calculate Zayn's average speed, in km/h, from home to the shopping centre.</span>
+<div class="model_answer">
+$50 \div 2$ [M1]<br>
+Answer: 25 [M1]<br>
+</div>
+
+<span class="model_question">d) Zayn leaves the shopping centre at 11:00. Zayn drives home without stopping. The journey home takes 1 3/4 hours. Complete the graph to show this information.</span>
+<div class="model_answer">
+Line or curve reaching time axis after 1100 or for 12 45 soi [B1]<br>
+Line or curve from (1100, 50) to (1245, 0) [B1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 5):
+<span class="model_question">a(i)) The diagram shows a triangle, ABC. The angle at A is 30 degrees. What does the symbol at angle B mean? Choose from: An acute angle, An obtuse angle, A reflex angle, A right angle.</span>
+<div class="model_answer">
+Answer: A right angle [A1]<br>
+</div>
+
+<span class="model_question">a(ii)) Work out the angle at C. Give a geometrical reason for your answer.</span>
+<div class="model_answer">
+$60$ [A1]<br>
+[Angles in a] triangle sum to 180 oe [A1]<br>
+Answer: $60$ [degrees] <br>
+</div>
+
+<span class="model_question">b) A student works out the size of angle x in this diagram. [Diagram showing angles around a point]. The student says the angle is 240 degrees. Explain why the student's answer cannot be correct.</span>
+<div class="model_answer">
+160 and 240 do not make 360 oe (or sum correctly connecting 160, 240 and 400 and reference to 360 oe, or angles around a point add to 360 not 400) [A1]<br>
+Answer: 160 and 240 do not make 360 [degrees]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 1):
+<span class="model_question">a) 200 students at a school were asked how they travel to school. The pictogram shows the results for four of the ways they travel to school. [Pictogram: Walk (2 squares), Bus (3.5 squares), Cycle (Blank), Tram (2 squares), Car (1.5 squares). Key: Square represents 20 students]. How many students walk to school?</span>
+<div class="model_answer">
+Answer: 40 [A1]<br>
+</div>
+
+<span class="model_question">b) How many more students travel by car to school than travel by tram to school?</span>
+<div class="model_answer">
+$30 - 20$ [M1]<br>
+Answer: 10 [M1]<br>
+</div>
+
+<span class="model_question">c) The rest of the 200 students cycle to school. Complete the pictogram to show the number of students who cycle to school.</span>
+<div class="model_answer">
+$40 + 75 + 20 + 30 = 165$<br>
+$200 - 165 = 35$ [M2]<br>
+Answer: 35 [B2]<br>
+</div>
+
+<span class="model_question">d) The total number of students at the school is 800. What fraction of the students at the school were asked how they travel to school? Give your answer in its simplest form.</span>
+<div class="model_answer">
+$\frac{200}{800}$ [M1]<br>
+Answer: $\frac{1}{4}$ [M1]<br>
+</div>
+
+✅ [DEBUG] MODELANSWER RESPONSE (Group 19):
+<span class="model_question">a) Each week the manager of a petrol station records the average daily sales, in litres, and the average price, in pounds, of a litre of petrol for that week. The results for the first nine weeks are plotted on the scatter diagram. Plot the result for week 10. [Table data: Week 10, Price 1.46, Sales 715].</span>
+<div class="model_answer">
+(1.46, 715) accurately plotted [A1]<br>
+</div>
+
+<span class="model_question">b) Describe the type of correlation shown in the scatter diagram.</span>
+<div class="model_answer">
+Answer: Negative [A1]<br>
+</div>
+
+<span class="model_question">c) In one week, there was a delay with petrol deliveries. Circle the most likely point on the scatter diagram for that week.</span>
+<div class="model_answer">
+(1.47, 620) ringed [A1]<br>
+</div>
+
+<span class="model_question">d(i)) On the scatter diagram, draw a line of best fit.</span>
+<div class="model_answer">
+Accurate line of best fit [A1]<br>
+</div>
+
+<span class="model_question">d(ii)) Use the line of best fit to estimate the average daily sales when the price per litre of petrol is £1.48.</span>
+<div class="model_answer">
+Answer: FT their line (FT their line with negative gradient only) [A1]<br>
+</div>
+
+<span class="model_question">e) The manager says, 'As the sales go down, the total amount of money we take stays roughly the same.' Find evidence to support this statement.</span>
+<div class="model_answer">
+$1.30 \times 840 = 1092$<br>
+$1.50 \times 730 = 1095$<br>
+[B2]<br>
+</div>
+
+💳 Deducted 0.39 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772524462074), remaining: 286.65
+[PERF] getUserUnifiedSessions: Fetch 168ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 170ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 195ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 196ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 226ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 226ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 208ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 210ms for 50 sessions (limit: 50)

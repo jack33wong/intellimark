@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
+import { trackPaperInteraction } from '../utils/analytics';
 import './EdexcelLandingPage.css';
 
 const EdexcelLandingPage: React.FC = () => {
@@ -31,6 +32,12 @@ const EdexcelLandingPage: React.FC = () => {
 
     const handleUploadClick = () => {
         navigate('/app?action=select');
+    };
+
+    const handleAction = (code: string, mode: 'mark' | 'model') => {
+        const trackerMode = mode === 'mark' ? 'MARK' : 'MODEL';
+        trackPaperInteraction(code, trackerMode);
+        navigate(`/app?code=${code}&mode=${mode === 'mark' ? 'markingscheme' : 'model'}`);
     };
 
     return (
@@ -234,8 +241,8 @@ const EdexcelLandingPage: React.FC = () => {
                                                                 <span className="paper-type">{paper.type} {paper.code}</span>
                                                             </div>
                                                             <div className="paper-actions">
-                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=model`)} className="action-link model">Model</button>
-                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=markingscheme`)} className="action-link mark">Mark</button>
+                                                                <button onClick={() => handleAction(`${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}`, 'model')} className="action-link model">Model</button>
+                                                                <button onClick={() => handleAction(`${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}`, 'mark')} className="action-link mark">Mark</button>
                                                             </div>
                                                         </div>
                                                     ))}

@@ -615,6 +615,8 @@
   display: block;
   margin-top: 0.5em;
   margin-left: 15px;
+  margin-bottom: 1.5em;
+  /* Added spacing after answer */
 }
 
 /* Question Mode Response Styling */
@@ -630,11 +632,70 @@
 }
 
 .markdown-math-renderer .model-exam-header {
-  color: var(--text-brand);
+  background: var(--fill-gray);
+  border-left: 4px solid var(--text-brand);
+  padding: 0.8em 1.2em;
+  border-radius: 8px;
+  margin-bottom: 2em;
+  box-shadow: var(--shadow-S);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* Fallback for old simple text header format in dark mode */
+.markdown-math-renderer .model-exam-header {
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.markdown-math-renderer .exam-header-title {
+  color: var(--text-primary);
+  font-size: 1.1em;
+  font-weight: 700;
+  margin-bottom: 0;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.markdown-math-renderer .exam-header-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.markdown-math-renderer .exam-pill {
+  font-size: 0.75em;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 100px;
+  background: var(--background-white-main);
+  border: 1px solid var(--border-main);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.markdown-math-renderer .pill-code {
+  background: var(--background-white-main);
+  border: 1px solid var(--border-main);
+  color: var(--text-secondary);
 }
 
 .markdown-math-renderer .model-question-number {
   font-weight: 600;
+  margin-top: 2.5em;
+  /* Significant space before each question */
+  display: block;
+  color: var(--text-primary);
+}
+
+/* Ensure the very first question doesn't have excessive top margin */
+.markdown-math-renderer .model-exam-header+.model-question-number,
+.markdown-math-renderer br+.model-question-number {
+  margin-top: 1em;
 }
 
 /* Marking Code Styling: Red and Right-Aligned */

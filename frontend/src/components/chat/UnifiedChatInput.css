@@ -1231,8 +1231,15 @@
   font-weight: 500;
 }
 
+.input-validation-message {
+  color: var(--function-warning);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .warning-icon {
   font-size: 16px;
+  padding-right: 12px;
 }
 
 .warning-action-btn {

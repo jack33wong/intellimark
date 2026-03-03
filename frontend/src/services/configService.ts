@@ -5,6 +5,7 @@ interface ExamMetadata {
     boards: string[];
     tiers: string[];
     papers: string[];
+    codes: string[];
 }
 
 class ConfigService {

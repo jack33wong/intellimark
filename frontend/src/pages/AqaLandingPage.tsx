@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
+import { trackPaperInteraction } from '../utils/analytics';
 import './AqaLandingPage.css';
 
 const AqaLandingPage: React.FC = () => {
@@ -23,7 +24,9 @@ const AqaLandingPage: React.FC = () => {
     ];
 
     const handleAction = (code: string, mode: 'mark' | 'model') => {
-        navigate(`/app?code=${code}&mode=${mode}`);
+        const trackerMode = mode === 'mark' ? 'MARK' : 'MODEL';
+        trackPaperInteraction(code, trackerMode);
+        navigate(`/app?code=${code}&mode=${mode === 'mark' ? 'markingscheme' : 'model'}`);
     };
 
     return (

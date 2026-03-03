@@ -91,10 +91,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
 
   // Metadata & Autocomplete State
-  const [metadata, setMetadata] = useState<{ boards: string[], tiers: string[], papers: string[] }>({
+  interface LocalExamMetadata {
+    boards: string[];
+    tiers: string[];
+    papers: string[];
+    codes: string[];
+  }
+  const [metadata, setMetadata] = useState<LocalExamMetadata>({
     boards: [],
     tiers: [],
     papers: [],
+    codes: [],
   });
   const [showAutocomplete, setShowAutocomplete] = useState<boolean>(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
@@ -112,8 +119,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
     // 1. Filter by ALL selected tags (Facet logic)
     if (selectedTags.length > 0) {
-      filtered = filtered.filter(paper =>
-        selectedTags.every(tag => paper.toLowerCase().includes(tag.toLowerCase()))
+      filtered = filtered.filter((paper: string) =>
+        selectedTags.every((tag: string) => paper.toLowerCase().includes(tag.toLowerCase()))
       );
     }
 
@@ -124,7 +131,31 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       );
     }
 
-    return filtered.slice(0, 10);
+    return filtered.sort((a: string, b: string) => {
+      // Sort by Year and Month (Descending)
+      const monthOrder: Record<string, number> = {
+        'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+        'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+      };
+
+      const parseDate = (s: string) => {
+        const parts = s.toLowerCase().split(' - ');
+        if (parts.length < 3) return { year: 0, month: 0 };
+        const datePart = parts[2].split(',')[0].trim();
+        const [month, year] = datePart.split(' ');
+        return {
+          year: parseInt(year) || 0,
+          month: monthOrder[month] || 0
+        };
+      };
+
+      const dateA = parseDate(a);
+      const dateB = parseDate(b);
+
+      if (dateA.year !== dateB.year) return dateB.year - dateA.year;
+      if (dateA.month !== dateB.month) return dateB.month - dateA.month;
+      return a.localeCompare(b);
+    }).slice(0, 10);
   }, [metadata.papers, selectedTags, chatInput, mode]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -201,6 +232,142 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const inputPart = chatInput.trim();
     return tagsPart ? (inputPart ? `${tagsPart} ${inputPart}` : tagsPart) : inputPart;
   }, [selectedTags, chatInput]);
+
+  // V17.0: Normalize paper codes to ignore slashes/dashes/spaces for flexible matching
+  const normalizeCode = useCallback((code: string) => {
+    return code.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }, []);
+
+  // V17.1: Token-based matching logic with month normalization
+  const getMatchingPapers = useCallback((input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) return [];
+
+    const monthMap: Record<string, string> = {
+      'jan': 'january', 'feb': 'february', 'mar': 'march', 'apr': 'april', 'may': 'may', 'jun': 'june',
+      'jul': 'july', 'aug': 'august', 'sep': 'september', 'oct': 'october', 'nov': 'november', 'dec': 'december'
+    };
+
+    const normalizeToken = (token: string) => {
+      const lower = token.toLowerCase();
+      return monthMap[lower] || lower;
+    };
+
+    // Normalize and tokenize the input (split by non-alphanumeric)
+    const inputTokens = trimmed.toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(token => token.length > 0)
+      .map(normalizeToken);
+
+    if (inputTokens.length === 0) return [];
+
+    // Generic keywords making matching too strict
+    const genericKeywords = ['paper', 'exam', 'specification', 'spec'];
+
+    return metadata.papers.filter((p: string) => {
+      // Tokenize the paper description
+      const paperTokens = p.toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(token => token.length > 0)
+        .map(normalizeToken);
+
+      // A paper matches if it contains ALL tokens provided by the user
+      // [FIX] Leniency: Ignore generic keywords if they are not in the paperTokens
+      return inputTokens.every(inputToken => {
+        const isMatch = paperTokens.some(paperToken => {
+          if (paperToken === inputToken) return true;
+
+          const isPStrictNum = /^\d+$/.test(paperToken);
+          const isIStrictNum = /^\d+$/.test(inputToken);
+
+          if (isPStrictNum && isIStrictNum) {
+            // Numeric comparison (e.g., "1" matches "01")
+            return parseInt(paperToken) === parseInt(inputToken);
+          }
+
+          // Text comparison (e.g., "nov" matches "november")
+          return paperToken.includes(inputToken);
+        });
+
+        if (!isMatch && genericKeywords.includes(inputToken)) {
+          return true; // Ignore if generic and not found
+        }
+        return isMatch;
+      });
+    }).sort((a: string, b: string) => {
+      // Sort by Year and Month (Descending)
+      const monthOrder: Record<string, number> = {
+        'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+        'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+      };
+
+      const parseDate = (s: string) => {
+        const parts = s.toLowerCase().split(' - ');
+        if (parts.length < 3) return { year: 0, month: 0 };
+        // Format is usually "Board - Code - Month Year, Tier"
+        const datePart = parts[2].split(',')[0].trim(); // "november 2020"
+        const [month, year] = datePart.split(' ');
+        return {
+          year: parseInt(year) || 0,
+          month: monthOrder[month] || 0
+        };
+      };
+
+      const dateA = parseDate(a);
+      const dateB = parseDate(b);
+
+      if (dateA.year !== dateB.year) return dateB.year - dateA.year;
+      if (dateA.month !== dateB.month) return dateB.month - dateA.month;
+
+      // Secondary sort by paper code/name if dates are identical
+      return a.localeCompare(b);
+    });
+  }, [metadata.papers]);
+
+  const canSend = useMemo(() => {
+    if (isProcessing) return false;
+    if (isModelAnswerMode || isMarkingSchemeMode) {
+      const trimmedInput = combinedInput.trim();
+      if (!trimmedInput) return false;
+
+      // 1. Check for link triggers (trusted sources)
+      const params = new URLSearchParams(location.search);
+      const isFromTrustedLink = (params.get('mode') === 'model' || params.get('mode') === 'markingscheme') && params.get('code');
+      const isFromPendingRedirect = pendingModelAnswerPaper && trimmedInput === pendingModelAnswerPaper;
+
+      if ((isFromTrustedLink && trimmedInput === params.get('code')) || isFromPendingRedirect) return true;
+
+      // 2. Resolve matches and ensure logical uniqueness
+      const matches = getMatchingPapers(trimmedInput);
+      return matches.length === 1;
+    }
+    return !!(imageFile || imageFiles.length > 0 || combinedInput.trim());
+  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search]);
+
+  const validationMessageType = useMemo(() => {
+    // Suppress warning if not in paper mode, input is physically empty (no text typed), or already valid
+    if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend) return null;
+
+    const matches = getMatchingPapers(combinedInput);
+    if (matches.length === 0) return 'not_found';
+
+    // Analyze matched papers for commonalities
+    const tiers = new Set(matches.map(p => p.toLowerCase().includes('foundation') ? 'foundation' : 'higher'));
+    const series = new Set(matches.map(p => {
+      const parts = p.split(' - ');
+      return parts.length >= 3 ? parts[2].split(',')[0].trim() : '';
+    }));
+
+    if (tiers.size > 1 && series.size === 1) return 'ambiguous_tier';
+    if (series.size > 1 && tiers.size === 1) return 'ambiguous_series';
+    if (matches.length > 1) return 'ambiguous_both';
+
+    return 'not_found';
+  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, getMatchingPapers]);
+
+  const showValidationWarning = useMemo(() => {
+    return !!validationMessageType;
+  }, [validationMessageType]);
 
   const handleSuggestionClick = (suggestion: string) => {
     // Click selected paper suggestion: populate input for confirmation
@@ -478,12 +645,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [isMultiImage, imageFiles, previewImages, removePreview]);
 
   const handleSendClick = useCallback(async () => {
-    if (isProcessing) return;
+    if (!canSend) return;
     const textToSend = combinedInput;
     const fileToSend = imageFile;
     const filesToSend = imageFiles;
-
-    if (!textToSend && !fileToSend && filesToSend.length === 0) return;
 
     let success = true;
 
@@ -795,6 +960,26 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     }
                   }}
                 />
+                {showValidationWarning && (
+                  <div className="input-validation-message">
+                    <span className="warning-icon">⚠️</span>
+                    <span>
+                      {(() => {
+                        switch (validationMessageType) {
+                          case 'ambiguous_tier':
+                            return 'Multiple papers found. Please specify the tier (e.g., Higher or Foundation).';
+                          case 'ambiguous_series':
+                            return 'Multiple papers found. Please specify the year/series (e.g., June 2022).';
+                          case 'ambiguous_both':
+                            return 'Multiple papers found. Please be more specific (e.g., Higher June 2022).';
+                          case 'not_found':
+                          default:
+                            return 'Please select a valid exam paper to continue';
+                        }
+                      })()}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="followup-buttons-row">
                 <div className="followup-left-buttons">
@@ -869,7 +1054,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   {/* 👇 SendButton disabled logic updated to check combinedInput */}
                   <SendButton
                     onClick={handleSendClick}
-                    disabled={isProcessing || (!imageFile && !imageFiles.length && !combinedInput.trim())}
+                    disabled={!canSend}
                     loading={isProcessing}
                     variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'}
                     size={mode === 'first-time' ? 'main' : 'small'}
@@ -884,7 +1069,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               <div className="autocomplete-chips-section">
                 <div className="autocomplete-chips-label">Quick Filters:</div>
                 <div className="autocomplete-chips-container">
-                  {metadata.boards.map(board => (
+                  {metadata.boards.map((board: string) => (
                     <button
                       key={board}
                       className={`filter-chip board ${selectedTags.includes(board) ? 'active' : ''}`}
@@ -893,7 +1078,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       {board}
                     </button>
                   ))}
-                  {metadata.tiers.map(tier => (
+                  {metadata.tiers.map((tier: string) => (
                     <button
                       key={tier}
                       className={`filter-chip tier ${selectedTags.includes(tier) ? 'active' : ''}`}
@@ -908,7 +1093,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               {filteredResults.length > 0 && (
                 <div className="autocomplete-results-list">
                   <div className="autocomplete-results-label">Suggestions:</div>
-                  {filteredResults.map((result, index) => (
+                  {filteredResults.map((result: string, index: number) => (
                     <div
                       key={result}
                       className={`autocomplete-item ${index === highlightedIndex ? 'highlighted' : ''}`}
