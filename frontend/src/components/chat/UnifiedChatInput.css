@@ -1317,3 +1317,18 @@
 .context-chip-close:hover {
   color: var(--text-primary);
 }
+/* Override old fixed width from FollowUpChatInput to allow button text */
+.followup-chat-input-bar:not(.first-time) .followup-upload-button {
+  width: auto !important; 
+  padding: 0 12px !important;
+  border-radius: 16px !important;
+}
+
+/* Ensure mobile returns to circular icons to avoid overlap */
+@media (max-width: 768px) {
+  .followup-chat-input-bar:not(.first-time) .followup-upload-button {
+    width: 32px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+  }
+}
