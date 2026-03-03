@@ -385,7 +385,12 @@ export const MarkingPageProvider = ({
       }
 
       // Determine usageMode for prompt weighting
-      const usageMode = isModelAnswerMode ? 'model-answer' : (isMarkingSchemeMode ? 'marking-scheme' : 'chat');
+      let usageMode = 'chat';
+      if (isModelAnswerMode || currentSession?.usageMode === 'modelanswer') {
+        usageMode = 'model-answer';
+      } else if (isMarkingSchemeMode || currentSession?.usageMode === 'markingscheme') {
+        usageMode = 'marking-scheme';
+      }
 
       const response = await apiClient.post('/api/messages/chat', {
         message: trimmedText,

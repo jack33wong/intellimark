@@ -56,9 +56,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 }) => {
   const {
     onGenerateModelAnswer,
-    isModelAnswerMode,
+    isModelAnswerMode: contextIsModelAnswerMode,
     setIsModelAnswerMode,
-    isMarkingSchemeMode,
+    isMarkingSchemeMode: contextIsMarkingSchemeMode,
     setIsMarkingSchemeMode,
     onExplainMarkingScheme,
     initialInput,
@@ -69,8 +69,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     setPendingModelAnswerPaper
   } = useMarkingPage();
 
+  const isModelAnswerMode = contextIsModelAnswerMode || currentSession?.usageMode === 'modelanswer';
+  const isMarkingSchemeMode = contextIsMarkingSchemeMode || currentSession?.usageMode === 'markingscheme';
+
   const location = useLocation();
   const navigate = useNavigate();
+
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
   const [canSelectModel, setCanSelectModel] = useState<boolean>(true); // Initialize with true, we'll check permission later
