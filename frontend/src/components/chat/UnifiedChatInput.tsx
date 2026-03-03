@@ -1007,7 +1007,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                         if (isMarkingSchemeMode) setIsMarkingSchemeMode(false);
                         setIsModelAnswerMode(!isModelAnswerMode);
                       }}
-                      disabled={isProcessing}
+                      disabled={isProcessing || mode === 'follow-up' || (currentSession?.messages?.length > 0)}
                       title={isModelAnswerMode ? "Switch to Normal Mode" : "Generate Model Answer"}
                     >
                       <span className="btn-icon"><Sparkles size={16} /></span>
@@ -1022,7 +1022,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                         if (isModelAnswerMode) setIsModelAnswerMode(false);
                         setIsMarkingSchemeMode(!isMarkingSchemeMode);
                       }}
-                      disabled={isProcessing}
+                      disabled={isProcessing || mode === 'follow-up' || (currentSession?.messages?.length > 0)}
                       title={isMarkingSchemeMode ? "Switch to Normal Mode" : "Explain Marking Scheme"}
                     >
                       <span className="btn-icon"><BookOpen size={16} /></span>

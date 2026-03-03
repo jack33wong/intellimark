@@ -10,6 +10,7 @@ import { checkCredits, deductCredits } from '../services/creditService.js';
 import { normalizeMarkingScheme } from '../services/marking/MarkingInstructionService.js';
 import { MarkingPromptService } from '../services/marking/MarkingPromptService.js';
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
+import { ChatContextBuilder } from '../services/marking/ChatContextBuilder.js';
 
 export class ModelAnswerController {
     /**
@@ -287,9 +288,16 @@ ${followUpResult.response}
 </div>`.trim();
 
             // 7. Store AI Message
+            // Build Marking Context for subsequent follow-up questions
+            const markingContext = await ChatContextBuilder.buildQuestionModeContext({
+                detectedQuestion: detectedQuestion,
+                sessionType: 'Question'
+            });
+
             const aiMessage = createAIMessage({
                 content: finalResponse,
                 messageId: providedAiMessageId,
+                markingContext: markingContext, // INJECT CONTEXT
                 progressData: {
                     type: 'modelanswer',
                     currentStepDescription: 'Model answers written',

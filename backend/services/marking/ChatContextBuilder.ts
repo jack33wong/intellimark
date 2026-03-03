@@ -201,47 +201,51 @@ export class ChatContextBuilder {
     }
 
     /**
-     * Builds MarkingContext for Question Mode (Reference Only).
-     * No student work, just Question Text + Marking Scheme/Solution.
+     * Builds MarkingContext for Question/Model Answer/Marking Scheme Mode.
+     * Extracts context from the aggregated detectedQuestion structure.
      */
     static async buildQuestionModeContext(data: {
-        questionDetection: any,
-        examPaperHint?: string | null
+        detectedQuestion: any,
+        sessionType?: 'Question' | 'Marking' | 'Mixed'
     }): Promise<MarkingContext> {
-        // 1. Build Question Results (Text + Scheme Only)
-        const questions = data.questionDetection?.questions || [];
+        // 1. Extract Paper & Questions
+        const paper = data.detectedQuestion?.examPapers?.[0];
+        const questions = paper?.questions || [];
 
         const questionResults: MarkingContextQuestionResult[] = questions.map((q: any) => ({
-            number: String(q.questionNumber),
-            text: (q.databaseQuestionText || q.questionText || '').substring(0, 2000), // Allow longer text for context
-            scheme: q.markingScheme || '',
+            number: String(q.questionNumber || q.number || ''),
+            text: (q.questionText || q.text || '').substring(0, 2000),
+            scheme: typeof q.markingScheme === 'string'
+                ? q.markingScheme
+                : (q.markingScheme ? JSON.stringify(q.markingScheme) : ''),
             totalMarks: q.marks || 0,
-            earnedMarks: 0, // Not applicable
+            earnedMarks: 0,
             hasScheme: !!q.markingScheme,
-            pageIndex: 0,
-            parts: [] // No student parts in Question Mode
+            pageIndex: q.pageIndex || 0,
+            parts: []
         }));
 
         // 2. Build Exam Info
         let examInfo = undefined;
-        if (data.questionDetection?.match) {
-            const m = data.questionDetection.match;
+        const m = data.detectedQuestion?.match || paper; // Fallback to paper metadata if no match object
+
+        if (m) {
             examInfo = {
-                examBoard: m.board || 'Unknown',
-                subject: 'Mathematics',
-                examCode: m.paperCode || 'Unknown',
-                examSeries: m.year || 'Unknown',
+                examBoard: m.examBoard || m.board || 'Unknown',
+                subject: m.subject || 'Mathematics',
+                examCode: m.examCode || m.paperCode || 'Unknown',
+                examSeries: m.examSeries || m.year || 'Unknown',
                 tier: m.tier || 'Unknown',
                 totalMarks: questions.reduce((sum: number, q: any) => sum + (q.marks || 0), 0)
             };
         }
 
         return {
-            sessionType: 'Question',
+            sessionType: data.sessionType || 'Question',
             totalQuestionsMarked: questions.length,
             overallScore: {
                 awarded: 0,
-                total: 0,
+                total: examInfo?.totalMarks || 0,
                 percentage: 0,
                 scoreText: 'N/A'
             },
