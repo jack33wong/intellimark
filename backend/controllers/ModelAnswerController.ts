@@ -255,7 +255,8 @@ export class ModelAnswerController {
                     userId: userId,
                     messageType: 'Chat',
                     messages: [userMessage],
-                    usageMode: 'modelanswer'
+                    usageMode: 'model-answer',
+                    detectedQuestion: detectedQuestion // PERSIST AT SESSION LEVEL
                 });
             }
 
@@ -269,7 +270,7 @@ export class ModelAnswerController {
             });
 
             const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
-                mode: 'modelanswer',
+                mode: 'model-answer',
                 sessionId: sessionId,
                 sourceMessageId: userMessage.id,
                 model: model === 'auto' ? 'gemini-2.0-flash' : model,
@@ -298,8 +299,9 @@ ${followUpResult.response}
                 content: finalResponse,
                 messageId: providedAiMessageId,
                 markingContext: markingContext, // INJECT CONTEXT
+                detectedQuestion: detectedQuestion, // PERSIST AT MESSAGE LEVEL
                 progressData: {
-                    type: 'modelanswer',
+                    type: 'model-answer',
                     currentStepDescription: 'Model answers written',
                     allSteps: [
                         'Finding exam paper...',
@@ -319,7 +321,7 @@ ${followUpResult.response}
             });
 
             if (isAuthenticated) {
-                await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'modelanswer');
+                await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'model-answer');
 
                 // Deduct credits
                 const cost = usageTracker.calculateCost(model).total;

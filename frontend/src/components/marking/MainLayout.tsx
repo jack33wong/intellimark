@@ -79,7 +79,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     isQuestionTableVisible,
     visibleTableIds,
     isNegative,
-    isHistoryLoading
+    isHistoryLoading,
+    isModelAnswerMode,
+    isMarkingSchemeMode
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -426,25 +428,27 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
             <SessionManagement key={currentSession.id} />
           )}
 
-          <div className="marking-header-ribbon-row">
-            <div className="ribbon-wrapper-full-width">
-              {/* Sticky Ribbon Navigator for Chat Mode */}
-              {renderQuestionRibbon(true)}
-            </div>
-
-            {activeQuestionId && (
-              <div className="context-filter-wrapper">
-                <button
-                  className={`filter-toggle-btn ${isContextFilterActive ? 'active' : ''}`}
-                  onClick={() => setContextFilterActive(!isContextFilterActive)}
-                  title={isContextFilterActive ? "Show all messages" : "Show only current question messages"}
-                >
-                  <Brain size={14} />
-                  {isContextFilterActive ? "Grouped by Q" : "Group Chat"}
-                </button>
+          {!isModelAnswerMode && !isMarkingSchemeMode && (
+            <div className="marking-header-ribbon-row">
+              <div className="ribbon-wrapper-full-width">
+                {/* Sticky Ribbon Navigator for Chat Mode */}
+                {renderQuestionRibbon(true)}
               </div>
-            )}
-          </div>
+
+              {activeQuestionId && (
+                <div className="context-filter-wrapper">
+                  <button
+                    className={`filter-toggle-btn ${isContextFilterActive ? 'active' : ''}`}
+                    onClick={() => setContextFilterActive(!isContextFilterActive)}
+                    title={isContextFilterActive ? "Show all messages" : "Show only current question messages"}
+                  >
+                    <Brain size={14} />
+                    {isContextFilterActive ? "Grouped by Q" : "Group Chat"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="chat-container" ref={setChatContainerRef}>

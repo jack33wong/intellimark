@@ -686,7 +686,7 @@
 
 .markdown-math-renderer .model-question-number {
   font-weight: 600;
-  margin-top: 2.5em;
+  margin-top: 5em;
   /* Significant space before each question */
   display: block;
   color: var(--text-primary);

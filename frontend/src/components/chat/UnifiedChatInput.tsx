@@ -69,17 +69,29 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     setPendingModelAnswerPaper
   } = useMarkingPage();
 
-  const isModelAnswerMode = contextIsModelAnswerMode || currentSession?.usageMode === 'modelanswer';
-  const isMarkingSchemeMode = contextIsMarkingSchemeMode || currentSession?.usageMode === 'markingscheme';
+  // [FIX] Priority: Context State (User Toggles) should determine active mode.
+  // We initialize these from the session's usageMode when the session changes.
+  const isModelAnswerMode = contextIsModelAnswerMode;
+  const isMarkingSchemeMode = contextIsMarkingSchemeMode;
 
   const location = useLocation();
   const navigate = useNavigate();
-
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
   const [canSelectModel, setCanSelectModel] = useState<boolean>(true); // Initialize with true, we'll check permission later
   const [chatInput, setChatInput] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const lastModeRef = useRef(mode);
+
+  // [FIX] Reset context modes when entering fresh first-time mode
+  useEffect(() => {
+    if (mode === 'first-time' && lastModeRef.current !== 'first-time') {
+      setIsModelAnswerMode(false);
+      setIsMarkingSchemeMode(false);
+    }
+    lastModeRef.current = mode;
+  }, [mode, setIsModelAnswerMode, setIsMarkingSchemeMode]);
+
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -186,13 +198,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     fetchMetadata();
   }, []);
 
-  const [isInputTrusted, setIsInputTrusted] = useState<boolean>(false);
-
   // V16.7 Sync input with initialInput from context (for redirection)
   useEffect(() => {
     if (initialInput) {
       setChatInput(initialInput);
-      setIsInputTrusted(true); // MARK AS TRUSTED SOURCE
       setInitialInput(''); // Clear after syncing
     }
   }, [initialInput, setInitialInput]);
@@ -204,7 +213,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setChatInput(value);
-    setIsInputTrusted(false); // USER TYPED: REVOKE TRUST (Fallback to strict search)
     if (mode === 'first-time') {
       setShowAutocomplete(true);
       setHighlightedIndex(-1);
@@ -248,11 +256,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     return code.toLowerCase().replace(/[^a-z0-9]/g, '');
   }, []);
 
-  // V22.0: DEFINITIVE PRIORITY WATERFALL (Robust & Stable)
+  // V17.1: Token-based matching logic with month normalization
   const getMatchingPapers = useCallback((input: string) => {
     const trimmed = input.trim();
     if (!trimmed) return [];
-    const lowerTrimmed = trimmed.toLowerCase();
 
     const monthMap: Record<string, string> = {
       'jan': 'january', 'feb': 'february', 'mar': 'march', 'apr': 'april', 'may': 'may', 'jun': 'june',
@@ -264,124 +271,130 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       return monthMap[lower] || lower;
     };
 
-    // --- STAGE 1: EXACT DESCRIPTION MATCH (STRICTEST) ---
-    const exactMatch = metadata.papers.find(p => p.toLowerCase() === lowerTrimmed);
-    if (exactMatch) return [exactMatch];
-
-    const normalizedInput = normalizeCode(trimmed);
-    const nInputIdentity = trimmed.toLowerCase()
-      .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
-      .filter(Boolean).map(normalizeToken).join('');
-
-    // --- STAGE 2: HEURISTIC IDENTITY MATCH (BOARD+CODE+SERIES+TIER) ---
-    const identityMatches = metadata.papers.filter(p => {
-      const parts = p.split(' - ');
-      if (parts.length < 3) return normalizeCode(p) === normalizedInput;
-
-      const nBoard = normalizeCode(parts[0]);
-      const nCode = normalizeCode(parts[1]);
-      const nSeries = parts[2].split(',')[0].toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(normalizeToken).join('');
-      const nTier = normalizeCode(parts[2].split(',')[1] || '');
-
-      return normalizedInput === normalizeCode(p) ||
-        nInputIdentity === (nBoard + nCode + nSeries + nTier) ||
-        nInputIdentity === (nBoard + nCode + nSeries) ||
-        nInputIdentity === (nBoard + nCode) ||
-        nInputIdentity === (nCode + nSeries + nTier) ||
-        nInputIdentity === (nCode + nSeries) ||
-        nInputIdentity === nCode;
-    });
-
-    if (identityMatches.length > 0) return identityMatches;
-
-    // --- STAGE 3: FUZZY SEARCH (FALLBACK) ---
+    // Normalize and tokenize the input (split by non-alphanumeric)
     const inputTokens = trimmed.toLowerCase()
-      .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
-      .filter(Boolean).map(normalizeToken);
+      .split(/[^a-z0-9]+/)
+      .filter(token => token.length > 0)
+      .map(normalizeToken);
 
     if (inputTokens.length === 0) return [];
+
+    // Generic keywords making matching too strict
     const genericKeywords = ['paper', 'exam', 'specification', 'spec'];
 
-    const fuzzyMatches = metadata.papers.filter((p: string) => {
+    return metadata.papers.filter((p: string) => {
+      // Tokenize the paper description
       const paperTokens = p.toLowerCase()
-        .split(/[^a-z0-9]+|(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/i)
-        .filter(Boolean).map(normalizeToken);
+        .split(/[^a-z0-9]+/)
+        .filter(token => token.length > 0)
+        .map(normalizeToken);
 
-      return inputTokens.every(it => {
-        const isMatch = paperTokens.some(pt => {
-          if (pt === it) return true;
-          if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
-          return pt.includes(it);
+      // A paper matches if it contains ALL tokens provided by the user
+      // [FIX] Leniency: Ignore generic keywords if they are not in the paperTokens
+      return inputTokens.every(inputToken => {
+        const isMatch = paperTokens.some(paperToken => {
+          if (paperToken === inputToken) return true;
+
+          const isPStrictNum = /^\d+$/.test(paperToken);
+          const isIStrictNum = /^\d+$/.test(inputToken);
+
+          if (isPStrictNum && isIStrictNum) {
+            // Numeric comparison (e.g., "1" matches "01")
+            return parseInt(paperToken) === parseInt(inputToken);
+          }
+
+          // Text comparison (e.g., "nov" matches "november")
+          return paperToken.includes(inputToken);
         });
-        return isMatch || genericKeywords.includes(it);
+
+        if (!isMatch && genericKeywords.includes(inputToken)) {
+          return true; // Ignore if generic and not found
+        }
+        return isMatch;
       });
-    });
+    }).sort((a: string, b: string) => {
+      // Sort by Year and Month (Descending)
+      const monthOrder: Record<string, number> = {
+        'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+        'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+      };
 
-    const monthOrder: Record<string, number> = {
-      'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
-      'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
-    };
+      const parseDate = (s: string) => {
+        const parts = s.toLowerCase().split(' - ');
+        if (parts.length < 3) return { year: 0, month: 0 };
+        // Format is usually "Board - Code - Month Year, Tier"
+        const datePart = parts[2].split(',')[0].trim(); // "november 2020"
+        const [month, year] = datePart.split(' ');
+        return {
+          year: parseInt(year) || 0,
+          month: monthOrder[month] || 0
+        };
+      };
 
-    const parseDate = (s: string) => {
-      const parts = s.toLowerCase().split(' - ');
-      if (parts.length < 3) return { year: 0, month: 0 };
-      const datePart = parts[2].split(',')[0].trim();
-      const [month, year] = datePart.split(' ');
-      return { year: parseInt(year) || 0, month: monthOrder[month] || 0 };
-    };
-
-    return [...fuzzyMatches].sort((a, b) => {
       const dateA = parseDate(a);
       const dateB = parseDate(b);
+
       if (dateA.year !== dateB.year) return dateB.year - dateA.year;
       if (dateA.month !== dateB.month) return dateB.month - dateA.month;
+
+      // Secondary sort by paper code/name if dates are identical
       return a.localeCompare(b);
     });
-  }, [metadata.papers, normalizeCode]);
+  }, [metadata.papers]);
 
   const canSend = useMemo(() => {
     if (isProcessing) return false;
+
+    // 1. Specialized Mode Check (Model Answer / Marking Scheme)
     if (isModelAnswerMode || isMarkingSchemeMode) {
-      // Bypassed for follow-up questions!
-      if (isFollowUp) return !!combinedInput.trim();
+      if (mode === 'follow-up') return !!combinedInput.trim();
 
       const trimmedInput = combinedInput.trim();
       if (!trimmedInput) return false;
 
+      // Check for trusted links or pending redirects (exact match guaranteed)
+      const params = new URLSearchParams(location.search);
+      const isFromTrustedLink = (params.get('mode') === 'model' || params.get('mode') === 'marking-scheme') && params.get('code');
+      const isFromPendingRedirect = pendingModelAnswerPaper && trimmedInput === pendingModelAnswerPaper;
+      if ((isFromTrustedLink && trimmedInput === params.get('code')) || isFromPendingRedirect) return true;
+
+      // Unique match required for search
       const matches = getMatchingPapers(trimmedInput);
-      if (matches.length === 1) return true;
-      if (matches.length > 1) {
-        // If multiple matches but they all share the same Tier and Series, consider it unambiguous enough to send
-        const tiers = new Set(matches.map(p => p.toLowerCase().includes('foundation') ? 'foundation' : 'higher'));
-        const series = new Set(matches.map(p => {
-          const parts = p.split(' - ');
-          return parts.length >= 3 ? parts[2].split(',')[0].trim() : '';
-        }));
-        return tiers.size === 1 && series.size === 1;
-      }
-      return false;
+      return matches.length === 1;
     }
-    return !!(imageFile || imageFiles.length > 0 || combinedInput.trim());
-  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, chatInput, isFollowUp, isInputTrusted, pendingModelAnswerPaper, imageFile, imageFiles.length, getMatchingPapers, normalizeCode]);
+
+    // 2. Standard Marking Mode Check
+    const hasFiles = !!(imageFile || imageFiles.length > 0);
+
+    if (mode === 'follow-up') {
+      // In follow-up chat, either text or files is sufficient
+      return hasFiles || !!combinedInput.trim();
+    } else {
+      // First-time standard upload: FILES ARE MANDATORY
+      return hasFiles;
+    }
+  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search, mode]);
 
   const validationMessageType = useMemo(() => {
+    // Suppress warning if not in paper mode, input is physically empty (no text typed),  const validationMessageType = useMemo(() => {
     if (!(isModelAnswerMode || isMarkingSchemeMode) || !chatInput.trim() || canSend || isFollowUp) return null;
 
     const matches = getMatchingPapers(combinedInput);
     if (matches.length === 0) return 'not_found';
 
+    // Analyze matched papers for commonalities
     const tiers = new Set(matches.map(p => p.toLowerCase().includes('foundation') ? 'foundation' : 'higher'));
     const series = new Set(matches.map(p => {
       const parts = p.split(' - ');
       return parts.length >= 3 ? parts[2].split(',')[0].trim() : '';
     }));
 
-    if (matches.length === 1 || (tiers.size === 1 && series.size === 1)) return null;
-
     if (tiers.size > 1 && series.size === 1) return 'ambiguous_tier';
     if (series.size > 1 && tiers.size === 1) return 'ambiguous_series';
-    return 'ambiguous_both';
-  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, isFollowUp, getMatchingPapers, chatInput]);
+    if (matches.length > 1) return 'ambiguous_both';
+
+    return 'not_found';
+  }, [isModelAnswerMode, isMarkingSchemeMode, combinedInput, canSend, getMatchingPapers]);
 
   const showValidationWarning = useMemo(() => {
     return !!validationMessageType;
@@ -391,7 +404,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     // Click selected paper suggestion: populate input for confirmation
     setSelectedTags([]); // Clear tags to prevent duplication in combinedInput
     setChatInput(suggestion);
-    setIsInputTrusted(true); // MARK AS TRUSTED SOURCE (DIRECT SELECTION)
     setShowAutocomplete(false);
     inputRef.current?.focus();
   };
@@ -697,8 +709,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       if (result === false) success = false;
     } else if (textToSend) {
       // Text only
-      // 👇 ROUTING FIX: If we are in a follow-up session, ALWAYS use onSendMessage 
-      // regardless of isModelAnswerMode or isMarkingSchemeMode.
       if (isFollowUp) {
         const result = await (onSendMessage as any)(textToSend);
         if (result === false) success = false;
@@ -968,12 +978,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   placeholder={
                     isProcessing
                       ? "AI is processing..."
-                      : isModelAnswerMode
-                        ? "Search for an exam paper..."
-                        : isMarkingSchemeMode
-                          ? "Search for an exam paper to explain marking scheme..."
-                          : mode === 'follow-up'
-                            ? "Ask a follow-up question about your marks..."
+                      : mode === 'follow-up'
+                        ? "Ask a follow-up question about your marks..."
+                        : isModelAnswerMode
+                          ? "Search for an exam paper..."
+                          : isMarkingSchemeMode
+                            ? "Search for an exam paper to explain marking scheme..."
                             : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
                   }
                   disabled={isProcessing}
@@ -1007,19 +1017,23 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
               <div className="followup-buttons-row">
                 <div className="followup-left-buttons">
-                  <button className="followup-upload-button add-files-btn" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
-                    <span className="btn-icon"><Plus size={16} /></span>
-                    <span className="btn-text">Add Files</span>
-                  </button>
+                  {/* Allow uploads if in follow-up mode OR if NO specialized mode is active in first-time mode */}
+                  {(mode === 'follow-up' || (!isModelAnswerMode && !isMarkingSchemeMode)) && (
+                    <button className="followup-upload-button add-files-btn" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
+                      <span className="btn-icon"><Plus size={16} /></span>
+                      <span className="btn-text">Add Files</span>
+                    </button>
+                  )}
 
                   {!isMarkingSchemeMode && (
                     <button
                       className={`followup-upload-button mode-toggle-btn model-answer-btn ${isModelAnswerMode ? 'active' : ''}`}
                       onClick={() => {
-                        if (isMarkingSchemeMode) setIsMarkingSchemeMode(false);
-                        setIsModelAnswerMode(!isModelAnswerMode);
+                        const newVal = !isModelAnswerMode;
+                        setIsModelAnswerMode(newVal);
+                        if (newVal) setIsMarkingSchemeMode(false);
                       }}
-                      disabled={isProcessing || mode === 'follow-up' || (currentSession?.messages?.length > 0)}
+                      disabled={isProcessing}
                       title={isModelAnswerMode ? "Switch to Normal Mode" : "Generate Model Answer"}
                     >
                       <span className="btn-icon"><Sparkles size={16} /></span>
@@ -1031,10 +1045,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     <button
                       className={`followup-upload-button mode-toggle-btn marking-scheme-btn ${isMarkingSchemeMode ? 'active' : ''}`}
                       onClick={() => {
-                        if (isModelAnswerMode) setIsModelAnswerMode(false);
-                        setIsMarkingSchemeMode(!isMarkingSchemeMode);
+                        const newVal = !isMarkingSchemeMode;
+                        setIsMarkingSchemeMode(newVal);
+                        if (newVal) setIsModelAnswerMode(false);
                       }}
-                      disabled={isProcessing || mode === 'follow-up' || (currentSession?.messages?.length > 0)}
+                      disabled={isProcessing}
                       title={isMarkingSchemeMode ? "Switch to Normal Mode" : "Explain Marking Scheme"}
                     >
                       <span className="btn-icon"><BookOpen size={16} /></span>
@@ -1042,22 +1057,24 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     </button>
                   )}
 
-                  <button
-                    className="followup-upload-button mobile-scan-btn scan-camera-btn"
-                    onClick={() => {
-                      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                      if (isMobile) {
-                        handleOpenCameraHandoff();
-                      } else {
-                        setIsMobileUploadOpen(true);
-                      }
-                    }}
-                    disabled={isProcessing}
-                    title="Scan from Mobile"
-                  >
-                    <span className="btn-icon"><Smartphone size={16} /></span>
-                    <span className="btn-text">Scan with Camera</span>
-                  </button>
+                  {(mode === 'follow-up' || (!isModelAnswerMode && !isMarkingSchemeMode)) && (
+                    <button
+                      className="followup-upload-button mobile-scan-btn scan-camera-btn"
+                      onClick={() => {
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                        if (isMobile) {
+                          handleOpenCameraHandoff();
+                        } else {
+                          setIsMobileUploadOpen(true);
+                        }
+                      }}
+                      disabled={isProcessing}
+                      title="Scan from Mobile"
+                    >
+                      <span className="btn-icon"><Smartphone size={16} /></span>
+                      <span className="btn-text">Scan with Camera</span>
+                    </button>
+                  )}
 
                 </div>
                 <div className="followup-right-buttons">

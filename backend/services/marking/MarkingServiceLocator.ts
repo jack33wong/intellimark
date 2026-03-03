@@ -66,26 +66,18 @@ export class MarkingServiceLocator {
 
     let systemPrompt = getPrompt('marking.contextual.system');
 
-    // [MODE-AWARENESS] Append mode-specific instructions to refine AI persona
+    // [MODE-AWARENESS] Inject mode flag for the prompt selector
     if (mode === 'model-answer') {
-      systemPrompt += `\n\n[MODE: MODEL ANSWER]\nThe user is in Model Answer mode. You MUST prioritize Role 1 (Math Solver). When the user asks to "explain" or "show" a question, do NOT use the Marking Explainer structure. Instead, provide a step-by-step model answer with [Step Title] and [Step Explanation] as defined in Role 1.`;
+      systemPrompt += `\n\n[MODE: MODEL ANSWER]`;
     } else if (mode === 'marking-scheme') {
-      systemPrompt += `\n\n[MODE: MARKING SCHEME]\nThe user is in Marking Scheme mode. Prioritize Role 2 (Marking Explainer) and explain the marking criteria.`;
+      systemPrompt += `\n\n[MODE: MARKING SCHEME]`;
     }
 
-    // Use context summary if available, otherwise fall back to recent messages
+    // Use context summary if available
     let contextPrompt = '';
     if (contextSummary) {
       contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
-
-      // Add explicit mode flag to context prompt as well
-      if (mode) contextPrompt += `\n[Current Session Mode: ${mode}]`;
-      // Truncate log to show only Question 1 to reduce noise
-      const q2Index = contextSummary.indexOf('### Q2');
-      const logSummary = q2Index > 0 ? contextSummary.substring(0, q2Index) + '\n... [Remaining Questions Truncated]' : contextSummary.substring(0, 1000);
-
     } else if (chatHistory.length > 0) {
-      // Always provide context - let the AI decide what's relevant
       contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
     }
 

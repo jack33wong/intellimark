@@ -2,14 +2,46 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 3586ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 3588ms for 50 sessions (limit: 50)
-[CHAT DEBUG] Message: "explain q1...", Mode: chat, Session: session-model-1772536639656
-💳 Deducted 0.04 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772536639656), remaining: 285.79
-💳 Deducted 0.00 cost (session: session-model-1772536639656, incremental) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-[PERF] getUserUnifiedSessions: Fetch 565ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 566ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 16502ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 16503ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 204ms, Process 0ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 206ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 273ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 276ms for 50 sessions (limit: 50)
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: Pearson Edexcel - 1MA1/1F - November 2024, Foundation Tier
+[EXAM-REF] Input "Pearson Edexcel - 1MA1/1F - November 2024, Foundation Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [EXAM-REF] Looking for paper via search: Pearson Edexcel - 1MA1/1F - November 2024, Foundation Tier
+ℹ️ [EXAM-REF] Searching papers with variations: ["pearson edexcel - 1ma1/1f - november 2024, foundation tier","pearson edexcel   1ma1/1f   november 2024, foundation tier","pearson edexcel / 1ma1/1f / november 2024, foundation tier"]
+ℹ️ [EXAM-REF] Looking for scheme via Metadata: 1MA1/1F / November 2024 (Variations: ["November 2024","november 2024"])
+✅ [EXAM-REF] Found scheme via Metadata Match: 9b341337-35f9-471f-8e68-253f970737bf (November 2024)
+[MODEL-ANSWER] Found sub-marks for 7: 7a, 7b, 7c
+[MODEL-ANSWER] Found sub-marks for 8: 8a, 8b, 8c
+[MODEL-ANSWER] Found sub-marks for 9: 9a, 9b, 9c, 9d
+[MODEL-ANSWER] Found sub-marks for 10: 10a, 10b
+[MODEL-ANSWER] Found sub-marks for 11: 11a, 11b
+[MODEL-ANSWER] Found sub-marks for 13: 13a, 13b
+[MODEL-ANSWER] Found sub-marks for 14: 14a, 14b
+[MODEL-ANSWER] Found sub-marks for 15: 15a, 15b
+[MODEL-ANSWER] Found sub-marks for 19: 19a, 19b
+[MODEL-ANSWER] Found sub-marks for 20: 20a, 20b
+[MODEL-ANSWER] Found sub-marks for 22: 22a, 22b
+💳 Deducted 0.33 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772558315626), remaining: 274.41
+🚀 [MARKING_SCHEME] Controller HIT! Request for paper: Pearson Edexcel - 1MA1/3H - November 2020, Higher Tier
+[EXAM-REF] Input "Pearson Edexcel - 1MA1/3H - November 2020, Higher Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [EXAM-REF] Looking for paper via search: Pearson Edexcel - 1MA1/3H - November 2020, Higher Tier
+ℹ️ [EXAM-REF] Searching papers with variations: ["pearson edexcel - 1ma1/3h - november 2020, higher tier","pearson edexcel   1ma1/3h   november 2020, higher tier","pearson edexcel / 1ma1/3h / november 2020, higher tier"]
+ℹ️ [EXAM-REF] Looking for scheme via Metadata: 1MA1/3H / November 2020 (Variations: ["November 2020","november 2020"])
+✅ [EXAM-REF] Found scheme via Metadata Match: 70fb32d0-770f-46f3-ae67-376976b33685 (November 2020)
+[MARKING-SCHEME] Found sub-marks for 1: 1(a), 1(b), 1(c)
+[MARKING-SCHEME] Found sub-marks for 4: 4(a), 4(b)
+[MARKING-SCHEME] Found sub-marks for 5: 5(a), 5(b)
+[MARKING-SCHEME] Found sub-marks for 6: 6(a), 6(b)
+[MARKING-SCHEME] Found sub-marks for 10: 10(a), 10(b)
+[MARKING-SCHEME] Found sub-marks for 11: 11(a), 11(b)
+[MARKING-SCHEME] Found sub-marks for 12: 12(a), 12(b)
+[MARKING-SCHEME] Found sub-marks for 13: 13(a), 13(b)
+[MARKING-SCHEME] Found sub-marks for 16: 16(a), 16(b), 16(c)
+[MARKING-SCHEME] Found sub-marks for 21: 21(a), 21(b)
+💳 Deducted 0.70 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-marking-scheme-1772558354993), remaining: 273.71
+[PERF] getUserUnifiedSessions: Fetch 296ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 299ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 224ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 225ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 217ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 218ms for 50 sessions (limit: 50)

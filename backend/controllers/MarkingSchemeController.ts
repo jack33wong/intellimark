@@ -250,7 +250,7 @@ export class MarkingSchemeController {
                     userId: userId,
                     messageType: 'Chat',
                     messages: [userMessage],
-                    usageMode: 'markingscheme'
+                    usageMode: 'marking-scheme'
                 });
             }
 
@@ -264,7 +264,7 @@ export class MarkingSchemeController {
             });
 
             const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
-                mode: 'markingscheme',
+                mode: 'marking-scheme',
                 sessionId: sessionId,
                 sourceMessageId: userMessage.id,
                 model: model === 'auto' ? 'gemini-2.0-flash' : model,
@@ -293,7 +293,7 @@ ${followUpResult.response}
                 messageId: providedAiMessageId,
                 markingContext: markingContext, // INJECT CONTEXT
                 progressData: {
-                    type: 'markingscheme',
+                    type: 'marking-scheme',
                     currentStepDescription: 'Marking schemes explained',
                     allSteps: [
                         'Finding exam paper...',
@@ -313,7 +313,7 @@ ${followUpResult.response}
             });
 
             if (isAuthenticated) {
-                await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'markingscheme');
+                await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'marking-scheme');
                 const cost = usageTracker.calculateCost(model).total;
                 if (cost > 0) {
                     await deductCredits(userId, cost, sessionId);

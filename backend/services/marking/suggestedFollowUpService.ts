@@ -64,7 +64,14 @@ export class SuggestedFollowUpService {
       const hasManualQuestions = targetMessage?.detectedQuestion?.questions && targetMessage.detectedQuestion.questions.length > 0;
 
       if (!hasManualQuestions) {
-        throw new Error(`No detected question found for ${mode}`);
+        // [FIX] Try to recover from session-level metadata if message-level is missing
+        const session = await FirestoreService.getUnifiedSession(sessionId);
+        if (session?.detectedQuestion?.found || (session?.detectedQuestion?.questions && session.detectedQuestion.questions.length > 0)) {
+          console.log(`[FOLLOW-UP] Recovered metadata from session level for ${sessionId}`);
+          targetMessage = { detectedQuestion: session.detectedQuestion };
+        } else {
+          throw new Error(`No detected question found for ${mode}`);
+        }
       }
     }
 
@@ -167,7 +174,7 @@ export class SuggestedFollowUpService {
 
     const { getPrompt } = await import('../../config/prompts.js');
     const { ModelProvider } = await import('../../utils/ModelProvider.js');
-    const isModelAnswer = mode === 'modelanswer';
+    const isModelAnswer = mode === 'model-answer';
     const systemPrompt = getPrompt(`${config.promptKey}.system`);
 
     const detectedQuestion = targetMessage.detectedQuestion;
@@ -176,14 +183,13 @@ export class SuggestedFollowUpService {
       return { response: "(No paper data available)", apiUsed: model, progressData: null, usageTokens: 0 };
     }
 
-    // 2. Process Questions directly (No redundant grouping)
-    // The controllers have already grouped these correctly from the database
-    const questions = detectedQuestion.examPapers.flatMap((ep: any) =>
-      ep.questions.map((q: any) => ({
+    // 2. Process Questions directly (Handle both examPapers and root questions)
+    const questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
+      (ep.questions || []).map((q: any) => ({
         ...q,
         base: String(q.questionNumber || q.number || 'unknown'),
-        examBoard: ep.examBoard,
-        examCode: ep.examCode
+        examBoard: ep.examBoard || 'Custom',
+        examCode: ep.examCode || 'N/A'
       }))
     );
 
@@ -230,7 +236,6 @@ export class SuggestedFollowUpService {
 <div class="model-answer-block">
     ${header}
     <div class="model-question-content">
-        ${(isModelAnswer && parentText) ? `<span class="model_question">${parentText.trim().replace(/\n/g, '<br/>')}</span>` : (!isModelAnswer ? `<span class="model_question">${qText.trim().replace(/\n/g, '<br/>')}</span>` : '')}
         <div class="model-ai-answer">${content}</div>
     </div>
 </div>`.trim();
@@ -248,7 +253,7 @@ export class SuggestedFollowUpService {
     const getRealApiName = (m: string) => m.includes('gemini') ? 'Google Gemini API' : m.includes('gpt') ? 'OpenAI API' : 'AI API';
 
     return {
-      response: results.map(r => r.html).join('\n\n<br><br>\n\n'),
+      response: results.map(r => r.html).join('\n\n'),
       apiUsed: `${getRealApiName(model)} (${model})`,
       progressData: null,
       usageTokens: results.reduce((s, r) => s + r.tokens, 0)

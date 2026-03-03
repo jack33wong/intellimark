@@ -268,7 +268,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats
-      } else if (isFollowUpMode(mode)) {
+      } else if (isFollowUpMode(mode) && (!message || mode === 'similarquestions')) {
         // Handle all follow-up requests using the centralized service
         const { SuggestedFollowUpService } = await import('../services/marking/suggestedFollowUpService.js');
 

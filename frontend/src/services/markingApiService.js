@@ -389,12 +389,20 @@ class SimpleSessionService {
             this.state.currentSession.title === 'Processing...' ||
             this.state.currentSession.title === 'Chat Session';
 
+          // Detect usageMode from AI message type so the mode-sync useEffect
+          // can hide the ribbon even when the session ID changes (temp -> real).
+          const aiProgressType = data.aiMessage?.progressData?.type;
+          const usageMode = aiProgressType === 'model-answer' ? 'model-answer'
+            : aiProgressType === 'marking-scheme' ? 'marking-scheme'
+              : this.state.currentSession.usageMode || undefined;
+
           const updatedSession = {
             ...this.state.currentSession,
             title: shouldUpdateTitle ? data.sessionTitle : this.state.currentSession.title,
             id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
             sessionStats: sessionStats,
-            updatedAt: new Date().toISOString() // Add last updated time
+            updatedAt: new Date().toISOString(), // Add last updated time
+            ...(usageMode ? { usageMode } : {}) // Persist usageMode so ribbon stays hidden
           };
           this.updateCurrentSessionOnly(updatedSession);
         }

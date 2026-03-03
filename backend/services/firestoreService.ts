@@ -568,7 +568,8 @@ export class FirestoreService {
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
         sessionStats: finalSessionStats,
-        unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
+        unifiedMessages: unifiedMessages, // Nested messages array with storage URLs
+        usageMode: sessionData.usageMode?.toLowerCase() // PERSIST USAGE MODE
       };
 
 
@@ -736,6 +737,7 @@ export class FirestoreService {
         isPastPaper: sessionData.isPastPaper,  // Include isPastPaper
         detectedQuestion: sessionData.detectedQuestion,
         sessionStats: sessionData.sessionStats,
+        usageMode: sessionData.usageMode, // HYDRATE USAGE MODE
         messages: mappedMessages  // Use mapped messages with id field
       };
 
@@ -772,7 +774,7 @@ export class FirestoreService {
       // This is the single most important fix for 3s -> 300ms loading
       sessionsRef = sessionsRef.select(
         'id', 'title', 'userId', 'messageType', 'createdAt', 'updatedAt',
-        'favorite', 'pinned', 'rating', 'lastMessagePreview', 'imagesPreview', 'sessionStats', 'detectedQuestion', 'studentScore'
+        'favorite', 'pinned', 'rating', 'lastMessagePreview', 'imagesPreview', 'sessionStats', 'detectedQuestion', 'studentScore', 'usageMode'
       );
 
       const fetchStart = Date.now();
@@ -826,7 +828,8 @@ export class FirestoreService {
           hasImage: sessionData.sessionStats?.hasImage || false,
           imagesPreview: sessionData.imagesPreview || [],
           lastApiUsed: sessionData.sessionStats?.lastApiUsed,
-          studentScore: sessionData.studentScore || null
+          studentScore: sessionData.studentScore || null,
+          usageMode: sessionData.usageMode || null
         });
       }
 

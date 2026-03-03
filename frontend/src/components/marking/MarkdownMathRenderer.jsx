@@ -14,6 +14,9 @@ import './MarkdownMathRenderer.css';
 const preprocessLatexDelimiters = (content) => {
   if (!content || typeof content !== 'string') return '';
   return content
+    // Fix: \f in JSON/JS strings is form-feed (\x0C), so \frac becomes <FF>rac.
+    // Restore all form-feed chars back to \f to recover \frac, \forall, etc.
+    .replace(/\x0C/g, '\\f')
     .replace(/\\\[/g, '$$$')
     .replace(/\\\]/g, '$$$')
     .replace(/\\\(/g, '$')
@@ -21,7 +24,6 @@ const preprocessLatexDelimiters = (content) => {
     .replace(/\\\\\\\[/g, '$$')
     .replace(/\\\\\\\]/g, '$$')
     .replace(/\^\(([^)]+)\)/g, '^{$1}')
-    .replace(/<div class=["']step-explanation["']>([\s\S]*?)<\/div>/g, '$1')
     .replace(/&dollar;/g, '$')
     .replace(/&#36;/g, '$')
     .replace(/\\n\\n/g, '\n\n')
