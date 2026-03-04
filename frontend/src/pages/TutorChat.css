@@ -13,7 +13,7 @@
 .section-title.center {
     text-align: center;
     margin-bottom: 48px;
-    font-size: 36px;
+    font-size: clamp(2rem, 5vw, 3rem);
     font-weight: 800;
     color: var(--text-primary, #333);
     display: block !important;
@@ -106,23 +106,122 @@
 }
 
 /* Responsive Overrides */
+}
+
+/* --- Universal Tutor Section (Main Landing Page) --- */
+.universal-tutor-section {
+    width: 100%;
+    padding: 100px 24px;
+    background-color: #fcfcff;
+    /* Subtle background for contrast */
+}
+
+.universal-tutor-section .tutor-feature-card {
+    max-width: var(--landing-max-width, 1200px);
+    margin: 48px auto 0;
+    background: white;
+    border: 1px solid var(--border-light);
+    border-radius: 40px;
+    padding: 60px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.05);
+}
+
+.universal-tutor-section .tutor-grid {
+    display: flex;
+    align-items: center;
+    gap: 60px;
+}
+
+.universal-tutor-section .tutor-visual,
+.universal-tutor-section .tutor-content {
+    flex: 1;
+    /* Equal width for symmetry */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    /* Corrects the left-alignment issue */
+}
+
+.universal-tutor-section .chat-mockup {
+    background: white;
+    border: 1px solid var(--border-main);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: var(--shadow-M);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.universal-tutor-section .pro-pill {
+    display: inline-block;
+    padding: 6px 14px;
+    background: rgba(127, 0, 255, 0.1);
+    color: #7f00ff;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+}
+
+.universal-tutor-section .tutor-content h3 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+}
+
+.universal-tutor-section .section-body {
+    font-size: 1.15rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.universal-tutor-section .secondary-cta {
+    margin-top: 32px;
+    padding: 14px 28px;
+    background: transparent;
+    border: 1px solid #7f00ff;
+    color: #7f00ff;
+    border-radius: 100px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.universal-tutor-section .secondary-cta:hover {
+    background: rgba(127, 0, 255, 0.05);
+    transform: translateY(-2px);
+}
+
+/* Mobile Responsiveness for Universal Section */
 @media (max-width: 900px) {
-    .tutor-feature-card {
-        flex-direction: column;
-        text-align: center;
-    }
-
-    .tutor-card-text {
-        padding: 40px 24px;
-    }
-
-    .tutor-card-visual {
-        padding: 40px 24px 0;
-        order: 2;
-        /* Visual below on mobile for better reading flow if needed, or keep order 1 */
-    }
-
-    .tutor-feature-section {
+    .universal-tutor-section {
         padding: 60px 20px;
+    }
+
+    .universal-tutor-section .tutor-grid {
+        flex-direction: column;
+        /* Stacks vertically on mobile */
+        gap: 32px;
+    }
+
+    .universal-tutor-section .tutor-feature-card {
+        padding: 40px 24px;
+        border-radius: 30px;
+    }
+
+    .universal-tutor-section .tutor-visual {
+        width: 100%;
+        align-items: center;
+    }
+
+    .universal-tutor-section .tutor-content {
+        text-align: center;
+        align-items: center;
     }
 }

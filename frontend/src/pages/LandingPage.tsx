@@ -11,6 +11,7 @@ import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import AntigravityTypewriter from '../components/common/AntigravityTypewriter';
 import './LandingPage.css';
+import './TutorChat.css';
 
 /* --- Helper Component: Image Magnifier --- */
 const ImageMagnifier = ({
@@ -247,6 +248,41 @@ const LandingPage: React.FC = () => {
                             <Lock size={12} className="lock-icon" />
                             <span>GDPR Compliant | Files are processed privately and not used for training.</span>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <section className="universal-tutor-section">
+                {/* Centered Section Header */}
+                <h2 className="section-title center">Interactive AI Maths Tutor</h2>
+
+                <div className="tutor-feature-card">
+                    <div className="tutor-grid">
+
+                        {/* COLUMN 1: Visual Chat Mockup */}
+                        <div className="tutor-visual">
+                            <div className="chat-mockup">
+                                <div className="chat-bubble user">Why did I lose marks for my working out?</div>
+                                <div className="chat-bubble ai">
+                                    You skipped the **intermediate step** where you isolate the variable.
+                                    All major boards require this to award the full method mark.
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* COLUMN 2: Descriptive Content */}
+                        <div className="tutor-content">
+                            <span className="pro-pill">PRO & ULTRA FEATURE</span>
+                            <h3>24/7 Follow-up Support</h3>
+                            <p className="section-body">
+                                Don’t just see the mark—understand it. Get instant, board-specific
+                                explanations for <strong>AQA, Edexcel, and OCR</strong>. Ask why you
+                                missed a mark or get a personalized walkthrough of any model answer.
+                            </p>
+                            <button className="secondary-cta" onClick={() => navigate('/app')}>Explore All Features →</button>
+                        </div>
+
                     </div>
                 </div>
             </section>
