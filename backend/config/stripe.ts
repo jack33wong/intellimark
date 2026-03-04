@@ -29,6 +29,10 @@ const STRIPE_PLANS = {
       monthly: { productId: process.env.STRIPE_TEST_ULTRA_MONTHLY_PRODUCT_ID || process.env.STRIPE_ULTRA_MONTHLY_PRODUCT_ID || '' },
       yearly: { productId: process.env.STRIPE_TEST_ULTRA_YEARLY_PRODUCT_ID || process.env.STRIPE_ULTRA_YEARLY_PRODUCT_ID || '' },
     },
+    admin_test: {
+      monthly: { productId: 'prod_U5XSBh5oqTqY4Y' },
+      yearly: { productId: 'prod_U5XSBh5oqTqY4Y' },
+    }
   },
   live: {
     pro: {
@@ -39,6 +43,10 @@ const STRIPE_PLANS = {
       monthly: { productId: process.env.STRIPE_LIVE_ULTRA_MONTHLY_PRODUCT_ID || '' },
       yearly: { productId: process.env.STRIPE_LIVE_ULTRA_YEARLY_PRODUCT_ID || '' },
     },
+    admin_test: {
+      monthly: { productId: 'prod_U5XSBh5oqTqY4Y' },
+      yearly: { productId: 'prod_U5XSBh5oqTqY4Y' },
+    }
   }
 };
 
@@ -86,8 +94,8 @@ export async function getPlanPrices() {
   console.log('🔄 Fetching fresh prices from Stripe...');
 
   try {
-    const plans: any = { pro: {}, ultra: {} };
-    const tiers = ['pro', 'ultra'] as const;
+    const plans: any = { pro: {}, ultra: {}, admin_test: {} };
+    const tiers = ['pro', 'ultra', 'admin_test'] as const;
     const cycles = ['monthly', 'yearly'] as const;
 
     // Create a list of all fetch operations to run in parallel

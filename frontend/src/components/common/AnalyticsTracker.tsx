@@ -12,6 +12,10 @@ const PRICING_MAP: Record<string, Record<string, number>> = {
         monthly: 19.90,
         yearly: 199.00,
     },
+    admin_test: {
+        monthly: 0.01, // Mock value for tracking
+        yearly: 0.01,
+    },
 };
 
 const AnalyticsTracker = () => {

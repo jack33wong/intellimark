@@ -35,7 +35,7 @@ const SubscriptionPage: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [internalLoading, setInternalLoading] = useState(true);
-  const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; ultra: number } | null>(null);
+  const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; ultra: number; admin_test: number } | null>(null);
   const [dynamicPlans, setDynamicPlans] = useState<any>(null); // Store fetched pricing
   const [creditError, setCreditError] = useState<string | null>(null);
 
@@ -339,12 +339,33 @@ const SubscriptionPage: React.FC = () => {
         }
       ],
       popular: false
-    }
-  ];
+    },
+    {
+      id: 'admin_test' as Plan,
+      name: 'Admin Test',
+      price: dynamicPlans?.admin_test?.[billingCycle]?.amount || 0.01,
+      name_short: 'Admin',
+      description: 'Internal testing only.',
+      icon: <Database size={24} />,
+      features: [
+        {
+          icon: <CreditsIcon size={16} />,
+          text: `Unlimited (Test) Credits`,
+          tooltip: "Admin-only test plan for verified internal debugging."
+        },
+        {
+          icon: <Zap size={16} />,
+          text: 'Full System Access'
+        }
+      ],
+      popular: false,
+      adminOnly: true
+    } as any
+  ].filter(p => !p.adminOnly || (user?.isAdmin));
 
   // Helper function to get plan level for comparison
   const getPlanLevel = (planId: string) => {
-    const levels: { [key: string]: number } = { free: 0, pro: 1, ultra: 2 };
+    const levels: { [key: string]: number } = { free: 0, pro: 1, ultra: 2, admin_test: 3 };
     return levels[planId] || 0;
   };
 
@@ -876,7 +897,7 @@ const SubscriptionPage: React.FC = () => {
               </button>
 
               <ul className="upgrade-plan-features">
-                {plan.features.map((feature, index) => (
+                {plan.features.map((feature: any, index: number) => (
                   <li key={index}>
                     {feature.icon || <Check size={16} />}
                     <span className="plan-feature-text">
