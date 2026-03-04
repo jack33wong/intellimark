@@ -14,7 +14,6 @@ const PRICING_MAP: Record<string, Record<string, number>> = {
     },
     admin_test: {
         monthly: 0.01, // Mock value for tracking
-        yearly: 0.01,
     },
 };
 

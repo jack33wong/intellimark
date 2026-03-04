@@ -30,8 +30,8 @@ const STRIPE_PLANS = {
       yearly: { productId: process.env.STRIPE_TEST_ULTRA_YEARLY_PRODUCT_ID || process.env.STRIPE_ULTRA_YEARLY_PRODUCT_ID || '' },
     },
     admin_test: {
-      monthly: { productId: 'prod_U5XSBh5oqTqY4Y' },
-      yearly: { productId: 'prod_U5XSBh5oqTqY4Y' },
+      monthly: { productId: 'prod_U5Xgps0aVFgjYH' },
+      yearly: { productId: '' },
     }
   },
   live: {
@@ -44,8 +44,8 @@ const STRIPE_PLANS = {
       yearly: { productId: process.env.STRIPE_LIVE_ULTRA_YEARLY_PRODUCT_ID || '' },
     },
     admin_test: {
-      monthly: { productId: 'prod_U5XSBh5oqTqY4Y' },
-      yearly: { productId: 'prod_U5XSBh5oqTqY4Y' },
+      monthly: { productId: 'prod_U5Xgps0aVFgjYH' },
+      yearly: { productId: '' },
     }
   }
 };
@@ -112,42 +112,53 @@ export async function getPlanPrices() {
       }
     }
 
-    // Step 1: Fetch all products in parallel
-    const products = await Promise.all(retrievalPromises);
+    // Step 1: Fetch all products (settled to avoid 500 on missing products)
+    const settledProducts = await Promise.allSettled(retrievalPromises);
 
-    // Step 2: Extract price IDs and fetch all prices in parallel
+    // Step 2: Extract price IDs and fetch all prices
     const priceRetrievalPromises: Promise<any>[] = [];
     const priceMapping: { tier: string, cycle: string }[] = [];
 
-    products.forEach((product, index) => {
-      const { tier, cycle } = mapping[index];
-      if (product.default_price) {
-        const priceId = typeof product.default_price === 'string'
-          ? product.default_price
-          : product.default_price.id;
+    settledProducts.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const product = result.value;
+        const { tier, cycle } = mapping[index];
+        if (product.default_price) {
+          const priceId = typeof product.default_price === 'string'
+            ? product.default_price
+            : product.default_price.id;
 
-        priceRetrievalPromises.push(stripe.prices.retrieve(priceId));
-        priceMapping.push({ tier, cycle });
+          priceRetrievalPromises.push(stripe.prices.retrieve(priceId));
+          priceMapping.push({ tier, cycle });
+        }
+      } else {
+        const { tier, cycle } = mapping[index];
+        console.warn(`⚠️ Failed to retrieve Stripe product for ${tier} ${cycle}:`, result.reason?.message || result.reason);
       }
     });
 
-    const prices = await Promise.all(priceRetrievalPromises);
+    const settledPrices = await Promise.allSettled(priceRetrievalPromises);
 
     // Map results back to the plans object
-    prices.forEach((price, index) => {
+    settledPrices.forEach((result, index) => {
       const { tier, cycle } = priceMapping[index];
-      plans[tier][cycle] = {
-        amount: (price.unit_amount || 0) / 100,
-        currency: price.currency,
-        priceId: price.id
-      };
+      if (result.status === 'fulfilled') {
+        const price = result.value;
+        plans[tier][cycle] = {
+          amount: (price.unit_amount || 0) / 100,
+          currency: price.currency,
+          priceId: price.id
+        };
+      } else {
+        console.warn(`⚠️ Failed to retrieve Stripe price for ${tier} ${cycle}:`, result.reason?.message || result.reason);
+      }
     });
 
     cachedPrices = plans;
-    console.log('✅ Stripe prices fetched and cached');
+    console.log('✅ Stripe prices fetched and cached (with resilience)');
     return plans;
   } catch (error) {
-    console.error('❌ Failed to fetch Stripe prices:', error);
+    console.error('❌ Critical failure in getPlanPrices:', error);
     throw error;
   }
 }

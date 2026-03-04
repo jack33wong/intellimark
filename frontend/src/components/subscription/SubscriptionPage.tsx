@@ -361,7 +361,20 @@ const SubscriptionPage: React.FC = () => {
       popular: false,
       adminOnly: true
     } as any
-  ].filter(p => !p.adminOnly || (user?.isAdmin));
+  ].filter(p => {
+    // Admin check
+    if (p.adminOnly && !user?.isAdmin) return false;
+
+    // Cycle availability check (e.g. Admin Test might only have monthly)
+    if (p.id !== 'free' && dynamicPlans) {
+      const planPrices = dynamicPlans[p.id];
+      if (!planPrices || !planPrices[billingCycle]) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   // Helper function to get plan level for comparison
   const getPlanLevel = (planId: string) => {

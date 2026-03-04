@@ -2,3 +2,10 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
+🔄 Fetching fresh prices from Stripe...
+✅ Stripe prices fetched and cached (with resilience)
+📋 Created new schedule: sub_sched_1T7MeQAgk7FXA329GWTgzoSF
+✅ Scheduled downgrade: ultra → admin_test at 2026-03-10T15:23:04.000Z
+⬇️ Scheduled downgrade: ultra → admin_test on 2026-03-10T15:23:04.000Z
+[PERF] getUserUnifiedSessions: Fetch 306ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 310ms for 50 sessions (limit: 50)
