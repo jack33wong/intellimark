@@ -105,7 +105,25 @@
     border: 1px solid rgba(127, 0, 255, 0.2);
 }
 
-/* Responsive Overrides */
+/* Responsive Overrides (Board Pages) */
+@media (max-width: 900px) {
+    .tutor-feature-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .tutor-card-text {
+        padding: 40px 24px;
+    }
+
+    .tutor-card-visual {
+        padding: 40px 24px 0;
+        order: 2;
+    }
+
+    .tutor-feature-section {
+        padding: 60px 20px;
+    }
 }
 
 /* --- Universal Tutor Section (Main Landing Page) --- */
