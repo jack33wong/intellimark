@@ -10,7 +10,7 @@ const db = getFirestore();
 
 interface UserCredits {
     userId: string;
-    planId: 'free' | 'pro' | 'ultra';
+    planId: 'free' | 'pro' | 'ultra' | 'admin_test';
     totalCredits: number;
     usedCredits: number;
     remainingCredits: number;
@@ -24,7 +24,7 @@ interface UserCredits {
  */
 export async function initializeUserCredits(
     userId: string,
-    planId: 'free' | 'pro' | 'ultra',
+    planId: 'free' | 'pro' | 'ultra' | 'admin_test',
     subscriptionEndDate: number
 ): Promise<UserCredits> {
     const now = Date.now();
@@ -155,7 +155,7 @@ export async function deductCredits(
  */
 export async function resetCreditsOnRenewal(
     userId: string,
-    planId: 'free' | 'pro' | 'ultra',
+    planId: 'free' | 'pro' | 'ultra' | 'admin_test',
     nextRenewalDate: number
 ): Promise<void> {
     const totalCredits = CREDIT_CONFIG.planCredits[planId];
@@ -181,7 +181,7 @@ export async function resetCreditsOnRenewal(
 export async function updateCreditsOnPlanChange(
     userId: string,
     oldPlanId: string,
-    newPlanId: 'free' | 'pro' | 'ultra',
+    newPlanId: 'free' | 'pro' | 'ultra' | 'admin_test',
     subscriptionEndDate: number
 ): Promise<void> {
     const userCreditsRef = db.collection('userCredits').doc(userId);

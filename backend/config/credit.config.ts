@@ -50,7 +50,8 @@ export const CREDIT_CONFIG = {
     planCredits: {
         free: FREE_PLAN_CREDITS,
         pro: PRO_PLAN_CREDITS,
-        ultra: ULTRA_PLAN_CREDITS
+        ultra: ULTRA_PLAN_CREDITS,
+        admin_test: 1000000 // Unlimited for all intents and purposes
     }
 };
 
@@ -78,7 +79,7 @@ export function creditsToCost(credits: number): number {
  * @returns Monthly credit allocation
  * @throws Error if planId is invalid
  */
-export function getPlanCredits(planId: 'free' | 'pro' | 'ultra'): number {
+export function getPlanCredits(planId: 'free' | 'pro' | 'ultra' | 'admin_test'): number {
     const credits = CREDIT_CONFIG.planCredits[planId];
     if (credits === undefined) {
         throw new Error(

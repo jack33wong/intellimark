@@ -413,7 +413,7 @@ const SubscriptionPage: React.FC = () => {
         setConfirmationData({
           isOpen: true,
           title: 'Top Up Credits (Early Renewal)',
-          message: `Your current credits are low (${remaining.toFixed(2)} remaining). Renewing your plan early will start a new billing cycle immediately and grant you a fresh allocation of ${SubscriptionService.getPlanDisplayName(planId)} credits.\n\nYou will be charged the full plan amount now. Do you want to proceed?`,
+          message: `Your current credits are low (${(remaining || 0).toFixed(2)} remaining). Renewing your plan early will start a new billing cycle immediately and grant you a fresh allocation of ${SubscriptionService.getPlanDisplayName(planId)} credits.\n\nYou will be charged the full plan amount now. Do you want to proceed?`,
           confirmText: 'Renew Early & Top Up',
           variant: 'success',
           showCancel: true,
@@ -808,7 +808,7 @@ const SubscriptionPage: React.FC = () => {
               <span className="compact-label">Current Plan:</span>
               <span className="compact-plan">{SubscriptionService.getPlanDisplayName(currentSubscription.planId)}</span>
               <span className="compact-divider">•</span>
-              <span className="compact-billing">£{(currentSubscription.amount / 100).toFixed(2)}/{currentSubscription.billingCycle}</span>
+              <span className="compact-billing">£{(currentSubscription.amount / 100 || 0).toFixed(2)}/{currentSubscription.billingCycle}</span>
               {currentSubscription.planId !== 'free' && (
                 <>
                   <span className="compact-divider">•</span>
@@ -820,7 +820,7 @@ const SubscriptionPage: React.FC = () => {
                   <span className="compact-divider">•</span>
                   <span className={`compact-credits ${currentSubscription.credits.remainingCredits < 5 ? 'low-credits' : ''}`}>
                     <CreditsIcon size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                    {currentSubscription.credits.remainingCredits.toFixed(2)}/{currentSubscription.credits.totalCredits.toFixed(2)} credits
+                    {(currentSubscription.credits.remainingCredits || 0).toFixed(2)}/{(currentSubscription.credits.totalCredits || 0).toFixed(2)} credits
                   </span>
                 </>
               )}

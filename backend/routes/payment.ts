@@ -571,10 +571,10 @@ router.post('/create-subscription-after-payment', async (req, res) => {
 
     // Initialize user credits
     try {
-      const normalizedPlanId = planId.toLowerCase() as 'free' | 'pro' | 'ultra';
+      const normalizedPlanId = planId.toLowerCase() as 'free' | 'pro' | 'ultra' | 'admin_test';
 
       // Double check that the plan exists in our config
-      const validPlans = ['free', 'pro', 'ultra'];
+      const validPlans = ['free', 'pro', 'ultra', 'admin_test'];
       if (!validPlans.includes(normalizedPlanId)) {
         console.warn(`⚠️ Warning: Unknown planId "${planId}", defaulting credits to free.`);
       }

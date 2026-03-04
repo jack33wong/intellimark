@@ -55,7 +55,7 @@ const AnalyticsTracker = () => {
         const sessionId = searchParams.get('session_id');
 
         if (!plan || !cycle || !sessionId) {
-            console.error('[Ads Debug] Missing required URL parameters. Conversion dropped.', { plan, cycle, sessionId });
+            console.error('[Ads Detection] ❌ Missing required URL parameters. Conversion dropped.', { plan, cycle, sessionId });
             return;
         }
 
@@ -63,11 +63,13 @@ const AnalyticsTracker = () => {
         const transactionValue = planPricing ? planPricing[cycle.toLowerCase()] : null;
 
         if (!transactionValue) {
-            console.error(`[Ads Debug] Unrecognized pricing tier detected: ${plan} / ${cycle}. Halting conversion fire.`);
+            console.error(`[Ads Detection] ❌ Unrecognized pricing tier detected: ${plan} / ${cycle}. Halting conversion fire.`);
             return;
         }
 
-        console.log(`[Ads Debug] Valid subscription success detected. Processing Stripe Session: ${sessionId}`);
+        console.log(`[Ads Detection] 🏁 Valid subscription success detected. Extracting evidence...`);
+        console.log(`[Ads Detection] 📝 Plan: ${plan} | Cycle: ${cycle} | Session: ${sessionId} | Value: £${transactionValue}`);
+
         fireAdsPurchaseConversion(transactionValue, sessionId);
 
     }, [location]);

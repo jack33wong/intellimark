@@ -62,23 +62,32 @@ export const fireAdsPurchaseConversion = (transactionValue: number | string, tra
 
     // 1. Upstream Data Integrity Checks
     if (typeof window.gtag !== 'function') {
-        console.error('[Ads Debug] gtag is not defined. Conversion dropped upstream. Check Phase 1 initialization.');
+        console.error('[Ads Evidence] ❌ gtag is not defined. Conversion dropped upstream. Check Phase 1 initialization.');
         return;
     }
 
     if (!transactionValue || !transactionId) {
-        console.error('[Ads Debug] Missing critical transaction data (Value or ID). Halting conversion fire to prevent malformed payload.');
+        console.error('[Ads Evidence] ❌ Missing critical transaction data (Value or ID). Halting conversion fire to prevent malformed payload.', { transactionValue, transactionId });
         return;
     }
 
     // 2. Outbound Payload Verification Log
-    console.log(`[Ads Debug] Firing Native Ads Conversion. ID: AW-732824032/${CONVERSION_LABEL} | Value: £${transactionValue} | Order: ${transactionId}`);
-
-    // 3. Native Event Fire
-    window.gtag('event', 'conversion', {
+    const payload = {
         'send_to': `AW-732824032/${CONVERSION_LABEL}`,
         'value': parseFloat(transactionValue.toString()),
         'currency': 'GBP',
         'transaction_id': transactionId.toString()
-    });
+    };
+
+    console.log(`[Ads Evidence] 🚀 Firing Native Ads Conversion. ID: AW-732824032/${CONVERSION_LABEL} | Value: £${transactionValue} | Order: ${transactionId}`);
+    console.log('[Ads Evidence] 📦 Full Payload:', payload);
+
+    // 3. Native Event Fire
+    window.gtag('event', 'conversion', payload);
+
+    // 4. Verification Post-Fire
+    console.log('[Ads Evidence] ✅ Success: Google Ads Event DISPATCHED to window.gtag');
+    if (window.hasOwnProperty('dataLayer')) {
+        console.log('[Ads Evidence] 📊 DataLayer Status:', (window as any).dataLayer?.slice(-1)[0]);
+    }
 };

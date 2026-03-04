@@ -111,8 +111,10 @@ export class SubscriptionService {
 
       if (activeSubscription) {
         // Fix for legacy subscriptions created with wrong amount format (e.g. 19.9 instead of 1990)
-        // If amount is small (< 100) and not 0 (free), it's likely in major units, so convert to minor units
-        if (activeSubscription.amount > 0 && activeSubscription.amount < 100) {
+        // CRITICAL BUG FIX: Ensure we don't pad correct small amounts (like 50p for admin_test)
+        if (activeSubscription.amount > 0 && activeSubscription.amount < 100 && activeSubscription.planId !== 'admin_test') {
+          // If it's a known legacy amount (19.9, 29.9, etc) or likely a major unit
+          // We'll keep this for safety but exclude the new test plan
           activeSubscription.amount = Math.round(activeSubscription.amount * 100);
         }
       }
