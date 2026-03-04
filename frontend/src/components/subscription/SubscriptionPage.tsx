@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow, Info, Award, RotateCcw, Crosshair } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, FileText, Database, TrendingUp, Layers, Workflow, Info, Award, RotateCcw, Crosshair, MessageSquare } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
@@ -301,6 +301,10 @@ const SubscriptionPage: React.FC = () => {
         {
           icon: <Layers size={16} />,
           text: 'Extended Result Archive'
+        },
+        {
+          icon: <MessageSquare size={16} />,
+          text: '24/7 AI Follow-up Chat'
         },
         {
           icon: <Users size={16} />,

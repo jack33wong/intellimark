@@ -6,6 +6,7 @@ import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import { trackPaperInteraction } from '../utils/analytics';
 import './EdexcelLandingPage.css';
+import './TutorChat.css';
 
 const EdexcelLandingPage: React.FC = () => {
     const navigate = useNavigate();
@@ -253,6 +254,31 @@ const EdexcelLandingPage: React.FC = () => {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            <section className="tutor-feature-section">
+                <h2 className="section-title center">Interactive Edexcel 1MA1 Tutor</h2>
+                <div className="tutor-feature-card">
+                    <div className="tutor-card-visual">
+                        <div className="board-chat-mockup">
+                            {/* Edexcel-Specific Mockup Text */}
+                            <div className="chat-bubble user">Why is this only 2 marks?</div>
+                            <div className="chat-bubble ai">
+                                You missed the **Communication Mark**. For Edexcel, you must
+                                explicitly state the units in your final conclusion to get full marks.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="tutor-card-text">
+                        <h2 className="board-section-title">Interactive Edexcel Logic Tutor</h2>
+                        <p className="board-section-body">
+                            Don't just see the mark—understand it. Ask our AI why a specific step was
+                            required, request a simpler explanation of the Edexcel marking scheme,
+                            or get a personalized walkthrough of your model answer.
+                        </p>
+                        <div className="feature-tag">Pro & Ultra Feature</div>
                     </div>
                 </div>
             </section>

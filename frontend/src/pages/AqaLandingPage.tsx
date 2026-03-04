@@ -6,6 +6,7 @@ import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import { trackPaperInteraction } from '../utils/analytics';
 import './AqaLandingPage.css';
+import './TutorChat.css';
 
 const AqaLandingPage: React.FC = () => {
     const navigate = useNavigate();
@@ -75,7 +76,6 @@ const AqaLandingPage: React.FC = () => {
                     </div>
                 </div>
             </section>
-
             {/* 3. Question Mode */}
             <section className="landing-section aqa-feature-row">
                 <div className="aqa-feature-container">
@@ -228,6 +228,31 @@ const AqaLandingPage: React.FC = () => {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            <section className="tutor-feature-section">
+                <h2 className="section-title center">Interactive AQA 8300 Tutor</h2>
+                <div className="tutor-feature-card">
+                    <div className="tutor-card-visual">
+                        <div className="board-chat-mockup">
+                            {/* AQA-Specific Mockup Text */}
+                            <div className="chat-bubble user">Why is this only 2 marks?</div>
+                            <div className="chat-bubble ai">
+                                You missed the **A1 Accuracy Mark**. For {`AQA`}, you must
+                                explicitly state the value of the rearrangement to get full marks.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="tutor-card-text">
+                        <h2 className="board-section-title">24/7 AQA Specification Coach</h2>
+                        <p className="board-section-body">
+                            Don't just see the mark—understand it. Ask our AI why a specific step was
+                            required, request a simpler explanation of the AQA marking scheme,
+                            or get a personalized walkthrough of your model answer.
+                        </p>
+                        <div className="feature-tag">Pro & Ultra Feature</div>
                     </div>
                 </div>
             </section>

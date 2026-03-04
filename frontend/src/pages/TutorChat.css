@@ -1,0 +1,128 @@
+/* 
+   Architectural Restyle for Interactive Tutor
+   Symmetrical, Two-Column Feature Card
+*/
+
+.tutor-feature-section {
+    padding: 100px 24px;
+    background-color: #fafafa;
+    /* Subtle off-white contrast */
+}
+
+/* Unified Anchor Header */
+.section-title.center {
+    text-align: center;
+    margin-bottom: 48px;
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--text-primary, #333);
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-family: var(--page-title-font);
+}
+
+.tutor-feature-card {
+    max-width: 1100px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #eeeeee;
+    border-radius: 32px;
+    display: flex;
+    align-items: center;
+    /* Vertical alignment */
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+}
+
+.tutor-card-visual {
+    flex: 1;
+    padding: 60px;
+    display: flex;
+    justify-content: center;
+    background: #ffffff;
+}
+
+.tutor-card-text {
+    flex: 1;
+    padding: 60px;
+    text-align: left;
+}
+
+/* Chat Mockup - Tightened and Centered */
+.board-chat-mockup {
+    background: white;
+    border: 1px solid var(--border-main);
+    border-radius: 20px;
+    padding: 20px;
+    /* Tightened */
+    box-shadow: var(--shadow-M);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    /* Tightened bubble spacing */
+    width: 100%;
+    max-width: 380px;
+    /* More compact visual */
+}
+
+.chat-bubble {
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13px;
+    max-width: 90%;
+    line-height: 1.4;
+}
+
+.chat-bubble.user {
+    align-self: flex-end;
+    background: var(--fill-blue);
+    color: var(--text-blue);
+    font-weight: 600;
+}
+
+.chat-bubble.ai {
+    align-self: flex-start;
+    background: #f3f3f1;
+    color: var(--text-primary);
+    border-left: 4px solid #7f00ff;
+}
+
+/* Redefined Feature Tag (PRO & ULTRA) */
+.feature-tag {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 6px 16px;
+    background: rgba(127, 0, 255, 0.1);
+    color: #7f00ff;
+    /* System brand purple */
+    border-radius: 20px;
+    /* Matches functional buttons */
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(127, 0, 255, 0.2);
+}
+
+/* Responsive Overrides */
+@media (max-width: 900px) {
+    .tutor-feature-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .tutor-card-text {
+        padding: 40px 24px;
+    }
+
+    .tutor-card-visual {
+        padding: 40px 24px 0;
+        order: 2;
+        /* Visual below on mobile for better reading flow if needed, or keep order 1 */
+    }
+
+    .tutor-feature-section {
+        padding: 60px 20px;
+    }
+}

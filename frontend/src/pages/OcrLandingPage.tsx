@@ -6,6 +6,7 @@ import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import { trackPaperInteraction } from '../utils/analytics';
 import './OcrLandingPage.css';
+import './TutorChat.css';
 
 const OcrLandingPage: React.FC = () => {
     const navigate = useNavigate();
@@ -253,6 +254,31 @@ const OcrLandingPage: React.FC = () => {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            <section className="tutor-feature-section">
+                <h2 className="section-title center">Interactive OCR J560 Tutor</h2>
+                <div className="tutor-feature-card">
+                    <div className="tutor-card-visual">
+                        <div className="board-chat-mockup">
+                            {/* OCR-Specific Mockup Text */}
+                            <div className="chat-bubble user">Why is this only 2 marks?</div>
+                            <div className="chat-bubble ai">
+                                You missed the **B Mark** for the independent stage. For OCR, you must
+                                explicitly show the correct intermediate calculation to get this mark.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="tutor-card-text">
+                        <h2 className="board-section-title">Personalized J560 Step-Walkthrough</h2>
+                        <p className="board-section-body">
+                            Don't just see the mark—understand it. Ask our AI why a specific step was
+                            required, request a simpler explanation of the OCR marking scheme,
+                            or get a personalized walkthrough of your model answer.
+                        </p>
+                        <div className="feature-tag">Pro & Ultra Feature</div>
                     </div>
                 </div>
             </section>
