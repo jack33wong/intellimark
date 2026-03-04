@@ -698,14 +698,6 @@
   margin-top: 1em;
 }
 
-/* Marking Code Styling: Red and Right-Aligned */
-.marking-code {
-  float: right;
-  color: #dc2626;
-  /* Red-600 */
-  font-weight: 500;
-  margin-left: 12px;
-}
 
 /* Mobile Friendly Padding Adjustments */
 @media (max-width: 640px) {

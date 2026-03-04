@@ -2,13 +2,25 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 270ms, Process 3ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 273ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 699ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 701ms for 50 sessions (limit: 50)
-🔄 Fetching fresh prices from Stripe...
-✅ Stripe prices fetched and cached
-[PERF] getUserUnifiedSessions: Fetch 280ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 282ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 339ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 342ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 311ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 314ms for 50 sessions (limit: 50)
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: Pearson Edexcel - 1MA1/1F - November 2024, Foundation Tier
+[EXAM-REF] Input "Pearson Edexcel - 1MA1/1F - November 2024, Foundation Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [EXAM-REF] Looking for paper via search: Pearson Edexcel - 1MA1/1F - November 2024, Foundation Tier
+ℹ️ [EXAM-REF] Searching papers with variations: ["pearson edexcel - 1ma1/1f - november 2024, foundation tier","pearson edexcel   1ma1/1f   november 2024, foundation tier","pearson edexcel / 1ma1/1f / november 2024, foundation tier"]
+ℹ️ [EXAM-REF] Looking for scheme via Metadata: 1MA1/1F / November 2024 (Variations: ["November 2024","november 2024"])
+✅ [EXAM-REF] Found scheme via Metadata Match: 9b341337-35f9-471f-8e68-253f970737bf (November 2024)
+[MODEL-ANSWER] Found sub-marks for 7: 7a, 7b, 7c
+[MODEL-ANSWER] Found sub-marks for 8: 8a, 8b, 8c
+[MODEL-ANSWER] Found sub-marks for 9: 9a, 9b, 9c, 9d
+[MODEL-ANSWER] Found sub-marks for 10: 10a, 10b
+[MODEL-ANSWER] Found sub-marks for 11: 11a, 11b
+[MODEL-ANSWER] Found sub-marks for 13: 13a, 13b
+[MODEL-ANSWER] Found sub-marks for 14: 14a, 14b
+[MODEL-ANSWER] Found sub-marks for 15: 15a, 15b
+[MODEL-ANSWER] Found sub-marks for 19: 19a, 19b
+[MODEL-ANSWER] Found sub-marks for 20: 20a, 20b
+[MODEL-ANSWER] Found sub-marks for 22: 22a, 22b
+💳 Deducted 0.40 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772622622973), remaining: 244.84
+[PERF] getUserUnifiedSessions: Fetch 513ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 517ms for 50 sessions (limit: 50)

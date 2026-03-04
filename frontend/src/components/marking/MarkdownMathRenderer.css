@@ -18,7 +18,7 @@ ul {
   color: var(--text-primary);
   font-weight: 700;
   margin: 1.5em 0 0.8em 0;
-  font-size: 1.1em;
+  font-size: 0.95em;
 }
 
 .markdown-math-renderer h3~.markdown-p,
@@ -181,13 +181,15 @@ ul {
   margin-left: 0.5em;
 }
 
-/* --- Mark Code Styling --- */
-.markdown-math-renderer .mark-code {
+/* --- Mark Code Styling: Red and Right-Aligned --- */
+.marking-code {
   float: right;
-  color: #ef4444;
+  color: var(--function-success);
   /* Red-500 */
-  font-weight: 700;
-  margin-left: 1em;
+  font-weight: 300;
+  font-size: 0.9em;
+  margin-left: 1.5em;
+  font-family: inherit;
 }
 
 /* Ensure marks don't overlap if line is full */

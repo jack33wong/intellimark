@@ -232,11 +232,20 @@ export class SuggestedFollowUpService {
         // [FIX] Layout Duplication: Prepend aggregated question text ONLY if the AI hasn't already provided it 
         // Interleaved layout: AI provides sub-questions and answers mixed.
         // We prepend the verified parent text (parentText) if it exists.
+
+        // [SAFETY FIX] Ensure model_question tag exists. If not, prepend verified qText.
+        let finalContent = content;
+        if (isModelAnswer && !content.includes('class="model_question"')) {
+          console.log(`[FOLLOW-UP] Q${base}: Prepending verified question text (Safe Fallback)`);
+          const safeText = qText || parentText || "";
+          finalContent = `<span class="model_question">${safeText}</span>\n${content}`;
+        }
+
         const html = `
 <div class="model-answer-block">
     ${header}
     <div class="model-question-content">
-        <div class="model-ai-answer">${content}</div>
+        <div class="model-ai-answer">${finalContent}</div>
     </div>
 </div>`.trim();
         return { html, tokens: ai.usageTokens || 0 };
