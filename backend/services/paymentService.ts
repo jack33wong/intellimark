@@ -83,7 +83,9 @@ export class PaymentService {
           quantity: 1,
         },
       ],
-      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`, // Original success_url format
+      success_url: successUrl.includes('?')
+        ? `${successUrl}&session_id={CHECKOUT_SESSION_ID}`
+        : `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
       client_reference_id: userId,
       metadata: {

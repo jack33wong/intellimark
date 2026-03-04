@@ -51,3 +51,34 @@ export const trackPaperInteraction = (paperId: string, mode: InteractionMode) =>
         console.log(`[Analytics] Tracked ${mode} for ${paperId} from ${source}`, eventData);
     }
 };
+
+/**
+ * Fires the Google Ads Purchase Conversion
+ * @param {number|string} transactionValue - The total cart/purchase value
+ * @param {string} transactionId - Your unique internal order ID (prevents duplicate counting)
+ */
+export const fireAdsPurchaseConversion = (transactionValue: number | string, transactionId: string) => {
+    const CONVERSION_LABEL = 'cUbtCMXn24IcEOCDuN0C';
+
+    // 1. Upstream Data Integrity Checks
+    if (typeof window.gtag !== 'function') {
+        console.error('[Ads Debug] gtag is not defined. Conversion dropped upstream. Check Phase 1 initialization.');
+        return;
+    }
+
+    if (!transactionValue || !transactionId) {
+        console.error('[Ads Debug] Missing critical transaction data (Value or ID). Halting conversion fire to prevent malformed payload.');
+        return;
+    }
+
+    // 2. Outbound Payload Verification Log
+    console.log(`[Ads Debug] Firing Native Ads Conversion. ID: AW-732824032/${CONVERSION_LABEL} | Value: £${transactionValue} | Order: ${transactionId}`);
+
+    // 3. Native Event Fire
+    window.gtag('event', 'conversion', {
+        'send_to': `AW-732824032/${CONVERSION_LABEL}`,
+        'value': parseFloat(transactionValue.toString()),
+        'currency': 'GBP',
+        'transaction_id': transactionId.toString()
+    });
+};

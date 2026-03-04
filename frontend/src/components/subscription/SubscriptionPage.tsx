@@ -651,7 +651,7 @@ const SubscriptionPage: React.FC = () => {
           planId,
           billingCycle,
           userId: user.uid,
-          successUrl: `${window.location.origin}/app?subscription=success`,
+          successUrl: `${window.location.origin}/app?subscription=success&plan=${planId}&cycle=${billingCycle}`,
           cancelUrl: `${window.location.origin}/pricing?canceled=true`,
         }),
       });

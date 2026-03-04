@@ -1,18 +1,29 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getAnalytics, logEvent } from 'firebase/analytics';
+import { fireAdsPurchaseConversion } from '../../utils/analytics';
+
+// 1. Centralized Pricing Map (Source of Truth for Conversions)
+const PRICING_MAP: Record<string, Record<string, number>> = {
+    pro: {
+        monthly: 9.90,
+        yearly: 99.00,
+    },
+    ultra: {
+        monthly: 19.90,
+        yearly: 199.00,
+    },
+};
 
 const AnalyticsTracker = () => {
     const location = useLocation();
+    const trackingAttempted = useRef(false);
 
     useEffect(() => {
-        // Check if analytics is supported and initialized
-        // Explicit check: only log in production and if measurement ID exists
+        // --- EXISTING FIREBASE TRACKING ---
         if (typeof window !== 'undefined' &&
             process.env.NODE_ENV === 'production' &&
             process.env.REACT_APP_FIREBASE_MEASUREMENT_ID) {
             try {
-                // We import dynamically to avoid issues during SSR or tests
                 import('firebase/analytics').then(({ getAnalytics, logEvent }) => {
                     const analytics = getAnalytics();
                     if (analytics) {
@@ -25,6 +36,37 @@ const AnalyticsTracker = () => {
                 console.warn('Google Analytics logging failed:', error);
             }
         }
+
+        // --- NEW GOOGLE ADS CONVERSION TRACKING ---
+        if (trackingAttempted.current) return;
+
+        const searchParams = new URLSearchParams(location.search);
+        const isSuccess = searchParams.get('subscription') === 'success';
+
+        if (!isSuccess) return;
+
+        trackingAttempted.current = true;
+
+        const plan = searchParams.get('plan');
+        const cycle = searchParams.get('cycle');
+        const sessionId = searchParams.get('session_id');
+
+        if (!plan || !cycle || !sessionId) {
+            console.error('[Ads Debug] Missing required URL parameters. Conversion dropped.', { plan, cycle, sessionId });
+            return;
+        }
+
+        const planPricing = PRICING_MAP[plan.toLowerCase()];
+        const transactionValue = planPricing ? planPricing[cycle.toLowerCase()] : null;
+
+        if (!transactionValue) {
+            console.error(`[Ads Debug] Unrecognized pricing tier detected: ${plan} / ${cycle}. Halting conversion fire.`);
+            return;
+        }
+
+        console.log(`[Ads Debug] Valid subscription success detected. Processing Stripe Session: ${sessionId}`);
+        fireAdsPurchaseConversion(transactionValue, sessionId);
+
     }, [location]);
 
     return null;

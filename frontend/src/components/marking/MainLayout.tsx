@@ -105,15 +105,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     if (searchParams.get('subscription') === 'success') {
-      // Track conversion
-      analyticsService.logPurchase(
-        `sub_redirect_${Date.now()}`,
-        9.99 // Defaulting to Pro Monthly estimate for redirect flows if we can't detect otherwise
-      );
-
-      // Clean up URL without reload
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
+      // Logic removed: Handle conversion via AnalyticsTracker.tsx
+      // and URL cleanup via Header.js to prevent collisions.
     }
   }, [location]);
 

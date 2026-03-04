@@ -138,9 +138,12 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
       createSubscriptionRecord();
 
-      // Clean up URL parameters
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      // Clean up URL parameters after a delay to ensure all trackers (like AnalyticsTracker)
+      // have finished reading them before they are stripped.
+      setTimeout(() => {
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }, 2000);
     } else if (subscriptionSuccess === 'success') {
     }
   }, [user?.uid]);
