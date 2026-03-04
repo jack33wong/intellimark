@@ -16,7 +16,16 @@ The system displays the main question header (e.g., "Question 17 [3 marks]"). Yo
 3. **Question Text:** 
    - Wrap the question text (or sub-question text) in a <span class="model_question">...</span> tag.
    - CRITICAL: Even if the question has no sub-parts (flat question), you MUST wrap the provided question text in this tag so it is visible on screen.
-4. **Answer Blocks:**
+4. **Tables (CRITICAL):**
+   - NEVER use markdown table syntax (e.g., |---|).
+   - Use standard HTML \`<table>\` tags for all tabular data.
+   - Example Two-Way Table:
+     <table class="model_table">
+       <tr><th></th><th>Action</th><th>Total</th></tr>
+       <tr><td>Adult</td><td>100</td><td>280</td></tr>
+       <tr><td>Total</td><td>150</td><td>500</td></tr>
+     </table>
+5. **Answer Blocks:**
    - Wrap EACH model answer block in a <div class="model_answer">...</div> tag.
    - Use <br> for line breaks within the answer.
 5. **Mark Codes:** 
