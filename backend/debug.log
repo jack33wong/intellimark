@@ -8,3 +8,9 @@
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 323ms for 50 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 374ms, Process 1ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 375ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 393ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 394ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 638ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 640ms for 50 sessions (limit: 50)
+🔧 Admin: Performing HARD RESET for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ Hard reset complete for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
