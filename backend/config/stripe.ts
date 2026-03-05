@@ -7,57 +7,42 @@ dotenv.config({ path: '.env.local' });
 // Use singleton for in-memory caching (persists until server restart)
 let cachedPrices: any = null;
 
-// Validate Stripe secret key
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('❌ STRIPE_SECRET_KEY is not set in .env.local');
-}
+const isProd = process.env.NODE_ENV === 'production';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-08-27.basil',
-});
-
-const isLive = process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
-
-// Keep both sets of product IDs in the code
-const STRIPE_PLANS = {
-  test: {
-    pro: {
-      monthly: { productId: process.env.STRIPE_TEST_PRO_MONTHLY_PRODUCT_ID || process.env.STRIPE_PRO_MONTHLY_PRODUCT_ID || '' },
-      yearly: { productId: process.env.STRIPE_TEST_PRO_YEARLY_PRODUCT_ID || process.env.STRIPE_PRO_YEARLY_PRODUCT_ID || '' },
-    },
-    ultra: {
-      monthly: { productId: process.env.STRIPE_TEST_ULTRA_MONTHLY_PRODUCT_ID || process.env.STRIPE_ULTRA_MONTHLY_PRODUCT_ID || '' },
-      yearly: { productId: process.env.STRIPE_TEST_ULTRA_YEARLY_PRODUCT_ID || process.env.STRIPE_ULTRA_YEARLY_PRODUCT_ID || '' },
-    },
-    admin_test: {
-      monthly: { productId: 'prod_U5Xgps0aVFgjYH' },
-      yearly: { productId: '' },
-    }
-  },
-  live: {
-    pro: {
-      monthly: { productId: process.env.STRIPE_LIVE_PRO_MONTHLY_PRODUCT_ID || '' },
-      yearly: { productId: process.env.STRIPE_LIVE_PRO_YEARLY_PRODUCT_ID || '' },
-    },
-    ultra: {
-      monthly: { productId: process.env.STRIPE_LIVE_ULTRA_MONTHLY_PRODUCT_ID || '' },
-      yearly: { productId: process.env.STRIPE_LIVE_ULTRA_YEARLY_PRODUCT_ID || '' },
-    },
-    admin_test: {
-      monthly: { productId: 'prod_U5Xgps0aVFgjYH' },
-      yearly: { productId: '' },
-    }
-  }
+/**
+ * Helper to get environment-specific Stripe variables
+ * Priority: STRIPE_[TEST/LIVE]_[KEY] > STRIPE_[KEY]
+ */
+const getStripeEnv = (key: string): string => {
+  const prefix = isProd ? 'LIVE' : 'TEST';
+  return process.env[`STRIPE_${prefix}_${key}`] || process.env[`STRIPE_${key}`] || '';
 };
 
 export const STRIPE_CONFIG = {
-  publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
-  secretKey: process.env.STRIPE_SECRET_KEY || '',
-  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  publishableKey: getStripeEnv('PUBLISHABLE_KEY'),
+  secretKey: getStripeEnv('SECRET_KEY'),
+  webhookSecret: getStripeEnv('WEBHOOK_SECRET'),
   currency: 'gbp',
-  mode: isLive ? 'live' : 'test',
-  plans: isLive ? STRIPE_PLANS.live : STRIPE_PLANS.test,
+  mode: isProd ? 'live' : 'test',
+  plans: {
+    pro: {
+      monthly: { productId: getStripeEnv('PRO_MONTHLY_PRODUCT_ID') },
+      yearly: { productId: getStripeEnv('PRO_YEARLY_PRODUCT_ID') },
+    },
+    ultra: {
+      monthly: { productId: getStripeEnv('ULTRA_MONTHLY_PRODUCT_ID') },
+      yearly: { productId: getStripeEnv('ULTRA_YEARLY_PRODUCT_ID') },
+    },
+    admin_test: {
+      monthly: { productId: getStripeEnv('ADMIN_TEST_PRODUCT_ID') },
+      yearly: { productId: '' },
+    }
+  },
 };
+
+const stripe = new Stripe(STRIPE_CONFIG.secretKey, {
+  apiVersion: '2025-08-27.basil',
+});
 
 
 /**

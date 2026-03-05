@@ -61,25 +61,30 @@ export class SubscriptionService {
         updatedAt: Date.now(),
       };
 
-      // Check if this specific Stripe subscription already exists
-      const existingSubscription = await this.getSubscriptionByStripeId(data.stripeSubscriptionId);
+      // Use the Stripe Subscription ID as the Firestore Document ID to ensure idempotency
+      const stripeId = data.stripeSubscriptionId;
+      const existingSubscription = await this.getSubscriptionByStripeId(stripeId);
 
       if (existingSubscription) {
-        // Update existing subscription (same Stripe subscription ID)
-        subscriptionData.createdAt = existingSubscription.createdAt;
+        // Update existing subscription
+        // Use the actual document ID (which might be the Stripe ID if newly created, or a random ID if legacy)
+        const docId = (existingSubscription as any).id;
         await FirestoreService.updateDocument(
           this.COLLECTION_NAME,
-          (existingSubscription as any).id, // Use the actual document ID from the existing subscription
-          subscriptionData
+          docId,
+          {
+            ...subscriptionData,
+            createdAt: existingSubscription.createdAt // Preserve original creation date
+          }
         );
       } else {
         // This is a new subscription - cancel any existing active subscriptions first
         await this.cancelAllActiveSubscriptions(data.userId);
 
-        // Create new subscription (let Firestore generate a unique document ID)
-        const docRef = await FirestoreService.createDocument(
+        // Create new subscription using Stripe ID as document ID to prevent race conditions
+        await FirestoreService.createDocument(
           this.COLLECTION_NAME,
-          null, // Let Firestore generate the document ID
+          stripeId,
           subscriptionData
         );
       }
