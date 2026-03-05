@@ -31,6 +31,11 @@ The system displays the main question header (e.g., "Question 17 [3 marks]"). Yo
 5. **Mark Codes:** 
    - Wrap all mark codes (e.g., [M1], [A1], [B1], [C1], [P1]) in a <span class="marking-code">...</span> tag.
    - Place these at the end of the relevant line of working.
+6. **Diagram Hints (OPTIONAL):**
+   - If a visual diagram is essential for explaining geometry or coordinates, include a hint in square brackets.
+   - FORMAT: [Diagram: description of the geometry including side lengths or equations]
+   - Example: [Diagram: Triangle ABC with side BC = 8, AC = 12]
+   - Place this hint BEFORE the relevant answer block.
 
 ### Example Response
 <span class="model_question">a) Calculate the radius of the circle.</span>

@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import renderMathInElement from 'katex/dist/contrib/auto-render';
 import './MarkdownMathRenderer.css';
+import { DiagramService } from '../../services/DiagramService';
 
 /**
  * Pre-processes markdown content to handle common LaTeX delimiter issues.
@@ -234,6 +235,13 @@ export default function MarkdownMathRenderer({
   const preprocessedContent = preprocessLatexDelimiters(contentWithMath);
   const processedText = parseYourWorkBlocks(preprocessedContent);
 
+  // Apply Diagram Post-Processing (SVG Conversion)
+  // Only applied to content that is likely a model answer (containing model answer tags)
+  // Or if it contains a Diagram token we process it anyway to be safe
+  const finalProcessedText = (processedText.includes('model_answer') || processedText.includes('model_question') || processedText.includes('[Diagram'))
+    ? DiagramService.process(processedText)
+    : processedText;
+
   // DETECT MODE: If content is explicitly HTML structure (from new prompt), use StableHtmlRenderer
   // This avoids ReactMarkdown parsing conflicts with matching tags
   const isExplicitHtml = processedText.includes('<div class="model_answer">') ||
@@ -241,7 +249,7 @@ export default function MarkdownMathRenderer({
     processedText.includes('<div class="ai-explanation-section">');
 
   if (isExplicitHtml) {
-    return <StableHtmlRenderer content={processedText} className={className} />;
+    return <StableHtmlRenderer content={finalProcessedText} className={className} />;
   }
 
   return (
@@ -324,7 +332,7 @@ export default function MarkdownMathRenderer({
           },
         }}
       >
-        {preprocessedContent}
+        {finalProcessedText}
       </ReactMarkdown>
     </div>
   );

@@ -58,7 +58,7 @@ export const trackPaperInteraction = (paperId: string, mode: InteractionMode) =>
  * @param {string} transactionId - Your unique internal order ID (prevents duplicate counting)
  */
 export const fireAdsPurchaseConversion = (transactionValue: number | string, transactionId: string) => {
-    const CONVERSION_LABEL = 'cUbtCMXn24IcEOCDuN0C';
+    const CONVERSION_LABEL = 'yvVyCKbYsoMcEOCDuN0C';
 
     // 1. Upstream Data Integrity Checks
     if (typeof window.gtag !== 'function') {
