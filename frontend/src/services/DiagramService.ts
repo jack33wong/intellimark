@@ -1,179 +1,274 @@
 /**
- * DiagramService - Text-to-SVG post-processor for Mathematical Diagrams
- * Focused on GCSE Maths (Geometry, Coordinates, Statistics)
+ * DiagramService - JSON-to-SVG Renderer
+ * Reads AI-generated JSON and draws deterministic, mathematically perfect SVGs.
  */
 
-export interface DiagramData {
-    type: string;
-    config: any;
-    isValid: boolean;
-}
-
 export class DiagramService {
-    /**
-     * Main entry point: Scans text for [Diagram: ...] tokens and replaces them with SVG
-     * Currently returns stringified HTML/SVG for post-processing injection
-     */
     public static process(content: string): string {
         if (!content || typeof content !== 'string') return content;
 
-        // Regex for any bracketed content [ ... ]
-        const diagramRegex = /\[(.*?)\]/gi;
-
-        return content.replace(diagramRegex, (match, description) => {
+        // Pass 1: Handle JSON-based Enterprise Diagrams
+        const jsonRegex = /<script type="application\/json" class="ai-diagram-data">([\s\S]*?)<\/script>/gi;
+        let processedContent = content.replace(jsonRegex, (match, jsonString) => {
             try {
-                const diagram = this.parseDiagramDescription(description);
-                if (diagram && diagram.isValid) {
-                    return this.renderSVG(diagram);
+                const data = JSON.parse(jsonString.trim());
+
+                // Route to the correct drawing function
+                switch (data.type) {
+                    case 'triangle':
+                    case 'triangle_sas':
+                        return this.drawTriangle(data);
+                    case 'polygon':
+                        return this.drawPolygon(data);
+                    case 'function_graph':
+                        return this.drawFunctionGraph(data);
+                    case 'coordinate_grid':
+                        return this.drawCoordinateGrid(data);
+                    case 'tree_diagram':
+                        return this.drawTreeDiagram(data);
+                    case 'composite_2d':
+                        return this.drawComposite2D(data);
+                    case 'fallback':
+                        return this.renderFallbackBox(data.description || 'Complex 3D Diagram');
+                    default:
+                        return match;
                 }
-                // Fallback to original text if parsing fails or invalid
-                return match;
             } catch (e) {
-                console.error('[DiagramService] Processing error:', e);
+                console.error('[DiagramService] JSON Parsing Error:', e);
                 return match;
             }
         });
+
+        // Pass 2: Handle Legacy Bracketed Hints (Safety Net)
+        // Catch [Type: ...], [Diagram: ...], or [Answer Diagram: ...]
+        const legacyRegex = /\[(Type:|Diagram:|Answer Diagram:)(.*?)\]/gi;
+        processedContent = processedContent.replace(legacyRegex, (match, prefix, description) => {
+            return this.renderFallbackBox(description.trim());
+        });
+
+        return processedContent;
     }
 
     /**
-     * Parses the natural language description into structured geometric data
-     * For the PoC, we use regex-based parsing for common patterns
+     * Generalized Triangle Drawer
      */
-    private static parseDiagramDescription(desc: string): DiagramData | null {
-        const d = desc.toLowerCase();
+    private static drawTriangle(data: any): string {
+        const side1 = data.side1;
+        const side2 = data.side2;
+        const angle = data.angle;
 
-        // 1. Triangle Detection
-        if (d.includes('triangle') || (d.includes('abc') && !d.includes('d'))) {
-            return this.parseTriangle(d);
+        // Validation: If parameters are missing or generic-looking but not in text, fallback
+        if (side1 === undefined || side2 === undefined || angle === undefined) {
+            return this.renderFallbackBox(data.description || "Triangle Diagram with sides and angle");
         }
 
-        // 2. Coordinate Grid Detection
-        if (d.includes('grid') || d.includes('graph') || d.includes('axis')) {
-            return this.parseCoordinateGrid(d);
-        }
+        const angleRad = angle * (Math.PI / 180);
+        const x1 = 0, y1 = 0;
+        const x2 = side1, y2 = 0;
+        const x3 = side2 * Math.cos(angleRad);
+        const y3 = -(side2 * Math.sin(angleRad));
 
-        // 3. Parallelogram/Polygon Detection
-        // Handle explicit keywords or implicit 4-point labels (e.g., ABCD)
-        if (d.includes('parallelogram') || d.includes('quadrilateral') || d.includes('rectangle') ||
-            d.includes('abcd') || (d.includes('angle') && d.includes('d'))) {
-            return this.parsePolygon(d, 'parallelogram');
-        }
+        const minX = Math.min(x1, x2, x3) - 2;
+        const maxX = Math.max(x1, x2, x3) + 2;
+        const minY = Math.min(y1, y2, y3) - 2;
+        const maxY = Math.max(y1, y2, y3) + 2;
 
-        return null;
+        return this.wrapSVG(minX, minY, maxX - minX, maxY - minY, `
+            <polygon points="${x1},${y1} ${x2},${y2} ${x3},${y3}" 
+                     fill="none" stroke="var(--diagram-foreground)" stroke-width="0.2" vector-effect="non-scaling-stroke" />
+            <text x="${(x1 + x2) / 2}" y="${y1 + 1.5}" font-size="1.5" text-anchor="middle" fill="var(--diagram-foreground)">${side1}${data.unit || 'cm'}</text>
+            <text x="${x3 / 2 - 1}" y="${y3 / 2 - 1}" font-size="1.5" text-anchor="end" fill="var(--diagram-foreground)">${side2}${data.unit || 'cm'}</text>
+            <text x="${x1 + 0.5}" y="${y1 - 0.5}" font-size="1.2" fill="var(--diagram-foreground)">${angle}°</text>
+        `);
     }
 
-    private static parseTriangle(desc: string): DiagramData {
-        // Basic extraction for PoC: "triangle ABC with side BC=80, AC=120"
-        // We scale by 10 for better SVG visibility
-        const sideMatch = desc.match(/side\s+([a-z]{2})[=\s]*(\d+)/gi);
-        const config: any = { sides: {} };
+    /**
+     * Draws Polygons (Pentagons, Hexagons, Rectangles)
+     */
+    private static drawPolygon(data: any): string {
+        const shapeName = (data.shape_name || "").toLowerCase();
+        const n = shapeName === 'pentagon' ? 5 : (shapeName === 'hexagon' ? 6 : (shapeName === 'rectangle' || shapeName === 'quadrilateral' ? 4 : 0));
 
-        if (sideMatch) {
-            sideMatch.forEach(m => {
-                const parts = m.match(/([a-z]{2})[=\s]*(\d+)/i);
-                if (parts) {
-                    config.sides[parts[1].toUpperCase()] = parseInt(parts[2]) * 5; // Scaling factor
+        if (n === 0) {
+            return this.renderFallbackBox(data.description || `Polygon Diagram: ${data.shape_name || "Unknown Shape"}`);
+        }
+
+        const points: [number, number][] = [];
+        const radius = 10;
+
+        for (let i = 0; i < n; i++) {
+            const angle = (i * 2 * Math.PI / n) - (Math.PI / 2);
+            points.push([radius * Math.cos(angle), radius * Math.sin(angle)]);
+        }
+
+        const ptsStr = points.map(p => p.join(',')).join(' ');
+        const sides = data.sides || [];
+
+        return this.wrapSVG(-12, -12, 24, 24, `
+            <polygon points="${ptsStr}" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.5" vector-effect="non-scaling-stroke" />
+            ${points.map((p1, i) => {
+            const p2 = points[(i + 1) % n];
+            const tx = (p1[0] + p2[0]) / 2 * 1.25;
+            const ty = (p1[1] + p2[1]) / 2 * 1.25;
+            const label = sides[i]?.label || sides[i]?.length || "";
+            return label ? `<text x="${tx}" y="${ty}" font-size="2" text-anchor="middle" dominant-baseline="middle" fill="var(--diagram-foreground)">${label}</text>` : "";
+        }).join('')}
+        `);
+    }
+
+    /**
+     * Draws Coordinate Grids and Shape Layers
+     */
+    private static drawCoordinateGrid(data: any): string {
+        const xMin = data.x_min ?? -10;
+        const xMax = data.x_max ?? 10;
+        const yMin = data.y_min ?? -10;
+        const yMax = data.y_max ?? 10;
+        const width = xMax - xMin;
+        const height = yMax - yMin;
+
+        // Support both 'layers' and 'shapes'
+        const layers = data.layers || data.shapes || [];
+        let layersHtml = `
+            <line x1="${xMin}" y1="0" x2="${xMax}" y2="0" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="${-yMax}" x2="0" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
+        `;
+
+        let hasDrawnSomething = false;
+
+        layers.forEach((layer: any) => {
+            // Support 'points' or 'vertices' with vertex labeling [x, y, label]
+            const rawPoints = layer.points || layer.vertices || [];
+            if (rawPoints.length > 0) {
+                const ptsArr = rawPoints.map((p: any) => {
+                    const x = Array.isArray(p) ? p[0] : (p.x ?? 0);
+                    const y = Array.isArray(p) ? p[1] : (p.y ?? 0);
+                    return `${x},${-y}`;
+                });
+                const pts = ptsArr.join(' ');
+                const strokeColor = layer.color || 'var(--diagram-shape-stroke)';
+                const fillColor = layer.color ? `${layer.color}1a` : 'var(--diagram-shape-fill)';
+
+                layersHtml += `<polygon points="${pts}" fill="${fillColor}" stroke="${strokeColor}" 
+                                stroke-width="${layer.dashed ? 0.3 : 0.2}" ${layer.dashed ? 'stroke-dasharray="0.5,0.5"' : ''} 
+                                vector-effect="non-scaling-stroke" />`;
+
+                // Render Vertex Labels (new in v7.7)
+                rawPoints.forEach((p: any) => {
+                    if (Array.isArray(p) && p.length === 3) {
+                        const [vx, vy, vLabel] = p;
+                        layersHtml += `<text x="${vx}" y="${-vy - 0.5}" font-size="0.8" fill="var(--diagram-foreground)" text-anchor="middle">${vLabel}</text>`;
+                    }
+                });
+
+                if (layer.label) {
+                    const firstPt = Array.isArray(rawPoints[0]) ? rawPoints[0] : [rawPoints[0].x, rawPoints[0].y];
+                    layersHtml += `<text x="${firstPt[0]}" y="${-firstPt[1] - 0.5}" font-size="1" fill="var(--diagram-foreground)" font-weight="bold">${layer.label}</text>`;
                 }
-            });
+                hasDrawnSomething = true;
+            }
+        });
+
+        // Defensive check: if we only drew the axes, return a fallback instead of a "white image"
+        if (!hasDrawnSomething) {
+            return this.renderFallbackBox(data.details || data.description || "Coordinate Grid Diagram");
         }
 
-        // Default triangle if no specific sides found (Equilateral-ish)
-        return {
-            type: 'triangle',
-            config: {
-                points: { A: [50, 20], B: [150, 150], C: [20, 150] },
-                labels: config.sides,
-                ...config
-            },
-            isValid: true
-        };
-    }
-
-    private static parseCoordinateGrid(desc: string): DiagramData {
-        // grid with line y=2x+1
-        const lineMatch = desc.match(/y\s*=\s*([-]?\d*)x\s*([+-]\s*\d+)?/i);
-        const config: any = { line: null };
-
-        if (lineMatch) {
-            config.line = {
-                m: parseInt(lineMatch[1]) || (lineMatch[1] === '-' ? -1 : 1),
-                c: parseInt(lineMatch[2]?.replace(/\s+/g, '')) || 0
-            };
-        }
-
-        return {
-            type: 'grid',
-            config,
-            isValid: true
-        };
-    }
-
-    private static parsePolygon(desc: string, type: string): DiagramData {
-        return {
-            type: type,
-            config: {},
-            isValid: true
-        };
+        return this.wrapSVG(xMin, -yMax, width, height, layersHtml);
     }
 
     /**
-     * Renders the structured data into a theme-aware static SVG string
+     * Draws Probability Tree Diagrams
      */
-    private static renderSVG(diagram: DiagramData): string {
-        const { type, config } = diagram;
+    private static drawTreeDiagram(data: any): string {
+        let html = '';
+        const branches = data.branches || [];
+        const xStep = 30;
+        const yStep = 20;
+        const positions: Record<string, { x: number, y: number }> = { "Start": { x: 0, y: 0 } };
 
-        if (type === 'triangle') {
-            const { points, labels } = config;
-            return `
-        <div class="svg-diagram-wrapper" style="margin: 20px 0; text-align: center;">
-          <svg width="200" height="200" viewBox="0 0 200 200" style="background: transparent;">
-            <polygon points="${points.A.join(',')}, ${points.B.join(',')}, ${points.C.join(',')}" 
-                     fill="none" stroke="currentColor" stroke-width="2" />
-            <text x="${points.A[0]}" y="${points.A[1] - 5}" text-anchor="middle" fill="currentColor">A</text>
-            <text x="${points.B[0] + 5}" y="${points.B[1] + 5}" fill="currentColor">B</text>
-            <text x="${points.C[0] - 10}" y="${points.C[1] + 5}" fill="currentColor">C</text>
-            <!-- Mock labels for PoC -->
-            <text x="100" y="170" text-anchor="middle" fill="currentColor">${labels['BC'] ? labels['BC'] + 'cm' : ''}</text>
-            <text x="30" y="80" text-anchor="end" fill="currentColor">${labels['AC'] ? labels['AC'] + 'cm' : ''}</text>
-          </svg>
-        </div>
-      `.trim();
+        let levelCounts: Record<number, number> = { 0: 1 };
+
+        branches.forEach((b: any) => {
+            if (!positions[b.to]) {
+                const parent = positions[b.from] || { x: 0, y: 0 };
+                const level = (parent.x / xStep) + 1;
+                levelCounts[level] = (levelCounts[level] || 0) + 1;
+                positions[b.to] = {
+                    x: parent.x + xStep,
+                    y: (levelCounts[level] - 2.5) * yStep
+                };
+            }
+            const p1 = positions[b.from];
+            const p2 = positions[b.to];
+            html += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
+            html += `<text x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 2}" font-size="3" text-anchor="middle" fill="var(--diagram-foreground)">${b.prob}</text>`;
+            html += `<text x="${p2.x + 2}" y="${p2.y + 1}" font-size="3" fill="var(--diagram-foreground)">${b.to}</text>`;
+        });
+
+        return this.wrapSVG(-5, -30, 80, 60, html);
+    }
+
+    /**
+     * Draws Function Graphs (Algebraic Curves)
+     */
+    private static drawFunctionGraph(data: any): string {
+        const xMin = data.x_min ?? -10;
+        const xMax = data.x_max ?? 10;
+        const yMin = data.y_min ?? -10;
+        const yMax = data.y_max ?? 10;
+        const width = xMax - xMin;
+        const height = yMax - yMin;
+
+        // If no mathematical data is provided, use fallback
+        if (!data.equation_label && !data.details && !data.description) {
+            return this.renderFallbackBox("Graph Diagram");
         }
 
-        if (type === 'grid') {
-            return `
-        <div class="svg-diagram-wrapper" style="margin: 20px 0; text-align: center;">
-          <svg width="200" height="200" viewBox="0 0 200 200" style="background: transparent;">
-            <!-- Axes -->
-            <line x1="100" y1="10" x2="100" y2="190" stroke="currentColor" stroke-width="1" />
-            <line x1="10" y1="100" x2="190" y2="100" stroke="currentColor" stroke-width="1" />
-            <!-- Line y=mx+c simulation -->
-            <line x1="50" y1="150" x2="150" y2="50" stroke="currentColor" stroke-width="2" stroke-dasharray="4" />
-            <text x="155" y="45" font-size="12" fill="currentColor">y = ${config.line?.m}x + ${config.line?.c}</text>
-          </svg>
-        </div>
-      `.trim();
+        if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+            return this.renderFallbackBox(data.details || data.description || data.equation_label || "Graph Diagram");
         }
 
-        if (type === 'parallelogram') {
-            return `
-        <div class="svg-diagram-wrapper" style="margin: 20px 0; text-align: center;">
-          <svg width="240" height="160" viewBox="0 0 240 160" style="background: transparent;">
-            <!-- Parallelogram ABCD -->
-            <polygon points="60,30 220,30 180,130 20,130" 
-                     fill="none" stroke="currentColor" stroke-width="2" />
-            <text x="60" y="25" text-anchor="middle" fill="currentColor">A</text>
-            <text x="220" y="25" text-anchor="middle" fill="currentColor">B</text>
-            <text x="185" y="145" text-anchor="middle" fill="currentColor">C</text>
-            <text x="15" y="145" text-anchor="middle" fill="currentColor">D</text>
-            
-            <!-- Diagonal AC if relevant -->
-            <line x1="60" y1="30" x2="180" y2="130" stroke="currentColor" stroke-width="1" stroke-dasharray="2" />
-          </svg>
-        </div>
-      `.trim();
+        // Generate the SVG Path curve
+        let pathD = "";
+        const steps = 50;
+        // ... simple default curve if none provided
+        for (let i = 0; i <= steps; i++) {
+            const x = xMin + (width * (i / steps));
+            const y = -(Math.pow(1.2, x)); // dummy curve for generic graphs
+            if (y >= -yMax && y <= -yMin) {
+                pathD += `${pathD === "" ? 'M' : 'L'} ${x} ${y} `;
+            }
         }
 
-        return '';
+        return this.wrapSVG(xMin, -yMax, width, height, `
+            <line x1="${xMin}" y1="0" x2="${xMax}" y2="0" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="${-yMax}" x2="0" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
+            <path d="${pathD}" fill="none" stroke="var(--diagram-shape-stroke)" stroke-width="2" vector-effect="non-scaling-stroke" />
+            <text x="${xMax - 1}" y="-0.5" font-size="1" fill="var(--diagram-foreground)">x</text>
+            <text x="0.5" y="${-yMax + 1}" font-size="1" fill="var(--diagram-foreground)">y</text>
+        `);
+    }
+
+    private static drawComposite2D(data: any): string {
+        return this.renderFallbackBox("Composite 2D Shape: " + JSON.stringify(data));
+    }
+
+    private static wrapSVG(x: number, y: number, w: number, h: number, body: string): string {
+        return `
+        <div class="model_diagram">
+            <svg viewBox="${x} ${y} ${w} ${h}" width="300" height="200" class="ai-diagram-svg">
+                ${body}
+            </svg>
+        </div>
+        `;
+    }
+
+    private static renderFallbackBox(description: string): string {
+        return `
+        <div class="diagram-fallback-wrapper">
+            <strong>📊 Diagram Reference:</strong>
+            ${description}
+        </div>`;
     }
 }

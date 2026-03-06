@@ -2,15 +2,3253 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 318ms, Process 3ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 321ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 320ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 323ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 374ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 375ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 393ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 394ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 638ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 640ms for 50 sessions (limit: 50)
-🔧 Admin: Performing HARD RESET for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ Hard reset complete for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: AQA 8300/3H November 2022  Higher Tier
+[EXAM-REF] Input "AQA 8300/3H November 2022  Higher Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [EXAM-REF] Looking for paper via search: AQA 8300/3H November 2022  Higher Tier
+ℹ️ [EXAM-REF] Searching papers with variations: ["aqa 8300/3h november 2022  higher tier"]
+ℹ️ [EXAM-REF] Looking for scheme via Metadata: 8300/3H / November 2022 (Variations: ["November 2022","november 2022"])
+✅ [EXAM-REF] Found scheme via Metadata Match: a3eb0c78-376d-4453-b3db-994531f3e6cf (November 2022)
+[MODEL-ANSWER] Found sub-marks for 7: 7a, 7b
+[MODEL-ANSWER] Found sub-marks for 13: 13a, 13b, 13c
+[MODEL-ANSWER] Found sub-marks for 14: 14a, 14b
+[MODEL-ANSWER] Found sub-marks for 15: 15a, 15b, 15c
+[MODEL-ANSWER] Found sub-marks for 16: 16a, 16b
+[MODEL-ANSWER] Found sub-marks for 20: 20a, 20b
+[MODEL-ANSWER] Found sub-marks for 21: 21a, 21b
+[MODEL-ANSWER] Found sub-marks for 26: 26a, 26b
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 1):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 1
+MAX MARKS: 1
+
+## QUESTION TEXT
+Circle the value of x. 
+ $2^{x}=32$
+
+## MARKING SCHEME
+- B1: 5 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 2):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 2
+MAX MARKS: 1
+
+## QUESTION TEXT
+What is $1.8\times10^{-4}$ as an ordinary number? 
+ Circle your answer.
+
+## MARKING SCHEME
+- B1: 0.000 18 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 3):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 3
+MAX MARKS: 1
+
+## QUESTION TEXT
+Expand $6x^{2}(x^{3}+2)$ 
+ Circle your answer.
+
+## MARKING SCHEME
+- B1: $6x^{5}+12x^{2}$ 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 4):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 4
+MAX MARKS: 1
+
+## QUESTION TEXT
+$30<x<300$ 
+ x is 200% of y 
+ Circle the correct inequality.
+
+## MARKING SCHEME
+- B1: $15<y<150$ 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 5):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 5
+MAX MARKS: 3
+
+## QUESTION TEXT
+ABCDE is a pentagon. 
+ [Type: Diagram of pentagon ABCDE. Horizontal top side AE = 14 cm. Horizontal bottom side BC = 20 cm. Vertical height between AE and BC is 11 cm. Side CD = 7 cm. Side DE = 10 cm. Angle CDE is 90 degrees. Not drawn accurately.] 
+ Work out the area of the pentagon.
+
+## MARKING SCHEME
+- M1: $\frac{1}{2}\times(14+20)\times11$ or 187 (oe any correct method to find the area of the trapezium)
+- M1: $\frac{1}{2}\times10\times7\times sin~90$ or $\frac{1}{2}\times10\times7$ or 35 (oe)
+- A1: 222 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 6):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 6
+MAX MARKS: 3
+
+## QUESTION TEXT
+Joe, Kim and Lisa each have an amount of money. 
+ Joe has £72 
+ Joe's amount : Kim's amount = 6 : 5 
+ Lisa's amount is $1\frac{1}{2}$ times Joe's amount. 
+ Show that, in total, they have less than £250
+
+## MARKING SCHEME
+- M1: $72\div6\times5$ or 60 (oe)
+- M1: $72\times1.5$ or 108 (oe)
+- A1: 60 and 108 and 240 (oe)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 7):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 7
+MAX MARKS: 4
+
+## QUESTION TEXT
+7a) Here is the rule for a sequence. 
+ After the first two terms, each term is the sum of the previous two terms 
+ The 1st term is 33 
+ The 2nd term is x 
+ The 4th term is 73 
+ Work out the value of x.
+
+7b) An expression for the nth term of a different sequence is $n-n^{2}$ 
+ Ruth says, 
+ "All the terms will be negative because $n^{2}$ is always greater than n." 
+ Is she correct? 
+ Give a reason for your answer.
+
+## MARKING SCHEME
+- M1: $33+x$ or $73-x$ or $x+33+x=73$ or $2x+33=73$ (oe)
+- M1dep: $\frac{40}{2}$ or $\frac{73-33}{2}$ (oe)
+- A1: 20 
+- B1: No and gives valid reason (eg No and $1-1^{2}=0$)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 8):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 8
+MAX MARKS: 2
+
+## QUESTION TEXT
+Here is some information about the members of clubs A and B. 
+ [Table: Club A, Number of members 24, Mean height 1.8 m; Club B, Number of members 20, Mean height 1.92 m] 
+ Work out $\frac{\text{total height of the members of club A}}{\text{total height of the members of club B}}$ 
+ Give your answer as a decimal.
+
+## MARKING SCHEME
+- M1: $24\times180$ or 4320 or $20\times192$ or 3840 (oe)
+- M1: $\frac{432}{384}$ or $\frac{9}{8}$ or $1\frac{1}{8}$ (oe)
+- A1: 1.125 (accept 1.1 with M1 awarded)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 9):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 9
+MAX MARKS: 2
+
+## QUESTION TEXT
+P and Q are points. 
+ The x-coordinate of Q is 4 more than the x-coordinate of P. 
+ The y-coordinate of Q is 5 less than the y-coordinate of P. 
+ Work out the gradient of the straight line through P and Q.
+
+## MARKING SCHEME
+- B1: $\frac{5}{4}$ or $1\frac{1}{4}$ or 1.25 (oe)
+- B2: Possible coordinates for P and Q stated or shown (eg $P(0,5)$ and $Q(4,0)$)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 10):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 10
+MAX MARKS: 3
+
+## QUESTION TEXT
+Here are the results after 250 spins of a coin. 
+ Heads 128 
+ Tails 122 
+ The coin is spun an extra 50 times. 
+ After all 300 spins, the relative frequency of Heads is 0.49 
+ For the extra 50 spins, work out 
+ number of Heads : number of Tails
+
+## MARKING SCHEME
+- M1: $0.49\times(250+50)$ or 147 (oe)
+- M1dep: their 147-128 or 19 
+- A1: 19:31 (SC2 answer 31: 19)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 11):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 11
+MAX MARKS: 4
+
+## QUESTION TEXT
+Part of a running track is the arc of a semicircle joined to a straight line. 
+ The semicircle has diameter 45 metres. 
+ The straight line has length 75 metres. 
+ [Type: Diagram showing a semicircle arc with vertical diameter 45 m, leading into a horizontal straight line of 75 m. Not drawn accurately.] 
+ Abby runs once along this part of the track in 18 seconds. 
+ Work out her average speed. 
+ Give your answer to 2 significant figures.
+
+## MARKING SCHEME
+- M1: $0.5\times\pi\times45$ or [70.5, 70.7] (oe)
+- M1: $(0.5\times\pi\times45+75)\div18$ (oe)
+- A1: 8.1 (Accept 8.08... or 8.09...)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 12):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 12
+MAX MARKS: 2
+
+## QUESTION TEXT
+Triangles ABC and DEF are shown on a grid. 
+ [Type: Coordinate grid with Triangle ABC (A(-4, 1), B(-5, -3), C(-2, -3)) and Triangle DEF (D(2, 5), E(1, 1), F(4, 1)). Triangle ABC is reflected to form DEF.] 
+ Describe a single transformation that shows the triangles are congruent.
+
+## MARKING SCHEME
+- B1: Translation 
+- B2: $\binom{6}{4}$ or 6 right and 4 up (oe vector)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 13):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 13
+MAX MARKS: 3
+
+## QUESTION TEXT
+A fair, ordinary dice is rolled and a counter is taken at random from a bag. 
+ The tree diagram shows the probabilities. 
+ [Type: Tree diagram. Dice: Even (0.5), Odd (0.5). Counter from Even: Red (0.1), Blue (0.3), Green (0.6). Counter from Odd: Red (0.1), Blue (0.3), Green (0.6).]
+
+13a) How do the probabilities show that all the counters in the bag are red, blue or green?
+
+13b) Circle the probability that the counter is red or blue.
+
+13c) Circle the probability that the dice lands on an even number and the counter is blue.
+
+## MARKING SCHEME
+- B1: The probabilities sum to 1 (oe eg $0.1+0.3+0.6=1$)
+- B1: 0.4 
+- B1: 0.15 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 14):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 14
+MAX MARKS: 5
+
+## QUESTION TEXT
+Here are two solid cubes, X and Y. 
+ The mass of X is 10.976 kg 
+ The area of each face of X is $784~cm^{2}$ 
+ [Type: Visual of two cubes X and Y.]
+
+14a) Zayan wants to know the density of Y. 
+ He assumes that Y is identical to X. 
+ What density should he get for Y? 
+ Give your answer in grams per cubic centimetre.
+
+14b) In fact, 
+ the mass of Y is less than the mass of X 
+ the area of each face of Y is greater than the area of each face of X. 
+ What does this mean about the actual density of Y? 
+ Tick one box.
+
+## MARKING SCHEME
+- M1: $\sqrt{784}$ or 28 
+- M1dep: (their 28)$^{3}$ or 21952 
+- M1dep: $5\times10^{-4}\times$ their 21952 
+- A1: 10.976 
+- B1: It is less than the answer to part (a) 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 15):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 15
+MAX MARKS: 5
+
+## QUESTION TEXT
+A mobile phone takes 2 hours to charge from empty. 
+ When the phone is being charged, the current flow into the phone 
+ • starts at full current flow (100%) 
+ • continues at full current flow for a period of time 
+ • gradually decreases until the phone is fully charged. 
+ This is shown on Graph A below. 
+ [Type: Graph A - Current flow (%) vs Charge time (mins). 100% flow until 26 mins, then curves down to 0% at 120 mins.] 
+ Graph B shows the percentage charge in the phone when charging from empty. 
+ [Type: Graph B - Charge in phone (%) vs Charge time (mins). Curve starting at (0,0), increasing steeply then leveling off towards 100% at 120 mins.]
+
+15a) Megan's phone is empty of charge. 
+ She starts to charge her phone at 10.00 am 
+ Using Graph A, estimate the time when the current flow starts to decrease.
+
+15b) Using Graph A and Graph B, estimate the percentage charge in the phone when the current flow is 40%
+
+15c) Using Graph B, estimate the rate of increase in the percentage charge when the phone has 90% charge.
+
+## MARKING SCHEME
+- M1: Vertical line drawn from correct point on graph to horizontal axis (or [25, 27] implied)
+- A1: [10.25, 10.27] (am) 
+- B1: 80 
+- M1: Correct tangent drawn where charge is 90% 
+- A1: Correct gradient for their tangent 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 16):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 16
+MAX MARKS: 5
+
+## QUESTION TEXT
+16a) H is inversely proportional to the cube root of L. 
+ $H=7$ when $L=64$ 
+ Work out an equation connecting H and L.
+
+16b) Work out the value of H when $L=2744$
+
+## MARKING SCHEME
+- M1: $H\propto\frac{1}{\sqrt[3]{L}}$ or $H=\frac{k}{\sqrt[3]{L}}$ (oe equation)
+- M1dep: $(k=)7\times\sqrt[3]{64}$ or $(k=)28$ (oe)
+- A1: $H=\frac{28}{\sqrt[3]{L}}$ 
+- M1: $\frac{\text{their } 28}{\sqrt[3]{2744}}$ (oe)
+- A1ft: 2 (ft their equation)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 17):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 17
+MAX MARKS: 3
+
+## QUESTION TEXT
+A, B and C are points on a circle, centre O. 
+ BD is a tangent to the circle. 
+ OCD is a straight line. 
+ [Type: Diagram showing a circle with tangent BD. Triangle ABC inside. Angle BAC = 32 degrees. OCD is a straight line from centre O. Angle CBD is labeled x. Not drawn accurately.] 
+ Work out the size of angle x.
+
+## MARKING SCHEME
+- M1: $BOD=2\times32$ or 64 (oe)
+- M1: $OBD=90$ (may be seen on diagram)
+- A1: 26 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 18):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 18
+MAX MARKS: 4
+
+## QUESTION TEXT
+Rearrange $9m+4(2m-1)=p^{2}+pm$ to make m the subject.
+
+## MARKING SCHEME
+- B1: $8m-4$ 
+- M1: $9m+their~8m-pm=p^{2}+their~4$ (collects terms after expansion)
+- M1dep: $m(17-p)=p^{2}+$ their 4 (factorises)
+- A1: $m=\frac{p^{2}+4}{17-p}$ (oe)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 19):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 19
+MAX MARKS: 1
+
+## QUESTION TEXT
+A circle has centre (0, 0) and passes through (0, 11) 
+ Write down the equation of the circle.
+
+## MARKING SCHEME
+- B1: $x^{2}+y^{2}=121$ or $x^{2}+y^{2}=11^{2}$ 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 20):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 20
+MAX MARKS: 5
+
+## QUESTION TEXT
+There should be a train leaving a station every hour from 7 am 
+ No trains leave early. 
+ P(the first train leaves on time) = 0.9 
+ For all the other trains, 
+ if the previous train did leave on time, P(this train leaves on time) = 0.8 
+ if the previous train did not leave on time, P(this train leaves on time) = 0.65
+
+20a) Work out P(the first three trains leave on time)
+
+20b) The 2 pm train does not leave on time. 
+ Work out P(exactly one of the next two trains does not leave on time)
+
+## MARKING SCHEME
+- M1: $0.9\times0.8^{2}$ or $0.9\times0.64$ (oe)
+- A1: 0.576 or 0.58 or $\frac{72}{125}$ 
+- M1: $(1-0.65)\times0.65$ or $0.2275$ or $0.65\times(1-0.8)$ or 0.13 (oe)
+- M1dep: $(1-0.65)\times0.65+0.65\times(1-0.8)$ (oe)
+- A1: 0.3575 or $\frac{143}{400}$ 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 21):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 21
+MAX MARKS: 2
+
+## QUESTION TEXT
+Shape A is enlarged to shape B. 
+ [Type: Grid showing Triangle A with vertices (-6, 1), (-4, 5), (0, 1) and Triangle B with vertices (3, -2), (6, -2), (5, -4).]
+
+21a) Circle the scale factor of the enlargement.
+
+21b) Write down the coordinates of the centre of enlargement.
+
+## MARKING SCHEME
+- B1: $-\frac{1}{2}$ 
+- B1: $(2,-1)$ 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 22):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 22
+MAX MARKS: 4
+
+## QUESTION TEXT
+Simplify fully 
+ $\frac{2}{x+1}+\frac{7-5x}{3}+4x$ 
+ Give your answer as a single fraction.
+
+## MARKING SCHEME
+- M1: $\frac{6}{3(x+1)}$ or $\frac{(7-5x)(x+1)}{3(x+1)}$ or $\frac{12x(x+1)}{3(x+1)}$ (common denominator term)
+- M1dep: All terms with common denominator 
+- M1dep: Numerator expansion and collection 
+- A1: $\frac{7x^{2}+14x+13}{3(x+1)}$ 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 23):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 23
+MAX MARKS: 5
+
+## QUESTION TEXT
+Alec makes a bowl for dog food from a solid wooden cone. 
+ The sketches show how the bowl is made. 
+ The cone has radius 9 cm and perpendicular height 30 cm 
+ A smaller cone, with radius 6 cm, is removed. 
+ [Type: Diagrams showing a large cone r=9, h=30. A top section (smaller cone) is removed. Then a hemisphere r=6 is removed from the remaining frustum to create the bowl.] 
+ [Formula: Volume of a cone = $\frac{1}{3}\pi r^{2}h$] 
+ [Formula: Volume of a hemisphere = $\frac{2}{3}\pi r^{3}$] 
+ Work out the volume of the remaining wood that forms the bowl.
+
+## MARKING SCHEME
+- M1: $\frac{1}{3}\times9^{2}\times30\times\pi$ (oe)
+- M1: $\frac{2}{3}\times6^{3}\times\pi$ or $\frac{1}{3}\times6^{2}\times20\times\pi$ (oe)
+- M1: $30\times\frac{6}{9}$ or 20 (height of small cone)
+- M1dep: Subtraction of relevant volumes 
+- A1: 426$\pi$ or [1336, 1339.4] 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 24):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 24
+MAX MARKS: 5
+
+## QUESTION TEXT
+On the same day, Kate buys 
+ a car for £14000 
+ and 
+ a painting for £5000 
+ The value of the car decreases by 35% in the first year, and then by 10% each year. 
+ The value of the painting increases by 4% each year. 
+ Show that the painting becomes worth more than the car during the fifth year.
+
+## MARKING SCHEME
+- M1: 0.65 or 0.9 or 1.04 (multipliers)
+- M1: $14~000\times0.65\times0.9^{3}$ (Car val yr 4)
+- M1dep: their $9100\times0.9^{4}$ (Car val yr 5)
+- M1: $5000\times1.04^{4}$ or $5000\times1.04^{5}$ (Painting val yr 4/5)
+- A1: 6633.9(0) and 5970.51 and 5849.29... and 6083.26... 
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 25):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 25
+MAX MARKS: 4
+
+## QUESTION TEXT
+Two sides of a triangle are measured to 1 decimal place. 
+ The angle between the sides is measured to the nearest degree. 
+ [Type: Diagram of a triangle with side 7.2 cm, side 13.6 cm, and included angle 110 degrees. Not drawn accurately.] 
+ Work out the upper bound for the area of the triangle. 
+ You must show your working.
+
+## MARKING SCHEME
+- B1: 7.15 or 7.25 or 13.55 or 13.65 or 109.5 or 110.5 (Bounds seen)
+- B1: 7.25 and 13.65 and 109.5 chosen (Correct bounds for Area)
+- M1: $0.5 \times 7.25 \times 13.65 \times \sin(109.5)$ 
+- A1ft: 46.6(4...) (ft their bounds)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+
+🔍 [DEBUG] MODEL-ANSWER PROMPT (Question 26):
+--- SYSTEM ---
+You are an AI that generates perfect model answers for exam questions.
+
+Your goal is to provide a CLEAN, MINIMALIST model answer that shows only the necessary steps to earn full marks according to the marking scheme.
+
+## Performance Rules
+1. **Be Concise**: Do not provide long pedagogical explanations. Show the working and the final answer only.
+2. **Direct Adherence**: Match the marking scheme's logic exactly.
+3. **Internal Logic**: For questions with parts (a, b, c), provide the answer for each part clearly.
+
+## Response Format (RAW HTML ONLY)
+The system displays the main question header (e.g., "Question 17 [3 marks]"). You are responsible for the question text and the answers.
+
+### Formatting Rules (STRICT)
+1. **NO Markdown:** Do NOT use markdown code blocks (e.g., ```html) or markdown bold. Use RAW HTML only.
+2. **Escape HTML Entities (CRITICAL):** You MUST escape all less-than and greater-than signs in ALL text to prevent browser parsing errors. 
+   - ALWAYS write "<" as "&lt;"
+   - ALWAYS write ">" as "&gt;"
+   - Example: "$30 &lt; x &lt; 300$"
+3. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+4. **Question Structure (CRITICAL):**
+   - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
+   - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
+   - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
+5. **Tables:** Use standard HTML <table> tags with <table class="model_table">.
+6. **Answer Blocks:** Wrap EACH answer (one per sub-question) in a <div class="model_answer">...</div> tag. Use <br> for line breaks.
+7. **Mark Codes:** Wrap all mark codes (e.g., [M1]) in a <span class="marking-code">...</span> tag.
+
+### Diagram Handling (JSON Extraction)
+When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
+
+**STRICT EXTRACTION RULES:**
+1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+2. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+3. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+4. **FALLBACK MANDATE**: If dimensions or locations are unclear, MUST use `{ "type": "fallback", "description": "..." }`.
+5. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: `type`, `x_min`, `x_max`, `y_min`, `y_max`, `layers`.
+   - **Layer Keys**: `type` (e.g., "shape"), `points` (Array of [x, y] or [x, y, "label"]), `color`, `label`.
+
+**Supported Types & Abstract Schemas:**
+1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
+2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
+3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
+6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
+7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+
+**Formatting the Output:**
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+
+### Example Response (Sub-questions & Fallback)
+<span class="model_question">
+A mobile phone takes 2 hours to charge.
+<script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A: Current flow vs Time"}
+</script>
+</span>
+
+<span class="model_question">
+15a) Estimate the time when current starts to decrease.
+</span>
+<div class="model_answer">
+$10.26$ am <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15b) Estimate percentage charge when current is 40%.
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+CRITICAL: Do NOT repeat the "Question X" header. Preserve all (a, b, c) labels. Every text segment MUST be inside a valid tag.
+🚫 CRITICAL: DO NOT OUTPUT "YOUR WORK:" IN YOUR RESPONSE!
+
+--- USER ---
+# TASK DATA
+QUESTION NUMBER: 26
+MAX MARKS: 2
+
+## QUESTION TEXT
+In parts (a) and (b) the sketch of $y=5^{x}$ is shown as a dashed line.
+
+26a) On the axes below, sketch the graph of $y=-5^{x}$
+
+26b) On the axes below, sketch the graph of $y=5^{x}-1$
+
+## MARKING SCHEME
+- B1: Reflection of given graph in the x-axis (mark intention)
+- B1: Translation downwards of given graph which must go through (0, 0) (mark intention)
+
+Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 3):
+<span class="model_question">
+Expand $6x^{2}(x^{3}+2)$ 
+ Circle your answer.
+</span>
+<div class="model_answer">
+$6x^{5}+12x^{2}$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 19):
+<span class="model_question">
+A circle has centre (0, 0) and passes through (0, 11) 
+ Write down the equation of the circle.
+</span>
+<div class="model_answer">
+$x^{2}+y^{2}=121$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 9):
+<span class="model_question">
+P and Q are points. 
+ The x-coordinate of Q is 4 more than the x-coordinate of P. 
+ The y-coordinate of Q is 5 less than the y-coordinate of P. 
+ Work out the gradient of the straight line through P and Q.
+</span>
+<div class="model_answer">
+$-\frac{5}{4}$ <span class="marking-code">[B2]</span> <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 2):
+<span class="model_question">
+What is $1.8\times10^{-4}$ as an ordinary number? 
+ Circle your answer.
+</span>
+<div class="model_answer">
+$0.00018$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 4):
+<span class="model_question">
+$30&lt;x&lt;300$
+x is 200% of y
+Circle the correct inequality.
+</span>
+<div class="model_answer">
+$15&lt;y&lt;150$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 18):
+<span class="model_question">
+Rearrange $9m+4(2m-1)=p^{2}+pm$ to make m the subject.
+</span>
+<div class="model_answer">
+$9m+8m-4=p^{2}+pm$ <span class="marking-code">[B1]</span><br>
+$9m+8m-pm=p^{2}+4$ <span class="marking-code">[M1]</span><br>
+$m(17-p)=p^{2}+4$ <span class="marking-code">[M1dep]</span><br>
+$m=\frac{p^{2}+4}{17-p}$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 10):
+<span class="model_question">
+Here are the results after 250 spins of a coin. 
+ Heads 128 
+ Tails 122 
+ The coin is spun an extra 50 times. 
+ After all 300 spins, the relative frequency of Heads is 0.49 
+ For the extra 50 spins, work out 
+ number of Heads : number of Tails
+</span>
+<div class="model_answer">
+$0.49\times(250+50) = 147$ <span class="marking-code">[M1]</span><br>
+$147-128 = 19$ <span class="marking-code">[M1dep]</span><br>
+$19:31$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 1):
+<span class="model_question">
+Circle the value of x. 
+ $2^{x}=32$
+</span>
+<div class="model_answer">
+$5$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 26):
+<span class="model_question">
+In parts (a) and (b) the sketch of $y=5^{x}$ is shown as a dashed line.
+</span>
+
+<span class="model_question">
+26a) On the axes below, sketch the graph of $y=-5^{x}$
+</span>
+<div class="model_answer">
+<span class="marking-code">[B1]</span> Reflection of given graph in the x-axis (mark intention)
+</div>
+
+<span class="model_question">
+26b) On the axes below, sketch the graph of $y=5^{x}-1$
+</span>
+<div class="model_answer">
+<span class="marking-code">[B1]</span> Translation downwards of given graph which must go through $(0, 0)$ (mark intention)
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 8):
+<span class="model_question">
+Here is some information about the members of clubs A and B. 
+ <script type="application/json" class="ai-diagram-data">
+{
+  "type": "fallback",
+  "description": "Table: Club A, Number of members 24, Mean height 1.8 m; Club B, Number of members 20, Mean height 1.92 m"
+}
+</script>
+ Work out $\frac{\text{total height of the members of club A}}{\text{total height of the members of club B}}$ 
+ Give your answer as a decimal.
+</span>
+<div class="model_answer">
+$24 \times 1.8 = 43.2$<br>
+$20 \times 1.92 = 38.4$ <span class="marking-code">[M1]</span><br>
+$\frac{43.2}{38.4} = 1.125$ <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 6):
+<span class="model_question">
+Joe, Kim and Lisa each have an amount of money. 
+ Joe has £72 
+ Joe's amount : Kim's amount = 6 : 5 
+ Lisa's amount is $1\frac{1}{2}$ times Joe's amount. 
+ Show that, in total, they have less than £250
+</span>
+
+<div class="model_answer">
+Kim: $72 \div 6 \times 5 = 60$ <span class="marking-code">[M1]</span><br>
+Lisa: $72 \times 1.5 = 108$ <span class="marking-code">[M1]</span><br>
+Total: $72 + 60 + 108 = 240$ <span class="marking-code">[A1]</span><br>
+$240 &lt; 250$
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 22):
+<span class="model_question">
+Simplify fully 
+ $\frac{2}{x+1}+\frac{7-5x}{3}+4x$ 
+ Give your answer as a single fraction.
+</span>
+<div class="model_answer">
+$\frac{2}{x+1}+\frac{7-5x}{3}+4x = \frac{6}{3(x+1)}+\frac{(7-5x)(x+1)}{3(x+1)}+\frac{12x(x+1)}{3(x+1)}$ <span class="marking-code">[M1]</span><br>
+$= \frac{6+(7-5x)(x+1)+12x(x+1)}{3(x+1)}$ <span class="marking-code">[M1dep]</span><br>
+$= \frac{6+7x+7-5x^2-5x+12x^2+12x}{3(x+1)}$ <span class="marking-code">[M1dep]</span><br>
+$= \frac{7x^2+14x+13}{3(x+1)}$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 5):
+<span class="model_question">
+ABCDE is a pentagon. 
+ <script type="application/json" class="ai-diagram-data">
+{
+  "type": "fallback",
+  "description": "Diagram of pentagon ABCDE. Horizontal top side AE = 14 cm. Horizontal bottom side BC = 20 cm. Vertical height between AE and BC is 11 cm. Side CD = 7 cm. Side DE = 10 cm. Angle CDE is 90 degrees. Not drawn accurately."
+}
+</script> 
+ Work out the area of the pentagon.
+</span>
+<div class="model_answer">
+$\frac{1}{2}\times(14+20)\times11$ <span class="marking-code">[M1]</span><br>
+$\frac{1}{2}\times10\times7\times sin~90$ <span class="marking-code">[M1]</span><br>
+$222$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 12):
+<span class="model_question">
+Triangles ABC and DEF are shown on a grid.
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "coordinate_grid",
+  "x_min": -6,
+  "x_max": 6,
+  "y_min": -5,
+  "y_max": 7,
+  "layers": [
+    {
+      "type": "shape",
+      "points": [
+        [-4, 1, "A"],
+        [-5, -3, "B"],
+        [-2, -3, "C"]
+      ],
+      "label": "ABC"
+    },
+    {
+      "type": "shape",
+      "points": [
+        [2, 5, "D"],
+        [1, 1, "E"],
+        [4, 1, "F"]
+      ],
+      "label": "DEF"
+    }
+  ]
+}
+</script>
+Describe a single transformation that shows the triangles are congruent.
+</span>
+<div class="model_answer">
+Translation <span class="marking-code">[B1]</span><br>
+$\binom{6}{4}$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 17):
+<span class="model_question">
+A, B and C are points on a circle, centre O. 
+ BD is a tangent to the circle. 
+ OCD is a straight line. 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Diagram showing a circle with tangent BD. Triangle ABC inside. Angle BAC = 32 degrees. OCD is a straight line from centre O. Angle CBD is labeled x. Not drawn accurately."}
+</script>
+ Work out the size of angle $x$.
+</span>
+<div class="model_answer">
+$\angle BOD = 2 \times 32 = 64$ <span class="marking-code">[M1]</span><br>
+$\angle OBD = 90$ <span class="marking-code">[M1]</span><br>
+$x = 90 - 64 = 26$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 16):
+<span class="model_question">
+16a) H is inversely proportional to the cube root of L. 
+ $H=7$ when $L=64$ 
+ Work out an equation connecting H and L.
+</span>
+<div class="model_answer">
+$H\propto\frac{1}{\sqrt[3]{L}}$ <span class="marking-code">[M1]</span><br>
+$k = 7 \times \sqrt[3]{64} = 7 \times 4$ <span class="marking-code">[M1dep]</span><br>
+$H=\frac{28}{\sqrt[3]{L}}$ <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+16b) Work out the value of H when $L=2744$
+</span>
+<div class="model_answer">
+$\frac{28}{\sqrt[3]{2744}}$ <span class="marking-code">[M1]</span><br>
+$2$ <span class="marking-code">[A1ft]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 21):
+<span class="model_question">
+Shape A is enlarged to shape B. 
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "coordinate_grid",
+  "x_min": -7,
+  "x_max": 7,
+  "y_min": -5,
+  "y_max": 6,
+  "layers": [
+    {
+      "type": "shape",
+      "points": [
+        [-6, 1, "A"],
+        [-4, 5, "B"],
+        [0, 1, "C"]
+      ],
+      "label": "A"
+    },
+    {
+      "type": "shape",
+      "points": [
+        [3, -2, "D"],
+        [6, -2, "E"],
+        [5, -4, "F"]
+      ],
+      "label": "B"
+    }
+  ]
+}
+</script>
+</span>
+
+<span class="model_question">
+21a) Circle the scale factor of the enlargement.
+</span>
+<div class="model_answer">
+$-\frac{1}{2}$ <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+21b) Write down the coordinates of the centre of enlargement.
+</span>
+<div class="model_answer">
+$(2,-1)$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 7):
+<span class="model_question">
+7a) Here is the rule for a sequence. 
+ After the first two terms, each term is the sum of the previous two terms 
+ The 1st term is 33 
+ The 2nd term is x 
+ The 4th term is 73 
+ Work out the value of x.
+</span>
+<div class="model_answer">
+$33+x$ <span class="marking-code">[M1]</span><br>
+$x+33+x=73$ <span class="marking-code">[M1dep]</span><br>
+$x=20$ <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+7b) An expression for the nth term of a different sequence is $n-n^{2}$ 
+ Ruth says, 
+ "All the terms will be negative because $n^{2}$ is always greater than n." 
+ Is she correct? 
+ Give a reason for your answer.
+</span>
+<div class="model_answer">
+No, because $1-1^{2}=0$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 20):
+<span class="model_question">
+There should be a train leaving a station every hour from 7 am 
+ No trains leave early. 
+ P(the first train leaves on time) = 0.9 
+ For all the other trains, 
+ if the previous train did leave on time, P(this train leaves on time) = 0.8 
+ if the previous train did not leave on time, P(this train leaves on time) = 0.65
+</span>
+
+<span class="model_question">
+20a) Work out P(the first three trains leave on time)
+</span>
+<div class="model_answer">
+$0.9 \times 0.8^{2}$ <span class="marking-code">[M1]</span><br>
+$0.576$ <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+20b) The 2 pm train does not leave on time. 
+ Work out P(exactly one of the next two trains does not leave on time)
+</span>
+<div class="model_answer">
+$(1-0.65) \times 0.65$ or $0.65 \times (1-0.8)$ <span class="marking-code">[M1]</span><br>
+$(1-0.65) \times 0.65 + 0.65 \times (1-0.8)$ <span class="marking-code">[M1dep]</span><br>
+$0.3575$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 11):
+<span class="model_question">
+Part of a running track is the arc of a semicircle joined to a straight line. 
+ The semicircle has diameter 45 metres. 
+ The straight line has length 75 metres. 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Diagram showing a semicircle arc with vertical diameter 45 m, leading into a horizontal straight line of 75 m. Not drawn accurately."}
+</script>
+ Abby runs once along this part of the track in 18 seconds. 
+ Work out her average speed. 
+ Give your answer to 2 significant figures.
+</span>
+<div class="model_answer">
+$\frac{1}{2} \times \pi \times 45$ <span class="marking-code">[M1]</span><br>
+$(0.5 \times \pi \times 45 + 75) \div 18$ <span class="marking-code">[M1]</span><br>
+$8.1$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 14):
+<span class="model_question">
+Here are two solid cubes, X and Y. 
+ The mass of X is 10.976 kg 
+ The area of each face of X is $784~cm^{2}$ 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Visual of two cubes X and Y."}
+</script>
+</span>
+
+<span class="model_question">
+14a) Zayan wants to know the density of Y. 
+ He assumes that Y is identical to X. 
+ What density should he get for Y? 
+ Give your answer in grams per cubic centimetre.
+</span>
+<div class="model_answer">
+$\sqrt{784} = 28$ <span class="marking-code">[M1]</span><br>
+$28^{3} = 21952$ <span class="marking-code">[M1dep]</span><br>
+$\frac{10.976}{21952} = 5 \times 10^{-4}$ <span class="marking-code">[M1dep]</span><br>
+$5 \times 10^{-4} \times 1000 = 0.5$ <br>
+$0.5 g/cm^{3}$ <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+14b) In fact, 
+ the mass of Y is less than the mass of X 
+ the area of each face of Y is greater than the area of each face of X. 
+ What does this mean about the actual density of Y? 
+ Tick one box.
+</span>
+<div class="model_answer">
+It is less than the answer to part (a) <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 25):
+<span class="model_question">
+Two sides of a triangle are measured to 1 decimal place. 
+ The angle between the sides is measured to the nearest degree. 
+ <script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+Work out the upper bound for the area of the triangle. 
+ You must show your working.
+</span>
+<div class="model_answer">
+$7.15$ or $7.25$ or $13.55$ or $13.65$ or $109.5$ or $110.5$ <span class="marking-code">[B1]</span><br>
+$7.25$ and $13.65$ and $109.5$ chosen <span class="marking-code">[B1]</span><br>
+$0.5 \times 7.25 \times 13.65 \times \sin(109.5)$ <span class="marking-code">[M1]</span><br>
+$46.6$ <span class="marking-code">[A1ft]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 24):
+<span class="model_question">
+On the same day, Kate buys a car for £14000 and a painting for £5000 The value of the car decreases by 35% in the first year, and then by 10% each year. The value of the painting increases by 4% each year. Show that the painting becomes worth more than the car during the fifth year.
+</span>
+<div class="model_answer">
+$0.65$, $0.9$, $1.04$ <span class="marking-code">[M1]</span><br>
+$14~000 \times 0.65 \times 0.9^{3} = 6633.90$ <span class="marking-code">[M1]</span><br>
+$6633.90 \times 0.9 = 5970.51$ <span class="marking-code">[M1dep]</span><br>
+$5000 \times 1.04^{4} = 5849.29$ <span class="marking-code">[M1]</span><br>
+$5000 \times 1.04^{5} = 6083.26$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 13):
+<span class="model_question">
+A fair, ordinary dice is rolled and a counter is taken at random from a bag. 
+ The tree diagram shows the probabilities. 
+ <script type="application/json" class="ai-diagram-data">
+{
+  "type": "tree_diagram",
+  "branches": [
+    { "from": "Even", "to": "Red", "prob": "0.1" },
+    { "from": "Even", "to": "Blue", "prob": "0.3" },
+    { "from": "Even", "to": "Green", "prob": "0.6" },
+    { "from": "Odd", "to": "Red", "prob": "0.1" },
+    { "from": "Odd", "to": "Blue", "prob": "0.3" },
+    { "from": "Odd", "to": "Green", "prob": "0.6" }
+  ]
+}
+</script>
+</span>
+
+<span class="model_question">
+13a) How do the probabilities show that all the counters in the bag are red, blue or green?
+</span>
+<div class="model_answer">
+The probabilities sum to $1$ (oe eg $0.1+0.3+0.6=1$) <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+13b) Circle the probability that the counter is red or blue.
+</span>
+<div class="model_answer">
+$0.4$ <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+13c) Circle the probability that the dice lands on an even number and the counter is blue.
+</span>
+<div class="model_answer">
+$0.15$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 23):
+<span class="model_question">
+Alec makes a bowl for dog food from a solid wooden cone. 
+ The sketches show how the bowl is made. 
+ The cone has radius 9 cm and perpendicular height 30 cm 
+ A smaller cone, with radius 6 cm, is removed. 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "composite_2d", "components": [{"type": "cone", "r": 9, "h": 30}, {"type": "cone", "r": 6, "h": 20}, {"type": "hemisphere", "r": 6}]}
+</script>
+ [Formula: Volume of a cone = $\frac{1}{3}\pi r^{2}h$] 
+ [Formula: Volume of a hemisphere = $\frac{2}{3}\pi r^{3}$] 
+ Work out the volume of the remaining wood that forms the bowl.
+</span>
+<div class="model_answer">
+$\frac{1}{3}\times9^{2}\times30\times\pi$ <span class="marking-code">[M1]</span><br>
+$\frac{2}{3}\times6^{3}\times\pi$ <span class="marking-code">[M1]</span><br>
+$30\times\frac{6}{9} = 20$ <span class="marking-code">[M1]</span><br>
+$\frac{1}{3}\times9^{2}\times30\times\pi - \frac{1}{3}\times6^{2}\times20\times\pi - \frac{2}{3}\times6^{3}\times\pi$ <span class="marking-code">[M1dep]</span><br>
+$426\pi$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 15):
+<span class="model_question">
+A mobile phone takes 2 hours to charge from empty. 
+ When the phone is being charged, the current flow into the phone 
+ • starts at full current flow (100%) 
+ • continues at full current flow for a period of time 
+ • gradually decreases until the phone is fully charged. 
+ This is shown on Graph A below. 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph A - Current flow (%) vs Charge time (mins). 100% flow until 26 mins, then curves down to 0% at 120 mins."}
+</script>
+ Graph B shows the percentage charge in the phone when charging from empty. 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Graph B - Charge in phone (%) vs Charge time (mins). Curve starting at (0,0), increasing steeply then leveling off towards 100% at 120 mins."}
+</script>
+</span>
+
+<span class="model_question">
+15a) Megan's phone is empty of charge. 
+ She starts to charge her phone at 10.00 am 
+ Using Graph A, estimate the time when the current flow starts to decrease.
+</span>
+<div class="model_answer">
+Vertical line drawn from correct point on graph to horizontal axis (or [$25$, $27$] implied) <span class="marking-code">[M1]</span><br>
+$10.26$ (am) <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+15b) Using Graph A and Graph B, estimate the percentage charge in the phone when the current flow is 40%
+</span>
+<div class="model_answer">
+$80$% <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+15c) Using Graph B, estimate the rate of increase in the percentage charge when the phone has 90% charge.
+</span>
+<div class="model_answer">
+Correct tangent drawn where charge is 90% <span class="marking-code">[M1]</span><br>
+Correct gradient for their tangent <span class="marking-code">[A1]</span>
+</div>
+
+💳 Deducted 0.69 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772829581540), remaining: 999995.16

@@ -1,0 +1,52 @@
+/* Diagram System Style Definitions */
+
+:root {
+    /* --- Diagram Theme (Light) --- */
+    --diagram-foreground: var(--text-primary);
+    --diagram-grid: var(--text-tertiary);
+    --diagram-background: transparent;
+    --diagram-shape-stroke: var(--icon-blue);
+    --diagram-shape-fill: var(--fill-blue);
+}
+
+html.dark {
+    /* --- Diagram Theme (Dark) --- */
+    --diagram-foreground: var(--text-primary);
+    --diagram-grid: var(--text-tertiary);
+    --diagram-background: transparent;
+    --diagram-shape-stroke: var(--text-white);
+    --diagram-shape-fill: rgba(255, 255, 255, 0.1);
+}
+
+/* Container for all diagrams */
+.model_diagram {
+    text-align: center;
+    margin: 20px 0;
+}
+
+/* SVG Styling */
+.ai-diagram-svg {
+    background: var(--diagram-background);
+    border-radius: 4px;
+}
+
+/* Fallback Diagram Box (Professional Reference) */
+.diagram-fallback-wrapper {
+    margin: 15px 0;
+    padding: 12px;
+    background: var(--fill-tsp-gray-main);
+    border-left: 4px solid var(--text-tertiary);
+    border-radius: 4px;
+    font-family: sans-serif;
+    font-size: 0.9em;
+    line-height: 1.4;
+    text-align: left;
+    color: var(--text-tertiary);
+}
+
+.diagram-fallback-wrapper strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.8em;
+    color: var(--text-tertiary);
+}
