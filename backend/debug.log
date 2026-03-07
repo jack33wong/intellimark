@@ -2,10 +2,12 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-🚀 [MODEL-ANSWER] Controller HIT! Request for paper: AQA 8300/3H November 2022  Higher Tier
-[EXAM-REF] Input "AQA 8300/3H November 2022  Higher Tier" is not a valid doc ID, proceeding to search.
-ℹ️ [EXAM-REF] Looking for paper via search: AQA 8300/3H November 2022  Higher Tier
-ℹ️ [EXAM-REF] Searching papers with variations: ["aqa 8300/3h november 2022  higher tier"]
+[PERF] getUserUnifiedSessions: Fetch 530ms, Process 5ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 536ms for 50 sessions (limit: 50)
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: AQA Mathematics 8300/3H • November 2022 • Higher Tier
+[EXAM-REF] Input "AQA Mathematics 8300/3H • November 2022 • Higher Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [EXAM-REF] Looking for paper via search: AQA Mathematics 8300/3H • November 2022 • Higher Tier
+ℹ️ [EXAM-REF] Searching papers with variations: ["aqa mathematics 8300/3h • november 2022 • higher tier","aqa maths 8300/3h • november 2022 • higher tier"]
 ℹ️ [EXAM-REF] Looking for scheme via Metadata: 8300/3H / November 2022 (Variations: ["November 2022","november 2022"])
 ✅ [EXAM-REF] Found scheme via Metadata Match: a3eb0c78-376d-4453-b3db-994531f3e6cf (November 2022)
 [MODEL-ANSWER] Found sub-marks for 7: 7a, 7b
@@ -61,11 +63,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -159,11 +163,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -257,11 +263,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -355,11 +363,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -454,11 +464,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -555,11 +567,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -658,11 +672,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -769,11 +785,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -871,11 +889,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -972,11 +992,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1077,11 +1099,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1182,11 +1206,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1282,11 +1308,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1389,11 +1417,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1504,11 +1534,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1621,11 +1653,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1726,11 +1760,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1829,11 +1865,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -1929,11 +1967,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2027,11 +2067,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2138,11 +2180,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2241,11 +2285,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2343,11 +2389,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2451,11 +2499,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2558,11 +2608,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2662,11 +2714,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: `{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }`
 2. **polygon**: `{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }`
-3. **function_graph**: `{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }`
-4. **coordinate_grid**: `{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }`
-5. **tree_diagram**: `{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }`
-6. **composite_2d**: `{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output `{ "type": "fallback", "description": "..." }`.
+3. **function_graph**: `{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with `sub_id` (e.g. "26a"). Use `purpose: "reference"` for base sketches and `purpose: "solution"` for final answers.
+4. **coordinate_grid**: `{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }`
+5. **tree_diagram**: `{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }`
+6. **composite_2d**: `{ "type": "composite_2d", "purpose": "solution", "components": [...] }`
+7. **fallback**: `{ "type": "fallback", "purpose": "solution", "description": "..." }`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -2707,11 +2761,11 @@ QUESTION NUMBER: 26
 MAX MARKS: 2
 
 ## QUESTION TEXT
-In parts (a) and (b) the sketch of $y=5^{x}$ is shown as a dashed line.
+Here is a sketch of the graph of $y=5^{x}$ [Diagram: Exponential growth curve $y=5^{x}$] In parts (a) and (b) the sketch of $y=5^{x}$ is shown as a dashed line.
 
-26a) On the axes below, sketch the graph of $y=-5^{x}$
+26a) On the axes below, sketch the graph of $y=-5^{x}$ [Diagram: Axes with dashed curve $y=5^{x}$]
 
-26b) On the axes below, sketch the graph of $y=5^{x}-1$
+26b) On the axes below, sketch the graph of $y=5^{x}-1$ [Diagram: Axes with dashed curve $y=5^{x}$]
 
 ## MARKING SCHEME
 - B1: Reflection of given graph in the x-axis (mark intention)
@@ -2728,13 +2782,14 @@ Expand $6x^{2}(x^{3}+2)$
 $6x^{5}+12x^{2}$ <span class="marking-code">[B1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 19):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 4):
 <span class="model_question">
-A circle has centre (0, 0) and passes through (0, 11) 
- Write down the equation of the circle.
+$30&lt;x&lt;300$
+x is 200% of y
+Circle the correct inequality.
 </span>
 <div class="model_answer">
-$x^{2}+y^{2}=121$ <span class="marking-code">[B1]</span>
+$15&lt;y&lt;150$ <span class="marking-code">[B1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 9):
@@ -2745,7 +2800,25 @@ P and Q are points.
  Work out the gradient of the straight line through P and Q.
 </span>
 <div class="model_answer">
-$-\frac{5}{4}$ <span class="marking-code">[B2]</span> <span class="marking-code">[B1]</span>
+$\frac{-5}{4}$ <span class="marking-code">[B2]</span> <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 19):
+<span class="model_question">
+A circle has centre (0, 0) and passes through (0, 11) 
+ Write down the equation of the circle.
+</span>
+<div class="model_answer">
+$x^{2}+y^{2}=121$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 1):
+<span class="model_question">
+Circle the value of x. 
+ $2^{x}=32$
+</span>
+<div class="model_answer">
+$5$ <span class="marking-code">[B1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 2):
@@ -2755,16 +2828,6 @@ What is $1.8\times10^{-4}$ as an ordinary number?
 </span>
 <div class="model_answer">
 $0.00018$ <span class="marking-code">[B1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 4):
-<span class="model_question">
-$30&lt;x&lt;300$
-x is 200% of y
-Circle the correct inequality.
-</span>
-<div class="model_answer">
-$15&lt;y&lt;150$ <span class="marking-code">[B1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 18):
@@ -2789,48 +2852,16 @@ Here are the results after 250 spins of a coin.
  number of Heads : number of Tails
 </span>
 <div class="model_answer">
-$0.49\times(250+50) = 147$ <span class="marking-code">[M1]</span><br>
-$147-128 = 19$ <span class="marking-code">[M1dep]</span><br>
+$0.49 \times (250 + 50) = 147$ <span class="marking-code">[M1]</span><br>
+$147 - 128 = 19$ <span class="marking-code">[M1dep]</span><br>
+$50 - 19 = 31$<br>
 $19:31$ <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 1):
-<span class="model_question">
-Circle the value of x. 
- $2^{x}=32$
-</span>
-<div class="model_answer">
-$5$ <span class="marking-code">[B1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 26):
-<span class="model_question">
-In parts (a) and (b) the sketch of $y=5^{x}$ is shown as a dashed line.
-</span>
-
-<span class="model_question">
-26a) On the axes below, sketch the graph of $y=-5^{x}$
-</span>
-<div class="model_answer">
-<span class="marking-code">[B1]</span> Reflection of given graph in the x-axis (mark intention)
-</div>
-
-<span class="model_question">
-26b) On the axes below, sketch the graph of $y=5^{x}-1$
-</span>
-<div class="model_answer">
-<span class="marking-code">[B1]</span> Translation downwards of given graph which must go through $(0, 0)$ (mark intention)
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 8):
 <span class="model_question">
 Here is some information about the members of clubs A and B. 
- <script type="application/json" class="ai-diagram-data">
-{
-  "type": "fallback",
-  "description": "Table: Club A, Number of members 24, Mean height 1.8 m; Club B, Number of members 20, Mean height 1.92 m"
-}
-</script>
+ <table class="model_table"><tr><th></th><th>Club A</th><th>Club B</th></tr><tr><td>Number of members</td><td>24</td><td>20</td></tr><tr><td>Mean height</td><td>1.8 m</td><td>1.92 m</td></tr></table>
  Work out $\frac{\text{total height of the members of club A}}{\text{total height of the members of club B}}$ 
  Give your answer as a decimal.
 </span>
@@ -2848,7 +2879,6 @@ Joe, Kim and Lisa each have an amount of money.
  Lisa's amount is $1\frac{1}{2}$ times Joe's amount. 
  Show that, in total, they have less than £250
 </span>
-
 <div class="model_answer">
 Kim: $72 \div 6 \times 5 = 60$ <span class="marking-code">[M1]</span><br>
 Lisa: $72 \times 1.5 = 108$ <span class="marking-code">[M1]</span><br>
@@ -2856,73 +2886,18 @@ Total: $72 + 60 + 108 = 240$ <span class="marking-code">[A1]</span><br>
 $240 &lt; 250$
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 22):
-<span class="model_question">
-Simplify fully 
- $\frac{2}{x+1}+\frac{7-5x}{3}+4x$ 
- Give your answer as a single fraction.
-</span>
-<div class="model_answer">
-$\frac{2}{x+1}+\frac{7-5x}{3}+4x = \frac{6}{3(x+1)}+\frac{(7-5x)(x+1)}{3(x+1)}+\frac{12x(x+1)}{3(x+1)}$ <span class="marking-code">[M1]</span><br>
-$= \frac{6+(7-5x)(x+1)+12x(x+1)}{3(x+1)}$ <span class="marking-code">[M1dep]</span><br>
-$= \frac{6+7x+7-5x^2-5x+12x^2+12x}{3(x+1)}$ <span class="marking-code">[M1dep]</span><br>
-$= \frac{7x^2+14x+13}{3(x+1)}$ <span class="marking-code">[A1]</span>
-</div>
-
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 5):
 <span class="model_question">
 ABCDE is a pentagon. 
  <script type="application/json" class="ai-diagram-data">
-{
-  "type": "fallback",
-  "description": "Diagram of pentagon ABCDE. Horizontal top side AE = 14 cm. Horizontal bottom side BC = 20 cm. Vertical height between AE and BC is 11 cm. Side CD = 7 cm. Side DE = 10 cm. Angle CDE is 90 degrees. Not drawn accurately."
-}
+{"type": "fallback", "description": "Diagram of pentagon ABCDE. Horizontal top side AE = 14 cm. Horizontal bottom side BC = 20 cm. Vertical height between AE and BC is 11 cm. Side CD = 7 cm. Side DE = 10 cm. Angle CDE is 90 degrees. Not drawn accurately."}
 </script> 
  Work out the area of the pentagon.
 </span>
 <div class="model_answer">
 $\frac{1}{2}\times(14+20)\times11$ <span class="marking-code">[M1]</span><br>
 $\frac{1}{2}\times10\times7\times sin~90$ <span class="marking-code">[M1]</span><br>
-$222$ <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 12):
-<span class="model_question">
-Triangles ABC and DEF are shown on a grid.
-<script type="application/json" class="ai-diagram-data">
-{
-  "type": "coordinate_grid",
-  "x_min": -6,
-  "x_max": 6,
-  "y_min": -5,
-  "y_max": 7,
-  "layers": [
-    {
-      "type": "shape",
-      "points": [
-        [-4, 1, "A"],
-        [-5, -3, "B"],
-        [-2, -3, "C"]
-      ],
-      "label": "ABC"
-    },
-    {
-      "type": "shape",
-      "points": [
-        [2, 5, "D"],
-        [1, 1, "E"],
-        [4, 1, "F"]
-      ],
-      "label": "DEF"
-    }
-  ]
-}
-</script>
-Describe a single transformation that shows the triangles are congruent.
-</span>
-<div class="model_answer">
-Translation <span class="marking-code">[B1]</span><br>
-$\binom{6}{4}$ <span class="marking-code">[B1]</span>
+$187 + 35 = 222$ <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 17):
@@ -2933,7 +2908,7 @@ A, B and C are points on a circle, centre O.
  <script type="application/json" class="ai-diagram-data">
 {"type": "fallback", "description": "Diagram showing a circle with tangent BD. Triangle ABC inside. Angle BAC = 32 degrees. OCD is a straight line from centre O. Angle CBD is labeled x. Not drawn accurately."}
 </script>
- Work out the size of angle $x$.
+ Work out the size of angle x.
 </span>
 <div class="model_answer">
 $\angle BOD = 2 \times 32 = 64$ <span class="marking-code">[M1]</span><br>
@@ -2941,24 +2916,68 @@ $\angle OBD = 90$ <span class="marking-code">[M1]</span><br>
 $x = 90 - 64 = 26$ <span class="marking-code">[A1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 16):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 11):
 <span class="model_question">
-16a) H is inversely proportional to the cube root of L. 
- $H=7$ when $L=64$ 
- Work out an equation connecting H and L.
+Part of a running track is the arc of a semicircle joined to a straight line. 
+ The semicircle has diameter 45 metres. 
+ The straight line has length 75 metres. 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Diagram showing a semicircle arc with vertical diameter 45 m, leading into a horizontal straight line of 75 m. Not drawn accurately."}
+</script>
+ Abby runs once along this part of the track in 18 seconds. 
+ Work out her average speed. 
+ Give your answer to 2 significant figures.
 </span>
 <div class="model_answer">
-$H\propto\frac{1}{\sqrt[3]{L}}$ <span class="marking-code">[M1]</span><br>
-$k = 7 \times \sqrt[3]{64} = 7 \times 4$ <span class="marking-code">[M1dep]</span><br>
-$H=\frac{28}{\sqrt[3]{L}}$ <span class="marking-code">[A1]</span>
+$\frac{0.5 \times \pi \times 45 + 75}{18}$ <span class="marking-code">[M1]</span> <span class="marking-code">[M1]</span>
+<br>
+$8.1$ <span class="marking-code">[A1]</span>
 </div>
 
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 12):
 <span class="model_question">
-16b) Work out the value of H when $L=2744$
+Triangles ABC and DEF are shown on a grid.
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "coordinate_grid",
+  "purpose": "solution",
+  "sub_id": "12",
+  "x_min": -6,
+  "x_max": 6,
+  "y_min": -4,
+  "y_max": 6,
+  "layers": [
+    {
+      "type": "shape",
+      "points": [
+        [-4, 1],
+        [-5, -3],
+        [-2, -3],
+        [-4, 1]
+      ],
+      "color": "blue",
+      "label": "ABC"
+    },
+    {
+      "type": "shape",
+      "points": [
+        [2, 5],
+        [1, 1],
+        [4, 1],
+        [2, 5]
+      ],
+      "color": "red",
+      "label": "DEF"
+    }
+  ]
+}
+</script>
+Describe a single transformation that shows the triangles are congruent.
 </span>
 <div class="model_answer">
-$\frac{28}{\sqrt[3]{2744}}$ <span class="marking-code">[M1]</span><br>
-$2$ <span class="marking-code">[A1ft]</span>
+Translation <span class="marking-code">[B1]</span>
+<br>
+$\binom{6}{4}$ <span class="marking-code">[B2]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 21):
@@ -2967,27 +2986,27 @@ Shape A is enlarged to shape B.
 <script type="application/json" class="ai-diagram-data">
 {
   "type": "coordinate_grid",
-  "x_min": -7,
-  "x_max": 7,
-  "y_min": -5,
-  "y_max": 6,
+  "purpose": "solution",
+  "sub_id": "21",
   "layers": [
     {
       "type": "shape",
       "points": [
-        [-6, 1, "A"],
-        [-4, 5, "B"],
-        [0, 1, "C"]
+        [-6, 1],
+        [-4, 5],
+        [0, 1]
       ],
+      "color": "blue",
       "label": "A"
     },
     {
       "type": "shape",
       "points": [
-        [3, -2, "D"],
-        [6, -2, "E"],
-        [5, -4, "F"]
+        [3, -2],
+        [6, -2],
+        [5, -4]
       ],
+      "color": "red",
       "label": "B"
     }
   ]
@@ -3007,6 +3026,20 @@ $-\frac{1}{2}$ <span class="marking-code">[B1]</span>
 </span>
 <div class="model_answer">
 $(2,-1)$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 22):
+<span class="model_question">
+Simplify fully 
+ $\frac{2}{x+1}+\frac{7-5x}{3}+4x$ 
+ Give your answer as a single fraction.
+</span>
+
+<div class="model_answer">
+$\frac{2}{x+1}+\frac{7-5x}{3}+4x = \frac{6}{3(x+1)}+\frac{(7-5x)(x+1)}{3(x+1)}+\frac{12x(x+1)}{3(x+1)}$ <span class="marking-code">[M1]</span><br>
+$= \frac{6+(7-5x)(x+1)+12x(x+1)}{3(x+1)}$ <span class="marking-code">[M1dep]</span><br>
+$= \frac{6+7x+7-5x^2-5x+12x^2+12x}{3(x+1)}$ <span class="marking-code">[M1dep]</span><br>
+$= \frac{7x^{2}+14x+13}{3(x+1)}$ <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 7):
@@ -3058,112 +3091,37 @@ $0.576$ <span class="marking-code">[A1]</span>
  Work out P(exactly one of the next two trains does not leave on time)
 </span>
 <div class="model_answer">
-$(1-0.65) \times 0.65$ or $0.65 \times (1-0.8)$ <span class="marking-code">[M1]</span><br>
-$(1-0.65) \times 0.65 + 0.65 \times (1-0.8)$ <span class="marking-code">[M1dep]</span><br>
+$(1-0.65)\times0.65$ or $0.65\times(1-0.8)$ <span class="marking-code">[M1]</span><br>
+$(1-0.65)\times0.65+0.65\times(1-0.8)$ <span class="marking-code">[M1dep]</span><br>
 $0.3575$ <span class="marking-code">[A1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 11):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 16):
 <span class="model_question">
-Part of a running track is the arc of a semicircle joined to a straight line. 
- The semicircle has diameter 45 metres. 
- The straight line has length 75 metres. 
- <script type="application/json" class="ai-diagram-data">
-{"type": "fallback", "description": "Diagram showing a semicircle arc with vertical diameter 45 m, leading into a horizontal straight line of 75 m. Not drawn accurately."}
-</script>
- Abby runs once along this part of the track in 18 seconds. 
- Work out her average speed. 
- Give your answer to 2 significant figures.
+16a) H is inversely proportional to the cube root of L. 
+ $H=7$ when $L=64$ 
+ Work out an equation connecting H and L.
 </span>
 <div class="model_answer">
-$\frac{1}{2} \times \pi \times 45$ <span class="marking-code">[M1]</span><br>
-$(0.5 \times \pi \times 45 + 75) \div 18$ <span class="marking-code">[M1]</span><br>
-$8.1$ <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 14):
-<span class="model_question">
-Here are two solid cubes, X and Y. 
- The mass of X is 10.976 kg 
- The area of each face of X is $784~cm^{2}$ 
- <script type="application/json" class="ai-diagram-data">
-{"type": "fallback", "description": "Visual of two cubes X and Y."}
-</script>
-</span>
-
-<span class="model_question">
-14a) Zayan wants to know the density of Y. 
- He assumes that Y is identical to X. 
- What density should he get for Y? 
- Give your answer in grams per cubic centimetre.
-</span>
-<div class="model_answer">
-$\sqrt{784} = 28$ <span class="marking-code">[M1]</span><br>
-$28^{3} = 21952$ <span class="marking-code">[M1dep]</span><br>
-$\frac{10.976}{21952} = 5 \times 10^{-4}$ <span class="marking-code">[M1dep]</span><br>
-$5 \times 10^{-4} \times 1000 = 0.5$ <br>
-$0.5 g/cm^{3}$ <span class="marking-code">[A1]</span>
+$H \propto \frac{1}{\sqrt[3]{L}}$ <span class="marking-code">[M1]</span><br>
+$k = 7 \times \sqrt[3]{64} = 7 \times 4 = 28$ <span class="marking-code">[M1dep]</span><br>
+$H = \frac{28}{\sqrt[3]{L}}$ <span class="marking-code">[A1]</span>
 </div>
 
 <span class="model_question">
-14b) In fact, 
- the mass of Y is less than the mass of X 
- the area of each face of Y is greater than the area of each face of X. 
- What does this mean about the actual density of Y? 
- Tick one box.
+16b) Work out the value of H when $L=2744$
 </span>
 <div class="model_answer">
-It is less than the answer to part (a) <span class="marking-code">[B1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 25):
-<span class="model_question">
-Two sides of a triangle are measured to 1 decimal place. 
- The angle between the sides is measured to the nearest degree. 
- <script type="application/json" class="ai-diagram-data">
-{
-  "type": "triangle",
-  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
-}
-</script>
-Work out the upper bound for the area of the triangle. 
- You must show your working.
-</span>
-<div class="model_answer">
-$7.15$ or $7.25$ or $13.55$ or $13.65$ or $109.5$ or $110.5$ <span class="marking-code">[B1]</span><br>
-$7.25$ and $13.65$ and $109.5$ chosen <span class="marking-code">[B1]</span><br>
-$0.5 \times 7.25 \times 13.65 \times \sin(109.5)$ <span class="marking-code">[M1]</span><br>
-$46.6$ <span class="marking-code">[A1ft]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 24):
-<span class="model_question">
-On the same day, Kate buys a car for £14000 and a painting for £5000 The value of the car decreases by 35% in the first year, and then by 10% each year. The value of the painting increases by 4% each year. Show that the painting becomes worth more than the car during the fifth year.
-</span>
-<div class="model_answer">
-$0.65$, $0.9$, $1.04$ <span class="marking-code">[M1]</span><br>
-$14~000 \times 0.65 \times 0.9^{3} = 6633.90$ <span class="marking-code">[M1]</span><br>
-$6633.90 \times 0.9 = 5970.51$ <span class="marking-code">[M1dep]</span><br>
-$5000 \times 1.04^{4} = 5849.29$ <span class="marking-code">[M1]</span><br>
-$5000 \times 1.04^{5} = 6083.26$ <span class="marking-code">[A1]</span>
+$H = \frac{28}{\sqrt[3]{2744}}$ <span class="marking-code">[M1]</span><br>
+$H = \frac{28}{14} = 2$ <span class="marking-code">[A1ft]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 13):
 <span class="model_question">
 A fair, ordinary dice is rolled and a counter is taken at random from a bag. 
  The tree diagram shows the probabilities. 
- <script type="application/json" class="ai-diagram-data">
-{
-  "type": "tree_diagram",
-  "branches": [
-    { "from": "Even", "to": "Red", "prob": "0.1" },
-    { "from": "Even", "to": "Blue", "prob": "0.3" },
-    { "from": "Even", "to": "Green", "prob": "0.6" },
-    { "from": "Odd", "to": "Red", "prob": "0.1" },
-    { "from": "Odd", "to": "Blue", "prob": "0.3" },
-    { "from": "Odd", "to": "Green", "prob": "0.6" }
-  ]
-}
+<script type="application/json" class="ai-diagram-data">
+{"type": "tree_diagram", "purpose": "solution", "sub_id": "13", "branches": []}
 </script>
 </span>
 
@@ -3188,6 +3146,61 @@ $0.4$ <span class="marking-code">[B1]</span>
 $0.15$ <span class="marking-code">[B1]</span>
 </div>
 
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 14):
+<span class="model_question">
+Here are two solid cubes, X and Y. 
+ The mass of X is 10.976 kg 
+ The area of each face of X is $784~cm^{2}$ 
+ <script type="application/json" class="ai-diagram-data">
+{"type": "fallback", "description": "Visual of two cubes X and Y."}
+</script>
+</span>
+
+<span class="model_question">
+14a) Zayan wants to know the density of Y. 
+ He assumes that Y is identical to X. 
+ What density should he get for Y? 
+ Give your answer in grams per cubic centimetre.
+</span>
+<div class="model_answer">
+$\sqrt{784} = 28$ <span class="marking-code">[M1]</span><br>
+$28^{3} = 21952$ <span class="marking-code">[M1dep]</span><br>
+$10.976 \div 21952 = 0.0005$ <span class="marking-code">[M1dep]</span><br>
+$0.0005 \times 1000 = 0.5$ <br>
+$0.5 g/cm^{3}$ <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+14b) In fact, 
+ the mass of Y is less than the mass of X 
+ the area of each face of Y is greater than the area of each face of X. 
+ What does this mean about the actual density of Y? 
+ Tick one box.
+</span>
+<div class="model_answer">
+It is less than the answer to part (a) <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 25):
+<span class="model_question">
+Two sides of a triangle are measured to 1 decimal place. 
+ The angle between the sides is measured to the nearest degree. 
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
+}
+</script>
+ Work out the upper bound for the area of the triangle. 
+ You must show your working.
+</span>
+<div class="model_answer">
+$7.15$ or $7.25$ or $13.55$ or $13.65$ or $109.5$ or $110.5$ <span class="marking-code">[B1]</span><br>
+$7.25$ and $13.65$ and $109.5$ chosen <span class="marking-code">[B1]</span><br>
+$0.5 \times 7.25 \times 13.65 \times \sin(109.5)$ <span class="marking-code">[M1]</span><br>
+$46.6$ <span class="marking-code">[A1ft]</span>
+</div>
+
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 23):
 <span class="model_question">
 Alec makes a bowl for dog food from a solid wooden cone. 
@@ -3195,8 +3208,9 @@ Alec makes a bowl for dog food from a solid wooden cone.
  The cone has radius 9 cm and perpendicular height 30 cm 
  A smaller cone, with radius 6 cm, is removed. 
  <script type="application/json" class="ai-diagram-data">
-{"type": "composite_2d", "components": [{"type": "cone", "r": 9, "h": 30}, {"type": "cone", "r": 6, "h": 20}, {"type": "hemisphere", "r": 6}]}
+{"type": "fallback", "description": "Diagrams showing a large cone r=9, h=30. A top section (smaller cone) is removed. Then a hemisphere r=6 is removed from the remaining frustum to create the bowl."}
 </script>
+<br>
  [Formula: Volume of a cone = $\frac{1}{3}\pi r^{2}h$] 
  [Formula: Volume of a hemisphere = $\frac{2}{3}\pi r^{3}$] 
  Work out the volume of the remaining wood that forms the bowl.
@@ -3209,6 +3223,37 @@ $\frac{1}{3}\times9^{2}\times30\times\pi - \frac{1}{3}\times6^{2}\times20\times\
 $426\pi$ <span class="marking-code">[A1]</span>
 </div>
 
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 24):
+<span class="model_question">
+On the same day, Kate buys 
+ a car for £14000 
+ and 
+ a painting for £5000 
+ The value of the car decreases by 35% in the first year, and then by 10% each year. 
+ The value of the painting increases by 4% each year. 
+ Show that the painting becomes worth more than the car during the fifth year.
+</span>
+
+<div class="model_answer">
+Car value year 4 = $14000 \times 0.65 \times 0.9^{3}$ <span class="marking-code">[M1]</span> <span class="marking-code">[M1]</span>
+<br>
+= £$4935.15$
+<br>
+Car value year 5 = $14000 \times 0.65 \times 0.9^{4}$ <span class="marking-code">[M1dep]</span>
+<br>
+= £$4441.635$
+<br>
+Painting value year 4 = $5000 \times 1.04^{4}$ <span class="marking-code">[M1]</span>
+<br>
+= £$5849.29$
+<br>
+Painting value year 5 = $5000 \times 1.04^{5}$
+<br>
+= £$6083.26$ <span class="marking-code">[A1]</span>
+<br>
+$6083.26 &gt; 4441.64$ so painting is worth more than the car during the fifth year.
+</div>
+
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 15):
 <span class="model_question">
 A mobile phone takes 2 hours to charge from empty. 
@@ -3217,11 +3262,11 @@ A mobile phone takes 2 hours to charge from empty.
  • continues at full current flow for a period of time 
  • gradually decreases until the phone is fully charged. 
  This is shown on Graph A below. 
- <script type="application/json" class="ai-diagram-data">
+<script type="application/json" class="ai-diagram-data">
 {"type": "fallback", "description": "Graph A - Current flow (%) vs Charge time (mins). 100% flow until 26 mins, then curves down to 0% at 120 mins."}
 </script>
  Graph B shows the percentage charge in the phone when charging from empty. 
- <script type="application/json" class="ai-diagram-data">
+<script type="application/json" class="ai-diagram-data">
 {"type": "fallback", "description": "Graph B - Charge in phone (%) vs Charge time (mins). Curve starting at (0,0), increasing steeply then leveling off towards 100% at 120 mins."}
 </script>
 </span>
@@ -3232,8 +3277,8 @@ A mobile phone takes 2 hours to charge from empty.
  Using Graph A, estimate the time when the current flow starts to decrease.
 </span>
 <div class="model_answer">
-Vertical line drawn from correct point on graph to horizontal axis (or [$25$, $27$] implied) <span class="marking-code">[M1]</span><br>
-$10.26$ (am) <span class="marking-code">[A1]</span>
+$10.26$ am <span class="marking-code">[A1]</span><br>
+(Vertical line drawn from correct point on graph to horizontal axis) <span class="marking-code">[M1]</span>
 </div>
 
 <span class="model_question">
@@ -3247,8 +3292,102 @@ $80$% <span class="marking-code">[B1]</span>
 15c) Using Graph B, estimate the rate of increase in the percentage charge when the phone has 90% charge.
 </span>
 <div class="model_answer">
-Correct tangent drawn where charge is 90% <span class="marking-code">[M1]</span><br>
-Correct gradient for their tangent <span class="marking-code">[A1]</span>
+(Correct tangent drawn where charge is 90%) <span class="marking-code">[M1]</span><br>
+$0.2$ (% per minute) <span class="marking-code">[A1]</span>
 </div>
 
-💳 Deducted 0.69 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772829581540), remaining: 999995.16
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 26):
+<span class="model_question">
+Here is a sketch of the graph of $y=5^{x}$
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "function_graph",
+  "purpose": "reference",
+  "sub_id": "26ref",
+  "equation_label": "y=5^x",
+  "x_min": -2,
+  "x_max": 2,
+  "layers": [
+    {
+      "type": "shape",
+      "points": [
+        [-2, 0.04],
+        [-1, 0.2],
+        [0, 1],
+        [1, 5],
+        [2, 25]
+      ],
+      "color": "blue",
+      "label": "y=5^x"
+    }
+  ]
+}
+</script>
+In parts (a) and (b) the sketch of $y=5^{x}$ is shown as a dashed line.
+</span>
+
+<span class="model_question">
+26a) On the axes below, sketch the graph of $y=-5^{x}$
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "function_graph",
+  "purpose": "solution",
+  "sub_id": "26a",
+  "equation_label": "y=-5^x",
+  "reflect": true,
+  "x_min": -2,
+  "x_max": 2,
+  "layers": [
+    {
+      "type": "shape",
+      "points": [
+        [-2, -0.04],
+        [-1, -0.2],
+        [0, -1],
+        [1, -5],
+        [2, -25]
+      ],
+      "color": "blue",
+      "label": "y=-5^x"
+    }
+  ]
+}
+</script>
+</span>
+<div class="model_answer">
+Reflection of given graph in the x-axis (mark intention) <span class="marking-code">[B1]</span>
+</div>
+
+<span class="model_question">
+26b) On the axes below, sketch the graph of $y=5^{x}-1$
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "function_graph",
+  "purpose": "solution",
+  "sub_id": "26b",
+  "equation_label": "y=5^x-1",
+  "shift": -1,
+  "x_min": -2,
+  "x_max": 2,
+  "layers": [
+    {
+      "type": "shape",
+      "points": [
+        [-2, -0.96],
+        [-1, -0.8],
+        [0, 0],
+        [1, 4],
+        [2, 24]
+      ],
+      "color": "blue",
+      "label": "y=5^x-1"
+    }
+  ]
+}
+</script>
+</span>
+<div class="model_answer">
+Translation downwards of given graph which must go through $(0, 0)$ (mark intention) <span class="marking-code">[B1]</span>
+</div>
+
+💳 Deducted 0.74 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1772916830152), remaining: 999978.83

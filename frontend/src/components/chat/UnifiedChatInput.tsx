@@ -142,11 +142,41 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       );
     }
 
-    // 2. Further filter by typing buffer
+    // 2. Further filter by typing buffer (V17.5 Vocabulary-Based Resilience)
     if (chatInput.trim().length > 0) {
-      filtered = filtered.filter(paper =>
-        paper.toLowerCase().includes(chatInput.toLowerCase())
-      );
+      const input = chatInput.trim();
+      const normalize = (t: string) => t.toLowerCase()
+        .replace(/\bmathematics\b/g, 'maths')
+        .replace(/\b(june|may|summer)\b/g, 'summer')
+        .replace(/[-,/]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Build vocabulary from all available metadata
+      const vocabulary = new Set<string>();
+      (metadata.boards || []).forEach(b => normalize(b).split(' ').forEach(w => w && vocabulary.add(w)));
+      (metadata.tiers || []).forEach(t => normalize(t).split(' ').forEach(w => w && vocabulary.add(w)));
+      (metadata.papers || []).forEach(p => {
+        // Paper names contain codes and series
+        normalize(p).split(' ').forEach(w => w && vocabulary.add(w));
+      });
+
+      const rawInputTokens = normalize(input).split(' ').filter(token => token.length > 0);
+      // Filter out tokens that aren't in our valid vocabulary
+      const inputTokens = Array.from(new Set(rawInputTokens.filter(k => vocabulary.has(k))));
+
+      if (inputTokens.length > 0) {
+        filtered = filtered.filter(p => {
+          const paperTokens = normalize(p).split(' ').filter(token => token.length > 0);
+          return inputTokens.every(it =>
+            paperTokens.some(pt => {
+              if (pt === it) return true;
+              if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
+              return pt.includes(it);
+            })
+          );
+        });
+      }
     }
 
     return filtered.sort((a: string, b: string) => {
@@ -261,56 +291,35 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const trimmed = input.trim();
     if (!trimmed) return [];
 
-    const monthMap: Record<string, string> = {
-      'jan': 'january', 'feb': 'february', 'mar': 'march', 'apr': 'april', 'may': 'may', 'jun': 'june',
-      'jul': 'july', 'aug': 'august', 'sep': 'september', 'oct': 'october', 'nov': 'november', 'dec': 'december'
-    };
+    const normalize = (t: string) => t.toLowerCase()
+      .replace(/\bmathematics\b/g, 'maths')
+      .replace(/\b(june|may|summer)\b/g, 'summer')
+      .replace(/[-,/]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    const normalizeToken = (token: string) => {
-      const lower = token.toLowerCase();
-      return monthMap[lower] || lower;
-    };
+    const vocabulary = new Set<string>();
+    (metadata.boards || []).forEach(b => normalize(b).split(' ').forEach(w => w && vocabulary.add(w)));
+    (metadata.tiers || []).forEach(t => normalize(t).split(' ').forEach(w => w && vocabulary.add(w)));
+    (metadata.papers || []).forEach(p => {
+      normalize(p).split(' ').forEach(w => w && vocabulary.add(w));
+    });
 
-    // Normalize and tokenize the input (split by non-alphanumeric)
-    const inputTokens = trimmed.toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter(token => token.length > 0)
-      .map(normalizeToken);
+    const rawInputTokens = normalize(trimmed).split(' ').filter(token => token.length > 0);
+    const inputTokens = Array.from(new Set(rawInputTokens.filter(k => vocabulary.has(k))));
 
     if (inputTokens.length === 0) return [];
 
-    // Generic keywords making matching too strict
-    const genericKeywords = ['paper', 'exam', 'specification', 'spec'];
-
     return metadata.papers.filter((p: string) => {
-      // Tokenize the paper description
-      const paperTokens = p.toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter(token => token.length > 0)
-        .map(normalizeToken);
+      const paperTokens = normalize(p).split(' ').filter(token => token.length > 0);
 
-      // A paper matches if it contains ALL tokens provided by the user
-      // [FIX] Leniency: Ignore generic keywords if they are not in the paperTokens
-      return inputTokens.every(inputToken => {
-        const isMatch = paperTokens.some(paperToken => {
-          if (paperToken === inputToken) return true;
-
-          const isPStrictNum = /^\d+$/.test(paperToken);
-          const isIStrictNum = /^\d+$/.test(inputToken);
-
-          if (isPStrictNum && isIStrictNum) {
-            // Numeric comparison (e.g., "1" matches "01")
-            return parseInt(paperToken) === parseInt(inputToken);
-          }
-
-          // Text comparison (e.g., "nov" matches "november")
-          return paperToken.includes(inputToken);
+      // Strict match on non-noisy keywords
+      return inputTokens.every(it => {
+        return paperTokens.some(pt => {
+          if (pt === it) return true;
+          if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
+          return pt.includes(it);
         });
-
-        if (!isMatch && genericKeywords.includes(inputToken)) {
-          return true; // Ignore if generic and not found
-        }
-        return isMatch;
       });
     }).sort((a: string, b: string) => {
       // Sort by Year and Month (Descending)

@@ -4,43 +4,112 @@
  */
 
 export class DiagramService {
+    private static renderedGlobalLabels = new Set<string>();
+
     public static process(content: string): string {
         if (!content || typeof content !== 'string') return content;
 
-        // Pass 1: Handle JSON-based Enterprise Diagrams
-        const jsonRegex = /<script type="application\/json" class="ai-diagram-data">([\s\S]*?)<\/script>/gi;
-        let processedContent = content.replace(jsonRegex, (match, jsonString) => {
-            try {
-                const data = JSON.parse(jsonString.trim());
+        // Reset global state for this message
+        this.renderedGlobalLabels.clear();
 
-                // Route to the correct drawing function
-                switch (data.type) {
-                    case 'triangle':
-                    case 'triangle_sas':
-                        return this.drawTriangle(data);
-                    case 'polygon':
-                        return this.drawPolygon(data);
-                    case 'function_graph':
-                        return this.drawFunctionGraph(data);
-                    case 'coordinate_grid':
-                        return this.drawCoordinateGrid(data);
-                    case 'tree_diagram':
-                        return this.drawTreeDiagram(data);
-                    case 'composite_2d':
-                        return this.drawComposite2D(data);
-                    case 'fallback':
-                        return this.renderFallbackBox(data.description || 'Complex 3D Diagram');
-                    default:
-                        return match;
+        // Pass 1: Identify and Deduplicate (v9.17)
+        // Find all JSON blocks first
+        const jsonRegex = /(?:<|&lt;)script\s+type=(?:"|&quot;)application\/json(?:"|&quot;)\s+class=(?:"|&quot;)ai-diagram-data(?:"|&quot;)(?:>|&gt;)([\s\S]*?)(?:<|&lt;)\/script(?:>|&gt;)/gi;
+
+        const diagramMap = new Map<string, { json: string, data: any, match: string }>();
+        const matches = Array.from(content.matchAll(jsonRegex));
+
+        matches.forEach(m => {
+            try {
+                const unescaped = m[1]
+                    .replace(/&quot;/g, '"')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&amp;/g, '&')
+                    .trim();
+                const data = JSON.parse(unescaped);
+                console.log(`[DiagramService] RAW JSON FOUND: ${unescaped}`);
+
+                const label = data.equation_label || data.description || '';
+                const key = `${data.sub_id || 'diag'}_${label}_${unescaped.length}`;
+                const existing = diagramMap.get(key);
+
+                console.log(`[DiagramService] KEY: ${key}, Replace existing: ${!existing}`);
+
+                // [Simple & Robust v9.18] Deduplication Rule:
+                // 1. If no existing, set current.
+                // 2. If current is "solution", it ALWAYS overrides "reference".
+                // 3. Otherwise, keep the most complex one.
+                let shouldReplace = !existing;
+                if (existing) {
+                    const existingIsSolution = existing.data.purpose === 'solution';
+                    const currentIsSolution = data.purpose === 'solution';
+
+                    if (currentIsSolution && !existingIsSolution) {
+                        shouldReplace = true;
+                    } else if (currentIsSolution === existingIsSolution) {
+                        const currentComplexity = (data.layers?.length || 0) + (data.shapes?.length || 0) + (data.branches?.length || 0);
+                        const existingComplexity = (existing.data.layers?.length || 0) + (existing.data.shapes?.length || 0) + (existing.data.branches?.length || 0);
+                        if (currentComplexity >= existingComplexity) {
+                            shouldReplace = true;
+                        }
+                    }
+                }
+
+                if (shouldReplace) {
+                    diagramMap.set(key, { json: unescaped, data, match: m[0] });
                 }
             } catch (e) {
-                console.error('[DiagramService] JSON Parsing Error:', e);
-                return match;
+                console.warn('[DiagramService] Pre-pass skip:', e);
             }
         });
 
-        // Pass 2: Handle Legacy Bracketed Hints (Safety Net)
-        // Catch [Type: ...], [Diagram: ...], or [Answer Diagram: ...]
+        // Pass 2: Replace matches
+        let processedContent = content;
+
+        // We replace each original match. 
+        // If it's the "winning" version in our map, render it. If not, hide it.
+        matches.forEach(m => {
+            const unescaped = m[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+            let replacement = "";
+
+            try {
+                const data = JSON.parse(unescaped);
+                const label = data.equation_label || data.description || '';
+                const key = `${data.sub_id || 'diag'}_${label}_${unescaped.length}`;
+                const winner = diagramMap.get(key);
+
+                if (winner && winner.json === unescaped) {
+                    // This is the chosen version to render
+                    switch (data.type) {
+                        case 'triangle':
+                        case 'triangle_sas':
+                            replacement = this.drawTriangle(data); break;
+                        case 'polygon':
+                            replacement = this.drawPolygon(data); break;
+                        case 'function_graph':
+                            replacement = this.drawFunctionGraph(data); break;
+                        case 'coordinate_grid':
+                            replacement = this.drawCoordinateGrid(data); break;
+                        case 'tree_diagram':
+                            replacement = this.drawTreeDiagram(data); break;
+                        case 'composite_2d':
+                        case 'fallback':
+                            replacement = this.renderFallbackBox(data.description || data.details || `Diagram (${data.type})`); break;
+                        default:
+                            replacement = this.renderFallbackBox(`Unrecognized Diagram Type: ${data.type}`);
+                    }
+                } else {
+                    // This was a redundant/simpler block, hide it
+                    replacement = "";
+                }
+            } catch (e) {
+                replacement = m[0]; // Keep original if error
+            }
+            processedContent = processedContent.replace(m[0], replacement);
+        });
+
+        // Legacy hints...
         const legacyRegex = /\[(Type:|Diagram:|Answer Diagram:)(.*?)\]/gi;
         processedContent = processedContent.replace(legacyRegex, (match, prefix, description) => {
             return this.renderFallbackBox(description.trim());
@@ -76,9 +145,9 @@ export class DiagramService {
         return this.wrapSVG(minX, minY, maxX - minX, maxY - minY, `
             <polygon points="${x1},${y1} ${x2},${y2} ${x3},${y3}" 
                      fill="none" stroke="var(--diagram-foreground)" stroke-width="0.2" vector-effect="non-scaling-stroke" />
-            <text x="${(x1 + x2) / 2}" y="${y1 + 1.5}" font-size="1.5" text-anchor="middle" fill="var(--diagram-foreground)">${side1}${data.unit || 'cm'}</text>
-            <text x="${x3 / 2 - 1}" y="${y3 / 2 - 1}" font-size="1.5" text-anchor="end" fill="var(--diagram-foreground)">${side2}${data.unit || 'cm'}</text>
-            <text x="${x1 + 0.5}" y="${y1 - 0.5}" font-size="1.2" fill="var(--diagram-foreground)">${angle}°</text>
+            <text x="${(x1 + x2) / 2}" y="${y1 + 1.2}" font-size="0.8" text-anchor="middle" fill="var(--diagram-foreground)">${side1}${data.unit || 'cm'}</text>
+            <text x="${x3 / 2 - 0.8}" y="${y3 / 2 - 0.8}" font-size="0.8" text-anchor="end" fill="var(--diagram-foreground)">${side2}${data.unit || 'cm'}</text>
+            <text x="${x1 + 0.4}" y="${y1 - 0.4}" font-size="0.7" fill="var(--diagram-foreground)">${angle}°</text>
         `);
     }
 
@@ -111,7 +180,7 @@ export class DiagramService {
             const tx = (p1[0] + p2[0]) / 2 * 1.25;
             const ty = (p1[1] + p2[1]) / 2 * 1.25;
             const label = sides[i]?.label || sides[i]?.length || "";
-            return label ? `<text x="${tx}" y="${ty}" font-size="2" text-anchor="middle" dominant-baseline="middle" fill="var(--diagram-foreground)">${label}</text>` : "";
+            return label ? `<text x="${tx}" y="${ty}" font-size="1.0" text-anchor="middle" dominant-baseline="middle" fill="var(--diagram-foreground)">${label}</text>` : "";
         }).join('')}
         `);
     }
@@ -134,6 +203,7 @@ export class DiagramService {
             <line x1="0" y1="${-yMax}" x2="0" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
         `;
 
+        // [Simple & Robust v9.18] Global label collision tracking
         let hasDrawnSomething = false;
 
         layers.forEach((layer: any) => {
@@ -146,24 +216,37 @@ export class DiagramService {
                     return `${x},${-y}`;
                 });
                 const pts = ptsArr.join(' ');
-                const strokeColor = layer.color || 'var(--diagram-shape-stroke)';
-                const fillColor = layer.color ? `${layer.color}1a` : 'var(--diagram-shape-fill)';
+                const strokeColor = 'var(--diagram-foreground)';
+                const fillColor = 'none'; // Strictly monochrome v9.19
 
                 layersHtml += `<polygon points="${pts}" fill="${fillColor}" stroke="${strokeColor}" 
                                 stroke-width="${layer.dashed ? 0.3 : 0.2}" ${layer.dashed ? 'stroke-dasharray="0.5,0.5"' : ''} 
                                 vector-effect="non-scaling-stroke" />`;
 
-                // Render Vertex Labels (new in v7.7)
+                // Render Vertex Labels - Global collision check v9.18
+                let hasLocalVertexLabels = false;
                 rawPoints.forEach((p: any) => {
-                    if (Array.isArray(p) && p.length === 3) {
-                        const [vx, vy, vLabel] = p;
-                        layersHtml += `<text x="${vx}" y="${-vy - 0.5}" font-size="0.8" fill="var(--diagram-foreground)" text-anchor="middle">${vLabel}</text>`;
+                    const vLabel = Array.isArray(p) ? p[2] : p.label;
+                    if (vLabel) {
+                        const vx = Array.isArray(p) ? p[0] : (p.x ?? 0);
+                        const vy = Array.isArray(p) ? p[1] : (p.y ?? 0);
+                        const coordKey = `${Math.round(vx * 2) / 2},${Math.round(vy * 2) / 2}`; // 0.5 unit tolerance
+
+                        if (!DiagramService.renderedGlobalLabels.has(coordKey)) {
+                            layersHtml += `<text x="${vx}" y="${-vy - 0.7}" font-size="0.4" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vLabel}</text>`;
+                            DiagramService.renderedGlobalLabels.add(coordKey);
+                            hasLocalVertexLabels = true;
+                        }
                     }
                 });
 
-                if (layer.label) {
-                    const firstPt = Array.isArray(rawPoints[0]) ? rawPoints[0] : [rawPoints[0].x, rawPoints[0].y];
-                    layersHtml += `<text x="${firstPt[0]}" y="${-firstPt[1] - 0.5}" font-size="1" fill="var(--diagram-foreground)" font-weight="bold">${layer.label}</text>`;
+                // Only show overall layer label if no specific vertices in this layer OR nearby coordinates were labeled
+                const firstPt = Array.isArray(rawPoints[0]) ? rawPoints[0] : [rawPoints[0].x, rawPoints[0].y];
+                const firstPtKey = `${Math.round(firstPt[0] * 2) / 2},${Math.round(firstPt[1] * 2) / 2}`;
+
+                if (layer.label && !hasLocalVertexLabels && !DiagramService.renderedGlobalLabels.has(firstPtKey)) {
+                    layersHtml += `<text x="${firstPt[0]}" y="${-firstPt[1] - 0.7}" font-size="0.5" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${layer.label}</text>`;
+                    DiagramService.renderedGlobalLabels.add(firstPtKey);
                 }
                 hasDrawnSomething = true;
             }
@@ -171,7 +254,7 @@ export class DiagramService {
 
         // Defensive check: if we only drew the axes, return a fallback instead of a "white image"
         if (!hasDrawnSomething) {
-            return this.renderFallbackBox(data.details || data.description || "Coordinate Grid Diagram");
+            return this.renderFallbackBox(data.details || data.description || "Grid/Axis Reference (No shapes provided)");
         }
 
         return this.wrapSVG(xMin, -yMax, width, height, layersHtml);
@@ -202,51 +285,128 @@ export class DiagramService {
             const p1 = positions[b.from];
             const p2 = positions[b.to];
             html += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
-            html += `<text x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 2}" font-size="3" text-anchor="middle" fill="var(--diagram-foreground)">${b.prob}</text>`;
-            html += `<text x="${p2.x + 2}" y="${p2.y + 1}" font-size="3" fill="var(--diagram-foreground)">${b.to}</text>`;
+            html += `<text x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 2}" font-size="1.8" text-anchor="middle" fill="var(--diagram-foreground)">${b.prob}</text>`;
+            html += `<text x="${p2.x + 2}" y="${p2.y + 1}" font-size="1.8" fill="var(--diagram-foreground)">${b.to}</text>`;
         });
 
         return this.wrapSVG(-5, -30, 80, 60, html);
     }
 
     /**
-     * Draws Function Graphs (Algebraic Curves)
+     * Draws Function Graphs (Algebraic Curves) - Simple & Robust v9.26
      */
     private static drawFunctionGraph(data: any): string {
-        const xMin = data.x_min ?? -10;
-        const xMax = data.x_max ?? 10;
-        const yMin = data.y_min ?? -10;
+        let xMin = data.x_min ?? -5;
+        let xMax = data.x_max ?? 5;
+        const yMin = data.y_min ?? -5;
         const yMax = data.y_max ?? 10;
-        const width = xMax - xMin;
-        const height = yMax - yMin;
 
-        // If no mathematical data is provided, use fallback
-        if (!data.equation_label && !data.details && !data.description) {
-            return this.renderFallbackBox("Graph Diagram");
+        // [Simple & Robust v9.26] Landscape Ratio Rule: Ensure boundaries are updated
+        let width = xMax - xMin;
+        let height = yMax - yMin;
+        const minWidth = height * 1.6;
+        if (width < minWidth) {
+            const extra = (minWidth - width) / 2;
+            xMin -= extra;
+            xMax += extra;
+            width = xMax - xMin;
         }
+
+        console.log(`[DiagramService] Graph: ${data.equation_label || 'unnamed'}, x:[${xMin}, ${xMax}] y:[${yMin}, ${yMax}]`);
 
         if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
             return this.renderFallbackBox(data.details || data.description || data.equation_label || "Graph Diagram");
         }
 
-        // Generate the SVG Path curve
-        let pathD = "";
-        const steps = 50;
-        // ... simple default curve if none provided
-        for (let i = 0; i <= steps; i++) {
-            const x = xMin + (width * (i / steps));
-            const y = -(Math.pow(1.2, x)); // dummy curve for generic graphs
-            if (y >= -yMax && y <= -yMin) {
-                pathD += `${pathD === "" ? 'M' : 'L'} ${x} ${y} `;
-            }
-        }
+        // Helper to generate path for a specific function
+        const generatePath = (eqn: string, scaleY = 1, shiftY = 0, reflectX = false) => {
+            let pathD = "";
+            const steps = 140;
+            const xRange = xMax - xMin;
 
-        return this.wrapSVG(xMin, -yMax, width, height, `
-            <line x1="${xMin}" y1="0" x2="${xMax}" y2="0" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
-            <line x1="0" y1="${-yMax}" x2="0" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.1" vector-effect="non-scaling-stroke" />
-            <path d="${pathD}" fill="none" stroke="var(--diagram-shape-stroke)" stroke-width="2" vector-effect="non-scaling-stroke" />
-            <text x="${xMax - 1}" y="-0.5" font-size="1" fill="var(--diagram-foreground)">x</text>
-            <text x="0.5" y="${-yMax + 1}" font-size="1" fill="var(--diagram-foreground)">y</text>
+            // [Simple & Robust v9.28] Explicit Transformation Protocol
+            // Normalize: use safeEqn + explicit flags from data
+            const safeEqn = eqn || "5^{x}";
+            const norm = String(safeEqn).toLowerCase().replace(/\s+/g, '');
+
+            // Redundancy: check both explicit flag and string content
+            const isReflected = reflectX || norm.includes('=-') || (norm.includes('-5') && !norm.includes('^-5'));
+
+            let verticalShift = shiftY;
+            // String detection fallback for shift
+            if (norm.includes('-1') && !norm.includes('^-1')) verticalShift -= 1;
+            if (norm.includes('+1')) verticalShift += 1;
+
+            for (let i = 0; i <= steps; i++) {
+                const x = xMin + (xRange * (i / steps));
+                let y = 0;
+
+                if (norm.includes('5^x') || norm.includes('5^{x}')) {
+                    y = Math.pow(5, x);
+                } else if (norm.includes('1.5^x') || norm.includes('1.5^{x}')) {
+                    y = Math.pow(1.5, x);
+                } else if (norm.includes('2^x') || norm.includes('2^{x}')) {
+                    y = Math.pow(2, x);
+                } else {
+                    y = Math.pow(1.5, x);
+                }
+
+                if (isReflected) y = -y;
+                y = (y * scaleY) + verticalShift;
+
+                const plotY = -y;
+                pathD += `${pathD === "" ? 'M' : 'L'} ${x} ${plotY} `;
+            }
+            return pathD;
+        };
+
+        const layers = data.layers || [];
+        let curvesHtml = '';
+
+        // [Simple & Robust v9.28] Smart Recovery with Explicit Flags
+        const mainEqn = data.equation_label || data.description || data.details || "5^{x}";
+
+        // Always draw the main solution curve
+        // Redundancy: pass data.reflect and data.shift even to the main equation
+        const mainPd = generatePath(mainEqn, data.scale || 1, data.shift || 0, data.reflect || false);
+        curvesHtml += `<path d="${mainPd}" fill="none" stroke="var(--diagram-foreground)" stroke-width="1.8" vector-effect="non-scaling-stroke" />`;
+
+        // Draw individual layers (Dashed reference lines etc)
+        layers.forEach((layer: any) => {
+            // [Answer-Only Protocol v9.30] 
+            // Skip dashed layers if this is a 'solution' graph (user only wants the answer)
+            if (data.purpose === 'solution' && layer.dashed) return;
+
+            // [Simple & Robust v9.29] Robust Resolution: prioritize layer.equation then layer.label
+            const layerEqn = layer.equation || layer.label || "";
+
+            // Avoid double-drawing if the layer is identical to the main equation
+            // Skip if it's a solid curve and either matches mainEqn or is empty (assuming root handles it)
+            if (!layer.dashed && (layerEqn === data.equation_label || !layerEqn)) return;
+
+            const pD = generatePath(layerEqn || data.equation_label || "5^{x}", layer.scale || 1, layer.shift || 0, layer.reflect || false);
+            curvesHtml += `<path d="${pD}" fill="none" stroke="var(--diagram-foreground)" 
+                            stroke-width="1.0" ${layer.dashed ? 'stroke-dasharray="2,2"' : ''} vector-effect="non-scaling-stroke" opacity="${layer.dashed ? 0.6 : 1}" />`;
+        });
+
+        const xMargin = width * 0.15;
+        const yMargin = height * 0.15;
+
+        return this.wrapSVG(xMin - xMargin, -yMax - yMargin, width + (xMargin * 2), height + (yMargin * 2), `
+            <defs>
+                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--diagram-grid)" />
+                </marker>
+            </defs>
+            <!-- Professional Axes -->
+            <line x1="${xMin - xMargin}" y1="0" x2="${xMax + xMargin}" y2="0" stroke="var(--diagram-grid)" stroke-width="0.3" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="${-yMin + yMargin}" x2="0" y2="${-yMax - yMargin}" stroke="var(--diagram-grid)" stroke-width="0.3" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
+            
+            ${curvesHtml}
+            
+            <text x="${xMax + xMargin / 2}" y="1.5" font-size="1.5" fill="var(--diagram-foreground)" text-anchor="middle">x</text>
+            <text x="1.5" y="${-yMax - yMargin / 2}" font-size="1.5" fill="var(--diagram-foreground)">y</text>
+            ${data.equation_label ? `<text x="${xMax}" y="${-yMax + 1}" font-size="1.2" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${data.equation_label}</text>` : ''}
         `);
     }
 
@@ -256,8 +416,8 @@ export class DiagramService {
 
     private static wrapSVG(x: number, y: number, w: number, h: number, body: string): string {
         return `
-        <div class="model_diagram">
-            <svg viewBox="${x} ${y} ${w} ${h}" width="300" height="200" class="ai-diagram-svg">
+        <div class="model_diagram" style="max-width: 350px; margin: 10px auto;">
+            <svg viewBox="${x} ${y} ${w} ${h}" preserveAspectRatio="xMidYMid meet" class="ai-diagram-svg">
                 ${body}
             </svg>
         </div>

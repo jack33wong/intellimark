@@ -484,20 +484,47 @@ export class QuestionDetectionService {
     if (!normalizedHint) return papers;
     const normalizeForSearch = (t: string) => {
       return t.toLowerCase()
+        .replace(/\bmathematics\b/g, 'maths') // Normalize subject names
         .replace(/\b(june|may|summer)\b/g, 'summer')
         .replace(/[-,/]/g, ' ')
         .trim();
     };
 
     const processedHint = normalizeForSearch(normalizedHint);
-    const keywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
-    if (keywords.length === 0) return papers;
+    const rawKeywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
+    if (rawKeywords.length === 0) return papers;
+
+    // V9.6 Vocabulary-Based Filtering: 
+    // 1. Build a set of all valid words from all available papers
+    const vocabulary = new Set<string>();
+    papers.forEach(p => {
+      const meta = p.metadata;
+      if (!meta) return;
+      const validText = normalizeForSearch(`${meta.exam_board} ${meta.exam_code} ${meta.exam_series} ${meta.tier}`);
+      validText.split(/\s+/).forEach(word => {
+        if (word.length > 0) vocabulary.add(word);
+      });
+    });
+
+    // 2. Only keep user keywords that are actually part of our paper metadata "vocabulary"
+    // This naturally ignores "Mathematics", "Paper", "•", etc.
+    const validKeywords = rawKeywords.filter(k => vocabulary.has(k));
+    if (validKeywords.length === 0) return papers;
 
     return papers.filter(paper => {
       const metadata = paper.metadata;
       if (!metadata) return false;
       const combined = normalizeForSearch(`${metadata.exam_board} ${metadata.exam_code} ${metadata.exam_series} ${metadata.tier} ${metadata.subject}`);
-      return keywords.every(keyword => combined.includes(keyword));
+
+      // 3. Strict match on all non-noisy keywords
+      return validKeywords.every(it => {
+        const pTokens = combined.split(/\s+/);
+        return pTokens.some(pt => {
+          if (pt === it) return true;
+          if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
+          return pt.includes(it);
+        });
+      });
     });
   }
 

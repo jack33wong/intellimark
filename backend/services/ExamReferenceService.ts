@@ -6,7 +6,7 @@ export class ExamReferenceService {
     // [HELPER] Generate simplified fallbacks for Summer/June/May equivalence AND slug parsing
     public static generateFallbacks(input: string): string[] {
         // Normalize input for base generation
-        const lowerInput = input.toLowerCase();
+        const lowerInput = input.toLowerCase().replace(/\bmathematics\b/g, 'maths');
         let variations = [input, lowerInput];
 
         // 1. Handle Slugs (replace - and _ with spaces or slashes)
@@ -103,31 +103,38 @@ export class ExamReferenceService {
             const meta = p.metadata;
             if (!meta || !meta.exam_code || !meta.exam_series) return false;
 
-            const normalize = (t: string) => t.toLowerCase().replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
+            const normalize = (t: string) => t.toLowerCase().replace(/\bmathematics\b/g, 'maths').replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
             const pCode = normalize(meta.exam_board || '') + ' ' + normalize(meta.exam_code || '') + ' ' + normalize(meta.exam_series || '') + (meta.tier ? ' ' + normalize(meta.tier) : '');
             const pTokens = pCode.split(/\s+/);
 
             return searchVariations.some(v => {
                 const nv = normalize(v);
-                const inputTokens = nv.split(/\s+/);
+                const rawInputTokens = nv.split(/\s+/).filter(t => t.length > 0 && /[a-z0-9]/i.test(t));
+                if (rawInputTokens.length === 0) return false;
 
-                // Paper matches if it contains ALL tokens from the variation
+                // V9.6 Vocabulary-Based Filtering:
+                // 1. Build a local vocabulary of all valid words from all papers in the DB
+                const vocabulary = new Set<string>();
+                papers.forEach((paper: any) => {
+                    const meta = paper.metadata;
+                    if (!meta) return;
+                    const validText = normalize(`${meta.exam_board} ${meta.exam_code} ${meta.exam_series} ${meta.tier}`);
+                    validText.split(/\s+/).forEach(word => {
+                        if (word.length > 0) vocabulary.add(word);
+                    });
+                });
+
+                // 2. Filter user input to only include known "Valid Words"
+                const inputTokens = Array.from(new Set(rawInputTokens.filter(k => vocabulary.has(k))));
+                if (inputTokens.length === 0) return false;
+
+                // 3. Strict match on all valid tokens
                 return inputTokens.every(it => {
-                    const isMatch = pTokens.some(pt => {
+                    return pTokens.some(pt => {
                         if (pt === it) return true;
-
-                        const isPStrictNum = /^\d+$/.test(pt);
-                        const isIStrictNum = /^\d+$/.test(it);
-
-                        if (isPStrictNum && isIStrictNum) {
-                            // Numeric comparison (e.g., "1" matches "01")
-                            return parseInt(pt) === parseInt(it);
-                        }
-
-                        // Text comparison (e.g., "nov" matches "november")
+                        if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
                         return pt.includes(it);
                     });
-                    return isMatch;
                 });
             });
         });

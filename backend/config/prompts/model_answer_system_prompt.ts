@@ -40,11 +40,13 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
 **Supported Types & Abstract Schemas:**
 1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
-3. **function_graph**: \`{ "type": "function_graph", "equation_label": "EQ", "x_min": X_MIN, "x_max": X_MAX }\`
-4. **coordinate_grid**: \`{ "type": "coordinate_grid", "layers": [{ "type": "shape", "points": [[X1, Y1, "A"], [X2, Y2, "B"]], "label": "ID" }] }\`
-5. **tree_diagram**: \`{ "type": "tree_diagram", "branches": [{ "from": "A", "to": "B", "prob": "P" }] }\`
-6. **composite_2d**: \`{ "type": "composite_2d", "components": [{ "type": "rectangle", "w": W, "h": H }] }\`
-7. **fallback**: Use for **DANGER ZONE** or **MISSING DATA**. Output \`{ "type": "fallback", "description": "..." }\`.
+3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
+    - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
+    - **DEDUPLICATION RULE**: Tag diagrams with \`sub_id\` (e.g. "26a"). Use \`purpose: "reference"\` for base sketches and \`purpose: "solution"\` for final answers.
+4. **coordinate_grid**: \`{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [...] }\`
+5. **tree_diagram**: \`{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }\`
+6. **composite_2d**: \`{ "type": "composite_2d", "purpose": "solution", "components": [...] }\`
+7. **fallback**: \`{ "type": "fallback", "purpose": "solution", "description": "..." }\`
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
