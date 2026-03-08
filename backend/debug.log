@@ -2,23 +2,11 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 532ms, Process 7ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 540ms for 50 sessions (limit: 50)
-🔄 Fetching fresh prices from Stripe...
-✅ Stripe prices fetched and cached (with resilience)
-[PERF] getUserUnifiedSessions: Fetch 513ms, Process 3ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 516ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 1389ms, Process 4ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1393ms for 50 sessions (limit: 50)
-🔧 Admin: Performing HARD RESET for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ Hard reset complete for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-[PERF] getUserUnifiedSessions: Fetch 491ms, Process 3ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 494ms for 50 sessions (limit: 50)
-Creating checkout session for plan "admin_test" (monthly) with price ID: price_1T7MbFAgk7FXA3299DqcI8FE
-ℹ️ Skipping cancellation for free/internal subscription: free_9mBfvniXTuMtQU8f0OnLhUK6aOv2_1772981664922
-✅ Initialized 1000000 credits for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (admin_test), reset: 2026-04-07T14:55:45.000Z
-✅ User credits initialized for admin_test (User: 9mBfvniXTuMtQU8f0OnLhUK6aOv2)
-✅ Initialized 1000000 credits for user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (admin_test), reset: 2026-04-07T14:55:45.000Z
-✅ User credits initialized for admin_test (User: 9mBfvniXTuMtQU8f0OnLhUK6aOv2)
-[PERF] getUserUnifiedSessions: Fetch 690ms, Process 3ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 693ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 494ms, Process 6ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 501ms for 50 sessions (limit: 50)
+[PERF] GET /sessions/eoDn7UYm9OexS8VwqGCC2eW2KnE2 took 45ms for 0 sessions (limit: 50)
+[PERF] GET /sessions/eoDn7UYm9OexS8VwqGCC2eW2KnE2 took 54ms for 0 sessions (limit: 50)
+[PERF] GET /sessions/q1GQs26u9IUO72urh6WHfYdHzwe2 took 46ms for 0 sessions (limit: 50)
+[PERF] GET /sessions/q1GQs26u9IUO72urh6WHfYdHzwe2 took 46ms for 0 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 571ms, Process 9ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 580ms for 50 sessions (limit: 50)

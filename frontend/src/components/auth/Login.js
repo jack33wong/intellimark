@@ -8,10 +8,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AlertCircle, Chrome, Facebook, Mail, Lock, Eye, EyeOff, X } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../../config/firebase';
+import { getAdditionalUserInfo } from 'firebase/auth';
 import './Login.css';
 import '../common/LoadingSpinner.css';
 import API_CONFIG from '../../config/api';
 import { analyticsService } from '../../services/AnalyticsService';
+import { fireAdsSignupConversion } from '../../utils/analytics';
 import SEO from '../common/SEO';
 
 const Login = () => {
@@ -76,16 +78,22 @@ const Login = () => {
     setFirebaseError(null);
     try {
       const authProvider = provider === 'google' ? googleProvider : facebookProvider;
-      // 👇 FIX 2: The `signInWithPopup` is all that's needed. The onAuthStateChanged
-      // listener in the AuthContext will handle the successful login.
-      await signInWithPopup(auth, authProvider);
+      // 👇 CAPTURE THE RESULT OF THE POPUP
+      const result = await signInWithPopup(auth, authProvider);
 
-      // Track successful social login/signup (GA4 doesn't distinguish easily without more logic, 
-      // but 'login' or 'sign_up' intent is clear here)
+      // 👇 CHECK IF THIS IS A BRAND NEW ACCOUNT
+      const additionalInfo = getAdditionalUserInfo(result);
+      if (additionalInfo?.isNewUser) {
+        console.log(`[Ads Evidence] 🆕 Brand new Social User detected (${provider}). Firing Sign-up conversion.`);
+        fireAdsSignupConversion(result.user.email);
+      } else {
+        console.log(`[Ads Evidence] 🔄 Returning Social User logged in (${provider}). No conversion fired.`);
+      }
+
+      // Track successful social login/signup in GA4
       analyticsService.logSignUp(provider);
 
       // The useEffect listening for the `user` object will now handle the redirect.
-      // No need to call navigate here directly.
     } catch (error) {
       console.error(`${provider} login error:`, error);
       if (error.code === 'auth/popup-closed-by-user') {
@@ -120,6 +128,8 @@ const Login = () => {
       } else {
         // Track successful email signup
         if (isSignUp) {
+          console.log('[Ads Evidence] 🆕 Brand new Email User detected. Firing Sign-up conversion.');
+          fireAdsSignupConversion(formData.email);
           analyticsService.logSignUp('email');
         }
       }

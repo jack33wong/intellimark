@@ -104,3 +104,37 @@ export const fireAdsPurchaseConversion = (transactionValue: number | string, tra
         console.log('[Ads Evidence] 📊 DataLayer Status:', (window as any).dataLayer?.slice(-1)[0]);
     }
 };
+
+/**
+ * Fires the Google Ads Sign-up Conversion
+ * @param {string} userEmail - The user's verified email address for Enhanced Conversions
+ */
+export const fireAdsSignupConversion = (userEmail?: string | null) => {
+    // NOTE: Placeholder label for Sign-up. Update this once the exact label is known.
+    const CONVERSION_LABEL = 'SIGNUP_LABEL_PLACEHOLDER';
+    const ADS_ID = 'AW-732824032';
+
+    if (typeof window.gtag !== 'function') {
+        console.warn('[Ads Evidence] ⚠️ gtag missing. Sign-up conversion skipped.');
+        return;
+    }
+
+    // NEW: Explicitly set the Enhanced Conversion user data first
+    if (userEmail) {
+        window.gtag('set', 'user_data', {
+            "email": userEmail
+        });
+        console.log(`[Ads Evidence] 📧 Enhanced data (Sign-up) attached for: ${userEmail}`);
+    }
+
+    const payload = {
+        'send_to': `${ADS_ID}/${CONVERSION_LABEL}`,
+        'value': 1.0, // Default value for sign-up
+        'currency': 'GBP'
+    };
+
+    console.log(`[Ads Evidence] 🚀 Firing Native Ads Sign-up Conversion. ID: ${ADS_ID}/${CONVERSION_LABEL}`);
+
+    // Fire the 'sign_up' event
+    window.gtag('event', 'sign_up', payload);
+};
