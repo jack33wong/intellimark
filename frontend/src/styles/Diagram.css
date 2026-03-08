@@ -20,12 +20,36 @@ html.dark {
 
 /* Container for all diagrams */
 .model_diagram {
+    position: relative;
     text-align: center;
-    margin: 20px 0;
+    margin: 20px auto;
+    max-width: 420px;
+    /* Increased to accommodate side column */
+    padding-right: 70px;
+    /* Dedicated side column for label */
+    box-sizing: border-box;
+}
+
+.diagram-accuracy-label {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 60px;
+    /* Constrain label to the side column */
+    font-size: 0.52em;
+    /* Significantly smaller as requested */
+    line-height: 1.2;
+    text-align: right;
+    color: var(--text-tertiary);
+    font-style: italic;
+    pointer-events: none;
+    user-select: none;
 }
 
 /* SVG Styling */
 .ai-diagram-svg {
+    width: 100%;
+    display: block;
     background: var(--diagram-background);
     border-radius: 4px;
 }

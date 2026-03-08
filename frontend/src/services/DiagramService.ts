@@ -5,6 +5,7 @@
 
 export class DiagramService {
     private static renderedGlobalLabels = new Set<string>();
+    private static lastLoggedQ5 = "";
 
     public static process(content: string): string {
         if (!content || typeof content !== 'string') return content;
@@ -28,13 +29,17 @@ export class DiagramService {
                     .replace(/&amp;/g, '&')
                     .trim();
                 const data = JSON.parse(unescaped);
-                console.log(`[DiagramService] RAW JSON FOUND: ${unescaped}`);
-
                 const label = data.equation_label || data.description || '';
                 const key = `${data.sub_id || 'diag'}_${label}_${unescaped.length}`;
-                const existing = diagramMap.get(key);
 
-                console.log(`[DiagramService] KEY: ${key}, Replace existing: ${!existing}`);
+                if (data.sub_id === '5' || (data.sub_id && String(data.sub_id).includes('pentagon')) || key.includes('pentagon')) {
+                    if (this.lastLoggedQ5 !== unescaped) {
+                        console.log(`[DiagramService] [DEBUG-Q5] Found JSON: ${unescaped}`);
+                        this.lastLoggedQ5 = unescaped;
+                    }
+                }
+
+                const existing = diagramMap.get(key);
 
                 // [Simple & Robust v9.18] Deduplication Rule:
                 // 1. If no existing, set current.
@@ -312,7 +317,6 @@ export class DiagramService {
             width = xMax - xMin;
         }
 
-        console.log(`[DiagramService] Graph: ${data.equation_label || 'unnamed'}, x:[${xMin}, ${xMax}] y:[${yMin}, ${yMax}]`);
 
         if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
             return this.renderFallbackBox(data.details || data.description || data.equation_label || "Graph Diagram");
@@ -406,7 +410,7 @@ export class DiagramService {
             
             <text x="${xMax + xMargin / 2}" y="1.5" font-size="1.5" fill="var(--diagram-foreground)" text-anchor="middle">x</text>
             <text x="1.5" y="${-yMax - yMargin / 2}" font-size="1.5" fill="var(--diagram-foreground)">y</text>
-            ${data.equation_label ? `<text x="${xMax}" y="${-yMax + 1}" font-size="1.2" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${data.equation_label}</text>` : ''}
+            ${data.equation_label ? `<text x="${xMax}" y="${-yMax + 1}" font-size="1.2" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">${String(data.equation_label).toLowerCase().replace(/\s+/g, '').startsWith('y=') ? data.equation_label : 'y = ' + data.equation_label}</text>` : ''}
         `);
     }
 
@@ -415,8 +419,10 @@ export class DiagramService {
     }
 
     private static wrapSVG(x: number, y: number, w: number, h: number, body: string): string {
+        // [v9.53] Internal viewBox is tight to graph again. Layout handled by CSS.
         return `
-        <div class="model_diagram" style="max-width: 350px; margin: 10px auto;">
+        <div class="model_diagram">
+            <div class="diagram-accuracy-label">Not drawn accurately</div>
             <svg viewBox="${x} ${y} ${w} ${h}" preserveAspectRatio="xMidYMid meet" class="ai-diagram-svg">
                 ${body}
             </svg>
