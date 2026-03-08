@@ -43,10 +43,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Mission</div>
                     <div className="about-manifesto">
                         <p>
-                            We believe that every student deserves immediate, expert-level feedback. Not hours later, and not just a final grade.
-                        </p>
-                        <p>
-                            AI Marking was built to bridge the gap between human expertise and machine precision, using Spatial Handwriting Intelligence to give everyone the tools to leverage their academic potential.
+                            We believe that every student deserves immediate, expert-level feedback. Not weeks later, and not just a final grade. AI Marking was built to give every student a 24/7 examiner in their pocket, helping them walk into their GCSEs with absolute confidence.
                         </p>
                     </div>
                 </section>
@@ -55,10 +52,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Product</div>
                     <div className="about-manifesto">
                         <p>
-                            Traditional AI transcribes. Our Spatial AI maps your journey.
-                        </p>
-                        <p>
-                            By training our Spatial AI with 0.1mm accuracy, we've created a tool that understands the "why" behind every step, not just the "what".
+                            Traditional AI just reads text. Our AI understands math. We've built a tool that can read messy handwriting, follow your unique working out, and understand the 'why' behind every step you take, not just the final answer.
                         </p>
                     </div>
                 </section>
@@ -67,19 +61,13 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Story</div>
                     <div className="about-manifesto">
                         <p>
-                            Founded by a team of examiners and engineers who were tired of the "black box" of automated marking.
+                            Founded by a team of former examiners and engineers who hated seeing students fail just because they couldn't afford a private tutor. We set out to build a platform that doesn't just grade papers, but actually teaches you how to improve.
                         </p>
                         <p>
-                            We set out to build a platform that doesn't just grade papers, but empowers students to understand their mistakes and teachers to save hundreds of hours every year.
-                        </p>
-                        <p>
-                            This is the future of assessment. Hands on AI.
-                        </p>
-                        <p>
-                            Our logic is manually calibrated against the latest 2025/2026 specifications for AQA, Edexcel, and OCR.
+                            Our system is continuously updated against the latest AQA, Edexcel, and OCR specifications.
                         </p>
                         <div className="about-signature">
-                            AI Marking — Empowering Accuracy.
+                            AI Marking — Your Best Exam Result.
                         </div>
                     </div>
                 </section>
@@ -88,7 +76,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Standards</div>
                     <div className="about-manifesto">
                         <p>
-                            <strong>99.2% Match:</strong> Our AI matches senior human examiners on Method Mark (M1) and Accuracy Mark (A0) awarding.
+                            <strong>99.2% Accuracy:</strong> Our AI grades your working out and final answers with the exact same strictness as a senior human examiner.
                         </p>
                         <p>
                             <strong>Quality Protocol:</strong> Validated against the 2026 AI Quality Protocol for secondary education.
