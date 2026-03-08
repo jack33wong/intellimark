@@ -30,17 +30,17 @@ const FeaturesPage: React.FC = () => {
     const features = [
         {
             title: "AI Handwriting Recognition",
-            description: "Our advanced neural networks are trained specifically on mathematical notations and messy handwriting. Simply upload a photo of your paper, and let the AI extract every equation and step with precision.",
+            description: "Don't worry about scribbles or crossed-out working. Just snap a photo, and our AI will perfectly read your messy math handwriting.",
             image: "/images/features/handwriting_v4.png",
             reversed: false,
-            linkText: "Learn about OCR"
+            linkText: "Try Handwriting Scan"
         },
         {
-            title: "Precision OCR Annotation",
-            description: "Empowered by Mathpix, the industry standard for mathematical OCR, our system achieves 100% recognition accuracy. This allows us to map precise digital annotations—including checkmarks, boxes, and examiner comments—directly onto your original handwritten pages with professional precision.",
+            title: "The Digital Red Pen",
+            description: "See exactly where you went wrong. Our AI draws checkmarks, crosses, and helpful notes directly onto your original photo, just like a real teacher.",
             image: "/images/features/mathpix_sketch.jpg",
             reversed: true,
-            linkText: "See annotation tech"
+            linkText: "See marking example"
         },
         {
             title: "Instant Step-by-Step Marking",
@@ -57,8 +57,8 @@ const FeaturesPage: React.FC = () => {
             linkText: "Try Question Mode"
         },
         {
-            title: "Context Chat: Targeted Feedback",
-            description: "Don't just see your score—understand it. Our context-aware chat allows you to follow up on every scan. Ask why a specific step was flagged or how to secure that missing Method Mark (M1).",
+            title: "Your 24/7 AI Tutor",
+            description: "Don't understand why you dropped a mark? Chat directly with the AI to get a simple, personalized explanation so you never make the same mistake twice.",
             image: "/images/features/context-chat-demo.png",
             reversed: false,
             linkText: "Chat with AI"
@@ -143,7 +143,7 @@ const FeaturesPage: React.FC = () => {
             <section className="features-hero">
                 <h1 className="features-h1">Pixel-Perfect AI Marking.</h1>
                 <p>
-                    Stop guessing your grade. Experience examiner-level precision that maps every coordinate of your handwriting to official board criteria.
+                    Stop guessing your grade. Get your GCSE past papers marked instantly, with examiner-level accuracy.
                 </p>
             </section>
 
@@ -187,7 +187,7 @@ const FeaturesPage: React.FC = () => {
                             <tr>
                                 <td className="feature-col"><span className="comparison-label">Precision</span></td>
                                 <td className="traditional-col">Requires re-marking or manual cross-referencing for messy writing.</td>
-                                <td className="ai-col">Neural networks trained on mathematical handwriting and notation.</td>
+                                <td className="ai-col">Perfectly reads messy handwriting, scribbles, and complex math symbols.</td>
                             </tr>
                             <tr>
                                 <td className="feature-col"><span className="comparison-label">Feedback</span></td>

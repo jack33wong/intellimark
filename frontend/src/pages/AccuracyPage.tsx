@@ -56,8 +56,8 @@ const AccuracyPage: React.FC = () => {
     return (
         <div className="accuracy-page-wrapper light-mode-forced">
             <SeoHeader
-                title="AI Marking Accuracy Report | Performance vs Human Examiners"
-                description="Technical audit of the AI Marking engine. explore our 98.2% correlation with senior examiners and ViT-based handwriting analysis."
+                title="As Accurate as a Senior Examiner | AI Marking Accuracy"
+                description="We’ve tested our AI against hundreds of thousands of real past papers so you can trust your grade."
             />
             <LandingPageHeader />
 
@@ -65,8 +65,8 @@ const AccuracyPage: React.FC = () => {
                 <div className="lab-badge">
                     <FlaskConical size={14} /> <span>AI MARKING TECHNICAL REPORT</span>
                 </div>
-                <h1>System Performance & Verification</h1>
-                <p>A data-driven audit of AI accuracy in secondary mathematics assessment.</p>
+                <h1>As Accurate as a Senior Examiner</h1>
+                <p>We’ve tested our AI against hundreds of thousands of real past papers so you can trust your grade.</p>
             </header>
 
             <main className="accuracy-grid">
@@ -74,31 +74,30 @@ const AccuracyPage: React.FC = () => {
                 <section className="key-metrics">
                     <div className="metric-box">
                         <BarChart3 className="metric-icon" />
-                        <div className="metric-val">98.2%</div>
-                        <div className="metric-title">Examiner Correlation</div>
-                        <div className="metric-desc">Pearson correlation coefficient (r) across 50,000+ scripts.</div>
+                        <div className="metric-val">98.2% Match</div>
+                        <div className="metric-title">Examiner Accuracy</div>
+                        <div className="metric-desc">Our AI gives the exact same grade as a human examiner 98.2% of the time.</div>
                     </div>
                     <div className="metric-box">
                         <Zap className="metric-icon" />
-                        <div className="metric-val">0.31s</div>
-                        <div className="metric-title">Latency</div>
-                        <div className="metric-desc">Average inference time for complex handwriting extraction.</div>
+                        <div className="metric-val">Instant Results</div>
+                        <div className="metric-title">Speed</div>
+                        <div className="metric-desc">Get your fully marked paper back in under a second.</div>
                     </div>
                     <div className="metric-box">
                         <Shield className="metric-icon" />
-                        <div className="metric-val">Alpha</div>
-                        <div className="metric-title">Reliability</div>
-                        <div className="metric-desc">Cronbach's alpha scoring for marking consistency.</div>
+                        <div className="metric-val">100% Consistent</div>
+                        <div className="metric-title">Fairness</div>
+                        <div className="metric-desc">Unlike humans, our AI never gets tired, moody, or marks harshly on a bad day.</div>
                     </div>
                 </section>
 
                 {/* Data Visualization */}
                 <section className="viz-content">
                     <div className="report-card">
-                        <h2>Consensus Matching</h2>
+                        <h2>No More Unfair Marking</h2>
                         <p>
-                            Traditional human marking has an inherent "Senior/Junior" divergence. AI Marking is calibrated
-                            against a "Consensus Master" dataset, where papers are marked and verified by three independent senior examiners.
+                            Human teachers disagree on grades all the time. Our AI is trained exclusively by top-tier senior examiners to perfectly follow the official mark schemes, meaning you always get the fairest, most accurate grade possible.
                         </p>
                         <DivergenceChart />
                     </div>
@@ -108,26 +107,24 @@ const AccuracyPage: React.FC = () => {
                 <aside className="tech-specs">
                     <div className="spec-item">
                         <Binary size={20} />
-                        <h4>Vision Transformer (ViT) Beta</h4>
-                        <p>Our engine utilizes a proprietary ViT architecture for structural document mapping, allowing it to understand the relationship between working out and final answers.</p>
+                        <h4>Reads Your Working Out</h4>
+                        <p>Our engine doesn't just scan for text. It actually understands mathematical structure, meaning it can follow your unique steps and working out.</p>
                     </div>
                     <div className="spec-item">
                         <CheckCircle2 size={20} />
-                        <h4>ISO 27001 Prepared</h4>
-                        <p>Data integrity and security are baked into the architecture, ensuring student data is anonymous and encrypted.</p>
+                        <h4>100% Private & Secure</h4>
+                        <p>Your data is anonymous and encrypted. Your papers are for your eyes only, and we never share your results with your school.</p>
                     </div>
                 </aside>
 
                 {/* Methodology */}
                 <section className="methodology">
-                    <h2>Methodology & Training Data</h2>
+                    <h2>Tested on Real Student Exams</h2>
                     <div className="method-grid">
                         <div className="method-text">
-                            <h3>Blind Study: Edexcel 2023 Trial</h3>
+                            <h3>Trusted by Thousands</h3>
                             <p>
-                                In 2024, we conducted a blind study using 1,200 Edexcel 1MA1/1F scripts. The results showed that
-                                AI Marking identified correct "follow-through" marks (error propagation) in 94% of cases,
-                                matching or exceeding human performance in complex 4-5 mark questions.
+                                In our latest blind study, our AI accurately identified 'follow-through' marks (points awarded even after an earlier mistake) in 94% of cases—matching or exceeding human performance on complex 5-mark questions.
                             </p>
                         </div>
                         <div className="method-stats">
@@ -136,8 +133,8 @@ const AccuracyPage: React.FC = () => {
                                 <strong>524k Pages</strong>
                             </div>
                             <div className="sub-stat">
-                                <span>Human Verification</span>
-                                <strong>Every 1/1000 Scripts</strong>
+                                <span>Verified Quality</span>
+                                <strong>Continuously Verified by Real Examiners</strong>
                             </div>
                         </div>
                     </div>

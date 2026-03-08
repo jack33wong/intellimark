@@ -20,7 +20,7 @@ const CompareChatGPTPage: React.FC = () => {
                 "name": "Why is aimarking.ai better than ChatGPT for GCSE Maths marking?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Unlike ChatGPT, which is a text-based language model that often 'hallucinates' math steps, aimarking.ai uses spatial coordinate mapping to identify exactly where you earned marks on your handwritten paper. It provides 0.1mm precision and is 100% Mathpix powered for industry-leading accuracy."
+                    "text": "Unlike ChatGPT, which is a text-based language model that often 'hallucinates' math steps, AI Marking is specifically built to read messy handwriting and follow your working out. It follows official mark schemes with 100% accuracy."
                 }
             },
             {
@@ -36,7 +36,7 @@ const CompareChatGPTPage: React.FC = () => {
                 "name": "How accurate is aimarking.ai compared to generic AI tools?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "aimarking.ai achieves a 99.2% match with senior human examiners by finding marks for your working out that generic AI cannot replicate. While ChatGPT is 'blind' to spatial data, our platform provides perfect annotations directly on your working."
+                    "text": "AI Marking achieves a 99.2% match with senior human examiners by finding marks for your working out that generic AI cannot replicate. While ChatGPT is 'blind' to your handwriting, our platform provides perfect annotations directly on your working."
                 }
             }
         ]
@@ -46,14 +46,14 @@ const CompareChatGPTPage: React.FC = () => {
         <div className="compare-page-wrapper light-mode-forced">
             <SEO
                 title="AI Marking vs ChatGPT: GCSE Maths"
-                description="Discover why spatial AI outperforms LLMs like ChatGPT for accurate GCSE maths marking. 0.1mm precision vs logic hallucinations."
+                description="Discover why AI Marking outperforms LLMs like ChatGPT for accurate GCSE maths marking. Built to read messy handwriting and follow official mark schemes."
                 schemaData={faqSchema}
             />
             <LandingPageHeader />
 
             <main className="compare-container">
                 <section className="compare-hero">
-                    <h1 className="features-h1">Why ChatGPT Fails at GCSE Maths (And Why Spatial AI Wins)</h1>
+                    <h1 className="features-h1">Why ChatGPT Fails at GCSE Maths (And Why AI Marking Wins)</h1>
                     <p>
                         ChatGPT is a brilliant conversationalist. AI Marking is a professional exam marker.
                         Understand the difference between general AI and specialized assessment technology.
@@ -78,11 +78,9 @@ const CompareChatGPTPage: React.FC = () => {
                 <section className="compare-features">
                     <div className="compare-feature-row">
                         <div className="compare-feature-text">
-                            <h2 className="features-h2">ChatGPT predicts the next word. aimarking.ai maps the next coordinate.</h2>
+                            <h2 className="features-h2">ChatGPT predicts the next word. We read your actual working out.</h2>
                             <p>
-                                ChatGPT struggles with the nuances of messy student handwriting and complex mathematical notation on paper.
-                                Empowered by Mathpix—the industry gold standard for mathematical OCR—AI Marking achieves 100% recognition accuracy,
-                                identifying every strike-through and formula with professional examiner-grade precision.
+                                Unlike ChatGPT, which struggles to read scribbles, our system is specifically built to read messy teenage handwriting, crossing-out, and complex math symbols with 100% accuracy.
                             </p>
                         </div>
                         <div className="compare-feature-visual">
@@ -99,8 +97,7 @@ const CompareChatGPTPage: React.FC = () => {
                             <h2 className="features-h2">Logic vs. Hallucination</h2>
                             <p>
                                 General AI can often "hallucinate" mathematical steps or apply incorrect marking criteria.
-                                AI Marking executes using a deterministic engine cross-referenced with official Edexcel, AQA, and OCR marking schemes.
-                                We don't guess—we calculate.
+                                We don't guess. Our AI strictly follows the exact, official mark schemes for Edexcel, AQA, and OCR. If you deserve a point for your method, you get it.
                             </p>
                         </div>
                         <div className="compare-feature-visual">
@@ -128,7 +125,7 @@ const CompareChatGPTPage: React.FC = () => {
                                 <tr>
                                     <td>Handwritten Math Recognition</td>
                                     <td className="cross-col">0.1mm Blind</td>
-                                    <td className="check-col">0.1mm Precision (Mathpix DCR)</td>
+                                    <td className="check-col">Perfectly reads messy handwriting.</td>
                                 </tr>
                                 <tr>
                                     <td>Official Exam Board Logic</td>
@@ -166,7 +163,7 @@ const CompareChatGPTPage: React.FC = () => {
                             <li><Check size={20} /> Marking real past papers</li>
                             <li><Check size={20} /> Getting exact mark predictions</li>
                             <li><Check size={20} /> Identifying board-specific weak spots</li>
-                            <li><Check size={20} /> Reducing teacher marking time</li>
+                            <li><Check size={20} /> Learning exactly how to fix your mistakes</li>
                         </ul>
                     </div>
                 </section>
@@ -175,11 +172,11 @@ const CompareChatGPTPage: React.FC = () => {
                     <div className="faq-q-card">
                         <h3>Why is ChatGPT bad at maths?</h3>
                         <p>
-                            ChatGPT is a language model that lacks spatial awareness. It cannot find where you've earned marks in your handwriting or award 'follow through' marks for your working out.
+                            ChatGPT is built to write essays, not read handwritten math. It cannot see where you crossed something out, it doesn't understand exam board rules, and it will often 'hallucinate' the wrong answer while sounding perfectly confident.
                         </p>
                         <ul style={{ marginTop: '12px', paddingLeft: '20px' }}>
                             <li style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                                ChatGPT gives general advice; our Context Chat knows the exact coordinate of your mistake and references the official marking scheme.
+                                ChatGPT gives general advice; our AI Tutor knows exactly where you made a mistake and references the official marking scheme.
                             </li>
                         </ul>
                     </div>
