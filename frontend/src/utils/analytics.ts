@@ -56,9 +56,11 @@ export const trackPaperInteraction = (paperId: string, mode: InteractionMode) =>
  * Fires the Google Ads Purchase Conversion
  * @param {number|string} transactionValue - The total cart/purchase value
  * @param {string} transactionId - Your unique internal order ID (prevents duplicate counting)
+ * @param {string} userEmail - The user's verified email address for Enhanced Conversions
  */
-export const fireAdsPurchaseConversion = (transactionValue: number | string, transactionId: string) => {
-    const CONVERSION_LABEL = 'yvVyCKbYsoMcEOCDuN0C';
+export const fireAdsPurchaseConversion = (transactionValue: number | string, transactionId: string, userEmail?: string | null) => {
+    const CONVERSION_LABEL = 'cUbtCMXn24IcEOCDuN0C';
+    const ADS_ID = 'AW-732824032';
 
     // 1. Upstream Data Integrity Checks
     if (typeof window.gtag !== 'function') {
@@ -71,21 +73,32 @@ export const fireAdsPurchaseConversion = (transactionValue: number | string, tra
         return;
     }
 
-    // 2. Outbound Payload Verification Log
+    // 2. NEW: Explicitly set the Enhanced Conversion user data first (SAFEGUARD)
+    if (userEmail) {
+        window.gtag('set', 'user_data', {
+            "email": userEmail
+        });
+        console.log(`[Ads Evidence] 📧 Enhanced data attached for: ${userEmail}`);
+    } else {
+        console.warn(`[Ads Evidence] ⚠️ Email missing. Firing standard conversion without Enhanced Data.`);
+    }
+
+    // 3. Outbound Payload Verification Log
+    const value = parseFloat(transactionValue.toString());
     const payload = {
-        'send_to': `AW-732824032/${CONVERSION_LABEL}`,
-        'value': parseFloat(transactionValue.toString()),
+        'send_to': `${ADS_ID}/${CONVERSION_LABEL}`,
+        'value': value,
         'currency': 'GBP',
         'transaction_id': transactionId.toString()
     };
 
-    console.log(`[Ads Evidence] 🚀 Firing Native Ads Conversion. ID: AW-732824032/${CONVERSION_LABEL} | Value: £${transactionValue} | Order: ${transactionId}`);
+    console.log(`[Ads Evidence] 🚀 Firing Native Ads Purchase Conversion. ID: ${ADS_ID}/${CONVERSION_LABEL} | Value: £${transactionValue} | Order: ${transactionId}`);
     console.log('[Ads Evidence] 📦 Full Payload:', payload);
 
-    // 3. Native Event Fire
-    window.gtag('event', 'conversion', payload);
+    // 4. Native Event Fire (Switched to 'purchase' as requested)
+    window.gtag('event', 'purchase', payload);
 
-    // 4. Verification Post-Fire
+    // 5. Verification Post-Fire
     console.log('[Ads Evidence] ✅ Success: Google Ads Event DISPATCHED to window.gtag');
     if (window.hasOwnProperty('dataLayer')) {
         console.log('[Ads Evidence] 📊 DataLayer Status:', (window as any).dataLayer?.slice(-1)[0]);

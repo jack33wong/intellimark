@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { fireAdsPurchaseConversion } from '../../utils/analytics';
 
 // 1. Centralized Pricing Map (Source of Truth for Conversions)
@@ -19,6 +20,7 @@ const PRICING_MAP: Record<string, Record<string, number>> = {
 
 const AnalyticsTracker = () => {
     const location = useLocation();
+    const { user, loading } = useAuth();
     const trackingAttempted = useRef(false);
 
     useEffect(() => {
@@ -41,13 +43,19 @@ const AnalyticsTracker = () => {
         }
 
         // --- NEW GOOGLE ADS CONVERSION TRACKING ---
-        if (trackingAttempted.current) return;
-
         const searchParams = new URLSearchParams(location.search);
         const isSuccess = searchParams.get('subscription') === 'success';
 
         if (!isSuccess) return;
 
+        // THE FIX: Wait for Firebase to finish initializing before proceeding
+        // This prevents a race condition where the URL is detected before the user object is ready.
+        if (loading) {
+            console.log('[Ads Detection] ⏳ Waiting for Firebase Auth to resolve user...');
+            return; // Exit and wait for the next render (user/loading change)
+        }
+
+        if (trackingAttempted.current) return;
         trackingAttempted.current = true;
 
         const plan = searchParams.get('plan');
@@ -70,9 +78,11 @@ const AnalyticsTracker = () => {
         console.log(`[Ads Detection] 🏁 Valid subscription success detected. Extracting evidence...`);
         console.log(`[Ads Detection] 📝 Plan: ${plan} | Cycle: ${cycle} | Session: ${sessionId} | Value: £${transactionValue}`);
 
-        fireAdsPurchaseConversion(transactionValue, sessionId);
+        // Extract user email for Enhanced Conversions
+        const userEmail = user?.email;
+        fireAdsPurchaseConversion(transactionValue, sessionId, userEmail);
 
-    }, [location]);
+    }, [location, user, loading]);
 
     return null;
 };
