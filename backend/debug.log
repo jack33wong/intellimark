@@ -10,3 +10,7 @@
 [PERF] GET /sessions/q1GQs26u9IUO72urh6WHfYdHzwe2 took 46ms for 0 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 571ms, Process 9ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 580ms for 50 sessions (limit: 50)
+🔄 Fetching fresh prices from Stripe...
+✅ Stripe prices fetched and cached (with resilience)
+[PERF] getUserUnifiedSessions: Fetch 666ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 669ms for 50 sessions (limit: 50)

@@ -25,10 +25,10 @@ const CompareChatGPTPage: React.FC = () => {
             },
             {
                 "@type": "Question",
-                "name": "Does ChatGPT award Method Marks (M1) for handwritten maths?",
+                "name": "Does ChatGPT award method marks for handwritten maths?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "No. ChatGPT typically provides text-only, binary (Right/Wrong) feedback and often fails to recognize partial logic in handwriting. Our Spatial AI identifies specific steps—such as correct prime factorisation—to award M1 Method Marks even if the final answer is incorrect."
+                    "text": "No. ChatGPT typically provides text-only feedback and often fails to recognize your method in handwriting. Our AI identifies specific steps—such as correct prime factorisation—to award method marks even if the final answer is incorrect."
                 }
             },
             {
@@ -36,7 +36,7 @@ const CompareChatGPTPage: React.FC = () => {
                 "name": "How accurate is aimarking.ai compared to generic AI tools?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "aimarking.ai achieves a 99.2% match with senior human examiners by applying Error Carried Forward (ECF) logic that generic AI cannot replicate. While ChatGPT is 0.1mm 'Blind' to spatial data, our platform provides pixel-perfect annotations directly on your working."
+                    "text": "aimarking.ai achieves a 99.2% match with senior human examiners by finding marks for your working out that generic AI cannot replicate. While ChatGPT is 'blind' to spatial data, our platform provides perfect annotations directly on your working."
                 }
             }
         ]
@@ -138,7 +138,7 @@ const CompareChatGPTPage: React.FC = () => {
                                 <tr>
                                     <td>Step-by-step mark extraction</td>
                                     <td className="cross-col">Logic Hallucination</td>
-                                    <td className="check-col">Applied ECF Logic (99.2% Match)</td>
+                                    <td className="check-col">Applied Follow-Through Marks (99.2% Match)</td>
                                 </tr>
                                 <tr>
                                     <td>Feedback Depth</td>
@@ -175,7 +175,7 @@ const CompareChatGPTPage: React.FC = () => {
                     <div className="faq-q-card">
                         <h3>Why is ChatGPT bad at maths?</h3>
                         <p>
-                            ChatGPT is a language model that lacks spatial awareness. It cannot identify the X/Y coordinates of your handwriting to award Method Marks (M1) or follow Error Carried Forward (ECF) logic.
+                            ChatGPT is a language model that lacks spatial awareness. It cannot find where you've earned marks in your handwriting or award 'follow through' marks for your working out.
                         </p>
                         <ul style={{ marginTop: '12px', paddingLeft: '20px' }}>
                             <li style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>

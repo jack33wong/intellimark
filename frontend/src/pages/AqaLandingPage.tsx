@@ -47,7 +47,7 @@ const AqaLandingPage: React.FC = () => {
             <section className="landing-section aqa-hero-section">
                 <div className="aqa-hero-content">
                     <h1 className="aqa-hero-title">Instant AI Marking & <br /><span className="aqa-highlight-blue">AQA Model Answers</span></h1>
-                    <p className="aqa-hero-subtitle">Specifically tuned to the <strong>AQA (8300) specification</strong> for instant grades and model answers.</p>
+                    <p className="aqa-hero-subtitle">Practicing for your AQA GCSE Maths exams? Upload your past papers and get an instant, accurate grade based exactly on the AQA mark scheme.</p>
                     <div className="aqa-hero-cta-box">
                         <button className="aqa-btn-file" onClick={() => navigate('/app?action=select')}>
                             <svg style={{ width: '24px', height: '24px', flexShrink: 0, marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,9 +69,9 @@ const AqaLandingPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="aqa-feature-text">
-                        <h2 className="aqa-section-title">Mastering the AQA Mark Scheme</h2>
+                        <h2 className="aqa-section-title">Get Every Method Mark</h2>
                         <p className="aqa-section-body">
-                            Our Logic Chain Analysis identifies exactly where you secured an M1 mark or an Error Carried Forward (ECF) saved your grade.
+                            AQA examiners reward your working out, even if your final answer is wrong. Our AI reads your handwriting step-by-step to find every hidden method mark you deserve, showing you exactly how to boost your grade.
                         </p>
                     </div>
                 </div>
@@ -80,9 +80,9 @@ const AqaLandingPage: React.FC = () => {
             <section className="landing-section aqa-feature-row">
                 <div className="aqa-feature-container">
                     <div className="aqa-feature-text">
-                        <h2 className="aqa-section-title">Question Mode: AQA Model Answers</h2>
+                        <h2 className="aqa-section-title">Stuck on a Hard Question?</h2>
                         <p className="aqa-section-body">
-                            Generate perfect model answers using the exact terminology and layout expected by AQA examiners.
+                            Generate perfect, step-by-step model answers using the exact layout and terminology that AQA examiners look for. Learn how to structure your answers for maximum marks.
                         </p>
                     </div>
                     <div className="aqa-feature-visual">
@@ -99,7 +99,7 @@ const AqaLandingPage: React.FC = () => {
             {/* 4. Tidy 3-Column Grid with Internal Tier Grouping */}
             <section className="landing-section aqa-resources-section">
                 <div className="aqa-resources-content">
-                    <h2 className="aqa-section-title">AQA 8300 Resource Library</h2>
+                    <h2 className="aqa-section-title">AQA Past Papers & Model Answers</h2>
 
                     <div className="aqa-year-card-grid">
                         {[
@@ -233,7 +233,7 @@ const AqaLandingPage: React.FC = () => {
             </section>
 
             <section className="tutor-feature-section">
-                <h2 className="section-title center">Interactive AQA 8300 Tutor</h2>
+                <h2 className="section-title center">Your 24/7 Personal AQA Tutor</h2>
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
@@ -246,11 +246,9 @@ const AqaLandingPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="tutor-card-text">
-                        <h2 className="board-section-title">24/7 AQA Specification Coach</h2>
+                        <h2 className="board-section-title">Your 24/7 Personal AQA Tutor</h2>
                         <p className="board-section-body">
-                            Don't just see the mark—understand it. Ask our AI why a specific step was
-                            required, request a simpler explanation of the AQA marking scheme,
-                            or get a personalized walkthrough of your model answer.
+                            Don't just look at a red 'X'. Chat directly with our AI to understand why you dropped a mark, get a simpler explanation of the AQA mark scheme, and confidently tackle the next paper.
                         </p>
                         <div className="feature-tag">Pro & Ultra Feature</div>
                     </div>

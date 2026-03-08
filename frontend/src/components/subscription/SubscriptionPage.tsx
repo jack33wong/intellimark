@@ -166,7 +166,7 @@ const SubscriptionPage: React.FC = () => {
     "@type": "Product",
     "name": "AI Marking Subscription",
     "image": "https://aimarking.ai/logo-social-share.jpg",
-    "description": "Spatial AI-powered marking for GCSE Maths papers. Get instant grades, method marks (M1), and ECF logic analysis.",
+    "description": "Spatial AI-powered marking for GCSE Maths papers. Get instant grades and marks for your working out.",
     "brand": { "@type": "Brand", "name": "AI Marking" },
     "offers": [
       {
@@ -218,7 +218,7 @@ const SubscriptionPage: React.FC = () => {
       <div className="upgrade-page">
         <SEO
           title="Pricing & Plans"
-          description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading. Get instant grades, method marks (M1), and ECF logic analysis."
+          description="Choose the perfect plan for your AI marking needs. From free trials to unlimited GCSE maths grading. Get instant grades and marks for your working out."
           schemaData={productSchema}
           canonical="https://aimarking.ai/pricing"
           image="https://aimarking.ai/logo-social-share.jpg"
@@ -257,7 +257,7 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <Crosshair size={16} />,
-          text: 'Smart Handwriting Recognition'
+          text: 'Reads messy handwriting'
         },
         {
           icon: <Award size={16} />,
@@ -265,11 +265,11 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <RotateCcw size={16} />,
-          text: 'Fair-Grade (ECF) Logic'
+          text: 'Marks for working out'
         },
         {
           icon: <Database size={16} />,
-          text: 'Standard Result Vault'
+          text: 'Save your recent papers'
         }
       ],
       popular: false
@@ -292,23 +292,23 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <Workflow size={16} />,
-          text: 'Examiner-Tuned Logic'
+          text: 'Strict GCSE Mark Schemes'
         },
         {
           icon: <TrendingUp size={16} />,
-          text: 'Smart Topic Analysis'
+          text: 'Find your weak topics'
         },
         {
           icon: <Layers size={16} />,
-          text: 'Extended Result Archive'
+          text: 'Save all your mock exams'
         },
         {
           icon: <MessageSquare size={16} />,
-          text: '24/7 AI Follow-up Chat'
+          text: '24/7 AI Tutor Chat'
         },
         {
           icon: <Users size={16} />,
-          text: 'Priority Support Hub'
+          text: 'Fast Email Support'
         }
       ],
       popular: true
@@ -335,7 +335,7 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <FileText size={16} />,
-          text: 'Unlimited Result Vault'
+          text: 'Keep your papers forever'
         }
       ],
       popular: false

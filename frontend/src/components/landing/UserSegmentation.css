@@ -48,10 +48,19 @@
     align-items: center;
 }
 
-.segment-icon img {
+.segment-icon img,
+.lucide-icon-wrapper {
     height: 100%;
     width: auto;
     object-fit: contain;
+    display: flex;
+    align-items: center;
+}
+
+.lucide-icon-wrapper {
+    background: rgba(127, 0, 255, 0.05);
+    padding: 20px;
+    border-radius: 20px;
 }
 
 .segmentation-card h3 {

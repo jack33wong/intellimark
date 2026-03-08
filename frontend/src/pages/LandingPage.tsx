@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import HeroAnimation from '../components/layout/HeroAnimation';
-import TrustSignals from '../components/common/TrustSignals';
 import Testimonials from '../components/landing/Testimonials';
 import UserSegmentation from '../components/landing/UserSegmentation';
 import SupportedPapers from '../components/landing/SupportedPapers';
+import BenefitBlocks from '../components/landing/BenefitBlocks';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import AntigravityTypewriter from '../components/common/AntigravityTypewriter';
@@ -99,30 +99,12 @@ const HERO_SEGMENTS = [
 /* --- Main Page Component --- */
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
-    const [userSegment, setUserSegment] = useState<'student' | 'tutor'>('student');
 
     // Controls the staggered entrance of subtitle/CTA
     const [startAnimations, setStartAnimations] = useState(false);
 
-    const SegmentedTabs = () => (
-        <div className="segmented-cta-tabs">
-            <button
-                className={`cta-tab ${userSegment === 'student' ? 'active' : ''}`}
-                onClick={() => setUserSegment('student')}
-            >
-                I am a Student
-            </button>
-            <button
-                className={`cta-tab ${userSegment === 'tutor' ? 'active' : ''}`}
-                onClick={() => setUserSegment('tutor')}
-            >
-                I am a Tutor
-            </button>
-        </div>
-    );
-
     const handleCtaClick = () => {
-        navigate(`/app?role=${userSegment}`);
+        navigate('/app');
     };
 
     return (
@@ -150,15 +132,10 @@ const LandingPage: React.FC = () => {
                     </p>
 
                     <div className="hero-cta-group">
-                        {/* BLOCK 2: Tabs (Medium delay) */}
-                        <div className="anim-item delay-2">
-                            <SegmentedTabs />
-                        </div>
-
                         {/* BLOCK 3: Primary CTA & Trust Text (Longest delay) */}
                         <div className="anim-item delay-3">
                             <button className="hero-primary-cta" onClick={handleCtaClick}>
-                                {userSegment === 'student' ? 'Get My Instant Grade (Free)' : 'Mark My Class Mocks (Free)'}
+                                Get My Instant Grade (Free)
                             </button>
                             <p className="hero-trust-microcopy">
                                 Supports Edexcel (1MA1), AQA (8300), & OCR. No credit card required.
@@ -197,7 +174,7 @@ const LandingPage: React.FC = () => {
                 </div>
             </section>
 
-            <TrustSignals />
+            <BenefitBlocks />
 
             {/* Dual-Action Entry Section */}
             <section className="dual-action-section">
@@ -295,12 +272,11 @@ const LandingPage: React.FC = () => {
             <section className="landing-section final-cta-section">
                 <div className="final-cta-container">
                     <h2 className="final-cta-title">Ready to master your GCSE Maths?</h2>
-                    <p className="final-cta-subtitle">Join 15,000+ students and tutors using AI Marking to perfect their exam technique.</p>
+                    <p className="final-cta-subtitle">Join 15,000+ students using AI Marking to perfect their exam technique.</p>
 
                     <div className="hero-cta-group">
-                        <SegmentedTabs />
                         <button className="hero-primary-cta" onClick={handleCtaClick}>
-                            {userSegment === 'student' ? 'Get My Instant Grade (Free)' : 'Start Marking Now (Free)'}
+                            Get My Instant Grade (Free)
                         </button>
                     </div>
                 </div>

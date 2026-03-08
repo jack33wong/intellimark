@@ -65,7 +65,7 @@ const EdexcelLandingPage: React.FC = () => {
                 <div className="edexcel-hero-content">
                     <h1 className="edexcel-hero-title">Instant AI Marking for <br /><span className="edexcel-highlight-navy">Edexcel GCSE Maths</span></h1>
                     <p className="edexcel-hero-subtitle">
-                        Specifically engineered for the <strong>Pearson Edexcel 1MA1 specification</strong>. Get instant grades and logic-based feedback for both Foundation (Grades 1-5) and Higher (Grades 4-9) tiers.
+                        Practicing for your Edexcel GCSE Maths exams? Upload your Foundation or Higher past papers and get an instant, accurate grade based exactly on the Edexcel mark scheme.
                     </p>
                     <div className="edexcel-hero-cta-box">
                         <button className="edexcel-btn-file" onClick={handleUploadClick}>
@@ -74,9 +74,6 @@ const EdexcelLandingPage: React.FC = () => {
                             </svg>
                             Select Paper (PDF/JPG)
                         </button>
-                        <p className="edexcel-microcopy">
-                            ✓ Our Spatial AI understands the specific "AO" (Assessment Objective) markers used by Edexcel examiners.
-                        </p>
                     </div>
                 </div>
             </section>
@@ -91,9 +88,9 @@ const EdexcelLandingPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="edexcel-feature-text">
-                        <h2 className="edexcel-section-title">Decoding the Edexcel Mark Scheme Logic</h2>
+                        <h2 className="edexcel-section-title">Get Every Mark You Deserve</h2>
                         <p className="edexcel-section-body">
-                            Edexcel rewards "Process" marks (P) for multi-step problem solving even if your final answer is wrong. Our AI identifies these P-marks, M-marks (Method), and A-marks (Accuracy) in your handwritten work, ensuring you get full credit for your mathematical reasoning on every paper.
+                            Edexcel examiners reward you for showing your method, even if your final answer is wrong. Our AI reads your handwriting step-by-step to find every hidden mark you deserve, showing you exactly how to boost your score.
                         </p>
                     </div>
                 </div>
@@ -103,13 +100,13 @@ const EdexcelLandingPage: React.FC = () => {
             <section className="landing-section edexcel-feature-row">
                 <div className="edexcel-feature-container edexcel-strategy-hub-row">
                     <div className="edexcel-feature-text">
-                        <h2 className="edexcel-section-title">The Three-Paper Strategy Hub</h2>
+                        <h2 className="edexcel-section-title">Master All Three Edexcel Papers</h2>
                         <p className="edexcel-section-body">
                             Because Edexcel uses one non-calculator and two calculator papers, our AI provides specialized support for each:
                         </p>
                         <ul className="edexcel-strategy-list">
-                            <li><strong>Paper 1 (Non-Calculator):</strong> Focus on "Method Mark Recovery"—recovering points through clear working when mental arithmetic fails.</li>
-                            <li><strong>Papers 2 & 3 (Calculator Allowed):</strong> Focus on "Accuracy Standards"—checking for correct rounding to significant figures and precise multi-step calculator execution.</li>
+                            <li><strong>Paper 1 (Non-Calculator):</strong> Learn how to show your working clearly so you don't lose silly marks when mental math fails.</li>
+                            <li><strong>Papers 2 & 3 (Calculator):</strong> Master multi-step questions and learn exactly how Edexcel wants you to round your final answers.</li>
                         </ul>
                     </div>
                     <div className="edexcel-feature-visual edexcel-visual-large">
@@ -124,7 +121,7 @@ const EdexcelLandingPage: React.FC = () => {
             {/* 4. Edexcel Resource Library */}
             <section className="landing-section edexcel-resources-section">
                 <div className="edexcel-resources-content">
-                    <h2 className="edexcel-section-title">Edexcel Resource Library</h2>
+                    <h2 className="edexcel-section-title">Edexcel Past Papers & Model Answers</h2>
                     <p className="edexcel-section-body">Fully updated for the latest Pearson Edexcel examiner guidance and 1MA1 series.</p>
 
                     <div className="edexcel-year-card-grid">
@@ -259,7 +256,7 @@ const EdexcelLandingPage: React.FC = () => {
             </section>
 
             <section className="tutor-feature-section">
-                <h2 className="section-title center">Interactive Edexcel 1MA1 Tutor</h2>
+                <h2 className="section-title center">Your 24/7 Personal Edexcel Tutor</h2>
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
@@ -272,11 +269,9 @@ const EdexcelLandingPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="tutor-card-text">
-                        <h2 className="board-section-title">Interactive Edexcel Logic Tutor</h2>
+                        <h2 className="board-section-title">Your 24/7 Personal Edexcel Tutor</h2>
                         <p className="board-section-body">
-                            Don't just see the mark—understand it. Ask our AI why a specific step was
-                            required, request a simpler explanation of the Edexcel marking scheme,
-                            or get a personalized walkthrough of your model answer.
+                            Don't just look at a red 'X'. Chat directly with our AI to understand why you dropped a mark, get a simple explanation of the Edexcel mark scheme, and learn how to ace the next paper.
                         </p>
                         <div className="feature-tag">Pro & Ultra Feature</div>
                     </div>

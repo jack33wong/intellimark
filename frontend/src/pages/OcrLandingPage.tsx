@@ -65,7 +65,7 @@ const OcrLandingPage: React.FC = () => {
                 <div className="ocr-hero-content">
                     <h1 className="ocr-hero-title">Instant AI Marking for <br /><span className="ocr-highlight-green">OCR GCSE Maths</span></h1>
                     <p className="ocr-hero-subtitle">
-                        Specifically tuned for the <strong>OCR J560 specification</strong>. Move beyond rote memorization with AI that understands OCR's focus on authentic contexts, reasoning, and problem-solving.
+                        Practicing for your OCR GCSE Maths exams? Upload your past papers and get an instant, accurate grade based exactly on the OCR mark scheme.
                     </p>
                     <div className="ocr-hero-cta-box">
                         <button className="ocr-btn-file" onClick={handleUploadClick}>
@@ -91,9 +91,9 @@ const OcrLandingPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="ocr-feature-text">
-                        <h2 className="ocr-section-title">Mastering OCR's Independent "B" Marks</h2>
+                        <h2 className="ocr-section-title">Stop Losing Marks Twice</h2>
                         <p className="ocr-section-body">
-                            Unlike other boards, OCR frequently uses B marks, which are independent of your method and awarded for specific correct intermediate stages. Our AI identifies these "B" opportunities and applies Follow Through (FT) logic, ensuring that one early slip doesn't cost you marks on the rest of the question.
+                            Made a silly mistake on step one? OCR examiners won't punish you twice. Our AI tracks your working out and automatically applies 'follow through' marks, ensuring you still get points for using the right method later in the question.
                         </p>
                     </div>
                 </div>
@@ -103,13 +103,13 @@ const OcrLandingPage: React.FC = () => {
             <section className="landing-section ocr-feature-row">
                 <div className="ocr-feature-container">
                     <div className="ocr-feature-text">
-                        <h2 className="ocr-section-title">Strategic Contextual Feedback</h2>
+                        <h2 className="ocr-section-title">Crack Tricky Word Problems</h2>
                         <p className="ocr-section-body">
                             OCR emphasizes applying math to daily life, often using descriptive notation instead of abstract symbols.
                         </p>
                         <ul className="ocr-strategy-list">
-                            <li><strong>Word-Based Problems:</strong> Our AI is trained to interpret "authentic context" questions where words replace standard mathematical notation.</li>
-                            <li><strong>Accuracy Standards:</strong> Our AI checks your work against the specific precision and significant figure requirements of the J560 scheme.</li>
+                            <li><strong>Word-Heavy Questions:</strong> OCR loves hiding math inside real-world stories. Our AI breaks down complex paragraphs into simple math steps so you know exactly what to calculate.</li>
+                            <li><strong>Perfect Precision:</strong> Learn exactly when OCR wants you to round your answers, so you never throw away an easy accuracy mark.</li>
                         </ul>
                     </div>
                     <div className="ocr-feature-visual">
@@ -124,7 +124,7 @@ const OcrLandingPage: React.FC = () => {
             {/* 4. OCR Resource Library */}
             <section className="landing-section ocr-resources-section">
                 <div className="ocr-resources-content">
-                    <h2 className="ocr-section-title">OCR Resource Library</h2>
+                    <h2 className="ocr-section-title">OCR Past Papers & Model Answers</h2>
                     <p className="ocr-section-body">Fully updated for the latest OCR examiner guidance and J560 series.</p>
 
                     <div className="ocr-year-card-grid">
@@ -259,7 +259,7 @@ const OcrLandingPage: React.FC = () => {
             </section>
 
             <section className="tutor-feature-section">
-                <h2 className="section-title center">Interactive OCR J560 Tutor</h2>
+                <h2 className="section-title center">Your 24/7 Personal OCR Tutor</h2>
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
@@ -272,11 +272,9 @@ const OcrLandingPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="tutor-card-text">
-                        <h2 className="board-section-title">Personalized J560 Step-Walkthrough</h2>
+                        <h2 className="board-section-title">Your 24/7 Personal OCR Tutor</h2>
                         <p className="board-section-body">
-                            Don't just see the mark—understand it. Ask our AI why a specific step was
-                            required, request a simpler explanation of the OCR marking scheme,
-                            or get a personalized walkthrough of your model answer.
+                            Don't just look at a red 'X'. Chat directly with our AI to understand why you dropped a mark, get a simple explanation of the OCR mark scheme, and confidently tackle the next paper.
                         </p>
                         <div className="feature-tag">Pro & Ultra Feature</div>
                     </div>
