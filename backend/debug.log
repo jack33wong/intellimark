@@ -3338,3 +3338,21 @@ Correct plotting of 5 points and joining with line segments. <span class="markin
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1171ms for 50 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 564ms, Process 4ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 568ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 479ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 482ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 135ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 136ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 110ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 111ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 73ms, Process 0ms for 19 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 73ms for 19 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 500ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 504ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 336ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 338ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 133ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 133ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 94ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 94ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 62ms, Process 0ms for 19 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 62ms for 19 sessions (limit: 50)

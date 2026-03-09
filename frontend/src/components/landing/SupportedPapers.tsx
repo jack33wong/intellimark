@@ -1,11 +1,23 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ShieldCheck } from 'lucide-react';
+import { BookOpen, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { trackPaperInteraction } from '../../utils/analytics';
 import './SupportedPapers.css';
 
 const SupportedPapers: React.FC = () => {
     const navigate = useNavigate();
+    const scrollRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+
+    const handleScroll = (index: number, direction: 'left' | 'right') => {
+        const container = scrollRefs.current[index];
+        if (container) {
+            const scrollAmount = container.clientWidth;
+            container.scrollBy({
+                left: direction === 'left' ? -scrollAmount : scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+    };
     const boards = [
         {
             name: "Pearson Edexcel",
@@ -316,53 +328,74 @@ const SupportedPapers: React.FC = () => {
                                 </a>
                             </div>
 
-                            <div className="board-content-scroll">
-                                {board.series.map((s, si) => (
-                                    <div key={si} className="series-group">
-                                        <div className="series-header">
-                                            <h4>GCSE Mathematics ({board.code}) {s.year}</h4>
+                            <div className="board-scroll-wrapper">
+                                <button
+                                    className="mobile-pagination-btn left"
+                                    onClick={() => handleScroll(i, 'left')}
+                                    aria-label="Previous year"
+                                >
+                                    <ChevronLeft size={20} />
+                                </button>
+
+                                <div
+                                    className="board-content-scroll"
+                                    ref={el => scrollRefs.current[i] = el}
+                                >
+                                    {board.series.map((s, si) => (
+                                        <div key={si} className="series-group">
+                                            <div className="series-header">
+                                                <h4>GCSE Mathematics ({board.code}) {s.year}</h4>
+                                            </div>
+                                            <div className="series-papers-list">
+                                                {s.papers.map((paper, pi) => (
+                                                    <div key={pi} className="paper-row">
+                                                        <div className="paper-info">
+                                                            <span className="paper-count">{paper.count}:</span>
+                                                            <span className="paper-type">{paper.type}</span>
+                                                        </div>
+                                                        <div className="paper-meta">
+                                                            <span className="paper-code-tag">{paper.code}</span>
+                                                        </div>
+                                                        <div className="paper-actions">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const paperCode = paper.code.replace('/', '-');
+                                                                    const seriesYear = s.year.split(' ')[0].substring(0, 3).toUpperCase() + s.year.split(' ')[1];
+                                                                    const finalCode = `${paperCode}-${seriesYear}`;
+                                                                    trackPaperInteraction(finalCode, 'MODEL');
+                                                                    navigate(`/app?code=${finalCode}&mode=model`);
+                                                                }}
+                                                                className="action-link model"
+                                                            >
+                                                                Model
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const paperCode = paper.code.replace('/', '-');
+                                                                    const seriesYear = s.year.split(' ')[0].substring(0, 3).toUpperCase() + s.year.split(' ')[1];
+                                                                    const finalCode = `${paperCode}-${seriesYear}`;
+                                                                    trackPaperInteraction(finalCode, 'MARK');
+                                                                    navigate(`/app?code=${finalCode}&mode=markingscheme`);
+                                                                }}
+                                                                className="action-link mark"
+                                                            >
+                                                                Mark
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="series-papers-list">
-                                            {s.papers.map((paper, pi) => (
-                                                <div key={pi} className="paper-row">
-                                                    <div className="paper-info">
-                                                        <span className="paper-count">{paper.count}:</span>
-                                                        <span className="paper-type">{paper.type}</span>
-                                                    </div>
-                                                    <div className="paper-meta">
-                                                        <span className="paper-code-tag">{paper.code}</span>
-                                                    </div>
-                                                    <div className="paper-actions">
-                                                        <button
-                                                            onClick={() => {
-                                                                const paperCode = paper.code.replace('/', '-');
-                                                                const seriesYear = s.year.split(' ')[0].substring(0, 3).toUpperCase() + s.year.split(' ')[1];
-                                                                const finalCode = `${paperCode}-${seriesYear}`;
-                                                                trackPaperInteraction(finalCode, 'MODEL');
-                                                                navigate(`/app?code=${finalCode}&mode=model`);
-                                                            }}
-                                                            className="action-link model"
-                                                        >
-                                                            Model
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                const paperCode = paper.code.replace('/', '-');
-                                                                const seriesYear = s.year.split(' ')[0].substring(0, 3).toUpperCase() + s.year.split(' ')[1];
-                                                                const finalCode = `${paperCode}-${seriesYear}`;
-                                                                trackPaperInteraction(finalCode, 'MARK');
-                                                                navigate(`/app?code=${finalCode}&mode=markingscheme`);
-                                                            }}
-                                                            className="action-link mark"
-                                                        >
-                                                            Mark
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
+
+                                <button
+                                    className="mobile-pagination-btn right"
+                                    onClick={() => handleScroll(i, 'right')}
+                                    aria-label="Next year"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
                             </div>
                         </div>
                     ))}

@@ -1,3 +1,8 @@
+.programmatic-landing-wrapper {
+    min-height: 100vh;
+    background-color: #ffffff;
+}
+
 .landing-page {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     color: #f8fafc;
@@ -5,10 +10,12 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    padding-top: 50px;
+    /* Offset for ultra-compact fixed header */
 }
 
 .landing-hero {
-    padding: 8rem 2rem;
+    padding: 6rem 2rem;
     text-align: center;
     background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);

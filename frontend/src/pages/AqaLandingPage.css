@@ -319,7 +319,7 @@
     }
 
     .aqa-hero-title {
-        font-size: 2.5rem;
+        font-size: 2.0rem;
     }
 }
 
@@ -429,7 +429,7 @@
 }
 
 .paper-type {
-    font-size: 10px;
+    font-size: 8px;
     color: var(--text-tertiary);
     background: #f7fafc;
     padding: 2px 6px;
