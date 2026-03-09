@@ -11608,3 +11608,35 @@ Fully correct diagram with rotational symmetry of order 4 and centre of rotation
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 612ms for 50 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 1371ms, Process 3ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1374ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 761ms, Process 7ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 769ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 639ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 643ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 571ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 575ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 762ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 765ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 563ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 566ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 694ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 698ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 641ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 645ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 667ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 670ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 739ms, Process 5ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 744ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 612ms, Process 5ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 617ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 1866ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1870ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 1026ms, Process 5ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 1031ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 607ms, Process 5ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 612ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 629ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 633ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 596ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 600ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 870ms, Process 4ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 874ms for 50 sessions (limit: 50)

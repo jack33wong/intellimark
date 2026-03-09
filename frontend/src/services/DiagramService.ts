@@ -85,6 +85,7 @@ export class DiagramService {
                 if (isSymmetryContext && data.type === 'coordinate_grid') {
                     data.show_axes = false;
                     data.label_origin = 'A';
+                    data._isSymmetry = true; // Reliable flag for bounds override
                 }
 
                 const label = data.equation_label || data.description || '';
@@ -154,6 +155,12 @@ export class DiagramService {
         const triangleRegex = /\[(?:Triangle|Type: Diagram of (?:a )?triangle)[:]\s*(.*?)\]/gi;
         processedContent = processedContent.replace(triangleRegex, (match, content) => {
             return this.renderTriangleFromHint(content.trim());
+        });
+
+        // [v9.84] List Safety Net (Q13) - Parses raw data lists into clean numeric grids
+        const listRegex = /\[(?:List)[:]\s*(.*?)\]/gi;
+        processedContent = processedContent.replace(listRegex, (match, content) => {
+            return this.renderListFromHint(content.trim());
         });
 
         // Legacy hints... (Cleanup Pass)
@@ -408,27 +415,83 @@ export class DiagramService {
      * Draws Coordinate Grids and Shape Layers
      */
     private static drawCoordinateGrid(data: any): string {
-        // [v9.59] Auto-bounds calculation if min/max are missing or invalid
-        const getRawPoints = (item: any) => item.points || item.vertices || [];
-        const allPossiblePoints = [
-            ...(getRawPoints(data)),
-            ...(data.layers || data.shapes || []).flatMap((l: any) => getRawPoints(l))
-        ];
+        // [v9.83] Scale up tiny symmetry shapes internally so they occupy more squares on the grid
+        if (data._isSymmetry) {
+            const getPointsTemp = (item: any): any[] => {
+                let pts: any[] = [];
+                if (item.points) pts.push(...item.points);
+                if (item.vertices) pts.push(...item.vertices);
+                if (item.shapes) item.shapes.forEach((s: any) => pts.push(...getPointsTemp(s)));
+                if (item.layers) item.layers.forEach((l: any) => pts.push(...getPointsTemp(l)));
+                return pts;
+            };
+            const tPts = getPointsTemp(data);
+            if (tPts.length > 0) {
+                let smX = Infinity, smY = Infinity, lgX = -Infinity, lgY = -Infinity;
+                tPts.forEach((p: any) => {
+                    const px = parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0));
+                    const py = parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0));
+                    if (Number.isFinite(px)) { smX = Math.min(smX, px); lgX = Math.max(lgX, px); }
+                    if (Number.isFinite(py)) { smY = Math.min(smY, py); lgY = Math.max(lgY, py); }
+                });
+
+                // If it's a 2x2 shape or smaller, scale its vertices by 3x!
+                if (lgX - smX > 0 && lgX - smX <= 2 && lgY - smY <= 2) {
+                    const scaleFactor = 3;
+                    const scaleItem = (item: any) => {
+                        if (item.points) {
+                            item.points = item.points.map((p: any) => {
+                                if (Array.isArray(p)) return [parseFloat(p[0]) * scaleFactor, parseFloat(p[1]) * scaleFactor];
+                                return { x: parseFloat(p.x) * scaleFactor, y: parseFloat(p.y) * scaleFactor };
+                            });
+                        }
+                        if (item.vertices) {
+                            item.vertices = item.vertices.map((p: any) => {
+                                if (Array.isArray(p)) return [parseFloat(p[0]) * scaleFactor, parseFloat(p[1]) * scaleFactor];
+                                return { x: parseFloat(p.x) * scaleFactor, y: parseFloat(p.y) * scaleFactor };
+                            });
+                        }
+                        if (item.x !== undefined && item.y !== undefined) {
+                            item.x = parseFloat(item.x) * scaleFactor;
+                            item.y = parseFloat(item.y) * scaleFactor;
+                        }
+                        if (item.shapes) item.shapes.forEach(scaleItem);
+                        if (item.layers) item.layers.forEach(scaleItem);
+                    };
+                    scaleItem(data);
+                }
+            }
+        }
+
+        // [v9.59] Auto-bounds calculation
+        const getRawPoints = (item: any): any[] => {
+            let pts: any[] = [];
+            if (item.points) pts.push(...item.points);
+            if (item.vertices) pts.push(...item.vertices);
+            if (item.shapes) item.shapes.forEach((s: any) => pts.push(...getRawPoints(s)));
+            if (item.layers) item.layers.forEach((l: any) => pts.push(...getRawPoints(l)));
+            return pts;
+        };
+        const allPossiblePoints = getRawPoints(data);
 
         let xMin = parseFloat(data.x_min);
         let xMax = parseFloat(data.x_max);
         let yMin = parseFloat(data.y_min);
         let yMax = parseFloat(data.y_max);
 
+        // Always calculate actual geometric bounds for auto-zooming or fallback
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        if (allPossiblePoints.length > 0) {
+            allPossiblePoints.forEach((p: any) => {
+                const px = parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0));
+                const py = parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0));
+                if (Number.isFinite(px)) { minX = Math.min(minX, px); maxX = Math.max(maxX, px); }
+                if (Number.isFinite(py)) { minY = Math.min(minY, py); maxY = Math.max(maxY, py); }
+            });
+        }
+
         if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
             if (allPossiblePoints.length > 0) {
-                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                allPossiblePoints.forEach((p: any) => {
-                    const px = parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0));
-                    const py = parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0));
-                    if (Number.isFinite(px)) { minX = Math.min(minX, px); maxX = Math.max(maxX, px); }
-                    if (Number.isFinite(py)) { minY = Math.min(minY, py); maxY = Math.max(maxY, py); }
-                });
                 xMin = Number.isFinite(xMin) ? xMin : minX - 2;
                 xMax = Number.isFinite(xMax) ? xMax : maxX + 2;
                 yMin = Number.isFinite(yMin) ? yMin : minY - 2;
@@ -457,13 +520,13 @@ export class DiagramService {
         const yStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(height || 10))));
 
         // Outer border for the grid if it represents a clean diagram
-        gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.1" opacity="0.6" vector-effect="non-scaling-stroke" />`;
+        gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="1" vector-effect="non-scaling-stroke" />`;
 
         for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
-            gridHtml += `<line x1="${x}" y1="${-yMax}" x2="${x}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.05" opacity="0.5" vector-effect="non-scaling-stroke" />`;
+            gridHtml += `<line x1="${x}" y1="${-yMax}" x2="${x}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.15" opacity="1" vector-effect="non-scaling-stroke" />`;
         }
         for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
-            gridHtml += `<line x1="${xMin}" y1="${-y}" x2="${xMax}" y2="${-y}" stroke="var(--diagram-grid)" stroke-width="0.05" opacity="0.5" vector-effect="non-scaling-stroke" />`;
+            gridHtml += `<line x1="${xMin}" y1="${-y}" x2="${xMax}" y2="${-y}" stroke="var(--diagram-grid)" stroke-width="0.15" opacity="1" vector-effect="non-scaling-stroke" />`;
         }
 
         let layersHtml = gridHtml;
@@ -479,7 +542,7 @@ export class DiagramService {
 
         if (data.label_origin) {
             layersHtml += `<circle cx="0" cy="0" r="0.1" fill="var(--diagram-foreground)" />`;
-            layersHtml += `<text x="0.3" y="-0.3" font-size="0.8" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
+            layersHtml += `<text x="0.2" y="-0.2" font-size="0.45" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
         }
 
 
@@ -867,7 +930,7 @@ export class DiagramService {
     private static renderFallbackBox(description: string): string {
         return `
         <div class="diagram-fallback-wrapper">
-            <strong>📊 Diagram Reference:</strong>
+            <strong>📐 Diagram Reference:</strong>
             ${description}
         </div>`;
     }
@@ -925,6 +988,31 @@ export class DiagramService {
      * Safety Net: Converts bracketed triangle hints into SVGs (v9.75)
      * e.g. "side1=10, side2=8, angle=60, description=isosceles"
      */
+    /**
+     * Safety Net: Converts bracketed list hints into a clean Flexbox grid (v9.85)
+     * e.g. "[List: 36, 20, 37, 53, 42, 41, 24, 18, ...]"
+     */
+    private static renderListFromHint(content: string): string {
+        try {
+            // Split by comma, clean whitespace, and filter out empty items
+            const items = content.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+            if (items.length === 0) return `[List: ${content}]`;
+
+            // Draw them as a fluid grid of numbers using CSS classes
+            const itemsHtml = items.map(item => {
+                return `<div class="diagram-list-item">${item}</div>`;
+            }).join('');
+
+            return `
+            <div class="diagram-list-wrapper">
+                ${itemsHtml}
+            </div>`;
+        } catch (e) {
+            return `[List Error: ${content}]`;
+        }
+    }
+
     /**
      * Safety Net: Converts bracketed triangle hints into SVGs (v9.76)
      * e.g. "side1=10, side2=8, angle=60" or "AB=10, AC=8, angle=60"

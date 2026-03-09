@@ -3,7 +3,7 @@
 :root {
     /* --- Diagram Theme (Light) --- */
     --diagram-foreground: var(--text-primary);
-    --diagram-grid: var(--text-tertiary);
+    --diagram-grid: rgba(0, 0, 0, 0.4);
     --diagram-background: transparent;
     --diagram-shape-stroke: var(--icon-blue);
     --diagram-shape-fill: var(--fill-blue);
@@ -12,7 +12,7 @@
 html.dark {
     /* --- Diagram Theme (Dark) --- */
     --diagram-foreground: var(--text-primary);
-    --diagram-grid: var(--text-tertiary);
+    --diagram-grid: rgba(255, 255, 255, 0.4);
     --diagram-background: transparent;
     --diagram-shape-stroke: var(--text-white);
     --diagram-shape-fill: rgba(255, 255, 255, 0.1);

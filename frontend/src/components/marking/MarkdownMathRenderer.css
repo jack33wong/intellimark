@@ -212,22 +212,23 @@ ul {
   border-collapse: collapse;
   margin: 1.5em 0;
   font-size: 0.85em;
-  background-color: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  /*  background-color: rgba(255, 255, 255, 0.02); */
+  /* border-radius: 8px; */
   overflow: hidden;
   border: 1px solid var(--border-main);
+
 }
 
 .model_table th,
 .model_table td {
-  padding: 2px 4px;
-  text-align: center;
+  padding: 8px 28px;
+  text-align: left;
   /* Better for two-way mathematical tables */
   border: 1px solid var(--border-main);
 }
 
 .model_table th {
-  background-color: var(--fill-tsp-white-dark);
+  /* background-color: var(--fill-tsp-white-dark); */
   font-weight: 500;
   color: var(--text-primary);
   text-transform: uppercase;
@@ -235,8 +236,13 @@ ul {
   letter-spacing: 0.5px;
 }
 
+/* Hide empty table headers (e.g., when the markdown table has no explicit header titles) */
+.model_table thead:not(:has(th:not(:empty))) {
+  display: none;
+}
+
 .model_table tr:nth-child(even) {
-  background-color: var(--fill-tsp-white-light);
+  /* background-color: var(--fill-tsp-white-light); */
 }
 
 .model_table td {
@@ -246,4 +252,29 @@ ul {
 .model_table tr:hover {
   background-color: var(--fill-tsp-white-dark);
   transition: background-color 0.2s ease;
+}
+
+/* --- Diagram List (Array/Sequence) Styling --- */
+.diagram-list-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px;
+  margin: 16px 80px;
+  background-color: var(--fill-tsp-white-light);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  justify-content: left;
+  /* max-width: 600px; */
+}
+
+.diagram-list-item {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 40px;
+  padding: 8px 12px;
+  font-family: var(--font-math), monospace;
+  font-size: 0.9em;
+  color: var(--text-primary);
 }
