@@ -202,8 +202,7 @@ export class SuggestedFollowUpService {
         : getPrompt(`${config.promptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), base, qMarks);
 
       // [FEATURE] Restore Debug Logging
-      const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
-        (!isModelAnswer && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
+      const isLoggingEnabled = true; // [DIAGNOSIS] Force logging for Q8/Q17 upstream check
 
       if (isLoggingEnabled) {
         console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
@@ -224,10 +223,9 @@ export class SuggestedFollowUpService {
         // Only strip the main header, keep the interleaved sub-questions if AI generated them
         content = content.replace(/<div class="model-question-number">.*?<\/div>/sig, '').trim();
 
-        // [FIX] Header Alignment: Align Max Marks to the right
-        // [FIX] Interleaved Layout: For model answers, we trust the AI to interleave sub-questions + answers.
-        // We only prepend the verified parent text if it's there.
-        const header = `<div class="model-question-number">Question ${base} <span style="float:right;">[${qMarks} marks]</span></div>`;
+        // [FIX] Bible Compliance: Use marking-code class instead of inline styles
+        const mark_str = `[${qMarks} mark${qMarks > 1 ? 's' : ''}]`;
+        const header = `<div class="model-question-number">Question ${base} <span class="question-max-mark">${mark_str}</span></div>`;
 
         // [FIX] Layout Duplication: Prepend aggregated question text ONLY if the AI hasn't already provided it 
         // Interleaved layout: AI provides sub-questions and answers mixed.
@@ -245,7 +243,7 @@ export class SuggestedFollowUpService {
 <div class="model-answer-block">
     ${header}
     <div class="model-question-content">
-        <div class="model-ai-answer">${finalContent}</div>
+        ${finalContent}
     </div>
 </div>`.trim();
         return { html, tokens: ai.usageTokens || 0 };
