@@ -69,6 +69,9 @@ export class DiagramService {
         // Pass 2: Replace matches
         let processedContent = content;
 
+        // Context-aware enhancements (e.g. for Q11 Rotation Symmetry)
+        const isSymmetryContext = content.toLowerCase().includes('rotational symmetry') || content.toLowerCase().includes('centre of rotation');
+
         // We replace each original match. 
         // If it's the "winning" version in our map, render it. If not, hide it.
         matches.forEach(m => {
@@ -77,6 +80,13 @@ export class DiagramService {
 
             try {
                 const data = JSON.parse(unescaped);
+
+                // Inject specific improvements for symmetry questions
+                if (isSymmetryContext && data.type === 'coordinate_grid') {
+                    data.show_axes = false;
+                    data.label_origin = 'A';
+                }
+
                 const label = data.equation_label || data.description || '';
                 const key = `${data.sub_id || 'diag'}_${label}_${unescaped.length}`;
                 const winner = diagramMap.get(key);
@@ -446,20 +456,32 @@ export class DiagramService {
         const xStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(width || 10))));
         const yStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(height || 10))));
 
+        // Outer border for the grid if it represents a clean diagram
+        gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.1" opacity="0.6" vector-effect="non-scaling-stroke" />`;
+
         for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
-            gridHtml += `<line x1="${x}" y1="${-yMax}" x2="${x}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.05" opacity="0.3" vector-effect="non-scaling-stroke" />`;
+            gridHtml += `<line x1="${x}" y1="${-yMax}" x2="${x}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.05" opacity="0.5" vector-effect="non-scaling-stroke" />`;
         }
         for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
-            gridHtml += `<line x1="${xMin}" y1="${-y}" x2="${xMax}" y2="${-y}" stroke="var(--diagram-grid)" stroke-width="0.05" opacity="0.3" vector-effect="non-scaling-stroke" />`;
+            gridHtml += `<line x1="${xMin}" y1="${-y}" x2="${xMax}" y2="${-y}" stroke="var(--diagram-grid)" stroke-width="0.05" opacity="0.5" vector-effect="non-scaling-stroke" />`;
         }
 
-        let layersHtml = `
-            ${gridHtml}
-            <line x1="${xMin}" y1="${xAxisY}" x2="${xMax}" y2="${xAxisY}" stroke="var(--diagram-grid)" stroke-width="0.15" vector-effect="non-scaling-stroke" />
-            <line x1="${yAxisX}" y1="${-yMax}" x2="${yAxisX}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.15" vector-effect="non-scaling-stroke" />
-            <text x="${xMax}" y="${xAxisY - 0.5}" font-size="0.6" fill="var(--diagram-grid)" text-anchor="end">x</text>
-            <text x="${yAxisX + 0.5}" y="${-yMax + 0.8}" font-size="0.6" fill="var(--diagram-grid)" text-anchor="start">y</text>
-        `;
+        let layersHtml = gridHtml;
+
+        if (data.show_axes !== false) {
+            layersHtml += `
+                <line x1="${xMin}" y1="${xAxisY}" x2="${xMax}" y2="${xAxisY}" stroke="var(--diagram-grid)" stroke-width="0.15" vector-effect="non-scaling-stroke" />
+                <line x1="${yAxisX}" y1="${-yMax}" x2="${yAxisX}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.15" vector-effect="non-scaling-stroke" />
+                <text x="${xMax}" y="${xAxisY - 0.5}" font-size="0.6" fill="var(--diagram-grid)" text-anchor="end">x</text>
+                <text x="${yAxisX + 0.5}" y="${-yMax + 0.8}" font-size="0.6" fill="var(--diagram-grid)" text-anchor="start">y</text>
+            `;
+        }
+
+        if (data.label_origin) {
+            layersHtml += `<circle cx="0" cy="0" r="0.1" fill="var(--diagram-foreground)" />`;
+            layersHtml += `<text x="0.3" y="-0.3" font-size="0.8" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
+        }
+
 
         // [Simple & Robust v9.18] Global label collision tracking
         let hasDrawnSomething = false;
