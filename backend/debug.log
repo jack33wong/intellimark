@@ -3358,3 +3358,55 @@ Correct plotting of 5 points and joining with line segments. <span class="markin
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 62ms for 19 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 640ms, Process 3ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 643ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 574ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 577ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 409ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 412ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 145ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 146ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 129ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 130ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 75ms, Process 1ms for 19 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 77ms for 19 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 713ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 717ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 394ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 396ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 145ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 145ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 100ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 101ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 66ms, Process 0ms for 20 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 66ms for 20 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 586ms, Process 7ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 593ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 367ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 371ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 125ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 125ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 84ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 85ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 182ms, Process 0ms for 20 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 182ms for 20 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 818ms, Process 6ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 824ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 376ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 378ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 129ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 129ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 129ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 130ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 69ms, Process 0ms for 20 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 69ms for 20 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 596ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 599ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 772ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 777ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 434ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 437ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 171ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 171ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 90ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 91ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 66ms, Process 0ms for 20 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 66ms for 20 sessions (limit: 50)

@@ -634,15 +634,22 @@
 .markdown-math-renderer .model-exam-header {
   background: var(--fill-gray);
   border-left: 4px solid var(--text-brand);
-  padding: 0.8em 1.2em;
+  padding: 0.7em 1em;
   border-radius: 8px;
-  margin-bottom: 2em;
+  margin-bottom: 1.5em;
   box-shadow: var(--shadow-S);
   color: var(--text-primary);
   display: flex;
+  flex-direction: row;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-wrap: nowrap;
+  gap: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.markdown-math-renderer .model-exam-header::-webkit-scrollbar {
+  display: none;
 }
 
 /* Fallback for old simple text header format in dark mode */
@@ -653,35 +660,37 @@
 
 .markdown-math-renderer .exam-header-title {
   color: var(--text-primary);
-  font-size: 1.1em;
+  font-size: 1.05em;
   font-weight: 700;
   margin-bottom: 0;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .markdown-math-renderer .exam-header-pills {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
 }
 
 .markdown-math-renderer .exam-pill {
-  font-size: 0.75em;
+  font-size: 0.65em;
   font-weight: 600;
-  padding: 4px 12px;
+  padding: 2px 8px;
   border-radius: 100px;
-  background: var(--background-white-main);
-  border: 1px solid var(--border-main);
+  background: var(--background-menu-gray);
+  border: 1px solid var(--border-light);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .markdown-math-renderer .pill-code {
-  background: var(--background-white-main);
-  border: 1px solid var(--border-main);
-  color: var(--text-secondary);
+  background: var(--background-menu-white);
+  color: var(--text-primary);
+  border-color: var(--background-menu-gray);
 }
 
 .markdown-math-renderer .model-question-number {
@@ -709,5 +718,58 @@
   .has-your-work-outer-container {
     padding: 20px 20px 30px;
     /* Reduced by half from 50px 50px 80px */
+  }
+
+  .markdown-math-renderer .model-exam-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 14px;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .markdown-math-renderer .exam-header-title {
+    font-size: 0.95em;
+    white-space: normal;
+  }
+
+  .markdown-math-renderer .exam-header-pills {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    grid-template-areas:
+      "code series"
+      "marks count";
+    gap: 6px 8px;
+    justify-content: start;
+    width: 100%;
+  }
+
+  .markdown-math-renderer .pill-tier {
+    display: none !important;
+  }
+
+  .markdown-math-renderer .pill-code {
+    grid-area: code;
+  }
+
+  .markdown-math-renderer .pill-series {
+    grid-area: series;
+  }
+
+  .markdown-math-renderer .pill-marks {
+    grid-area: marks;
+  }
+
+  .markdown-math-renderer .pill-count {
+    grid-area: count;
+  }
+
+  .markdown-math-renderer .exam-pill {
+    font-size: 0.6em;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
   }
 }
