@@ -111,7 +111,7 @@ export const fireAdsPurchaseConversion = (transactionValue: number | string, tra
  */
 export const fireAdsSignupConversion = (userEmail?: string | null) => {
     // NOTE: Placeholder label for Sign-up. Update this once the exact label is known.
-    const CONVERSION_LABEL = 'SIGNUP_LABEL_PLACEHOLDER';
+    const CONVERSION_LABEL = '5pBwCLCH5oQcEOCDuN0C';
     const ADS_ID = 'AW-732824032';
 
     if (typeof window.gtag !== 'function') {

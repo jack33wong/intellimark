@@ -3356,3 +3356,5 @@ Correct plotting of 5 points and joining with line segments. <span class="markin
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 94ms for 50 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 62ms, Process 0ms for 19 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 62ms for 19 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 640ms, Process 3ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 643ms for 50 sessions (limit: 50)
