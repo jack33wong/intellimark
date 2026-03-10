@@ -68,6 +68,20 @@
     line-height: 1.5;
 }
 
+@media (max-width: 640px) {
+    .hero-main-title {
+        font-size: 24px;
+        line-height: 1.25;
+        margin-bottom: 16px;
+    }
+
+    .hero-main-subtitle {
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-bottom: 32px;
+    }
+}
+
 .hero-cta-group {
     display: flex;
     flex-direction: column;
