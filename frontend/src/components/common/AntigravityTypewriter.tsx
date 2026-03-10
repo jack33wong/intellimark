@@ -18,7 +18,7 @@ const AntigravityTypewriter: React.FC<AntigravityTypewriterProps> = ({
     segments,
     onComplete,
     className = '',
-    initialDelay = 1000,
+    initialDelay = 800,
     cursorOffset = 0
 }) => {
     const [visibleIndex, setVisibleIndex] = useState(0);
@@ -56,21 +56,21 @@ const AntigravityTypewriter: React.FC<AntigravityTypewriterProps> = ({
 
             // Detect Line Break (Forced or Wrapped) for 1s pause
             if (currentCharEl && prevCharEl && currentCharEl.offsetTop > prevCharEl.offsetTop + 5) {
-                delay = 1000;
+                delay = 800;
                 shouldBlink = true;
             } else if (visibleIndex === 0) {
                 delay = initialDelay;
                 shouldBlink = true;
             } else if (['.', '!', '?'].includes(char)) {
-                delay = 600;
+                delay = 400;
                 shouldBlink = true;
             } else if (char === ',') {
-                delay = 350;
+                delay = 200;
                 shouldBlink = true;
             } else if (char === ' ') {
-                delay = 40;
+                delay = 30;
             } else {
-                delay = Math.random() * 60 + 30;
+                delay = Math.random() * 45 + 20;
             }
 
             setIsTypingActive(!shouldBlink);
