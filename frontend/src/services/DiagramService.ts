@@ -163,6 +163,12 @@ export class DiagramService {
             return this.renderListFromHint(content.trim());
         });
 
+        // [v9.86] Angle Safety Net (Q4 etc) - Intersects lines and draws isolated angles
+        const angleRegex = /\[(?:Angle|Type: Diagram (?:of|showing) (?:an? |two )?(?:angle|intersecting lines)).*?marked\s+([a-zA-Z0-9]+)\]/gi;
+        processedContent = processedContent.replace(angleRegex, (match, label) => {
+            return this.renderAngleFromHint(label.trim());
+        });
+
         // Legacy hints... (Cleanup Pass)
         const legacyRegex = /\[(Type:|Diagram:|Answer Diagram:)(.*?)\]/gi;
         processedContent = processedContent.replace(legacyRegex, (match, prefix, description) => {
@@ -526,10 +532,10 @@ export class DiagramService {
         const xAxisY = (yMin <= 0 && yMax >= 0) ? 0 : (yMin > 0 ? -yMin : -yMax);
         const yAxisX = (xMin <= 0 && xMax >= 0) ? 0 : (xMin > 0 ? xMin : xMax);
 
-        // [v9.73] Subtle Background Grid
+        // [v9.87] Grid Density Fix (Q11) - Ensure at least ~10 grid subdivisions regardless of coordinates
         let gridHtml = "";
-        const xStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(width || 10))));
-        const yStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(height || 10))));
+        const xStep = Math.max(1, Math.ceil((width || 10) / 10));
+        const yStep = Math.max(1, Math.ceil((height || 10) / 10));
 
         // Outer border for the grid if it represents a clean diagram
         gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="1" vector-effect="non-scaling-stroke" />`;
@@ -557,14 +563,32 @@ export class DiagramService {
             layersHtml += `<text x="0.2" y="-0.2" font-size="0.45" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
         }
 
+        // [v9.87] Axis Scrubbing (Q11) - Strip layers that merely duplicate the X or Y axis as a line
+        layers = layers.filter((layer: any) => {
+            const pts = layer.points || layer.vertices;
+            if (pts && pts.length === 2) {
+                const px1 = parseFloat(Array.isArray(pts[0]) ? pts[0][0] : pts[0].x);
+                const py1 = parseFloat(Array.isArray(pts[0]) ? pts[0][1] : pts[0].y);
+                const px2 = parseFloat(Array.isArray(pts[1]) ? pts[1][0] : pts[1].x);
+                const py2 = parseFloat(Array.isArray(pts[1]) ? pts[1][1] : pts[1].y);
+                // If it's a straight line touching axis extremes, it's an AI hallucinated axis. Remove it.
+                if (px1 === 0 && px2 === 0 && py1 < -5 && py2 > 5) return false; // Y axis duplicate
+                if (py1 === 0 && py2 === 0 && px1 < -5 && px2 > 5) return false; // X axis duplicate
+            }
+            return true;
+        });
 
         // [Simple & Robust v9.18] Global label collision tracking
         let hasDrawnSomething = false;
 
         layers.forEach((layer: any) => {
             const rawPoints = layer.points || layer.vertices || [];
-            const strokeColor = 'var(--diagram-foreground)';
-            const fillColor = 'none'; // Strictly monochrome v9.19
+
+            // [v9.87] Triangle Differentiation (Q11): solution vs reference
+            const purpose = layer.purpose || data.purpose || "solution";
+            const isReference = purpose === 'reference';
+            const strokeColor = isReference ? 'var(--diagram-grid)' : 'var(--diagram-foreground)';
+            const fillColor = isReference ? 'none' : 'rgba(128, 128, 128, 0.15)'; // Slightly shade solution shapes
 
             // [FIX] Support for specific shape types like parabola (even without points)
             if (layer.shape_name === 'parabola' || layer.type === 'parabola') {
@@ -603,11 +627,14 @@ export class DiagramService {
                 const pts = ptsArr.join(' ');
 
                 // [v9.73] Support for Open Paths (Frequency Polygons)
-                const isOpen = layer.is_open || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path';
+                const isOpen = layer.is_open || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line';
                 const tag = isOpen ? 'polyline' : 'polygon';
 
+                const dashedStyle = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
+                const baseWidth = isReference ? 0.2 : 0.3;
+
                 layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" 
-                                stroke-width="${layer.dashed ? 0.3 : 0.2}" ${layer.dashed ? 'stroke-dasharray="0.5,0.5"' : ''} 
+                                stroke-width="${baseWidth}" ${dashedStyle} 
                                 vector-effect="non-scaling-stroke" />`;
 
                 // [v9.62] Edge Label Resilience (Q23 Recovery)
@@ -1078,10 +1105,67 @@ export class DiagramService {
 
             if (!data.side1) return `[Triangle: ${content}]`;
 
+            if (!data.side1) return `[Triangle: ${content}]`;
+
             return this.drawTriangle(data);
         } catch (e) {
             console.error('[DiagramService] renderTriangleFromHint error:', e);
             return `[Triangle Error: ${content}]`;
+        }
+    }
+
+    /**
+     * Safety Net: Converts bracketed angle hints into standalone SVGs (v9.86)
+     * e.g. "Diagram showing two intersecting lines forming an acute angle marked x"
+     */
+    private static renderAngleFromHint(label: string): string {
+        try {
+            // We draw a simple V-shape (two intersecting lines)
+            // Vertex at (0,0)
+            const lineLength = 10;
+            const angleDeg = 60; // Default to an acute 60 degree angle
+            const angleRad = angleDeg * (Math.PI / 180);
+
+            // Line 1: straight up the Y axis (0, -10)
+            const x1 = 0, y1 = -lineLength;
+
+            // Line 2: up and right (8.66, -5)
+            const x2 = lineLength * Math.sin(angleRad);
+            const y2 = -lineLength * Math.cos(angleRad);
+
+            // Angle arc properties
+            const arcRadius = 3;
+            const arcStartX = 0;
+            const arcStartY = -arcRadius;
+            const arcEndX = arcRadius * Math.sin(angleRad);
+            const arcEndY = -arcRadius * Math.cos(angleRad);
+
+            // Position the label deeply inside the arc
+            const labelDist = arcRadius * 0.6;
+            const labelAngle = angleRad / 2; // Bisect the angle
+            const labelX = labelDist * Math.sin(labelAngle);
+            const labelY = -labelDist * Math.cos(labelAngle);
+
+            const padding = 2;
+            const minX = -padding;
+            const maxX = Math.max(x1, x2) + padding;
+            const minY = Math.min(y1, y2) - padding;
+            const maxY = padding; // Vertex is at 0,0 
+
+            return this.wrapSVG(minX, minY, maxX - minX, maxY - minY, `
+                <!-- The two intersecting lines -->
+                <line x1="0" y1="0" x2="${x1}" y2="${y1}" stroke="var(--diagram-foreground)" stroke-width="0.3" vector-effect="non-scaling-stroke" />
+                <line x1="0" y1="0" x2="${x2}" y2="${y2}" stroke="var(--diagram-foreground)" stroke-width="0.3" vector-effect="non-scaling-stroke" />
+                
+                <!-- The Angle Arc -->
+                <path d="M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 0 1 ${arcEndX} ${arcEndY}" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.2" vector-effect="non-scaling-stroke" />
+                
+                <!-- The Angle Label -->
+                <text x="${labelX}" y="${labelY + 0.3}" font-size="1.2" font-style="italic" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${label}</text>
+            `);
+        } catch (e) {
+            console.error('[DiagramService] renderAngleFromHint error:', e);
+            return `[Angle Error: ${label}]`;
         }
     }
 }
