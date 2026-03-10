@@ -6,7 +6,6 @@ import {
     onSnapshot,
     deleteDoc,
     serverTimestamp,
-    updateDoc,
     arrayUnion,
     type DocumentSnapshot
 } from 'firebase/firestore';
@@ -70,8 +69,9 @@ class MobileUploadService {
     async uploadBatchImage(sessionId: string, file: Blob): Promise<string> {
         try {
             const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
-            // 1. Mark as uploading (transient state)
-            await updateDoc(sessionRef, { status: 'uploading' });
+            // 1. Mark as uploading — use setDoc+merge so it re-creates the doc
+            // if the desktop already deleted it (e.g. user scans again after success)
+            await setDoc(sessionRef, { id: sessionId, status: 'uploading', createdAt: serverTimestamp() }, { merge: true });
 
             // 2. Upload to Storage
             const filename = `mobile_upload_${Date.now()}.png`;
@@ -80,16 +80,17 @@ class MobileUploadService {
             const downloadUrl = await getDownloadURL(storageRef);
 
             // 3. Atomically add to array and maintain 'uploading' status
-            await updateDoc(sessionRef, {
+            await setDoc(sessionRef, {
                 status: 'uploading',
                 imageUrls: arrayUnion(downloadUrl)
-            });
+            }, { merge: true });
 
             return downloadUrl;
         } catch (error) {
             console.error('Mobile upload failed:', error);
             const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
-            await updateDoc(sessionRef, { status: 'error' });
+            // Best-effort error status — ignore if doc is gone
+            await setDoc(sessionRef, { status: 'error' }, { merge: true }).catch(() => { });
             throw error;
         }
     }
@@ -108,7 +109,7 @@ class MobileUploadService {
      */
     async finalizeSession(sessionId: string): Promise<void> {
         const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
-        await updateDoc(sessionRef, { status: 'completed' });
+        await setDoc(sessionRef, { status: 'completed' }, { merge: true });
     }
 
     /**
@@ -118,10 +119,10 @@ class MobileUploadService {
     async resetSession(sessionId: string): Promise<void> {
         try {
             const sessionRef = doc(db, TEMP_UPLOADS_COLLECTION, sessionId);
-            await updateDoc(sessionRef, {
+            await setDoc(sessionRef, {
                 status: 'waiting',
                 imageUrls: []
-            });
+            }, { merge: true });
         } catch (error) {
             console.warn('Failed to reset session:', error);
         }
