@@ -4052,3 +4052,5 @@ Fully correct bar chart <span class="marking-code">[A1]</span>
 💳 Deducted 1.08 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1773162007380), remaining: 999980.75
 [PERF] getUserUnifiedSessions: Fetch 105ms, Process 1ms for 5 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 106ms for 5 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 139ms, Process 0ms for 5 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 139ms for 5 sessions (limit: 50)

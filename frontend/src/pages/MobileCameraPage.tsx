@@ -87,10 +87,10 @@ const MobileCameraPage: React.FC = () => {
     // Latest Corners Ref for Shutter (V19)
     const latestCornersRef = useRef<NormalizedPoint[] | null>(null);
 
-    // 1. Trapezoid Engine (V41)
+    // FIX #2: isActive only gated on stream/review — NOT processingStep (avoids orphaned loops on every capture)
     const { detectedCorners } = useDocumentDetection(
         videoRef,
-        streamStatus === 'active' && !isReviewOpen && !processingStep
+        streamStatus === 'active' && !isReviewOpen
     );
 
     // Update ref whenever hook gives new corners
