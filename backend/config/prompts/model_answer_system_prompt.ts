@@ -58,8 +58,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \\\`type\\\` (e.g., "shape"), \\\`points\\\` (Array of [x, y] or [x, y, "label"]), \\\`color\\\`, \\\`label\\\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \\\`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\\\`
+1. **triangle**: \\\`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\\\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \\\`label_A\\\`, \\\`label_B\\\`, \\\`label_C\\\` to the actual vertex letters. For "Triangle ABD": \\\`"label_A": "A", "label_B": "B", "label_C": "D"\\\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \\\`angle_A\\\`, \\\`angle_B\\\`, \\\`angle_C\\\` to the variable letters only (e.g., \\\`"angle_A": "x", "angle_B": "y"\\\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \\\`angle_C\\\` if it would repeat the same letter as \\\`angle_A\\\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \\\`line_extension\\\` object with: \\\`"from_vertex": "B"\\\`, \\\`"direction": "left"\\\` or \\\`"right"\\\`, \\\`"label": "C"\\\` (far endpoint), \\\`"angle_label": "w"\\\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \\\`{"type": "triangle"}\\\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \\\`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\\\`
 3. **function_graph**: \\\`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\\\`

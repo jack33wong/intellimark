@@ -262,8 +262,6 @@ export class DiagramService {
             label2 = extractedLabels['AB'];
         }
 
-        const labelAng = getLabel(data.angle, "");
-
         // [v9.56] Rule #1: Don't break visuals. If non-numeric, sketch a "proportional" version
         const isSketch = !Number.isFinite(s1) || !Number.isFinite(s2) || !Number.isFinite(ang);
 
@@ -303,7 +301,24 @@ export class DiagramService {
 
         const displayL3 = DiagramService.getAppliedLabel(label3, unit);
 
+        // [v9.94] Per-vertex angle labels (from structured JSON, fully optional)
+        // Falls back to legacy single `data.angle` -> `displayLA` for old triangles
+        const labelAng = getLabel(data.angle, "");
         const displayLA = labelAng ? (Number.isFinite(parseFloat(labelAng)) ? `${labelAng}°` : labelAng) : "";
+        const angA = data.angle_A ? `${data.angle_A}°` : "";  // e.g. "x°"
+        const angB = data.angle_B ? `${data.angle_B}°` : (displayLA || ""); // fallback for old JSON
+        const angC = data.angle_C ? `${data.angle_C}°` : "";
+
+        // [v9.94] Line Extension (from structured JSON, fully optional)
+        const ext = data.line_extension;
+        const hasExt = !!ext;
+        // Extension goes from vertex B (x1,y1) to the left
+        const extLen = isSketch ? 7 : 4;
+        const xExt = x1 - extLen;
+        const yExt = y1;
+
+        const extPadding = hasExt ? extLen + 2 : 0;
+        const adjMinX = Math.min(x1, x2, x3, hasExt ? xExt : x1) - padding - extPadding;
 
         const fontSize = isSketch ? 1.0 : 0.8;
         const angleFontSize = isSketch ? 0.9 : 0.7;
@@ -333,21 +348,32 @@ export class DiagramService {
             tickMarks += `<line x1="${tx3_1}" y1="${ty3_1}" x2="${tx3_2}" y2="${ty3_2}" stroke="var(--diagram-foreground)" stroke-width="0.2" />`;
         }
 
-        return this.wrapSVG(minX, minY, maxX - minX, maxY - minY, `
+        return this.wrapSVG(adjMinX, minY, maxX - adjMinX, maxY - minY, `
             <polygon points="${x1},${y1} ${x2},${y2} ${x3},${y3}" 
                      fill="none" stroke="var(--diagram-foreground)" stroke-width="0.25" vector-effect="non-scaling-stroke" />
             ${tickMarks}
+
+            <!-- Line Extension (v9.94) -->
+            ${hasExt ? `<line x1="${x1}" y1="${y1}" x2="${xExt}" y2="${yExt}" stroke="var(--diagram-foreground)" stroke-width="0.25" vector-effect="non-scaling-stroke" />` : ""}
+
             <!-- Vertex Labels -->
             <text x="${x3}" y="${y3 - 1.0}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vA}</text>
-            <text x="${x1 - 1.0}" y="${y1}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="end" font-weight="bold">${vB}</text>
+            <text x="${x1 - 1.0}" y="${y1 + 1.2}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vB}</text>
             <text x="${x2 + 1.2}" y="${y2}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="start" font-weight="bold">${vC}</text>
+            ${hasExt ? `<text x="${xExt - 0.8}" y="${yExt}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="end" font-weight="bold">${ext.label || "C"}</text>` : ""}
 
             <!-- Side Labels -->
             <text x="${x3 / 2 - (isSketch ? 2.5 : 1.0)}" y="${y3 / 2}" font-size="${fontSize}" font-weight="${isSketch ? '600' : 'normal'}" text-anchor="end" fill="var(--diagram-foreground)">${displayL2}</text>
             <text x="${(x2 + x3) / 2 + (isSketch ? 2.5 : 1.0)}" y="${(y2 + y3) / 2}" font-size="${fontSize}" font-weight="${isSketch ? '600' : 'normal'}" text-anchor="start" fill="var(--diagram-foreground)">${displayL1}</text>
             <text x="${(x1 + x2) / 2}" y="${y1 + (isSketch ? 3.0 : 1.5)}" font-size="${fontSize}" font-weight="${isSketch ? '600' : 'normal'}" text-anchor="middle" fill="var(--diagram-foreground)">${displayL3}</text>
             
-            <text x="${x1 + (isSketch ? 1.8 : 0.8)}" y="${y1 - (isSketch ? 1.0 : 0.4)}" font-size="${angleFontSize}" font-weight="${isSketch ? '600' : 'normal'}" fill="var(--diagram-foreground)">${displayLA}</text>
+            <!-- Angle Labels per vertex (v9.94) -->
+            ${angA ? `<text x="${x3}" y="${y3 + (isSketch ? 2.2 : 1.2)}" font-size="${angleFontSize}" font-style="italic" fill="var(--diagram-foreground)" text-anchor="middle">${angA}</text>` : ""}
+            ${angB ? `<text x="${x1 + (isSketch ? 1.8 : 0.8)}" y="${y1 - (isSketch ? 1.0 : 0.4)}" font-size="${angleFontSize}" font-style="italic" fill="var(--diagram-foreground)" text-anchor="start">${angB}</text>` : ""}
+            ${angC ? `<text x="${x2 - (isSketch ? 1.8 : 0.8)}" y="${y2 - (isSketch ? 1.0 : 0.4)}" font-size="${angleFontSize}" font-style="italic" fill="var(--diagram-foreground)" text-anchor="end">${angC}</text>` : ""}
+
+            <!-- Exterior angle at extension junction (v9.94) -->
+            ${hasExt && ext.angle_label ? `<text x="${x1 - (isSketch ? 2.5 : 1.5)}" y="${y1 - (isSketch ? 1.2 : 0.6)}" font-size="${angleFontSize}" font-style="italic" fill="var(--diagram-foreground)" text-anchor="middle">${ext.angle_label}°</text>` : ""}
             
             ${isSketch ? `<text x="${maxX}" y="${maxY + 1.0}" font-size="0.8" fill="var(--diagram-grid)" font-weight="bold" text-anchor="end">Not to scale</text>` : ""}
         `);

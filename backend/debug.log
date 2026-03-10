@@ -2,14 +2,12 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 62ms for 0 sessions (limit: 50)
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 41ms for 0 sessions (limit: 50)
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 53ms for 0 sessions (limit: 50)
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 46ms for 0 sessions (limit: 50)
-🚀 [MODEL-ANSWER] Controller HIT! Request for paper: Pearson Edexcel - 1MA1/1F - November 2023, Foundation Tier
-[EXAM-REF] Input "Pearson Edexcel - 1MA1/1F - November 2023, Foundation Tier" is not a valid doc ID, proceeding to search.
-ℹ️ [EXAM-REF] Looking for paper via search: Pearson Edexcel - 1MA1/1F - November 2023, Foundation Tier
-ℹ️ [EXAM-REF] Searching papers with variations: ["pearson edexcel - 1ma1/1f - november 2023, foundation tier","pearson edexcel   1ma1/1f   november 2023, foundation tier","pearson edexcel / 1ma1/1f / november 2023, foundation tier"]
+[PERF] getUserUnifiedSessions: Fetch 132ms, Process 1ms for 3 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 134ms for 3 sessions (limit: 50)
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: Pearson Edexcel Mathematics 1MA1/1F • November 2023 • Foundation Tier
+[EXAM-REF] Input "Pearson Edexcel Mathematics 1MA1/1F • November 2023 • Foundation Tier" is not a valid doc ID, proceeding to search.
+ℹ️ [EXAM-REF] Looking for paper via search: Pearson Edexcel Mathematics 1MA1/1F • November 2023 • Foundation Tier
+ℹ️ [EXAM-REF] Searching papers with variations: ["pearson edexcel mathematics 1ma1/1f • november 2023 • foundation tier","pearson edexcel maths 1ma1/1f • november 2023 • foundation tier"]
 ℹ️ [EXAM-REF] Looking for scheme via Metadata: 1MA1/1F / November 2023 (Variations: ["November 2023","november 2023"])
 ✅ [EXAM-REF] Found scheme via Metadata Match: d42aa64f-24de-48de-8869-d02f5e42899e (November 2023)
 [MODEL-ANSWER] Found sub-marks for 7: 7a, 7b
@@ -83,8 +81,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -206,8 +207,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -329,8 +333,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -452,8 +459,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -575,8 +585,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -698,8 +711,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -823,8 +839,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -951,8 +970,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1085,8 +1107,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1216,8 +1241,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1341,8 +1369,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1465,8 +1496,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1599,8 +1633,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1725,8 +1762,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1850,8 +1890,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -1976,8 +2019,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2100,8 +2146,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2225,8 +2274,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2350,8 +2402,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2480,8 +2535,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2608,8 +2666,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2738,8 +2799,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2862,8 +2926,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -2988,8 +3055,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -3115,8 +3185,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -3239,8 +3312,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -3364,8 +3440,11 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
    - **Layer Keys**: \`type\` (e.g., "shape"), \`points\` (Array of [x, y] or [x, y, "label"]), \`color\`, \`label\`.
 
 **Supported Types & Abstract Schemas:**
-1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm" }\`
+1. **triangle**: \`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\`
     - **EXTRACTION RULE (STRICT)**: You MUST extract the actual dimensions from the question hint (e.g., AB=14.6, AC=18.2, Angle=62). 
+    - **VERTEX LABELS (NEW - CRITICAL)**: If the triangle has named vertices (e.g., "Triangle ABD"), set \`label_A\`, \`label_B\`, \`label_C\` to the actual vertex letters. For "Triangle ABD": \`"label_A": "A", "label_B": "B", "label_C": "D"\`.
+    - **ANGLE LABELS (NEW - CRITICAL)**: If angles are labelled with variables (e.g., "angles x°, y°"), set \`angle_A\`, \`angle_B\`, \`angle_C\` to the variable letters only (e.g., \`"angle_A": "x", "angle_B": "y"\`). Do NOT include degree symbols or LaTeX in JSON values. **NO DUPLICATES**: For isosceles triangles with two equal angles (e.g., both base angles = x°), only set the angle label ONCE on the vertex that appears distinct in the figure — omit \`angle_C\` if it would repeat the same letter as \`angle_A\`.
+    - **LINE EXTENSION (NEW)**: If a straight line passes through a triangle vertex (e.g., "straight line ABC" where B is also a triangle vertex), add a \`line_extension\` object with: \`"from_vertex": "B"\`, \`"direction": "left"\` or \`"right"\`, \`"label": "C"\` (far endpoint), \`"angle_label": "w"\` (angle at junction).
     - **PROHIBITION**: Never output a "lazy" triangle JSON with only the type (e.g., \`{"type": "triangle"}\`). If dimensions exist in the text, they MUST be in the JSON.
 2. **polygon**: \`{ "type": "polygon", "shape_name": "NAME", "sides": [{ "label": "L", "length": VAL }] }\`
 3. **function_graph**: \`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\`
@@ -3436,12 +3515,12 @@ Work out 120 - 89
 31 <span class="marking-code">[B1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 1):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 5):
 <span class="model_question">
-Here is a list of numbers. 2 4 4 7 8 Work out the range of these numbers.
+Work out $\frac{1}{5}$ of $300$
 </span>
 <div class="model_answer">
-$6$ <span class="marking-code">[B1]</span>
+$60$ <span class="marking-code">[B1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 3):
@@ -3452,33 +3531,31 @@ Simplify $3 \times a \times 4$
 $12a$ <span class="marking-code">[B1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 5):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 1):
 <span class="model_question">
-Work out $\frac{1}{5}$ of $300$
+Here is a list of numbers. 2 4 4 7 8 Work out the range of these numbers.
 </span>
 <div class="model_answer">
-$300 \div 5 = 60$ <br>
-$60$ <span class="marking-code">[B1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 26):
-<span class="model_question">
-Work out an estimate for $\frac{5.7\times8.2}{0.26}$
-</span>
-<div class="model_answer">
-$\frac{6 \times 8}{0.3}$ <span class="marking-code">[M1]</span><br>
-$\frac{48}{0.3} = 160$ <span class="marking-code">[M1]</span><br>
-$160$ <span class="marking-code">[A1]</span>
+$8 - 2 = 6$ <span class="marking-code">[B1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 25):
 <span class="model_question">
-A piece of glass has a mass of $27$ g and a volume of $10$ cm^{3}. Work out the density of the piece of glass.
+A piece of glass has a mass of $27$ g and a volume of $10 \text{ cm}^{3}$. Work out the density of the piece of glass.
 </span>
 <div class="model_answer">
-Density = $\frac{mass}{volume}$ <br>
 Density = $\frac{27}{10}$ <span class="marking-code">[M1]</span><br>
-Density = $2.7$ g/cm$^3$ <span class="marking-code">[A1]</span>
+$2.7$ (g/cm$^3$) <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 17):
+<span class="model_question">
+Work out $\frac{3}{5}\div\frac{1}{6}$ Give your answer as a mixed number.
+</span>
+<div class="model_answer">
+$\frac{3}{5} \times \frac{6}{1}$ <span class="marking-code">[M1]</span><br>
+$\frac{3 \times 6}{5 \times 1} = \frac{18}{5}$ <span class="marking-code">[M1]</span><br>
+$3\frac{3}{5}$ <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 4):
@@ -3490,6 +3567,27 @@ Density = $2.7$ g/cm$^3$ <span class="marking-code">[A1]</span>
 </script>
 <div class="model_answer">
 $40$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 26):
+<span class="model_question">
+Work out an estimate for $\frac{5.7\times8.2}{0.26}$
+</span>
+<div class="model_answer">
+$\frac{6 \times 8}{0.3}$ <span class="marking-code">[M1]</span>
+<br>
+$\frac{48}{0.3} = 160$ <span class="marking-code">[M1]</span>
+<br>
+$160$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 16):
+<span class="model_question">
+Shah takes an exam. The exam is out of 60 marks. Shah needs to score at least 70% of the marks to pass the exam. He scores 45 marks. Show that Shah passes the exam.
+</span>
+<div class="model_answer">
+$60 \times 70 \div 100 = 42$ <span class="marking-code">[M1]</span><br>
+$45 &gt; 42$ so Shah passes the exam. <span class="marking-code">[C1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 7):
@@ -3511,87 +3609,13 @@ b) The real distance between two points is 20 m. What is the distance between th
 $20 \div 5 = 4$ cm <span class="marking-code">[B1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 27):
-<span class="model_question">
-a) Expand and simplify $(3x+2)(2x-5)$
-</span>
-<div class="model_answer">
-$6x^2 -15x +4x -10$ <span class="marking-code">[M1]</span><br>
-$6x^2 - 11x - 10$ <span class="marking-code">[A1]</span>
-</div>
-
-<span class="model_question">
-b) Factorise $x^{2}-16$
-</span>
-<div class="model_answer">
-$(x - 4)(x + 4)$ <span class="marking-code">[B1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 17):
-<span class="model_question">
-Work out $\frac{3}{5}\div\frac{1}{6}$ Give your answer as a mixed number.
-</span>
-<div class="model_answer">
-$\frac{3}{5} \times 6$ <span class="marking-code">[M1]</span><br>
-$\frac{3 \times 6}{5} = \frac{18}{5}$ <span class="marking-code">[M1]</span><br>
-$3\frac{3}{5}$ <span class="marking-code">[A1]</span>
-</div>
-
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 18):
 <span class="model_question">
-Work out $6.3 \times 2.4$
+Work out 6.3 \times 2.4
 </span>
 <div class="model_answer">
 $63 \times 24 = 1512$ <span class="marking-code">[M1]</span><br>
-Digits $1512$ <span class="marking-code">[A1]</span><br>
-$15.12$ <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 20):
-<span class="model_question">
-a) Write 156 as a product of its prime factors.
-</span>
-<div class="model_answer">
-$156 = 2 \times 78 = 2 \times 2 \times 39 = 2 \times 2 \times 3 \times 13$ <br>
-$2^2 \times 3 \times 13$ <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
-</div>
-
-<span class="model_question">
-b) Find the highest common factor (HCF) of 156 and 130
-</span>
-<div class="model_answer">
-$130 = 2 \times 65 = 2 \times 5 \times 13$ <span class="marking-code">[M1]</span> <br>
-HCF $= 2 \times 13 = 26$ <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 16):
-<span class="model_question">
-Shah takes an exam. The exam is out of 60 marks. Shah needs to score at least 70% of the marks to pass the exam. He scores 45 marks. Show that Shah passes the exam.
-</span>
-<div class="model_answer">
-$60 \times 70 \div 100 = 42$ <span class="marking-code">[M1]</span><br>
-$45 &gt; 42$ so Shah passes the exam. <span class="marking-code">[C1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 6):
-<span class="model_question">
-There are 3 litres of oil in a can. Jermaine uses 700 millilitres of the oil. Work out the amount of oil left in the can. Give your answer in millilitres.
-</span>
-<div class="model_answer">
-$3 \times 1000 = 3000$ <span class="marking-code">[P1]</span><br>
-$3000 - 700 = 2300$ <span class="marking-code">[P1]</span><br>
-2300 ml <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 22):
-<span class="model_question">
-The point P lies on the line AB. Use ruler and compasses to construct an angle of $90^{\circ}$ at P. You must show all your construction lines.
-</span>
-<script type="application/json" class="ai-diagram-data">
-{"type": "fallback", "description": "Diagram showing a line AB with point P on it, and a perpendicular line constructed at P using compass and ruler, showing all construction arcs."}
-</script>
-<div class="model_answer">
-Fully correct construction with all arcs drawn. <span class="marking-code">[C2]</span>
+15.12 <span class="marking-code">[A1]</span> <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 15):
@@ -3602,7 +3626,17 @@ Steve is buying a car. The car costs £12000. Steve pays 25% of the cost as a de
 $12000 \times 25 \div 100 = 3000$ <span class="marking-code">[P1]</span><br>
 $12000 - 3000 = 9000$ <span class="marking-code">[P1]</span><br>
 $9000 \div 20 = 450$ <span class="marking-code">[P1]</span><br>
-£$450$ <span class="marking-code">[A1]</span>
+£450 <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 6):
+<span class="model_question">
+There are 3 litres of oil in a can. Jermaine uses 700 millilitres of the oil. Work out the amount of oil left in the can. Give your answer in millilitres.
+</span>
+<div class="model_answer">
+$3 \times 1000 = 3000$ <span class="marking-code">[P1]</span><br>
+$3000 - 700 = 2300$ <span class="marking-code">[P1]</span><br>
+$2300$ millilitres <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 10):
@@ -3631,37 +3665,53 @@ Derek wants to make 60 cookies. He has $900$ g of peanut butter. Does Derek have
 <div class="model_answer">
 $60 \div 20 = 3$ <span class="marking-code">[P1]</span><br>
 $3 \times 250 = 750$ g <span class="marking-code">[P1]</span><br>
-Yes, he has enough peanut butter as he needs $750$ g and has $900$ g. <span class="marking-code">[C1]</span>
+Yes, he has enough peanut butter because he needs $750$ g and he has $900$ g. <span class="marking-code">[C1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 14):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 27):
 <span class="model_question">
-[Type: Cartesian coordinate grid with x-axis from -2 to 2 and y-axis from -10 to 8] On the grid, draw the graph of y=4x-1 for values of x from -2 to 2
+a) Expand and simplify $(3x+2)(2x-5)$
+</span>
+<div class="model_answer">
+$(3x \times 2x) + (3x \times -5) + (2 \times 2x) + (2 \times -5)$ <br>
+$6x^2 -15x + 4x -10$ <span class="marking-code">[M1]</span><br>
+$6x^2 - 11x - 10$ <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+b) Factorise $x^{2}-16$
+</span>
+<div class="model_answer">
+$(x - 4)(x + 4)$ <span class="marking-code">[B1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 22):
+<span class="model_question">
+The point P lies on the line AB. Use ruler and compasses to construct an angle of $90^{\circ}$ at P. You must show all your construction lines.
 </span>
 <script type="application/json" class="ai-diagram-data">
-{
-  "type": "coordinate_grid",
-  "x_min": -2,
-  "x_max": 2,
-  "y_min": -10,
-  "y_max": 8,
-  "purpose": "solution",
-  "sub_id": "14",
-  "layers": [
-    {
-      "type": "shape",
-      "shape_name": "line",
-      "points": [
-        [-2, -9],
-        [2, 7]
-      ],
-      "color": "blue"
-    }
-  ]
-}
+{"type": "fallback", "description": "Diagram showing a line AB with point P on it, and a perpendicular line constructed at P using compass and ruler, showing all construction arcs."}
 </script>
 <div class="model_answer">
-Correct line between $x = -2$ and $x = 2$ <span class="marking-code">[B3]</span>
+Fully correct construction with all arcs drawn. <span class="marking-code">[C2]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 9):
+<span class="model_question">
+Selina has a bag of 22 counters. 5 of the counters are blue. 9 of the counters are red. 8 of the counters are pink. Selina takes at random a counter from the bag. Write down the probability that Selina
+<br>
+i) takes a red counter,
+<br>
+ii) does not take a pink counter,
+<br>
+iii) takes a white counter.
+</span>
+<div class="model_answer">
+i) $\frac{9}{22}$ <span class="marking-code">[B1]</span>
+<br>
+ii) $\frac{14}{22}$ (oe eg $\frac{7}{11}$) <span class="marking-code">[B1]</span>
+<br>
+iii) $0$ <span class="marking-code">[B1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 19):
@@ -3683,9 +3733,26 @@ $\frac{1}{25}$ <span class="marking-code">[B1]</span>
 b) Write $\frac{2^{5}\times2^{4}}{2^{3}}$ in the form $2^{n}$ where $n$ is an integer.
 </span>
 <div class="model_answer">
-$2^{5+4-3}$ <span class="marking-code">[M1]</span>
+$2^{5+4-3} = 2^{6}$ <span class="marking-code">[M1]</span>
 <br>
-$2^{6}$ <span class="marking-code">[A1]</span>
+$2^6$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 20):
+<span class="model_question">
+a) Write 156 as a product of its prime factors.
+</span>
+<div class="model_answer">
+$156 = 2 \times 78 = 2 \times 2 \times 39 = 2 \times 2 \times 3 \times 13$ <br>
+$2^2 \times 3 \times 13$ <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+
+<span class="model_question">
+b) Find the highest common factor (HCF) of 156 and 130
+</span>
+<div class="model_answer">
+$130 = 2 \times 65 = 2 \times 5 \times 13$ <span class="marking-code">[M1]</span> <br>
+HCF $= 2 \times 13 = 26$ <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 13):
@@ -3694,33 +3761,39 @@ Chloe is making scrunchies. Chloe has a large number of hair bands. Each hair ba
 </span>
 <div class="model_answer">
 $100 \div 5 = 20$ <span class="marking-code">[P1]</span><br>
-$300 \div 100 = 3$p (cost of $1$g of wool) <br>
-$3 \times 5 = 15$p (cost of wool per scrunchy) <span class="marking-code">[P1]</span><br>
-$15 + 8 = 23$ <span class="marking-code">[P1]</span><br>
-$23$p <span class="marking-code">[A1]</span>
+$300 \div 100 = 3$p (cost of $1$g of wool) <span class="marking-code">[P1]</span><br>
+$5 \times 3 = 15$p (cost of wool per scrunchy) <span class="marking-code">[P1]</span><br>
+$15 + 8 = 23$p <span class="marking-code">[A1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 9):
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 14):
 <span class="model_question">
-Selina has a bag of 22 counters. 5 of the counters are blue. 9 of the counters are red. 8 of the counters are pink. Selina takes at random a counter from the bag. Write down the probability that Selina
+[Type: Cartesian coordinate grid with x-axis from -2 to 2 and y-axis from -10 to 8] On the grid, draw the graph of y=4x-1 for values of x from -2 to 2
 </span>
-<span class="model_question">
-i) takes a red counter,
-</span>
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "coordinate_grid",
+  "purpose": "solution",
+  "sub_id": "14",
+  "x_min": -2,
+  "x_max": 2,
+  "y_min": -10,
+  "y_max": 8,
+  "layers": [
+    {
+      "type": "shape",
+      "shape_name": "line",
+      "points": [
+        [-2, -9],
+        [2, 7]
+      ],
+      "color": "blue"
+    }
+  ]
+}
+</script>
 <div class="model_answer">
-$\frac{9}{22}$ <span class="marking-code">[B1]</span>
-</div>
-<span class="model_question">
-ii) does not take a pink counter,
-</span>
-<div class="model_answer">
-$\frac{14}{22}$ <span class="marking-code">[B1]</span>
-</div>
-<span class="model_question">
-iii) takes a white counter.
-</span>
-<div class="model_answer">
-$0$ <span class="marking-code">[B1]</span>
+Correct line between $x = -2$ and $x = 2$ <span class="marking-code">[B3]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 21):
@@ -3745,21 +3818,6 @@ b) Nawal made a mistake. The stick was not 7 cm long. It was 17 cm long. How doe
 It reduced the mean. <span class="marking-code">[C1]</span>
 </div>
 
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 24):
-<span class="model_question">
-Mano has three shelves of books. There are $x$ books on shelf A. There are $(3x+1)$ books on shelf B. There are $(2x-5)$ books on shelf C. There is a total of 44 books on the three shelves. All the books have the same mass. The books on shelf B have a total mass of 7500 g. Work out the total mass of the books on shelf A.
-</span>
-<div class="model_answer">
-$x + (3x + 1) + (2x - 5) = 44$ <span class="marking-code">[P1]</span><br>
-$6x - 4 = 44$<br>
-$6x = 48$<br>
-$x = 8$<br>
-$3 \times 8 + 1 = 25$ <span class="marking-code">[P1]</span><br>
-$7500 \div 25 = 300$ <span class="marking-code">[P1]</span><br>
-$300 \times 8 = 2400$ <span class="marking-code">[P1]</span><br>
-$2400$ g <span class="marking-code">[A1]</span>
-</div>
-
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 12):
 <span class="model_question">
 $P=2g+4h$
@@ -3779,16 +3837,62 @@ aii) Work out the value of $g$ when $P=38$ and $h=3$
 <div class="model_answer">
 $38 = 2g + 4 \times 3$ <span class="marking-code">[M1]</span><br>
 $38 = 2g + 12$<br>
-$2g = 38 - 12 = 26$<br>
-$g = 26 \div 2 = 13$ <span class="marking-code">[A1]</span>
+$2g = 38 - 12$<br>
+$2g = 26$<br>
+$g = 13$ <span class="marking-code">[A1]</span>
 </div>
 
 <span class="model_question">
 b) $V=3r-q$ Work out the value of $V$ when $r=-3$ and $q=2$
 </span>
 <div class="model_answer">
-$V = (3 \times -3) - 2$ <span class="marking-code">[M1]</span><br>
+$V = 3 \times -3 - 2$ <span class="marking-code">[M1]</span><br>
 $V = -9 - 2 = -11$ <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 24):
+<span class="model_question">
+Mano has three shelves of books. There are $x$ books on shelf A. There are $(3x+1)$ books on shelf B. There are $(2x-5)$ books on shelf C. There is a total of 44 books on the three shelves. All the books have the same mass. The books on shelf B have a total mass of 7500 g. Work out the total mass of the books on shelf A.
+</span>
+<div class="model_answer">
+$x + (3x + 1) + (2x - 5) = 44$ <span class="marking-code">[P1]</span><br>
+$6x - 4 = 44$<br>
+$6x = 48$<br>
+$x = 8$<br>
+$3 \times 8 + 1 = 25$ <span class="marking-code">[P1]</span><br>
+$7500 \div 25 = 300$ <span class="marking-code">[P1]</span><br>
+$300 \times 8 = 2400$ <span class="marking-code">[P1]</span><br>
+$2400$ g <span class="marking-code">[A1]</span>
+</div>
+
+✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 23):
+<span class="model_question">
+The diagram shows an isosceles triangle ABD and the straight line ABC. BA=BD. x:y=2:1. Work out the value of w.
+</span>
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "description": "isosceles triangle",
+  "label_A": "A",
+  "label_B": "B",
+  "label_C": "D",
+  "angle_A": "x",
+  "angle_B": "y",
+  "line_extension": {
+    "from_vertex": "B",
+    "direction": "left",
+    "label": "C",
+    "angle_label": "w"
+  }
+}
+</script>
+<div class="model_answer">
+$x = 2y$ <span class="marking-code">[P1]</span><br>
+$2x + y = 180$ <span class="marking-code">[P1]</span><br>
+$4y + y = 180$, $y = 36$<br>
+$x = 72$<br>
+$w = 2x = 144$ <span class="marking-code">[P1]</span><br>
+$w = 144$ <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 11):
@@ -3812,12 +3916,12 @@ $V = -9 - 2 = -11$ <span class="marking-code">[A1]</span>
           1
         ],
         [
-          3,
-          1
-        ],
-        [
           1,
           4
+        ],
+        [
+          3,
+          1
         ]
       ],
       "color": "blue"
@@ -3831,12 +3935,12 @@ $V = -9 - 2 = -11$ <span class="marking-code">[A1]</span>
           1
         ],
         [
-          7,
-          1
-        ],
-        [
           1,
           10
+        ],
+        [
+          7,
+          1
         ]
       ],
       "color": "red"
@@ -3845,25 +3949,7 @@ $V = -9 - 2 = -11$ <span class="marking-code">[A1]</span>
 }
 </script>
 <div class="model_answer">
-Enlargement of the triangle with a scale factor of 3 drawn on the grid. <span class="marking-code">[A1]</span>
-</div>
-
-✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 23):
-<span class="model_question">
-[Type: Diagram showing an isosceles triangle ABD and a straight line ABC. Angles are marked with $x^{\circ}$, $y^{\circ}$, and $w^{\circ}$] The diagram shows an isosceles triangle ABD and the straight line ABC. BA=BD. $x:y=2:1$. Work out the value of $w$.
-</span>
-<script type="application/json" class="ai-diagram-data">
-{"type": "triangle", "description": "isosceles triangle"}
-</script>
-<div class="model_answer">
-Let $x = 2y$. Since triangle $ABD$ is isosceles, $\angle BAD = \angle BDA = x$. <span class="marking-code">[P1]</span><br>
-The sum of angles in a triangle is $180^\circ$, so $x + x + y = 180^\circ$. <span class="marking-code">[P1]</span><br>
-Substituting $x = 2y$, we get $2y + 2y + y = 180^\circ$, which simplifies to $5y = 180^\circ$.<br>
-Therefore, $y = \frac{180}{5} = 36^\circ$.<br>
-Then $x = 2y = 2 \times 36 = 72^\circ$.<br>
-Since $w$ and $x$ are supplementary angles, $w = 180 - y = 180 - 36 = 144^\circ$.<br>
-Alternatively, $w = x + x = 2x = 2 \times 72 = 144^\circ$. <span class="marking-code">[P1]</span><br>
-$w = 144^\circ$ <span class="marking-code">[A1]</span>
+See diagram for the enlarged triangle. <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
 </div>
 
 ✅ [DEBUG] MODEL-ANSWER RESPONSE (Group 8):
@@ -3887,7 +3973,7 @@ a) Complete the frequency table.
 </tr>
 <tr>
 <td>farm</td>
-<td>|| || || || || |</td>
+<td>|| || || || || || |</td>
 <td>$7$</td>
 </tr>
 <tr>
@@ -3897,7 +3983,6 @@ a) Complete the frequency table.
 </tr>
 </tbody>
 </table>
-<span class="marking-code">[B2]</span>
 </span>
 
 <span class="model_question">
@@ -3953,16 +4038,15 @@ c) [Type: Blank grid for a bar chart] Draw a bar chart to show the results.
   ]
 }
 </script>
+
 <div class="model_answer">
-Correct place labels and linear scale <span class="marking-code">[B1]</span><br>
-At least two correct bars <span class="marking-code">[M1]</span><br>
+Frequencies correct in table <span class="marking-code">[B2]</span>
+<br>
+Correct place labels and linear scale <span class="marking-code">[B1]</span>
+<br>
+At least two correct bars <span class="marking-code">[M1]</span>
+<br>
 Fully correct bar chart <span class="marking-code">[A1]</span>
 </div>
 
-💳 Deducted 0.97 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1773144698521), remaining: 999983.87
-[PERF] getUserUnifiedSessions: Fetch 57ms, Process 1ms for 1 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 58ms for 1 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 59ms, Process 0ms for 1 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 59ms for 1 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 67ms, Process 0ms for 1 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 67ms for 1 sessions (limit: 50)
+💳 Deducted 1.08 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1773162007380), remaining: 999980.75
