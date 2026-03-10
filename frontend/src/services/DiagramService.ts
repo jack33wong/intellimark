@@ -507,8 +507,20 @@ export class DiagramService {
             layers = [data]; // Treat root object as a single layer
         }
 
-        const width = xMax - xMin;
-        const height = yMax - yMin;
+        // [v9.85] Landscape Ratio Enforcement (Q14)
+        // If the graph is extremely tall and narrow (e.g. y=4x-1 from x=-2 to 2), it warps the SVG.
+        // We enforce a minimum width-to-height ratio to keep grids visually balanced.
+        let width = xMax - xMin;
+        let height = yMax - yMin;
+
+        const minWidthAllowed = height / 1.5;
+        if (width < minWidthAllowed && Number.isFinite(width) && Number.isFinite(height)) {
+            const widthDiff = minWidthAllowed - width;
+            // Expand the X-axis symmetrically to fill out the grid
+            xMin -= widthDiff / 2;
+            xMax += widthDiff / 2;
+            width = xMax - xMin;
+        }
 
         // [v9.73] Smarter Axis Drawing - Draw axes even if origin (0,0) is out of bounds
         const xAxisY = (yMin <= 0 && yMax >= 0) ? 0 : (yMin > 0 ? -yMin : -yMax);

@@ -12,6 +12,7 @@ import admin from 'firebase-admin';
 // Import Firebase instances from centralized config
 import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
 import { NormalizationService } from '../services/marking/NormalizationService.js';
+import { ImageStorageService } from '../services/imageStorageService.js';
 
 const router = express.Router();
 
@@ -590,10 +591,19 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
       });
     }
 
-    // Get all sessions from both collections
+    // Extract admin user ID
+    const uid = (req as any).user?.uid;
+    if (!uid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User ID not found'
+      });
+    }
+
+    // Get all sessions from both collections belonging to this admin
     const [subjectMarkingResultsSnapshot, unifiedSessionsSnapshot] = await Promise.all([
-      db.collection('subjectMarkingResults').get(),
-      db.collection('unifiedSessions').get()
+      db.collection('subjectMarkingResults').where('userId', '==', uid).get(),
+      db.collection('unifiedSessions').where('userId', '==', uid).get()
     ]);
 
     const subjectMarkingResultIds = subjectMarkingResultsSnapshot.docs.map(doc => doc.id);
@@ -641,10 +651,18 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
       deletedCount += batchIds.length;
     }
 
+    // Purge associated images in Firebase Storage for this admin
+    try {
+      await ImageStorageService.deleteUserImages(uid);
+      console.log(`🧹 Successfully cleared Firebase Storage images for admin user: ${uid}`);
+    } catch (imageError) {
+      console.error(`❌ Error clearing images for admin user ${uid}:`, imageError);
+      // We don't fail the request if image deletion fails, we just log it
+    }
 
     res.json({
       success: true,
-      message: `Successfully cleared ${deletedCount} items (${subjectMarkingResultIds.length} subject marking results + ${unifiedSessionIds.length} unified sessions)`,
+      message: `Successfully cleared ${deletedCount} items for your account (${subjectMarkingResultIds.length} subject marking results + ${unifiedSessionIds.length} unified sessions) and purged associated images`,
       deletedCount: deletedCount,
       subjectMarkingResultsDeleted: subjectMarkingResultIds.length,
       unifiedSessionsDeleted: unifiedSessionIds.length
