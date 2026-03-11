@@ -687,7 +687,7 @@ export class DiagramService {
             const purpose = layer.purpose || data.purpose || "solution";
             const isReference = purpose === 'reference';
             const strokeColor = 'var(--diagram-foreground)'; // Reference shapes need to be visible too
-            const strokeOpacityAttr = isReference ? 'stroke-opacity="0.5"' : '';
+            const strokeOpacityAttr = ''; // Fully opaque foreground (dark in light mode, light in dark mode)
             const fillColor = isReference ? 'none' : 'rgba(128, 128, 128, 0.15)'; // Slightly shade solution shapes
 
             // [FIX] Support for specific shape types like parabola (even without points)
@@ -710,7 +710,8 @@ export class DiagramService {
                         d += `${d === "" ? 'M' : 'L'} ${px} ${-py} `;
                     }
                 }
-                layersHtml += `<path d="${d}" fill="none" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="0.3" vector-effect="non-scaling-stroke" />`;
+                const dashedStyle = isReference ? 'stroke-dasharray="3,3"' : '';
+                layersHtml += `<path d="${d}" fill="none" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashedStyle} vector-effect="non-scaling-stroke" />`;
                 hasDrawnSomething = true;
             }
 
@@ -720,8 +721,8 @@ export class DiagramService {
                 const cy = parseFloat(layer.center ? layer.center[1] : 0);
                 const r = parseFloat(layer.radius || 1);
                 if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
-                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
-                    layersHtml += `<circle cx="${cx}" cy="${-cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
+                    layersHtml += `<circle cx="${cx}" cy="${-cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
                     hasDrawnSomething = true;
                 }
                 return;
@@ -754,8 +755,8 @@ export class DiagramService {
                         d += ' Z'; // Close the sector/semicircle
                     }
 
-                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
-                    layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
+                    layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
                     hasDrawnSomething = true;
                 }
                 return;
@@ -777,8 +778,8 @@ export class DiagramService {
                 const isOpen = layer.is_open || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line';
                 const tag = isOpen ? 'polyline' : 'polygon';
 
-                const dashedStyle = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
-                const baseWidth = isReference ? 0.2 : 0.3;
+                const dashedStyle = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
+                const baseWidth = isReference ? 0.4 : 0.3;
 
                 layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} 
                                 stroke-width="${baseWidth}" ${dashedStyle} 
