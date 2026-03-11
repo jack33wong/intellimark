@@ -117,51 +117,67 @@ export class ExamReferenceService {
         const searchVariations = this.generateFallbacks(normalizedInput);
         console.log(`ℹ️ [EXAM-REF] Searching papers with variations: ${JSON.stringify(searchVariations)}`);
 
-        // Bingo Search: Direct match on any variation
-        const paperDoc = papers.find((p: any) => {
-            const meta = p.metadata;
-            if (!meta || !meta.exam_code || !meta.exam_series) return false;
+        // Build vocabulary once (not inside the loop)
+        const normalize = (t: string) => t.toLowerCase().replace(/\bmathematics\b/g, 'maths').replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
+        const vocabulary = new Set<string>();
+        papers.forEach((paper: any) => {
+            const m = paper.metadata;
+            if (!m) return;
+            normalize(`${m.exam_board} ${m.exam_code} ${m.exam_series} ${m.tier}`)
+                .split(/\s+/).forEach(word => { if (word.length > 0) vocabulary.add(word); });
+        });
 
-            const normalize = (t: string) => t.toLowerCase().replace(/\bmathematics\b/g, 'maths').replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
+        // Best-Match Scoring: pick the paper with the highest number of specific tokens matched.
+        // This prevents ambiguous variations (e.g. 'j560 02') from winning over specific ones
+        // (e.g. 'j560 02 november 2021') just because the ambiguous one appears first.
+        let bestPaper: any = null;
+        let bestScore = 0;
+
+        papers.forEach((p: any) => {
+            const meta = p.metadata;
+            if (!meta || !meta.exam_code || !meta.exam_series) return;
+
             const pCode = normalize(meta.exam_board || '') + ' ' + normalize(meta.exam_code || '') + ' ' + normalize(meta.exam_series || '') + (meta.tier ? ' ' + normalize(meta.tier) : '');
             const pTokens = pCode.split(/\s+/);
 
-            return searchVariations.some(v => {
+            let paperBestScore = 0;
+            searchVariations.forEach(v => {
                 const nv = normalize(v);
                 const rawInputTokens = nv.split(/\s+/).filter(t => t.length > 0 && /[a-z0-9]/i.test(t));
-                if (rawInputTokens.length === 0) return false;
+                if (rawInputTokens.length === 0) return;
 
-                // V9.6 Vocabulary-Based Filtering:
-                // 1. Build a local vocabulary of all valid words from all papers in the DB
-                const vocabulary = new Set<string>();
-                papers.forEach((paper: any) => {
-                    const meta = paper.metadata;
-                    if (!meta) return;
-                    const validText = normalize(`${meta.exam_board} ${meta.exam_code} ${meta.exam_series} ${meta.tier}`);
-                    validText.split(/\s+/).forEach(word => {
-                        if (word.length > 0) vocabulary.add(word);
-                    });
-                });
-
-                // 2. Filter user input to only include known "Valid Words"
+                // Filter to known vocabulary tokens only
                 const inputTokens = Array.from(new Set(rawInputTokens.filter(k => vocabulary.has(k))));
-                if (inputTokens.length === 0) return false;
+                if (inputTokens.length === 0) return;
 
-                // 3. Strict match on all valid tokens
-                return inputTokens.every(it => {
-                    return pTokens.some(pt => {
+                // Check if all input tokens are found in this paper
+                const allMatch = inputTokens.every(it =>
+                    pTokens.some(pt => {
                         if (pt === it) return true;
                         if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
                         return pt.includes(it);
-                    });
-                });
+                    })
+                );
+
+                if (allMatch) {
+                    // Score = number of matched tokens (more specific = higher score)
+                    paperBestScore = Math.max(paperBestScore, inputTokens.length);
+                }
             });
+
+            if (paperBestScore > bestScore) {
+                bestScore = paperBestScore;
+                bestPaper = p;
+            }
         });
 
+        const paperDoc = bestPaper;
         if (!paperDoc) {
             console.log(`❌ [EXAM-REF] No paper found for request: "${paperInput}"`);
             const sampleIds = papers.slice(0, 5).map((p: any) => `${p.metadata?.exam_code} (${p.metadata?.exam_series})`);
             console.log(`ℹ️ [EXAM-REF] Sample DB Patterns: ${sampleIds.join(', ')}`);
+        } else {
+            console.log(`✅ [EXAM-REF] Best match: ${paperDoc.metadata?.exam_code} (${paperDoc.metadata?.exam_series}) with score ${bestScore}`);
         }
 
         return paperDoc || null;
