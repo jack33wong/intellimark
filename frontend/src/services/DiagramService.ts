@@ -552,6 +552,17 @@ export class DiagramService {
         // [v9.59] Auto-bounds calculation
         const getRawPoints = (item: any): any[] => {
             let pts: any[] = [];
+
+            // [v9.100] Add bounds for circle/arc
+            if ((item.shape_name === 'circle' || item.shape_name === 'arc') && item.center) {
+                const cx = parseFloat(item.center[0]);
+                const cy = parseFloat(item.center[1]);
+                const r = parseFloat(item.radius || 1);
+                if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
+                    pts.push([cx - r, cy - r], [cx + r, cy + r]);
+                }
+            }
+
             if (item.points) pts.push(...item.points);
             if (item.vertices) pts.push(...item.vertices);
             if (item.shapes) item.shapes.forEach((s: any) => pts.push(...getRawPoints(s)));
@@ -585,6 +596,14 @@ export class DiagramService {
             } else {
                 xMin = -10; xMax = 10; yMin = -10; yMax = 10;
             }
+        }
+
+        // [v9.101] Force expand bounds if explicitly provided bounds are too restrictive (prevents clipping)
+        if (allPossiblePoints.length > 0) {
+            if (minX < xMin) xMin = minX - 1;
+            if (maxX > xMax) xMax = maxX + 1;
+            if (minY < yMin) yMin = minY - 1;
+            if (maxY > yMax) yMax = maxY + 1;
         }
 
         // [v9.58] Support both nested layers/shapes AND root-level points (common in composite_2d components)
@@ -692,6 +711,53 @@ export class DiagramService {
                 }
                 layersHtml += `<path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="0.3" vector-effect="non-scaling-stroke" />`;
                 hasDrawnSomething = true;
+            }
+
+            // [v9.100] Native Circle Support
+            if (layer.shape_name === 'circle' || layer.type === 'circle') {
+                const cx = parseFloat(layer.center ? layer.center[0] : 0);
+                const cy = parseFloat(layer.center ? layer.center[1] : 0);
+                const r = parseFloat(layer.radius || 1);
+                if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
+                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
+                    layersHtml += `<circle cx="${cx}" cy="${-cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    hasDrawnSomething = true;
+                }
+                return;
+            }
+
+            // [v9.100] Native Arc / Semicircle Support
+            if (layer.shape_name === 'arc' || layer.type === 'arc') {
+                const cx = parseFloat(layer.center ? layer.center[0] : 0);
+                const cy = parseFloat(layer.center ? layer.center[1] : 0);
+                const r = Math.abs(parseFloat(layer.radius || 1));
+                const startAngle = parseFloat(layer.start_angle ?? 0);
+                const endAngle = parseFloat(layer.end_angle ?? 180);
+
+                if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
+                    const startRad = startAngle * (Math.PI / 180);
+                    const endRad = endAngle * (Math.PI / 180);
+
+                    const sx = cx + r * Math.cos(startRad);
+                    const sy = cy + r * Math.sin(startRad);
+                    const ex = cx + r * Math.cos(endRad);
+                    const ey = cy + r * Math.sin(endRad);
+
+                    let ad = (endAngle - startAngle) % 360;
+                    if (ad < 0) ad += 360;
+                    const largeArcFlag = ad > 180 ? 1 : 0;
+                    const sweepFlag = 0; // SVG Y is inverted, so sweep 0 gives CCW Cartesian arc
+
+                    let d = `M ${sx} ${-sy} A ${r} ${r} 0 ${largeArcFlag} ${sweepFlag} ${ex} ${-ey}`;
+                    if (!layer.is_open) {
+                        d += ' Z'; // Close the sector/semicircle
+                    }
+
+                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
+                    layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    hasDrawnSomething = true;
+                }
+                return;
             }
 
             if (rawPoints.length > 0) {

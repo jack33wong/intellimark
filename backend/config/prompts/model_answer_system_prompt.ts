@@ -58,8 +58,9 @@ When the question contains ANY diagram hint (e.g., "[Type: Diagram...]", "[Diagr
 3. **function_graph**: \\\`{ "type": "function_graph", "purpose": "solution", "sub_id": "26a", "equation_label": "EQ", "reflect": true, "shift": -1, "x_min": X_MIN, "x_max": X_MAX, "layers": [...] }\\\`
     - **TRANSFORMATION RULE (STRICT)**: For reflections (e.g. $-5^x$) you MUST set 'reflect: true'. For vertical shifts (e.g. $5^x-1$) you MUST set 'shift: -1'. Show ONLY the final transformed curve. Do NOT include reference layers.
     - **DEDUPLICATION RULE**: Tag diagrams with \\\`sub_id\\\` (e.g. "26a"). Use \\\`purpose: "reference"\\\` for base sketches and \\\`purpose: "solution"\\\` for final answers.
-4. **coordinate_grid**: \\\`{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [{"shape_name": "polygon", "is_open": true, "points": [...]}] }\\\`
+4. **coordinate_grid**: \\\`{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [{"shape_name": "polygon", "is_open": true, "points": [...]}, {"shape_name": "circle", "center": [0,0], "radius": 5}, {"shape_name": "arc", "center": [0,0], "radius": 5, "start_angle": 0, "end_angle": 180}] }\\\`
     - **FREQUENCY POLYGON RULE**: For frequency polygons, you MUST set \\\`is_open: true\\\` in the layer to prevent the start/end points from connecting.
+    - **ARC & CIRCLE RULE (NEW)**: Use \\\`circle\\\` for full circles and \\\`arc\\\` for partial circles (like semicircles). Provide \\\`center\\\`, \\\`radius\\\`, and for arcs, \\\`start_angle\\\` and \\\`end_angle\\\` in degrees (0 is right/East, 90 is top/North).
     - **"DRAW ON GRID" RULE (CRITICAL)**: Applies when a question asks to draw or place a shape on a grid.
       - **Congruent / new shape**: If the question asks to "draw a shape congruent to X" or "plot a point/shape", use \\\`coordinate_grid\\\` and draw a representative answer shape.
       - **Transformation (enlarge, reflect, rotate, translate)**: If the original shape's exact coordinates ARE given in the question text, draw the transformed result as \\\`coordinate_grid\\\`. If the original shape is NOT given with coordinates (only visible in the printed paper, not in the text), use \\\`fallback\\\` with a clear description — do NOT guess a shape. Example: \\\`{ "type": "fallback", "description": "Shape B enlarged by scale factor 1/3 drawn on the grid" }\\\`.
@@ -74,7 +75,7 @@ When the question contains ANY diagram hint (e.g., "[Type: Diagram...]", "[Diagr
 **STRICT EXTRACTION RULES (CRITICAL):**
 1. **CANONICAL SCHEMA (STRICT):**
    - **Root Keys**: \\\`type\\\`, \\\`x_min\\\`, \\\`x_max\\\`, \\\`y_min\\\`, \\\`y_max\\\`, \\\`layers\\\`.
-   - **Layer Keys**: \\\`type\\\` (e.g., "shape"), \\\`points\\\` (Array of [x, y] or [x, y, "label"]), \\\`color\\\`, \\\`label\\\`.
+   - **Layer Keys**: \\\`type\\\` or \\\`shape_name\\\` (e.g., "polygon", "circle", "arc"), \\\`points\\\` (Array of [x, y] or [x, y, "label"]), \\\`center\\\`, \\\`radius\\\`, \\\`start_angle\\\`, \\\`end_angle\\\`, \\\`color\\\`, \\\`label\\\`.
 2. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
 3. **NUMERIC ONLY (CRITICAL)**: All coordinate and dimension fields (e.g., \\\`side1\\\`, \\\`angle\\\`, \\\`x_min\\\`, \\\`layers.points\\\`) SHOULD be numeric. 
    - **EXCEPTION**: For sketchable shapes, algebraic expressions like "5x+4" are ALLOWED as strings in \\\`side1\\\`, \\\`side2\\\`, \\\`label\\\` fields to enable rendering. Do NOT use LaTeX "$" inside JSON.
