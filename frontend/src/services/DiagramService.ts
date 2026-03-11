@@ -360,7 +360,7 @@ export class DiagramService {
         const labelAng = getLabel(data.angle, "");
         const displayLA = labelAng ? (Number.isFinite(parseFloat(labelAng)) ? `${labelAng}°` : labelAng) : "";
         const angA = data.angle_A ? `${data.angle_A}°` : "";  // e.g. "x°"
-        const angB = data.angle_B ? `${data.angle_B}°` : (displayLA || ""); // fallback for old JSON
+        let angB = data.angle_B ? `${data.angle_B}°` : (displayLA || ""); // fallback for old JSON
         const angC = data.angle_C ? `${data.angle_C}°` : "";
 
         // [v9.94] Line Extension (from structured JSON, fully optional)
@@ -402,10 +402,24 @@ export class DiagramService {
             tickMarks += `<line x1="${tx3_1}" y1="${ty3_1}" x2="${tx3_2}" y2="${ty3_2}" stroke="var(--diagram-foreground)" stroke-width="0.2" />`;
         }
 
+        // [v9.102] Right Angle Square Symbol (Q10/Q19)
+        let rightAngleHtml = "";
+        if (isRightAngled) {
+            const sqSize = isSketch ? 1.5 : 1.0;
+            // The square goes along x, then up (negative y), then back to y-axis
+            rightAngleHtml = `<polyline points="${x1 + sqSize},${y1} ${x1 + sqSize},${y1 - sqSize} ${x1},${y1 - sqSize}" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.25" vector-effect="non-scaling-stroke" stroke-linejoin="round" />`;
+
+            // Suppress writing "90°" text over the square
+            if (angB === "90°" || angB === "90") {
+                angB = "";
+            }
+        }
+
         return this.wrapSVG(adjMinX, minY, maxX - adjMinX, maxY - minY, `
             <polygon points="${x1},${y1} ${x2},${y2} ${x3},${y3}" 
                      fill="none" stroke="var(--diagram-foreground)" stroke-width="0.25" vector-effect="non-scaling-stroke" />
             ${tickMarks}
+            ${rightAngleHtml}
 
             <!-- Line Extension (v9.94) -->
             ${hasExt ? `<line x1="${x1}" y1="${y1}" x2="${xExt}" y2="${yExt}" stroke="var(--diagram-foreground)" stroke-width="0.25" vector-effect="non-scaling-stroke" />` : ""}
