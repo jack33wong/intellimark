@@ -66,6 +66,22 @@ export class DiagramService {
             }
         });
 
+        // [v9.96] Fallback Suppression Pass
+        // If the AI double-emits a `fallback` AND a real diagram for the same sub_id,
+        // the real diagram wins and the fallback is silently dropped.
+        const subIdWithRealDiagram = new Set<string>();
+        diagramMap.forEach(({ data }) => {
+            if (data.sub_id && data.type !== 'fallback') {
+                subIdWithRealDiagram.add(String(data.sub_id).toLowerCase());
+            }
+        });
+        diagramMap.forEach((value, key) => {
+            if (value.data.type === 'fallback' && value.data.sub_id &&
+                subIdWithRealDiagram.has(String(value.data.sub_id).toLowerCase())) {
+                diagramMap.delete(key);
+            }
+        });
+
         // Pass 2: Replace matches
         let processedContent = content;
 
@@ -124,13 +140,39 @@ export class DiagramService {
                         case 'function_graph':
                             replacement = this.drawFunctionGraph(data); break;
                         case 'coordinate_grid':
-                            replacement = this.drawCoordinateGrid(data); break;
+                            const idx = m.index || 0;
+                            const qText = content.substring(Math.max(0, idx - 300), idx + 100).toLowerCase();
+                            const isEnlargeOrReflect = qText.includes('enlarge shape') || qText.includes('reflect shape') ||
+                                (qText.includes('enlarge') && qText.includes('scale factor'));
+                            
+                            // If the text asks to enlarge/reflect, but DOES NOT mention specific coordinates like (1,2)
+                            // or "vertex at", the AI is likely hallucinating a shape from the printed paper.
+                            if (isEnlargeOrReflect && !qText.match(/\(\s*-?\d+\s*,\s*-?\d+\s*\)/) && !qText.includes('vertex')) {
+                                const desc = "Shape transformed on the grid (original shape coordinates unknown)";
+                                replacement = this.renderFallbackBox(desc);
+                            } else {
+                                replacement = this.drawCoordinateGrid(data);
+                            }
+                            break;
                         case 'tree_diagram':
                             replacement = this.drawTreeDiagram(data); break;
                         case 'composite_2d':
                             replacement = this.drawComposite2D(data); break;
+                        case 'bar_chart':
+                            replacement = this.drawBarChart(data); break;
                         case 'fallback':
-                            replacement = this.renderFallbackBox(data.description || data.details || `Diagram (${data.type})`); break;
+                            const desc = (data.description || data.details || `Diagram (${data.type})`).trim();
+                            const lowerDesc = desc.toLowerCase();
+                            // [v9.98] Smart Fallback Routing: if the AI outputs a fallback box that is actually
+                            // a bar chart or frequency tree, intercept it and draw the SVG instead.
+                            if (lowerDesc.startsWith("bar chart:")) {
+                                replacement = this.renderBarChartFromHint(`[${desc}]`);
+                            } else if (lowerDesc.startsWith("frequency tree:")) {
+                                replacement = this.renderFrequencyTreeFromHint(`[Diagram: ${desc}]`);
+                            } else {
+                                replacement = this.renderFallbackBox(desc);
+                            }
+                            break;
                         default:
                             replacement = this.renderFallbackBox(`Unrecognized Diagram Type: ${data.type}`);
                     }
@@ -167,6 +209,18 @@ export class DiagramService {
         const angleRegex = /\[(?:Angle|Type: Diagram (?:of|showing) (?:an? |two )?(?:angle|intersecting lines)).*?marked\s+([a-zA-Z0-9]+)\]/gi;
         processedContent = processedContent.replace(angleRegex, (match, label) => {
             return this.renderAngleFromHint(label.trim());
+        });
+
+        // [v9.97] Bar Chart Safety Net - intercept [Bar chart: ...] hints
+        const barChartRegex = /\[Bar chart:\s*(.*?)\]/gi;
+        processedContent = processedContent.replace(barChartRegex, (_match: string, content: string) => {
+            return this.renderBarChartFromHint(content.trim());
+        });
+
+        // [v9.97] Frequency Tree Safety Net - intercept [Diagram: Frequency tree ...] hints
+        const freqTreeRegex = /\[Diagram:\s*Frequency tree(.*?)\]/gi;
+        processedContent = processedContent.replace(freqTreeRegex, (_match: string, content: string) => {
+            return this.renderFrequencyTreeFromHint(content.trim());
         });
 
         // Legacy hints... (Cleanup Pass)
@@ -780,6 +834,15 @@ export class DiagramService {
             ]);
         }
 
+        // [v9.99] Auto-detect frequency tree vs probability tree
+        // If probabilities are integers > 1 (e.g. 120, 80) and no fractions, route to drawFrequencyTree
+        const isHz = data.is_frequency || data.type === 'frequency_tree' || 
+            branches.some((b: any) => b.prob && parseInt(String(b.prob)) > 1 && !String(b.prob).includes('/'));
+        
+        if (isHz && branches.length > 0) {
+            return this.drawFrequencyTree(branches);
+        }
+
         const xStep = 30;
         const yStep = 20;
         const positions: Record<string, { x: number, y: number }> = { "Start": { x: 0, y: 0 } };
@@ -814,6 +877,126 @@ export class DiagramService {
         if (!html) return this.renderFallbackBox(data.description || "Tree Diagram");
 
         return this.wrapSVG(-5, -30, 80, 60, html);
+    }
+
+    /**
+     * [v9.99] Dedicated Frequency Tree Renderer (Ovals, Column Headers, Exam-style layout)
+     */
+    private static drawFrequencyTree(data: any): string {
+        try {
+            const branches: any[] = Array.isArray(data) ? data : (data.branches || []);
+            const headers: string[] = data.headers || [];
+
+            // 1. Build Node Graph
+            const nodes: Record<string, { id: string, label: string, val: string, level: number, children: string[], parent: string | null }> = {};
+            
+            // Find root(s)
+            const toSet = new Set(branches.map(b => b.to));
+            const rootId = branches[0].from || "Start";
+            
+            nodes[rootId] = { id: rootId, label: rootId, val: "", level: 0, children: [], parent: null };
+
+            branches.forEach(b => {
+                const p = b.from || rootId;
+                const c = b.to;
+                if (!nodes[p]) nodes[p] = { id: p, label: p, val: "", level: 0, children: [], parent: null };
+                if (!nodes[c]) nodes[c] = { id: c, label: c, val: String(b.prob || ""), level: nodes[p].level + 1, children: [], parent: p };
+                if (!nodes[p].children.includes(c)) nodes[p].children.push(c);
+            });
+
+            // Re-calculate levels cleanly from root down
+            const calcLevel = (id: string, lvl: number) => {
+                if (nodes[id]) {
+                    nodes[id].level = lvl;
+                    nodes[id].children.forEach(cid => calcLevel(cid, lvl + 1));
+                }
+            };
+            calcLevel(rootId, 0);
+
+            // 2. Position Nodes
+            const xStep = 60; // Wide spacing for ovals
+            const yStep = 25; // Vertical spacing between leaves
+            const positions: Record<string, {x: number, y: number}> = {};
+            
+            // Assign Y to leaves first, then center parents
+            const leaves = Object.values(nodes).filter(n => n.children.length === 0).sort((a,b) => a.id.localeCompare(b.id)); // simple sort
+            
+            let currentY = 0;
+            const assignLeafY = (id: string) => {
+                const node = nodes[id];
+                if (node.children.length === 0) {
+                    positions[id] = { x: node.level * xStep, y: currentY };
+                    currentY += yStep;
+                } else {
+                    node.children.forEach(cid => assignLeafY(cid));
+                    // Parent Y is average of children Y
+                    const childrenY = node.children.map(cid => positions[cid].y);
+                    const avgY = childrenY.reduce((a,b)=>a+b,0) / childrenY.length;
+                    positions[id] = { x: node.level * xStep, y: avgY };
+                }
+            };
+            assignLeafY(rootId);
+
+            // 3. Draw
+            let html = '';
+            const rx = 16;
+            const ry = 9;
+
+            // Draw Lines and Labels first (under ovals)
+            branches.forEach(b => {
+                const p1 = positions[b.from || rootId];
+                const p2 = positions[b.to];
+                if (!p1 || !p2) return;
+                
+                // Line from edge of parent to edge of child
+                html += `<line x1="${p1.x + rx}" y1="${p1.y}" x2="${p2.x - rx}" y2="${p2.y}" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
+                
+                // Branch label (e.g. "Children", "Left") midway
+                const mx = (p1.x + rx + p2.x - rx) / 2;
+                const my = (p1.y + p2.y) / 2;
+                // Parse out disambiguation e.g. "Left (C)" -> "Left"
+                const cleanLabel = b.to.replace(/\s*\([^)]*\)$/, '');
+                html += `<text x="${mx}" y="${my - 2}" font-size="2.6" fill="var(--diagram-foreground)" text-anchor="middle">${cleanLabel}</text>`;
+            });
+
+            // Draw Ovals & Values
+            Object.values(nodes).forEach(node => {
+                const p = positions[node.id];
+                html += `<ellipse cx="${p.x}" cy="${p.y}" rx="${rx}" ry="${ry}" fill="transparent" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
+                // If the root node label is just a number (like "120" or "People 120"), put the number inside
+                let displayVal = node.val;
+                if (node.id === rootId) {
+                    const match = node.label.match(/\d+/);
+                    displayVal = match ? match[0] : "";
+                }
+                if (displayVal) {
+                    html += `<text x="${p.x}" y="${p.y + 1.2}" font-size="3.5" fill="var(--diagram-foreground)" text-anchor="middle">${displayVal}</text>`;
+                }
+            });
+
+            // 4. Bounding box & Headers
+            const allX = Object.values(positions).map(p => p.x);
+            const allY = Object.values(positions).map(p => p.y);
+            let minX = Math.min(...allX) - rx - 5;
+            const maxX = Math.max(...allX) + rx + 5;
+            let minY = Math.min(...allY) - ry - 10; 
+            const maxY = Math.max(...allY) + ry + 5;
+
+            // Render headers if available
+            if (headers.length > 0) {
+                minY -= 15; // Make room at the top
+                headers.forEach((h, i) => {
+                    const hx = i * xStep;
+                    html += `<text x="${hx}" y="${minY + 8}" font-size="3.5" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${h}</text>`;
+                });
+            }
+
+            return this.wrapSVG(minX, minY, maxX - minX, maxY - minY, html);
+
+        } catch (e) {
+            console.error("FreqTree error:", e);
+            return this.renderFallbackBox("Frequency Tree");
+        }
     }
 
     /**
@@ -1192,6 +1375,164 @@ export class DiagramService {
         } catch (e) {
             console.error('[DiagramService] renderAngleFromHint error:', e);
             return `[Angle Error: ${label}]`;
+        }
+    }
+
+    /**
+     * [v9.97] Draws a Bar Chart SVG from structured JSON data.
+     * Accepts: { type: 'bar_chart', y_max, y_step, y_label?, bars: [{label, value}] }
+     */
+    private static drawBarChart(data: any): string {
+        const bars: { label: string; value: number }[] = data.bars || [];
+        if (bars.length === 0) return this.renderFallbackBox(data.description || 'Bar Chart (no data)');
+
+        const yMax = parseFloat(data.y_max ?? 100);
+        const yStep = parseFloat(data.y_step ?? 10);
+        if (!Number.isFinite(yMax) || !Number.isFinite(yStep) || yMax <= 0) {
+            return this.renderFallbackBox(data.description || 'Bar Chart (invalid bounds)');
+        }
+
+        const barW = 12;
+        const gap = 5;
+        const leftPad = 14;   // room for y-axis labels
+        const bottomPad = 12; // room for x-axis labels
+        const topPad = 4;
+        const chartH = 60;    // height of bar area in SVG units
+        const totalW = leftPad + bars.length * (barW + gap) - gap + 4;
+        const totalH = chartH + topPad + bottomPad;
+
+        const scaleY = (v: number) => chartH - (v / yMax) * chartH;
+
+        let gridHtml = '';
+        for (let y = 0; y <= yMax; y += yStep) {
+            const svgY = topPad + scaleY(y);
+            gridHtml += `<line x1="${leftPad}" y1="${svgY}" x2="${totalW}" y2="${svgY}" stroke="var(--diagram-grid)" stroke-width="0.4" vector-effect="non-scaling-stroke" />`;
+            gridHtml += `<text x="${leftPad - 1}" y="${svgY + 0.5}" font-size="3" fill="var(--diagram-grid)" text-anchor="end">${y}</text>`;
+        }
+
+        // Axes
+        gridHtml += `<line x1="${leftPad}" y1="${topPad}" x2="${leftPad}" y2="${topPad + chartH}" stroke="var(--diagram-foreground)" stroke-width="0.5" vector-effect="non-scaling-stroke" />`;
+        gridHtml += `<line x1="${leftPad}" y1="${topPad + chartH}" x2="${totalW}" y2="${topPad + chartH}" stroke="var(--diagram-foreground)" stroke-width="0.5" vector-effect="non-scaling-stroke" />`;
+
+        // Bars + labels
+        let barsHtml = '';
+        bars.forEach((bar, i) => {
+            const x = leftPad + i * (barW + gap);
+            const barH = Math.max(0, (bar.value / yMax) * chartH);
+            const barY = topPad + chartH - barH;
+            barsHtml += `<rect x="${x}" y="${barY}" width="${barW}" height="${barH}" fill="var(--diagram-foreground)" opacity="0.75" />`;
+            barsHtml += `<text x="${x + barW / 2}" y="${barY - 1.5}" font-size="3" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${bar.value}</text>`;
+            // Split label across two lines if multi-word
+            const words = bar.label.split(' ');
+            const mid = Math.ceil(words.length / 2);
+            const line1 = words.slice(0, mid).join(' ');
+            const line2 = words.slice(mid).join(' ');
+            const labelY = topPad + chartH + 4;
+            if (line2) {
+                barsHtml += `<text x="${x + barW / 2}" y="${labelY}" font-size="2.8" fill="var(--diagram-foreground)" text-anchor="middle"><tspan x="${x + barW / 2}" dy="0">${line1}</tspan><tspan x="${x + barW / 2}" dy="3.5">${line2}</tspan></text>`;
+            } else {
+                barsHtml += `<text x="${x + barW / 2}" y="${labelY}" font-size="2.8" fill="var(--diagram-foreground)" text-anchor="middle">${bar.label}</text>`;
+            }
+        });
+
+        const yLabel = data.y_label || '';
+        const yLabelHtml = yLabel ? `<text x="2" y="${topPad + chartH / 2}" font-size="3" fill="var(--diagram-foreground)" text-anchor="middle" transform="rotate(-90 2 ${topPad + chartH / 2})">${yLabel}</text>` : '';
+
+        return this.wrapSVG(0, 0, totalW, totalH, gridHtml + barsHtml + yLabelHtml);
+    }
+
+    /**
+     * [v9.97] Safety Net: Parses a raw [Bar chart: ...] hint string into a drawBarChart() call.
+     */
+    private static renderBarChartFromHint(content: string): string {
+        try {
+            const data: any = { type: 'bar_chart', bars: [] };
+
+            // y_max and y_step from "from 0 to 70 in intervals of 10"
+            const yBoundsMatch = content.match(/from\s+(\d+)\s+to\s+(\d+)/i);
+            const yStepMatch = content.match(/intervals?\s+of\s+(\d+)/i);
+            data.y_max = yBoundsMatch ? parseFloat(yBoundsMatch[2]) : 100;
+            data.y_step = yStepMatch ? parseFloat(yStepMatch[1]) : 10;
+
+            // Bars: "Bar for Library is at 30" / "Bar for Home is roughly at 66"
+            const barRegex = /[Bb]ar\s+for\s+([A-Za-z][A-Za-z\s]*?)\s+is\s+(?:roughly\s+)?at\s+(\d+(?:\.\d+)?)/gi;
+            let m;
+            while ((m = barRegex.exec(content)) !== null) {
+                data.bars.push({ label: m[1].trim(), value: parseFloat(m[2]) });
+            }
+
+            // Fallback: x-axis categories + values extracted separately
+            if (data.bars.length === 0) {
+                const catMatch = content.match(/x-axis\s+categories?:\s*(.*?)(?:\.|$)/i);
+                if (catMatch) {
+                    const cats = catMatch[1].split(',').map((s: string) => s.trim()).filter(Boolean);
+                    const vals: number[] = [];
+                    const atRegex = /at\s+(\d+(?:\.\d+)?)/gi;
+                    let av;
+                    while ((av = atRegex.exec(content)) !== null) vals.push(parseFloat(av[1]));
+                    cats.forEach((cat: string, i: number) => data.bars.push({ label: cat, value: vals[i] ?? 0 }));
+                }
+            }
+
+            if (data.bars.length === 0) return this.renderFallbackBox(`Bar Chart: ${content}`);
+            return this.drawBarChart(data);
+        } catch (e) {
+            console.error('[DiagramService] renderBarChartFromHint error:', e);
+            return this.renderFallbackBox(`Bar Chart: ${content}`);
+        }
+    }
+
+    /**
+     * [v9.97] Safety Net: Parses a [Diagram: Frequency tree ...] hint into a drawTreeDiagram() call.
+     */
+    private static renderFrequencyTreeFromHint(content: string): string {
+        try {
+            // Root: "starting with 'People 120'"
+            const rootMatch = content.match(/starting with\s+'([^']+)'/i);
+            const rootLabel = rootMatch ? rootMatch[1] : 'Start';
+
+            // Extract Headers for the new visual generator
+            const headers: string[] = [];
+            const headerFromRoot = rootLabel.replace(/\d+/g, '').trim();
+            if (headerFromRoot) headers.push(headerFromRoot);
+            else headers.push("Start");
+            
+            const intoRegex = /into\s+'([^']+)'/gi;
+            let im;
+            while ((im = intoRegex.exec(content)) !== null) {
+                headers.push(im[1].trim());
+            }
+
+            // Branch pairs: "with branches 'X' and 'Y'"
+            const branchMatches: string[][] = [];
+            const branchRegex = /with branches?\s+'([^']+)'\s+and\s+'([^']+)'/gi;
+            let bm;
+            while ((bm = branchRegex.exec(content)) !== null) {
+                branchMatches.push([bm[1].trim(), bm[2].trim()]);
+            }
+
+            if (branchMatches.length === 0) return this.renderFallbackBox(`Frequency Tree: ${content}`);
+
+            const branches: any[] = [];
+            const level1 = branchMatches[0]; // e.g. ['Children', 'Adults']
+            const level2 = branchMatches[1]; // e.g. ['Left', 'Right']
+
+
+            // For Probability Trees
+            level1.forEach(child => {
+                branches.push({ from: rootLabel, to: child, prob: '' });
+                if (level2) {
+                    level2.forEach(grandchild => {
+                        branches.push({ from: child, to: `${grandchild} (${child[0]})`, prob: '' });
+                    });
+                }
+            });
+
+            if (branches.length === 0) return this.renderFallbackBox(`Frequency Tree: ${content}`);
+            return this.drawFrequencyTree({ branches, headers });
+        } catch (e) {
+            console.error('[DiagramService] renderFrequencyTreeFromHint error:', e);
+            return this.renderFallbackBox(`Frequency Tree: ${content}`);
         }
     }
 }

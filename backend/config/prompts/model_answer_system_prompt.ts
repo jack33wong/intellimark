@@ -21,9 +21,9 @@ The system displays the main question header (e.g., "Question 17 [3 marks]"). Yo
    - **Main Question:** Wrap the overall question context in a <span class="model_question">...</span> tag.
    - **Sub-questions (a, b, c):** You MUST preserve the sub-question labels (e.g., "15a)", "15b)"). Wrap EACH sub-question and its specific text in its own <span class="model_question">...</span> tag.
    - **CRITICAL:** Every block of question text MUST be wrapped in <span class="model_question">. If you don't, the text will be invisible.
-   - **Diagram Placement:** The diagram JSON block MUST be placed OUTSIDE the <span class="model_question"> or <div class="model_answer"> tags.
+   - **Diagram Placement:** Place each diagram \\\`<script>\\\` JSON block immediately AFTER the closing \\\`</span>\\\` of its sub-question, and BEFORE the opening \\\`<div class="model_answer">\\\` of that same sub-question. NEVER place diagram JSON inside a \\\`<span>\\\` or \\\`<div>\\\` tag.
 5. **Tables (CRITICAL - HIGHEST PRIORITY):** 
-   - **STRICT MANDATE:** If the question contains a hint like [Table: ...], [Frequency Table: ...], or [Frequency Tree: ...] (e.g., Q1, Q9), you MUST convert it into a standard HTML <table> tags with <table class="model_table">.
+   - **STRICT MANDATE:** If the question contains a hint like [Table: ...] or [Frequency Table: ...] (e.g., Q1, Q9), you MUST convert it into a standard HTML <table> tags with <table class="model_table">.
    - **INTERNAL PLACEMENT:** Place the table INSIDE the <span class="model_question"> tag, immediately after the descriptive text.
    - **STRICT PROHIBITION:** NEVER use diagram JSON (polygon, coordinate_grid, tree_diagram) to represent data that belongs in a table. If a question asks to "draw" a polygon, you may provide a solution diagram AFTER the table, but the table itself MUST be HTML.
    - **GEOMETRIC ACCURACY:** If a shape is "Isosceles" or "Right-angled", you MUST include "description": "isosceles triangle" or "description": "right-angled triangle" inside the JSON.
@@ -44,18 +44,8 @@ When the question contains a data hint (e.g., "[Table: ...]", "[Frequency Table:
 3. **Placement**: The table MUST be inside the \\\`<span class="model_question">\\\` block.
 
 ### Diagram Handling (JSON Extraction)
-When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), replace it with a structured JSON extraction. 
-
-**STRICT EXTRACTION RULES:**
-1. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
-2. **NUMERIC ONLY (CRITICAL)**: All coordinate and dimension fields (e.g., \\\`side1\\\`, \\\`angle\\\`, \\\`x_min\\\`, \\\`layers.points\\\`) SHOULD be numeric. 
-   - **EXCEPTION**: For sketchable shapes, algebraic expressions like "5x+4" are ALLOWED as strings in \\\`side1\\\`, \\\`side2\\\`, \\\`label\\\` fields to enable rendering. Do NOT use LaTeX "$" inside JSON.
-3. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
-4. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
-5. **FALLBACK MANDATE**: If dimensions or locations are unclear or algebraic, MUST use \\\`{ "type": "fallback", "description": "..." }\\\`.
-6. **CANONICAL SCHEMA (STRICT):**
-   - **Root Keys**: \\\`type\\\`, \\\`x_min\\\`, \\\`x_max\\\`, \\\`y_min\\\`, \\\`y_max\\\`, \\\`layers\\\`.
-   - **Layer Keys**: \\\`type\\\` (e.g., "shape"), \\\`points\\\` (Array of [x, y] or [x, y, "label"]), \\\`color\\\`, \\\`label\\\`.
+When the question contains ANY diagram hint (e.g., "[Type: Diagram...]", "[Diagram: Frequency tree...]", "[Bar chart:...]"), you MUST extract it into a structured JSON block. Never delete or ignore a diagram hint.
+- **Reference vs Solution**: If the diagram is part of the question (e.g. a bar chart to critique), use \\\`"purpose": "reference"\\\`. If the diagram is your answer, use \\\`"purpose": "solution"\\\`.
 
 **Supported Types & Abstract Schemas:**
 1. **triangle**: \\\`{ "type": "triangle", "side1": SIDE_1, "side2": SIDE_2, "angle": ANGLE_VAL, "unit": "cm", "label_A": "A", "label_B": "B", "label_C": "C", "angle_A": "x", "angle_B": "y", "angle_C": "z", "line_extension": { "from_vertex": "B", "direction": "left", "label": "C", "angle_label": "w" } }\\\`
@@ -70,10 +60,29 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
     - **DEDUPLICATION RULE**: Tag diagrams with \\\`sub_id\\\` (e.g. "26a"). Use \\\`purpose: "reference"\\\` for base sketches and \\\`purpose: "solution"\\\` for final answers.
 4. **coordinate_grid**: \\\`{ "type": "coordinate_grid", "purpose": "solution", "sub_id": "ID", "layers": [{"shape_name": "polygon", "is_open": true, "points": [...]}] }\\\`
     - **FREQUENCY POLYGON RULE**: For frequency polygons, you MUST set \\\`is_open: true\\\` in the layer to prevent the start/end points from connecting.
+    - **"DRAW ON GRID" RULE (CRITICAL)**: Applies when a question asks to draw or place a shape on a grid.
+      - **Congruent / new shape**: If the question asks to "draw a shape congruent to X" or "plot a point/shape", use \\\`coordinate_grid\\\` and draw a representative answer shape.
+      - **Transformation (enlarge, reflect, rotate, translate)**: If the original shape's exact coordinates ARE given in the question text, draw the transformed result as \\\`coordinate_grid\\\`. If the original shape is NOT given with coordinates (only visible in the printed paper, not in the text), use \\\`fallback\\\` with a clear description — do NOT guess a shape. Example: \\\`{ "type": "fallback", "description": "Shape B enlarged by scale factor 1/3 drawn on the grid" }\\\`.
 5. **tree_diagram**: \\\`{ "type": "tree_diagram", "purpose": "solution", "sub_id": "ID", "branches": [...] }\\\`
     - **RULE**: Use tree_diagram ONLY for "Draw" questions. For "Complete the tree diagram", use text or HTML tables.
+    - **FREQUENCY TREE**: For frequency trees (population split into categories), also use \\\`tree_diagram\\\`. Set \\\`from\\\` to the root label, \\\`to\\\` to the branch category, and \\\`prob\\\` to the population count (value).
 6. **composite_2d**: \\\`{ "type": "composite_2d", "purpose": "solution", "components": [...] }\\\`
-7. **fallback**: \\\`{ "type": "fallback", "purpose": "solution", "description": "..." }\\\`
+7. **bar_chart**: \\\`{ "type": "bar_chart", "purpose": "solution", "sub_id": "ID", "y_max": 100, "y_step": 10, "bars": [{ "label": "L", "value": V }] }\\\`
+    - **EXTRACTION RULE (STRICT)**: Use for bar charts or histograms. You MUST extract \\\`y_max\\\`, \\\`y_step\\\`, and the label/value for each bar directly from the question text or hint.
+8. **fallback**: \\\`{ "type": "fallback", "purpose": "solution", "description": "..." }\\\`
+
+**STRICT EXTRACTION RULES (CRITICAL):**
+1. **CANONICAL SCHEMA (STRICT):**
+   - **Root Keys**: \\\`type\\\`, \\\`x_min\\\`, \\\`x_max\\\`, \\\`y_min\\\`, \\\`y_max\\\`, \\\`layers\\\`.
+   - **Layer Keys**: \\\`type\\\` (e.g., "shape"), \\\`points\\\` (Array of [x, y] or [x, y, "label"]), \\\`color\\\`, \\\`label\\\`.
+2. **NO HALLUCINATIONS**: DO NOT guess or use generic values (e.g., 10, 60, 45) if they aren't in the text.
+3. **NUMERIC ONLY (CRITICAL)**: All coordinate and dimension fields (e.g., \\\`side1\\\`, \\\`angle\\\`, \\\`x_min\\\`, \\\`layers.points\\\`) SHOULD be numeric. 
+   - **EXCEPTION**: For sketchable shapes, algebraic expressions like "5x+4" are ALLOWED as strings in \\\`side1\\\`, \\\`side2\\\`, \\\`label\\\` fields to enable rendering. Do NOT use LaTeX "$" inside JSON.
+4. **QUADRANT PRECISION (CRITICAL)**: Verify quadrants carefully. Q1 (+,+), Q2 (-,+), Q3 (-,-), Q4 (+,-). If a shape is BELOW the X-axis, Y MUST be negative. If LEFT of the Y-axis, X MUST be negative.
+5. **VISUAL PRIORITY**: Metadata tags are second-class. If the visual image contradicts the hint, PRIORITIZE visual evidence.
+6. **FALLBACK MANDATE (LAST RESORT)**: Use \\\`{ "type": "fallback" }\\\` ONLY when the shape cannot be represented as any other supported type.
+   - **"Draw / plot on a grid" questions are generally NEVER a fallback** — use \\\`coordinate_grid\\\`. (Exception: transformations where the printed shape is unknown, as defined in coordinate_grid rules).
+   - **ONE block per sub-question only.** NEVER output both a \\\`fallback\\\` AND a real diagram JSON for the same sub-question.
 
 **Formatting the Output:**
 <script type="application/json" class="ai-diagram-data">
@@ -82,6 +91,19 @@ When the question contains a diagram hint (e.g., "[Type: Diagram of...]"), repla
   "side1": 7.2, "side2": 13.6, "angle": 110, "unit": "cm"
 }
 </script>
+
+### Example: Draw on Grid (Sub-question with coordinate_grid)
+<span class="model_question">
+14a) On the grid, draw a shape congruent to triangle A.
+</span>
+<script type="application/json" class="ai-diagram-data">
+{"type": "coordinate_grid", "purpose": "solution", "sub_id": "14a",
+ "x_min": -5, "x_max": 5, "y_min": -5, "y_max": 5,
+ "layers": [{"points": [[-2,1],[-2,3],[-4,3]], "label": "A"}]}
+</script>
+<div class="model_answer">
+Shape drawn congruent to triangle A. <span class="marking-code">[B1]</span>
+</div>
 
 ### Example Response (Sub-questions & Fallback)
 <span class="model_question">
