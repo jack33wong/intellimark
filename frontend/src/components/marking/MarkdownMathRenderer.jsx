@@ -220,9 +220,22 @@ export default function MarkdownMathRenderer({
     );
   }
 
-  const normalizedHtml = content
-    .replace(/<div class=["']step-title["']>([\s\S]*?)<\/div>/g, '\n### $1\n')
-    .replace(/<div class=["']step-explanation["']>([\s\S]*?)<\/div>/g, '\n$1\n');
+  // DETECT MODE: If content is explicitly HTML structure (from backend templates), use StableHtmlRenderer.
+  // This avoids ReactMarkdown parsing conflicts with raw HTML tags (especially </div> rendering as text).
+  // NOTE: This check runs BEFORE the normalisation pass so we don't corrupt the HTML structure.
+  const isExplicitHtml = content.includes('<div class="model_answer">') ||
+    content.includes('<span class="model_question">') ||
+    content.includes('<div class="ai-explanation-section">') ||
+    content.includes('<div class="model-answer-block">') ||   // marking-scheme outer wrapper
+    content.includes('<div class="model-question-number">');  // marking-scheme question header
+
+  // Only convert step-title/step-explanation divs to Markdown for mixed-mode content.
+  // Skip this for explicit HTML content — it would leave orphaned </div> tags.
+  const normalizedHtml = isExplicitHtml
+    ? content
+    : content
+        .replace(/<div class=["']step-title["']>([\s\S]*?)<\/div>/g, '\n### $1\n')
+        .replace(/<div class=["']step-explanation["']>([\s\S]*?)<\/div>/g, '\n$1\n');
 
   const reorderedContent = isYourWork ? normalizedHtml : reorderAssistantContent(normalizedHtml);
 
@@ -236,17 +249,9 @@ export default function MarkdownMathRenderer({
   const processedText = parseYourWorkBlocks(preprocessedContent);
 
   // Apply Diagram Post-Processing (SVG Conversion)
-  // Only applied to content that is likely a model answer (containing model answer tags)
-  // Or if it contains a Diagram token we process it anyway to be safe
   const finalProcessedText = (processedText.includes('model_answer') || processedText.includes('model_question') || processedText.includes('[Diagram'))
     ? DiagramService.process(processedText)
     : processedText;
-
-  // DETECT MODE: If content is explicitly HTML structure (from new prompt), use StableHtmlRenderer
-  // This avoids ReactMarkdown parsing conflicts with matching tags
-  const isExplicitHtml = processedText.includes('<div class="model_answer">') ||
-    processedText.includes('<span class="model_question">') ||
-    processedText.includes('<div class="ai-explanation-section">');
 
   if (isExplicitHtml) {
     return <StableHtmlRenderer content={finalProcessedText} className={className} />;

@@ -220,8 +220,12 @@ export class SuggestedFollowUpService {
         }
 
         // [FIX] Global Regex and Strict Filtering
-        // Only strip the main header, keep the interleaved sub-questions if AI generated them
+        // Strip only headers that duplicate the question number we inject ourselves
         content = content.replace(/<div class="model-question-number">.*?<\/div>/sig, '').trim();
+        // [FIX] Strip any AI-generated div (with or without class) whose sole content is "Question N" or just "N"
+        // This catches: <div class="sub-question-title">Question 16</div>
+        // And:          <div>Question 22</div>  (bare div with no class — AI hallucination)
+        content = content.replace(/<div[^>]*>\s*(?:Question\s+)?\d+[a-z]*\s*<\/div>/sig, '').trim();
 
         // [FIX] Bible Compliance: Use marking-code class instead of inline styles
         const mark_str = `[${qMarks} mark${qMarks > 1 ? 's' : ''}]`;

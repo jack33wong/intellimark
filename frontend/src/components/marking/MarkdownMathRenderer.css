@@ -111,11 +111,21 @@ ul {
 
 /* --- Chat Step Styling --- */
 .step-title {
-  font-size: 1.2em;
+  font-size: 1.0em;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  color: var(--text-primary);
+}
+
+.sub-question-title {
+  font-size: 1.0em;
   font-weight: 700;
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   color: var(--text-primary);
+  border-bottom: 1px solid var(--border-main);
+  padding-bottom: 4px;
 }
 
 .step-explanation {

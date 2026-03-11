@@ -16,14 +16,25 @@ export class ExamReferenceService {
             variations.push(spaceVariation, slashVariation);
         }
 
-        // 2. Handle MonthYear concatenation (e.g. "nov2024" -> "nov 2024")
+        // 2. Aggressively Handle MonthYear concatenation (e.g. "nov2024" -> "nov 2024", "november2020" -> "november 2020")
         const monthYearRegex = /([a-z]{3,})(\d{4})/i;
         const expandedVariations = [...variations];
 
         variations.forEach(v => {
-            if (monthYearRegex.test(v)) {
-                const separated = v.replace(monthYearRegex, '$1 $2'); // "nov 2024"
-                expandedVariations.push(separated);
+            // Split chunks by space or slash and check each chunk
+            const chunks = v.split(/[\s/]+/);
+            let hasConcat = false;
+            const newChunks = chunks.map(c => {
+                if (monthYearRegex.test(c)) {
+                    hasConcat = true;
+                    return c.replace(monthYearRegex, '$1 $2');
+                }
+                return c;
+            });
+            
+            if (hasConcat) {
+                expandedVariations.push(newChunks.join(' '));
+                expandedVariations.push(newChunks.join('/'));
             }
         });
         variations = expandedVariations;
@@ -36,11 +47,19 @@ export class ExamReferenceService {
 
         const mappedVariations: string[] = [];
         variations.forEach(v => {
-            // Check for short months
-            for (const [short, full] of Object.entries(monthMap)) {
-                if (v.includes(short) && !v.includes(full)) {
-                    mappedVariations.push(v.replace(short, full));
+            // Split to ensure we accurately replace full words only (e.g., 'nov' -> 'november', not 'november' -> 'novemberember')
+            const words = v.split(/[\s/]+/);
+            let hasShortMonth = false;
+            const newWords = words.map(w => {
+                if (monthMap[w]) {
+                    hasShortMonth = true;
+                    return monthMap[w];
                 }
+                return w;
+            });
+
+            if (hasShortMonth) {
+                mappedVariations.push(newWords.join(' '));
             }
         });
         variations.push(...mappedVariations);

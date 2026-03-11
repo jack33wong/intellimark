@@ -278,6 +278,7 @@ export class MarkingSchemeController {
 <div class="markdown-math-renderer chat-message-renderer has-your-work">
 ${metadataHeader}
 ${followUpResult.response}
+
 </div>
 </div>`.trim();
 
