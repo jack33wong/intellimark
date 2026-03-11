@@ -686,7 +686,8 @@ export class DiagramService {
             // [v9.87] Triangle Differentiation (Q11): solution vs reference
             const purpose = layer.purpose || data.purpose || "solution";
             const isReference = purpose === 'reference';
-            const strokeColor = isReference ? 'var(--diagram-grid)' : 'var(--diagram-foreground)';
+            const strokeColor = 'var(--diagram-foreground)'; // Reference shapes need to be visible too
+            const strokeOpacityAttr = isReference ? 'stroke-opacity="0.5"' : '';
             const fillColor = isReference ? 'none' : 'rgba(128, 128, 128, 0.15)'; // Slightly shade solution shapes
 
             // [FIX] Support for specific shape types like parabola (even without points)
@@ -709,7 +710,7 @@ export class DiagramService {
                         d += `${d === "" ? 'M' : 'L'} ${px} ${-py} `;
                     }
                 }
-                layersHtml += `<path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="0.3" vector-effect="non-scaling-stroke" />`;
+                layersHtml += `<path d="${d}" fill="none" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="0.3" vector-effect="non-scaling-stroke" />`;
                 hasDrawnSomething = true;
             }
 
@@ -720,7 +721,7 @@ export class DiagramService {
                 const r = parseFloat(layer.radius || 1);
                 if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
                     const dashed = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
-                    layersHtml += `<circle cx="${cx}" cy="${-cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    layersHtml += `<circle cx="${cx}" cy="${-cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
                     hasDrawnSomething = true;
                 }
                 return;
@@ -754,7 +755,7 @@ export class DiagramService {
                     }
 
                     const dashed = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
-                    layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.2 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
                     hasDrawnSomething = true;
                 }
                 return;
@@ -779,7 +780,7 @@ export class DiagramService {
                 const dashedStyle = layer.dashed || isReference ? 'stroke-dasharray="2,3"' : '';
                 const baseWidth = isReference ? 0.2 : 0.3;
 
-                layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" 
+                layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} 
                                 stroke-width="${baseWidth}" ${dashedStyle} 
                                 vector-effect="non-scaling-stroke" />`;
 
