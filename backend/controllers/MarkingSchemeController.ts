@@ -48,15 +48,17 @@ export class MarkingSchemeController {
                 if (!limitInfo.allowed) {
                     sendSseUpdate(res, {
                         type: 'error',
-                        message: 'Guest limit reached. Please sign up to see more marking scheme explanations.',
-                        details: 'guest_limit_reached'
+                        error: 'Guest limit reached. Please sign up to see more marking scheme explanations.',
+                        details: 'guest_limit_reached',
+                        usageCount: limitInfo.count,
+                        usageLimit: limitInfo.limit,
+                        resetAt: limitInfo.resetAt
                     });
                     res.end();
                     return;
                 }
             }
 
-            // 3. Retrieve Paper Data (Refactored to use centralized service)
             const db = getFirestore();
             let detectedQuestion: any = null;
             let metadataHeader = '';
@@ -75,16 +77,11 @@ export class MarkingSchemeController {
                 if (paperDoc) {
                     const meta = paperDoc.metadata;
 
-                    // Format Metadata Display
+                    // Build metadata header HTML
                     const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(meta);
-
-                    // Calculate totals from Paper Document
                     const totalQuestions = paperDoc.questions?.length || 0;
                     const totalMarks = (paperDoc.questions || []).reduce((sum: number, q: any) => sum + (q.marks || 0), 0);
-
-                    // Metadata Header matching the requested format
-                    metadataHeader = `
-<div class="model-exam-header">
+                    metadataHeader = `<div class="model-exam-header">
   <div class="exam-header-title">${meta.exam_board}</div>
   <div class="exam-header-pills">
     <span class="exam-pill pill-code">${meta.exam_code}</span>
@@ -102,11 +99,10 @@ export class MarkingSchemeController {
                         // Testing Mode: NO LIMIT for authenticated users
                         // questionsToProcess = questionsToProcess; 
                     } else {
-                        // Guest Limit: Show 4, but 3 & 4 will be blurred by frontend
-                        if (questionsToProcess.length > 4) {
-                            questionsToProcess = questionsToProcess.slice(0, 4);
+                        // Guest: show 4 free + 1 blurred preview
+                        if (questionsToProcess.length > 5) {
+                            questionsToProcess = questionsToProcess.slice(0, 5);
                         }
-                        metadataHeader += `<div class="model-alert-note"><strong>NOTE:</strong> Guest Mode: Showing first 4 questions only. Sign up for more.</div><br><br>\n\n`;
                     }
 
                     // Retrieve Marking Schemes - Using Centralized Service
@@ -273,15 +269,10 @@ export class MarkingSchemeController {
                 tracker: usageTracker
             });
 
-            // 6. Prepend Header & Wrap in requested CSS classes
-            const finalResponse = `
-<div class="has-your-work-outer-container">
-<div class="markdown-math-renderer chat-message-renderer has-your-work">
-${metadataHeader}
-${followUpResult.response}
-
-</div>
-</div>`.trim();
+            // 6. Prepend metadata header to response
+            const finalResponse = metadataHeader
+                ? (metadataHeader + followUpResult.response)
+                : followUpResult.response;
 
             // 7. Store AI Message
             // Build Marking Context for subsequent follow-up questions
@@ -293,16 +284,15 @@ ${followUpResult.response}
             const aiMessage = createAIMessage({
                 content: finalResponse,
                 messageId: providedAiMessageId,
-                markingContext: markingContext, // INJECT CONTEXT
+                markingContext: markingContext,
                 progressData: {
                     type: 'marking-scheme',
-                    currentStepDescription: 'Marking schemes explained',
+                    currentStepDescription: 'Marking schemes retrieved',
                     allSteps: [
                         'Finding exam paper...',
-                        'Loading marking schemes...',
-                        'AI is explaining marking scheme...'
+                        'Loading marking schemes...'
                     ],
-                    currentStepIndex: 2,
+                    currentStepIndex: 1,
                     isComplete: true
                 },
                 processingStats: {
@@ -320,8 +310,6 @@ ${followUpResult.response}
                 if (cost > 0) {
                     await deductCredits(userId, cost, sessionId);
                 }
-            } else {
-                await GuestUsageService.incrementUsage(userIP);
             }
 
             // 8. Final SSE Update
@@ -335,13 +323,18 @@ ${followUpResult.response}
                 }
             });
 
-            res.end();
+            res.end(); // End ASAP to prevent hang
+
+            if (!isAuthenticated) {
+                // Increment guest usage in background
+                GuestUsageService.incrementUsage(userIP).catch(err => console.error('Guest usage increment failed:', err));
+            }
 
         } catch (error: any) {
-            console.error('❌ [MARKING_SCHEME] Explanation failed:', error);
+            console.error('❌ [MARKING-SCHEME] Generation failed:', error);
             sendSseUpdate(res, {
                 type: 'error',
-                message: error.message || 'Failed to explain marking scheme.'
+                error: error.message || 'Failed to retrieve marking scheme.'
             });
             res.end();
         }

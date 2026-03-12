@@ -1623,3 +1623,38 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   }
 }
+
+/* Guest auth buttons — mobile only (hidden on desktop) */
+.mobile-guest-auth-row {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-guest-auth-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .mobile-guest-auth-row .header-signin-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  /* Sign Up button — same border/hover as Sign In but purple fill */
+  .mobile-guest-auth-row .mobile-signup-btn {
+    background: var(--primary-color, #7c3aed);
+    border-color: var(--primary-color, #7c3aed);
+    color: #fff;
+  }
+
+  .mobile-guest-auth-row .mobile-signup-btn:hover {
+    background: #6d28d9;
+    border-color: #6d28d9;
+    filter: brightness(1.08);
+  }
+}

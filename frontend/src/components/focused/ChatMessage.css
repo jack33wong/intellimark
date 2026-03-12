@@ -1,37 +1,39 @@
-
 /* Guest Mode Paywall Strategy */
+/* Only Q5 (index 4) gets paywall-blur class injected by backend */
 .model-answer-block.paywall-blur {
+  position: relative;
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.85;
+}
+
+/* Paywall CTA — overlays the blurred Q5 block */
+.guest-blur-enabled {
   position: relative;
 }
 
-.model-answer-block.paywall-blur .model-question-content {
-  filter: blur(12px);
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
-  opacity: 0.6;
-}
-
-.paywall-cta-overlay {
+.paywall-cta-inline {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  width: 100%;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  justify-content: flex-end;
+  padding: 60px 24px 32px;
+  background: linear-gradient(to bottom, transparent 0%, var(--background-gray-main), var(--background-gray-white) 65%);
   text-align: center;
+  z-index: 10;
+  pointer-events: auto;
 }
 
-.paywall-cta-overlay h4 {
+.paywall-inline-title {
   color: var(--text-primary);
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
-  margin: 0;
-  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
+  margin: 0 0 14px;
 }
 
 .paywall-unlock-btn {
@@ -72,25 +74,24 @@ html.dark .paywall-cta-overlay h4 {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
-/* Unified Footer Banner for Guest Mode */
+/* Floating Banner */
 .guest-mode-floating-banner {
   position: fixed;
-  bottom: 110px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 2000;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-main);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
   padding: 12px 24px;
-  border-radius: 100px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border-radius: 50px;
   display: flex;
   align-items: center;
   gap: 20px;
-  animation: bannerSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 320px;
+  justify-content: space-between;
 }
 
 html.dark .guest-mode-floating-banner {
@@ -126,6 +127,7 @@ html.dark .guest-mode-floating-banner {
     transform: translate(-50%, 100px);
     opacity: 0;
   }
+
   to {
     transform: translate(-50%, 0);
     opacity: 1;
@@ -140,13 +142,200 @@ html.dark .guest-mode-floating-banner {
     width: 90%;
     justify-content: space-between;
   }
-  
+
   .guest-banner-text {
     font-size: 12px;
   }
-  
+
   .guest-banner-btn {
     padding: 6px 12px;
     font-size: 11px;
+  }
+}
+
+/* =====================================================
+   MODEL ANSWER RESPONSE STYLES (restored from db54b59^)
+   ===================================================== */
+
+/* AI Response Styling for Question text and Answer body */
+.markdown-math-renderer .model_question {
+  color: var(--text-tertiary);
+  display: block;
+  margin-bottom: 0.5em;
+  font-weight: 500;
+}
+
+.markdown-math-renderer .model_answer {
+  color: var(--text-primary);
+  display: block;
+  margin-top: 0.5em;
+  margin-left: 15px;
+  margin-bottom: 1.5em;
+}
+
+/* Exam Paper Header */
+.markdown-math-renderer .model-exam-header {
+  background: var(--fill-gray);
+  border-left: 4px solid var(--text-brand);
+  padding: 0.7em 1em;
+  border-radius: 8px;
+  margin-bottom: 1.5em;
+  box-shadow: var(--shadow-S);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.markdown-math-renderer .model-exam-header::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown-math-renderer .exam-header-title {
+  color: var(--text-primary);
+  font-size: 1.05em;
+  font-weight: 700;
+  margin-bottom: 0;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.markdown-math-renderer .exam-header-pills {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.markdown-math-renderer .exam-pill {
+  font-size: 0.65em;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--background-menu-gray);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.markdown-math-renderer .pill-code,
+.markdown-math-renderer .pill-series {
+  background: var(--background-menu-white);
+  color: var(--text-primary);
+  border-color: var(--background-menu-gray);
+}
+
+/* Question number heading */
+.markdown-math-renderer .model-question-number {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-top: 5em;
+  display: block;
+  color: var(--text-primary);
+}
+
+/* Reduce top margin for the very first question */
+.markdown-math-renderer .model-exam-header+.model-question-number,
+.markdown-math-renderer br+.model-question-number {
+  margin-top: 1em;
+}
+
+/* =====================================================
+   MOBILE OVERRIDES (≤640px)
+   ===================================================== */
+@media (max-width: 640px) {
+  .chat-message.assistant .markdown-math-renderer.has-your-work {
+    padding: 6px 12px;
+  }
+
+  .chat-message.assistant .chat-message-bubble {
+    padding: 0px;
+  }
+
+  .has-your-work-outer-container {
+    padding: 40px 10px 40px;
+  }
+
+  /* 2-row grid layout for pills on mobile */
+  .markdown-math-renderer .model-exam-header {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    grid-template-areas:
+      "title code series"
+      "tier count marks";
+    gap: 8px 10px;
+    align-items: center;
+    padding: 10px 14px;
+    margin-top: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .markdown-math-renderer .exam-header-title {
+    grid-area: title;
+    font-size: 0.95em;
+    font-weight: 700;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .markdown-math-renderer .exam-header-pills {
+    display: contents;
+  }
+
+  .markdown-math-renderer .exam-pill {
+    font-size: 0.6em;
+    padding: 2px 1px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .markdown-math-renderer .pill-code {
+    grid-area: code;
+  }
+
+  .markdown-math-renderer .pill-series {
+    font-size: 0.55em;
+    grid-area: series;
+  }
+
+  .markdown-math-renderer .pill-tier {
+    font-size: 0.5em;
+    grid-area: tier;
+    display: inline-flex !important;
+  }
+
+  .markdown-math-renderer .pill-marks {
+    font-size: 0.5em;
+    grid-area: marks;
+  }
+
+  .markdown-math-renderer .pill-count {
+    font-size: 0.5em;
+    grid-area: count;
+  }
+
+  .markdown-math-renderer .model_question {
+    font-size: 0.85em;
+  }
+
+  .markdown-math-renderer .model_answer {
+    font-size: 0.9em;
+  }
+
+  .markdown-math-renderer .model-question-number {
+    font-size: 0.9em;
+    margin-top: 5em;
+    margin-bottom: 0.25em;
   }
 }

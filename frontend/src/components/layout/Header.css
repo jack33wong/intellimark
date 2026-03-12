@@ -757,71 +757,6 @@
   height: 16px;
 }
 
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .header-nav {
-    display: none;
-  }
-
-  .search-container {
-    max-width: 300px;
-  }
-}
-
-@media (max-width: 768px) {
-  .header-content {
-    padding: 0 16px;
-  }
-
-  .logo-text {
-    display: none;
-  }
-
-  .search-container {
-    display: none;
-  }
-
-  .user-info {
-    display: none;
-  }
-
-  .menu-toggle {
-    display: flex;
-  }
-
-  .header-logo {
-    display: none !important;
-  }
-
-  .header-logo-text {
-    display: none;
-  }
-
-  .action-buttons {
-    display: none;
-  }
-
-  /* Hide guest actions on mobile to avoid overcrowding */
-  .guest-header-actions {
-    display: none !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .header-content {
-    padding: 0 12px;
-  }
-
-  .header-left {
-    gap: 12px;
-  }
-
-  .header-right {
-    gap: 8px;
-  }
-}
-
-
 /* Focus states for accessibility */
 .nav-item:focus,
 .action-btn:focus,
@@ -1599,8 +1534,8 @@
 }
 
 .header-signup-btn {
-  background: var(--primary-color);
-  border: 1px solid var(--primary-color);
+  background: var(--icon-onblack);
+  border: 1px solid var(--border-main);
   color: var(--text-primary);
   padding: 8px 20px;
   border-radius: 8px;
@@ -1612,11 +1547,88 @@
 }
 
 .header-signup-btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px var(--shadow-color);
+  background: var(--background-menu-gray);
+  border-color: var(--text-primary);
 }
 
 .header-signup-btn:active {
   transform: translateY(0);
+}
+
+
+
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .header-nav {
+    display: none;
+  }
+
+  .search-container {
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    padding: 0 16px;
+  }
+
+  .logo-text {
+    display: none;
+  }
+
+  .search-container {
+    display: none;
+  }
+
+  .user-info {
+    display: none;
+  }
+
+  .menu-toggle {
+    display: flex;
+  }
+
+  .header-logo {
+    display: none !important;
+  }
+
+  .header-logo-text {
+    display: none;
+  }
+
+  .action-buttons {
+    display: none;
+  }
+
+  /* Show Sign In / Sign Up on mobile, but hide Pricing to save space */
+  .guest-header-actions {
+    display: flex;
+    gap: 2px;
+  }
+
+  .guest-header-actions .header-nav-link {
+    display: none;
+  }
+
+  .guest-header-actions .header-signin-btn,
+  .guest-header-actions .header-signup-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content {
+    padding: 0 12px;
+  }
+
+  .header-left {
+    gap: 12px;
+  }
+
+  .header-right {
+    gap: 8px;
+  }
 }

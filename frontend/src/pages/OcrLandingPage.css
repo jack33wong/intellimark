@@ -236,11 +236,21 @@
 
 /* Mobile Overrides */
 @media (max-width: 600px) {
+
+    .ocr-landing-page .ocr-hero-title {
+        font-size: 2.0rem;
+    }
+
     .ocr-landing-page .ocr-hero-section {
         padding-top: 100px;
     }
 
-    .ocr-landing-page .ocr-hero-title {
-        font-size: 2.0rem;
+    .ocr-landing-page .ocr-feature-row {
+        padding: 80px 24px;
+    }
+
+    /* Resources Section */
+    .ocr-landing-page .ocr-resources-section {
+        padding: 80px 24px;
     }
 }

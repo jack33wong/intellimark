@@ -308,6 +308,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }
   }, [session?.id, addMessage, startAIThinking, getAuthToken, message.id, selectedModel, user, message.detectedQuestion, message.contextQuestionId]);
 
+
   const handleSignup = useCallback(() => {
     EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
   }, []);
@@ -498,51 +499,30 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   </div>
                 )}
                 {/* Render main assistant content (Unified) */}
-                {hasYourWork ? (
-                  <div className="has-your-work-outer-container">
-                    <MarkdownMathRenderer
-                      content={processedContent}
-                      className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
-                      options={{
-                        throwOnError: false,
-                        errorColor: '#cc0000',
-                      }}
-                      YourWorkSection={YourWorkSection}
-                      isYourWork={hasYourWork}
-                    />
-                    {processedContent.includes('paywall-blur') && (
-                      <div className="paywall-cta-overlay">
-                        <h4>Sign up to see more answers</h4>
-                        <button className="paywall-unlock-btn" onClick={handleSignup}>
-                          <Lock size={18} />
-                          Unlock Full Paper for Free
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ position: 'relative' }}>
-                    <MarkdownMathRenderer
-                      content={processedContent}
-                      className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
-                      options={{
-                        throwOnError: false,
-                        errorColor: '#cc0000',
-                      }}
-                      YourWorkSection={YourWorkSection}
-                      isYourWork={hasYourWork}
-                    />
-                    {processedContent.includes('paywall-blur') && (
-                      <div className="paywall-cta-overlay">
-                        <h4>Sign up to see more answers</h4>
-                        <button className="paywall-unlock-btn" onClick={handleSignup}>
-                          <Lock size={18} />
-                          Unlock Full Paper for Free
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div 
+                  className={(message.detectedQuestion as any)?.isGuest ? 'guest-blur-enabled' : ''} 
+                  style={{ position: 'relative' }}
+                >
+                  <MarkdownMathRenderer
+                    content={processedContent}
+                    className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
+                    options={{
+                      throwOnError: false,
+                      errorColor: '#cc0000',
+                    }}
+                    YourWorkSection={YourWorkSection}
+                    isYourWork={hasYourWork}
+                  />
+                  {(message.detectedQuestion as any)?.isGuest && (
+                    <div className="paywall-cta-inline">
+                      <h4 className="paywall-inline-title">Sign up to see more answers</h4>
+                      <button className="paywall-unlock-btn" onClick={handleSignup}>
+                        <Lock size={18} />
+                        Unlock Full Paper for Free
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}

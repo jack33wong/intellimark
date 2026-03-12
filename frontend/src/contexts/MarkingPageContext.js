@@ -12,6 +12,7 @@ import { STORAGE_KEYS, AI_MODELS } from '../utils/constants.js';
 import { getSessionImages } from '../utils/imageCollectionUtils';
 import { useCredits } from '../hooks/useCredits';
 import InsufficientCreditsModal from '../components/common/InsufficientCreditsModal';
+import GuestLimitModal from '../components/modals/GuestLimitModal';
 
 const MarkingPageContext = createContext();
 
@@ -120,6 +121,8 @@ export const MarkingPageProvider = ({
 
   const { credits, isNegative, refreshCredits } = useCredits();
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
+  const [showGuestLimitModal, setShowGuestLimitModal] = React.useState(false);
+  const [guestLimitInfo, setGuestLimitInfo] = React.useState({ usageCount: 0, usageLimit: 5, resetAt: null });
   const [isModelAnswerMode, setIsModelAnswerMode] = React.useState(false);
   const [isMarkingSchemeMode, setIsMarkingSchemeMode] = React.useState(false);
   const [initialInput, setInitialInput] = React.useState('');
@@ -584,10 +587,14 @@ export const MarkingPageProvider = ({
         }
       ).catch(err => {
         console.error('Error in model answer flow:', err);
-        if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+        if (err.guest_limit_reached) {
+          setGuestLimitInfo({ usageCount: err.usageCount, usageLimit: err.usageLimit, resetAt: err.resetAt });
+          setShowGuestLimitModal(true);
+        } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
           setShowCreditsModal(true);
+        } else {
+          handleError(err);
         }
-        handleError(err);
         stopAIThinking();
         stopProcessing();
       });
@@ -658,10 +665,14 @@ export const MarkingPageProvider = ({
         }
       ).catch(err => {
         console.error('Error in marking scheme explanation flow:', err);
-        if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+        if (err.guest_limit_reached) {
+          setGuestLimitInfo({ usageCount: err.usageCount, usageLimit: err.usageLimit, resetAt: err.resetAt });
+          setShowGuestLimitModal(true);
+        } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
           setShowCreditsModal(true);
+        } else {
+          handleError(err);
         }
-        handleError(err);
         stopAIThinking();
         stopProcessing();
       });
@@ -1083,6 +1094,19 @@ export const MarkingPageProvider = ({
         isOpen={showCreditsModal}
         onClose={() => setShowCreditsModal(false)}
         remainingCredits={credits?.remainingCredits ?? 0}
+      />
+      <GuestLimitModal
+        isOpen={showGuestLimitModal}
+        onClose={() => setShowGuestLimitModal(false)}
+        onSignup={() => {
+          setShowGuestLimitModal(false);
+          import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+            EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+          });
+        }}
+        usageCount={guestLimitInfo.usageCount}
+        usageLimit={guestLimitInfo.usageLimit}
+        resetAt={guestLimitInfo.resetAt}
       />
     </MarkingPageContext.Provider>
   );

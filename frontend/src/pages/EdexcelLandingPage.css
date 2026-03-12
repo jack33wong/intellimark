@@ -240,4 +240,14 @@
     .edexcel-landing-page .edexcel-hero-section {
         padding-top: 100px;
     }
+
+    .edexcel-landing-page .edexcel-feature-row {
+        padding: 80px 24px;
+    }
+
+    /* Resources Section */
+    .edexcel-landing-page .edexcel-resources-section {
+        padding: 80px 24px;
+    }
+
 }

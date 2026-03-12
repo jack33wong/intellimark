@@ -245,7 +245,7 @@ export class SuggestedFollowUpService {
 
         const isGuest = detectedQuestion?.isGuest === true;
         const qIndex = questions.indexOf(q);
-        const blurClass = (isGuest && (qIndex === 2 || qIndex === 3)) ? ' paywall-blur' : '';
+        const blurClass = (isGuest && qIndex >= 4) ? ' paywall-blur' : '';
 
         const html = `
 <div class="model-answer-block${blurClass}">

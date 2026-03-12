@@ -535,7 +535,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                 className="header-signup-btn"
                 onClick={() => EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' })}
               >
-                Sign up for free
+                Sign up
               </button>
             </div>
           )}

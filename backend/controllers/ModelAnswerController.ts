@@ -48,15 +48,17 @@ export class ModelAnswerController {
                 if (!limitInfo.allowed) {
                     sendSseUpdate(res, {
                         type: 'error',
-                        message: 'Guest limit reached. Please sign up to see more model answers.',
-                        details: 'guest_limit_reached'
+                        error: 'Guest limit reached. Please sign up to see more model answers.',
+                        details: 'guest_limit_reached',
+                        usageCount: limitInfo.count,
+                        usageLimit: limitInfo.limit,
+                        resetAt: limitInfo.resetAt
                     });
                     res.end();
                     return;
                 }
             }
 
-            // 3. Retrieve Paper Data
             const db = getFirestore();
             let detectedQuestion: any = null;
             let metadataHeader = '';
@@ -75,16 +77,11 @@ export class ModelAnswerController {
                 if (paperDoc) {
                     const meta = paperDoc.metadata;
 
-                    // Format Metadata Display
+                    // Build metadata header HTML
                     const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(meta);
-
-                    // Calculate totals from Paper Document
                     const totalQuestions = paperDoc.questions?.length || 0;
                     const totalMarks = (paperDoc.questions || []).reduce((sum: number, q: any) => sum + (q.marks || 0), 0);
-
-                    // Metadata Header matching the requested format
-                    metadataHeader = `
-<div class="model-exam-header">
+                    metadataHeader = `<div class="model-exam-header">
   <div class="exam-header-title">${meta.exam_board}</div>
   <div class="exam-header-pills">
     <span class="exam-pill pill-code">${meta.exam_code}</span>
@@ -95,18 +92,14 @@ export class ModelAnswerController {
   </div>
 </div>`.trim() + '\n\n';
 
-                    // Strict Limits for AI Usage
-                    let rawQuestions = paperDoc.questions || [];
-
-                    // Use Paper Document questions directly (they are already grouped by question level)
+                    // Use Paper Document questions directly
                     let questionsToProcess = paperDoc.questions || [];
 
                     if (!isAuthenticated) {
-                        // Guest Limit: Show 4, but 3 & 4 will be blurred by frontend
-                        if (questionsToProcess.length > 4) {
-                            questionsToProcess = questionsToProcess.slice(0, 4);
+                        // Guest: show 4 free + 1 blurred preview
+                        if (questionsToProcess.length > 5) {
+                            questionsToProcess = questionsToProcess.slice(0, 5);
                         }
-                        metadataHeader += `<div class="model-alert-note"><strong>NOTE:</strong> Guest Mode: Showing first 4 questions only. Sign up for more.</div><br><br>\n\n`;
                     }
 
                     // Retrieve Marking Schemes - Using Metadata Match ONLY (ID lookup is unreliable)
@@ -257,7 +250,7 @@ export class ModelAnswerController {
                     messageType: 'Chat',
                     messages: [userMessage],
                     usageMode: 'model-answer',
-                    detectedQuestion: detectedQuestion // PERSIST AT SESSION LEVEL
+                    detectedQuestion: detectedQuestion
                 });
             }
 
@@ -279,19 +272,12 @@ export class ModelAnswerController {
                 tracker: usageTracker
             });
 
-            // 6. Prepend Header & Format
-            // Wrap in the specific HTML structure requested by frontend for "notebook" styling
-            const finalResponse = `
-<div class="has-your-work-outer-container">
-<div class="markdown-math-renderer chat-message-renderer has-your-work">
-${metadataHeader}
-${followUpResult.response}
-
-</div>
-</div>`.trim();
+            // 6. Prepend metadata header to response
+            const finalResponse = metadataHeader
+                ? (metadataHeader + followUpResult.response)
+                : followUpResult.response;
 
             // 7. Store AI Message
-            // Build Marking Context for subsequent follow-up questions
             const markingContext = await ChatContextBuilder.buildQuestionModeContext({
                 detectedQuestion: detectedQuestion,
                 sessionType: 'Question'
@@ -300,8 +286,8 @@ ${followUpResult.response}
             const aiMessage = createAIMessage({
                 content: finalResponse,
                 messageId: providedAiMessageId,
-                markingContext: markingContext, // INJECT CONTEXT
-                detectedQuestion: detectedQuestion, // PERSIST AT MESSAGE LEVEL
+                markingContext: markingContext,
+                detectedQuestion: detectedQuestion,
                 progressData: {
                     type: 'model-answer',
                     currentStepDescription: 'Model answers written',
@@ -324,15 +310,11 @@ ${followUpResult.response}
 
             if (isAuthenticated) {
                 await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage, 'model-answer');
-
                 // Deduct credits
                 const cost = usageTracker.calculateCost(model).total;
                 if (cost > 0) {
                     await deductCredits(userId, cost, sessionId);
                 }
-            } else {
-                // Increment guest usage
-                await GuestUsageService.incrementUsage(userIP);
             }
 
             // 8. Final SSE Update
@@ -346,13 +328,18 @@ ${followUpResult.response}
                 }
             });
 
-            res.end();
+            res.end(); // End ASAP to prevent hang
+
+            if (!isAuthenticated) {
+                // Increment guest usage in background
+                GuestUsageService.incrementUsage(userIP).catch(err => console.error('Guest usage increment failed:', err));
+            }
 
         } catch (error: any) {
             console.error('❌ [MODEL-ANSWER] Generation failed:', error);
             sendSseUpdate(res, {
                 type: 'error',
-                message: error.message || 'Failed to generate model answers.'
+                error: error.message || 'Failed to generate model answers.'
             });
             res.end();
         }

@@ -560,7 +560,14 @@ class SimpleSessionService {
               }
 
               if (data.type === 'error') {
-                throw new Error(data.error || 'Unknown error from server');
+                const err = new Error(data.error || 'Unknown error from server');
+                if (data.details === 'guest_limit_reached') {
+                  err.guest_limit_reached = true;
+                  err.usageCount = data.usageCount;
+                  err.usageLimit = data.usageLimit;
+                  err.resetAt = data.resetAt;
+                }
+                throw err;
               }
 
               if (onProgress) onProgress(data);

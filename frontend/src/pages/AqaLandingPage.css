@@ -3,7 +3,7 @@
 .aqa-landing-page {
     --board-accent-color: #0056b3;
     --board-bg-accent: rgba(0, 86, 179, 0.05);
-    
+
     background-color: #ffffff;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     min-height: 100vh;
@@ -50,7 +50,8 @@
 }
 
 .aqa-landing-page .aqa-primary-button {
-    background-color: #7f00ff; /* Keeping brand purple for CTAs */
+    background-color: #7f00ff;
+    /* Keeping brand purple for CTAs */
     color: white !important;
     font-size: 1.15rem;
     font-weight: 600;
@@ -297,11 +298,21 @@
 
 /* Mobile Overrides */
 @media (max-width: 600px) {
+
+    .aqa-landing-page .aqa-hero-title {
+        font-size: 2.0rem;
+    }
+
     .aqa-landing-page .aqa-hero-section {
         padding-top: 100px;
     }
 
-    .aqa-landing-page .aqa-hero-title {
-        font-size: 2.0rem;
+    .aqa-landing-page .aqa-feature-row {
+        padding: 80px 24px;
+    }
+
+    /* Resources Section */
+    .aqa-landing-page .aqa-resources-section {
+        padding: 80px 24px;
     }
 }

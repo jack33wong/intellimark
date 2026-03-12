@@ -85,6 +85,17 @@ const EDEXCEL_PAST_PAPERS = [
             { name: "Calculator", type: "1MA1/2H", code: "1MA1/2H", tier: "H" },
             { name: "Calculator", type: "1MA1/3H", code: "1MA1/3H", tier: "H" }
         ]
+    },
+    {
+        year: "November 2020",
+        papers: [
+            { name: "Non-Calculator", type: "1MA1/1F", code: "1MA1/1F", tier: "F" },
+            { name: "Calculator", type: "1MA1/2F", code: "1MA1/2F", tier: "F" },
+            { name: "Calculator", type: "1MA1/3F", code: "1MA1/3F", tier: "F" },
+            { name: "Non-Calculator", type: "1MA1/1H", code: "1MA1/1H", tier: "H" },
+            { name: "Calculator", type: "1MA1/2H", code: "1MA1/2H", tier: "H" },
+            { name: "Calculator", type: "1MA1/3H", code: "1MA1/3H", tier: "H" }
+        ]
     }
 ];
 
@@ -200,7 +211,7 @@ const EdexcelLandingPage: React.FC = () => {
                                                                 <div className="paper-meta">
                                                                     <span className="paper-name">{paper.name}</span>
                                                                     <span className="paper-type">
-                                                                        <span className="paper-calc-type">{paper.name} </span>
+                                                                        <span className="paper-calc-type">{paper.name.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'} </span>
                                                                         {paper.code}
                                                                     </span>
                                                                 </div>

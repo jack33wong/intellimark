@@ -52,6 +52,50 @@ const OCR_PAST_PAPERS = [
             { name: "Paper 5", type: "Calculator", code: "J560/05", tier: "H" },
             { name: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
         ]
+    },
+    {
+        year: "November 2022",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "J560/01", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "J560/02", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+            { name: "Paper 4", type: "Non-Calculator", code: "J560/04", tier: "H" },
+            { name: "Paper 5", type: "Calculator", code: "J560/05", tier: "H" },
+            { name: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+        ]
+    },
+    {
+        year: "June 2022",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "J560/01", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "J560/02", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+            { name: "Paper 4", type: "Non-Calculator", code: "J560/04", tier: "H" },
+            { name: "Paper 5", type: "Calculator", code: "J560/05", tier: "H" },
+            { name: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+        ]
+    },
+    {
+        year: "November 2021",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "J560/01", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "J560/02", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+            { name: "Paper 4", type: "Non-Calculator", code: "J560/04", tier: "H" },
+            { name: "Paper 5", type: "Calculator", code: "J560/05", tier: "H" },
+            { name: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+        ]
+    },
+    {
+        year: "November 2020",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "J560/01", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "J560/02", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "J560/03", tier: "F" },
+            { name: "Paper 4", type: "Non-Calculator", code: "J560/04", tier: "H" },
+            { name: "Paper 5", type: "Calculator", code: "J560/05", tier: "H" },
+            { name: "Paper 6", type: "Calculator", code: "J560/06", tier: "H" }
+        ]
     }
 ];
 

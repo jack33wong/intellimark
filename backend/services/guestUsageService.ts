@@ -1,7 +1,8 @@
 import { getFirestore } from '../config/firebase.js';
 import admin from 'firebase-admin';
 
-const GUEST_LIMIT = 2;
+const GUEST_LIMIT = 5;
+const RESET_HOURS = 24; // Guest usage resets after 24 hours
 const COLLECTION = 'guestUsage';
 
 /**
@@ -14,28 +15,43 @@ export class GuestUsageService {
     /**
      * Checks if a guest user (by IP) has reached their usage limit.
      */
-    static async checkLimit(ip: string): Promise<{ allowed: boolean; count: number; remaining: number }> {
-        if (!this.db || !ip) return { allowed: true, count: 0, remaining: GUEST_LIMIT };
+    static async checkLimit(ip: string): Promise<{ allowed: boolean; count: number; remaining: number; limit: number; resetAt: string | null }> {
+        if (!this.db || !ip) return { allowed: true, count: 0, remaining: GUEST_LIMIT, limit: GUEST_LIMIT, resetAt: null };
 
         try {
             const doc = await this.db.collection(COLLECTION).doc(this.hashIP(ip)).get();
 
             if (!doc.exists) {
-                return { allowed: true, count: 0, remaining: GUEST_LIMIT };
+                return { allowed: true, count: 0, remaining: GUEST_LIMIT, limit: GUEST_LIMIT, resetAt: null };
             }
 
             const data = doc.data();
             const count = data?.count || 0;
 
+            // Compute resetAt from firstUsed + RESET_HOURS
+            let resetAt: string | null = null;
+            if (data?.firstUsed) {
+                const firstUsedMs = data.firstUsed.toMillis ? data.firstUsed.toMillis() : Date.parse(data.firstUsed);
+                const resetMs = firstUsedMs + (RESET_HOURS * 60 * 60 * 1000);
+                resetAt = new Date(resetMs).toISOString();
+                
+                // Auto-reset if 24 hours have passed
+                if (Date.now() > resetMs) {
+                    await this.db.collection(COLLECTION).doc(this.hashIP(ip)).delete();
+                    return { allowed: true, count: 0, remaining: GUEST_LIMIT, limit: GUEST_LIMIT, resetAt: null };
+                }
+            }
+
             return {
                 allowed: count < GUEST_LIMIT,
                 count,
-                remaining: Math.max(0, GUEST_LIMIT - count)
+                remaining: Math.max(0, GUEST_LIMIT - count),
+                limit: GUEST_LIMIT,
+                resetAt
             };
         } catch (error) {
             console.error('Error checking guest limit:', error);
-            // Default to allowed on error to not block users due to DB issues
-            return { allowed: true, count: 0, remaining: 1 };
+            return { allowed: true, count: 0, remaining: 1, limit: GUEST_LIMIT, resetAt: null };
         }
     }
 
