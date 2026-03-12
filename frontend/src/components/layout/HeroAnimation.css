@@ -1,5 +1,5 @@
 .hero-animation-container {
-    padding: 80px var(--landing-padding-x, 24px);
+    padding: 10px var(--landing-padding-x, 24px);
     width: 100%;
     max-width: var(--landing-max-width, 1200px);
     margin: 0 auto;
@@ -179,12 +179,12 @@
 .hero-controls {
     margin-top: 20px;
     display: flex;
-    gap: 8px;
+    gap: 16px;
 }
 
 .hero-dot {
-    width: 6px;
-    height: 6px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     background: var(--border-main);
     cursor: pointer;

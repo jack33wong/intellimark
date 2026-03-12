@@ -17,6 +17,55 @@
     }
 }
 
+
+/* Landing Intro Container - Scrollable Flow */
+.landing-intro-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.landing-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 80px 20px;
+    background-color: var(--background-gray-main);
+}
+
+.landing-section-upload {
+    padding-top: 100px;
+    padding-bottom: 100px;
+}
+
+.landing-section-hero,
+.main-landing-wrapper {
+    background-color: white;
+}
+
+.landing-section-performance,
+.landing-section-upload {
+    padding: 60px 20px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.landing-intro-image-container,
+.hero-animation-container,
+.landing-section-performance>*,
+.landing-chat-input-placeholder {
+    width: 100%;
+    max-width: var(--landing-max-width, 800px);
+    margin: 0 auto;
+}
+
+.landing-chat-input-placeholder {
+    z-index: 10;
+    margin-top: 50px;
+}
+
 /* New Hero Styles */
 .landing-hero-content {
     text-align: center;
@@ -145,7 +194,7 @@
 
 /* Spatial Intelligence Section */
 .spatial-intelligence-section {
-    padding: 120px 24px;
+    padding: 80px 24px;
     background-color: #ffffff;
 }
 
@@ -317,7 +366,7 @@
 /* Dual-Action Entry Section */
 .dual-action-section {
     width: 100%;
-    padding: 100px 24px;
+    padding: 80px 24px;
     display: flex;
     justify-content: center;
 }
