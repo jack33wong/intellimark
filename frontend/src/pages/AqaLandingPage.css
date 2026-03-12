@@ -1,25 +1,27 @@
-/* AQA Landing Page - Namespaced Styles to prevent side effects */
+/* AQA Landing Page - Namespaced Styles */
 
 .aqa-landing-page {
+    --board-accent-color: #0056b3;
+    --board-bg-accent: rgba(0, 86, 179, 0.05);
+    
     background-color: #ffffff;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     min-height: 100vh;
-    display: block;
 }
 
-/* 1. Hero Section */
-.aqa-hero-section {
+/* Hero Section */
+.aqa-landing-page .aqa-hero-section {
     padding: 120px 24px 80px;
     text-align: center;
     background: #ffffff;
 }
 
-.aqa-hero-content {
+.aqa-landing-page .aqa-hero-content {
     max-width: 800px;
     margin: 0 auto;
 }
 
-.aqa-hero-title {
+.aqa-landing-page .aqa-hero-title {
     font-family: var(--page-title-font);
     font-size: clamp(2.5rem, 8vw, 4rem);
     line-height: 1.1;
@@ -27,7 +29,7 @@
     margin-bottom: 24px;
 }
 
-.aqa-hero-subtitle {
+.aqa-landing-page .aqa-hero-subtitle {
     font-size: 1.25rem;
     color: #4a5568;
     line-height: 1.6;
@@ -36,20 +38,19 @@
     margin-inline: auto;
 }
 
-.aqa-highlight-blue {
-    color: #0056b3;
+.aqa-landing-page .aqa-highlight-blue {
+    color: var(--board-accent-color);
 }
 
-.aqa-hero-cta-box {
+.aqa-landing-page .aqa-hero-cta-box {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 16px;
 }
 
-.aqa-primary-button {
-    background-color: #7f00ff;
-    /* Brand Purple */
+.aqa-landing-page .aqa-primary-button {
+    background-color: #7f00ff; /* Keeping brand purple for CTAs */
     color: white !important;
     font-size: 1.15rem;
     font-weight: 600;
@@ -61,13 +62,13 @@
     box-shadow: 0 10px 25px rgba(127, 0, 255, 0.2);
 }
 
-.aqa-primary-button:hover {
+.aqa-landing-page .aqa-primary-button:hover {
     transform: translateY(-2px);
     background-color: #6a00d9;
 }
 
-.aqa-btn-file {
-    display: flex;
+.aqa-landing-page .aqa-btn-file {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 12px;
@@ -83,86 +84,70 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.aqa-btn-file:hover {
+.aqa-landing-page .aqa-btn-file:hover {
     background-color: #fafafa;
     border-color: #1a1a1a;
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-.paper-meta {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-}
-
-.aqa-microcopy {
+.aqa-landing-page .aqa-microcopy {
     font-size: 0.9rem;
     color: #718096;
 }
 
-/* 2. Feature Sections (Logic & Question Mode) */
-.aqa-feature-row {
+/* Feature Sections */
+.aqa-landing-page .aqa-feature-row {
     padding: 100px 24px;
     background: #f8fafc;
 }
 
-.aqa-feature-row:nth-child(even) {
+.aqa-landing-page .aqa-feature-row:nth-child(even) {
     background: #ffffff;
 }
 
-.aqa-feature-container {
+.aqa-landing-page .aqa-feature-container {
     max-width: 1200px;
     margin: 0 auto;
     display: flex;
     align-items: center;
     gap: 80px;
     flex-wrap: wrap;
-    /* Critical for responsiveness */
 }
 
-.aqa-feature-text {
+.aqa-landing-page .aqa-feature-text {
     flex: 1.2;
     min-width: 320px;
 }
 
-.aqa-feature-visual {
+.aqa-landing-page .aqa-feature-visual {
     flex: 1;
     display: flex;
     justify-content: center;
     min-width: 320px;
 }
 
-.aqa-section-title {
+.aqa-landing-page .aqa-section-title {
     font-family: var(--page-title-font);
     font-size: clamp(2rem, 5vw, 3rem);
     color: #1a1a1a;
     margin-bottom: 24px;
     line-height: 1.2;
-    display: block;
-    /* Ensure it's not hidden */
-    visibility: visible !important;
-    opacity: 1 !important;
 }
 
-.aqa-section-body {
+.aqa-landing-page .aqa-section-body {
     font-size: 1.15rem;
     line-height: 1.7;
     color: #4a5568;
     margin-bottom: 24px;
 }
 
-.aqa-feature-list {
+.aqa-landing-page .aqa-feature-list {
     list-style: none;
     padding: 0;
-    margin: 0;
 }
 
-.aqa-feature-list li {
+.aqa-landing-page .aqa-feature-list li {
     font-size: 1.1rem;
     color: #2d3748;
     margin-bottom: 12px;
@@ -172,13 +157,13 @@
     font-weight: 500;
 }
 
-.aqa-check-icon {
-    color: #0056b3;
+.aqa-landing-page .aqa-check-icon {
+    color: var(--board-accent-color);
     font-weight: bold;
 }
 
-/* Logic Analysis Special styles */
-.aqa-mockup-frame {
+/* Mockups */
+.aqa-landing-page .aqa-mockup-frame {
     background: #fff;
     border-radius: 16px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
@@ -188,11 +173,11 @@
     width: 75%;
 }
 
-.aqa-badge-overlay {
+.aqa-landing-page .aqa-badge-overlay {
     position: absolute;
     top: 24px;
     right: 24px;
-    background: #0056b3;
+    background: var(--board-accent-color);
     color: white;
     padding: 8px 16px;
     border-radius: 100px;
@@ -201,8 +186,7 @@
     box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
 }
 
-/* Mobile Mockup for Question Mode */
-.aqa-mobile-frame {
+.aqa-landing-page .aqa-mobile-frame {
     width: 300px;
     height: 600px;
     background: #1a1a1a;
@@ -213,7 +197,7 @@
     overflow: hidden;
 }
 
-.aqa-mobile-screen {
+.aqa-landing-page .aqa-mobile-screen {
     width: 100%;
     height: 100%;
     background: #fff;
@@ -221,14 +205,14 @@
     overflow: hidden;
 }
 
-/* 4. Resources Section */
-.aqa-resources-section {
+/* Resources Section */
+.aqa-landing-page .aqa-resources-section {
     padding: 100px 24px;
     background: #ffffff;
     text-align: center;
 }
 
-.aqa-resources-grid {
+.aqa-landing-page .aqa-resources-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 32px;
@@ -236,35 +220,34 @@
     margin: 48px auto 0;
 }
 
-.aqa-resource-card {
+.aqa-landing-page .aqa-resource-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 20px;
     padding: 40px;
     text-align: left;
     transition: all 0.3s ease;
-    position: relative;
 }
 
-.aqa-resource-card:hover {
+.aqa-landing-page .aqa-resource-card:hover {
     transform: translateY(-8px);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
-    border-color: #0056b3;
+    border-color: var(--board-accent-color);
 }
 
-.aqa-resource-card h3 {
+.aqa-landing-page .aqa-resource-card h3 {
     font-size: 1.5rem;
     font-weight: 700;
     margin-bottom: 20px;
     color: #1a1a1a;
 }
 
-.aqa-resource-card ul {
+.aqa-landing-page .aqa-resource-card ul {
     list-style: none;
     padding: 0;
 }
 
-.aqa-resource-card li {
+.aqa-landing-page .aqa-resource-card li {
     font-size: 1rem;
     color: #4a5568;
     margin-bottom: 12px;
@@ -272,14 +255,14 @@
     position: relative;
 }
 
-.aqa-resource-card li::before {
+.aqa-landing-page .aqa-resource-card li::before {
     content: '→';
     position: absolute;
     left: 0;
-    color: #0056b3;
+    color: var(--board-accent-color);
 }
 
-.aqa-pill {
+.aqa-landing-page .aqa-pill {
     display: inline-block;
     padding: 6px 14px;
     background: #edf2f7;
@@ -290,198 +273,35 @@
     margin-top: 20px;
 }
 
-.aqa-pill-new {
+.aqa-landing-page .aqa-pill-new {
     background: #c6f6d5;
     color: #22543d;
 }
 
-/* Responsive Overrides */
+/* Tablet Overrides */
 @media (max-width: 900px) {
-    .aqa-feature-container {
+    .aqa-landing-page .aqa-feature-container {
         flex-direction: column;
         text-align: center;
         gap: 48px;
     }
 
-    .aqa-feature-visual {
+    .aqa-landing-page .aqa-feature-visual {
         order: 2;
     }
 
-    /* Keep zig-zag alternating also on mobile if needed, but usually stacks */
-    .aqa-feature-row:nth-child(even) .aqa-feature-visual {
+    .aqa-landing-page .aqa-feature-row:nth-child(even) .aqa-feature-visual {
         order: 2;
     }
 }
 
+/* Mobile Overrides */
 @media (max-width: 600px) {
-    .aqa-hero-section {
+    .aqa-landing-page .aqa-hero-section {
         padding-top: 100px;
     }
 
-    .aqa-hero-title {
+    .aqa-landing-page .aqa-hero-title {
         font-size: 2.0rem;
-    }
-}
-
-/* Fix Hero Button Distortion */
-.aqa-btn-file {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 24px;
-    height: auto;
-}
-
-/* 3-Column Year Hub */
-.aqa-year-card-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
-    margin-top: 40px;
-    width: 100%;
-    max-width: 1200px;
-    /* Aligned with other section containers */
-    margin: 40px auto 0;
-}
-
-.aqa-year-card.static {
-    background: #ffffff;
-    border: 1px solid var(--border-light);
-    border-radius: 16px;
-    padding: 28px;
-    text-align: left;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    transition: all 0.3s ease;
-}
-
-.aqa-year-card.static:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-}
-
-.year-card-header {
-    border-bottom: 2px solid var(--fill-blue);
-    padding-bottom: 12px;
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.year-title {
-    font-size: 17px;
-    font-weight: 800;
-    color: var(--text-primary);
-}
-
-/* Internal Tier Grouping */
-.tier-groups-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.tier-sublabel {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-blue);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-    padding-left: 4px;
-}
-
-.internal-tier-group {
-    border-left: 2px solid var(--fill-blue);
-    /* Professional Indent Line */
-    padding-left: 16px;
-}
-
-/* Paper-Level Interaction */
-.paper-item-row.interactive {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    margin: 0 -12px 8px -12px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.paper-item-row.interactive:hover {
-    background: var(--background-gray-main);
-    transform: translateX(4px);
-    /* Professional shift effect */
-}
-
-.paper-actions {
-    display: flex;
-    gap: 8px;
-    /* Separates the two buttons */
-}
-
-.paper-name {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-secondary);
-}
-
-.paper-type {
-    font-size: 8px;
-    color: var(--text-tertiary);
-    background: #f7fafc;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-}
-
-
-.aqa-landing-page .action-link {
-    padding: 6px 12px;
-    font-size: 9px;
-    font-weight: 600;
-    border-radius: 4px;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.2s;
-}
-
-.aqa-landing-page .action-link.model {
-    background: var(--text-brand);
-    color: white;
-    border: none;
-}
-
-.aqa-landing-page .action-link.mark {
-    background: transparent;
-    color: var(--text-brand);
-    border: 1px solid var(--text-brand);
-}
-
-.aqa-landing-page .action-link.model:hover {
-    background: var(--text-brand);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(127, 0, 255, 0.2);
-}
-
-.aqa-landing-page .action-link.mark:hover {
-    background: rgba(127, 0, 255, 0.05);
-    border-color: var(--text-brand);
-    color: var(--text-brand);
-    transform: translateY(-1px);
-}
-
-/* Responsive */
-@media (max-width: 1100px) {
-    .aqa-year-card-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    .aqa-year-card-grid {
-        grid-template-columns: 1fr;
     }
 }

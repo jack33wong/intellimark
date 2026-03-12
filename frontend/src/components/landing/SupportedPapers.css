@@ -205,6 +205,12 @@
 }
 
 @media (max-width: 768px) {
+
+
+    .supported-papers h2 {
+        font-size: 2.0rem;
+    }
+
     .papers-display {
         grid-template-columns: 1fr;
         gap: 32px;
@@ -265,7 +271,7 @@
         text-align: center;
     }
 
-    .paper-type {
+    .supported-papers .paper-type {
         display: none !important;
         /* Hide Calculator info on mobile as requested */
     }

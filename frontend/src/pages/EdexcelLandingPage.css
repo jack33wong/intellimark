@@ -1,25 +1,27 @@
-/* Edexcel Landing Page - Namespaced Styles to prevent side effects */
+/* Edexcel Landing Page - Namespaced Styles */
 
 .edexcel-landing-page {
+    --board-accent-color: #003087;
+    --board-bg-accent: rgba(0, 48, 135, 0.05);
+
     background-color: #ffffff;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     min-height: 100vh;
-    display: block;
 }
 
-/* 1. Hero Section */
-.edexcel-hero-section {
+/* Hero Section */
+.edexcel-landing-page .edexcel-hero-section {
     padding: 120px 24px 80px;
     text-align: center;
     background: #ffffff;
 }
 
-.edexcel-hero-content {
+.edexcel-landing-page .edexcel-hero-content {
     max-width: 800px;
     margin: 0 auto;
 }
 
-.edexcel-hero-title {
+.edexcel-landing-page .edexcel-hero-title {
     font-family: var(--page-title-font);
     font-size: clamp(2.5rem, 8vw, 4rem);
     line-height: 1.1;
@@ -27,7 +29,7 @@
     margin-bottom: 24px;
 }
 
-.edexcel-hero-subtitle {
+.edexcel-landing-page .edexcel-hero-subtitle {
     font-size: 1.25rem;
     color: #4a5568;
     line-height: 1.6;
@@ -36,20 +38,19 @@
     margin-inline: auto;
 }
 
-.edexcel-highlight-navy {
-    color: #003087;
-    /* Edexcel Navy */
+.edexcel-landing-page .edexcel-highlight-navy {
+    color: var(--board-accent-color);
 }
 
-.edexcel-hero-cta-box {
+.edexcel-landing-page .edexcel-hero-cta-box {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 16px;
 }
 
-.edexcel-btn-file {
-    display: flex;
+.edexcel-landing-page .edexcel-btn-file {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 12px;
@@ -65,29 +66,29 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.edexcel-btn-file:hover {
+.edexcel-landing-page .edexcel-btn-file:hover {
     background-color: #fafafa;
     border-color: #1a1a1a;
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-.edexcel-microcopy {
+.edexcel-landing-page .edexcel-microcopy {
     font-size: 0.9rem;
     color: #718096;
 }
 
-/* 2. Feature Sections */
-.edexcel-feature-row {
+/* Feature Sections */
+.edexcel-landing-page .edexcel-feature-row {
     padding: 100px 24px;
     background: #f8fafc;
 }
 
-.edexcel-feature-row:nth-child(even) {
+.edexcel-landing-page .edexcel-feature-row:nth-child(even) {
     background: #ffffff;
 }
 
-.edexcel-feature-container {
+.edexcel-landing-page .edexcel-feature-container {
     max-width: 1200px;
     margin: 0 auto;
     display: flex;
@@ -96,19 +97,19 @@
     flex-wrap: wrap;
 }
 
-.edexcel-feature-text {
+.edexcel-landing-page .edexcel-feature-text {
     flex: 1.2;
     min-width: 320px;
 }
 
-.edexcel-feature-visual {
+.edexcel-landing-page .edexcel-feature-visual {
     flex: 1;
     display: flex;
     justify-content: center;
     min-width: 320px;
 }
 
-.edexcel-section-title {
+.edexcel-landing-page .edexcel-section-title {
     font-family: var(--page-title-font);
     font-size: clamp(2rem, 5vw, 3rem);
     color: #1a1a1a;
@@ -116,20 +117,20 @@
     line-height: 1.2;
 }
 
-.edexcel-section-body {
+.edexcel-landing-page .edexcel-section-body {
     font-size: 1.15rem;
     line-height: 1.7;
     color: #4a5568;
     margin-bottom: 24px;
 }
 
-.edexcel-strategy-list {
+.edexcel-landing-page .edexcel-strategy-list {
     list-style: none;
     padding: 0;
     margin: 24px 0;
 }
 
-.edexcel-strategy-list li {
+.edexcel-landing-page .edexcel-strategy-list li {
     font-size: 1.1rem;
     color: #2d3748;
     margin-bottom: 16px;
@@ -138,16 +139,16 @@
     line-height: 1.6;
 }
 
-.edexcel-strategy-list li::before {
+.edexcel-landing-page .edexcel-strategy-list li::before {
     content: '✓';
     position: absolute;
     left: 0;
-    color: #003087;
+    color: var(--board-accent-color);
     font-weight: bold;
 }
 
-/* Mockup Frames */
-.edexcel-mockup-frame {
+/* Mockups */
+.edexcel-landing-page .edexcel-mockup-frame {
     background: #fff;
     border-radius: 16px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
@@ -157,11 +158,11 @@
     width: 100%;
 }
 
-.edexcel-badge-overlay {
+.edexcel-landing-page .edexcel-badge-overlay {
     position: absolute;
     top: 24px;
     right: 24px;
-    background: #003087;
+    background: var(--board-accent-color);
     color: white;
     padding: 8px 16px;
     border-radius: 100px;
@@ -169,7 +170,7 @@
     font-weight: 700;
 }
 
-.edexcel-mobile-frame {
+.edexcel-landing-page .edexcel-mobile-frame {
     width: 320px;
     height: 640px;
     background: #1a1a1a;
@@ -180,7 +181,7 @@
     overflow: hidden;
 }
 
-.edexcel-mobile-screen {
+.edexcel-landing-page .edexcel-mobile-screen {
     width: 100%;
     height: 100%;
     background: #fff;
@@ -188,56 +189,14 @@
     overflow: hidden;
 }
 
-/* 4. Resources Section */
-.edexcel-resources-section {
+/* Resources Section */
+.edexcel-landing-page .edexcel-resources-section {
     padding: 100px 24px;
     background: #ffffff;
     text-align: center;
 }
 
-/* 3-Column Year Hub */
-.edexcel-year-card-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
-    margin-top: 40px;
-    width: 100%;
-    max-width: 1200px;
-    /* Aligned with standard container */
-    margin: 40px auto 0;
-}
-
-.edexcel-year-card.static {
-    background: #ffffff;
-    border: 1px solid var(--border-light);
-    border-radius: 16px;
-    padding: 28px;
-    text-align: left;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    transition: all 0.3s ease;
-}
-
-.edexcel-year-card.static:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-}
-
-.year-card-header {
-    border-bottom: 2px solid var(--fill-blue);
-    padding-bottom: 12px;
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.year-title {
-    font-size: 17px;
-    font-weight: 800;
-    color: var(--text-primary);
-}
-
-.new-tag {
+.edexcel-landing-page .new-tag {
     font-size: 10px;
     font-weight: 700;
     color: #007a33;
@@ -247,110 +206,7 @@
     text-transform: uppercase;
 }
 
-/* Internal Tier Grouping */
-.tier-groups-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.tier-sublabel {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-blue);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-    padding-left: 4px;
-}
-
-.internal-tier-group {
-    border-left: 2px solid var(--fill-blue);
-    /* Professional Indent Line */
-    padding-left: 16px;
-}
-
-/* Paper-Level Interaction */
-.paper-item-row.interactive {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    margin: 0 -12px 8px -12px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.paper-item-row.interactive:hover {
-    background: var(--background-gray-main);
-    transform: translateX(4px);
-    /* Professional shift effect */
-}
-
-.paper-meta {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-}
-
-.paper-name {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-secondary);
-}
-
-.paper-type {
-    font-size: 8px;
-    color: var(--text-tertiary);
-    background: #f7fafc;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-}
-
-
-.edexcel-landing-page .action-link {
-    padding: 6px 12px;
-    font-size: 9px;
-    font-weight: 600;
-    border-radius: 4px;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.2s;
-}
-
-.edexcel-landing-page .action-link.model {
-    background: var(--text-brand);
-    color: white;
-    border: none;
-}
-
-.edexcel-landing-page .action-link.mark {
-    background: transparent;
-    color: var(--text-brand);
-    border: 1px solid var(--text-brand);
-}
-
-.edexcel-landing-page .action-link.model:hover {
-    background: var(--text-brand);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(127, 0, 255, 0.2);
-}
-
-.edexcel-landing-page .action-link.mark:hover {
-    background: rgba(127, 0, 255, 0.05);
-    border-color: var(--text-brand);
-    color: var(--text-brand);
-    transform: translateY(-1px);
-}
-
-.edexcel-pill {
+.edexcel-landing-page .edexcel-pill {
     display: inline-block;
     padding: 6px 14px;
     background: #edf2f7;
@@ -361,57 +217,27 @@
     margin-top: 20px;
 }
 
-.edexcel-pill-new {
+.edexcel-landing-page .edexcel-pill-new {
     background: #c6f6d5;
     color: #22543d;
 }
 
-/* Responsive Overrides */
-.edexcel-strategy-hub-row .edexcel-feature-text {
-    flex: 0.9;
-}
-
-.edexcel-strategy-hub-row .edexcel-visual-large {
-    flex: 1.3;
-    transform: scale(1.02);
-}
-
-@media (max-width: 1100px) {
-    .edexcel-year-card-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    .edexcel-year-card-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 600px) {
-    .edexcel-hero-section {
-        padding-top: 100px;
-    }
-
-    .edexcel-hero-title {
-        font-size: 2.0rem;
-    }
-}
-
+/* Tablet Overrides */
 @media (max-width: 900px) {
-
-    .edexcel-strategy-hub-row .edexcel-feature-text,
-    .edexcel-strategy-hub-row .edexcel-visual-large {
-        flex: 1;
-    }
-
-    .edexcel-feature-container {
+    .edexcel-landing-page .edexcel-feature-container {
         flex-direction: column;
         text-align: center;
         gap: 48px;
     }
 
-    .edexcel-feature-visual {
+    .edexcel-landing-page .edexcel-feature-visual {
         order: 2;
+    }
+}
+
+/* Mobile Overrides */
+@media (max-width: 600px) {
+    .edexcel-landing-page .edexcel-hero-section {
+        padding-top: 100px;
     }
 }

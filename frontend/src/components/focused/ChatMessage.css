@@ -716,8 +716,12 @@
     /* Reduced by half from 16px 30px */
   }
 
+  .chat-message.assistant .chat-message-bubble {
+    padding: 0px;
+  }
+
   .has-your-work-outer-container {
-    padding: 20px 20px 30px;
+    padding: 40px 10px 40px;
     /* Reduced by half from 50px 50px 80px */
   }
 
@@ -726,7 +730,7 @@
     align-items: flex-start;
     padding: 10px 14px;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-top: 16px;
   }
 
   .markdown-math-renderer .exam-header-title {
@@ -772,5 +776,20 @@
     align-items: center;
     justify-content: center;
     white-space: nowrap;
+  }
+
+  /* AI Response Styling for Question text and Answer body */
+  .markdown-math-renderer .model_question {
+    font-size: 0.85em;
+  }
+
+  .markdown-math-renderer .model_answer {
+    font-size: 0.9em;
+  }
+
+  .markdown-math-renderer .model-question-number {
+    font-size: 0.9em;
+    margin-top: 5em;
+    margin-bottom: 0.25em;
   }
 }

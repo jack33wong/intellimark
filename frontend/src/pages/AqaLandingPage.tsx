@@ -6,29 +6,102 @@ import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import { trackPaperInteraction } from '../utils/analytics';
 import './AqaLandingPage.css';
-import './TutorChat.css';
+import './PastPaperTable.css';
+
+const AQA_PAST_PAPERS = [
+    {
+        year: "November 2024",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "June 2024",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "November 2023",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "June 2023",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "November 2022",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "June 2022",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "November 2021",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    },
+    {
+        year: "November 2020",
+        papers: [
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
+            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
+            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
+            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
+        ]
+    }
+];
 
 const AqaLandingPage: React.FC = () => {
     const navigate = useNavigate();
-    const examYears = [2024, 2023, 2022];
 
-    // Defined tiers for internal grouping
-    const tiers = [
-        { label: 'Higher Tier', suffix: 'H' },
-        { label: 'Foundation Tier', suffix: 'F' }
-    ];
-
-    const paperTypes = [
-        { id: '1', name: 'Paper 1', desc: 'Non-Calc 8300/1' },
-        { id: '2', name: 'Paper 2', desc: 'Calculator 8300/2' },
-        { id: '3', name: 'Paper 3', desc: 'Calculator 8300/3' }
-    ];
-
-    const handleAction = (code: string, mode: 'mark' | 'model') => {
-        const trackerMode = mode === 'mark' ? 'MARK' : 'MODEL';
-        trackPaperInteraction(code, trackerMode);
-        navigate(`/app?code=${code}&mode=${mode === 'mark' ? 'markingscheme' : 'model'}`);
-    };
 
     return (
         <div className="light-mode-forced aqa-landing-page">
@@ -43,7 +116,6 @@ const AqaLandingPage: React.FC = () => {
 
             <LandingPageHeader />
 
-            {/* Hero, Logic, and Question Sections remain unchanged to preserve your layout */}
             <section className="landing-section aqa-hero-section">
                 <div className="aqa-hero-content">
                     <h1 className="aqa-hero-title">Instant AI Marking & <br /><span className="aqa-highlight-blue">AQA Model Answers</span></h1>
@@ -59,7 +131,6 @@ const AqaLandingPage: React.FC = () => {
                 </div>
             </section>
 
-            {/* 2. Logic Analysis */}
             <section className="landing-section aqa-feature-row">
                 <div className="aqa-feature-container">
                     <div className="aqa-feature-visual">
@@ -76,7 +147,7 @@ const AqaLandingPage: React.FC = () => {
                     </div>
                 </div>
             </section>
-            {/* 3. Question Mode */}
+
             <section className="landing-section aqa-feature-row">
                 <div className="aqa-feature-container">
                     <div className="aqa-feature-text">
@@ -95,112 +166,21 @@ const AqaLandingPage: React.FC = () => {
                 </div>
             </section>
 
-
-            {/* 4. Tidy 3-Column Grid with Internal Tier Grouping */}
             <section className="landing-section aqa-resources-section">
                 <div className="aqa-resources-content">
                     <h2 className="aqa-section-title">AQA Past Papers & Model Answers</h2>
 
-                    <div className="aqa-year-card-grid">
-                        {[
-                            {
-                                year: "November 2024",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "June 2024",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "November 2023",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "June 2023",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "November 2022",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "June 2022",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "November 2021",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            },
-                            {
-                                year: "November 2020",
-                                papers: [
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1F", tier: "F" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-                                    { count: "Paper 1", type: "Non-Calc", code: "8300/1H", tier: "H" },
-                                    { count: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-                                    { count: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-                                ]
-                            }
-                        ].map((series, index) => (
-                            <div key={index} className="aqa-year-card static">
+                    <div className="year-card-grid">
+                        {AQA_PAST_PAPERS.map((year, index) => (
+                            <div key={year.year} className="year-card-static">
                                 <div className="year-card-header">
-                                    <span className="year-title">{series.year} Series</span>
+                                    <span className="year-title">{year.year} Series</span>
                                     {index === 0 && <span className="new-tag">Latest</span>}
                                 </div>
 
                                 <div className="tier-groups-stack">
                                     {['F', 'H'].map(tierCode => {
-                                        const tierPapers = series.papers.filter(p => p.tier === tierCode);
+                                        const tierPapers = year.papers.filter(p => p.tier === tierCode);
                                         if (tierPapers.length === 0) return null;
 
                                         return (
@@ -209,18 +189,46 @@ const AqaLandingPage: React.FC = () => {
                                                     {tierCode === 'H' ? 'Higher Tier' : 'Foundation Tier'}
                                                 </div>
                                                 <div className="paper-list-container">
-                                                    {tierPapers.map((paper, pIndex) => (
-                                                        <div key={pIndex} className="paper-item-row interactive">
-                                                            <div className="paper-meta">
-                                                                <span className="paper-name">{paper.count}</span>
-                                                                <span className="paper-type">{paper.type} {paper.code}</span>
-                                                            </div>
-                                                            <div className="paper-actions">
-                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=model`)} className="action-link model">Model</button>
-                                                                <button onClick={() => navigate(`/app?code=${paper.code.replace('/', '-')}-${series.year.split(' ')[0].substring(0, 3).toUpperCase()}${series.year.split(' ')[1]}&mode=markingscheme`)} className="action-link mark">Mark</button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                                    {tierPapers.map((paper) => {
+                                                                        const paperCode = paper.code.replace('/', '-');
+                                                                        const seriesParts = year.year.split(' ');
+                                                                        const seriesYear = seriesParts[0].substring(0, 3).toUpperCase() + seriesParts[1];
+                                                                        const finalCode = `${paperCode}-${seriesYear}`;
+
+                                                                        return (
+                                                                            <div key={paper.code} className="paper-item-row">
+                                                                                <div className="paper-meta">
+                                                                                    <span className="paper-name">{paper.name}</span>
+                                                                                    <span className="paper-type">
+                                                                                        <span className="paper-calc-type">{paper.type.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'} </span>
+                                                                                        {paper.code}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="paper-actions">
+                                                                                    <button
+                                                                                        className="action-link model"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            trackPaperInteraction(finalCode, 'MODEL');
+                                                                                            navigate(`/app?code=${finalCode}&mode=model`);
+                                                                                        }}
+                                                                                    >
+                                                                                        Model
+                                                                                    </button>
+                                                                                    <button
+                                                                                        className="action-link mark"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            trackPaperInteraction(finalCode, 'MARK');
+                                                                                            navigate(`/app?code=${finalCode}&mode=markingscheme`);
+                                                                                        }}
+                                                                                    >
+                                                                                        Mark
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                 </div>
                                             </div>
                                         );
@@ -237,7 +245,6 @@ const AqaLandingPage: React.FC = () => {
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
-                            {/* AQA-Specific Mockup Text */}
                             <div className="chat-bubble user">Why is this only 2 marks?</div>
                             <div className="chat-bubble ai">
                                 You missed the **A1 Accuracy Mark**. For {`AQA`}, you must
