@@ -687,7 +687,8 @@
   letter-spacing: 0.03em;
 }
 
-.markdown-math-renderer .pill-code {
+.markdown-math-renderer .pill-code,
+.markdown-math-renderer .pill-series {
   background: var(--background-menu-white);
   color: var(--text-primary);
   border-color: var(--background-menu-gray);
@@ -726,31 +727,39 @@
   }
 
   .markdown-math-renderer .model-exam-header {
-    flex-direction: column;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: auto auto auto;
+    grid-template-areas:
+      "title code series"
+      "tier count marks";
+    gap: 8px 10px;
+    align-items: center;
     padding: 10px 14px;
-    gap: 8px;
     margin-top: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .markdown-math-renderer .exam-header-title {
+    grid-area: title;
     font-size: 0.95em;
-    white-space: normal;
+    font-weight: 700;
+    margin-bottom: 0;
+    white-space: nowrap;
   }
 
   .markdown-math-renderer .exam-header-pills {
-    display: grid;
-    grid-template-columns: max-content max-content;
-    grid-template-areas:
-      "code series"
-      "marks count";
-    gap: 6px 8px;
-    justify-content: start;
-    width: 100%;
+    display: contents;
+    /* Allow pins to be direct grid items */
   }
 
-  .markdown-math-renderer .pill-tier {
-    display: none !important;
+  .markdown-math-renderer .exam-pill {
+    font-size: 0.6em;
+    padding: 2px 1px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
   }
 
   .markdown-math-renderer .pill-code {
@@ -758,24 +767,24 @@
   }
 
   .markdown-math-renderer .pill-series {
+    font-size: 0.55em;
     grid-area: series;
   }
 
+  .markdown-math-renderer .pill-tier {
+    font-size: 0.5em;
+    grid-area: tier;
+    display: inline-flex !important;
+  }
+
   .markdown-math-renderer .pill-marks {
+    font-size: 0.5em;
     grid-area: marks;
   }
 
   .markdown-math-renderer .pill-count {
+    font-size: 0.5em;
     grid-area: count;
-  }
-
-  .markdown-math-renderer .exam-pill {
-    font-size: 0.6em;
-    padding: 2px 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
   }
 
   /* AI Response Styling for Question text and Answer body */
