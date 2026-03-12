@@ -5,7 +5,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './ChatMessage.css';
 import YourWorkSection from './YourWorkSection';
-import { Brain, ChevronDown, ChevronUp } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import {
@@ -307,6 +308,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }
   }, [session?.id, addMessage, startAIThinking, getAuthToken, message.id, selectedModel, user, message.detectedQuestion, message.contextQuestionId]);
 
+  const handleSignup = useCallback(() => {
+    EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+  }, []);
+
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
   const getOriginalFileName = () => (message as any)?.originalFileName || (message as any)?.fileName || 'PDF';
@@ -505,18 +510,38 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                       YourWorkSection={YourWorkSection}
                       isYourWork={hasYourWork}
                     />
+                    {processedContent.includes('paywall-blur') && (
+                      <div className="paywall-cta-overlay">
+                        <h4>Sign up to see more answers</h4>
+                        <button className="paywall-unlock-btn" onClick={handleSignup}>
+                          <Lock size={18} />
+                          Unlock Full Paper for Free
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <MarkdownMathRenderer
-                    content={processedContent}
-                    className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
-                    options={{
-                      throwOnError: false,
-                      errorColor: '#cc0000',
-                    }}
-                    YourWorkSection={YourWorkSection}
-                    isYourWork={hasYourWork}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <MarkdownMathRenderer
+                      content={processedContent}
+                      className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
+                      options={{
+                        throwOnError: false,
+                        errorColor: '#cc0000',
+                      }}
+                      YourWorkSection={YourWorkSection}
+                      isYourWork={hasYourWork}
+                    />
+                    {processedContent.includes('paywall-blur') && (
+                      <div className="paywall-cta-overlay">
+                        <h4>Sign up to see more answers</h4>
+                        <button className="paywall-unlock-btn" onClick={handleSignup}>
+                          <Lock size={18} />
+                          Unlock Full Paper for Free
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             );

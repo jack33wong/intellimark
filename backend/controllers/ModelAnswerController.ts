@@ -102,11 +102,11 @@ export class ModelAnswerController {
                     let questionsToProcess = paperDoc.questions || [];
 
                     if (!isAuthenticated) {
-                        // Strict Guest Limit: Max 3
-                        if (questionsToProcess.length > 3) {
-                            questionsToProcess = questionsToProcess.slice(0, 3);
-                            metadataHeader += `<div class="model-alert-note"><strong>NOTE:</strong> Guest Mode: Showing first 3 questions only. Sign up for more.</div><br><br>\n\n`;
+                        // Guest Limit: Show 4, but 3 & 4 will be blurred by frontend
+                        if (questionsToProcess.length > 4) {
+                            questionsToProcess = questionsToProcess.slice(0, 4);
                         }
+                        metadataHeader += `<div class="model-alert-note"><strong>NOTE:</strong> Guest Mode: Showing first 4 questions only. Sign up for more.</div><br><br>\n\n`;
                     }
 
                     // Retrieve Marking Schemes - Using Metadata Match ONLY (ID lookup is unreliable)
@@ -128,6 +128,7 @@ export class ModelAnswerController {
 
                     detectedQuestion = {
                         found: true,
+                        isGuest: !isAuthenticated,
                         examPapers: [{
                             examBoard: meta.exam_board,
                             examCode: meta.exam_code,

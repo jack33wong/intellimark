@@ -81,8 +81,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     isNegative,
     isHistoryLoading,
     isModelAnswerMode,
-    isMarkingSchemeMode
+    isMarkingSchemeMode,
+    user
   } = useMarkingPage();
+
+  const isGuest = !user;
 
   const isFollowUp = (chatMessages || []).length > 0;
 
@@ -591,6 +594,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
             </div>
           )}
         </>
+      )}
+      
+      {isGuest && (chatMessages || []).length > 0 && (
+        <div className="guest-mode-floating-banner">
+          <span className="guest-banner-text">Viewing {Math.min((chatMessages || []).length, 4)} of total answers</span>
+          <button className="guest-banner-btn" onClick={() => {
+            import('../../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+              EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+            });
+          }}>
+            Create Free Account
+          </button>
+        </div>
       )}
     </div>
   );

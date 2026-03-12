@@ -1,804 +1,152 @@
-/**
- * Focused ChatMessage Component Styles
- * Matches existing design system colors and styles
- */
 
-/* Chat message base styles are defined in ChatInterface.css */
-
-/* Ensure last message is fully visible */
-.chat-message:last-child {
-  margin-bottom: 24px;
-}
-
-.chat-message {
-  scroll-margin-top: 140px;
-  /* Clearance for sticky header/ribbon */
-}
-
-/* Progress steps display */
-.progress-steps-display {
-  margin: 12px 0;
-  border: 1px solid var(--border-main);
-  border-radius: 8px;
-  background: var(--background-menu-gray);
-}
-
-.progress-steps-header {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-main);
-}
-
-.progress-toggle-button {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.progress-toggle-button:hover {
-  background: var(--background-hover);
-}
-
-.progress-steps-list {
-  padding: 8px 12px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.progress-step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 14px;
-}
-
-.progress-step.completed {
-  color: var(--text-primary);
-}
-
-.progress-step:not(.completed) {
-  color: var(--text-secondary);
-}
-
-.progress-step-indicator {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.progress-step-description {
-  flex: 1;
-}
-
-.chat-message.user {
-  justify-content: flex-end;
-  align-items: flex-end;
-  text-align: right;
-}
-
-.chat-message.assistant {
-  justify-content: flex-start;
-  width: 100%;
-}
-
-.chat-message.compact {
-  margin-bottom: 8px;
-}
-
-.chat-message-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--background-menu-gray);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-  border: 2px solid var(--border-main);
-}
-
-.chat-message.user .chat-message-avatar {
-  background: var(--text-brand);
-  color: white;
-  border-color: var(--text-brand);
-}
-
-.chat-message.assistant .chat-message-avatar {
-  background: var(--text-brand);
-  color: white;
-  border-color: var(--text-brand);
-}
-
-.chat-message-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.chat-message.user .chat-message-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.chat-message.assistant .chat-message-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.chat-message .chat-message-bubble {
-  max-width: 70%;
-  padding: 16px 20px;
-  border-radius: 18px;
-  position: relative;
-  word-wrap: break-word;
-}
-
-.chat-message.user .chat-message-bubble {
-  background: var(--chat-user);
-  color: white;
-  border-bottom-right-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-  margin-left: auto;
-  margin-right: 0;
-}
-
-.chat-message.assistant .chat-message-bubble {
-  max-width: 100%;
-  width: 100%;
-  border: none;
-  box-shadow: var(--shadow-sm);
-  padding: 0px 20px;
-  border-radius: 18px;
-  border-bottom-left-radius: 4px;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-  font-size: 1.0em;
-}
-
-/* Split Mode Overrides: Reduce horizontal padding when space is halved */
-.split-mode .chat-message.assistant .chat-message-bubble {
-  padding: 0px 12px;
-}
-
-.split-mode .chat-message.assistant .chat-message-image,
-.split-mode .chat-message.assistant .homework-annotated-image {
-  padding-left: 0px;
-}
-
-.chat-message.assistant .markdown-math-renderer.has-your-work {
-  background: var(--background-nav);
-  border-radius: 10px;
-  padding: 16px 30px;
-  border: 1px solid var(--border-main);
-  /* Ensure it fills the container if needed */
-  display: block;
-  margin-top: 0px;
-  /* Reset margin inside container */
-}
-
-.has-your-work-outer-container {
-  border: 1px solid var(--border-main);
-  border-radius: 10px;
-  padding: 24px 24px 40px;
-  background: var(--background-nav);
-  margin-top: 8px;
+/* Guest Mode Paywall Strategy */
+.model-answer-block.paywall-blur {
   position: relative;
 }
 
-.split-mode .has-your-work-outer-container {
-  padding: 24px 16px 40px;
-  margin-left: 8px;
-  margin-right: 8px;
+.model-answer-block.paywall-blur .model-question-content {
+  filter: blur(12px);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0.6;
 }
 
-.split-mode .has-your-work-outer-container {
-  padding: 24px 16px 40px;
-  margin-left: 8px;
-  margin-right: 8px;
-}
-
-.chat-message.assistant .chat-message-bubble:hover {
-  box-shadow: none;
-  transform: none;
-}
-
-.chat-message.user .chat-message-bubble:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transform: translateY(-1px);
-}
-
-/* Annotated image message bubble styles are defined in ChatInterface.css */
-
-/* Special styling for marking messages with images */
-.chat-message.user .chat-message-bubble.marking-message {
-  max-width: 70%;
-  width: auto;
-  background: #363537;
-  /* Dark grey background */
-  padding: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  border: 1px solid #4b5563;
-  /* Dark grey border */
-  margin-left: auto;
-  margin-right: 0;
-  text-align: right;
-}
-
-.chat-message-image {
-  margin-bottom: 8px;
-  cursor: zoom-in;
-  border-radius: 12px;
-  overflow: hidden;
-  max-width: 550px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.chat-message-image:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* Align images to the right for user messages */
-.chat-message.user .chat-message-image {
-  margin-left: auto;
-  margin-right: 0;
-  margin-top: 8px;
-  margin-bottom: 4px;
-  width: fit-content;
-  /* Ensure it shrinks to content to align properly */
-}
-
-/* Ensure gallery container shrinks too */
-.chat-message.user .gallery-container {
-  width: auto !important;
-}
-
-/* Add left padding for assistant chat images */
-.chat-message.assistant .chat-message-image {
-  padding-left: 25px;
-}
-
-.chat-message-image img {
+.paywall-cta-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
   width: 100%;
-  height: auto;
-  max-width: 400px;
-  max-height: 300px;
-  display: block;
-  transition: transform 0.3s ease;
-  object-fit: contain;
-  border-radius: 8px;
-  margin: 8px 0;
-}
-
-.chat-message-image:hover img {
-  transform: scale(1.05);
-}
-
-/* Content image and annotated image styles are defined in ChatInterface.css */
-
-/* Homework annotated image styles */
-.homework-annotated-image {
-  margin: 8px 0;
-  border-radius: 8px;
-  overflow: hidden;
-  max-width: 300px;
-  max-height: 500px;
-  cursor: zoom-in;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.homework-annotated-image:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.homework-annotated-image img {
-  width: 100%;
-  height: auto;
-  max-width: 500px;
-  max-height: none;
-  /* Remove height constraint to maintain aspect ratio */
-  display: block;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-/* Align annotated images to the right for user messages */
-.chat-message.user .homework-annotated-image {
-  margin-left: auto;
-  margin-right: 0;
-}
-
-/* Add left padding for assistant annotated images */
-.chat-message.assistant .homework-annotated-image {
-  padding-left: 25px;
-}
-
-.split-mode .chat-message.assistant .homework-annotated-image {
-  padding-left: 0px;
-}
-
-.chat-message-image-error {
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   text-align: center;
-  background: var(--function-error);
-  color: white;
-  border-radius: 8px;
-  font-size: 12px;
 }
 
-/* Simple file card for PDFs - Legacy styles moved to SimpleImageGallery.css */
-
-.chat-message-text {
-  line-height: 1.6;
-  white-space: pre-wrap;
-  font-size: 14px;
-}
-
-.chat-message-empty {
-  color: var(--text-tertiary);
-  font-style: italic;
-  font-size: 12px;
-}
-
-.chat-message-timestamp {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-top: 4px;
-  padding: 0 24px;
-}
-
-/* Adjust timestamp margin when user has an image */
-.chat-message.user:has(.chat-message-image) .chat-message-timestamp {
-  margin-top: 2px;
-}
-
-/* Compact mode */
-.chat-message.compact .chat-message-bubble {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-}
-
-.chat-message.compact .chat-message-avatar {
-  width: 24px;
-  height: 24px;
-  font-size: 0.875rem;
-}
-
-.chat-message.compact .chat-message-image {
-  max-width: 150px;
-}
-
-/* Message renderer styles are defined in ChatInterface.css */
-
-/* Responsive design */
-@media (max-width: 640px) {
-  .chat-message-bubble {
-    max-width: 85%;
-    padding: 10px 14px;
-    font-size: 0.95rem;
-  }
-
-  .chat-message-image {
-    max-width: 150px;
-  }
-}
-
-/* Marking Results Styles */
-.marking-results {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--background-secondary);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.marking-results h4 {
-  margin: 0 0 12px 0;
+.paywall-cta-overlay h4 {
   color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.question-result {
-  margin-bottom: 12px;
-  padding: 8px;
-  background: var(--background-primary);
-  border-radius: 6px;
-  border-left: 3px solid var(--text-brand);
-}
-
-.question-result:last-child {
-  margin-bottom: 0;
-}
-
-.question-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.question-header strong {
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.score {
-  color: var(--text-brand);
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--background-brand-light);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.feedback {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.feedback strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* Question marks styling - green and right-aligned */
-.question-marks {
-  color: #10b981;
-  /* green-500 */
-  float: right;
-  font-weight: 500;
-  font-size: 14px;
-  margin-left: 12px;
-}
-
-
-
-.ai-performance-summary {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
-  border-left: 4px solid var(--text-brand);
-  padding: 16px 20px;
-  border-radius: 12px;
-  margin-bottom: 20px;
-  margin-left: 24px;
-  margin-right: 24px;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--text-primary);
-  font-weight: 500;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
-  transition: all 0.3s ease;
-}
-
-.split-mode .ai-performance-summary {
-  margin-left: 12px;
-  margin-right: 12px;
-  padding: 12px 16px;
-  font-size: 14px;
-}
-
-.ai-performance-summary:hover {
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
-  transform: translateY(-1px);
-}
-
-/* Icon or badge for AI summary */
-.ai-performance-summary::before {
-  content: "✨ AI Performance Summary";
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-brand);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
-  opacity: 0.9;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .ai-performance-summary {
-    margin-left: 24px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-  }
-
-  .ai-performance-summary:hover {
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-  }
-}
-
-.summary-separator {
-  border: none;
-  border-top: 1px solid var(--border-color);
-  margin: 16px 0 8px 0;
-  opacity: 0.3;
-}
-
-/* Skeleton Loading Gallery */
-.skeleton-gallery-wrapper {
-  margin: 4px 0 12px 0;
-  padding-left: 25px;
-}
-
-.skeleton-gallery {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  scrollbar-width: thin;
-}
-
-.skeleton-item {
-  position: relative;
-  flex: 0 0 120px;
-  height: 160px;
-  background: #d1d1d9;
-  /* Muted silver */
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
-}
-
-.skeleton-shimmer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(100deg,
-      rgba(0, 0, 0, 0) 20%,
-      rgba(0, 0, 0, 0.5) 50%,
-      rgba(0, 0, 0, 0) 80%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite linear;
-}
-
-.skeleton-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 6px 8px;
-  background: rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(4px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  justify-content: center;
-}
-
-.skeleton-label {
-  font-size: 8px;
-  color: var(--text-tertiary);
-  opacity: 0.8;
-  font-weight: 500;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-/* AI Response Styling for Question text and Answer body */
-.markdown-math-renderer .model_question {
-  color: var(--text-tertiary);
-  display: block;
-  margin-bottom: 0.5em;
-  font-weight: 500;
-}
-
-.markdown-math-renderer .model_answer {
-  color: var(--text-primary);
-  display: block;
-  margin-top: 0.5em;
-  margin-left: 15px;
-  margin-bottom: 1.5em;
-  /* Added spacing after answer */
-}
-
-/* Question Mode Response Styling */
-/* Question Mode Response Styling */
-.question-mode-response .chat-message-renderer {
-  border: 1px solid var(--border-main);
-  border-radius: 12px;
-  padding: 16px;
-  background-color: white;
-  /* Ensure visibility */
-  /* Ensure it stands out slightly */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.markdown-math-renderer .model-exam-header {
-  background: var(--fill-gray);
-  border-left: 4px solid var(--text-brand);
-  padding: 0.7em 1em;
-  border-radius: 8px;
-  margin-bottom: 1.5em;
-  box-shadow: var(--shadow-S);
-  color: var(--text-primary);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 24px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.markdown-math-renderer .model-exam-header::-webkit-scrollbar {
-  display: none;
-}
-
-/* Fallback for old simple text header format in dark mode */
-.markdown-math-renderer .model-exam-header {
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.markdown-math-renderer .exam-header-title {
-  color: var(--text-primary);
-  font-size: 1.05em;
+  font-size: 1.1rem;
   font-weight: 700;
-  margin-bottom: 0;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  flex-shrink: 0;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8);
 }
 
-.markdown-math-renderer .exam-header-pills {
+.paywall-unlock-btn {
+  background: var(--primary-color, #7c3aed);
+  color: white !important;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 100px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 25px -5px rgba(124, 58, 237, 0.5);
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
-.markdown-math-renderer .exam-pill {
-  font-size: 0.65em;
-  font-weight: 600;
-  padding: 2px 8px;
+.paywall-unlock-btn:hover {
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 15px 30px -5px rgba(124, 58, 237, 0.6);
+  background: #6d28d9;
+}
+
+.paywall-unlock-btn:active {
+  transform: scale(0.98) translateY(0);
+}
+
+.paywall-unlock-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.5px;
+}
+
+/* Dark mode adjustments for paywall */
+html.dark .paywall-cta-overlay h4 {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Unified Footer Banner for Guest Mode */
+.guest-mode-floating-banner {
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-main);
+  padding: 12px 24px;
   border-radius: 100px;
-  background: var(--background-menu-gray);
-  border: 1px solid var(--border-light);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  animation: bannerSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
 }
 
-.markdown-math-renderer .pill-code,
-.markdown-math-renderer .pill-series {
-  background: var(--background-menu-white);
-  color: var(--text-primary);
-  border-color: var(--background-menu-gray);
+html.dark .guest-mode-floating-banner {
+  background: rgba(30, 30, 31, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
-.markdown-math-renderer .model-question-number {
-  font-size: 1.2em;
+.guest-banner-text {
+  font-size: 14px;
   font-weight: 600;
-  margin-top: 5em;
-  /* Significant space before each question */
-  display: block;
   color: var(--text-primary);
 }
 
-/* Ensure the very first question doesn't have excessive top margin */
-.markdown-math-renderer .model-exam-header+.model-question-number,
-.markdown-math-renderer br+.model-question-number {
-  margin-top: 1em;
+.guest-banner-btn {
+  background: var(--text-brand, #7c3aed);
+  color: white !important;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 50px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
+.guest-banner-btn:hover {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
 
-/* Mobile Friendly Padding Adjustments */
+@keyframes bannerSlideUp {
+  from {
+    transform: translate(-50%, 100px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
 @media (max-width: 640px) {
-  .chat-message.assistant .markdown-math-renderer.has-your-work {
+  .guest-mode-floating-banner {
+    bottom: 90px;
+    padding: 10px 16px;
+    gap: 12px;
+    width: 90%;
+    justify-content: space-between;
+  }
+  
+  .guest-banner-text {
+    font-size: 12px;
+  }
+  
+  .guest-banner-btn {
     padding: 6px 12px;
-    /* Reduced by half from 16px 30px */
-  }
-
-  .chat-message.assistant .chat-message-bubble {
-    padding: 0px;
-  }
-
-  .has-your-work-outer-container {
-    padding: 40px 10px 40px;
-    /* Reduced by half from 50px 50px 80px */
-  }
-
-  .markdown-math-renderer .model-exam-header {
-    display: grid;
-    grid-template-columns: auto auto auto;
-    grid-template-areas:
-      "title code series"
-      "tier count marks";
-    gap: 8px 10px;
-    align-items: center;
-    padding: 10px 14px;
-    margin-top: 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .markdown-math-renderer .exam-header-title {
-    grid-area: title;
-    font-size: 0.95em;
-    font-weight: 700;
-    margin-bottom: 0;
-    white-space: nowrap;
-  }
-
-  .markdown-math-renderer .exam-header-pills {
-    display: contents;
-    /* Allow pins to be direct grid items */
-  }
-
-  .markdown-math-renderer .exam-pill {
-    font-size: 0.6em;
-    padding: 2px 1px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-  }
-
-  .markdown-math-renderer .pill-code {
-    grid-area: code;
-  }
-
-  .markdown-math-renderer .pill-series {
-    font-size: 0.55em;
-    grid-area: series;
-  }
-
-  .markdown-math-renderer .pill-tier {
-    font-size: 0.5em;
-    grid-area: tier;
-    display: inline-flex !important;
-  }
-
-  .markdown-math-renderer .pill-marks {
-    font-size: 0.5em;
-    grid-area: marks;
-  }
-
-  .markdown-math-renderer .pill-count {
-    font-size: 0.5em;
-    grid-area: count;
-  }
-
-  /* AI Response Styling for Question text and Answer body */
-  .markdown-math-renderer .model_question {
-    font-size: 0.85em;
-  }
-
-  .markdown-math-renderer .model_answer {
-    font-size: 0.9em;
-  }
-
-  .markdown-math-renderer .model-question-number {
-    font-size: 0.9em;
-    margin-top: 5em;
-    margin-bottom: 0.25em;
+    font-size: 11px;
   }
 }

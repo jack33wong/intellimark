@@ -243,8 +243,12 @@ export class SuggestedFollowUpService {
           finalContent = `<span class="model_question">${safeText}</span>\n${content}`;
         }
 
+        const isGuest = detectedQuestion?.isGuest === true;
+        const qIndex = questions.indexOf(q);
+        const blurClass = (isGuest && (qIndex === 2 || qIndex === 3)) ? ' paywall-blur' : '';
+
         const html = `
-<div class="model-answer-block">
+<div class="model-answer-block${blurClass}">
     ${header}
     <div class="model-question-content">
         ${finalContent}
