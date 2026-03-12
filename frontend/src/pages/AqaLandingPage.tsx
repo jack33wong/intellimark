@@ -189,46 +189,46 @@ const AqaLandingPage: React.FC = () => {
                                                     {tierCode === 'H' ? 'Higher Tier' : 'Foundation Tier'}
                                                 </div>
                                                 <div className="paper-list-container">
-                                                                    {tierPapers.map((paper) => {
-                                                                        const paperCode = paper.code.replace('/', '-');
-                                                                        const seriesParts = year.year.split(' ');
-                                                                        const seriesYear = seriesParts[0].substring(0, 3).toUpperCase() + seriesParts[1];
-                                                                        const finalCode = `${paperCode}-${seriesYear}`;
+                                                    {tierPapers.map((paper) => {
+                                                        const paperCode = paper.code.replace('/', '-');
+                                                        const seriesParts = year.year.split(' ');
+                                                        const seriesYear = seriesParts[0].substring(0, 3).toUpperCase() + seriesParts[1];
+                                                        const finalCode = `${paperCode}-${seriesYear}`;
 
-                                                                        return (
-                                                                            <div key={paper.code} className="paper-item-row">
-                                                                                <div className="paper-meta">
-                                                                                    <span className="paper-name">{paper.name}</span>
-                                                                                    <span className="paper-type">
-                                                                                        <span className="paper-calc-type">{paper.type.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'} </span>
-                                                                                        {paper.code}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="paper-actions">
-                                                                                    <button
-                                                                                        className="action-link model"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            trackPaperInteraction(finalCode, 'MODEL');
-                                                                                            navigate(`/app?code=${finalCode}&mode=model`);
-                                                                                        }}
-                                                                                    >
-                                                                                        Model
-                                                                                    </button>
-                                                                                    <button
-                                                                                        className="action-link mark"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            trackPaperInteraction(finalCode, 'MARK');
-                                                                                            navigate(`/app?code=${finalCode}&mode=markingscheme`);
-                                                                                        }}
-                                                                                    >
-                                                                                        Mark
-                                                                                    </button>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                                        return (
+                                                            <div key={paper.code} className="paper-item-row">
+                                                                <div className="paper-meta">
+                                                                    <span className="paper-name">{paper.name}</span>
+                                                                    <span className="paper-type">
+                                                                        <span className="paper-calc-type">{paper.type.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'} </span>
+                                                                        {paper.code}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="paper-actions">
+                                                                    <button
+                                                                        className="action-link model"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            trackPaperInteraction(finalCode, 'MODEL');
+                                                                            navigate(`/app?code=${finalCode}&mode=model`);
+                                                                        }}
+                                                                    >
+                                                                        Model
+                                                                    </button>
+                                                                    <button
+                                                                        className="action-link mark"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            trackPaperInteraction(finalCode, 'MARK');
+                                                                            navigate(`/app?code=${finalCode}&mode=markingscheme`);
+                                                                        }}
+                                                                    >
+                                                                        Mark
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         );
@@ -241,7 +241,7 @@ const AqaLandingPage: React.FC = () => {
             </section>
 
             <section className="tutor-feature-section">
-                <h2 className="section-title center">Your 24/7 Personal AQA Tutor</h2>
+                <h2 className="section-title center">Stop Guessing Why You Lost Marks</h2>
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">

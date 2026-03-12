@@ -187,7 +187,7 @@
 }
 
 .universal-tutor-section .tutor-content h3 {
-    font-size: 32px;
+    font-size: 1.8em;
     font-weight: 800;
     margin-bottom: 20px;
     color: var(--text-primary);
@@ -241,5 +241,9 @@
     .universal-tutor-section .tutor-content {
         text-align: center;
         align-items: center;
+    }
+
+    .universal-tutor-section .tutor-content h3 {
+        font-size: 1.5em;
     }
 }
