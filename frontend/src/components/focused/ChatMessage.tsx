@@ -345,7 +345,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
-  const hasYourWork = (typeof content === 'string' && content.includes(':::your-work')) ||
+  const hasYourWork = (typeof content === 'string' && (content.includes(':::your-work') || content.includes('model-answer-block') || content.includes('step-title'))) ||
     message.type === 'question_response' ||
     !!(message as any).contextQuestionId;
 

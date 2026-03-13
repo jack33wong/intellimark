@@ -158,6 +158,20 @@ const reorderAssistantContent = (content) => {
   return finalParts.join('\n\n');
 };
 
+/**
+ * Recursively extracts plain text from React children to enable robust ID matching
+ */
+const getRecursiveText = (children) => {
+  return React.Children.toArray(children)
+    .map(child => {
+      if (typeof child === 'string') return child;
+      if (typeof child === 'number') return String(child);
+      if (child?.props?.children) return getRecursiveText(child.props.children);
+      return '';
+    })
+    .join('');
+};
+
 // Stable component for rendering HTML with embedded LaTeX
 // Bypasses ReactMarkdown to prevent reconciliation conflicts with auto-render
 const StableHtmlRenderer = ({ content, className }) => {
@@ -205,6 +219,19 @@ export default function MarkdownMathRenderer({
     ...options
   };
 
+  /**
+   * Detect primary question ID from entire message content.
+   * Robust to bolding (**Question 10**) and HTML tags.
+   */
+  const globalQuestionId = useMemo(() => {
+    if (!content || typeof content !== 'string') return undefined;
+    
+    // Look for Question X (e.g., in preamble "I will explain Question 10")
+    // Use [^0-9a-z]* to bypass bolding/markdown markers
+    const match = content.match(/Question[^0-9a-z]*(\d+[a-z]*)/i);
+    return match ? `question-${match[1].toLowerCase()}` : undefined;
+  }, [content]);
+
   // Helper to parse :::your-work blocks
   const parseYourWorkBlocks = (text) => {
     return text.replace(/:::your-work\n([\s\S]*?):::/g, (match, content) => {
@@ -233,14 +260,18 @@ export default function MarkdownMathRenderer({
 
   // DETECT MODE: If content is explicitly HTML structure (from backend templates), use StableHtmlRenderer.
   // This avoids ReactMarkdown parsing conflicts with raw HTML tags (especially </div> rendering as text).
-  // NOTE: This check runs BEFORE the normalisation pass so we don't corrupt the HTML structure.
-  const isExplicitHtml = content.includes('<div class="model_answer">') ||
+  // NOTE: If content contains a "Your Work" block, we MUST use ReactMarkdown for component rendering.
+  const hasYourWorkCard = content.includes(':::your-work') || content.includes('your-work-block-marker');
+  
+  const isExplicitHtml = !hasYourWorkCard && (
+    content.includes('<div class="model_answer">') ||
     content.includes('<span class="model_question">') ||
     content.includes('<div class="ai-explanation-section">') ||
     content.includes('<div class="model-answer-block">') ||   // marking-scheme outer wrapper
     content.includes('<div class="model-question-number">') ||   // marking-scheme question header
     content.includes('<div class="step-title">') ||            // marking-scheme-explanation title
-    content.includes('<div class="step-explanation">');       // marking-scheme-explanation body
+    content.includes('<div class="step-explanation">')         // marking-scheme-explanation body
+  );
 
   // Only convert step-title/step-explanation divs to Markdown for mixed-mode content.
   // Skip this for explicit HTML content — it would leave orphaned </div> tags.
@@ -291,12 +322,20 @@ export default function MarkdownMathRenderer({
             return <div {...domProps}>{children}</div>;
           },
           p: ({ node, children, ...props }) => {
-            const hasStepTitle = React.Children.toArray(children).some(child =>
-              typeof child === 'string' && /^(Step \d+:)/i.test(child)
-            );
+            const textContent = getRecursiveText(children);
+            const isStepTitle = /^Step \d+:/i.test(textContent);
 
-            if (hasStepTitle) {
-              return <h3 className="markdown-h3">{children}</h3>;
+            if (isStepTitle) {
+               const id = globalQuestionId;
+               return (
+                <h3 
+                  className={`markdown-h3${id ? ' clickable-question-header' : ''}`} 
+                  id={id} 
+                  style={id ? { scrollMarginTop: '120px', cursor: 'pointer' } : {}}
+                >
+                  {children}
+                </h3>
+              );
             }
             const { index, isFirst, ...domProps } = props;
             return <p className="markdown-p step-explanation" {...domProps}>{children}</p>;
@@ -312,19 +351,25 @@ export default function MarkdownMathRenderer({
             return <em className="markdown-em" {...domProps}>{children}</em>;
           },
           h3: ({ node, children, ...props }) => {
-            const textContent = React.Children.toArray(children)
-              .map(child => typeof child === 'string' ? child : '')
-              .join('');
+            const textContent = getRecursiveText(children);
 
             let id = undefined;
             const questionMatch = textContent.match(/Question\s+(\d+[a-z]*)/i);
             if (questionMatch) {
               id = `question-${questionMatch[1].toLowerCase()}`;
+            } else if (globalQuestionId && /^Step \d+:/i.test(textContent)) {
+              // Fallback to global ID for "Step X" headers that don't repeat the question number
+              id = globalQuestionId;
             }
 
             const { index, isFirst, ...domProps } = props;
             return (
-              <h3 className="markdown-h3" id={id} {...domProps}>
+              <h3 
+                className={`markdown-h3${id ? ' clickable-question-header' : ''}`} 
+                id={id} 
+                style={id ? { scrollMarginTop: '120px', cursor: 'pointer' } : {}}
+                {...domProps}
+              >
                 {React.Children.map(children, child => {
                   if (typeof child === 'string') {
                     const parts = child.split(/(\(\d+\s+marks?\))/i);
