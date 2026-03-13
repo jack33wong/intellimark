@@ -287,6 +287,7 @@ export class ModelAnswerController {
                 content: finalResponse,
                 messageId: providedAiMessageId,
                 markingContext: markingContext,
+                category: 'questionOnly', // Ensure message is typed as question_response
                 detectedQuestion: detectedQuestion,
                 progressData: {
                     type: 'model-answer',

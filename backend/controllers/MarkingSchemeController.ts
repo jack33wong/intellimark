@@ -285,6 +285,7 @@ export class MarkingSchemeController {
                 content: finalResponse,
                 messageId: providedAiMessageId,
                 markingContext: markingContext,
+                category: 'questionOnly', // Ensure message is typed as question_response
                 progressData: {
                     type: 'marking-scheme',
                     currentStepDescription: 'Marking schemes retrieved',

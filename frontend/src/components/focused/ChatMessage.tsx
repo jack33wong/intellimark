@@ -352,7 +352,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   return (
     <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.type === 'question_response' ? 'question-mode-response' : ''}`} data-message-id={message.id}>
       <div className="chat-message-content">
-
         <div className={`chat-message-bubble ${hasYourWork ? 'has-your-work' : ''}`}>
           {!isUser && (
             <div className="assistant-header">
@@ -407,27 +406,20 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               const markMatches = questionContent.match(/\[([A-Z])(\d+)\]/g) || [];
               let totalMarks = 0;
 
-              // PRIORITY: Use metadata from backend if available (most accurate)
               if (message.detectedQuestion) {
-                // Try individual question marks first, then total marks
-                // Check if this specific question matches one in the detectedQuestion list
                 const qNumMatch = header.match(/Question\s+(\d+[a-z]*)/i);
-                if (qNumMatch && message.detectedQuestion.examPapers) { // Check examPapers instead of questions
-                  // Flatten questions from all exam papers to find the match
+                if (qNumMatch && message.detectedQuestion.examPapers) {
                   const allQuestions = message.detectedQuestion.examPapers.flatMap((ep: any) => ep.questions || []);
                   const matchedQ = allQuestions.find((q: any) => q.questionNumber === qNumMatch[1]);
                   if (matchedQ) {
                     totalMarks = matchedQ.marks;
                   }
                 }
-
-                // Fallback to totalMarks if 0 or not found
                 if (totalMarks === 0 && message.detectedQuestion.totalMarks) {
                   totalMarks = message.detectedQuestion.totalMarks;
                 }
               }
 
-              // Fallback: Calculate from regex tags [M1], [A1] only if metadata missing
               if (totalMarks === 0) {
                 markMatches.forEach(tag => {
                   const match = tag.match(/\[([A-Z])(\d+)\]/);
@@ -463,11 +455,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 }
               });
 
-              // Add a click listener to the entire content block to catch links and headers
               const handleContainerClick = (e: MouseEvent) => {
                 const target = e.target as HTMLElement;
-
-                // 1. Handle Anchor Links (e.g. [Question 1](#question-1))
                 const link = target.closest('a');
                 if (link && link.getAttribute('href')?.startsWith('#question-')) {
                   e.preventDefault();
@@ -475,8 +464,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   onNavigate?.(qNum, -1, 'ribbon');
                   return;
                 }
-
-                // 2. Handle Question Headers (the ones we just tagged)
                 const header = target.closest('.clickable-question-header') as HTMLElement;
                 if (header && header.id.startsWith('question-')) {
                   const qNum = header.id.replace('question-', '');
@@ -489,7 +476,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
             return (
               <div ref={handleContentRef}>
-                {/* Render overall performance summary if available */}
                 {(message as any).performanceSummary && (
                   <div className="ai-performance-summary">
                     <div className="ai-performance-summary-content">
@@ -498,42 +484,55 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                     <hr className="summary-separator" />
                   </div>
                 )}
-                {/* Render main assistant content (Unified) */}
-                <div 
-                  className={(message.detectedQuestion as any)?.isGuest ? 'guest-blur-enabled' : ''} 
-                  style={{ position: 'relative' }}
-                >
-                  <MarkdownMathRenderer
-                    content={processedContent}
-                    className={`chat-message-renderer ${hasYourWork ? 'has-your-work' : ''}`}
-                    options={{
-                      throwOnError: false,
-                      errorColor: '#cc0000',
-                    }}
-                    YourWorkSection={YourWorkSection}
-                    isYourWork={hasYourWork}
-                  />
-                  {(message.detectedQuestion as any)?.isGuest && (
-                    <div className="paywall-cta-inline">
-                      <h4 className="paywall-inline-title">Sign up to see more answers</h4>
-                      <button className="paywall-unlock-btn" onClick={handleSignup}>
-                        <Lock size={18} />
-                        Unlock Full Paper for Free
-                      </button>
+                {hasYourWork ? (
+                  <div className="has-your-work-outer-container">
+                    <div className={(message.detectedQuestion as any)?.isGuest ? 'guest-blur-enabled' : ''} style={{ position: 'relative' }}>
+                      <MarkdownMathRenderer
+                        content={processedContent}
+                        className="chat-message-renderer has-your-work"
+                        options={{
+                          throwOnError: false,
+                          errorColor: '#cc0000',
+                        }}
+                        YourWorkSection={YourWorkSection}
+                        isYourWork={true}
+                      />
+                      {((message.detectedQuestion as any)?.isGuest && processedContent.includes('paywall-blur')) && (
+                        <div className="paywall-cta-inline">
+                          <h4 className="paywall-inline-title">Sign up to see more answers</h4>
+                          <button className="paywall-unlock-btn" onClick={handleSignup}>
+                            <Lock size={18} />
+                            Unlock Full Paper for Free
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className={(message.detectedQuestion as any)?.isGuest ? 'guest-blur-enabled' : ''} style={{ position: 'relative' }}>
+                    <MarkdownMathRenderer
+                      content={processedContent}
+                      className="chat-message-renderer"
+                      options={{
+                        throwOnError: false,
+                        errorColor: '#cc0000',
+                      }}
+                      YourWorkSection={YourWorkSection}
+                      isYourWork={false}
+                    />
+                  </div>
+                )}
               </div>
             );
           })()}
 
-          {/* Processing Skeletons - ONLY show if no real images/content yet */}
+          {/* Processing Skeletons */}
           {message.isProcessing &&
             !message.progressData?.isComplete &&
             (message as any).imageDataArray?.length > 0 &&
             !content &&
             !isAnnotatedImageMessage(message) && (
-              <div className="skeleton-gallery-wrapper">
+              <div className={`skeleton-gallery-wrapper ${hasYourWork ? 'has-your-work' : ''}`}>
                 <div className="skeleton-gallery thumbnail-horizontal">
                   {(message as any).imageDataArray.map((imgItem: any, idx: number) => {
                     const src = typeof imgItem === 'string' ? imgItem : imgItem?.url;
@@ -555,7 +554,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               </div>
             )}
 
-          {/* Galleries and Images - Only show when NOT processing/thinking (skeletons show then) */}
+          {/* Assistant Galleries and Images */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
             <div className="gallery-side"><SimpleImageGallery key={`${session?.id}-${message.id}-multi`} images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} /></div>
           )}
@@ -573,6 +572,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
 
+          {/* Suggested Follow-ups */}
           {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <SuggestedFollowUpButtons suggestions={message.suggestedFollowUps as string[]} onSuggestionClick={handleFollowUpClick} disabled={isAnyMessageProcessing} />
           )}
