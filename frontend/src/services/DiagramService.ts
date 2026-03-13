@@ -1005,126 +1005,110 @@ export class DiagramService {
     }
 
     /**
-     * Draws Function Graphs (Algebraic Curves) - Dynamic Equation Evaluator v10.2
+     * Draws Function Graphs (Algebraic Curves) - Dynamic Equation Evaluator v11.0
+     * IMPLEMENTS: Generic Normalization & Background Grids
      */
     private static drawFunctionGraph(data: any): string {
-        let xMin = parseFloat(data.x_min ?? -5);
-        let xMax = parseFloat(data.x_max ?? 5);
-        const yMin = parseFloat(data.y_min ?? -5);
-        const yMax = parseFloat(data.y_max ?? 10);
+        const xMinData = parseFloat(data.x_min ?? 0);
+        const xMaxData = parseFloat(data.x_max ?? 10);
+        const yMinData = parseFloat(data.y_min ?? 0);
+        const yMaxData = parseFloat(data.y_max ?? 10);
 
-        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+        if (!Number.isFinite(xMinData) || !Number.isFinite(xMaxData) || !Number.isFinite(yMinData) || !Number.isFinite(yMaxData)) {
             return this.renderFallbackBox(data.description || "Function Graph (Invalid bounds)");
         }
 
-        let width = xMax - xMin;
-        let height = yMax - yMin;
-        const minWidth = height * 1.6;
-        if (width < minWidth) {
-            const extra = (minWidth - width) / 2;
-            xMin -= extra;
-            xMax += extra;
-            width = xMax - xMin;
-        }
+        // 1. Normalization Constants (The "Viewport")
+        // We map any data range to a fixed 200x200 SVG space for consistent styling
+        const VIEW_W = 200;
+        const VIEW_H = 200;
+        const MARGIN = 40; // Space for labels and titles
+
+        const mapX = (x: number) => ((x - xMinData) / (xMaxData - xMinData)) * VIEW_W;
+        const mapY = (y: number) => VIEW_H - (((y - yMinData) / (yMaxData - yMinData)) * VIEW_H);
 
         const mainEqn = data.equation || data.equation_label || "";
-
         if (!mainEqn && (!data.layers || data.layers.length === 0)) {
             return this.renderFallbackBox(data.description || "Graph (No equation provided)");
         }
 
+        // 2. Grid Generation (Major Ticks)
+        let gridHtml = '';
+        const xStep = parseFloat(data.x_step || (xMaxData - xMinData) / 5);
+        const yStep = parseFloat(data.y_step || (yMaxData - yMinData) / 5);
+
+        // Vertical lines & X-axis labels
+        for (let x = xMinData; x <= xMaxData + 0.001; x += xStep) {
+            const vx = mapX(x);
+            gridHtml += `<line x1="${vx}" y1="0" x2="${vx}" y2="${VIEW_H}" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="0.3" />`;
+            gridHtml += `<text x="${vx}" y="${VIEW_H + 12}" font-size="8" fill="var(--diagram-foreground)" text-anchor="middle">${Math.round(x * 10) / 10}</text>`;
+        }
+
+        // Horizontal lines & Y-axis labels
+        for (let y = yMinData; y <= yMaxData + 0.001; y += yStep) {
+            const vy = mapY(y);
+            gridHtml += `<line x1="0" y1="${vy}" x2="${VIEW_W}" y2="${vy}" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="0.3" />`;
+            gridHtml += `<text x="-8" y="${vy + 3}" font-size="8" fill="var(--diagram-foreground)" text-anchor="end">${Math.round(y * 10) / 10}</text>`;
+        }
+
+        // 3. Curve Generation (Uses Normalized Coordinates)
         const generatePath = (eqn: string, scaleY = 1, shiftY = 0, reflectX = false) => {
             if (!eqn) return "";
             let pathD = "";
-            const steps = 140; 
-            const xRange = xMax - xMin;
-
+            const steps = 150; 
             let norm = String(eqn).toLowerCase().replace(/\s+/g, '');
             if (norm.startsWith('y=')) norm = norm.substring(2);
 
-            const isReflected = reflectX || norm.includes('=-');
-
-            // Format standard math into executable JS math
-            let jsEqn = norm
-                .replace(/\^/g, '**')                  
-                .replace(/(\d)([x])/g, '$1*$2')        // converts 2x to 2*x
-                .replace(/(\d)([a-zA-Z(])/g, '$1*$2'); // converts 2( to 2*(
-
+            let jsEqn = norm.replace(/\^/g, '**').replace(/(\d)([x])/g, '$1*$2').replace(/(\d)([a-zA-Z(])/g, '$1*$2');
             let evalFunc: (x: number) => number;
             try {
-                // Dynamically evaluate the math (Fixes Q3 and Q19 instantly)
                 evalFunc = new Function('x', `return ${jsEqn};`) as (x: number) => number;
-                evalFunc(1); 
+                evalFunc(1);
             } catch (e) {
-                // Safe fallbacks to prevent e+174 blowouts
-                evalFunc = (x: number) => {
-                    if (norm.includes('x**2') || norm.includes('x^{2}')) return x * x;
-                    if (norm.includes('x')) return x; 
-                    return 0;
-                };
+                evalFunc = (x: number) => norm.includes('x') ? x : 0;
             }
 
             for (let i = 0; i <= steps; i++) {
-                const x = xMin + (xRange * (i / steps));
-                let y = evalFunc(x);
+                const xVal = xMinData + ((xMaxData - xMinData) * (i / steps));
+                let yVal = evalFunc(xVal);
+                if (reflectX || norm.includes('=-')) yVal = -yVal;
+                yVal = (yVal * scaleY) + shiftY;
 
-                if (isReflected) y = -y;
-                y = (y * scaleY) + shiftY;
-
-                const plotY = -y; // Invert for SVG coords
+                const sx = mapX(xVal);
+                const sy = mapY(yVal);
                 
-                // Prevent extreme bounds from breaking SVG (FIXES Q3 AND Q19 BLOWOUTS)
-                if (!Number.isFinite(plotY) || Math.abs(plotY) > 10000) continue; 
-                
-                pathD += `${pathD === "" ? 'M' : 'L'} ${x} ${plotY} `;
+                if (!Number.isFinite(sy) || Math.abs(sy) > 2000) continue; 
+                pathD += `${pathD === "" ? 'M' : 'L'} ${sx} ${sy} `;
             }
             return pathD;
         };
 
-        let curvesHtml = '';
-        // Dynamically scale stroke width based on the grid size
-        const baseStroke = Math.max(0.3, width / 200); 
-        const curveStroke = Math.max(1.0, width / 100);
+        const curvesHtml = mainEqn ? `<path d="${generatePath(mainEqn)}" fill="none" stroke="var(--diagram-foreground)" stroke-width="2" vector-effect="non-scaling-stroke" />` : '';
 
-        if (mainEqn) {
-            const mainPd = generatePath(mainEqn, parseFloat(data.scale || 1), parseFloat(data.shift || 0), data.reflect || false);
-            curvesHtml += `<path d="${mainPd}" fill="none" stroke="var(--diagram-foreground)" stroke-width="${curveStroke}" vector-effect="non-scaling-stroke" />`;
-        }
+        // 4. Labels & Wraparound
+        const xTitle = data.x_axis_label || "x";
+        const yTitle = data.y_axis_label || "y";
 
-        const layers = data.layers || [];
-        layers.forEach((layer: any) => {
-            if (data.purpose === 'solution' && layer.dashed) return;
-            const layerEqn = layer.equation || layer.label || "";
-            if (!layer.dashed && (layerEqn === mainEqn || !layerEqn)) return;
-
-            const pD = generatePath(layerEqn, parseFloat(layer.scale || 1), parseFloat(layer.shift || 0), layer.reflect || false);
-            if (pD) {
-                curvesHtml += `<path d="${pD}" fill="none" stroke="var(--diagram-foreground)" stroke-width="${baseStroke * 2}" ${layer.dashed ? 'stroke-dasharray="2,2"' : ''} vector-effect="non-scaling-stroke" opacity="${layer.dashed ? 0.6 : 1}" />`;
-            }
-        });
-
-        const xMargin = width * 0.15;
-        const yMargin = height * 0.15;
-        const displayLabel = data.equation || data.equation_label || "";
-
-        // Dynamically scale font sizes based on grid width
-        const fontSize = Math.max(1.0, width / 50);
-
-        return this.wrapSVG(xMin - xMargin, -yMax - yMargin, width + (xMargin * 2), height + (yMargin * 2), `
+        return this.wrapSVG(-MARGIN, -MARGIN/2, VIEW_W + MARGIN*2, VIEW_H + MARGIN*1.5, `
             <defs>
-                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="${baseStroke * 15}" markerHeight="${baseStroke * 15}" orient="auto-start-reverse">
+                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--diagram-grid)" />
                 </marker>
             </defs>
-            <line x1="${xMin - xMargin}" y1="0" x2="${xMax + xMargin}" y2="0" stroke="var(--diagram-grid)" stroke-width="${baseStroke}" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
-            <line x1="0" y1="${-yMin + yMargin}" x2="0" y2="${-yMax - yMargin}" stroke="var(--diagram-grid)" stroke-width="${baseStroke}" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
+            
+            ${gridHtml}
+
+            <!-- Main Axes -->
+            <line x1="0" y1="${VIEW_H}" x2="${VIEW_W + 15}" y2="${VIEW_H}" stroke="var(--diagram-foreground)" stroke-width="1" marker-end="url(#arrowhead)" />
+            <line x1="0" y1="${VIEW_H}" x2="0" y2="-15" stroke="var(--diagram-foreground)" stroke-width="1" marker-end="url(#arrowhead)" />
             
             ${curvesHtml}
-            
-            <text x="${xMax + xMargin / 2}" y="${fontSize}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="middle">x</text>
-            <text x="${fontSize}" y="${-yMax - yMargin / 2}" font-size="${fontSize}" fill="var(--diagram-foreground)">y</text>
-            
-            ${displayLabel ? `<text x="${xMax}" y="${-yMax + (fontSize*1.5)}" font-size="${fontSize * 0.8}" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${displayLabel}</text>` : ''}
+
+            <!-- Axis Labels -->
+            <text x="${VIEW_W + 20}" y="${VIEW_H + 5}" font-size="10" font-weight="bold" fill="var(--diagram-foreground)">${xTitle}</text>
+            <text x="0" y="-25" font-size="10" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${yTitle}</text>
+
+            ${mainEqn ? `<text x="${VIEW_W}" y="15" font-size="9" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${mainEqn}</text>` : ''}
         `);
     }
 
