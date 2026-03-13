@@ -4,6 +4,8 @@ import question_only_system_prompt from './prompts/question_only_system_prompt.j
 import question_only_user_prompt from './prompts/question_only_user_prompt.js';
 import contextual_system_prompt from './prompts/contextual_system_prompt.js';
 import model_answer_system_prompt from './prompts/model_answer_system_prompt.js';
+import model_answer_html_system_prompt from './prompts/model_answer_html_system_prompt.js';
+import diagram_extractor_system_prompt from './prompts/diagram_extractor_system_prompt.js';
 import marking_scheme_explanation_system_prompt from './prompts/marking_scheme_explanation_system_prompt.js';
 import similar_questions_system_prompt from './prompts/similar_questions_system_prompt.js';
 import master_summary_system_prompt from './prompts/master_summary_system_prompt.js';
@@ -156,6 +158,28 @@ ${schemeText}
 
 Please generate a perfect model answer following the scheme. CRITICAL: Follow all HTML styling rules for headers and answer blocks.`;
     }
+  },
+
+  modelAnswerHtml: {
+    system: model_answer_html_system_prompt,
+    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
+      return `# TASK DATA
+QUESTION NUMBER: ${questionNumber || 'Unknown'}
+MAX MARKS: ${totalMarks || 0}
+
+## QUESTION TEXT
+${questionText}
+
+## MARKING SCHEME
+${schemeText}
+
+Please generate a perfect model answer following the scheme.`;
+    }
+  },
+
+  diagramExtractor: {
+    system: diagram_extractor_system_prompt,
+    user: (hint: string) => `Generate JSON for this hint: ${hint}`
   },
 
   similarquestions: {

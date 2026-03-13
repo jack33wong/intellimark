@@ -144,7 +144,7 @@ export class DiagramService {
                             const qText = content.substring(Math.max(0, idx - 300), idx + 100).toLowerCase();
                             const isEnlargeOrReflect = qText.includes('enlarge shape') || qText.includes('reflect shape') ||
                                 (qText.includes('enlarge') && qText.includes('scale factor'));
-                            
+
                             // If the text asks to enlarge/reflect, but DOES NOT mention specific coordinates like (1,2)
                             // or "vertex at", the AI is likely hallucinating a shape from the printed paper.
                             if (isEnlargeOrReflect && !qText.match(/\(\s*-?\d+\s*,\s*-?\d+\s*\)/) && !qText.includes('vertex')) {
@@ -515,7 +515,6 @@ export class DiagramService {
      * Draws Coordinate Grids and Shape Layers
      */
     private static drawCoordinateGrid(data: any): string {
-        // [v9.83] Scale up tiny symmetry shapes internally so they occupy more squares on the grid
         if (data._isSymmetry) {
             const getPointsTemp = (item: any): any[] => {
                 let pts: any[] = [];
@@ -534,8 +533,6 @@ export class DiagramService {
                     if (Number.isFinite(px)) { smX = Math.min(smX, px); lgX = Math.max(lgX, px); }
                     if (Number.isFinite(py)) { smY = Math.min(smY, py); lgY = Math.max(lgY, py); }
                 });
-
-                // If it's a 2x2 shape or smaller, scale its vertices by 3x!
                 if (lgX - smX > 0 && lgX - smX <= 2 && lgY - smY <= 2) {
                     const scaleFactor = 3;
                     const scaleItem = (item: any) => {
@@ -563,11 +560,8 @@ export class DiagramService {
             }
         }
 
-        // [v9.59] Auto-bounds calculation
         const getRawPoints = (item: any): any[] => {
             let pts: any[] = [];
-
-            // [v9.100] Add bounds for circle/arc
             if ((item.shape_name === 'circle' || item.shape_name === 'arc') && item.center) {
                 const cx = parseFloat(item.center[0]);
                 const cy = parseFloat(item.center[1]);
@@ -576,7 +570,6 @@ export class DiagramService {
                     pts.push([cx - r, cy - r], [cx + r, cy + r]);
                 }
             }
-
             if (item.points) pts.push(...item.points);
             if (item.vertices) pts.push(...item.vertices);
             if (item.shapes) item.shapes.forEach((s: any) => pts.push(...getRawPoints(s)));
@@ -590,7 +583,6 @@ export class DiagramService {
         let yMin = parseFloat(data.y_min);
         let yMax = parseFloat(data.y_max);
 
-        // Always calculate actual geometric bounds for auto-zooming or fallback
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         if (allPossiblePoints.length > 0) {
             allPossiblePoints.forEach((p: any) => {
@@ -612,7 +604,6 @@ export class DiagramService {
             }
         }
 
-        // [v9.101] Force expand bounds if explicitly provided bounds are too restrictive (prevents clipping)
         if (allPossiblePoints.length > 0) {
             if (minX < xMin) xMin = minX - 1;
             if (maxX > xMax) xMax = maxX + 1;
@@ -620,37 +611,39 @@ export class DiagramService {
             if (maxY > yMax) yMax = maxY + 1;
         }
 
-        // [v9.58] Support both nested layers/shapes AND root-level points (common in composite_2d components)
         let layers = data.layers || data.shapes || [];
         if (layers.length === 0 && allPossiblePoints.length > 0) {
-            layers = [data]; // Treat root object as a single layer
+            layers = [data];
         }
 
-        // [v9.85] Landscape Ratio Enforcement (Q14)
-        // If the graph is extremely tall and narrow (e.g. y=4x-1 from x=-2 to 2), it warps the SVG.
-        // We enforce a minimum width-to-height ratio to keep grids visually balanced.
         let width = xMax - xMin;
         let height = yMax - yMin;
 
         const minWidthAllowed = height / 1.5;
         if (width < minWidthAllowed && Number.isFinite(width) && Number.isFinite(height)) {
             const widthDiff = minWidthAllowed - width;
-            // Expand the X-axis symmetrically to fill out the grid
             xMin -= widthDiff / 2;
             xMax += widthDiff / 2;
             width = xMax - xMin;
         }
 
-        // [v9.73] Smarter Axis Drawing - Draw axes even if origin (0,0) is out of bounds
         const xAxisY = (yMin <= 0 && yMax >= 0) ? 0 : (yMin > 0 ? -yMin : -yMax);
         const yAxisX = (xMin <= 0 && xMax >= 0) ? 0 : (xMin > 0 ? xMin : xMax);
 
-        // [v9.87] Grid Density Fix (Q11) - Ensure at least ~10 grid subdivisions regardless of coordinates
         let gridHtml = "";
+
+        // Define arrowheads for Vectors
+        gridHtml += `
+            <defs>
+                <marker id="vector-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--diagram-foreground)" />
+                </marker>
+            </defs>
+        `;
+
         const xStep = Math.max(1, Math.ceil((width || 10) / 10));
         const yStep = Math.max(1, Math.ceil((height || 10) / 10));
 
-        // Outer border for the grid if it represents a clean diagram
         gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="1" vector-effect="non-scaling-stroke" />`;
 
         for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
@@ -676,7 +669,6 @@ export class DiagramService {
             layersHtml += `<text x="0.2" y="-0.2" font-size="0.45" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
         }
 
-        // [v9.87] Axis Scrubbing (Q11) - Strip layers that merely duplicate the X or Y axis as a line
         layers = layers.filter((layer: any) => {
             const pts = layer.points || layer.vertices;
             if (pts && pts.length === 2) {
@@ -684,52 +676,23 @@ export class DiagramService {
                 const py1 = parseFloat(Array.isArray(pts[0]) ? pts[0][1] : pts[0].y);
                 const px2 = parseFloat(Array.isArray(pts[1]) ? pts[1][0] : pts[1].x);
                 const py2 = parseFloat(Array.isArray(pts[1]) ? pts[1][1] : pts[1].y);
-                // If it's a straight line touching axis extremes, it's an AI hallucinated axis. Remove it.
-                if (px1 === 0 && px2 === 0 && py1 < -5 && py2 > 5) return false; // Y axis duplicate
-                if (py1 === 0 && py2 === 0 && px1 < -5 && px2 > 5) return false; // X axis duplicate
+                if (px1 === 0 && px2 === 0 && py1 < -5 && py2 > 5) return false;
+                if (py1 === 0 && py2 === 0 && px1 < -5 && px2 > 5) return false;
             }
             return true;
         });
 
-        // [Simple & Robust v9.18] Global label collision tracking
         let hasDrawnSomething = false;
 
         layers.forEach((layer: any) => {
             const rawPoints = layer.points || layer.vertices || [];
-
-            // [v9.87] Triangle Differentiation (Q11): solution vs reference
             const purpose = layer.purpose || data.purpose || "solution";
             const isReference = purpose === 'reference';
-            const strokeColor = 'var(--diagram-foreground)'; // Reference shapes need to be visible too
-            const strokeOpacityAttr = ''; // Fully opaque foreground (dark in light mode, light in dark mode)
-            const fillColor = isReference ? 'none' : 'rgba(128, 128, 128, 0.15)'; // Slightly shade solution shapes
+            const isVector = layer.shape_name === 'vector' || layer.type === 'vector';
+            const strokeColor = 'var(--diagram-foreground)';
+            const strokeOpacityAttr = '';
+            const fillColor = isReference ? 'none' : 'rgba(128, 128, 128, 0.15)';
 
-            // [FIX] Support for specific shape types like parabola (even without points)
-            if (layer.shape_name === 'parabola' || layer.type === 'parabola') {
-                const pathXMin = parseFloat(layer.x_min ?? xMin);
-                const pathXMax = parseFloat(layer.x_max ?? xMax);
-                const steps = 50;
-                let d = "";
-                for (let i = 0; i <= steps; i++) {
-                    const px = pathXMin + (pathXMax - pathXMin) * (i / steps);
-                    // Standard parabola: y = a(x-h)(x-k) or y = a(x-h)^2 + k
-                    // Q21b is y = (x+3)(x-5) = x^2 - 2x - 15. Vertex at x=1, y=-16.
-                    // Since AI might not provide 'a', we use a generic curve that fits the box.
-                    const mid = (pathXMin + pathXMax) / 2;
-                    const peak = parseFloat(layer.y_max || 10);
-                    const base = parseFloat(layer.y_min || -15);
-                    // Simple parabola sketch: py = (4*(base-peak)/((xmax-xmin)^2)) * (px-mid)^2 + peak
-                    const py = (4 * (base - peak) / Math.pow(pathXMax - pathXMin, 2)) * Math.pow(px - mid, 2) + peak;
-                    if (Number.isFinite(py)) {
-                        d += `${d === "" ? 'M' : 'L'} ${px} ${-py} `;
-                    }
-                }
-                const dashedStyle = isReference ? 'stroke-dasharray="3,3"' : '';
-                layersHtml += `<path d="${d}" fill="none" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashedStyle} vector-effect="non-scaling-stroke" />`;
-                hasDrawnSomething = true;
-            }
-
-            // [v9.100] Native Circle Support
             if (layer.shape_name === 'circle' || layer.type === 'circle') {
                 const cx = parseFloat(layer.center ? layer.center[0] : 0);
                 const cy = parseFloat(layer.center ? layer.center[1] : 0);
@@ -742,7 +705,6 @@ export class DiagramService {
                 return;
             }
 
-            // [v9.100] Native Arc / Semicircle Support
             if (layer.shape_name === 'arc' || layer.type === 'arc') {
                 const cx = parseFloat(layer.center ? layer.center[0] : 0);
                 const cy = parseFloat(layer.center ? layer.center[1] : 0);
@@ -753,7 +715,6 @@ export class DiagramService {
                 if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
                     const startRad = startAngle * (Math.PI / 180);
                     const endRad = endAngle * (Math.PI / 180);
-
                     const sx = cx + r * Math.cos(startRad);
                     const sy = cy + r * Math.sin(startRad);
                     const ex = cx + r * Math.cos(endRad);
@@ -762,12 +723,9 @@ export class DiagramService {
                     let ad = (endAngle - startAngle) % 360;
                     if (ad < 0) ad += 360;
                     const largeArcFlag = ad > 180 ? 1 : 0;
-                    const sweepFlag = 0; // SVG Y is inverted, so sweep 0 gives CCW Cartesian arc
 
-                    let d = `M ${sx} ${-sy} A ${r} ${r} 0 ${largeArcFlag} ${sweepFlag} ${ex} ${-ey}`;
-                    if (!layer.is_open) {
-                        d += ' Z'; // Close the sector/semicircle
-                    }
+                    let d = `M ${sx} ${-sy} A ${r} ${r} 0 ${largeArcFlag} 0 ${ex} ${-ey}`;
+                    if (!layer.is_open) d += ' Z';
 
                     const dashed = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
                     layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
@@ -783,74 +741,29 @@ export class DiagramService {
                     return `${x},${-y}`;
                 });
 
-                // Skip if any point is NaN
                 if (ptsArr.some((pt: string) => pt.includes('NaN'))) return;
-
                 const pts = ptsArr.join(' ');
 
-                // [v9.73] Support for Open Paths (Frequency Polygons)
-                const isOpen = layer.is_open || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line';
+                const isOpen = layer.is_open || isVector || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line';
                 const tag = isOpen ? 'polyline' : 'polygon';
 
-                const dashedStyle = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
-                const baseWidth = isReference ? 0.4 : 0.3;
+                // Vectors are always solid. Others follow reference rules.
+                const dashedStyle = (layer.dashed || (isReference && !isVector)) ? 'stroke-dasharray="3,3"' : '';
+                const baseWidth = isVector ? 0.5 : (isReference ? 0.4 : 0.3);
+                const markerAttr = isVector ? 'marker-end="url(#vector-arrow)"' : '';
 
                 layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} 
-                                stroke-width="${baseWidth}" ${dashedStyle} 
+                                stroke-width="${baseWidth}" ${dashedStyle} ${markerAttr}
                                 vector-effect="non-scaling-stroke" />`;
 
-                // [v9.62] Edge Label Resilience (Q23 Recovery)
-                // If the shape is a triangle (3 points) and has description labels, draw them at midpoints
-                if (rawPoints.length === 3) {
-                    const extracted = this.extractLabelsFromDescription(layer.description || data.description || "");
-                    const ptsParsed = rawPoints.map((p: any) => [
-                        parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0)),
-                        parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0))
-                    ]);
-
-                    // Try to map extracted labels like "AC: 26" to edges
-                    // Side 1 (Pt0 to Pt1), Side 2 (Pt1 to Pt2), Side 3 (Pt2 to Pt0)
-                    const edgeLabels = [
-                        extracted['AB'] || extracted['AC'] || layer.side1 || "",
-                        extracted['BC'] || extracted['BD'] || layer.side2 || "",
-                        extracted['AC'] || extracted['DC'] || layer.side3 || ""
-                    ];
-
-                    ptsParsed.forEach((p1: number[], i: number) => {
-                        const p2 = ptsParsed[(i + 1) % 3];
-                        const label = edgeLabels[i] || (layer.side_labels ? layer.side_labels[i] : "");
-                        if (label) {
-                            const mx = (p1[0] + p2[0]) / 2;
-                            const my = (p1[1] + p2[1]) / 2;
-                            // Offset label slightly from the edge (v9.63: increased offset for visibility)
-                            layersHtml += `<text x="${mx}" y="${-my - 1.2}" font-size="0.8" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${label}</text>`;
-                        }
-                    });
-
-                    // [v9.72] Vertex Label Support (Q23) - Check both root and layer
-                    const vLabels = [
-                        layer.label_A || data.label_A || layer.A || data.A || "",
-                        layer.label_B || data.label_B || layer.B || data.B || "",
-                        layer.label_C || data.label_C || layer.C || data.C || ""
-                    ];
-                    ptsParsed.forEach((p: number[], i: number) => {
-                        if (vLabels[i]) {
-                            layersHtml += `<text x="${p[0]}" y="${-p[1] + 1.2}" font-size="1.0" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vLabels[i]}</text>`;
-                        }
-                    });
-                }
-
-                // Render Vertex Labels - Global collision check v9.18
                 let hasLocalVertexLabels = false;
                 rawPoints.forEach((p: any) => {
                     const vLabel = Array.isArray(p) ? p[2] : p.label;
                     if (vLabel) {
                         const vx = parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0));
                         const vy = parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0));
-
                         if (!Number.isFinite(vx) || !Number.isFinite(vy)) return;
-
-                        const coordKey = `${Math.round(vx * 2) / 2},${Math.round(vy * 2) / 2}`; // 0.5 unit tolerance
+                        const coordKey = `${Math.round(vx * 2) / 2},${Math.round(vy * 2) / 2}`;
 
                         if (!DiagramService.renderedGlobalLabels.has(coordKey)) {
                             layersHtml += `<text x="${vx}" y="${-vy - 0.7}" font-size="0.4" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vLabel}</text>`;
@@ -860,14 +773,25 @@ export class DiagramService {
                     }
                 });
 
-                // Only show overall layer label if no specific vertices in this layer OR nearby coordinates were labeled
                 const firstPtRaw = Array.isArray(rawPoints[0]) ? rawPoints[0] : [rawPoints[0].x, rawPoints[0].y];
                 const firstPt = [parseFloat(firstPtRaw[0]), parseFloat(firstPtRaw[1])];
 
                 if (Number.isFinite(firstPt[0]) && Number.isFinite(firstPt[1])) {
-                    const firstPtKey = `${Math.round(firstPt[0] * 2) / 2},${Math.round(firstPt[1] * 2) / 2}`;
+                    let lx = firstPt[0];
+                    let ly = firstPt[1];
+
+                    // Move label to midpoint for vectors so it doesn't bunch up at 0,0
+                    if (isVector && rawPoints.length >= 2) {
+                        const p2 = Array.isArray(rawPoints[1]) ? rawPoints[1] : [rawPoints[1].x, rawPoints[1].y];
+                        lx = (lx + parseFloat(p2[0])) / 2;
+                        ly = (ly + parseFloat(p2[1])) / 2;
+                    }
+
+                    const firstPtKey = `${Math.round(lx * 2) / 2},${Math.round(ly * 2) / 2}`;
                     if (layer.label && !hasLocalVertexLabels && !DiagramService.renderedGlobalLabels.has(firstPtKey)) {
-                        layersHtml += `<text x="${firstPt[0]}" y="${-firstPt[1] - 0.7}" font-size="0.5" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${layer.label}</text>`;
+                        // Offset y slightly based on whether it's a vector or standard shape
+                        const yOffset = isVector ? -ly - 0.4 : -ly - 0.7;
+                        layersHtml += `<text x="${lx}" y="${yOffset}" font-size="0.6" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${layer.label}</text>`;
                         DiagramService.renderedGlobalLabels.add(firstPtKey);
                     }
                 }
@@ -875,7 +799,6 @@ export class DiagramService {
             }
         });
 
-        // Defensive check: if we only drew the axes, return a fallback instead of a "white image"
         if (!hasDrawnSomething) {
             return this.renderFallbackBox(data.details || data.description || "Grid/Axis Reference (No shapes provided)");
         }
@@ -918,9 +841,9 @@ export class DiagramService {
 
         // [v9.99] Auto-detect frequency tree vs probability tree
         // If probabilities are integers > 1 (e.g. 120, 80) and no fractions, route to drawFrequencyTree
-        const isHz = data.is_frequency || data.type === 'frequency_tree' || 
+        const isHz = data.is_frequency || data.type === 'frequency_tree' ||
             branches.some((b: any) => b.prob && parseInt(String(b.prob)) > 1 && !String(b.prob).includes('/'));
-        
+
         if (isHz && branches.length > 0) {
             return this.drawFrequencyTree(branches);
         }
@@ -971,11 +894,11 @@ export class DiagramService {
 
             // 1. Build Node Graph
             const nodes: Record<string, { id: string, label: string, val: string, level: number, children: string[], parent: string | null }> = {};
-            
+
             // Find root(s)
             const toSet = new Set(branches.map(b => b.to));
             const rootId = branches[0].from || "Start";
-            
+
             nodes[rootId] = { id: rootId, label: rootId, val: "", level: 0, children: [], parent: null };
 
             branches.forEach(b => {
@@ -998,11 +921,11 @@ export class DiagramService {
             // 2. Position Nodes
             const xStep = 60; // Wide spacing for ovals
             const yStep = 25; // Vertical spacing between leaves
-            const positions: Record<string, {x: number, y: number}> = {};
-            
+            const positions: Record<string, { x: number, y: number }> = {};
+
             // Assign Y to leaves first, then center parents
-            const leaves = Object.values(nodes).filter(n => n.children.length === 0).sort((a,b) => a.id.localeCompare(b.id)); // simple sort
-            
+            const leaves = Object.values(nodes).filter(n => n.children.length === 0).sort((a, b) => a.id.localeCompare(b.id)); // simple sort
+
             let currentY = 0;
             const assignLeafY = (id: string) => {
                 const node = nodes[id];
@@ -1013,7 +936,7 @@ export class DiagramService {
                     node.children.forEach(cid => assignLeafY(cid));
                     // Parent Y is average of children Y
                     const childrenY = node.children.map(cid => positions[cid].y);
-                    const avgY = childrenY.reduce((a,b)=>a+b,0) / childrenY.length;
+                    const avgY = childrenY.reduce((a, b) => a + b, 0) / childrenY.length;
                     positions[id] = { x: node.level * xStep, y: avgY };
                 }
             };
@@ -1029,10 +952,10 @@ export class DiagramService {
                 const p1 = positions[b.from || rootId];
                 const p2 = positions[b.to];
                 if (!p1 || !p2) return;
-                
+
                 // Line from edge of parent to edge of child
                 html += `<line x1="${p1.x + rx}" y1="${p1.y}" x2="${p2.x - rx}" y2="${p2.y}" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
-                
+
                 // Branch label (e.g. "Children", "Left") midway
                 const mx = (p1.x + rx + p2.x - rx) / 2;
                 const my = (p1.y + p2.y) / 2;
@@ -1061,7 +984,7 @@ export class DiagramService {
             const allY = Object.values(positions).map(p => p.y);
             let minX = Math.min(...allX) - rx - 5;
             const maxX = Math.max(...allX) + rx + 5;
-            let minY = Math.min(...allY) - ry - 10; 
+            let minY = Math.min(...allY) - ry - 10;
             const maxY = Math.max(...allY) + ry + 5;
 
             // Render headers if available
@@ -1082,7 +1005,7 @@ export class DiagramService {
     }
 
     /**
-     * Draws Function Graphs (Algebraic Curves) - Simple & Robust v9.26
+     * Draws Function Graphs (Algebraic Curves) - Dynamic Equation Evaluator v10.2
      */
     private static drawFunctionGraph(data: any): string {
         let xMin = parseFloat(data.x_min ?? -5);
@@ -1090,12 +1013,10 @@ export class DiagramService {
         const yMin = parseFloat(data.y_min ?? -5);
         const yMax = parseFloat(data.y_max ?? 10);
 
-        // [FIX] Defensive Validation
         if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
             return this.renderFallbackBox(data.description || "Function Graph (Invalid bounds)");
         }
 
-        // [Simple & Robust v9.26] Landscape Ratio Rule: Ensure boundaries are updated
         let width = xMax - xMin;
         let height = yMax - yMin;
         const minWidth = height * 1.6;
@@ -1106,110 +1027,104 @@ export class DiagramService {
             width = xMax - xMin;
         }
 
-        if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
-            return this.renderFallbackBox(data.details || data.description || data.equation_label || "Graph Diagram");
+        const mainEqn = data.equation || data.equation_label || "";
+
+        if (!mainEqn && (!data.layers || data.layers.length === 0)) {
+            return this.renderFallbackBox(data.description || "Graph (No equation provided)");
         }
 
-        // Helper to generate path for a specific function
         const generatePath = (eqn: string, scaleY = 1, shiftY = 0, reflectX = false) => {
+            if (!eqn) return "";
             let pathD = "";
-            const steps = 140;
+            const steps = 140; 
             const xRange = xMax - xMin;
 
-            // [Simple & Robust v9.28] Explicit Transformation Protocol
-            // Normalize: use safeEqn + explicit flags from data
-            const safeEqn = eqn || "5^{x}";
-            const norm = String(safeEqn).toLowerCase().replace(/\s+/g, '');
+            let norm = String(eqn).toLowerCase().replace(/\s+/g, '');
+            if (norm.startsWith('y=')) norm = norm.substring(2);
 
-            // Redundancy: check both explicit flag and string content
-            const isReflected = reflectX || norm.includes('=-') || (norm.includes('-5') && !norm.includes('^-5'));
+            const isReflected = reflectX || norm.includes('=-');
 
-            let verticalShift = shiftY;
-            // String detection fallback for shift
-            if (norm.includes('-1') && !norm.includes('^-1')) verticalShift -= 1;
-            if (norm.includes('+1')) verticalShift += 1;
+            // Format standard math into executable JS math
+            let jsEqn = norm
+                .replace(/\^/g, '**')                  
+                .replace(/(\d)([x])/g, '$1*$2')        // converts 2x to 2*x
+                .replace(/(\d)([a-zA-Z(])/g, '$1*$2'); // converts 2( to 2*(
+
+            let evalFunc: (x: number) => number;
+            try {
+                // Dynamically evaluate the math (Fixes Q3 and Q19 instantly)
+                evalFunc = new Function('x', `return ${jsEqn};`) as (x: number) => number;
+                evalFunc(1); 
+            } catch (e) {
+                // Safe fallbacks to prevent e+174 blowouts
+                evalFunc = (x: number) => {
+                    if (norm.includes('x**2') || norm.includes('x^{2}')) return x * x;
+                    if (norm.includes('x')) return x; 
+                    return 0;
+                };
+            }
 
             for (let i = 0; i <= steps; i++) {
                 const x = xMin + (xRange * (i / steps));
-                let y = 0;
-
-                if (norm.includes('5^x') || norm.includes('5^{x}')) {
-                    y = Math.pow(5, x);
-                } else if (norm.includes('1.5^x') || norm.includes('1.5^{x}')) {
-                    y = Math.pow(1.5, x);
-                } else if (norm.includes('2^x') || norm.includes('2^{x}')) {
-                    y = Math.pow(2, x);
-                } else if (norm.includes('x^2') || norm.includes('x**2') || norm.includes('x^{2}')) {
-                    // [v9.61] Generic Parabola Support for Q21b
-                    // Patterns: x^2, (x+3)(x-5)
-                    if (norm.includes('(x+3)(x-5)')) {
-                        y = (x + 3) * (x - 5);
-                    } else if (norm.includes('(x-3)(x+5)')) {
-                        y = (x - 3) * (x + 5);
-                    } else {
-                        y = x * x; // Default x^2
-                    }
-                } else {
-                    y = Math.pow(1.5, x);
-                }
+                let y = evalFunc(x);
 
                 if (isReflected) y = -y;
-                y = (y * scaleY) + verticalShift;
+                y = (y * scaleY) + shiftY;
 
-                const plotY = -y;
-                if (!Number.isFinite(plotY)) continue;
+                const plotY = -y; // Invert for SVG coords
+                
+                // Prevent extreme bounds from breaking SVG (FIXES Q3 AND Q19 BLOWOUTS)
+                if (!Number.isFinite(plotY) || Math.abs(plotY) > 10000) continue; 
+                
                 pathD += `${pathD === "" ? 'M' : 'L'} ${x} ${plotY} `;
             }
             return pathD;
         };
 
-        const layers = data.layers || [];
         let curvesHtml = '';
+        // Dynamically scale stroke width based on the grid size
+        const baseStroke = Math.max(0.3, width / 200); 
+        const curveStroke = Math.max(1.0, width / 100);
 
-        // [Simple & Robust v9.28] Smart Recovery with Explicit Flags
-        const mainEqn = data.equation_label || data.description || data.details || "5^{x}";
+        if (mainEqn) {
+            const mainPd = generatePath(mainEqn, parseFloat(data.scale || 1), parseFloat(data.shift || 0), data.reflect || false);
+            curvesHtml += `<path d="${mainPd}" fill="none" stroke="var(--diagram-foreground)" stroke-width="${curveStroke}" vector-effect="non-scaling-stroke" />`;
+        }
 
-        // Always draw the main solution curve
-        // Redundancy: pass data.reflect and data.shift even to the main equation
-        const mainPd = generatePath(mainEqn, parseFloat(data.scale || 1), parseFloat(data.shift || 0), data.reflect || false);
-        curvesHtml += `<path d="${mainPd}" fill="none" stroke="var(--diagram-foreground)" stroke-width="1.8" vector-effect="non-scaling-stroke" />`;
-
-        // Draw individual layers (Dashed reference lines etc)
+        const layers = data.layers || [];
         layers.forEach((layer: any) => {
-            // [Answer-Only Protocol v9.30] 
-            // Skip dashed layers if this is a 'solution' graph (user only wants the answer)
             if (data.purpose === 'solution' && layer.dashed) return;
-
-            // [Simple & Robust v9.29] Robust Resolution: prioritize layer.equation then layer.label
             const layerEqn = layer.equation || layer.label || "";
+            if (!layer.dashed && (layerEqn === mainEqn || !layerEqn)) return;
 
-            // Avoid double-drawing if the layer is identical to the main equation
-            // Skip if it's a solid curve and either matches mainEqn or is empty (assuming root handles it)
-            if (!layer.dashed && (layerEqn === data.equation_label || !layerEqn)) return;
-
-            const pD = generatePath(layerEqn || data.equation_label || "5^{x}", parseFloat(layer.scale || 1), parseFloat(layer.shift || 0), layer.reflect || false);
-            curvesHtml += `<path d="${pD}" fill="none" stroke="var(--diagram-foreground)" 
-                            stroke-width="1.0" ${layer.dashed ? 'stroke-dasharray="2,2"' : ''} vector-effect="non-scaling-stroke" opacity="${layer.dashed ? 0.6 : 1}" />`;
+            const pD = generatePath(layerEqn, parseFloat(layer.scale || 1), parseFloat(layer.shift || 0), layer.reflect || false);
+            if (pD) {
+                curvesHtml += `<path d="${pD}" fill="none" stroke="var(--diagram-foreground)" stroke-width="${baseStroke * 2}" ${layer.dashed ? 'stroke-dasharray="2,2"' : ''} vector-effect="non-scaling-stroke" opacity="${layer.dashed ? 0.6 : 1}" />`;
+            }
         });
 
         const xMargin = width * 0.15;
         const yMargin = height * 0.15;
+        const displayLabel = data.equation || data.equation_label || "";
+
+        // Dynamically scale font sizes based on grid width
+        const fontSize = Math.max(1.0, width / 50);
 
         return this.wrapSVG(xMin - xMargin, -yMax - yMargin, width + (xMargin * 2), height + (yMargin * 2), `
             <defs>
-                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="${baseStroke * 15}" markerHeight="${baseStroke * 15}" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--diagram-grid)" />
                 </marker>
             </defs>
-            <!-- Professional Axes -->
-            <line x1="${xMin - xMargin}" y1="0" x2="${xMax + xMargin}" y2="0" stroke="var(--diagram-grid)" stroke-width="0.3" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
-            <line x1="0" y1="${-yMin + yMargin}" x2="0" y2="${-yMax - yMargin}" stroke="var(--diagram-grid)" stroke-width="0.3" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
+            <line x1="${xMin - xMargin}" y1="0" x2="${xMax + xMargin}" y2="0" stroke="var(--diagram-grid)" stroke-width="${baseStroke}" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
+            <line x1="0" y1="${-yMin + yMargin}" x2="0" y2="${-yMax - yMargin}" stroke="var(--diagram-grid)" stroke-width="${baseStroke}" marker-end="url(#arrowhead)" vector-effect="non-scaling-stroke" />
             
             ${curvesHtml}
             
-            <text x="${xMax + xMargin / 2}" y="1.5" font-size="1.5" fill="var(--diagram-foreground)" text-anchor="middle">x</text>
-            <text x="1.5" y="${-yMax - yMargin / 2}" font-size="1.5" fill="var(--diagram-foreground)">y</text>
-            ${data.equation_label ? `<text x="${xMax}" y="${-yMax + 1}" font-size="1.2" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">${String(data.equation_label).toLowerCase().replace(/\s+/g, '').startsWith('y=') ? data.equation_label : 'y = ' + data.equation_label}</text>` : ''}
+            <text x="${xMax + xMargin / 2}" y="${fontSize}" font-size="${fontSize}" fill="var(--diagram-foreground)" text-anchor="middle">x</text>
+            <text x="${fontSize}" y="${-yMax - yMargin / 2}" font-size="${fontSize}" fill="var(--diagram-foreground)">y</text>
+            
+            ${displayLabel ? `<text x="${xMax}" y="${-yMax + (fontSize*1.5)}" font-size="${fontSize * 0.8}" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${displayLabel}</text>` : ''}
         `);
     }
 
@@ -1578,7 +1493,7 @@ export class DiagramService {
             const headerFromRoot = rootLabel.replace(/\d+/g, '').trim();
             if (headerFromRoot) headers.push(headerFromRoot);
             else headers.push("Start");
-            
+
             const intoRegex = /into\s+'([^']+)'/gi;
             let im;
             while ((im = intoRegex.exec(content)) !== null) {

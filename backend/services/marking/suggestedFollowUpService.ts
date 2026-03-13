@@ -197,22 +197,91 @@ export class SuggestedFollowUpService {
     const results = await Promise.all(questions.map(async (q) => {
       const { base, questionText: qText, markingScheme: qScheme, marks: qMarks, originalText: parentText } = q;
 
-      const userPrompt = isModelAnswer
-        ? getPrompt(`${config.promptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base)
-        : getPrompt(`${config.promptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), base, qMarks);
+        const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
+        const userPrompt = getPrompt(`${currentPromptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base);
 
-      // [FEATURE] Restore Debug Logging
-      const isLoggingEnabled = true; // [DIAGNOSIS] Force logging for Q8/Q17 upstream check
+        // [FEATURE] Restore Debug Logging
+        const isLoggingEnabled = true; // [DIAGNOSIS] Force logging for Q8/Q17 upstream check
 
-      if (isLoggingEnabled) {
-        console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
-        console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
-        console.log(`--- USER ---\n${userPrompt}\n`);
-      }
+        if (isLoggingEnabled) {
+          console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
+          console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+          console.log(`--- USER ---\n${userPrompt}\n`);
+        }
 
       try {
         const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
         let content = ai.content.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+        // [TWO-PROMPT BRIDGE] Interceptor Logic for Model Answers
+        if (isModelAnswer) {
+          console.log("\n==================================================");
+          console.log(`[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...`);
+          console.log(`[DEBUG] Step 1 Complete. Raw HTML Output from AI:`);
+          console.log("--------------------------------------------------");
+          console.log(content);
+          console.log("--------------------------------------------------");
+
+          const diagramRegex = /\[(?:Type:\s*Diagram|Diagram):\s*(.*?)\]/gi;
+          let match;
+          let diagramCount = 0;
+
+          // Sequential extraction for each detected diagram
+          while (true) {
+            const currentMatch = diagramRegex.exec(content);
+            if (!currentMatch) break;
+
+            diagramCount++;
+            const fullMatchText = currentMatch[0];
+            const hintDescription = currentMatch[1];
+            
+            console.log(`\n[DEBUG] Step 2: Found Diagram Hint #${diagramCount}:`);
+            console.log(`[DEBUG] Hint Text: "${hintDescription}"`);
+
+            // Call Prompt 2 (JSON Extractor) with just the hint
+            console.log(`[DEBUG] Step 3: Sending hint to Prompt 2 (JSON Extractor)...`);
+            const diagramSystemPrompt = getPrompt('diagramExtractor.system');
+            const diagramUserPrompt = getPrompt('diagramExtractor.user', hintDescription);
+
+            try {
+              const diagramAi = await ModelProvider.callText(diagramSystemPrompt, diagramUserPrompt, model as any, false, tracker, 'modelAnswer');
+              const jsonOutput = diagramAi.content.replace(/^```(json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+              
+              console.log(`[DEBUG] Step 3 Complete. Raw JSON Output from AI:`);
+              console.log(jsonOutput);
+
+              // Verify the JSON is actually valid before injecting it
+              try {
+                JSON.parse(jsonOutput);
+                console.log(`[DEBUG] JSON Validation: SUCCESS!`);
+              } catch (parseError) {
+                console.error(`[DEBUG] JSON Validation: FAILED! The AI generated invalid JSON.`);
+                console.error(`[DEBUG] Error Details:`, (parseError as any).message);
+              }
+
+              const scriptTag = `<script type="application/json" class="ai-diagram-data">\n${jsonOutput}\n</script>`;
+              
+              // Replace the hint with the JSON script tag
+              content = content.replace(fullMatchText, scriptTag);
+              console.log(`[DEBUG] Step 4: Successfully replaced hint with <script> tag in HTML.`);
+              
+              // Reset regex index because content length changed
+              diagramRegex.lastIndex = 0; 
+            } catch (err) {
+              console.error(`[PROMPT-BRIDGE] Error extracting diagram for Q${base}:`, err);
+              content = content.replace(fullMatchText, `<!-- Diagram Extraction Error: ${hintDescription} -->`);
+              diagramRegex.lastIndex = 0;
+            }
+          }
+
+          if (diagramCount === 0) {
+            console.log(`\n[DEBUG] No diagram hints were found in the HTML.`);
+          }
+
+          console.log("\n[DEBUG] FINAL HTML READY FOR FRONTEND:");
+          console.log(content);
+          console.log("==================================================\n");
+        }
 
         if (isLoggingEnabled) {
           console.log(`✅ [DEBUG] ${mode.toUpperCase()} RESPONSE (Group ${base}):`);
@@ -254,7 +323,11 @@ export class SuggestedFollowUpService {
         ${finalContent}
     </div>
 </div>`.trim();
-        return { html, tokens: ai.usageTokens || 0 };
+
+        // [FIX] Force model_table class on all tables
+        const finalHtmlWithTableClass = html.replace(/<table(?:\s+[^>]*)?>/gi, '<table class="model_table">');
+
+        return { html: finalHtmlWithTableClass, tokens: ai.usageTokens || 0 };
       } catch (err) {
         console.error(`[FOLLOW-UP] Error Q${base}:`, err);
         return { html: `<div class="error">Error generating ${mode} for Q${base}</div>`, tokens: 0 };
