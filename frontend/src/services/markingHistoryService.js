@@ -16,13 +16,13 @@ class MarkingHistoryService {
    * @param {string} authToken - Authentication token (optional)
    * @returns {Promise<Object>} The marking history data from sessions
    */
-  static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null, lastUpdatedAt = null, messageType = null) {
-    const requestKey = `${userId}-${limit}-${lastUpdatedAt}-${messageType}`;
-
+  static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null, lastUpdatedAt = null, messageType = null, searchQuery = null) {
+    const requestKey = `${userId}-${limit}-${lastUpdatedAt}-${messageType}-${searchQuery}`;
+ 
     if (this.inFlightRequests.has(requestKey)) {
       return this.inFlightRequests.get(requestKey);
     }
-
+ 
     const fetchPromise = (async () => {
       try {
         // Use new messages API instead of old chat API
@@ -32,6 +32,9 @@ class MarkingHistoryService {
         }
         if (messageType && messageType !== 'all') {
           url += `&messageType=${encodeURIComponent(messageType)}`;
+        }
+        if (searchQuery) {
+          url += `&search=${encodeURIComponent(searchQuery)}`;
         }
 
 

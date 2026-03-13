@@ -758,6 +758,7 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
     const lastUpdatedAt = req.query.lastUpdatedAt as string || null;
     const lastPinned = req.query.lastPinned === 'true' ? true : (req.query.lastPinned === 'false' ? false : null);
     const messageType = req.query.messageType as string || null;
+    const search = req.query.search as string || null;
 
     // Only return sessions for authenticated users who match the requested userId
     if (req.user.uid !== userId) {
@@ -769,7 +770,7 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
     }
 
     const startTime = Date.now();
-    const sessions = await FirestoreService.getUserUnifiedSessions(userId, limit, lastUpdatedAt, messageType);
+    const sessions = await FirestoreService.getUserUnifiedSessions(userId, limit, lastUpdatedAt, messageType, search);
     const duration = Date.now() - startTime;
     console.log(`[PERF] GET /sessions/${userId} took ${duration}ms for ${sessions.length} sessions (limit: ${limit})`);
 

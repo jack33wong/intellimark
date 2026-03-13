@@ -23,7 +23,8 @@ import {
   PanelLeft,
   User,
   Pin,
-  PinOff
+  PinOff,
+  Search
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -548,6 +549,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             <PanelLeft size={18} />
           </button>
         </div>
+
+
         <div className="sidebar-menu-group">
           <div className="sidebar-section-header-row">
             <div className="sidebar-section-header">MAIN</div>
@@ -566,6 +569,17 @@ const Sidebar: React.FC<SidebarProps> = ({
           >
             <Library size={20} />
             <span>Library</span>
+          </button>
+          <button
+            className="mark-homework-main-btn search-btn-desktop"
+            onClick={() => {
+              navigate('/search');
+              closeSidebarIfMobile();
+            }}
+            style={{ marginTop: '8px' }}
+          >
+            <Search size={20} />
+            <span>Search</span>
           </button>
           <button
             className={`mark-homework-main-btn ${(!user || !canAccessAnalysis) ? 'disabled-feature' : ''}`}
@@ -768,7 +782,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </div>
-    </div >
+
+      </div >
   );
 };
 

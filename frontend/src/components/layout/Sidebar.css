@@ -112,14 +112,13 @@
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
-    top: 60px;
     left: 0;
-    height: calc(100vh - 60px);
+    height: 100vh;
     width: 280px;
     max-width: 280px;
     transform: translateX(0);
     /* Visible state (isOpen = true, no 'collapsed' class) */
-    z-index: 1100;
+    z-index: 100000;
     box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
   }
 
@@ -168,6 +167,8 @@
   justify-content: space-between;
   /* Space out Logo and Toggle */
 }
+
+
 
 .sidebar-menu-toggle {
   display: flex;
@@ -958,7 +959,7 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .sidebar-content {
-    padding: 20px 16px;
+    padding: 0px 16px;
   }
 
   .admin-section {

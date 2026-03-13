@@ -751,7 +751,7 @@ export class FirestoreService {
   /**
    * Get user's UnifiedSessions (lightweight list with nested messages)
    */
-  static async getUserUnifiedSessions(userId: string, limit: number = 50, lastUpdatedAt: string | null = null, messageType: string | null = null): Promise<any[]> {
+  static async getUserUnifiedSessions(userId: string, limit: number = 50, lastUpdatedAt: string | null = null, messageType: string | null = null, searchQuery: string | null = null): Promise<any[]> {
     try {
       let sessionsRef: any = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
         .where('userId', '==', userId);
@@ -766,12 +766,11 @@ export class FirestoreService {
         sessionsRef = sessionsRef.startAfter(lastUpdatedAt);
       }
 
-      // Apply limit to the query
-      sessionsRef = sessionsRef.limit(limit);
-
+      // Apply limit to the query - if searching, fetch more to allow in-memory filtering
+      sessionsRef = sessionsRef.limit(searchQuery ? 500 : limit);
+ 
       // --- PERFORMANCE OPTIMIZATION ---
       // Exclude massive messages array from list views
-      // This is the single most important fix for 3s -> 300ms loading
       sessionsRef = sessionsRef.select(
         'id', 'title', 'userId', 'messageType', 'createdAt', 'updatedAt',
         'favorite', 'pinned', 'rating', 'lastMessagePreview', 'imagesPreview', 'sessionStats', 'detectedQuestion', 'studentScore', 'usageMode'
@@ -785,11 +784,24 @@ export class FirestoreService {
         return [];
       }
 
-      const sessions = [];
+      let sessions = [];
       const processStart = Date.now();
 
       for (const doc of snapshot.docs) {
         const sessionData = doc.data();
+
+        // Search filtering: if searchQuery is provided, filter by title (case-insensitive token-based matching)
+        if (searchQuery) {
+          const title = (sessionData.title || '').toLowerCase();
+          const queryTokens = searchQuery.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+          
+          if (queryTokens.length > 0) {
+            const matchesAllTokens = queryTokens.every(token => title.includes(token));
+            if (!matchesAllTokens) {
+              continue; // Skip if doesn't match all tokens
+            }
+          }
+        }
 
         // 1. Get last message from preview OR fallback to extraction (backward compatibility)
         let lastMessage = sessionData.lastMessagePreview;
@@ -831,6 +843,11 @@ export class FirestoreService {
           studentScore: sessionData.studentScore || null,
           usageMode: sessionData.usageMode || null
         });
+
+        // If searching, stop once we've reached the requested limit (e.g., 10 for default search)
+        if (searchQuery && sessions.length >= limit) {
+          break;
+        }
       }
 
       // Sort sessions by pinned first, then updatedAt in JavaScript

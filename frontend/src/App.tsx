@@ -17,6 +17,7 @@ import GuestLimitModal from './components/common/GuestLimitModal';
 import AnalyticsTracker from './components/common/AnalyticsTracker';
 import AccuracyPage from './pages/AccuracyPage';
 import ProgrammaticLandingPage from './pages/ProgrammaticLandingPage';
+import SearchPage from './pages/SearchPage';
 import SeoHeader from './components/common/SeoHeader';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import useTheme from './hooks/useTheme';
@@ -239,6 +240,17 @@ function AppContent() {
           <OptionalAuthRoute>
             <MainLayoutWrapper {...layoutProps} hideHeader={true}>
               <AnalysisPage setSidebarOpen={setIsSidebarOpen} />
+            </MainLayoutWrapper>
+          </OptionalAuthRoute>
+        } />
+
+        <Route path="/search" element={
+          <OptionalAuthRoute>
+            <MainLayoutWrapper {...layoutProps} hideHeader={true}>
+              <SearchPage 
+                setSidebarOpen={setIsSidebarOpen} 
+                onNewChat={handleMarkHomeworkClick}
+              />
             </MainLayoutWrapper>
           </OptionalAuthRoute>
         } />
