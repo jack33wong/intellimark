@@ -751,7 +751,7 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  font-size: 0.6em;
 }
 
 .new-text {

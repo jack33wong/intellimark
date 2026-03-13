@@ -76,22 +76,25 @@ html.dark .paywall-cta-overlay h4 {
 
 /* Floating Banner */
 .guest-mode-floating-banner {
-  position: fixed;
-  bottom: 20px;
+
+  bottom: 180px;
+  padding: 10px 16px;
+  gap: 12px;
+  width: 80%;
+  justify-content: space-between;
+  max-width: 800px;
+  position: relative;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
-  padding: 12px 24px;
   border-radius: 50px;
   display: flex;
   align-items: center;
-  gap: 20px;
   z-index: 1000;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  min-width: 320px;
-  justify-content: space-between;
+
 }
 
 html.dark .guest-mode-floating-banner {
@@ -136,7 +139,7 @@ html.dark .guest-mode-floating-banner {
 
 @media (max-width: 640px) {
   .guest-mode-floating-banner {
-    bottom: 90px;
+    bottom: 150px;
     padding: 10px 16px;
     gap: 12px;
     width: 90%;

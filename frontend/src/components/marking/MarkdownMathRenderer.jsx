@@ -212,6 +212,17 @@ export default function MarkdownMathRenderer({
     });
   };
 
+  const injectMarkingTags = (text) => {
+    if (!text || typeof text !== 'string') return text;
+    // Surgically wrap [M1], [A1] etc in marking-code spans for right-alignment
+    // This matches the design used in the explicit Model Answer templates
+    return text.replace(/\[([A-Z]\d+[^\]]*)\]/g, (match, code) => {
+      // Avoid double-wrapping if the AI already provided the span
+      if (text.includes(`class="marking-code">[${code}]</span>`)) return match;
+      return `<span class="marking-code">[${code}]</span>`;
+    });
+  };
+
   if (!content || typeof content !== 'string') {
     return (
       <div className={`markdown-math-renderer ${className}`}>
@@ -227,7 +238,9 @@ export default function MarkdownMathRenderer({
     content.includes('<span class="model_question">') ||
     content.includes('<div class="ai-explanation-section">') ||
     content.includes('<div class="model-answer-block">') ||   // marking-scheme outer wrapper
-    content.includes('<div class="model-question-number">');  // marking-scheme question header
+    content.includes('<div class="model-question-number">') ||   // marking-scheme question header
+    content.includes('<div class="step-title">') ||            // marking-scheme-explanation title
+    content.includes('<div class="step-explanation">');       // marking-scheme-explanation body
 
   // Only convert step-title/step-explanation divs to Markdown for mixed-mode content.
   // Skip this for explicit HTML content — it would leave orphaned </div> tags.
@@ -246,7 +259,7 @@ export default function MarkdownMathRenderer({
 
   const contentWithMath = detectAndWrapMath(contentWithBlockMarkers);
   const preprocessedContent = preprocessLatexDelimiters(contentWithMath);
-  const processedText = parseYourWorkBlocks(preprocessedContent);
+  const processedText = injectMarkingTags(parseYourWorkBlocks(preprocessedContent));
 
   // Apply Diagram Post-Processing (SVG Conversion)
   const finalProcessedText = (processedText.includes('model_answer') || processedText.includes('model_question') || processedText.includes('[Diagram'))
