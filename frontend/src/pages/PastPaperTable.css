@@ -100,7 +100,7 @@
 }
 
 .paper-type {
-    font-size: 9px;
+    font-size: 0.5em;
     color: var(--text-tertiary, #718096);
     background: #f7fafc;
     padding: 2px 6px;
@@ -186,7 +186,7 @@
     }
 
     .paper-type {
-        font-size: 11px;
+        font-size: 0.45em;
     }
 
     .year-card-static {

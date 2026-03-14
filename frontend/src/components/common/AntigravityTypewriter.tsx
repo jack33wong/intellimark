@@ -32,8 +32,8 @@ const AntigravityTypewriter: React.FC<AntigravityTypewriterProps> = ({
 
     // Flatten segments for the typing logic
     const allChars = useMemo(() => {
-        return segments.flatMap(seg =>
-            seg.text.split('').map(char => ({ char, className: seg.className }))
+        return segments.flatMap((seg, segIdx) =>
+            seg.text.split('').map(char => ({ char, className: seg.className, segIdx }))
         );
     }, [segments]);
 
@@ -54,8 +54,10 @@ const AntigravityTypewriter: React.FC<AntigravityTypewriterProps> = ({
             let delay = 50;
             let shouldBlink = false;
 
-            // Detect Line Break (Forced or Wrapped) for 1s pause
-            if (currentCharEl && prevCharEl && currentCharEl.offsetTop > prevCharEl.offsetTop + 5) {
+            const prevCharIdx = visibleIndex > 0 ? allChars[visibleIndex - 1]?.segIdx : -1;
+            const currentCharIdx = allChars[visibleIndex]?.segIdx;
+
+            if (visibleIndex > 0 && currentCharIdx !== prevCharIdx) {
                 delay = 800;
                 shouldBlink = true;
             } else if (visibleIndex === 0) {

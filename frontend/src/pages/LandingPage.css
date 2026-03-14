@@ -119,7 +119,7 @@
 
 @media (max-width: 640px) {
     .hero-main-title {
-        font-size: 24px;
+        font-size: 30px;
         line-height: 1.25;
         margin-bottom: 16px;
     }
@@ -361,6 +361,11 @@
     .final-cta-container {
         padding: 60px 24px;
     }
+
+    .hero-primary-cta {
+        font-size: 1em;
+    }
+
 }
 
 /* Dual-Action Entry Section */
@@ -533,18 +538,19 @@
         width: 100%;
         justify-content: center;
     }
-}
 
-.board-tag {
-    color: var(--text-brand);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-}
 
-.label-tiny {
-    font-size: 0.7rem;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    .board-tag {
+        color: var(--text-brand);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+    }
+
+    .label-tiny {
+        font-size: 0.7rem;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
 }

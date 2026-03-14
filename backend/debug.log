@@ -3826,3 +3826,848 @@ No, because he would need to extrapolate beyond the line of best fit. <span clas
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 2726ms for 48 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 10132ms, Process 3ms for 48 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 10135ms for 48 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 891ms, Process 6ms for 48 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 897ms for 48 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 952ms, Process 5ms for 48 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 957ms for 48 sessions (limit: 50)
+🚀 [MODEL-ANSWER] Controller HIT! Request for paper: 8300-3H-NOV2024
+ℹ️ [EXAM-REF] Looking for paper via search: 8300-3H-NOV2024
+ℹ️ [EXAM-REF] Searching papers with variations: ["8300-3h-nov2024","8300 3h nov2024","8300/3h/nov2024","8300-3h-nov 2024","8300 3h nov 2024","8300/3h/nov 2024","8300 3h november 2024"]
+✅ [EXAM-REF] Best match: 8300/3H (November 2024) with score 4
+ℹ️ [EXAM-REF] Looking for scheme via Metadata: 8300/3H / November 2024 (Variations: ["November 2024","november 2024"])
+✅ [EXAM-REF] Found scheme via Metadata Match: a74207f5-a167-4f2a-bad0-e2f7dde01651 (November 2024)
+[MODEL-ANSWER] Found sub-marks for 2: 2a, 2b
+[MODEL-ANSWER] Found sub-marks for 3: 3a, 3b
+[MODEL-ANSWER] Found sub-marks for 7: 7a, 7b
+[MODEL-ANSWER] Found sub-marks for 14: 14a, 14b
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+Work out the reciprocal of $\frac{10}{3}$. Give your answer as a decimal.
+</span>
+<div class="model_answer">
+$\frac{3}{10}$ <span class="marking-code">[B1]</span><br>
+$0.3$ <span class="marking-code">[B2]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+Work out the reciprocal of $\frac{10}{3}$. Give your answer as a decimal.
+</span>
+<div class="model_answer">
+$\frac{3}{10}$ <span class="marking-code">[B1]</span><br>
+$0.3$ <span class="marking-code">[B2]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+A bag contains one £5 note, one £10 note, one £20 note and one £50 note. Amaan picks two of the notes at random without replacement. Work out the probability that he has picked at least £30.
+</span>
+<div class="model_answer">
+$\frac{4}{6}$ <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+A bag contains one £5 note, one £10 note, one £20 note and one £50 note. Amaan picks two of the notes at random without replacement. Work out the probability that he has picked at least £30.
+</span>
+<div class="model_answer">
+$\frac{4}{6}$ <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">A triangle is drawn using the lines $y=x$, $x=-2$, $y=4$. Work out the coordinates of the three vertices of the triangle.</span>
+<div class="model_answer">
+(-2,-2) and (-2, 4) and (4, 4) <span class="marking-code">[B3]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">A triangle is drawn using the lines $y=x$, $x=-2$, $y=4$. Work out the coordinates of the three vertices of the triangle.</span>
+<div class="model_answer">
+(-2,-2) and (-2, 4) and (4, 4) <span class="marking-code">[B3]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+The total cost of a taxi ride is calculated by adding a fixed charge of £4 and a charge of £2 per mile. Write a formula to work out the total cost, £C, of a journey of $m$ miles.
+</span>
+<div class="model_answer">
+$C = 2m + 4$ <span class="marking-code">[B2]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+The total cost of a taxi ride is calculated by adding a fixed charge of £4 and a charge of £2 per mile. Write a formula to work out the total cost, £C, of a journey of $m$ miles.
+</span>
+<div class="model_answer">
+$C = 2m + 4$ <span class="marking-code">[B2]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+To the nearest pound, Rosie has £12. She wants to buy 6 drinks. Each drink costs £1.89. Show that Rosie definitely has enough money to buy the 6 drinks.
+</span>
+<div class="model_answer">
+$2 \times 6 = 12$ <span class="marking-code">[M1]</span><br>
+$2 - 1.89 = 0.11$ <span class="marking-code">[M1]</span><br>
+$0.11 \times 6 = 0.66$ <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+To the nearest pound, Rosie has £12. She wants to buy 6 drinks. Each drink costs £1.89. Show that Rosie definitely has enough money to buy the 6 drinks.
+</span>
+<div class="model_answer">
+$2 \times 6 = 12$ <span class="marking-code">[M1]</span><br>
+$2 - 1.89 = 0.11$ <span class="marking-code">[M1]</span><br>
+$0.11 \times 6 = 0.66$ <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+When x is divided by 2 the remainder is 1. When x is divided by 3 the remainder is 1. When x is divided by 4 the remainder is 1. Work out two possible values of x.
+</span>
+<div class="model_answer">
+13, 25 <span class="marking-code">[B2]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+When x is divided by 2 the remainder is 1. When x is divided by 3 the remainder is 1. When x is divided by 4 the remainder is 1. Work out two possible values of x.
+</span>
+<div class="model_answer">
+13, 25 <span class="marking-code">[B2]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+The population of a country is now 67 200 000. The population is predicted to increase by 1% per year for 6 years and then decrease by 1.2% per year for 2 years. Work out the predicted population of the country 8 years from now. Give your answer to 3 significant figures.
+</span>
+<div class="model_answer">
+$67~200~000 \times 1.01^6 \times 0.988^2$ <span class="marking-code">[M1, M1dep]</span><br>
+$69632406.5$ <span class="marking-code">[A1]</span><br>
+$69~600~000$ <span class="marking-code">[B1ft]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+The population of a country is now 67 200 000. The population is predicted to increase by 1% per year for 6 years and then decrease by 1.2% per year for 2 years. Work out the predicted population of the country 8 years from now. Give your answer to 3 significant figures.
+</span>
+<div class="model_answer">
+$67~200~000 \times 1.01^6 \times 0.988^2$ <span class="marking-code">[M1, M1dep]</span><br>
+$69632406.5$ <span class="marking-code">[A1]</span><br>
+$69~600~000$ <span class="marking-code">[B1ft]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+Factorise fully $12t+4t^{3}$
+</span>
+<div class="model_answer">
+$4t(3+t^2)$ <span class="marking-code">[B2]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+Factorise fully $12t+4t^{3}$
+</span>
+<div class="model_answer">
+$4t(3+t^2)$ <span class="marking-code">[B2]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">a) The table shows information about the number of houses with solar panels in a town. 
+<table>
+<tr><th>Year</th><th>Number of houses</th></tr>
+<tr><td>2017</td><td>50</td></tr>
+<tr><td>2018</td><td>65</td></tr>
+<tr><td>2019</td><td>115</td></tr>
+<tr><td>2020</td><td>210</td></tr>
+<tr><td>2021</td><td>275</td></tr>
+<tr><td>2022</td><td>350</td></tr>
+</table>
+Complete the graph.
+</span>
+<div class="model_answer">
+Points plotted at (2017, 50), (2018, 65), (2019, 115), (2020, 210), (2021, 275), (2022, 350) and points joined by single straight lines. <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+<span class="model_question">b) Use the graph to estimate the number of houses with solar panels in 2023.
+</span>
+<div class="model_answer">
+$[360, 500]$ <span class="marking-code">[B1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">a) The table shows information about the number of houses with solar panels in a town. 
+<table>
+<tr><th>Year</th><th>Number of houses</th></tr>
+<tr><td>2017</td><td>50</td></tr>
+<tr><td>2018</td><td>65</td></tr>
+<tr><td>2019</td><td>115</td></tr>
+<tr><td>2020</td><td>210</td></tr>
+<tr><td>2021</td><td>275</td></tr>
+<tr><td>2022</td><td>350</td></tr>
+</table>
+Complete the graph.
+</span>
+<div class="model_answer">
+Points plotted at (2017, 50), (2018, 65), (2019, 115), (2020, 210), (2021, 275), (2022, 350) and points joined by single straight lines. <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+<span class="model_question">b) Use the graph to estimate the number of houses with solar panels in 2023.
+</span>
+<div class="model_answer">
+$[360, 500]$ <span class="marking-code">[B1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">a) A building in the shape of a cylinder has diameter 40 m and height 55 m. On the centimetre grid, draw a plan of the building. Use a scale of 1 cm to 10 m.</span>
+<div class="model_answer">
+Circle with diameter 4 cm drawn. <span class="marking-code">[B2]</span><br>
+</div>
+<span class="model_question">b) On this centimetre grid, draw the front elevation of the building. Use a scale of 1 cm to 10 m.</span>
+<div class="model_answer">
+Rectangle with horizontal sides 4 cm and vertical sides 5.5 cm drawn. <span class="marking-code">[B2]</span><br>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">a) A building in the shape of a cylinder has diameter 40 m and height 55 m. On the centimetre grid, draw a plan of the building. Use a scale of 1 cm to 10 m.</span>
+<div class="model_answer">
+Circle with diameter 4 cm drawn. <span class="marking-code">[B2]</span><br>
+</div>
+<span class="model_question">b) On this centimetre grid, draw the front elevation of the building. Use a scale of 1 cm to 10 m.</span>
+<div class="model_answer">
+Rectangle with horizontal sides 4 cm and vertical sides 5.5 cm drawn. <span class="marking-code">[B2]</span><br>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+A car will travel 60 miles. Draw a graph to show the average speed of the car for times taken between 1 hour and 6 hours. You may use the table to help you. 
+<table border="1">
+<tr>
+<th>Time (hours)</th>
+<th>Average Speed (mph)</th>
+</tr>
+<tr>
+<td>1</td>
+<td>60</td>
+</tr>
+<tr>
+<td>2</td>
+<td>30</td>
+</tr>
+<tr>
+<td>3</td>
+<td>20</td>
+</tr>
+<tr>
+<td>4</td>
+<td>15</td>
+</tr>
+<tr>
+<td>5</td>
+<td>12</td>
+</tr>
+<tr>
+<td>6</td>
+<td>10</td>
+</tr>
+</table>
+</span>
+<div class="model_answer">
+Points plotted at $(1, 60)$, $(2, 30)$, $(3, 20)$, $(4, 15)$, $(5, 12)$ and $(6, 10)$ <span class="marking-code">[M1]</span> <br>
+Single smooth curve through the correct points <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+A car will travel 60 miles. Draw a graph to show the average speed of the car for times taken between 1 hour and 6 hours. You may use the table to help you. 
+<table border="1">
+<tr>
+<th>Time (hours)</th>
+<th>Average Speed (mph)</th>
+</tr>
+<tr>
+<td>1</td>
+<td>60</td>
+</tr>
+<tr>
+<td>2</td>
+<td>30</td>
+</tr>
+<tr>
+<td>3</td>
+<td>20</td>
+</tr>
+<tr>
+<td>4</td>
+<td>15</td>
+</tr>
+<tr>
+<td>5</td>
+<td>12</td>
+</tr>
+<tr>
+<td>6</td>
+<td>10</td>
+</tr>
+</table>
+</span>
+<div class="model_answer">
+Points plotted at $(1, 60)$, $(2, 30)$, $(3, 20)$, $(4, 15)$, $(5, 12)$ and $(6, 10)$ <span class="marking-code">[M1]</span> <br>
+Single smooth curve through the correct points <span class="marking-code">[M1]</span> <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">Match each equation to a statement to show what happens when the value of $x$ is doubled. Equations: $y=\frac{1}{x^{2}}$, $y=8x$, $y=\frac{10}{x}$, $y=3x^{2}$.</span>
+<div class="model_answer">
+$y=\frac{1}{x^{2}}$ becomes $\frac{1}{4}$ of the original. <br>
+$y=8x$ doubles. <br>
+$y=\frac{10}{x}$ becomes $\frac{1}{2}$ of the original. <br>
+$y=3x^{2}$ quadruples. <span class="marking-code">[B3]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">Match each equation to a statement to show what happens when the value of $x$ is doubled. Equations: $y=\frac{1}{x^{2}}$, $y=8x$, $y=\frac{10}{x}$, $y=3x^{2}$.</span>
+<div class="model_answer">
+$y=\frac{1}{x^{2}}$ becomes $\frac{1}{4}$ of the original. <br>
+$y=8x$ doubles. <br>
+$y=\frac{10}{x}$ becomes $\frac{1}{2}$ of the original. <br>
+$y=3x^{2}$ quadruples. <span class="marking-code">[B3]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+A bag contains 25 discs. 11 are red, 9 are blue and 5 are yellow. Ashley picks three of the discs at random without replacement. Ashley's first disc is red. Work out the probability that all three discs are different colours.
+</span>
+<div class="model_answer">
+$\frac{9}{24} \times \frac{5}{23} \times 2 = \frac{90}{552}$ <span class="marking-code">[M1]</span> <span class="marking-code">[M1dep]</span> <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+A bag contains 25 discs. 11 are red, 9 are blue and 5 are yellow. Ashley picks three of the discs at random without replacement. Ashley's first disc is red. Work out the probability that all three discs are different colours.
+</span>
+<div class="model_answer">
+$\frac{9}{24} \times \frac{5}{23} \times 2 = \frac{90}{552}$ <span class="marking-code">[M1]</span> <span class="marking-code">[M1dep]</span> <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">a) At a school there are 912 students. The ratio of students to teachers is 15.2 : 1. The number of students stays the same. The number of teachers increases by 2. Work out the new ratio of students to teachers. Give your answer in the form n : 1.
+</span>
+<div class="model_answer">
+$912 \div 15.2 = 60$ <span class="marking-code">[M1]</span><br>
+$912 \div (60 + 2) = 14.709\dots$ <span class="marking-code">[M1dep]</span><br>
+$14.7:1$ <span class="marking-code">[A1]</span>
+</div>
+<span class="model_question">b) On a school trip, one teacher is needed for every group of 10 or fewer students. 72 students want to go on the trip. Lexi tries to work out how many teachers are needed. $72 \div 10 = 7.2$. 7 teachers are needed. What is wrong with her answer?
+</span>
+<div class="model_answer">
+She needs to round up <span class="marking-code">[B1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">a) At a school there are 912 students. The ratio of students to teachers is 15.2 : 1. The number of students stays the same. The number of teachers increases by 2. Work out the new ratio of students to teachers. Give your answer in the form n : 1.
+</span>
+<div class="model_answer">
+$912 \div 15.2 = 60$ <span class="marking-code">[M1]</span><br>
+$912 \div (60 + 2) = 14.709\dots$ <span class="marking-code">[M1dep]</span><br>
+$14.7:1$ <span class="marking-code">[A1]</span>
+</div>
+<span class="model_question">b) On a school trip, one teacher is needed for every group of 10 or fewer students. 72 students want to go on the trip. Lexi tries to work out how many teachers are needed. $72 \div 10 = 7.2$. 7 teachers are needed. What is wrong with her answer?
+</span>
+<div class="model_answer">
+She needs to round up <span class="marking-code">[B1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+A stone falls vertically from 300 metres above ground. The stone falls $d$ metres in $t$ seconds. $d$ is directly proportional to the square of $t$. The stone falls 20 metres in the first 2 seconds. Work out the total time taken for the stone to reach the ground.
+</span>
+<div class="model_answer">
+$d \propto t^2$ or $d=kt^2$ or $20=k \times 2^2$ or $k=20 \div 4$ <span class="marking-code">[M1]</span><br>
+$d=5t^2$ or $k=5$ <span class="marking-code">[M1dep]</span><br>
+$(t=)\sqrt{300 \div 5}$ or $(t=)\sqrt{60}$ <span class="marking-code">[M1dep]</span><br>
+7.75 <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+A stone falls vertically from 300 metres above ground. The stone falls $d$ metres in $t$ seconds. $d$ is directly proportional to the square of $t$. The stone falls 20 metres in the first 2 seconds. Work out the total time taken for the stone to reach the ground.
+</span>
+<div class="model_answer">
+$d \propto t^2$ or $d=kt^2$ or $20=k \times 2^2$ or $k=20 \div 4$ <span class="marking-code">[M1]</span><br>
+$d=5t^2$ or $k=5$ <span class="marking-code">[M1dep]</span><br>
+$(t=)\sqrt{300 \div 5}$ or $(t=)\sqrt{60}$ <span class="marking-code">[M1dep]</span><br>
+7.75 <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+The metal used to make a sphere costs £4320. The metal costs £3.60 per gram. Each cubic centimetre of metal has a mass of 17.3 grams. Work out the radius, r, of the sphere.
+</span>
+<div class="model_answer">
+$4320 \div 3.6 = 1200$ <span class="marking-code">[M1]</span><br>
+$1200 \div 17.3 = 69.36$ <span class="marking-code">[M1dep]</span><br>
+$r^3 = 69.36 \times \frac{3}{4\pi} = 16.56$ <span class="marking-code">[M1dep]</span><br>
+$r = 2.55$ <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+The metal used to make a sphere costs £4320. The metal costs £3.60 per gram. Each cubic centimetre of metal has a mass of 17.3 grams. Work out the radius, r, of the sphere.
+</span>
+<div class="model_answer">
+$4320 \div 3.6 = 1200$ <span class="marking-code">[M1]</span><br>
+$1200 \div 17.3 = 69.36$ <span class="marking-code">[M1dep]</span><br>
+$r^3 = 69.36 \times \frac{3}{4\pi} = 16.56$ <span class="marking-code">[M1dep]</span><br>
+$r = 2.55$ <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+[PERF] getUserUnifiedSessions: Fetch 43324ms, Process 4ms for 48 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 43328ms for 48 sessions (limit: 50)
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+A curve has the equation $y=x^{2}+4x-4$. A straight line has the equation $y=3x-2$. Work out the two points of intersection of the curve and the straight line.
+</span>
+<div class="model_answer">
+$x^2+4x-4=3x-2$ <span class="marking-code">[M1]</span><br>
+$x^2+x-2=0$ <span class="marking-code">[A1]</span><br>
+$(x+2)(x-1)=0$<br>
+$x=-2$ and $x=1$ <span class="marking-code">[A1]</span><br>
+When $x=-2$, $y=3(-2)-2=-8$<br>
+When $x=1$, $y=3(1)-2=1$<br>
+$(-2,-8)$ and $(1, 1)$ <span class="marking-code">[A1]</span> <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+A curve has the equation $y=x^{2}+4x-4$. A straight line has the equation $y=3x-2$. Work out the two points of intersection of the curve and the straight line.
+</span>
+<div class="model_answer">
+$x^2+4x-4=3x-2$ <span class="marking-code">[M1]</span><br>
+$x^2+x-2=0$ <span class="marking-code">[A1]</span><br>
+$(x+2)(x-1)=0$<br>
+$x=-2$ and $x=1$ <span class="marking-code">[A1]</span><br>
+When $x=-2$, $y=3(-2)-2=-8$<br>
+When $x=1$, $y=3(1)-2=1$<br>
+$(-2,-8)$ and $(1, 1)$ <span class="marking-code">[A1]</span> <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+Factorise fully $3x^{2}+23x+30$
+</span>
+<div class="model_answer">
+$(3x+5)(x+6)$ <span class="marking-code">[B2]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+Factorise fully $3x^{2}+23x+30$
+</span>
+<div class="model_answer">
+$(3x+5)(x+6)$ <span class="marking-code">[B2]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+Rearrange $y=\sqrt{(\frac{x}{2}+1)}$ to make x the subject.
+</span>
+<div class="model_answer">
+$y^2 = \frac{x}{2} + 1$ <span class="marking-code">[M1]</span><br>
+$y^2 - 1 = \frac{x}{2}$ <span class="marking-code">[M1dep]</span><br>
+$x=2y^2-2$ <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+Rearrange $y=\sqrt{(\frac{x}{2}+1)}$ to make x the subject.
+</span>
+<div class="model_answer">
+$y^2 = \frac{x}{2} + 1$ <span class="marking-code">[M1]</span><br>
+$y^2 - 1 = \frac{x}{2}$ <span class="marking-code">[M1dep]</span><br>
+$x=2y^2-2$ <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+Three shops sell shirts. Shop A: Pack of 2 £19.00. Shop B: Pack of 3 £37.40, Now 25% off. Shop C: Was £12.40, Buy one pack get another pack half price. At which shop is it cheapest to buy 6 shirts? Show working to support your answer.
+</span>
+<div class="model_answer">
+Shop A: $19 \times 3 = 57$ <span class="marking-code">[M1]</span><br>
+Shop B: $37.40 \times 0.25 = 9.35$, $37.40 - 9.35 = 28.05$, $28.05 \times 2 = 56.10$ <span class="marking-code">[M1, M1dep]</span><br>
+Shop C: $12.40 \div 2 = 6.20$, $12.40 + 6.20 = 18.60$, $18.60 \times 3 = 55.80$ <span class="marking-code">[M1]</span><br>
+Shop C is cheapest. <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+Three shops sell shirts. Shop A: Pack of 2 £19.00. Shop B: Pack of 3 £37.40, Now 25% off. Shop C: Was £12.40, Buy one pack get another pack half price. At which shop is it cheapest to buy 6 shirts? Show working to support your answer.
+</span>
+<div class="model_answer">
+Shop A: $19 \times 3 = 57$ <span class="marking-code">[M1]</span><br>
+Shop B: $37.40 \times 0.25 = 9.35$, $37.40 - 9.35 = 28.05$, $28.05 \times 2 = 56.10$ <span class="marking-code">[M1, M1dep]</span><br>
+Shop C: $12.40 \div 2 = 6.20$, $12.40 + 6.20 = 18.60$, $18.60 \times 3 = 55.80$ <span class="marking-code">[M1]</span><br>
+Shop C is cheapest. <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+The distance of a particle from a point is d metres after t seconds. $d=a\times b^{t}$ where a and b are constants. Work out the values of a and b.
+</span>
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "function_graph",
+  "purpose": "solution",
+  "points": [[0, 5], [3, 40]]
+}
+</script>
+<div class="model_answer">
+$5 = a \times b^0$ <span class="marking-code">[M1]</span><br>
+$5 = a \times 1$<br>
+$a = 5$<br>
+$40 = 5 \times b^3$<br>
+$8 = b^3$<br>
+$b = 2$<br>
+$a = 5$, $b = 2$ <span class="marking-code">[A2]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+The distance of a particle from a point is d metres after t seconds. $d=a\times b^{t}$ where a and b are constants. Work out the values of a and b.
+</span>
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "function_graph",
+  "purpose": "solution",
+  "points": [[0, 5], [3, 40]]
+}
+</script>
+<div class="model_answer">
+$5 = a \times b^0$ <span class="marking-code">[M1]</span><br>
+$5 = a \times 1$<br>
+$a = 5$<br>
+$40 = 5 \times b^3$<br>
+$8 = b^3$<br>
+$b = 2$<br>
+$a = 5$, $b = 2$ <span class="marking-code">[A2]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+The table shows information about the height of 40 plants. 
+<table>
+<tr><th>Height ($h$)</th><th>Frequency</th></tr>
+<tr><td>$0 \le h &lt; 5$</td><td>6</td></tr>
+<tr><td>$5 \le h &lt; 15$</td><td>15</td></tr>
+<tr><td>$15 \le h &lt; 25$</td><td>9</td></tr>
+<tr><td>$25 \le h &lt; 50$</td><td>10</td></tr>
+</table>
+Draw a histogram to represent the heights.
+</span>
+<div class="model_answer">
+Frequency densities calculated: <br>
+$6 \div 5 = 1.2$ <span class="marking-code">[M1]</span> <br>
+$15 \div 10 = 1.5$ <span class="marking-code">[M1dep]</span> <br>
+$9 \div 10 = 0.9$ <span class="marking-code">[M1dep]</span> <br>
+$10 \div 25 = 0.4$ <span class="marking-code">[M1dep]</span> <br>
+Histogram drawn with correct bars and linear scale on the vertical axis. <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+The table shows information about the height of 40 plants. 
+<table>
+<tr><th>Height ($h$)</th><th>Frequency</th></tr>
+<tr><td>$0 \le h &lt; 5$</td><td>6</td></tr>
+<tr><td>$5 \le h &lt; 15$</td><td>15</td></tr>
+<tr><td>$15 \le h &lt; 25$</td><td>9</td></tr>
+<tr><td>$25 \le h &lt; 50$</td><td>10</td></tr>
+</table>
+Draw a histogram to represent the heights.
+</span>
+<div class="model_answer">
+Frequency densities calculated: <br>
+$6 \div 5 = 1.2$ <span class="marking-code">[M1]</span> <br>
+$15 \div 10 = 1.5$ <span class="marking-code">[M1dep]</span> <br>
+$9 \div 10 = 0.9$ <span class="marking-code">[M1dep]</span> <br>
+$10 \div 25 = 0.4$ <span class="marking-code">[M1dep]</span> <br>
+Histogram drawn with correct bars and linear scale on the vertical axis. <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+Use the sine rule to work out length x. You must show your working.
+</span>
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "angle": 117,
+  "angle2": 35,
+  "side": 54,
+  "side_variable": "x",
+  "description": "Triangle with angles 117 and 35 degrees, side opposite 117 is 54cm, side opposite 35 is x"
+}
+</script>
+<div class="model_answer">
+$\frac{x}{\sin 35} = \frac{54}{\sin 117}$ <span class="marking-code">[M1]</span><br>
+$(x=) \frac{54 \sin 35}{\sin 117}$ <span class="marking-code">[M1dep]</span><br>
+$x = 34.6$ <span class="marking-code">[A1]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+Use the sine rule to work out length x. You must show your working.
+</span>
+<script type="application/json" class="ai-diagram-data">
+{
+  "type": "triangle",
+  "angle": 117,
+  "angle2": 35,
+  "side": 54,
+  "side_variable": "x",
+  "description": "Triangle with angles 117 and 35 degrees, side opposite 117 is 54cm, side opposite 35 is x"
+}
+</script>
+<div class="model_answer">
+$\frac{x}{\sin 35} = \frac{54}{\sin 117}$ <span class="marking-code">[M1]</span><br>
+$(x=) \frac{54 \sin 35}{\sin 117}$ <span class="marking-code">[M1dep]</span><br>
+$x = 34.6$ <span class="marking-code">[A1]</span>
+</div>
+==================================================
+
+
+==================================================
+[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...
+[DEBUG] Step 1 Complete. Raw HTML Output from AI:
+--------------------------------------------------
+<span class="model_question">
+a) A test consists of two sections, A and B. 85% of people pass section A. 78% of people who pass section A also pass section B. 36% of people who fail section A also fail section B. Complete the tree diagram. [Tree Diagram: Section A - Pass (0.85), Fail (0.15); Section B (if Section A Pass) - Pass (0.78), Fail (0.22); Section B (if Section A Fail) - Pass (0.64), Fail (0.36)]
+</span>
+<script type="application/json" class="ai-diagram-data">
+{"type": "tree_diagram", "purpose": "solution", "branches": []}
+</script>
+<div class="model_answer">
+Section A Pass: $0.85$, Fail: $0.15$ <span class="marking-code">[B1]</span><br>
+Section B (if Section A Pass) Fail: $0.22$ <span class="marking-code">[B1]</span><br>
+Section B (if Section A Fail) Pass: $0.64$, Fail: $0.36$ <span class="marking-code">[B1]</span>
+</div>
+<span class="model_question">
+b) 40% of people who fail at least one section take the test again. 5000 people take the test. How many of these 5000 people are expected to take the test again?
+</span>
+<div class="model_answer">
+$0.85 \times 0.78 = 0.663$ <span class="marking-code">[M1]</span><br>
+$1 - 0.663 = 0.337$ <span class="marking-code">[M1dep]</span><br>
+$0.337 \times 0.4 = 0.1348$ <span class="marking-code">[M1dep]</span><br>
+$0.1348 \times 5000 = 674$ <span class="marking-code">[A1ft]</span>
+</div>
+--------------------------------------------------
+
+[DEBUG] No diagram hints were found in the HTML.
+
+[DEBUG] FINAL HTML READY FOR FRONTEND:
+<span class="model_question">
+a) A test consists of two sections, A and B. 85% of people pass section A. 78% of people who pass section A also pass section B. 36% of people who fail section A also fail section B. Complete the tree diagram. [Tree Diagram: Section A - Pass (0.85), Fail (0.15); Section B (if Section A Pass) - Pass (0.78), Fail (0.22); Section B (if Section A Fail) - Pass (0.64), Fail (0.36)]
+</span>
+<script type="application/json" class="ai-diagram-data">
+{"type": "tree_diagram", "purpose": "solution", "branches": []}
+</script>
+<div class="model_answer">
+Section A Pass: $0.85$, Fail: $0.15$ <span class="marking-code">[B1]</span><br>
+Section B (if Section A Pass) Fail: $0.22$ <span class="marking-code">[B1]</span><br>
+Section B (if Section A Fail) Pass: $0.64$, Fail: $0.36$ <span class="marking-code">[B1]</span>
+</div>
+<span class="model_question">
+b) 40% of people who fail at least one section take the test again. 5000 people take the test. How many of these 5000 people are expected to take the test again?
+</span>
+<div class="model_answer">
+$0.85 \times 0.78 = 0.663$ <span class="marking-code">[M1]</span><br>
+$1 - 0.663 = 0.337$ <span class="marking-code">[M1dep]</span><br>
+$0.337 \times 0.4 = 0.1348$ <span class="marking-code">[M1dep]</span><br>
+$0.1348 \times 5000 = 674$ <span class="marking-code">[A1ft]</span>
+</div>
+==================================================
+
+💳 Deducted 0.67 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1773490747094), remaining: 999921.02

@@ -84,6 +84,10 @@
         font-size: 2rem;
         margin-bottom: 32px;
     }
+
+    .testimonials-section {
+        padding: 40px 24px 60px;
+    }
 }
 
 .performance-badge {
