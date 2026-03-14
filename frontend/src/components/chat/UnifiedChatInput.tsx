@@ -111,12 +111,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   // Metadata & Autocomplete State
   interface LocalExamMetadata {
     boards: string[];
+    qualifications: string[];
     tiers: string[];
     papers: string[];
     codes: string[];
   }
   const [metadata, setMetadata] = useState<LocalExamMetadata>({
     boards: [],
+    qualifications: [],
     tiers: [],
     papers: [],
     codes: [],
@@ -148,6 +150,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       const normalize = (t: string) => t.toLowerCase()
         .replace(/\bmathematics\b/g, 'maths')
         .replace(/\b(june|may|summer)\b/g, 'summer')
+        .replace(/\ba level\b/g, 'alevel')
         .replace(/[-,/]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -155,6 +158,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // Build vocabulary from all available metadata
       const vocabulary = new Set<string>();
       (metadata.boards || []).forEach(b => normalize(b).split(' ').forEach(w => w && vocabulary.add(w)));
+      (metadata.qualifications || []).forEach(q => normalize(q).split(' ').forEach(w => w && vocabulary.add(w)));
       (metadata.tiers || []).forEach(t => normalize(t).split(' ').forEach(w => w && vocabulary.add(w)));
       (metadata.papers || []).forEach(p => {
         // Paper names contain codes and series
@@ -294,12 +298,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const normalize = (t: string) => t.toLowerCase()
       .replace(/\bmathematics\b/g, 'maths')
       .replace(/\b(june|may|summer)\b/g, 'summer')
+      .replace(/\ba level\b/g, 'alevel')
       .replace(/[-,/]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
     const vocabulary = new Set<string>();
     (metadata.boards || []).forEach(b => normalize(b).split(' ').forEach(w => w && vocabulary.add(w)));
+    (metadata.qualifications || []).forEach(q => normalize(q).split(' ').forEach(w => w && vocabulary.add(w)));
     (metadata.tiers || []).forEach(t => normalize(t).split(' ').forEach(w => w && vocabulary.add(w)));
     (metadata.papers || []).forEach(p => {
       normalize(p).split(' ').forEach(w => w && vocabulary.add(w));
@@ -860,7 +866,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
           </div>
           <p className="chat-title-greeting">
-            AI Marking for Handwritten GCSE Maths
+            AI Marking for Handwritten {selectedTags.includes('A-Level') ? 'A-Level' : 'GCSE'} Maths
           </p>
           <p className="chat-title-description">
             Get instant grades and method marks (M1) for your AQA, Edexcel, or OCR past papers.
@@ -1115,6 +1121,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               <div className="autocomplete-chips-section">
                 <div className="autocomplete-chips-label">Quick Filters:</div>
                 <div className="autocomplete-chips-container">
+                  {/* Qualification Chips (New) */}
+                  {metadata.qualifications.map((qual: string) => (
+                    <button
+                      key={qual}
+                      className={`filter-chip qualification ${selectedTags.includes(qual) ? 'active' : ''}`}
+                      onClick={() => toggleFilterTag(qual, metadata.qualifications)}
+                    >
+                      {qual}
+                    </button>
+                  ))}
+                  
+                  {/* Exam Board Chips */}
                   {metadata.boards.map((board: string) => (
                     <button
                       key={board}
@@ -1124,7 +1142,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       {board}
                     </button>
                   ))}
-                  {metadata.tiers.map((tier: string) => (
+
+                  {/* Tier Chips (Only for GCSE) */}
+                  {!selectedTags.includes('A-Level') && metadata.tiers.map((tier: string) => (
                     <button
                       key={tier}
                       className={`filter-chip tier ${selectedTags.includes(tier) ? 'active' : ''}`}

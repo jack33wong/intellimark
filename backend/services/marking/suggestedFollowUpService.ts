@@ -216,12 +216,14 @@ export class SuggestedFollowUpService {
 
         // [TWO-PROMPT BRIDGE] Interceptor Logic for Model Answers
         if (isModelAnswer) {
-          console.log("\n==================================================");
-          console.log(`[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...`);
-          console.log(`[DEBUG] Step 1 Complete. Raw HTML Output from AI:`);
-          console.log("--------------------------------------------------");
-          console.log(content);
-          console.log("--------------------------------------------------");
+          if (isLoggingEnabled) {
+            console.log("\n==================================================");
+            console.log(`[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...`);
+            console.log(`[DEBUG] Step 1 Complete. Raw HTML Output from AI:`);
+            console.log("--------------------------------------------------");
+            console.log(content);
+            console.log("--------------------------------------------------");
+          }
 
           const diagramRegex = /\[(?:Type:\s*Diagram|Diagram):\s*(.*?)\]/gi;
           let match;
@@ -236,11 +238,13 @@ export class SuggestedFollowUpService {
             const fullMatchText = currentMatch[0];
             const hintDescription = currentMatch[1];
             
-            console.log(`\n[DEBUG] Step 2: Found Diagram Hint #${diagramCount}:`);
-            console.log(`[DEBUG] Hint Text: "${hintDescription}"`);
+            if (isLoggingEnabled) {
+              console.log(`\n[DEBUG] Step 2: Found Diagram Hint #${diagramCount}:`);
+              console.log(`[DEBUG] Hint Text: "${hintDescription}"`);
 
-            // Call Prompt 2 (JSON Extractor) with just the hint
-            console.log(`[DEBUG] Step 3: Sending hint to Prompt 2 (JSON Extractor)...`);
+              // Call Prompt 2 (JSON Extractor) with just the hint
+              console.log(`[DEBUG] Step 3: Sending hint to Prompt 2 (JSON Extractor)...`);
+            }
             const diagramSystemPrompt = getPrompt('diagramExtractor.system');
             const diagramUserPrompt = getPrompt('diagramExtractor.user', hintDescription);
 
@@ -248,23 +252,27 @@ export class SuggestedFollowUpService {
               const diagramAi = await ModelProvider.callText(diagramSystemPrompt, diagramUserPrompt, model as any, false, tracker, 'modelAnswer');
               const jsonOutput = diagramAi.content.replace(/^```(json)?\s*/i, '').replace(/\s*```$/i, '').trim();
               
-              console.log(`[DEBUG] Step 3 Complete. Raw JSON Output from AI:`);
-              console.log(jsonOutput);
+              if (isLoggingEnabled) {
+                console.log(`[DEBUG] Step 3 Complete. Raw JSON Output from AI:`);
+                console.log(jsonOutput);
+              }
 
               // Verify the JSON is actually valid before injecting it
               try {
                 JSON.parse(jsonOutput);
-                console.log(`[DEBUG] JSON Validation: SUCCESS!`);
+                if (isLoggingEnabled) console.log(`[DEBUG] JSON Validation: SUCCESS!`);
               } catch (parseError) {
-                console.error(`[DEBUG] JSON Validation: FAILED! The AI generated invalid JSON.`);
-                console.error(`[DEBUG] Error Details:`, (parseError as any).message);
+                if (isLoggingEnabled) {
+                  console.error(`[DEBUG] JSON Validation: FAILED! The AI generated invalid JSON.`);
+                  console.error(`[DEBUG] Error Details:`, (parseError as any).message);
+                }
               }
 
               const scriptTag = `<script type="application/json" class="ai-diagram-data">\n${jsonOutput}\n</script>`;
               
               // Replace the hint with the JSON script tag
               content = content.replace(fullMatchText, scriptTag);
-              console.log(`[DEBUG] Step 4: Successfully replaced hint with <script> tag in HTML.`);
+              if (isLoggingEnabled) console.log(`[DEBUG] Step 4: Successfully replaced hint with <script> tag in HTML.`);
               
               // Reset regex index because content length changed
               diagramRegex.lastIndex = 0; 
@@ -276,12 +284,14 @@ export class SuggestedFollowUpService {
           }
 
           if (diagramCount === 0) {
-            console.log(`\n[DEBUG] No diagram hints were found in the HTML.`);
+            if (isLoggingEnabled) console.log(`\n[DEBUG] No diagram hints were found in the HTML.`);
           }
 
-          console.log("\n[DEBUG] FINAL HTML READY FOR FRONTEND:");
-          console.log(content);
-          console.log("==================================================\n");
+          if (isLoggingEnabled) {
+            console.log("\n[DEBUG] FINAL HTML READY FOR FRONTEND:");
+            console.log(content);
+            console.log("==================================================\n");
+          }
         }
 
         if (isLoggingEnabled) {
@@ -308,7 +318,7 @@ export class SuggestedFollowUpService {
         // [SAFETY FIX] Ensure model_question tag exists. If not, prepend verified qText.
         let finalContent = content;
         if (isModelAnswer && !content.includes('class="model_question"')) {
-          console.log(`[FOLLOW-UP] Q${base}: Prepending verified question text (Safe Fallback)`);
+          if (isLoggingEnabled) console.log(`[FOLLOW-UP] Q${base}: Prepending verified question text (Safe Fallback)`);
           const safeText = qText || parentText || "";
           finalContent = `<span class="model_question">${safeText}</span>\n${content}`;
         }

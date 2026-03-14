@@ -286,7 +286,7 @@ const SessionHeader: React.FC = () => {
 
       const subtitleParts = [];
       if (examSeries) subtitleParts.push(examSeries);
-      if (tier) subtitleParts.push(tier);
+      if (tier && tier !== 'N/A') subtitleParts.push(tier);
 
       if (subtitleParts.length > 0) {
         return (

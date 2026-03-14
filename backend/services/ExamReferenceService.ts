@@ -227,7 +227,7 @@ export class ExamReferenceService {
     /**
      * Formats metadata for display (e.g. "JUN2023" -> "June 2023")
      */
-    public static formatMetadataDisplay(meta: any): { series: string, tier: string } {
+    public static formatMetadataDisplay(meta: any): { series: string, tier: string, qualification: string, isAlevel: boolean, isGcse: boolean } {
         let formattedSeries = meta.exam_series || '';
         if (formattedSeries && /^[A-Z]{3}\d{4}$/.test(formattedSeries)) {
             const monthMap: Record<string, string> = {
@@ -239,10 +239,37 @@ export class ExamReferenceService {
             if (monthMap[monthCode]) formattedSeries = `${monthMap[monthCode]} ${year}`;
         }
 
-        let formattedTier = meta.tier || '';
-        if (meta.tier === 'H' || meta.tier === 'Higher') formattedTier = 'Higher Tier';
-        else if (meta.tier === 'F' || meta.tier === 'Foundation') formattedTier = 'Foundation Tier';
+        const rawQual = (meta.qualification || meta.subject || '').toLowerCase();
+        const code = (meta.exam_code || '').toLowerCase();
+        
+        // Robust Qualification Detection: Check explicit metadata and common A-Level code patterns
+        const isAlevel = rawQual.includes('a level') || rawQual.includes('alevel') || 
+                        code.startsWith('7357') || code.startsWith('7356') || code.startsWith('7367') || // AQA
+                        code.startsWith('9ma0') || code.startsWith('8ma0') || code.startsWith('9fm0') || code.startsWith('8fm0') || // Edexcel
+                        code.startsWith('h240') || code.startsWith('h230') || code.startsWith('h640') || code.startsWith('h630'); // OCR
+        
+        let formattedTier = '';
+        if (!isAlevel) {
+            let rawTier = (meta.tier || '').toLowerCase();
+            
+            // Fallback: Extract Tier from code suffix (e.g. 8300/1F -> Foundation)
+            if (!rawTier || (rawTier !== 'h' && rawTier !== 'f' && rawTier !== 'higher' && rawTier !== 'foundation')) {
+                const codeMatch = code.match(/([fh])($|\s|\/)/);
+                if (codeMatch) rawTier = codeMatch[1];
+            }
 
-        return { series: formattedSeries, tier: formattedTier };
+            if (rawTier === 'h' || rawTier === 'higher') formattedTier = 'Higher Tier';
+            else if (rawTier === 'f' || rawTier === 'foundation') formattedTier = 'Foundation Tier';
+        }
+
+        const isGcse = !isAlevel && (rawQual.includes('gcse') || !!formattedTier || !rawQual || rawQual === 'mathematics' || rawQual === 'maths');
+
+        return { 
+            series: formattedSeries, 
+            tier: formattedTier, 
+            qualification: isAlevel ? 'A-Level' : 'GCSE',
+            isAlevel,
+            isGcse
+        };
     }
 }

@@ -154,7 +154,22 @@ const normalizeExamContent = (data) => {
   if (!data || !data.questions) return data;
 
   const normalized = { ...data };
-  normalized.questions = data.questions.map(q => {
+  
+  // Robustly handle both Array and Object formats for questions
+  const rawQuestions = data.questions;
+  let questionsArray = [];
+  
+  if (Array.isArray(rawQuestions)) {
+    questionsArray = rawQuestions;
+  } else if (typeof rawQuestions === 'object' && rawQuestions !== null) {
+    // Convert Object (Map) to Array, ensuring keys are preserved as 'number' if missing
+    questionsArray = Object.entries(rawQuestions).map(([key, val]) => ({
+      number: val.number || val.question_number || val.questionNumber || key,
+      ...val
+    }));
+  }
+
+  normalized.questions = questionsArray.map(q => {
     const qData = { ...q };
     // Normalize main question text
     qData.text = q.text !== undefined ? q.text : (q.question_text !== undefined ? q.question_text : (q.questionText !== undefined ? q.questionText : ''));
@@ -248,6 +263,7 @@ function AdminPage() {
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [activeTab, setActiveTab] = useState('json');
   const [examBoardFilter, setExamBoardFilter] = useState('Pearson Edexcel');
+  const [qualificationFilter, setQualificationFilter] = useState('All');
 
   // JSON upload state
   const [jsonForm, setJsonForm] = useState({
@@ -1437,11 +1453,40 @@ function AdminPage() {
     </div>
   );
 
+  const renderQualificationFilterTabs = () => (
+    <div className="admin-filter-tabs" style={{ marginTop: '8px' }}>
+      {['All', 'GCSE', 'A-Level'].map(qual => (
+        <button
+          key={qual}
+          className={`admin-filter-tab ${qualificationFilter === qual ? 'admin-filter-tab--active' : ''}`}
+          onClick={() => setQualificationFilter(qual)}
+        >
+          {qual}
+        </button>
+      ))}
+    </div>
+  );
+
   const filterByBoard = (entries, getBoardFn) => {
     if (examBoardFilter === 'All') return entries;
     return entries.filter(entry => {
       const board = getBoardFn(entry);
       return board && board.toLowerCase().includes(examBoardFilter.toLowerCase());
+    });
+  };
+
+  const filterByQualification = (entries, getQualFn) => {
+    if (qualificationFilter === 'All') return entries;
+    return entries.filter(entry => {
+      const qual = getQualFn(entry);
+      if (!qual) return false;
+      const lowerQual = qual.toLowerCase();
+      const targetQual = qualificationFilter.toLowerCase();
+      
+      // Check for exact match or inclusion (e.g., "GCSE Maths" matches "GCSE")
+      return lowerQual === targetQual || 
+             lowerQual.includes(targetQual) || 
+             (targetQual === 'a-level' && (lowerQual.includes('a level') || lowerQual.includes('alevel')));
     });
   };
 
@@ -1490,11 +1535,18 @@ function AdminPage() {
   };
 
   const filteredJsonEntries = sortEntriesByDateAndCode(
-    filterByBoard(jsonEntries, (entry) => {
-      const examData = entry.data || entry;
-      const examMeta = examData.exam || examData.metadata || {};
-      return examMeta.board || examMeta.exam_board || JSON.stringify(entry);
-    }),
+    filterByQualification(
+      filterByBoard(jsonEntries, (entry) => {
+        const examData = entry.data || entry;
+        const examMeta = examData.exam || examData.metadata || {};
+        return examMeta.board || examMeta.exam_board || JSON.stringify(entry);
+      }),
+      (entry) => {
+        const examData = entry.data || entry;
+        const examMeta = examData.exam || examData.metadata || {};
+        return examMeta.qualification || examMeta.subject || '';
+      }
+    ),
     (entry) => {
       const examData = entry.data || entry;
       const examMeta = examData.exam || examData.metadata || {};
@@ -1518,8 +1570,15 @@ function AdminPage() {
   );
 
   const filteredMarkingSchemeEntries = sortEntriesByDateAndCode(
-    filterByBoard(markingSchemeEntries, (entry) =>
-      entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || ''
+    filterByQualification(
+      filterByBoard(markingSchemeEntries, (entry) => {
+        const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+        return examDetails.board || examDetails.exam_board || '';
+      }),
+      (entry) => {
+        const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+        return examDetails.qualification || examDetails.subject || '';
+      }
     ),
     (entry) => entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || '',
     (entry) => {
@@ -1536,8 +1595,11 @@ function AdminPage() {
   );
 
   const filteredGradeBoundaries = sortEntriesByDateAndCode(
-    filterByBoard(gradeBoundaryEntries, (entry) =>
-      entry.exam_board || entry.examBoard || ''
+    filterByQualification(
+      filterByBoard(gradeBoundaryEntries, (entry) =>
+        entry.exam_board || entry.examBoard || ''
+      ),
+      (entry) => entry.qualification || ''
     ),
     (entry) => entry.exam_series || entry.examSeries || '',
     (entry) => {
@@ -1875,6 +1937,7 @@ function AdminPage() {
             {/* Exam JSON List */}
             <div className="admin-data-section">
               {renderFilterTabs()}
+              {renderQualificationFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Full Exam Papers ({filteredJsonEntries.length})</h3>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -2543,6 +2606,7 @@ function AdminPage() {
             {/* Marking Scheme List */}
             <div className="admin-data-section">
               {renderFilterTabs()}
+              {renderQualificationFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Marking Schemes ({filteredMarkingSchemeEntries.length})</h3>
                 {markingSchemeEntries.length > 0 && (
@@ -2965,6 +3029,7 @@ function AdminPage() {
             {/* Grade Boundary List */}
             <div className="admin-data-section">
               {renderFilterTabs()}
+              {renderQualificationFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Grade Boundaries ({filteredGradeBoundaries.length})</h3>
                 {gradeBoundaryEntries.length > 0 && (

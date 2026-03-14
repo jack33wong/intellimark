@@ -34,6 +34,7 @@ router.get('/exam-metadata', async (req, res) => {
 
         const snapshot = await db.collection('fullExamPapers').get();
         const boards = new Set<string>();
+        const qualifications = new Set<string>();
         const tiers = new Set<string>();
         const papers = new Set<string>();
         const codes = new Set<string>();
@@ -45,16 +46,30 @@ router.get('/exam-metadata', async (req, res) => {
                 const board = metadata.exam_board || '';
                 const code = metadata.exam_code || '';
 
-                // Normalize Series and Tier using Centralized Service
-                const { series: formattedSeries, tier: formattedTier } = ExamReferenceService.formatMetadataDisplay(metadata);
+                // Normalize Series, Tier, and Qualification using Centralized Service
+                const { series: formattedSeries, tier: formattedTier, qualification, isAlevel, isGcse } = ExamReferenceService.formatMetadataDisplay(metadata);
 
                 if (board) boards.add(board);
-                if (formattedTier) tiers.add(formattedTier);
                 if (code) codes.add(code);
+                
+                // Track qualification (Normalized: GCSE or A-Level)
+                if (qualification) {
+                    qualifications.add(qualification); // Use the normalized value from service
+                }
+
+                // [RULE] Collect TIER only for GCSE and only if not "N/A"
+                if (isGcse && formattedTier && formattedTier !== 'N/A') {
+                    tiers.add(formattedTier);
+                }
 
                 if (board || code || formattedSeries) {
-                    // Format: "Exam board - Exam Code - Exam Series, Tier"
-                    const fullDescription = `${board}${board && code ? ' - ' : ''}${code}${(board || code) && formattedSeries ? ' - ' : ''}${formattedSeries}${formattedTier ? `, ${formattedTier}` : ''}`;
+                    // [RULE] Paper description format: "[Qual] Board - Code - Exam Series" (Tier only if GCSE)
+                    const qualPrefix = isAlevel ? 'A-Level ' : 'GCSE ';
+                    
+                    const tierSuffix = (isGcse && formattedTier) ? `, ${formattedTier}` : '';
+                    
+                    const fullDescription = `${qualPrefix}${board}${board && code ? ' - ' : ''}${code}${(board || code) && formattedSeries ? ' - ' : ''}${formattedSeries}${tierSuffix}`;
+                    
                     if (fullDescription.trim()) {
                         papers.add(fullDescription);
                     }
@@ -64,6 +79,7 @@ router.get('/exam-metadata', async (req, res) => {
 
         res.json({
             boards: Array.from(boards).sort(),
+            qualifications: Array.from(qualifications).sort(),
             tiers: Array.from(tiers).sort(),
             papers: Array.from(papers).sort(),
             codes: Array.from(codes).sort()

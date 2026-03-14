@@ -3,6 +3,7 @@ import API_CONFIG from '../config/api';
 
 interface ExamMetadata {
     boards: string[];
+    qualifications: string[];
     tiers: string[];
     papers: string[];
     codes: string[];
