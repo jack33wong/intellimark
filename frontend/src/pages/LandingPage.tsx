@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock } from 'lucide-react';
+import { Lock, ArrowDown } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import HeroAnimation from '../components/layout/HeroAnimation';
 import Testimonials from '../components/landing/Testimonials';
@@ -91,8 +91,8 @@ const ImageMagnifier = ({
 
 /* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "AI Marking that reads your handwriting" }, // No trailing space needed
-    { text: "Exactly like an Examiner", className: "hero-highlight-blue" }
+    { text: "Free GCSE Maths Past Papers" },
+    { text: " & Model Answers", className: "hero-highlight-blue" }
 ];
 
 
@@ -128,14 +128,15 @@ const LandingPage: React.FC = () => {
 
                     {/* BLOCK 1: Subtitle (Immediate start after typing) */}
                     <p className="hero-main-subtitle anim-item delay-1">
-                        Upload your handwritten maths papers and get an instant grade. Our AI follows your working out step-by-step to find the method marks a normal AI would miss.
+                        Stop staring at confusing mark schemes. Choose your exam board below to find your exact paper, view step-by-step model answers, and let our AI instantly grade your work like a real examiner.
                     </p>
 
                     <div className="hero-cta-group">
                         {/* BLOCK 3: Primary CTA & Trust Text (Longest delay) */}
                         <div className="anim-item delay-3">
-                            <button className="hero-primary-cta" onClick={handleCtaClick}>
-                                Get My Instant Grade (Free)
+                            <button className="hero-primary-cta" onClick={() => document.getElementById('boards')?.scrollIntoView({ behavior: 'smooth' })}>
+                                <span>Choose Your Exam Board</span>
+                                <ArrowDown className="cta-arrow-icon animate-bounce-soft" />
                             </button>
                             <p className="hero-trust-microcopy">
                                 Supports Edexcel (1MA1), AQA (8300), & OCR. No credit card required.
@@ -266,7 +267,9 @@ const LandingPage: React.FC = () => {
 
             <UserSegmentation />
             <Testimonials />
-            <SupportedPapers />
+            <div id="boards">
+                <SupportedPapers />
+            </div>
 
             {/* Final CTA Section */}
             <section className="landing-section final-cta-section">

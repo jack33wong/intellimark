@@ -146,6 +146,27 @@ html {
   }
 }
 
+@keyframes bounce-soft {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+.animate-bounce-soft {
+  animation: bounce-soft 2s ease-in-out infinite;
+}
+
+.cta-arrow-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
 /* Dark Mode Overrides */
 html.dark {
   /* --- Backgrounds --- */

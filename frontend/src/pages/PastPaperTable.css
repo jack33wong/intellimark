@@ -108,6 +108,17 @@
     font-weight: 600;
 }
 
+.paper-code-tag {
+    font-family: monospace;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    background: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+}
+
 .paper-actions {
     display: flex;
     gap: 8px;
@@ -164,10 +175,12 @@
 }
 
 @media (max-width: 480px) {
+
+    /*
     .paper-calc-type {
         display: none !important;
     }
-
+    */
     .paper-item-row {
         padding: 8px 4px;
     }

@@ -1,7 +1,7 @@
 /* AQA Landing Page - Namespaced Styles */
 
 .aqa-landing-page {
-    --board-accent-color: #0056b3;
+    --board-accent-color: #371376;
     --board-bg-accent: rgba(0, 86, 179, 0.05);
 
     background-color: #ffffff;
@@ -75,8 +75,8 @@
     gap: 12px;
     padding: 18px 40px;
     border-radius: 100px;
-    background-color: #ffffff;
-    color: #1a1a1a;
+    background-color: var(--board-accent-color);
+    color: #ffffff;
     border: 1px solid #e5e5e5;
     font-weight: 600;
     font-size: 1.1rem;
@@ -86,8 +86,8 @@
 }
 
 .aqa-landing-page .aqa-btn-file:hover {
-    background-color: #fafafa;
-    border-color: #1a1a1a;
+    background-color: #8771ac;
+    border-color: #ffffff;
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }

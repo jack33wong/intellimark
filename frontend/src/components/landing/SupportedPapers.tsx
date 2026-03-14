@@ -351,10 +351,8 @@ const SupportedPapers: React.FC = () => {
                                                     <div key={pi} className="paper-row">
                                                         <div className="paper-info">
                                                             <span className="paper-count">{paper.count}:</span>
-                                                            <span className="paper-type">{paper.type}</span>
-                                                        </div>
-                                                        <div className="paper-meta">
                                                             <span className="paper-code-tag">{paper.code}</span>
+                                                            <span className="paper-type">{paper.type}</span>
                                                         </div>
                                                         <div className="paper-actions">
                                                             <button

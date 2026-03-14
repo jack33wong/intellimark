@@ -1,7 +1,7 @@
 /* Edexcel Landing Page - Namespaced Styles */
 
 .edexcel-landing-page {
-    --board-accent-color: #003087;
+    --board-accent-color: #003057;
     --board-bg-accent: rgba(0, 48, 135, 0.05);
 
     background-color: #ffffff;
@@ -56,8 +56,8 @@
     gap: 12px;
     padding: 18px 40px;
     border-radius: 100px;
-    background-color: #ffffff;
-    color: #1a1a1a;
+    background-color: var(--board-accent-color);
+    color: #ffffff;
     border: 1px solid #e5e5e5;
     font-weight: 600;
     font-size: 1.1rem;

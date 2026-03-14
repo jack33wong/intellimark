@@ -1,6 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowDown } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
@@ -118,14 +119,12 @@ const OcrLandingPage: React.FC = () => {
 
             <section className="landing-section ocr-hero-section">
                 <div className="ocr-hero-content">
-                    <h1 className="ocr-hero-title">Instant AI Marking & <br /><span className="ocr-highlight-green">OCR Model Answers</span></h1>
-                    <p className="ocr-hero-subtitle">Practicing OCR J560 past papers? Upload your work and get an instant grade based exactly on the OCR mark scheme.</p>
+                    <h1 className="ocr-hero-title">Free <span className="ocr-highlight-green">OCR</span> Past Papers & Model Answers</h1>
+                    <p className="ocr-hero-subtitle">Stop staring at confusing OCR mark schemes. Find your exact OCR J560 paper below, view step-by-step model answers, and let our AI instantly grade your work like a real examiner.</p>
                     <div className="ocr-hero-cta-box">
-                        <button className="ocr-btn-file" onClick={() => navigate('/app?action=select')}>
-                            <svg style={{ width: '24px', height: '24px', flexShrink: 0, marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                            <span>Select Paper (PDF/JPG)</span>
+                        <button className="ocr-btn-file" onClick={() => document.getElementById('papers')?.scrollIntoView({ behavior: 'smooth' })}>
+                            <span>View OCR Papers</span>
+                            <ArrowDown className="cta-arrow-icon animate-bounce-soft" />
                         </button>
                     </div>
                 </div>
@@ -166,7 +165,7 @@ const OcrLandingPage: React.FC = () => {
                 </div>
             </section>
 
-            <section className="landing-section ocr-resources-section">
+            <section id="papers" className="landing-section ocr-resources-section">
                 <div className="ocr-resources-content">
                     <h2 className="ocr-section-title">OCR Past Papers & Model Answers</h2>
 
@@ -198,10 +197,10 @@ const OcrLandingPage: React.FC = () => {
                                                         return (
                                                             <div key={paper.code} className="paper-item-row">
                                                                 <div className="paper-meta">
-                                                                    <span className="paper-name">{paper.name}</span>
+                                                                    <span className="paper-name">{paper.name}:</span>
+                                                                    <span className="paper-code-tag">{paper.code}</span>
                                                                     <span className="paper-type">
-                                                                        <span className="paper-calc-type">{paper.type.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'} </span>
-                                                                        {paper.code}
+                                                                        {paper.type.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'}
                                                                     </span>
                                                                 </div>
                                                                 <div className="paper-actions">
