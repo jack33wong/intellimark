@@ -1413,6 +1413,7 @@
 
   .admin-header {
     padding: 20px;
+    text-align: left;
   }
 
   .admin-tabs {
@@ -1420,7 +1421,7 @@
   }
 
   .admin-tab {
-    justify-content: center;
+    justify-content: left;
   }
 }
 

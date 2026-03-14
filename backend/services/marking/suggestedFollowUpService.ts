@@ -200,8 +200,9 @@ export class SuggestedFollowUpService {
         const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
         const userPrompt = getPrompt(`${currentPromptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base);
 
-        // [FEATURE] Restore Debug Logging
-        const isLoggingEnabled = true; // [DIAGNOSIS] Force logging for Q8/Q17 upstream check
+        // [FEATURE] Restore Debug Logging from environment variables
+        const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
+                               (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
 
         if (isLoggingEnabled) {
           console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
