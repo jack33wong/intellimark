@@ -32,6 +32,7 @@ export interface ClassificationResult {
   rotation?: number; // Detected rotation in degrees
   text?: string; // Fallback text
   extractedQuestionText?: string; // Enhanced question text extracted by classification
+  mapperHints?: string[]; // Questions detected by Mapper (Pass 1) to be used as fallback
 }
 
 export class ClassificationService {
@@ -439,7 +440,8 @@ ${pageHints}
                 apiUsed,
                 usageTokens: isFirstPageOfQuestion ? usageTokens : 0,
                 llmInputTokens: isFirstPageOfQuestion ? inputTokens : 0,
-                llmOutputTokens: isFirstPageOfQuestion ? outputTokens : 0
+                llmOutputTokens: isFirstPageOfQuestion ? outputTokens : 0,
+                mapperHints: resolvedPageMaps[globalPageIndex]?.questions?.map((q: any) => typeof q === 'string' ? q : q.questionNumber) || []
               }
             });
           });

@@ -1122,6 +1122,11 @@ export class MarkingPipelineService {
             // 🛡️ [MULTI-ANCHOR REUSE]: We check sourceImageIndices (plural) to see if a page belongs to a question.
             // This preserves the existing logic for questions spanning multiple pages (like Q11 on P0/P23).
             const pageSortMap = standardizedPages.map((page, originalIdx) => {
+                const rawResult = allClassificationResults[originalIdx]?.result;
+                const classificationResult = rawResult || {
+                    category: 'metadata',
+                    questions: []
+                };
                 const physicalPageIndex = page.pageIndex;
 
                 let minSortWeight = Infinity;
@@ -1161,21 +1166,26 @@ export class MarkingPipelineService {
                     }
                 };
 
-                classificationResult.questions.forEach((q: any) => checkWeightRecursive(q));
+                if (classificationResult.questions && Array.isArray(classificationResult.questions)) {
+                    classificationResult.questions.forEach((q: any) => checkWeightRecursive(q));
+                }
 
-                // 🛡️ [SPECIFICITY PRIORITY]: Solve ties like Q11 on both pages.
+                // 🏢 EARLIEST-Q PRIMARY: Use the lowest weight found on the page to determine its position.
+                // This keeps pages in their natural chronological order (e.g. Q2 before Q2a).
                 if (pageWeights.length > 0) {
-                    const getPrecision = (n: number) => String(n).includes('.') ? String(n).split('.')[1].length : 0;
-                    const maxPrecision = Math.max(...pageWeights.map(pw => getPrecision(pw.w)));
-                    const specificWeights = pageWeights.filter(pw => getPrecision(pw.w) === maxPrecision);
-                    minSortWeight = Math.min(...specificWeights.map(pw => pw.w));
+                    minSortWeight = Math.min(...pageWeights.map(pw => pw.w));
 
                     // 🔍 DEBUG: Log the decision
                     console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
+                } else if (rawResult?.mapperHints && rawResult.mapperHints.length > 0) {
+                    // 🛡️ [MAPPER FALLBACK]: Use Pass 1 guesses for empty pages
+                    const hintWeights = rawResult.mapperHints.map((h: string) => ({ q: h, w: getQuestionSortValue(h) }));
+                    minSortWeight = Math.min(...hintWeights.map((hw: any) => hw.w));
+                    debugQList.push(...rawResult.mapperHints);
+                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx} (EMPTY): Using Mapper Hints [${rawResult.mapperHints.join(', ')}] -> Selected: ${minSortWeight}`);
                 }
 
                 // Fallback for Meta/Front Pages
-                const rawResult = allClassificationResults[originalIdx]?.result;
                 const isMeta = rawResult?.category === 'metadata' || rawResult?.category === 'frontPage';
 
                 return {
