@@ -32,14 +32,17 @@ const HeroAnimation: React.FC = () => {
                     <div className="hero-floating-frame smartphone-mockup">
                         <video
                             ref={videoRef}
-                            src="/video/mobilescan3.mp4"
                             className="scanner-video"
                             autoPlay
                             muted
                             loop
                             playsInline
+                            preload="auto"
                             poster="/assets/images/red_pen_tick_hero.png"
-                        />
+                        >
+                            <source src="/video/mobilescan3.mp4" type="video/mp4" />
+                            Your browser does not support the video tag.
+                        </video>
                     </div>
                 </div>
             </div>
