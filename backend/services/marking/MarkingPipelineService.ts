@@ -1105,11 +1105,17 @@ export class MarkingPipelineService {
             MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
             logQuestionDetectionComplete(); // End the overall Question Detection timer
 
-            // ========================= 🔄 [INTELLIGENCE RE-INDEXING - V2] =========================
-            // CRITICAL ARCHITECTURE FIX: Re-sort pages using DB-VERIFIED Ground Truth.
-            // This happens AFTER Stage 3, so we trust the Question Numbers implicitly.
+            // 🛡️ [PAPER TYPE DETECTION]: Detect A-Level vs GCSE for sorting rules
+            const isALevelPaper = Array.from(markingSchemesMap.values()).some(m => 
+                (m.name || '').toLowerCase().includes('a-level') || 
+                (m.title || '').toLowerCase().includes('9ma0') ||
+                (m.paperCode || '').toLowerCase().includes('9ma0')
+            ) || allClassificationResults.some((r: any) => {
+                const title = (r.detectionResult?.match?.paperTitle || '').toLowerCase();
+                return title.includes('a-level') || title.includes('9ma0');
+            });
 
-            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages...`);
+            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Type: ${isALevelPaper ? 'A-Level' : 'Standard/GCSE'})`);
 
             // 🔍 [RE-INDEX PROBE]: Verify pointer sync integrity
             classificationResult.questions.forEach((q: any) => {
@@ -1170,13 +1176,10 @@ export class MarkingPipelineService {
                     classificationResult.questions.forEach((q: any) => checkWeightRecursive(q));
                 }
 
-                // 🛡️ [SPECIFICITY PRIORITY]: Sub-questions (decimals) always lead generic numbers (integers).
-                // 🛡️ [DENSITY-AWARE TIE-BREAKER]: 
-                // Fix the GCSE vs A-Level contradiction.
-                // - High Density + Generic = Stem (Lead)
-                // - Low Density + Generic = Continuation (Follow)
+                // 🛡️ [ROLE-BASED TIE-BREAKER]: 
+                // A-Level Generic = Continuation (Follows Specific 11.01)
+                // GCSE Generic = Stem (Leads Specific 11.01)
                 if (pageWeights.length > 0) {
-                    const pageCharCount = (page as any).blocks?.reduce((sum: number, b: any) => sum + (b.text || '').length, 0) || 0;
                     const specificWeights = pageWeights.filter(pw => pw.w % 1 !== 0);
                     const genericWeights = pageWeights.filter(pw => pw.w % 1 === 0);
 
@@ -1184,9 +1187,9 @@ export class MarkingPipelineService {
                         // Page has specific sub-questions (e.g. 11c). Use the earliest one.
                         minSortWeight = Math.min(...specificWeights.map(pw => pw.w));
                     } else if (genericWeights.length > 0) {
-                        // Page is GENERIC ONLY (e.g. "11" or "2"). Use Density to decide the role.
+                        // Page is GENERIC ONLY (e.g. "11" or "2"). Use Paper Type to decide.
                         const baseWeight = Math.min(...genericWeights.map(pw => pw.w));
-                        if (pageCharCount < 300) {
+                        if (isALevelPaper) {
                             // Sparse: Likely an A-Level Continuation. Sort last.
                             minSortWeight = baseWeight + 0.9;
                         } else {
@@ -1196,7 +1199,7 @@ export class MarkingPipelineService {
                     }
 
                     // 🔍 DEBUG: Log the decision
-                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: CharCount=${pageCharCount}, Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
+                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
                 }
 
                 // 🛡️ [METADATA IDENTITY]: DO NOT force minSortWeight = Infinity for meta-pages.
@@ -1213,6 +1216,21 @@ export class MarkingPipelineService {
                 };
             });
 
+            const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
+            if (isPastPaper && isALevelPaper) {
+                // 🛡️ [A-LEVEL ORPHAN RESCUE]: 
+                // A-Level papers often have blank answer boxes/overflows that aren't explicitly labeled.
+                // We rescue them by inheriting the weight of the previous physical page.
+                for (let i = 1; i < pageSortMap.length; i++) {
+                    const current = pageSortMap[i];
+                    const prev = pageSortMap[i - 1];
+                    if (!current.isMeta && current.minQ === 999999 && prev.minQ !== 999999) {
+                        // Inherit and offset by tiny amount to maintain sequence
+                        current.minQ = prev.minQ + 0.0001;
+                    }
+                }
+            }
+
             // 🔍 [DEBUG-PROBE] Dump the Sorting Decision Matrix
             console.log('🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:');
             console.log('-----------------------------------------------------------------------------------------');
@@ -1226,28 +1244,7 @@ export class MarkingPipelineService {
             console.log('-----------------------------------------------------------------------------------------');
 
             // 1.5 PAST PAPER MODE: STRICT FAIL-FAST (Bible 1.1)
-            const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
             if (isPastPaper) {
-                // 🛡️ [A-LEVEL ORPHAN RESCUE]: 
-                // A-Level papers often have blank answer boxes/overflows that aren't explicitly labeled.
-                // We rescue them by inheriting the weight of the previous physical page.
-                const isALevel = Array.from(markingSchemesMap.values()).some(m => 
-                    (m.name || '').toLowerCase().includes('a-level') || 
-                    (m.title || '').toLowerCase().includes('9ma0') // Edexcel A-Level Code
-                );
-
-                if (isALevel) {
-                    for (let i = 1; i < pageSortMap.length; i++) {
-                        const current = pageSortMap[i];
-                        const prev = pageSortMap[i - 1];
-                        if (!current.isMeta && current.minQ === 999999 && prev.minQ !== 999999) {
-                            // Inherit and offset by tiny amount to maintain sequence
-                            current.minQ = prev.minQ + 0.0001;
-                            console.log(`   🩹 [ORPHAN-RESCUE] Page ${current.originalIdx} inherited Q${current.minQ} from Page ${prev.originalIdx}`);
-                        }
-                    }
-                }
-
                 // Identify "Lone Ghosts" (Pages with no Q-number that weren't backfilled)
                 const fatalErrors = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
 
