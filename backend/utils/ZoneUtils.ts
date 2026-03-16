@@ -30,6 +30,15 @@ export class ZoneUtils {
     }
 
     /**
+     * Extracts the base question number.
+     * e.g. "10a" -> "10", "12(b)" -> "12"
+     */
+    static getBaseNumber(label: string): string {
+        const normalized = this.normalizeLabel(label);
+        return normalized.match(/^\d+/)?.[0] || "";
+    }
+
+    /**
      * Finds the correct zone for a given sub-question label.
      * Implements "Container Matching" to handle partial labels (e.g., "bi" -> "10bi").
      * @param subQuestionLabel - The label from the AI (e.g., "bi", "a", "10bi")
@@ -82,6 +91,21 @@ export class ZoneUtils {
             if (isMatch) {
                 bestMatchKey = key;
                 break; // Stop at the first (longest) valid match
+            }
+        }
+
+        // 🛡️ [GROUPED-FALLBACK]: If no exact match (3a -> 3a), try base-number match (3a -> 3)
+        // This ensures "Iron Dome" protection is triggered for A-Level consolidated zones.
+        if (!bestMatchKey) {
+            const targetBase = this.getBaseNumber(target);
+            if (targetBase) {
+                for (const key of sortedKeys) {
+                    const normalizedKey = this.normalizeLabel(key);
+                    if (normalizedKey === targetBase) {
+                        bestMatchKey = key;
+                        break;
+                    }
+                }
             }
         }
 

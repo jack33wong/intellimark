@@ -347,11 +347,6 @@ export function enrichWithOCRBbox(
         return annotation; // No match, return unchanged
     }
 
-    // [TRUTH-SYNC]: If we matched an OCR block, its page index is the ultimate ground truth.
-    if (matchingBlock.pageIndex !== undefined && annotation.page.global && (annotation.page.global as number) !== matchingBlock.pageIndex) {
-        console.log(` 🔄 [TRUTH-SYNC] Syncing page for Q${annotation.subQuestion}: P${annotation.page.global} -> P${matchingBlock.pageIndex} (Matched Block: ${matchingBlock.id})`);
-        (annotation.page as any).global = GlobalPageIndex.from(matchingBlock.pageIndex);
-    }
 
     // [FAIL-FAST]: Ensure we have coordinates. Check both .bbox and .coordinates.
     let resolvedBbox: BoundingBox | undefined = matchingBlock.bbox as BoundingBox | undefined;

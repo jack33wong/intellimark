@@ -382,101 +382,113 @@ export class MarkingZoneService {
         // 3. Stage 3: Reconciliation Pass (OCR-Based Order)
         MarkingZoneService.reconcileLandmarksByOCRIndex(detectedLandmarks, sortedBlocks);
 
-        // 4. Transform Landmarks into Final Zones
-        detectedLandmarks.sort((a, b) => {
+        // 🏰 [BIG-ZONE-STRAY-DESIGN]: Pre-calculate Cluster Boundaries based on Signal B & C
+        const finalLandmarks = detectedLandmarks;
+        const clusterStarts: number[] = new Array(finalLandmarks.length);
+        const clusterStoppers: (number | null)[] = new Array(finalLandmarks.length).fill(null);
+        
+        // Sort finalLandmarks for clustering logic
+        finalLandmarks.sort((a, b) => {
             const pageDiff = (a.pageIndex || 0) - (b.pageIndex || 0);
             if (pageDiff !== 0) return pageDiff;
             return a.startY - b.startY;
         });
 
-        // 🏰 [ABSORPTION FIX]: First Sub-question absorbs Main Intro
-        // If "14" and "14a" are on the same page, "14" is likely just a header/intro.
-        // We absorb "14" into "14a" so "14a" can own the top of the page (and any graphs there).
-        const absorbedIndices = new Set<number>();
-        for (let i = 0; i < detectedLandmarks.length - 1; i++) {
-            const current = detectedLandmarks[i];
-            const next = detectedLandmarks[i + 1];
+        for (let i = 0; i < finalLandmarks.length; ) {
+            let j = i + 1;
+            let groupHasALevelSignal = false;
+            
+            // Look-ahead: Scan all landmarks with the same base number
+            while (j < finalLandmarks.length) {
+                const l1 = finalLandmarks[j - 1];
+                const l2 = finalLandmarks[j];
+                const isSameBase = ZoneUtils.getBaseNumber(l1.key) === ZoneUtils.getBaseNumber(l2.key);
+                if (!isSameBase) break;
 
-            if (next.pageIndex === current.pageIndex) {
-                const mainClean = current.key.replace(/\D/g, '');
-                // Check if 'current' is purely numeric (e.g. "14")
-                if (mainClean && current.key === mainClean) {
-                    // Check if 'next' is a subpart of 'current' (e.g. "14a")
-                    if (next.key.startsWith(mainClean) && next.key.length > mainClean.length) {
-                        const suffix = next.key.substring(mainClean.length).toLowerCase().replace(/[^a-z0-9]/g, '');
-                        // suffix 'a', '1', 'ai', 'i' etc implies first part
-                        if (['a', '1', 'ai', 'i', 'parta'].includes(suffix)) {
-                            // 🏰 [ABSORB-TRANSFER]: Transfer parent's startY to the sub-question
-                            // Ensure the child question starts where the intro/group-header began.
-                            next.startY = Math.min(next.startY, current.startY);
-                            // console.log(`[ZONE-ABSORB] Q${next.key} absorbing Main Q${current.key} on P${current.pageIndex}. New StartY: ${next.startY}`);
-                            absorbedIndices.add(i);
+                // Signal B: Tight Density (Original Design: 150-200 chars)
+                let isSignalB = false;
+                if (l1.pageIndex === l2.pageIndex) {
+                    const gapY1 = l1.startY + 40;
+                    const gapY2 = l2.startY;
+                    const blocksInGap = sortedBlocks.filter(b => 
+                        b.pageIndex === l1.pageIndex && 
+                        MarkingZoneService.getY(b) > gapY1 && 
+                        MarkingZoneService.getY(b) < gapY2
+                    );
+                    const gapDensity = blocksInGap.reduce((sum, b) => sum + (b.text || "").length, 0);
+                    isSignalB = gapDensity < 200; // Mandated Tight Threshold
+                } else {
+                    let allInterveningEmpty = true;
+                    for (let p = l1.pageIndex + 1; p < l2.pageIndex; p++) {
+                        const blocksOnPage = sortedBlocks.filter(b => b.pageIndex === p);
+                        if (blocksOnPage.length > 8) {
+                            allInterveningEmpty = false;
+                            break;
                         }
                     }
+                    isSignalB = allInterveningEmpty;
                 }
+
+                // Signal C: User-Mandated A-Level Signal (Empty Space/Page Detector)
+                const gapHeight = (l1.pageIndex === l2.pageIndex) ? (l2.startY - l1.startY) : 9999;
+                const pageBlocks = sortedBlocks.filter(b => b.pageIndex === l1.pageIndex);
+                const pageCharCount = pageBlocks.reduce((sum, b) => sum + (b.text || "").length, 0);
+                
+                // If any segment has a large gap (>600px) OR very low page density, it's an A-Level Signal
+                if (gapHeight > 600 || pageBlocks.length < 10 || pageCharCount < 400) {
+                    groupHasALevelSignal = true;
+                    console.log(` 📊 [A-LEVEL-SIGNAL] Detected between ${l1.key} and ${l2.key} (H:${gapHeight}, B:${pageBlocks.length}, C:${pageCharCount})`);
+                }
+
+                j++;
             }
+
+            // Logic: Group MUST fuse if it's SAME-BASE and (Group-wide A-Level Signal C OR Tight Signal B OR Cross-Page)
+            const isCrossPage = finalLandmarks[j-1].pageIndex > finalLandmarks[i].pageIndex;
+            const shouldFuse = groupHasALevelSignal || isCrossPage;
+
+            const stopperIdx = shouldFuse ? (j < finalLandmarks.length ? j : null) : (i + 1 < finalLandmarks.length ? i + 1 : null);
+            const actualEnd = shouldFuse ? j : i + 1;
+
+            for (let k = i; k < actualEnd; k++) {
+                clusterStarts[k] = i; 
+                clusterStoppers[k] = stopperIdx;
+            }
+            i = actualEnd;
         }
-
-        const finalLandmarks = detectedLandmarks.filter((_, idx) => !absorbedIndices.has(idx));
-        // console.log(`[ZONE-TVC] Deterministic Order (Post-Absorb): ${finalLandmarks.map(l => `${l.key}(P${l.pageIndex}@${l.startY})`).join(' -> ')}`);
-
-        const pagesWithFirstLandmark = new Set<number>();
 
         for (let i = 0; i < finalLandmarks.length; i++) {
             const current = finalLandmarks[i];
-            const next = finalLandmarks[i + 1];
+            const clusterStart = finalLandmarks[clusterStarts[i]];
+            const actualNext = clusterStoppers[i] !== null ? finalLandmarks[clusterStoppers[i]!] : null;
 
-            // 🏗️ SMART MARGIN: Instead of snapping to 0, use a 150px safety buffer.
-            // This catches "Answer ALL questions" without coveting the very top of the page.
             const dims = pageDimensionsMap.get(current.pageIndex) || Array.from(pageDimensionsMap.values())[0] || { width: 2480, height: 3508 };
             const pW = dims.width || 2480;
             const pH = dims.height || 3508;
             const vMargin = Math.floor(pH * 0.06);
 
-            // 🏗️ [ZERO MARGIN FIX]: Zone starts EXACTLY at the question text landmark.
-            // No safety buffers, no forced "Top-of-Page" ownership.
-            let finalStartY = current.startY;
+            // 🏗️ [ZERO MARGIN FIX]: Clustered members use the START of the whole cluster.
+            let finalStartY = clusterStart.startY;
+            if (i === 0 && finalStartY > vMargin) finalStartY = vMargin;
 
-            // 🏗️ [Q1 TOP-FILL]: For the very first question in the paper,
-            // capture any instructions/preamble orphans at the top of the page.
-            if (i === 0 && finalStartY > vMargin) {
-                // console.log(`🏗️ [Q1-TOP-FILL] Stretching Q${current.key} from ${finalStartY} to ${vMargin} (Page ${current.pageIndex})`);
-                finalStartY = vMargin;
-            }
-
-            pagesWithFirstLandmark.add(current.pageIndex); // Maintain for potential logic tracking elsewhere
-
-            let endY = pH; // Start at full page, only apply margin if it stays at full page
-
-            if (next && next.pageIndex === current.pageIndex) {
-                // Inter-question gap filling (Snap to start of next question)
-                // [FIX]: "Don't touch the middle zone" - No vMargin for inter-question boundaries
-                endY = next.startY;
-            }
-            else {
-                // 🛡️ [SIMPLE DESIGN]: Last question on a page owns the bottom (6% margin).
-                // We no longer search for fragile text-based "Total" stoppers.
+            let endY = pH; 
+            if (actualNext && actualNext.pageIndex === current.pageIndex) {
+                endY = actualNext.startY;
+            } else {
                 endY = pH - vMargin;
             }
 
-            if (!zones[current.key]) zones[current.key] = [];
+            // 🛡️ [IRON DOME]: Key by Base Number
+            const resultKey = ZoneUtils.getBaseNumber(clusterStart.key);
+            if (!zones[resultKey]) zones[resultKey] = [];
 
-            // 🏛️ UNIVERSAL SLICE DESIGN (Bible 7.4)
-            // We ignore detected widths. A Zone is ALWAYS a horizontal strip.
-            // This ensures deterministic coverage for handwriting that drifts horizontally.
-            // [FIX]: Update Margin to 6% (User Request)
             const horizontalMargin = Math.floor(pW * 0.06);
-            const minHeight = 100;
-
-            // [FIX]: Only apply BOTTOM margin (6%) if the zone naturally ends at the page boundary.
             let finalEndY = endY;
-            if (finalEndY >= pH - 20) {
-                finalEndY = pH - vMargin;
-            }
-            finalEndY = Math.max(finalEndY, finalStartY + minHeight);
+            if (finalEndY >= pH - 20) finalEndY = pH - vMargin;
+            finalEndY = Math.max(finalEndY, finalStartY + 100);
 
-            zones[current.key].push({
-                label: current.key,
+            zones[resultKey].push({
+                label: resultKey,
                 startY: finalStartY,
                 endY: finalEndY,
                 startYPercent: (finalStartY / pH) * 100,
@@ -487,6 +499,8 @@ export class MarkingZoneService {
                 origW: pW,
                 origH: pH
             } as any);
+
+            console.log(` 🏗️ [ZONE-CREATE] ${resultKey}: [${finalStartY} - ${finalEndY}] (P${current.pageIndex})`);
         }
 
         // =====================================================================
@@ -659,7 +673,8 @@ export class MarkingZoneService {
             } else {
                 // Only enforce sequential order if there is no bucket whitelist from the AI.
                 if (blockPage < minPage) continue;
-                if (blockPage === minPage && blockY < minY) continue;
+                // [FIX]: Expand Buffer to 100px and allow Page Overlap (same starting point).
+                if (blockPage === minPage && blockY < (minY - 100)) continue;
             }
 
             // 🛡️ [SEQUENTIAL TERMINATOR]: 
@@ -763,7 +778,10 @@ export class MarkingZoneService {
                 }
 
                 const similarityThreshold = (targetCurrentPages && targetCurrentPages.length > 0) ? 0.7 : 0.85;
-                if (finalScore >= similarityThreshold && finalScore > bestSimilarity) {
+                // [FIX]: Relax sub-question similarity (0.55) to handle noisy A-Level layouts.
+                const isSubPart = label.length <= 3 && /^[a-z0-9]+$/i.test(label);
+                const finalThreshold = (isSubPart && isLabelMatch) ? 0.55 : similarityThreshold;
+                if (finalScore >= finalThreshold && finalScore > bestSimilarity) {
                     bestBlock = firstBlock;
                     bestSimilarity = finalScore;
                     break;
