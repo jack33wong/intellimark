@@ -77,7 +77,7 @@ export class AnnotationLinker {
             // This allows Path 3 (Rescue) to find the actual handwriting.
             if (physicalId) {
                 const block = allOcrBlocks.find(b => b.id === physicalId);
-                const isHeader = block && (block.id === (zoneData as any)?.headerBlockId || (block as any)._isInstruction || ((block as any).isPrinted === true && block.text?.length < 5));
+                const isHeader = block && (block.id === (zoneData as any)?.headerBlockId || (block as any)._isInstruction);
                 if (isHeader) {
                     console.log(` 🛡️ [HEADER-DETACH] Q${anno.subQuestion}: Detaching from printed header "${block.text}" (ID ${physicalId})`);
                     physicalId = null;
@@ -175,7 +175,7 @@ export class AnnotationLinker {
                     }
 
                     if (isHeader || isClassificationText || isQuestionLabel || isInstructionTag || isVetoed) {
-                        console.log(` 🚫 [SEMANTIC-VETO] Q${anno.subQuestion}: Detaching from "${block.text}" (Tag=${isInstructionTag}, Veto=${isVetoed})`);
+                        console.log(` 🚫 [SEMANTIC-VETO] Q${anno.subQuestion}: Detaching from "${block.text}" (ID ${physicalId})`);
                         physicalId = null;
                         anno.linked_ocr_id = null;
                         anno.ocr_match_status = "UNMATCHED";

@@ -9,7 +9,7 @@
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 💳 [CREDIT CHECK] Estimated cost: 0.0904927, files: 1, bytes: 854927
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":999442.72}
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":999441.34}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
@@ -23,8 +23,8 @@
 
 🔍 [MAPPER AUDIT] Batch of 1 images:
    ✅ Mapped Local[0] -> Global[0] | Content: 12i, 12ii, 12iii
-✅ [MAPPER] Map Pass complete in 2.05s. Mapped 1 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+✅ [MAPPER] Map Pass complete in 2.53s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -34,13 +34,13 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.4s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m2.3s[0m ([32m[1mMATHPIX[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -54,7 +54,7 @@
 | 12   | Here are some graphs. Write down the lette... | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
 | 12i  | y = x² - 4                                    | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
 | 12ii | y = -x³                                       | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
-| 12iii | y = \frac{-5}{x}                              | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
+| 12iii | y = -\frac{5}{x}                              | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -171,8 +171,9 @@ Use these IDs to map the student's work. Match them yourself based on the Semant
 [p0_ocr_17]: "(1)"
 [p0_ocr_18]: "(iii) \( y=-\frac{5}{x} \) [PRINTED_INSTRUCTION [Q12iii]]"
 [p0_ocr_19]: "J"
-[p0_ocr_20]: "(1)"
-[p0_ocr_21]: "13"
+[p0_ocr_20]: "J"
+[p0_ocr_21]: "(1)"
+[p0_ocr_22]: "13"
 
 ## PAGE MAP
 {"12":0,"12i":0,"12ii":0,"12iii":0}
@@ -242,12 +243,8 @@ Use these IDs to map the student's work. Match them yourself based on the Semant
 
  🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Content: "12 Here are some graphs. [PRINTED_INSTRUCTION [Q12]]"
  🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Has Tag? true
- 🛡️ [HEADER-DETACH] Q12i: Detaching from printed header "H" (ID p0_ocr_12)
- 🛡️ [HEADER-DETACH] Q12iii: Detaching from printed header "J" (ID p0_ocr_19)
- 📍 [PATH 3] Q12i: Line "p0_q12_line_1" is UNMATCHED. Recovering position.
- 📍 [PATH 3] Q12iii: Line "p0_q12_line_3" is UNMATCHED. Recovering position.
-[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m4.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m4.9s[0m ([32m[1mAI-MARKING[0m)
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m4.5s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m4.5s[0m ([32m[1mAI-MARKING[0m)
 
 🔍 [RESULT VERIFICATION] Checking what will be combined:
    📊 Marking Results: 1 questions
@@ -265,19 +262,19 @@ Use these IDs to map the student's work. Match them yourself based on the Semant
 -----------------------------------------------------------------------------------------
 | Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
 |----------|-------|-------------------------|----------------------------------------|
-| [32m12      [0m | 3/3   | B1, B1, B1              | AI:3/3 → M:1 S:0 V:0 U:2               |
-| [90m  i     [0m | 1     | B1                      | AI:1/1 → M:0 S:0 V:0 U:1               |
+| [32m12      [0m | 3/3   | B1, B1, B1              | AI:3/3 → M:3 S:0 V:0 U:0               |
+| [90m  i     [0m | 1     | B1                      | AI:1/1 → M:1 S:0 V:0 U:0               |
 | [90m  ii    [0m | 1     | B1                      | AI:1/1 → M:1 S:0 V:0 U:0               |
-| [90m  iii   [0m | 1     | B1                      | AI:1/1 → M:0 S:0 V:0 U:1               |
+| [90m  iii   [0m | 1     | B1                      | AI:1/1 → M:1 S:0 V:0 U:0               |
 |----------|-------|-------------------------|----------------------------------------|
 
 === PERFORMANCE SUMMARY ===
-Total Processing Time: 16.6s
+Total Processing Time: 17.3s
 Model Used: gemini-2.0-flash
 ----------------------------
-classification                      6.0s (36%)
-marking                             4.9s (29%)
-ocr_processing                      1.9s (11%)
+classification                      6.4s (37%)
+marking                             4.5s (26%)
+ocr_processing                      2.3s (13%)
 output_generation                   1.2s (7%)
 question_detection                  0.9s (5%)
 performance_summary                 0.7s (4%)
@@ -289,23 +286,23 @@ preprocessing                       0.2s (1%)
 📊 [UsageTracker] Summary:
    Model: gemini-2.0-flash
    API Requests: 5 total
-   Total Tokens: 24,981 (23,510 in + 1,471 out)
-   Total Cost: $0.006939
+   Total Tokens: 25,020 (23,523 in + 1,497 out)
+   Total Cost: $0.006951
    Mathpix OCR: 1 pages → $0.004000
 
    Breakdown by Phase:
-   • Classification (Marking Pass): 17,751 tokens (3 requests) → $0.002054
-   • Marking: 6,831 tokens (1 requests) → $0.000835
+   • Classification (Marking Pass): 17,777 tokens (3 requests) → $0.002064
+   • Marking: 6,844 tokens (1 requests) → $0.000836
    • Performance Summary: 399 tokens (1 requests) → $0.000051
 
 
 🏁 ========== UNIFIED PIPELINE END ==========
 🏁 ==========================================
 
-✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1773684844154
-💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1773684844154
-💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0069394
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1773687888605
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1773687888605
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0069511
 🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
-💳 Deducted 0.69 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1773684844154), remaining: 999442.03
-💳 Deducted 0.0069 credits (session: sub-1773684844154) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1773684844154
+💳 Deducted 0.70 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1773687888605), remaining: 999440.64
+💳 Deducted 0.0070 credits (session: sub-1773687888605) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1773687888605
