@@ -1171,27 +1171,38 @@ export class MarkingPipelineService {
                 }
 
                 // 🛡️ [SPECIFICITY PRIORITY]: Sub-questions (decimals) always lead generic numbers (integers).
+                // 🛡️ [DENSITY-AWARE TIE-BREAKER]: 
+                // Fix the GCSE vs A-Level contradiction.
+                // - High Density + Generic = Stem (Lead)
+                // - Low Density + Generic = Continuation (Follow)
                 if (pageWeights.length > 0) {
+                    const pageCharCount = (page as any).blocks?.reduce((sum: number, b: any) => sum + (b.text || '').length, 0) || 0;
                     const specificWeights = pageWeights.filter(pw => pw.w % 1 !== 0);
+                    const genericWeights = pageWeights.filter(pw => pw.w % 1 === 0);
+
                     if (specificWeights.length > 0) {
-                        // If page has sub-questions, use the earliest sub-question as the anchor
+                        // Page has specific sub-questions (e.g. 11c). Use the earliest one.
                         minSortWeight = Math.min(...specificWeights.map(pw => pw.w));
-                    } else {
-                        // Otherwise use the earliest base question
-                        minSortWeight = Math.min(...pageWeights.map(pw => pw.w));
+                    } else if (genericWeights.length > 0) {
+                        // Page is GENERIC ONLY (e.g. "11" or "2"). Use Density to decide the role.
+                        const baseWeight = Math.min(...genericWeights.map(pw => pw.w));
+                        if (pageCharCount < 300) {
+                            // Sparse: Likely an A-Level Continuation. Sort last.
+                            minSortWeight = baseWeight + 0.9;
+                        } else {
+                            // Dense: Likely a GCSE Question Stem. Sort first.
+                            minSortWeight = baseWeight - 0.1;
+                        }
                     }
 
                     // 🔍 DEBUG: Log the decision
-                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
+                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: CharCount=${pageCharCount}, Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
                 }
 
-                // Fallback for Meta/Front Pages
+                // 🛡️ [METADATA IDENTITY]: DO NOT force minSortWeight = Infinity for meta-pages.
+                // ⚠️ [WARNING]: Cover pages MUST retain their question labels (identity) so the Zone Detector 
+                // can find top-of-page anchors. Physical sorting is handled by the 'isMeta' flag alone.
                 const isMeta = pageRawResult?.category === 'metadata' || pageRawResult?.category === 'frontPage';
-
-                // 🛡️ [METADATA QUARANTINE]: Meta pages MUST NOT have question weights for sorting.
-                if (isMeta) {
-                    minSortWeight = Infinity;
-                }
 
                 return {
                     originalIdx,

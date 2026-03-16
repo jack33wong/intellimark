@@ -387,7 +387,30 @@ export class MarkingZoneService {
         MarkingZoneService.reconcileLandmarksByOCRIndex(detectedLandmarks, sortedBlocks);
 
         // 🏰 [BIG-ZONE-STRAY-DESIGN]: Pre-calculate Cluster Boundaries based on Signal B & C
-        const finalLandmarks = detectedLandmarks;
+        // 🏰 [ABSORPTION FIX]: First Sub-question absorbs Main Intro
+        // ⚠️ [CRITICAL FOR GCSE]: If you remove this, sub-questions (11c) will fail to
+        // inherit parent anchors (11), leading to truncated zones on fragmented pages.
+        // This logic is required for diagrams/graphs that live between parent and child labels.
+        const absorbedIndices = new Set<number>();
+        for (let i = 0; i < detectedLandmarks.length - 1; i++) {
+            const current = detectedLandmarks[i];
+            const next = detectedLandmarks[i + 1];
+
+            if (next.pageIndex === current.pageIndex) {
+                const mainClean = current.key.replace(/\D/g, '');
+                if (mainClean && current.key === mainClean) {
+                    if (next.key.startsWith(mainClean) && next.key.length > mainClean.length) {
+                        const suffix = next.key.substring(mainClean.length).toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (['a', '1', 'ai', 'i', 'parta'].includes(suffix)) {
+                            next.startY = Math.min(next.startY, current.startY);
+                            absorbedIndices.add(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        const finalLandmarks = detectedLandmarks.filter((_, idx) => !absorbedIndices.has(idx));
         const clusterStarts: number[] = new Array(finalLandmarks.length);
         const clusterStoppers: (number | null)[] = new Array(finalLandmarks.length).fill(null);
         
@@ -490,6 +513,7 @@ export class MarkingZoneService {
             }
         }
 
+        const pagesWithFirstLandmark = new Set<number>();
         for (let i = 0; i < finalLandmarks.length; i++) {
             const current = finalLandmarks[i];
             const clusterStart = finalLandmarks[clusterStarts[i]];
@@ -502,7 +526,13 @@ export class MarkingZoneService {
 
             // 🏗️ [ZERO MARGIN FIX]: Clustered members use the START of the whole cluster.
             let finalStartY = clusterStart.startY;
-            if (i === 0 && finalStartY > vMargin) finalStartY = vMargin;
+
+            // 🏗️ [PAGE-AWARE EXPANSION]: 
+            // ⚠️ [CRITICAL]: The first question landmark on ANY page should own the top of that page.
+            if (!pagesWithFirstLandmark.has(current.pageIndex)) {
+                if (finalStartY > vMargin) finalStartY = vMargin;
+                pagesWithFirstLandmark.add(current.pageIndex);
+            }
 
             let endY = pH; 
             if (actualNext && actualNext.pageIndex === current.pageIndex) {

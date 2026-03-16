@@ -723,6 +723,9 @@ export function getQuestionSortValue(questionNumber: string | null | undefined):
   let remaining = str.replace(/^\d+/, '').replace(/[\(\)\[\]]/g, '').trim();
   let weight = baseNum;
 
+  // 🛡️ [GENERIC OFFSET]: Pure numbers (e.g. "2") are continuations. 
+  // ⚠️ [WARNING]: This is now handled in the MarkingPipelineService via Density-Aware sorting.
+  // We keep weights standard here to avoid breaking GCSE stem hierarchy.
   if (!remaining) return weight;
 
   // 2. Extract Alpha Part (e.g. "a" from "ai")
