@@ -1228,6 +1228,26 @@ export class MarkingPipelineService {
             // 1.5 PAST PAPER MODE: STRICT FAIL-FAST (Bible 1.1)
             const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
             if (isPastPaper) {
+                // 🛡️ [A-LEVEL ORPHAN RESCUE]: 
+                // A-Level papers often have blank answer boxes/overflows that aren't explicitly labeled.
+                // We rescue them by inheriting the weight of the previous physical page.
+                const isALevel = Array.from(markingSchemesMap.values()).some(m => 
+                    (m.name || '').toLowerCase().includes('a-level') || 
+                    (m.title || '').toLowerCase().includes('9ma0') // Edexcel A-Level Code
+                );
+
+                if (isALevel) {
+                    for (let i = 1; i < pageSortMap.length; i++) {
+                        const current = pageSortMap[i];
+                        const prev = pageSortMap[i - 1];
+                        if (!current.isMeta && current.minQ === 999999 && prev.minQ !== 999999) {
+                            // Inherit and offset by tiny amount to maintain sequence
+                            current.minQ = prev.minQ + 0.0001;
+                            console.log(`   🩹 [ORPHAN-RESCUE] Page ${current.originalIdx} inherited Q${current.minQ} from Page ${prev.originalIdx}`);
+                        }
+                    }
+                }
+
                 // Identify "Lone Ghosts" (Pages with no Q-number that weren't backfilled)
                 const fatalErrors = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
 
