@@ -501,6 +501,62 @@ export class MarkingZoneService {
             } as any);
 
             console.log(` 🏗️ [ZONE-CREATE] ${resultKey}: [${finalStartY} - ${finalEndY}] (P${current.pageIndex})`);
+
+            // 🌉 [BIBLE-BRIDGE]: Fill empty pages between this landmark and the next.
+            // If the next milestone (next landmark or next cluster) is on a further page, 
+            // create full-page zones on the intervening "Answer Pages".
+            const nextMilestone = finalLandmarks[i + 1];
+            if (nextMilestone && nextMilestone.pageIndex > current.pageIndex + 1) {
+                // Determine which question owns the bridge.
+                // If the next milestone is part of the SAME cluster, the current question obviously owns it.
+                // If it's a NEW cluster, the current (last of previous cluster) owns the trailing answer pages.
+                for (let p = current.pageIndex + 1; p < nextMilestone.pageIndex; p++) {
+                    const bridgeDims = pageDimensionsMap.get(p) || dims;
+                    const bW = bridgeDims.width || 2480;
+                    const bH = bridgeDims.height || 3508;
+                    const bVMargin = Math.floor(bH * 0.06);
+                    const bHMargin = Math.floor(bW * 0.06);
+
+                    zones[resultKey].push({
+                        label: `${resultKey}-bridge`,
+                        startY: bVMargin,
+                        endY: bH - bVMargin,
+                        startYPercent: 6,
+                        endYPercent: 94,
+                        pageIndex: p,
+                        x: bHMargin,
+                        width: bW - (bHMargin * 2),
+                        origW: bW,
+                        origH: bH
+                    } as any);
+                    console.log(` 🌉 [ZONE-BRIDGE] ${resultKey}: [FULL-PAGE] (P${p})`);
+                }
+            } else if (!nextMilestone) {
+                // 🚩 [END-OF-PAPER BRIDGE]: If this is the last question, 
+                // it owns every remaining page in the document.
+                const lastDocPage = Math.max(...pageDimensionsMap.keys());
+                for (let p = current.pageIndex + 1; p <= lastDocPage; p++) {
+                    const bridgeDims = pageDimensionsMap.get(p) || dims;
+                    const bW = bridgeDims.width || 2480;
+                    const bH = bridgeDims.height || 3508;
+                    const bVMargin = Math.floor(bH * 0.06);
+                    const bHMargin = Math.floor(bW * 0.06);
+
+                    zones[resultKey].push({
+                        label: `${resultKey}-end-bridge`,
+                        startY: bVMargin,
+                        endY: bH - bVMargin,
+                        startYPercent: 6,
+                        endYPercent: 94,
+                        pageIndex: p,
+                        x: bHMargin,
+                        width: bW - (bHMargin * 2),
+                        origW: bW,
+                        origH: bH
+                    } as any);
+                    console.log(` 🏁 [ZONE-END-BRIDGE] ${resultKey}: [FULL-PAGE] (P${p})`);
+                }
+            }
         }
 
         // =====================================================================
