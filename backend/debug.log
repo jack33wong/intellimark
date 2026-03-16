@@ -2,47 +2,29 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 242ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 244ms for 50 sessions (limit: 50)
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: admin_test
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
-🚀 [MARKING] Controller started - Files: 11, Body Keys: model, aiMessageId
+🚀 [MARKING] Controller started - Files: 1, Body Keys: model, aiMessageId
 🔒 [PLAN LIMIT] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (admin_test) tried to use model 'gemini-2.0-flash'. Forcing 'auto'.
 🔍 [CREDIT DEBUG] userId: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, isAuthenticated: true
 💳 [CREDIT CHECK] Starting credit check for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2
-💳 [CREDIT CHECK] Estimated cost: 0.6151753, files: 11, bytes: 5601753
-💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":999502.54}
+💳 [CREDIT CHECK] Estimated cost: 0.0904927, files: 1, bytes: 854927
+💳 [CREDIT CHECK] Result: {"canProceed":true,"remaining":999442.72}
 
 🔄 ========== UNIFIED PIPELINE START ==========
 🔄 ============================================
 
 [1m[32m✅ [INPUT VALIDATION][0m [1mCOMPLETED[0m in [1m0.0s[0m ([32m[1mVALIDATION[0m)
-[INPUT TYPE] Detected: Multiple Images (11 files)
-[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m2.3s[0m ([32m[1mIMAGE-PROCESSING[0m)
+[INPUT TYPE] Detected: Single Image (1 files)
+[1m[32m✅ [PREPROCESSING][0m [1mCOMPLETED[0m in [1m0.2s[0m ([32m[1mIMAGE-PROCESSING[0m)
 [MAPPER] Using model: gemini-2.0-flash
-[MAPPER] Starting Map Pass for 11 pages...
-   📦 [MAPPER-BUCKET] Processing pages 0 to 9...
+[MAPPER] Starting Map Pass for 1 pages...
+   📦 [MAPPER-BUCKET] Processing pages 0 to 0...
 
-🔍 [MAPPER AUDIT] Batch of 10 images:
-   ✅ Mapped Local[0] -> Global[0] | Content: Empty/Meta
-   ✅ Mapped Local[1] -> Global[1] | Content: 1
-   ✅ Mapped Local[2] -> Global[2] | Content: Empty/Meta
-   ✅ Mapped Local[3] -> Global[3] | Content: 2a, 2b
-   ✅ Mapped Local[4] -> Global[4] | Content: Empty/Meta
-   ✅ Mapped Local[5] -> Global[5] | Content: 3a, 3b, 3c
-   ✅ Mapped Local[6] -> Global[6] | Content: Empty/Meta
-   ✅ Mapped Local[7] -> Global[7] | Content: 4
-   ✅ Mapped Local[8] -> Global[8] | Content: Empty/Meta
-   ✅ Mapped Local[9] -> Global[9] | Content: 5a, 5b
-   📦 [MAPPER-BUCKET] Processing pages 8 to 10...
-
-🔍 [MAPPER AUDIT] Batch of 3 images:
-   ✅ Mapped Local[0] -> Global[8] | Content: 4
-   ✅ Mapped Local[1] -> Global[9] | Content: 5a, 5b
-   ✅ Mapped Local[2] -> Global[10] | Content: 5
-✅ [MAPPER] Map Pass complete in 7.00s. Mapped 11 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m17.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
-🚀 [OVERRIDE] 90% Rule Triggered: 10/10 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
+🔍 [MAPPER AUDIT] Batch of 1 images:
+   ✅ Mapped Local[0] -> Global[0] | Content: 12i, 12ii, 12iii
+✅ [MAPPER] Map Pass complete in 2.05s. Mapped 1 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔀 [PERFECT SPLIT] Building standalone structures with re-indexing
@@ -52,13 +34,13 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m17.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m6.0s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.7s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m1.9s[0m ([32m[1mMATHPIX[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -69,69 +51,261 @@
 ------------------------------------------------------------------------------------------------------------------------------------
 | Q#   | Input Text (Fragment)                       | Match Result / Paper Title                         | Score | Status        |
 ------------------------------------------------------------------------------------------------------------------------------------
-| 1    | g(x) = 3x3 - 20x² + (k+17)x + k where k is... | Edexcel A-Level 9MA0/01 June 2024 Q1               | 0.931 | [32m✅ SUCCESS[0m      |
-| 2    | Find, in ascending powers of x, the first ... | Edexcel A-Level 9MA0/01 June 2024 Q2               | 1.000 | [32m✅ SUCCESS[0m      |
-| 2a   |                                               | Edexcel A-Level 9MA0/01 June 2024 Q2               | 1.000 | [32m✅ SUCCESS[0m      |
-| 2b   | Give a reason why x = -\frac{2}{9} should ... | Edexcel A-Level 9MA0/01 June 2024 Q2               | 1.000 | [32m✅ SUCCESS[0m      |
-| 3    | Question 3 continued (Total for Question 3... | Edexcel A-Level 9MA0/01 June 2024 Q3               | 0.798 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.798] 9MA0/01 Q3                     | Txt:0.84 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.596] J560/03 Q3                     | Txt:0.43 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.591] 9MA0/32 Q3                     | Txt:0.51 Num:0.20 Str:1.00 Sem:PASS
-| 3a   | show that a lies in the interval [3.6, 3.7]   | Edexcel A-Level 9MA0/01 June 2024 Q3               | 0.798 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.798] 9MA0/01 Q3                     | Txt:0.84 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.596] J560/03 Q3                     | Txt:0.43 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.591] 9MA0/32 Q3                     | Txt:0.51 Num:0.20 Str:1.00 Sem:PASS
-| 3b   | Find f'(x)                                    | Edexcel A-Level 9MA0/01 June 2024 Q3               | 0.798 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.798] 9MA0/01 Q3                     | Txt:0.84 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.596] J560/03 Q3                     | Txt:0.43 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.591] 9MA0/32 Q3                     | Txt:0.51 Num:0.20 Str:1.00 Sem:PASS
-| 3c   | Using 3.7 as a first approximation for a, ... | Edexcel A-Level 9MA0/01 June 2024 Q3               | 0.798 | [33m⚠️  RESCUED[0m    |
-   └─ Runners Up (Audit Trail):
-      [32m○[0m [0.798] 9MA0/01 Q3                     | Txt:0.84 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.596] J560/03 Q3                     | Txt:0.43 Num:0.40 Str:1.00 Sem:PASS
-      ○ [0.591] 9MA0/32 Q3                     | Txt:0.51 Num:0.20 Str:1.00 Sem:PASS
-| 4    | Given that y = x², use differentiation fro... | Edexcel A-Level 9MA0/01 June 2024 Q4               | 0.991 | [32m✅ SUCCESS[0m      |
-| 5    | The function f is defined by f(x) = \frac{... | Edexcel A-Level 9MA0/01 June 2024 Q5               | 0.968 | [32m✅ SUCCESS[0m      |
-| 5a   | Show that f'(x) = \frac{ax^2+bx+c}{(x^2+4)... | Edexcel A-Level 9MA0/01 June 2024 Q5               | 0.968 | [32m✅ SUCCESS[0m      |
-| 5b   | Hence, using algebra, find the values of x... | Edexcel A-Level 9MA0/01 June 2024 Q5               | 0.968 | [32m✅ SUCCESS[0m      |
+| 12   | Here are some graphs. Write down the lette... | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
+| 12i  | y = x² - 4                                    | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
+| 12ii | y = -x³                                       | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
+| 12iii | y = \frac{-5}{x}                              | Edexcel GCSE 1MA1/1H June 2024 Q12                 | 0.870 | [32m✅ SUCCESS[0m      |
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
 📊 [QUESTION DETECTION STATISTICS]
-   Total questions: 12
-   Detected: 12/12
+   Total questions: 4
+   Detected: 4/4
    Not detected: 0
    [HINT] Hint Used: "Global Search"
    [HINT] Matched Papers: 151
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m2.7s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mQUESTION-DETECTION[0m)
 
-🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Type: Standard/GCSE)
-🕵️ [PROBE] Q1 | sourceImageIndex: 1 | text: g(x) = 3x3 - 20x² + (k+17)x + ...
-   ⚖️ [PAGE-WEIGHT] Page 1: Weights=[1:1] -> Selected: 0.9
-   ⚖️ [PAGE-WEIGHT] Page 2: Weights=[1:1] -> Selected: 0.9
-   ⚖️ [PAGE-WEIGHT] Page 3: Weights=[2:2, 2a:2.01, 2b:2.02] -> Selected: 2.01
-   ⚖️ [PAGE-WEIGHT] Page 4: Weights=[2:2] -> Selected: 1.9
-   ⚖️ [PAGE-WEIGHT] Page 5: Weights=[3:3, 3a:3.01, 3b:3.02, 3c:3.03] -> Selected: 3.01
-   ⚖️ [PAGE-WEIGHT] Page 6: Weights=[3:3] -> Selected: 2.9
-   ⚖️ [PAGE-WEIGHT] Page 7: Weights=[4:4] -> Selected: 3.9
-   ⚖️ [PAGE-WEIGHT] Page 9: Weights=[5:5, 5a:5.01, 5b:5.02] -> Selected: 5.01
-   ⚖️ [PAGE-WEIGHT] Page 10: Weights=[5:5] -> Selected: 4.9
+🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Signal-Detected: GCSE/Standard Type)
+   ⚖️ [PAGE-WEIGHT] Page 0: Weights=[12:12, 12i:12.0001, 12ii:12.0002, 12iii:12.0003] -> Selected: 12.0001
 🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:
 -----------------------------------------------------------------------------------------
 | OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |
 -----------------------------------------------------------------------------------------
-| 0       | a-level-pure-1-2024a | true   | 999999 |                                    |
-| 1       | a-level-pure-1-2024a | false  | 0.9    | 1                                  |
-| 2       | a-level-pure-1-2024a | false  | 0.9    | 1                                  |
-| 3       | a-level-pure-1-2024a | false  | 2.01   | 2, 2a, 2b                          |
-| 4       | a-level-pure-1-2024a | false  | 1.9    | 2                                  |
-| 5       | a-level-pure-1-2024a | false  | 3.01   | 3, 3a, 3b, 3c                      |
-| 6       | a-level-pure-1-2024a | false  | 2.9    | 3                                  |
-| 7       | a-level-pure-1-2024a | false  | 3.9    | 4                                  |
-| 8       | a-level-pure-1-2024a | false  | 999999 |                                    |
-| 9       | a-level-pure-1-2024a | false  | 5.01   | 5, 5a, 5b                          |
-| 10      | a-level-pure-1-2024a | false  | 4.9    | 5                                  |
+| 0       | edexcel1m11-1h-2024- | false  | 12.0001 | 12, 12i, 12ii, 12iii               |
 -----------------------------------------------------------------------------------------
+
+🚀 [SORT-RESULT] Final Logical Order:
+-----------------------------------------------------------------------------------------
+| Seq 0 | OrigIdx 0 | isMeta: false | minQ: 12.0001 |
+-----------------------------------------------------------------------------------------
+✅ [RE-INDEXING] Completed. Pages have been straightened into Logical Order.
+✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.
+
+🔄 [OCR RE-ID] Regenerating Global Block IDs to match new Page Indices...
+✅ [OCR RE-ID] Completed. Blocks are now synchronized with physical pages.
+✅ [DIMENSIONS REBUILD] Map refreshed for 1 re-indexed pages.
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m0.9s[0m ([32m[1mQUESTION-DETECTION[0m)
+🔍 [DIMENSIONS DEBUG] Pages: 1
+🔍 [DIMENSIONS DEBUG] Map Size: 1
+ 🕵️ [PIPELINE-META] Collected Meta Indices: 
+ 📏 [ZONE-SERVICE] detectSemanticZones initialized with Meta Pages: none
+ 📊 [A-LEVEL-UPGRADE] Group 12 upgraded via 12i->12ii (H:1536, EmptyPage:false)
+ 🏗️ [ZONE-CREATE] 12: [140 - 2198] (P0)
+ 🏗️ [ZONE-CREATE] 12: [155 - 2198] (P0)
+ 🏗️ [ZONE-CREATE] 12: [155 - 2198] (P0)
+
+📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:
+   ✅ 12     | P0 | Y:  140 (6.0%) to 2198 | X: 102 (Margin: 6.0%) | W: 1496
+-------------------------------------------
+
+[1m[32m🔄 [AI MARKING][0m [1mSTARTING...[0m
+
+🚀 [PROMPT-ALIGNMENT] FINAL AI PROMPT SENT TO MODEL:
+==================================================================
+SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)
+------------------------------------------------------------------
+USER PROMPT:
+ # MARKING TASK: Question 12
+        
+## QUESTION TEXT
+**[12]**: Here are some graphs. [Nine graphs are shown, labeled A to J (missing I). A: downward parabola, vertex on positive y-axis. B: reciprocal graph in quadrants 1 and 3. C: cubic graph with two turning points. D: positive linear graph, positive y-intercept. E: cubic graph (like y=x^3). F: cubic graph (like y=-x^3). G: negative linear graph, passing through origin. H: upward parabola, vertex on negative y-axis. J: reciprocal graph in quadrants 2 and 4.] Write down the letter of the graph that could have the equation
+
+**[12i]**: $y=x^{2}-4$
+
+**[12ii]**: $y=-x^{3}$
+
+**[12iii]**: $y=-\frac{5}{x}$
+
+## MARKING SCHEME
+> [INSTRUCTION]: You are the CHIEF EXAMINER.
+> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 2. **STRICT SILO RULE (CRITICAL)**:
+>    - You MUST respect the [MAX SCORE] for each sub-question.
+>    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+
+[OFFICIAL SCHEME]
+[12i] [MAX SCORE: 1]
+- B1: H
+
+[12ii] [MAX SCORE: 1]
+- B1: F
+
+[12iii] [MAX SCORE: 1]
+- B1: J
+
+## STUDENT WORK
+
+[SUB-QUESTION i]
+[ID: p0_q12_line_1] H
+
+[SUB-QUESTION ii]
+[ID: p0_q12_line_2] F
+
+[SUB-QUESTION iii]
+[ID: p0_q12_line_3] J
+
+
+## RAW OCR BLOCKS
+Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+
+[p0_ocr_0]: "12 Here are some graphs. [PRINTED_INSTRUCTION [Q12]]"
+[p0_ocr_1]: "A"
+[p0_ocr_2]: "B"
+[p0_ocr_3]: "C"
+[p0_ocr_4]: "D"
+[p0_ocr_5]: "E"
+[p0_ocr_6]: "F"
+[p0_ocr_7]: "H"
+[p0_ocr_8]: "J"
+[p0_ocr_9]: "Write down the letter of the graph that could have the equation"
+[p0_ocr_10]: "(i) \( y=x^{2}-4 \) [PRINTED_INSTRUCTION [Q12i]]"
+[p0_ocr_12]: "H"
+[p0_ocr_11]: "|-|"
+[p0_ocr_13]: "(1)"
+[p0_ocr_14]: "(ii) \( y=-x^{3} \) [PRINTED_INSTRUCTION [Q12ii]]"
+[p0_ocr_15]: "E"
+[p0_ocr_16]: "F"
+[p0_ocr_17]: "(1)"
+[p0_ocr_18]: "(iii) \( y=-\frac{5}{x} \) [PRINTED_INSTRUCTION [Q12iii]]"
+[p0_ocr_19]: "J"
+[p0_ocr_20]: "(1)"
+[p0_ocr_21]: "13"
+
+## PAGE MAP
+{"12":0,"12i":0,"12ii":0,"12iii":0}
+
+
+==================================================================
+
+
+========================================
+[LOG-DEBUG] Raw AI MARKING JSON Response
+----------------------------------------
+```json
+{
+  "meta": {
+    "question_total_marks": 3,
+    "raw_correct_steps_found": 3,
+    "steps_dropped_to_fit_budget": 0,
+    "isTotalEstimated": false
+  },
+  "visualObservation": null,
+  "annotations": [
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q12_line_1",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_12",
+      "reasoning": "Student wrote H, which is the correct answer.",
+      "subQuestion": "12i",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q12_line_2",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_16",
+      "reasoning": "Student wrote F, which is the correct answer.",
+      "subQuestion": "12ii",
+      "pageIndex": 0,
+      "visual_position": null
+    },
+    {
+      "action": "tick",
+      "text": "B1",
+      "line_id": "p0_q12_line_3",
+      "content_desc": null,
+      "ocr_match_status": "MATCHED",
+      "linked_ocr_id": "p0_ocr_19",
+      "reasoning": "Student wrote J, which is the correct answer.",
+      "subQuestion": "12iii",
+      "pageIndex": 0,
+      "visual_position": null
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 3,
+    "awardedMarks": 3,
+    "scoreText": "3/3"
+  }
+}
+```
+========================================
+
+ 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Content: "12 Here are some graphs. [PRINTED_INSTRUCTION [Q12]]"
+ 🕵️ [LINKER-INPUT-DEBUG-FINAL] p0_ocr_0 Has Tag? true
+ 🛡️ [HEADER-DETACH] Q12i: Detaching from printed header "H" (ID p0_ocr_12)
+ 🛡️ [HEADER-DETACH] Q12iii: Detaching from printed header "J" (ID p0_ocr_19)
+ 📍 [PATH 3] Q12i: Line "p0_q12_line_1" is UNMATCHED. Recovering position.
+ 📍 [PATH 3] Q12iii: Line "p0_q12_line_3" is UNMATCHED. Recovering position.
+[1m[32m✅ [AI MARKING][0m [1mCOMPLETED[0m in [1m4.9s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [MARKING][0m [1mCOMPLETED[0m in [1m4.9s[0m ([32m[1mAI-MARKING[0m)
+
+🔍 [RESULT VERIFICATION] Checking what will be combined:
+   📊 Marking Results: 1 questions
+   📝 Question Results: NO
+   ✅ Both modes triggered: NO
+[1m[32m✅ [OUTPUT GENERATION][0m [1mCOMPLETED[0m in [1m1.2s[0m ([32m[1mOUTPUT-GENERATION[0m)
+⚠️  [COMBINATION] No questionResponses found
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+[1m[32m✅ [PERFORMANCE SUMMARY AI][0m [1mCOMPLETED[0m in [1m0.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[V2 CLEAN FIX] 🏗️ Building UI Structure directly from 1 Engine Results...
+[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)
+
+📊 [ANNOTATION SUMMARY]
+-----------------------------------------------------------------------------------------
+| Q#       | Score | Marks Awarded           | Match Status (AI -> Final)             |
+|----------|-------|-------------------------|----------------------------------------|
+| [32m12      [0m | 3/3   | B1, B1, B1              | AI:3/3 → M:1 S:0 V:0 U:2               |
+| [90m  i     [0m | 1     | B1                      | AI:1/1 → M:0 S:0 V:0 U:1               |
+| [90m  ii    [0m | 1     | B1                      | AI:1/1 → M:1 S:0 V:0 U:0               |
+| [90m  iii   [0m | 1     | B1                      | AI:1/1 → M:0 S:0 V:0 U:1               |
+|----------|-------|-------------------------|----------------------------------------|
+
+=== PERFORMANCE SUMMARY ===
+Total Processing Time: 16.6s
+Model Used: gemini-2.0-flash
+----------------------------
+classification                      6.0s (36%)
+marking                             4.9s (29%)
+ocr_processing                      1.9s (11%)
+output_generation                   1.2s (7%)
+question_detection                  0.9s (5%)
+performance_summary                 0.7s (4%)
+database_persistence                0.2s (1%)
+preprocessing                       0.2s (1%)
+============================
+
+
+📊 [UsageTracker] Summary:
+   Model: gemini-2.0-flash
+   API Requests: 5 total
+   Total Tokens: 24,981 (23,510 in + 1,471 out)
+   Total Cost: $0.006939
+   Mathpix OCR: 1 pages → $0.004000
+
+   Breakdown by Phase:
+   • Classification (Marking Pass): 17,751 tokens (3 requests) → $0.002054
+   • Marking: 6,831 tokens (1 requests) → $0.000835
+   • Performance Summary: 399 tokens (1 requests) → $0.000051
+
+
+🏁 ========== UNIFIED PIPELINE END ==========
+🏁 ==========================================
+
+✅ [CONTROLLER] Pipeline completed, result exists: true, sessionId: sub-1773684844154
+💳 [CREDIT DEDUCT] Starting deduction for user: 9mBfvniXTuMtQU8f0OnLhUK6aOv2, sessionId: sub-1773684844154
+💳 [CREDIT DEDUCT] Incremental cost from tracker: 0.0069394
+🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "Mathematics"
+💳 Deducted 0.69 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1773684844154), remaining: 999442.03
+💳 Deducted 0.0069 credits (session: sub-1773684844154) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
+✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1773684844154

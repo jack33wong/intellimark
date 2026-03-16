@@ -1107,23 +1107,36 @@ export class MarkingPipelineService {
 
             // 🛡️ [SIGNAL-BASED PAPER TYPE DETECTION]: 
             // Detect A-Level vs GCSE using structural signals instead of guesswork (Bible Rule 8).
-            const isALevelPaper = standardizedPages.some((p: any) => {
-                const blocks = p.blocks || [];
-                const textLen = blocks.reduce((sum: number, b: any) => sum + (b.text || '').length, 0);
+            const isALevelPaper = allPagesOcrData.some((p: any) => {
+                const ocr = p.ocrData;
+                if (!ocr) return false;
+                const blocks = ocr.mathBlocks || [];
+                const pageHeight = ocr.dimensions?.height || 3500;
+                const textLen = blocks.reduce((sum: number, b: any) => sum + (b.googleVisionText || b.text || '').length, 0);
                 
                 // Signal 1: High Density (Question Text)
                 if (textLen < 300) return false;
 
                 // Signal 2: Large Empty Space (The Answer Box)
-                const sortedBlocks = [...blocks].sort((a,b) => (a.coordinates?.y || 0) - (b.coordinates?.y || 0));
+                const sortedBlocks = [...blocks].sort((a: any, b: any) => (a.coordinates?.y || 0) - (b.coordinates?.y || 0));
                 let maxGap = 0;
+                
                 for (let i = 1; i < sortedBlocks.length; i++) {
-                    const top = sortedBlocks[i-1].coordinates?.y + (sortedBlocks[i-1].coordinates?.height || 0);
-                    const bottom = sortedBlocks[i].coordinates?.y;
+                    const top = (sortedBlocks[i-1].coordinates?.y || 0) + (sortedBlocks[i-1].coordinates?.height || 0);
+                    const bottom = sortedBlocks[i].coordinates?.y || 0;
                     const gap = bottom - top;
                     if (gap > maxGap) maxGap = gap;
                 }
-                return maxGap > 800; // Large vertical gap (approx 25% of A4 page)
+
+                // Also check the gap from the final block to the bottom of the page
+                if (sortedBlocks.length > 0) {
+                    const lastBlock = sortedBlocks[sortedBlocks.length - 1];
+                    const lastBottom = (lastBlock.coordinates?.y || 0) + (lastBlock.coordinates?.height || 0);
+                    const bottomGap = pageHeight - lastBottom;
+                    if (bottomGap > maxGap) maxGap = bottomGap;
+                }
+                
+                return maxGap > (pageHeight * 0.20); // Large vertical gap (at least 20% of page)
             });
 
             console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Signal-Detected: ${isALevelPaper ? 'A-Level Type' : 'GCSE/Standard Type'})`);
