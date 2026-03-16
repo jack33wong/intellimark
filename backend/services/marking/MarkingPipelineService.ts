@@ -1105,17 +1105,28 @@ export class MarkingPipelineService {
             MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
             logQuestionDetectionComplete(); // End the overall Question Detection timer
 
-            // 🛡️ [PAPER TYPE DETECTION]: Detect A-Level vs GCSE for sorting rules
-            const isALevelPaper = Array.from(markingSchemesMap.values()).some(m => 
-                (m.name || '').toLowerCase().includes('a-level') || 
-                (m.title || '').toLowerCase().includes('9ma0') ||
-                (m.paperCode || '').toLowerCase().includes('9ma0')
-            ) || allClassificationResults.some((r: any) => {
-                const title = (r.detectionResult?.match?.paperTitle || '').toLowerCase();
-                return title.includes('a-level') || title.includes('9ma0');
+            // 🛡️ [SIGNAL-BASED PAPER TYPE DETECTION]: 
+            // Detect A-Level vs GCSE using structural signals instead of guesswork (Bible Rule 8).
+            const isALevelPaper = standardizedPages.some((p: any) => {
+                const blocks = p.blocks || [];
+                const textLen = blocks.reduce((sum: number, b: any) => sum + (b.text || '').length, 0);
+                
+                // Signal 1: High Density (Question Text)
+                if (textLen < 300) return false;
+
+                // Signal 2: Large Empty Space (The Answer Box)
+                const sortedBlocks = [...blocks].sort((a,b) => (a.coordinates?.y || 0) - (b.coordinates?.y || 0));
+                let maxGap = 0;
+                for (let i = 1; i < sortedBlocks.length; i++) {
+                    const top = sortedBlocks[i-1].coordinates?.y + (sortedBlocks[i-1].coordinates?.height || 0);
+                    const bottom = sortedBlocks[i].coordinates?.y;
+                    const gap = bottom - top;
+                    if (gap > maxGap) maxGap = gap;
+                }
+                return maxGap > 800; // Large vertical gap (approx 25% of A4 page)
             });
 
-            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Type: ${isALevelPaper ? 'A-Level' : 'Standard/GCSE'})`);
+            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Signal-Detected: ${isALevelPaper ? 'A-Level Type' : 'GCSE/Standard Type'})`);
 
             // 🔍 [RE-INDEX PROBE]: Verify pointer sync integrity
             classificationResult.questions.forEach((q: any) => {

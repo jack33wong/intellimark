@@ -2,6 +2,8 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
+[PERF] getUserUnifiedSessions: Fetch 242ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 244ms for 50 sessions (limit: 50)
 👤 [PLAN CHECK] User 9mBfvniXTuMtQU8f0OnLhUK6aOv2 is on plan: admin_test
 📡 [MARKING] Processing POST /api/marking/process (hasRawBody: false)
 🚀 [MARKING] Controller started - Files: 11, Body Keys: model, aiMessageId
@@ -38,8 +40,8 @@
    ✅ Mapped Local[0] -> Global[8] | Content: 4
    ✅ Mapped Local[1] -> Global[9] | Content: 5a, 5b
    ✅ Mapped Local[2] -> Global[10] | Content: 5
-✅ [MAPPER] Map Pass complete in 7.68s. Mapped 11 pages.
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m19.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+✅ [MAPPER] Map Pass complete in 7.00s. Mapped 11 pages.
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m17.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🚀 [OVERRIDE] 90% Rule Triggered: 10/10 pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -50,13 +52,13 @@
 ✅ Perfect split complete - each mode has consecutive 0-based indices
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m19.1s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
+[1m[32m✅ [CLASSIFICATION][0m [1mCOMPLETED[0m in [1m17.7s[0m ([32m[1mGEMINI-2.0-FLASH[0m)
 🔍 [MODE DETECTION] Analysis (AFTER overrides):
   - All question-only: false
   - Has mixed content: false
   - Has any student work: true
   - Selected mode: Marking Mode
-[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.4s[0m ([32m[1mMATHPIX[0m)
+[1m[32m✅ [OCR PROCESSING][0m [1mCOMPLETED[0m in [1m3.7s[0m ([32m[1mMATHPIX[0m)
 
 🔍 [DETECTION CONTEXT]
    Strategy: Global Search
@@ -104,32 +106,32 @@
    Not detected: 0
    [HINT] Hint Used: "Global Search"
    [HINT] Matched Papers: 151
-[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m2.8s[0m ([32m[1mQUESTION-DETECTION[0m)
+[1m[32m✅ [QUESTION DETECTION][0m [1mCOMPLETED[0m in [1m2.7s[0m ([32m[1mQUESTION-DETECTION[0m)
 
-🔄 [RE-INDEXING] 🛡️ Aligning physical pages...
+🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Type: Standard/GCSE)
 🕵️ [PROBE] Q1 | sourceImageIndex: 1 | text: g(x) = 3x3 - 20x² + (k+17)x + ...
-   ⚖️ [PAGE-WEIGHT] Page 1: CharCount=0, Weights=[1:1] -> Selected: 1.9
-   ⚖️ [PAGE-WEIGHT] Page 2: CharCount=0, Weights=[1:1] -> Selected: 1.9
-   ⚖️ [PAGE-WEIGHT] Page 3: CharCount=0, Weights=[2:2, 2a:2.01, 2b:2.02] -> Selected: 2.01
-   ⚖️ [PAGE-WEIGHT] Page 4: CharCount=0, Weights=[2:2] -> Selected: 2.9
-   ⚖️ [PAGE-WEIGHT] Page 5: CharCount=0, Weights=[3:3, 3a:3.01, 3b:3.02, 3c:3.03] -> Selected: 3.01
-   ⚖️ [PAGE-WEIGHT] Page 6: CharCount=0, Weights=[3:3] -> Selected: 3.9
-   ⚖️ [PAGE-WEIGHT] Page 7: CharCount=0, Weights=[4:4] -> Selected: 4.9
-   ⚖️ [PAGE-WEIGHT] Page 9: CharCount=0, Weights=[5:5, 5a:5.01, 5b:5.02] -> Selected: 5.01
-   ⚖️ [PAGE-WEIGHT] Page 10: CharCount=0, Weights=[5:5] -> Selected: 5.9
+   ⚖️ [PAGE-WEIGHT] Page 1: Weights=[1:1] -> Selected: 0.9
+   ⚖️ [PAGE-WEIGHT] Page 2: Weights=[1:1] -> Selected: 0.9
+   ⚖️ [PAGE-WEIGHT] Page 3: Weights=[2:2, 2a:2.01, 2b:2.02] -> Selected: 2.01
+   ⚖️ [PAGE-WEIGHT] Page 4: Weights=[2:2] -> Selected: 1.9
+   ⚖️ [PAGE-WEIGHT] Page 5: Weights=[3:3, 3a:3.01, 3b:3.02, 3c:3.03] -> Selected: 3.01
+   ⚖️ [PAGE-WEIGHT] Page 6: Weights=[3:3] -> Selected: 2.9
+   ⚖️ [PAGE-WEIGHT] Page 7: Weights=[4:4] -> Selected: 3.9
+   ⚖️ [PAGE-WEIGHT] Page 9: Weights=[5:5, 5a:5.01, 5b:5.02] -> Selected: 5.01
+   ⚖️ [PAGE-WEIGHT] Page 10: Weights=[5:5] -> Selected: 4.9
 🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:
 -----------------------------------------------------------------------------------------
 | OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |
 -----------------------------------------------------------------------------------------
 | 0       | a-level-pure-1-2024a | true   | 999999 |                                    |
-| 1       | a-level-pure-1-2024a | false  | 1.9    | 1                                  |
-| 2       | a-level-pure-1-2024a | false  | 1.9    | 1                                  |
+| 1       | a-level-pure-1-2024a | false  | 0.9    | 1                                  |
+| 2       | a-level-pure-1-2024a | false  | 0.9    | 1                                  |
 | 3       | a-level-pure-1-2024a | false  | 2.01   | 2, 2a, 2b                          |
-| 4       | a-level-pure-1-2024a | false  | 2.9    | 2                                  |
+| 4       | a-level-pure-1-2024a | false  | 1.9    | 2                                  |
 | 5       | a-level-pure-1-2024a | false  | 3.01   | 3, 3a, 3b, 3c                      |
-| 6       | a-level-pure-1-2024a | false  | 3.9    | 3                                  |
-| 7       | a-level-pure-1-2024a | false  | 4.9    | 4                                  |
+| 6       | a-level-pure-1-2024a | false  | 2.9    | 3                                  |
+| 7       | a-level-pure-1-2024a | false  | 3.9    | 4                                  |
 | 8       | a-level-pure-1-2024a | false  | 999999 |                                    |
 | 9       | a-level-pure-1-2024a | false  | 5.01   | 5, 5a, 5b                          |
-| 10      | a-level-pure-1-2024a | false  | 5.9    | 5                                  |
+| 10      | a-level-pure-1-2024a | false  | 4.9    | 5                                  |
 -----------------------------------------------------------------------------------------
