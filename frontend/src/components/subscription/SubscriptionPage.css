@@ -187,16 +187,17 @@
 }
 
 .upgrade-billing-toggle .upgrade-billing-save-badge {
-  background: none;
-  color: var(--function-error);
-  padding: 3px 8px;
-  border-radius: 6px;
+  background: var(--function-success-tsp);
+  color: var(--function-success);
+  padding: 4px 10px;
+  border-radius: 20px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
   display: inline-block;
   line-height: 1;
   flex-shrink: 0;
+  border: 1px solid var(--function-success-tsp);
 }
 
 .upgrade-plan-pricing {
@@ -223,13 +224,15 @@
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, var(--text-brand), var(--shadows-highlight-2));
+  background: #7f00ff; /* Solid Purple Badge */
   color: var(--text-white);
-  padding: 6px 20px;
-  border-radius: 0 0 8px 8px;
+  padding: 8px 24px;
+  border-radius: 0 0 12px 12px;
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.025em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(127, 0, 255, 0.2);
 }
 
 .upgrade-plan-header {
@@ -292,13 +295,37 @@
   color: var(--text-brand);
 }
 
-.plan-feature-text {
+.plan-feature-content {
   flex: 1;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.plan-feature-main-row {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  text-align: left;
+  width: 100%;
+  gap: 8px;
+}
+
+.plan-feature-text {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.has-subtext .plan-feature-text {
+  font-weight: 700; /* Extra emphasis for credit count */
+}
+
+.plan-feature-subtext {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-top: 1px;
 }
 
 .feature-tooltip-container {
@@ -506,17 +533,18 @@
 /* Specific button styles */
 .upgrade-plan-subscribe-button {
   width: 100%;
-  background: var(--text-primary);
-  color: var(--background-white-main);
+  background: #1a1a19; /* Dark Grey/Black as requested */
+  color: white !important;
   border: 1px solid transparent;
-  padding: 14px 24px;
+  padding: 16px 24px;
   border-radius: 12px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
   margin-bottom: 24px;
   text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
 .upgrade-plan-subscribe-button:hover {
@@ -825,6 +853,18 @@
 }
 
 @media (max-width: 480px) {
+  .upgrade-header {
+    margin-bottom: 10px;
+  }
+
+  .upgrade-header p {
+    font-size: 12px;
+  }
+
+  .upgrade-billing-toggle {
+    margin-bottom: 10px;
+  }
+
   .upgrade-page {
     padding: 32px 0;
   }

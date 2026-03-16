@@ -80,7 +80,7 @@
 
 @media (max-width: 640px) {
     .landing-hero-content {
-        margin: 50px auto 20px;
+        margin: 60px auto 60px;
     }
 }
 
@@ -132,12 +132,8 @@
 }
 
 .hero-cta-group {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
-    /* Increased gap */
-    margin-bottom: 60px;
+    /* Styles migrated to index.css for global use */
+    margin-bottom: 0;
 }
 
 .segmented-cta-tabs {
@@ -166,31 +162,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.hero-primary-cta {
-    background-color: var(--text-brand);
-    color: white !important;
-    font-size: 1.15rem;
-    font-weight: 600;
-    padding: 18px 36px;
-    border-radius: 100px;
-    border: none;
-    cursor: pointer;
-    transition: transform 0.2s ease, background-color 0.2s ease;
-    box-shadow: 0 10px 30px rgba(127, 0, 255, 0.2);
-    text-decoration: none;
-}
-
-.hero-primary-cta:hover {
-    transform: translateY(-2px);
-    background-color: #6a00d9;
-}
-
-.hero-trust-microcopy {
-    font-size: 0.9rem;
-    color: var(--text-tertiary);
-    font-weight: 500;
-    padding-top: 10px;
-}
+/* CTA styles migrated to index.css for global use across all board landing pages */
 
 /* Spatial Intelligence Section */
 .spatial-intelligence-section {

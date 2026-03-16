@@ -134,6 +134,134 @@ html {
   --page-title-font: "LibreBaskerville, Georgia, Cambria, ui-serif, Times New Roman, Times, serif";
 }
 
+/* --- Global Landing CTA Styles --- */
+.hero-cta-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 60px;
+    width: 100%;
+}
+
+.hero-cta-group .anim-item {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.hero-primary-cta {
+    background-color: var(--text-brand);
+    color: white !important;
+    font-size: 1.15rem;
+    font-weight: 600;
+    padding: 18px 36px;
+    border-radius: 100px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    box-shadow: 0 10px 30px rgba(127, 0, 255, 0.2);
+    text-decoration: none;
+}
+
+.hero-primary-cta:hover {
+    transform: translateY(-2px);
+    background-color: #6a00d9;
+}
+
+.hero-primary-cta .cta-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.hero-secondary-cta {
+    background-color: transparent;
+    color: var(--text-brand) !important;
+    font-size: 1.15rem;
+    font-weight: 600;
+    padding: 16px 32px;
+    border-radius: 100px;
+    border: 2px solid var(--text-brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    background: rgba(127, 0, 255, 0.03);
+}
+
+.hero-secondary-cta:hover {
+    transform: translateY(-2px);
+    background-color: rgba(127, 0, 255, 0.08);
+    border-color: #6a00d9;
+    color: #6a00d9 !important;
+}
+
+.hero-secondary-cta .cta-icon {
+    width: 22px;
+    height: 22px;
+    opacity: 0.9;
+}
+
+.hero-primary-cta:hover .cta-icon {
+    animation: photo-shutter 0.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes photo-shutter {
+    0% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    20% {
+        transform: scale(0.85);
+        filter: brightness(1);
+    }
+    40% {
+        transform: scale(1.15);
+        filter: brightness(2);
+    }
+    60% {
+        transform: scale(1);
+        filter: brightness(1.5);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+.hero-trust-microcopy {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    font-weight: 500;
+    padding-top: 4px;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .hero-cta-group .anim-item {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .hero-primary-cta, .hero-secondary-cta {
+        width: 100%;
+        max-width: 320px;
+        font-size: 1.05rem;
+        padding: 16px 24px;
+    }
+}
+
 @keyframes breathe {
 
   0%,

@@ -30,12 +30,13 @@
 }
 
 .aqa-landing-page .aqa-hero-subtitle {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     color: #4a5568;
     line-height: 1.6;
     margin-bottom: 40px;
     max-width: 650px;
     margin-inline: auto;
+    padding: 0px 10px;
 }
 
 .aqa-landing-page .aqa-highlight-blue {
@@ -314,5 +315,9 @@
     /* Resources Section */
     .aqa-landing-page .aqa-resources-section {
         padding: 80px 24px;
+    }
+
+    .aqa-landing-page .aqa-hero-subtitle {
+        font-size: 1rem;
     }
 }

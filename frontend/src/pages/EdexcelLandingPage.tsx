@@ -3,6 +3,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown } from 'lucide-react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
+import HeroAnimation from '../components/layout/HeroAnimation';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import { trackPaperInteraction } from '../utils/analytics';
@@ -102,6 +103,12 @@ const EDEXCEL_PAST_PAPERS = [
 
 const EdexcelLandingPage: React.FC = () => {
     const navigate = useNavigate();
+    const [startAnimations, setStartAnimations] = React.useState(false);
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => setStartAnimations(true), 100);
+        return () => clearTimeout(timer);
+    }, []);
 
 
     return (
@@ -118,18 +125,36 @@ const EdexcelLandingPage: React.FC = () => {
             <LandingPageHeader />
 
             <section className="landing-section edexcel-hero-section">
-                <div className="edexcel-hero-content">
-                    <h1 className="edexcel-hero-title">Free <span className="edexcel-highlight-navy">Edexcel</span> Past Papers & Model Answers</h1>
-                    <p className="edexcel-hero-subtitle">Stop staring at confusing Pearson mark schemes. Find your exact Edexcel 1MA1 paper below, view step-by-step model answers, and let our AI instantly grade your work like a real examiner.</p>
-                    <div className="edexcel-hero-cta-box">
-                        <button className="edexcel-btn-file" onClick={() => document.getElementById('papers')?.scrollIntoView({ behavior: 'smooth' })}>
-                            <span>View Edexcel Papers</span>
-                            <ArrowDown className="cta-arrow-icon animate-bounce-soft" />
-                        </button>
-                        <p className="edexcel-microcopy">Supports all 1MA1 foundation and higher papers</p>
+                <div className={`edexcel-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
+                    <h1 className="edexcel-hero-title">Instantly Mark Your <span className="edexcel-highlight-navy">Edexcel</span> Maths Paper</h1>
+                    <p className="edexcel-hero-subtitle">Stop staring at confusing Pearson mark schemes. Scan your handwritten 2020-2024 past papers and let our AI instantly grade your work like a real examiner. Supports Edexcel 1MA1 Higher & Foundation.</p>
+                    
+                    <div className="hero-cta-group">
+                        <div className="anim-item">
+                            <button className="hero-primary-cta" onClick={() => navigate('/app?action=scan')}>
+                                <span>Scan Your Edexcel Paper</span>
+                                <svg className="w-6 h-6 cta-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                            </button>
+
+                            <button className="hero-secondary-cta" onClick={() => navigate('/app?action=select')}>
+                                <span>Upload PDF / Image</span>
+                                <svg className="w-6 h-6 cta-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </button>
+
+                            <p className="hero-trust-microcopy">
+                                Supports 2020-2024 Higher & Foundation. No credit card required.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </section>
+
+            <HeroAnimation />
 
             <section className="landing-section edexcel-feature-row">
                 <div className="edexcel-feature-container">

@@ -30,7 +30,7 @@
 }
 
 .ocr-landing-page .ocr-hero-subtitle {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     color: #4a5568;
     line-height: 1.6;
     margin-bottom: 40px;
@@ -253,4 +253,9 @@
     .ocr-landing-page .ocr-resources-section {
         padding: 80px 24px;
     }
+
+    .ocr-landing-page .ocr-hero-subtitle {
+        font-size: 1rem;
+    }
+
 }

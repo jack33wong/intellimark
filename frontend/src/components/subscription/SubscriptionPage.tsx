@@ -248,8 +248,9 @@ const SubscriptionPage: React.FC = () => {
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `${planCredits.free} Monthly Credits`,
-          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
+          text: `10 Monthly Credits`,
+          subtext: `(Marks approx. 1 half-paper)`,
+          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed. We use advanced Mathpix OCR and 0.1mm spatial precision to perfectly read messy fractions, crossed-out lines, and drawn graphs, grading them against official examiner standards."
         },
         {
           icon: <Zap size={16} />,
@@ -261,15 +262,11 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <Award size={16} />,
-          text: 'Step-by-Step Marking'
+          text: 'Step-by-step marking'
         },
         {
           icon: <RotateCcw size={16} />,
           text: 'Marks for working out'
-        },
-        {
-          icon: <Database size={16} />,
-          text: 'Save your recent papers'
         }
       ],
       popular: false
@@ -277,22 +274,27 @@ const SubscriptionPage: React.FC = () => {
     {
       id: 'pro' as Plan,
       name: 'Pro',
-      price: dynamicPlans?.pro?.[billingCycle]?.amount,
-      description: 'Best for active revision.',
+      price: dynamicPlans?.pro?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 9.99 : 95.90),
+      description: 'Best for active GCSE & A-Level revision.',
       icon: <Users size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `${planCredits.pro} Monthly Credits`,
-          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
+          text: `200 Monthly Credits`,
+          subtext: `(Marks approx. 10 full past papers)`,
+          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed. We use advanced Mathpix OCR and 0.1mm spatial precision to perfectly read messy fractions, crossed-out lines, and drawn graphs, grading them against official examiner standards."
+        },
+        {
+          icon: <Award size={16} />,
+          text: 'GCSE & 2024 A-Level Access'
+        },
+        {
+          icon: <MessageSquare size={16} />,
+          text: '24/7 AI Tutor Chat'
         },
         {
           icon: <FileText size={16} />,
           text: 'Full Model Answers'
-        },
-        {
-          icon: <Workflow size={16} />,
-          text: 'Strict GCSE Mark Schemes'
         },
         {
           icon: <TrendingUp size={16} />,
@@ -301,14 +303,6 @@ const SubscriptionPage: React.FC = () => {
         {
           icon: <Layers size={16} />,
           text: 'Save all your mock exams'
-        },
-        {
-          icon: <MessageSquare size={16} />,
-          text: '24/7 AI Tutor Chat'
-        },
-        {
-          icon: <Users size={16} />,
-          text: 'Fast Email Support'
         }
       ],
       popular: true
@@ -316,26 +310,27 @@ const SubscriptionPage: React.FC = () => {
     {
       id: 'ultra' as Plan,
       name: 'Ultra',
-      price: dynamicPlans?.ultra?.[billingCycle]?.amount,
-      description: 'Best for maximum progress.',
+      price: dynamicPlans?.ultra?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 19.99 : 191.90),
+      description: 'Best for maximum progress & heavy practice.',
       icon: <Building2 size={24} />,
       features: [
         {
-          icon: <CreditsIcon size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />,
-          text: `${planCredits.ultra} Monthly Credits`,
-          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed with 0.1mm Spatial Precision, Mathpix OCR, and Examiner-Tuned Marking."
+          icon: <CreditsIcon size={16} />,
+          text: `600 Monthly Credits`,
+          subtext: `(Marks approx. 30 full past papers)`,
+          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed. We use advanced Mathpix OCR and 0.1mm spatial precision to perfectly read messy fractions, crossed-out lines, and drawn graphs, grading them against official examiner standards."
+        },
+        {
+          icon: <Zap size={16} />,
+          text: 'Priority AI Processing'
         },
         {
           icon: <Database size={16} />,
-          text: '3x of everything in Pro'
-        },
-        {
-          icon: <Crown size={16} />,
-          text: 'Early A-Level Access'
-        },
-        {
-          icon: <FileText size={16} />,
           text: 'Keep your papers forever'
+        },
+        {
+          icon: <Users size={16} />,
+          text: 'Fast Email Support'
         }
       ],
       popular: false
@@ -755,7 +750,7 @@ const SubscriptionPage: React.FC = () => {
         {/* Header */}
         <div className="upgrade-header">
           <h1>Subscription Plans</h1>
-          <p>Choose the plan that is right for you</p>
+          <p>Choose the plan that is right for you.</p>
         </div>
 
         <ConfirmationModal
@@ -839,7 +834,7 @@ const SubscriptionPage: React.FC = () => {
           </button>
           <span className={billingCycle === 'yearly' ? 'active' : ''}>
             Yearly
-            <span className="upgrade-billing-save-badge">Save 20%</span>
+            <span className="upgrade-billing-save-badge">Get 2 Months Free</span>
           </span>
         </div>
 
@@ -905,25 +900,30 @@ const SubscriptionPage: React.FC = () => {
                           ? 'Downgrade to Free'
                           : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
                             ? `Downgrade to ${plan.name}`
-                            : `Upgrade to ${plan.name}`
+                            : `Subscribe to ${plan.name}`
                 }
               </button>
 
               <ul className="upgrade-plan-features">
                 {plan.features.map((feature: any, index: number) => (
-                  <li key={index}>
+                  <li key={index} className={feature.subtext ? 'has-subtext' : ''}>
                     {feature.icon || <Check size={16} />}
-                    <span className="plan-feature-text">
-                      {feature.text}
-                      {(feature as any).tooltip && (
-                        <div className="feature-tooltip-container">
-                          <Info size={14} className="feature-info-icon" />
-                          <div className="feature-tooltip-content">
-                            {(feature as any).tooltip}
+                    <div className="plan-feature-content">
+                      <div className="plan-feature-main-row">
+                        <span className="plan-feature-text">{feature.text}</span>
+                        {(feature as any).tooltip && (
+                          <div className="feature-tooltip-container">
+                            <Info size={14} className="feature-info-icon" />
+                            <div className="feature-tooltip-content">
+                              {(feature as any).tooltip}
+                            </div>
                           </div>
-                        </div>
+                        )}
+                      </div>
+                      {feature.subtext && (
+                        <div className="plan-feature-subtext">{feature.subtext}</div>
                       )}
-                    </span>
+                    </div>
                   </li>
                 ))}
               </ul>
