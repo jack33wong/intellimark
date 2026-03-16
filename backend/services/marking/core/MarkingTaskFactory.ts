@@ -16,7 +16,8 @@ export class MarkingTaskFactory {
         markingSchemesMap: Map<string, any>,
         pageDimensionsMap: Map<number, { width: number; height: number }>,
         standardizedPages: any[],
-        mapperResults?: any[]
+        mapperResults?: any[],
+        metaPageIndices?: number[]
     ): MarkingTask[] {
         const tasks: MarkingTask[] = [];
         if (!classificationResult?.questions) return tasks;
@@ -500,6 +501,9 @@ export class MarkingTaskFactory {
                 }
             });
 
+            if (metaPageIndices && metaPageIndices.length > 0) {
+                console.log(` 🏭 [FACTORY-META] Assigning Meta Indices ${metaPageIndices.join(', ')} to task Q${group.questionNumber}`);
+            }
             tasks.push({
                 questionNumber: baseQNum,
                 questionText: group.mainQuestion.text,
@@ -518,6 +522,7 @@ export class MarkingTaskFactory {
                 semanticZones: globalZones,
                 pageMap: pageMap,
                 subQuestionPageMap: subQuestionPageMap,
+                metaPageIndices: metaPageIndices,
                 subQuestionMetadata: {
                     hasSubQuestions: group.subQuestionMetadata.hasSubQuestions,
                     subQuestions: group.subQuestionMetadata.subQuestions

@@ -281,12 +281,16 @@ export class MarkingZoneService {
         pageDimensionsMap: Map<number, { width: number; height: number }>,
         expectedQuestions?: Array<{ label: string; text: string; targetPages?: number[] }>,
         nextQuestionText?: string,
-        questionId?: string
+        questionId?: string,
+        metaPageIndices?: number[]
     ) {
         // Output structure
         const zones: Record<string, Array<{ label: string; startY: number; endY: number; pageIndex: number; x: number; headerBlockId?: string }>> = {};
 
         if (!rawBlocks || !expectedQuestions) return zones;
+
+        const metaPages = new Set(metaPageIndices || []);
+        console.log(` 📏 [ZONE-SERVICE] detectSemanticZones initialized with Meta Pages: ${[...metaPages].join(', ') || 'none'}`);
 
 
         // 1. Sort blocks strictly by Page and then Y
@@ -395,19 +399,33 @@ export class MarkingZoneService {
         });
 
         for (let i = 0; i < finalLandmarks.length; ) {
-            let j = i + 1;
+            let baseEnd = i + 1;
             let groupHasALevelSignal = false;
-            
-            // Look-ahead: Scan all landmarks with the same base number
-            while (j < finalLandmarks.length) {
-                const l1 = finalLandmarks[j - 1];
-                const l2 = finalLandmarks[j];
-                const isSameBase = ZoneUtils.getBaseNumber(l1.key) === ZoneUtils.getBaseNumber(l2.key);
-                if (!isSameBase) break;
 
-                // Signal B: Tight Density (Original Design: 150-200 chars)
-                let isSignalB = false;
-                if (l1.pageIndex === l2.pageIndex) {
+            // 1. PRE-SCAN: Check if the entire SAME-BASE group satisfies A-Level signatures (Signal C)
+            while (baseEnd < finalLandmarks.length) {
+                const l1 = finalLandmarks[baseEnd - 1];
+                const l2 = finalLandmarks[baseEnd];
+                if (ZoneUtils.getBaseNumber(l1.key) !== ZoneUtils.getBaseNumber(l2.key)) break;
+
+                // Signal C: Massive Whitespace Gap / Blank Intervening Pages
+                const gapHeight = (l1.pageIndex === l2.pageIndex) ? (l2.startY - l1.startY) : 0;
+                let hasEmptyInterveningPage = false;
+                if (l2.pageIndex > l1.pageIndex) {
+                    for (let p = l1.pageIndex + 1; p < l2.pageIndex; p++) {
+                        // [GUARD]: Meta-pages (Front covers) are NOT valid empty intervening pages for Big Zone trigger.
+                        if (metaPages.has(p)) continue;
+
+                        if (sortedBlocks.filter(b => b.pageIndex === p).length < 8) {
+                            hasEmptyInterveningPage = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Detector Upgrade: Only trigger A-Level mode for massive absences (>600px and sparse)
+                let gapHasContent = false;
+                if (gapHeight > 600) {
                     const gapY1 = l1.startY + 40;
                     const gapY2 = l2.startY;
                     const blocksInGap = sortedBlocks.filter(b => 
@@ -416,45 +434,60 @@ export class MarkingZoneService {
                         MarkingZoneService.getY(b) < gapY2
                     );
                     const gapDensity = blocksInGap.reduce((sum, b) => sum + (b.text || "").length, 0);
-                    isSignalB = gapDensity < 200; // Mandated Tight Threshold
-                } else {
-                    let allInterveningEmpty = true;
-                    for (let p = l1.pageIndex + 1; p < l2.pageIndex; p++) {
-                        const blocksOnPage = sortedBlocks.filter(b => b.pageIndex === p);
-                        if (blocksOnPage.length > 8) {
-                            allInterveningEmpty = false;
-                            break;
-                        }
-                    }
-                    isSignalB = allInterveningEmpty;
+                    gapHasContent = gapDensity > 200; // If it has content, it's NOT an A-Level signal
                 }
-
-                // Signal C: User-Mandated A-Level Signal (Empty Space/Page Detector)
-                const gapHeight = (l1.pageIndex === l2.pageIndex) ? (l2.startY - l1.startY) : 9999;
-                const pageBlocks = sortedBlocks.filter(b => b.pageIndex === l1.pageIndex);
-                const pageCharCount = pageBlocks.reduce((sum, b) => sum + (b.text || "").length, 0);
                 
-                // If any segment has a large gap (>600px) OR very low page density, it's an A-Level Signal
-                if (gapHeight > 600 || pageBlocks.length < 10 || pageCharCount < 400) {
+                if ((gapHeight > 600 && !gapHasContent) || hasEmptyInterveningPage) {
                     groupHasALevelSignal = true;
-                    console.log(` 📊 [A-LEVEL-SIGNAL] Detected between ${l1.key} and ${l2.key} (H:${gapHeight}, B:${pageBlocks.length}, C:${pageCharCount})`);
+                    console.log(` 📊 [A-LEVEL-UPGRADE] Group ${ZoneUtils.getBaseNumber(l1.key)} upgraded via ${l1.key}->${l2.key} (H:${gapHeight}, EmptyPage:${hasEmptyInterveningPage})`);
                 }
-
-                j++;
+                baseEnd++;
             }
 
-            // Logic: Group MUST fuse if it's SAME-BASE and (Group-wide A-Level Signal C OR Tight Signal B OR Cross-Page)
-            const isCrossPage = finalLandmarks[j-1].pageIndex > finalLandmarks[i].pageIndex;
-            const shouldFuse = groupHasALevelSignal || isCrossPage;
+            // 2. FUSION CLUSTERING
+            if (groupHasALevelSignal) {
+                // [A-LEVEL MODE]: All landmarks with same base number fuse into One Big Zone (Iron Dome)
+                const stopperIdx = baseEnd < finalLandmarks.length ? baseEnd : null;
+                for (let k = i; k < baseEnd; k++) {
+                    clusterStarts[k] = i; 
+                    clusterStoppers[k] = stopperIdx;
+                }
+                i = baseEnd;
+            } else {
+                // [GCSE MODE]: PIECEWISE FUSION (Default)
+                // Sub-parts only fuse if they satisfy the Tight Signal B (< 200 chars).
+                // They NEVER fuse across page breaks unless they were physically empty (which Signal C handles).
+                let currentIdx = i;
+                while (currentIdx < baseEnd) {
+                    let clusterEnd = currentIdx + 1;
+                    while (clusterEnd < baseEnd) {
+                        const l1 = finalLandmarks[clusterEnd - 1];
+                        const l2 = finalLandmarks[clusterEnd];
 
-            const stopperIdx = shouldFuse ? (j < finalLandmarks.length ? j : null) : (i + 1 < finalLandmarks.length ? i + 1 : null);
-            const actualEnd = shouldFuse ? j : i + 1;
+                        if (l1.pageIndex !== l2.pageIndex) break; // GCSE piecewise never crosses pages
 
-            for (let k = i; k < actualEnd; k++) {
-                clusterStarts[k] = i; 
-                clusterStoppers[k] = stopperIdx;
+                        const gapY1 = l1.startY + 40;
+                        const gapY2 = l2.startY;
+                        const blocksInGap = sortedBlocks.filter(b => 
+                            b.pageIndex === l1.pageIndex && 
+                            MarkingZoneService.getY(b) > gapY1 && 
+                            MarkingZoneService.getY(b) < gapY2
+                        );
+                        const gapDensity = blocksInGap.reduce((sum, b) => sum + (b.text || "").length, 0);
+                        
+                        if (gapDensity >= 200) break; // Blocked by content (Signal B)
+                        clusterEnd++;
+                    }
+
+                    const stopperIdx = clusterEnd < finalLandmarks.length ? clusterEnd : null;
+                    for (let k = currentIdx; k < clusterEnd; k++) {
+                        clusterStarts[k] = currentIdx; 
+                        clusterStoppers[k] = stopperIdx;
+                    }
+                    currentIdx = clusterEnd;
+                }
+                i = baseEnd; // Move to next base group
             }
-            i = actualEnd;
         }
 
         for (let i = 0; i < finalLandmarks.length; i++) {
@@ -570,9 +603,9 @@ export class MarkingZoneService {
             const current = finalLandmarks[i];
             const next = finalLandmarks[i + 1];
 
-            // 🏰 [FIX]: Only bridge if the question actually reached the bottom of its current page.
-            // If it was stopped by a "Total" marker, it should not leak into the next page.
-            const qZones = zones[current.key];
+            // 🏰 [IRON-DOME FIX]: Use Base Number for zone access to prevent "push to undefined" crash.
+            const resultKey = ZoneUtils.getBaseNumber(current.key);
+            const qZones = zones[resultKey];
             const lastZone = qZones ? qZones[qZones.length - 1] : null;
             let stoppedEarly = false;
 
@@ -636,8 +669,8 @@ export class MarkingZoneService {
                         const margin_bridge = Math.floor(pW_bridge * 0.06);
                         const vMargin_bridge = Math.floor(pH_bridge * 0.06);
 
-                        zones[current.key].push({
-                            label: current.key,
+                        zones[resultKey].push({
+                            label: resultKey,
                             pageIndex: p,
                             startY: vMargin_bridge,
                             endY: pH_bridge - vMargin_bridge,
@@ -656,8 +689,8 @@ export class MarkingZoneService {
                     const nextVMargin = Math.floor(nextPH * 0.06);
 
                     if (next.startY > nextVMargin + 50) {
-                        zones[current.key].push({
-                            label: current.key,
+                        zones[resultKey].push({
+                            label: resultKey,
                             pageIndex: next.pageIndex,
                             startY: nextVMargin,
                             endY: next.startY,

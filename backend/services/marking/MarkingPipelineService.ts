@@ -1024,9 +1024,9 @@ export class MarkingPipelineService {
 
             const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
                 // Skip OCR for metadata and frontPage (to save Mathpix costs)
-                const classificationResult = allClassificationResults[index]?.result;
-                const isMetadataPage = classificationResult?.category === "metadata";
-                const isFrontPage = classificationResult?.category === "frontPage";
+                const pageRawResult = allClassificationResults[index]?.result;
+                const isMetadataPage = pageRawResult?.category === "metadata";
+                const isFrontPage = pageRawResult?.category === "frontPage";
 
 
                 const ocrResult = await OCRService.processImage(
@@ -1123,7 +1123,7 @@ export class MarkingPipelineService {
             // This preserves the existing logic for questions spanning multiple pages (like Q11 on P0/P23).
             const pageSortMap = standardizedPages.map((page, originalIdx) => {
                 const rawResult = allClassificationResults[originalIdx]?.result;
-                const classificationResult = rawResult || {
+                const pageRawResult = rawResult || {
                     category: 'metadata',
                     questions: []
                 };
@@ -1170,23 +1170,28 @@ export class MarkingPipelineService {
                     classificationResult.questions.forEach((q: any) => checkWeightRecursive(q));
                 }
 
-                // 🏢 EARLIEST-Q PRIMARY: Use the lowest weight found on the page to determine its position.
-                // This keeps pages in their natural chronological order (e.g. Q2 before Q2a).
+                // 🛡️ [SPECIFICITY PRIORITY]: Sub-questions (decimals) always lead generic numbers (integers).
                 if (pageWeights.length > 0) {
-                    minSortWeight = Math.min(...pageWeights.map(pw => pw.w));
+                    const specificWeights = pageWeights.filter(pw => pw.w % 1 !== 0);
+                    if (specificWeights.length > 0) {
+                        // If page has sub-questions, use the earliest sub-question as the anchor
+                        minSortWeight = Math.min(...specificWeights.map(pw => pw.w));
+                    } else {
+                        // Otherwise use the earliest base question
+                        minSortWeight = Math.min(...pageWeights.map(pw => pw.w));
+                    }
 
                     // 🔍 DEBUG: Log the decision
                     console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
-                } else if (rawResult?.mapperHints && rawResult.mapperHints.length > 0) {
-                    // 🛡️ [MAPPER FALLBACK]: Use Pass 1 guesses for empty pages
-                    const hintWeights = rawResult.mapperHints.map((h: string) => ({ q: h, w: getQuestionSortValue(h) }));
-                    minSortWeight = Math.min(...hintWeights.map((hw: any) => hw.w));
-                    debugQList.push(...rawResult.mapperHints);
-                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx} (EMPTY): Using Mapper Hints [${rawResult.mapperHints.join(', ')}] -> Selected: ${minSortWeight}`);
                 }
 
                 // Fallback for Meta/Front Pages
-                const isMeta = rawResult?.category === 'metadata' || rawResult?.category === 'frontPage';
+                const isMeta = pageRawResult?.category === 'metadata' || pageRawResult?.category === 'frontPage';
+
+                // 🛡️ [METADATA QUARANTINE]: Meta pages MUST NOT have question weights for sorting.
+                if (isMeta) {
+                    minSortWeight = Infinity;
+                }
 
                 return {
                     originalIdx,
@@ -1606,13 +1611,17 @@ export class MarkingPipelineService {
                 });
                 // ===================================================================================
 
+                const metaPageIndices = pageSortMap.filter(p => p.isMeta).map(p => oldToNewIndex.get(p.originalIdx)!);
+                console.log(` 🕵️ [PIPELINE-META] Collected Meta Indices: ${metaPageIndices.join(', ')}`);
+
                 markingTasks = createMarkingTasksFromClassification(
                     classificationResult,
                     allPagesOcrData,
                     markingSchemesMap,
                     pageDimensionsMap,
                     standardizedPages,
-                    allClassificationResults
+                    allClassificationResults,
+                    metaPageIndices
                 );
             } catch (error) {
                 console.error('❌ createMarkingTasksFromClassification failed:', error);

@@ -35,11 +35,14 @@ export class ZoneArchitect {
             // Clone to avoid mutating the source
             semanticZones = JSON.parse(JSON.stringify(task.semanticZones));
         } else {
+            console.log(` 🌐 [ZONE-ARCHITECT] Passing Meta Indices to Zoning: ${task.metaPageIndices?.join(', ') || 'none'}`);
             semanticZones = MarkingZoneService.detectSemanticZones(
                 rawOcrBlocksForZones,
                 pageDimensionsMap,
                 expectedQuestions,
-                nextQuestionText
+                nextQuestionText,
+                undefined,
+                task.metaPageIndices
             );
         }
 

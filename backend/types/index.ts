@@ -742,6 +742,7 @@ export interface MarkingTask {
   pageMap?: Record<number, number>; // [ID-LIE FIX]: Maps Absolute Page Index -> Relative Index (0, 1, 2)
   allowedPageUnion?: number[]; // NEW: Union of all pages for the main question (for fallback routing)
   semanticZones?: Record<string, any[]>; // NEW: Pre-calculated zones for all questions in the document
+  metaPageIndices?: number[]; // NEW: Indices of pages that are metadata/frontPage
   // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
   aiSegmentationResults?: Array<{ content: string; source?: string; blockId?: string; studentWorkLines?: any[] }>;
   blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;

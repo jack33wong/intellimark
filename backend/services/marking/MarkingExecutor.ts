@@ -457,7 +457,8 @@ export function createMarkingTasksFromClassification(
   markingSchemesMap: Map<string, any>,
   pageDimensionsMap: Map<number, { width: number; height: number }>,
   standardizedPages: any[],
-  allClassificationResults?: any[]
+  allClassificationResults?: any[],
+  metaPageIndices?: number[]
 ): MarkingTask[] {
   return MarkingTaskFactory.createTasksFromClassification(
     classificationResult,
@@ -465,6 +466,7 @@ export function createMarkingTasksFromClassification(
     markingSchemesMap,
     pageDimensionsMap,
     standardizedPages,
-    allClassificationResults
+    allClassificationResults,
+    metaPageIndices
   );
 }

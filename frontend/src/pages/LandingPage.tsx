@@ -91,8 +91,8 @@ const ImageMagnifier = ({
 
 /* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "Free GCSE Maths Past Papers" },
-    { text: " & Model Answers", className: "hero-highlight-blue" }
+    { text: "Instantly Mark Your Maths Paper" },
+    { text: "GCSE & A-Level", className: "hero-highlight-blue" }
 ];
 
 
@@ -128,7 +128,7 @@ const LandingPage: React.FC = () => {
 
                     {/* BLOCK 1: Subtitle (Immediate start after typing) */}
                     <p className="hero-main-subtitle anim-item delay-1">
-                        Stop staring at confusing mark schemes. Choose your exam board below to find your exact paper, view step-by-step model answers, and let our AI instantly grade your work like a real examiner.
+                        Stop waiting for teachers or staring at confusing mark schemes. Scan your handwritten 2020-2024 past papers and let our AI find your lost method marks in seconds.
                     </p>
 
                     <div className="hero-cta-group">
@@ -139,7 +139,7 @@ const LandingPage: React.FC = () => {
                                 <ArrowDown className="cta-arrow-icon animate-bounce-soft" />
                             </button>
                             <p className="hero-trust-microcopy">
-                                Supports Edexcel (1MA1), AQA (8300), & OCR. No credit card required.
+                                Supports GCSE & 2024 A-Level (Edexcel, AQA, OCR). No credit card required.
                             </p>
                         </div>
                     </div>
