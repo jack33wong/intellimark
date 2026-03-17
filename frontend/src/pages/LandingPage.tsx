@@ -140,7 +140,7 @@ const LandingPage: React.FC = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
                                 </svg>
                             </button>
-                            
+
                             <button className="hero-secondary-cta" onClick={() => navigate('/app?action=select')}>
                                 <span>Upload PDF / Image</span>
                                 <svg className="w-6 h-6 cta-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
@@ -149,7 +149,7 @@ const LandingPage: React.FC = () => {
                             </button>
 
                             <p className="hero-trust-microcopy">
-                                Supports GCSE & 2024 A-Level (Edexcel, AQA, OCR). No credit card required.
+                                Supports GCSE & A-Level (Edexcel, AQA, OCR). No credit card required.
                             </p>
                         </div>
                     </div>

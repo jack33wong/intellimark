@@ -527,17 +527,18 @@ function AdminPage() {
     const rawSeries = examMeta.exam_series;
     const targetSeries = normalize(normalizeExamSeries(rawSeries, targetBoard));
 
-    const targetSubject = normalize(examMeta.subject || examMeta.qualification);
-    const targetCode = normalize(examMeta.code || examMeta.exam_code);
+    const targetSubject = normalize(examMeta.subject || '');
+    const targetQual = normalize(examMeta.qualification || '');
+    const targetCode = normalize(examMeta.code || examMeta.exam_code || examMeta.paperCode || '');
 
-    if (!targetBoard || !targetSeries || !targetCode) return false;
+    if (!targetBoard || !targetSeries) return false;
 
     return gradeBoundaryEntries.some(entry => {
       const boundaryData = entry.data || entry;
-      const boundaryBoardRaw = boundaryData.exam_board;
+      const boundaryBoardRaw = boundaryData.exam_board || boundaryData.board;
       const boundaryBoard = normalizeExamBoard(boundaryBoardRaw);
 
-      const boundarySeriesRaw = boundaryData.exam_series;
+      const boundarySeriesRaw = boundaryData.exam_series || boundaryData.series;
       const boundarySeries = normalize(normalizeExamSeries(boundarySeriesRaw, boundaryBoard));
 
       // 1. Board Match
@@ -550,11 +551,12 @@ function AdminPage() {
       // 2. Series Match (Exact normalized)
       if (boundarySeries !== targetSeries) return false;
 
-      // 3. Subject/Code Match
+      // 3. Subject/Code/Qual Match
       const subjects = boundaryData.subjects || [];
       return subjects.some(subj => {
         const subjectName = normalize(subj.name);
         const subjectCode = normalize(subj.code);
+        const subjectLevel = normalize(subj.level || subj.qualification || boundaryData.qualification || '');
 
         // Extract subject code from exam code (e.g., "1MA1/1H" -> "1MA1")
         const examCodePrefix = targetCode.split('/')[0];
@@ -562,9 +564,24 @@ function AdminPage() {
         // Check if subject code matches prefix (e.g. "1ma1" === "1ma1")
         const codeMatch = subjectCode && (subjectCode === examCodePrefix || targetCode.startsWith(subjectCode));
 
-        return codeMatch ||
-          subjectName.includes(targetSubject) ||
-          targetSubject.includes(subjectName);
+        // Qualification Level Check (Stricter)
+        const levelMatch = !targetQual || !subjectLevel || 
+          targetQual === subjectLevel || 
+          targetQual.includes(subjectLevel) || 
+          subjectLevel.includes(targetQual);
+        
+        if (!levelMatch) return false;
+
+        // Subject check - prioritize code match, fallback to exact-ish name match
+        if (codeMatch) return true;
+        
+        if (targetSubject && subjectName) {
+           return subjectName === targetSubject || 
+                  subjectName === `${targetQual} ${targetSubject}`.trim() ||
+                  subjectName === `${targetSubject} ${targetQual}`.trim();
+        }
+
+        return false;
       });
     });
   }, [gradeBoundaryEntries]);
@@ -1151,98 +1168,69 @@ function AdminPage() {
    * Returns an array of mismatch descriptions or empty array if match
    */
   const checkStructureMismatch = (examPaper, markingScheme) => {
-    const questions1 = examPaper.questions || [];
-    const questions2 = markingScheme.questions || [];
+    const questions1 = robustEnsureArray(examPaper.questions);
+    const questions2 = robustEnsureArray(markingScheme.questions || markingScheme.markingSchemeData?.questions);
     const mismatches = [];
 
-    // Helper to build a structure map: "1" -> ["a", "b"], "2" -> []
-    const buildMap = (qs) => {
-      const map = {};
-      if (!Array.isArray(qs)) return map;
-
-      qs.forEach(q => {
-        const qNum = String(q.number || q.questionNumber || q.question_number || '').trim();
-        if (!qNum) return;
-
-        const subQs = q.subQuestions || q.sub_questions || [];
-        if (Array.isArray(subQs)) {
-          map[qNum] = subQs.map(sq => String(sq.part || sq.question_part || sq.subQuestionNumber || '').trim()).filter(Boolean);
-        } else {
-          map[qNum] = [];
-        }
-      });
-      return map;
+    const normId = (id) => {
+      if (!id) return '';
+      let nid = String(id).toLowerCase().trim();
+      nid = nid.replace(/^q(?:uestion)?\.?\s*(\d)/, '$1');
+      return nid.replace(/[^a-z0-9]/g, '');
     };
 
-    const map1 = buildMap(questions1);
-    const map2 = buildMap(questions2);
+    // 1. Metadata Checks
+    const pTotalMarks = examPaper.totalMarks || (examPaper.exam && examPaper.exam.totalMarks);
+    const sTotalMarks = markingScheme.totalMarks || (markingScheme.examDetails && markingScheme.examDetails.totalMarks);
+    if (pTotalMarks && sTotalMarks && parseInt(pTotalMarks) !== parseInt(sTotalMarks)) {
+      mismatches.push(`Total Marks Mismatch: Paper (${pTotalMarks}) vs Scheme (${sTotalMarks})`);
+    }
 
-    // Flatten both maps to a set of canonical IDs (e.g. "1", "1a", "2")
-    const flattenMap = (map) => {
-      const flat = new Set();
-      // Normalize key helper: 
-      // 1. Remove "Question"/"Q" prefix (e.g. "Question 1" -> "1", "Q1" -> "1")
-      // 2. Remove all non-alphanumeric characters (e.g. "1(a)" -> "1a", "1.a" -> "1a")
-      // 3. Lowercase
-      const normalizeKey = (k) => {
-        let norm = k.toLowerCase().trim();
-        norm = norm.replace(/^q(?:uestion)?\.?\s*(\d)/, '$1');
-        return norm.replace(/[^a-z0-9]/g, '');
-      };
+    // 2. Question Count Checks
+    if (questions1.length !== questions2.length) {
+      mismatches.push(`Question count mismatch: Paper has ${questions1.length}, Scheme has ${questions2.length}`);
+    }
 
-      Object.keys(map).forEach(key => {
-        const subs = map[key];
-        const normMain = normalizeKey(key);
+    // 3. Detailed Structure Check (Iterate through the shorter list to find exact point of failure)
+    const maxLen = Math.max(questions1.length, questions2.length);
+    for (let i = 0; i < maxLen; i++) {
+      const q1 = questions1[i];
+      const q2 = questions2[i];
 
-        if (subs && subs.length > 0) {
-          subs.forEach(s => flat.add(`${normMain}${normalizeKey(s)}`));
-        } else {
-          flat.add(normMain);
-        }
-      });
-      return flat;
-    };
+      if (!q1) {
+        mismatches.push(`Question index ${i + 1}: Extra question in Marking Scheme`);
+        continue;
+      }
+      if (!q2) {
+        mismatches.push(`Question index ${i + 1}: Missing in Marking Scheme`);
+        continue;
+      }
 
-    const set1 = flattenMap(map1);
-    const set2 = flattenMap(map2);
+      const id1 = q1.number || q1.questionNumber || q1.question_number || String(i + 1);
+      const id2 = q2.number || q2.questionNumber || q2.question_number || String(i + 1);
 
-    // Compare sets
+      if (normId(id1) !== normId(id2)) {
+        mismatches.push(`Question Identifier Mismatch at index ${i + 1}: Paper="${id1}", Scheme="${id2}"`);
+        continue;
+      }
 
+      // Check sub-questions
+      const sub1 = robustEnsureArray(q1.subQuestions || q1.sub_questions);
+      const sub2 = robustEnsureArray(q2.subQuestions || q2.sub_questions);
 
-    // Compare sets
-    const allKeys = new Set([...set1, ...set2]);
-    const sortedKeys = Array.from(allKeys).sort((a, b) => {
-      // Try numeric sort logic if possible (extract numbers)
-      const getNum = (str) => parseFloat(str.match(/^\d+/)?.[0] || '0');
-      const numA = getNum(a);
-      const numB = getNum(b);
-      if (numA !== numB) return numA - numB;
-      return a.localeCompare(b);
-    });
+      if (sub1.length !== sub2.length) {
+        mismatches.push(`Question ${id1}: Sub-question count mismatch (${sub1.length} vs ${sub2.length})`);
+        continue;
+      }
 
-    sortedKeys.forEach(key => {
-      if (!set1.has(key)) {
-        // If missing in Exam Paper, check if it's an "alt" question in Marking Scheme
-        // "alt" questions are design choices and not mismatches
-        if (!key.toLowerCase().endsWith('alt')) {
-          mismatches.push(`Question ${key}: Missing in Exam Paper`);
-        }
-      } else if (!set2.has(key)) {
-        // Check if maybe the main question exists in set2 but we are looking for a part?
-        // e.g. key is "1a", set2 has "1".
-        // Some schemes just say "1".
-        const mainKey = key.match(/^\d+/)?.[0];
-        if (mainKey && set2.has(mainKey) && !key.match(/^\d+$/)) {
-          // Approximate match: Scheme has "1", we have "1a". 
-          // Don't flag as missing if scheme has the parent, assuming it might cover parts.
-          // BUT user wants precise checking. 
-          // Let's flag it but maybe softer? No, strict for now.
-          mismatches.push(`Question ${key}: Missing in Marking Scheme`);
-        } else {
-          mismatches.push(`Question ${key}: Missing in Marking Scheme`);
+      for (let j = 0; j < sub1.length; j++) {
+        const pPart = sub1[j].part || sub1[j].question_part || String(j + 1);
+        const sPart = sub2[j].part || sub2[j].question_part || String(j + 1);
+        if (normId(pPart) !== normId(sPart)) {
+          mismatches.push(`Question ${id1} Part Mismatch: Paper="${pPart}", Scheme="${sPart}"`);
         }
       }
-    });
+    }
 
     return mismatches;
   };
@@ -2192,73 +2180,61 @@ function AdminPage() {
                                     // We replicate the finder logic here to properly conditionally color the badge
                                     // Note: reusing the loop context 'board', 'examSeries', 'code'
 
-                                    const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
+                                    {(() => {
+                                      const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
 
-                                    if (matchingScheme) {
-                                      // Marking scheme questions are often an object { "1": {...}, "2": {...} }
-                                      // We need to normalize this to an array for checkStructureMismatch
-                                      const schemeData = matchingScheme.data || matchingScheme;
-                                      const schemeQuestionsObj = schemeData.questions || (schemeData.markingSchemeData && schemeData.markingSchemeData.questions) || {};
+                                      if (matchingScheme) {
+                                        const mismatches = checkStructureMismatch(entry, matchingScheme);
+                                        const hasMismatch = mismatches.length > 0;
 
-                                      let schemeQuestions = [];
-                                      if (Array.isArray(schemeQuestionsObj)) {
-                                        schemeQuestions = schemeQuestionsObj;
+                                        return (
+                                          <span
+                                            className={`status-badge ${hasMismatch ? '' : 'status-badge--success'}`}
+                                            style={{
+                                              cursor: 'pointer',
+                                              backgroundColor: hasMismatch ? '#fef2f2' : undefined,
+                                              color: hasMismatch ? '#b91c1c' : undefined,
+                                              borderColor: hasMismatch ? '#f87171' : undefined,
+                                              borderWidth: hasMismatch ? '1px' : undefined,
+                                              borderStyle: hasMismatch ? 'solid' : undefined
+                                            }}
+                                            title={hasMismatch ? `Structural Mismatch (Triple Check):\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+
+                                              // Copy Mismatches to Clipboard (Admin Enhancement)
+                                              if (hasMismatch) {
+                                                const copyText = `Structure Mismatch for ${matchingScheme.board} ${matchingScheme.code}:\n${mismatches.join('\n')}`;
+                                                navigator.clipboard.writeText(copyText).then(() => {
+                                                  alert('Copied structure mismatches to clipboard');
+                                                }).catch(err => {
+                                                  console.error('Failed to copy mismatches:', err);
+                                                });
+                                              }
+
+                                              console.log('Navigating to marking scheme:', matchingScheme.id);
+                                              setActiveTab('marking-scheme');
+                                              setExpandedMarkingSchemeId(matchingScheme.id);
+
+                                              // Trigger fetch if not fully loaded
+                                              if (!matchingScheme.isFullyLoaded) {
+                                                fetchMarkingSchemeDetails(matchingScheme.id);
+                                              }
+
+                                              // Scroll attempt
+                                              setTimeout(() => {
+                                                const element = document.getElementById(matchingScheme.id);
+                                                if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                              }, 100);
+                                            }}
+                                          >
+                                            {hasMismatch ? 'Mismatch' : 'YES'}
+                                          </span>
+                                        );
                                       } else {
-                                        // Convert object to array
-                                        schemeQuestions = Object.entries(schemeQuestionsObj).map(([key, val]) => ({
-                                          number: key,
-                                          ...val
-                                        }));
+                                        return <span className="status-badge status-badge--warning">No</span>;
                                       }
-
-                                      const mismatches = checkStructureMismatch(examData, { questions: schemeQuestions });
-                                      const hasMismatch = mismatches.length > 0;
-
-                                      return (
-                                        <span
-                                          className={`status-badge ${hasMismatch ? 'status-badge--warning' : 'status-badge--success'}`}
-                                          style={{
-                                            cursor: 'pointer',
-                                            backgroundColor: hasMismatch ? '#fee2e2' : undefined,
-                                            color: hasMismatch ? '#b91c1c' : undefined,
-                                            borderColor: hasMismatch ? '#f87171' : undefined
-                                          }}
-                                          title={hasMismatch ? `Structure Mismatch:\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-
-                                            // Copy Mismatches to Clipboard (Admin Enhancement)
-                                            if (hasMismatch) {
-                                              const copyText = `Structure Mismatch for ${matchingScheme.board} ${matchingScheme.code}:\n${mismatches.join('\n')}`;
-                                              navigator.clipboard.writeText(copyText).then(() => {
-                                                alert('Copied structure mismatches to clipboard');
-                                              }).catch(err => {
-                                                console.error('Failed to copy mismatches:', err);
-                                              });
-                                            }
-
-                                            console.log('Navigating to marking scheme:', matchingScheme.id);
-                                            setActiveTab('marking-scheme');
-                                            setExpandedMarkingSchemeId(matchingScheme.id);
-
-                                            // Trigger fetch if not fully loaded
-                                            if (!matchingScheme.isFullyLoaded) {
-                                              fetchMarkingSchemeDetails(matchingScheme.id);
-                                            }
-
-                                            // Scroll attempt
-                                            setTimeout(() => {
-                                              const element = document.getElementById(matchingScheme.id);
-                                              if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                            }, 100);
-                                          }}
-                                        >
-                                          YES
-                                        </span>
-                                      );
-                                    } else {
-                                      return <span className="status-badge status-badge--warning">No</span>;
-                                    }
+                                    })()}
                                   })()}
                                 </td>
                                 <td className="admin-table__cell">

@@ -2,9 +2,7 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 504ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 507ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 423ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 425ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 358ms, Process 1ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 359ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 480ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 483ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 433ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 436ms for 50 sessions (limit: 50)
