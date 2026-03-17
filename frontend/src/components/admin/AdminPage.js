@@ -17,6 +17,34 @@ import MarkdownMathRenderer from '../marking/MarkdownMathRenderer';
 import './AdminPage.css';
 
 // Utility functions
+/**
+ * Robustly ensures value is an array.
+ * Converts numeric-indexed objects (like Firestore sometimes creates) into actual arrays.
+ */
+const robustEnsureArray = (val) => {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'object' && val !== null) {
+    const entries = Object.entries(val);
+    if (entries.length === 0) return [];
+    
+    // Check if keys are predominantly numeric strings
+    const numericKeys = entries.filter(([key]) => !isNaN(parseInt(key)));
+    if (numericKeys.length > 0) {
+      return entries
+        .sort(([a], [b]) => {
+          const numA = parseInt(a);
+          const numB = parseInt(b);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return a.localeCompare(b);
+        })
+        .map(([_, v]) => v);
+    }
+    // Final fallback: just use values
+    return Object.values(val);
+  }
+  return [];
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   try {
@@ -100,9 +128,19 @@ const getQuestionMarksRecursive = (q) => {
  * Returns { total, audit: { qNum: marks } }
  */
 const calculateExamTotalMarksDetailed = (questions) => {
-  if (!Array.isArray(questions)) return { total: 0, audit: {} };
+  if (!questions) return { total: 0, audit: {} };
+  
+  // Robustly handle both Array and Object formats
+  let questionsArray = [];
+  if (Array.isArray(questions)) {
+    questionsArray = questions;
+  } else if (typeof questions === 'object' && questions !== null) {
+    questionsArray = Object.values(questions);
+  }
+
   const audit = {};
-  const total = questions.reduce((sum, q, idx) => {
+  const total = questionsArray.reduce((sum, q, idx) => {
+    if (!q) return sum;
     const qNum = String(q.number || q.questionNumber || q.question_number || (idx + 1));
     const marks = getQuestionMarksRecursive(q);
     audit[qNum] = marks;
@@ -111,7 +149,14 @@ const calculateExamTotalMarksDetailed = (questions) => {
   return { total, audit };
 };
 
-const calculateExamTotalMarks = (questions) => calculateExamTotalMarksDetailed(questions).total;
+const calculateExamTotalMarks = (questions) => {
+  try {
+    return calculateExamTotalMarksDetailed(questions).total;
+  } catch (e) {
+    console.error('Error calculating total marks:', e);
+    return 0;
+  }
+};
 
 
 
@@ -151,59 +196,87 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
  * This is crucial for allowing empty strings to be saved without fallback logic interfering.
  */
 const normalizeExamContent = (data) => {
-  if (!data || !data.questions) return data;
+  if (!data) return data;
 
-  const normalized = { ...data };
+  // Clone to avoid mutating original source if it's already in state
+  const normalized = JSON.parse(JSON.stringify(data));
+  normalized._isNormalized = true;
   
-  // Robustly handle both Array and Object formats for questions
-  const rawQuestions = data.questions;
-  let questionsArray = [];
-  
-  if (Array.isArray(rawQuestions)) {
-    questionsArray = rawQuestions;
-  } else if (typeof rawQuestions === 'object' && rawQuestions !== null) {
-    // Convert Object (Map) to Array, ensuring keys are preserved as 'number' if missing
-    questionsArray = Object.entries(rawQuestions).map(([key, val]) => ({
-      number: val.number || val.question_number || val.questionNumber || key,
-      ...val
-    }));
+  // 1. Recursive check for nested markingSchemeData or data objects
+  if (normalized.markingSchemeData) {
+    normalized.markingSchemeData = normalizeExamContent(normalized.markingSchemeData);
+  }
+  if (normalized.data && typeof normalized.data === 'object') {
+    // Only normalize data if it looks like an exam paper (has questions)
+    if (normalized.data.questions) {
+      const normalizedData = normalizeExamContent(normalized.data);
+      normalized.data = { ...normalized.data, ...normalizedData };
+    }
   }
 
-  normalized.questions = questionsArray.map(q => {
-    const qData = { ...q };
-    // Normalize main question text
-    qData.text = q.text !== undefined ? q.text : (q.question_text !== undefined ? q.question_text : (q.questionText !== undefined ? q.questionText : ''));
+  // 2. Normalize questions array (Top-level or root of current object)
+  if (normalized.questions) {
+    const questionsArray = robustEnsureArray(normalized.questions);
+    
+    normalized.questions = questionsArray.map((q, idx) => {
+      const qData = { ...q };
+      
+      // Standardize basic fields
+      qData.text = q.text !== undefined ? q.text : (q.question_text !== undefined ? q.question_text : (q.questionText !== undefined ? q.questionText : ''));
+      qData.number = q.number !== undefined ? q.number : (q.question_number !== undefined ? q.question_number : (q.questionNumber !== undefined ? q.questionNumber : String(idx + 1)));
 
-    // Normalize question number
-    qData.number = q.number !== undefined ? q.number : (q.question_number !== undefined ? q.question_number : (q.questionNumber !== undefined ? q.questionNumber : ''));
+      // Cleanup legacy fields
+      delete qData.question_text;
+      delete qData.questionText;
+      delete qData.question_number;
+      delete qData.questionNumber;
 
-    // Clean up old fields to avoid ambiguity
-    delete qData.question_text;
-    delete qData.questionText;
-    delete qData.question_number;
-    delete qData.questionNumber;
+      // 3. Recursive normalization for Marking Schemes (marks and guidance)
+      if (q.marks || q.marking_scheme || q.markingScheme) {
+        const rawMarks = q.marks || q.marking_scheme || q.markingScheme;
+        qData.marks = robustEnsureArray(rawMarks).map(m => {
+          // Inner items might also be corrupted maps
+          if (typeof m === 'object' && m !== null) {
+            const mData = { ...m };
+            // Ensure any inner arrays are also cleaned
+            if (mData.alternative_answers) mData.alternative_answers = robustEnsureArray(mData.alternative_answers);
+            return mData;
+          }
+          return m;
+        });
+      }
 
-    // Normalize sub-questions if they exist
-    const subQs = q.subQuestions || q.sub_questions;
-    if (Array.isArray(subQs)) {
-      qData.subQuestions = subQs.map(sq => {
-        const sqData = {
-          ...sq,
-          text: sq.text !== undefined ? sq.text : (sq.question_text !== undefined ? sq.question_text : (sq.questionText !== undefined ? sq.questionText : '')),
-          part: sq.part !== undefined ? sq.part : (sq.question_part !== undefined ? sq.question_part : (sq.subQuestionNumber !== undefined ? sq.subQuestionNumber : ''))
-        };
-        delete sqData.question_text;
-        delete sqData.questionText;
-        delete sqData.question_part;
-        delete sqData.subQuestionNumber;
-        return sqData;
-      });
-      // Clean up old sub_questions field to avoid confusion
-      delete qData.sub_questions;
-    }
+      if (q.guidance) {
+        qData.guidance = robustEnsureArray(q.guidance);
+      }
 
-    return qData;
-  });
+      // 4. Normalize sub-questions
+      const subQs = q.subQuestions || q.sub_questions;
+      if (subQs) {
+        const subQsArray = robustEnsureArray(subQs);
+        qData.subQuestions = subQsArray.map((sq, sIdx) => {
+          const sqData = {
+            ...sq,
+            text: sq.text !== undefined ? sq.text : (sq.question_text !== undefined ? sq.question_text : (sq.questionText !== undefined ? sq.questionText : '')),
+            part: sq.part !== undefined ? sq.part : (sq.question_part !== undefined ? sq.question_part : (sq.subQuestionNumber !== undefined ? sq.subQuestionNumber : String(sIdx + 1)))
+          };
+          
+          // Recursive marks for sub-questions
+          if (sq.marks) sqData.marks = robustEnsureArray(sq.marks);
+          if (sq.guidance) sqData.guidance = robustEnsureArray(sq.guidance);
+          
+          delete sqData.question_text;
+          delete sqData.questionText;
+          delete sqData.question_part;
+          delete sqData.subQuestionNumber;
+          return sqData;
+        });
+        delete qData.sub_questions;
+      }
+
+      return qData;
+    });
+  }
 
   return normalized;
 };
@@ -215,20 +288,20 @@ const isPaperMatch = (paper, scheme) => {
   if (!paper || !scheme) return false;
 
   const pData = paper.data || paper;
-  const pMeta = pData.exam || pData.metadata || {};
+  const pMeta = pData.exam || pData.metadata || pData.examDetails || {};
 
   const sData = scheme.data || scheme;
   const sMeta = sData.examDetails || sData.exam || sData.metadata || {};
 
   // 1. Board Match
-  const pBoard = normalizeExamBoard(pMeta.board || pMeta.exam_board || '');
-  const sBoard = normalizeExamBoard(sMeta.board || sMeta.exam_board || sMeta.examDetails?.board || '');
+  const pBoard = normalizeExamBoard(pMeta.board || pMeta.exam_board || pMeta.examBoard || '');
+  const sBoard = normalizeExamBoard(sMeta.board || sMeta.exam_board || sMeta.examBoard || sMeta.examDetails?.board || '');
 
   if (!pBoard || !sBoard || pBoard !== sBoard) return false;
 
   // 2. Series Match
-  const pSeries = normalizeExamSeries(pMeta.exam_series || '', pBoard).toLowerCase();
-  const sSeriesRaw = sMeta.exam_series || sMeta.date || sMeta.examDetails?.exam_series || '';
+  const pSeries = normalizeExamSeries(pMeta.exam_series || pMeta.series || '', pBoard).toLowerCase();
+  const sSeriesRaw = sMeta.exam_series || sMeta.series || sMeta.date || sMeta.examDetails?.exam_series || '';
   const sSeries = normalizeExamSeries(sSeriesRaw, sBoard).toLowerCase();
 
   const seriesMatch = pSeries === sSeries ||
@@ -238,8 +311,8 @@ const isPaperMatch = (paper, scheme) => {
   if (!seriesMatch) return false;
 
   // 3. Code Match
-  const pCode = (pMeta.code || pMeta.exam_code || '').trim().toLowerCase();
-  const sCode = (sMeta.code || sMeta.exam_code || sMeta.paperCode || sMeta.examDetails?.code || '').trim().toLowerCase();
+  const pCode = (pMeta.code || pMeta.exam_code || pMeta.paperCode || '').trim().toLowerCase();
+  const sCode = (sMeta.code || sMeta.exam_code || sMeta.paperCode || sMeta.examDetails?.code || sMeta.paper_code || '').trim().toLowerCase();
 
   return pCode && sCode && pCode === sCode;
 };
@@ -365,10 +438,10 @@ function AdminPage() {
     });
   }, []);
 
-  // Load JSON entries from fullExamPapers
-  const loadJsonEntries = useCallback(async (listOnly = true) => {
+  // Load JSON entries from fullExamPaper
+  const loadJsonEntries = useCallback(async (listOnly = true, silent = false) => {
     try {
-      setLoadingJson(true);
+      if (!silent) setLoadingJson(true);
       const authToken = await getAuthToken();
       const { data } = await ApiClient.get(`/api/admin/json/collections/fullExamPapers?listOnly=${listOnly}`);
       const entries = Array.isArray(data.entries) ? data.entries : [];
@@ -378,7 +451,7 @@ function AdminPage() {
         const examDataA = a.data || a;
         const examMetaA = examDataA.exam || examDataA.metadata || {};
         const examDataB = b.data || b;
-        const examMetaB = examDataB.exam || examDataB.metadata || {};
+        const examMetaB = examDataB.exam || examDataB.data?.exam || b.metadata || {}; // Added b.data?.exam for robustness
 
         const boardA = (examMetaA.board || examMetaA.exam_board || '').toLowerCase();
         const boardB = (examMetaB.board || examMetaB.exam_board || '').toLowerCase();
@@ -394,7 +467,7 @@ function AdminPage() {
       });
 
       setJsonEntries(sortedEntries);
-      setLoadingJson(false);
+      if (!silent) setLoadingJson(false);
       setLoading(false); // Clear initial mount loading
     } catch (e) {
       setError(`Failed to load JSON entries: ${e.message}`);
@@ -406,19 +479,23 @@ function AdminPage() {
 
   // Fetch full details for a specific JSON entry
   const fetchJsonEntryDetails = useCallback(async (entryId) => {
+    // Set local loading status to show row-level spinner
+    setJsonEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: true } : e));
+    
     try {
       const { data } = await ApiClient.get(`/api/admin/json/collections/fullExamPapers/${entryId}`);
-      const fullEntry = data.entry || data;
+      const fullEntry = normalizeExamContent(data.entry || data);
 
       setJsonEntries(prev => prev.map(entry => {
         if (entry.id === entryId) {
-          // Keep top-level metadata like id and normalizeSeries, but overwrite 
+          // Keep top-level metadata like id and normalizeSeries, but overwrite
           // the rest with the fully rich object returned from API
           return {
             ...entry,
             ...fullEntry,
             data: fullEntry.data || fullEntry, // Ensures entry.data is populated if expected
-            isFullyLoaded: true
+            isFullyLoaded: true,
+            isLoadingDetails: false
           };
         }
         return entry;
@@ -427,6 +504,7 @@ function AdminPage() {
     } catch (e) {
       console.error('Error fetching entry details:', e);
       setError(`Failed to load details: ${e.message}`);
+      setJsonEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: false } : e));
       return null;
     }
   }, []);
@@ -492,9 +570,9 @@ function AdminPage() {
   }, [gradeBoundaryEntries]);
 
   // Load marking scheme entries
-  const loadMarkingSchemeEntries = useCallback(async (listOnly = true) => {
+  const loadMarkingSchemeEntries = useCallback(async (listOnly = true, silent = false) => {
     try {
-      setLoadingMarking(true);
+      if (!silent) setLoadingMarking(true);
       const authToken = await getAuthToken();
       const { data } = await ApiClient.get(`/api/admin/json/collections/markingSchemes?listOnly=${listOnly}`);
       const entries = data.entries || [];
@@ -526,17 +604,26 @@ function AdminPage() {
 
   // Fetch full details for a specific marking scheme
   const fetchMarkingSchemeDetails = useCallback(async (entryId) => {
+    // Set local loading status to show row-level spinner
+    setMarkingSchemeEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: true } : e));
+    
     try {
       const { data } = await ApiClient.get(`/api/admin/json/collections/markingSchemes/${entryId}`);
-      const fullEntry = data.entry || data;
+      const fullEntry = normalizeExamContent(data.entry || data);
 
       setMarkingSchemeEntries(prev => prev.map(entry =>
-        entry.id === entryId ? { ...entry, ...fullEntry, isFullyLoaded: true } : entry
+        entry.id === entryId ? {
+          ...entry,
+          ...fullEntry,
+          isFullyLoaded: true,
+          isLoadingDetails: false
+        } : entry
       ));
       return fullEntry;
     } catch (e) {
       console.error('Error fetching marking scheme details:', e);
       setError(`Failed to load marking scheme details: ${e.message}`);
+      setMarkingSchemeEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: false } : e));
       return null;
     }
   }, []);
@@ -916,21 +1003,31 @@ function AdminPage() {
 
     if (!finalData) return;
 
+    // Guard: Ensure questions are present (avoid accidental save of light metadata)
+    if (!finalData.questions || (typeof finalData.questions === 'object' && Object.keys(finalData.questions).length === 0)) {
+      if (!window.confirm('Warning: Marking scheme questions appear to be missing or empty. Save anyway?')) {
+        return;
+      }
+    }
+
+    // "Heal" data during save by applying deep normalization one last time
+    const dataToSave = normalizeExamContent(finalData);
+
     setIsSaving(true);
     try {
       const authToken = await getAuthToken();
-      await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${editingMarkingSchemeId}`, finalData);
+      await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${editingMarkingSchemeId}`, dataToSave);
 
       // Update local state
       setMarkingSchemeEntries(prev => prev.map(entry => {
         if (entry.id === editingMarkingSchemeId) {
-          // Flatten if needed or keep structure
-          return { ...entry, ...finalData, markingSchemeData: finalData };
+          // Full replace with healed data
+          return { ...entry, ...dataToSave, isFullyLoaded: true };
         }
         return entry;
       }));
 
-      setError('✅ Marking scheme saved successfully');
+      setError('✅ Marking scheme healed and saved successfully');
       setIsMarkingSchemeEditing(false);
       setEditedMarkingSchemeData(null);
       setEditingMarkingSchemeId(null);
@@ -2041,8 +2138,9 @@ function AdminPage() {
                                       setExpandedJsonId(newId);
                                       if (newId) {
                                         extractAndCopyQuestionNumbers(entry);
-                                        // Fetch full details if not already loaded
-                                        if (!entry.isFullyLoaded) {
+                                        // Fetch full details if data is incomplete
+                                        const hasData = entry.questions || (entry.data && entry.data.questions);
+                                        if (!hasData || !entry.isFullyLoaded) {
                                           fetchJsonEntryDetails(entry.id);
                                         }
                                       }
@@ -2056,7 +2154,11 @@ function AdminPage() {
                                       }
                                     </span>
                                     <span className="expand-indicator">
-                                      {expandedJsonId === entry.id ? '▼' : '▶'}
+                                      {entry.isLoadingDetails ? (
+                                        <div className="mini-spinner"></div>
+                                      ) : (
+                                        expandedJsonId === entry.id ? '▼' : '▶'
+                                      )}
                                     </span>
                                   </div>
                                 </td>
@@ -2174,8 +2276,9 @@ function AdminPage() {
                                       setExpandedJsonId(newId);
                                       if (newId) {
                                         extractAndCopyQuestionNumbers(entry);
-                                        // Fetch full details if not already loaded
-                                        if (!entry.isFullyLoaded) {
+                                        // Fetch full details if data is incomplete
+                                        const hasData = entry.questions || (entry.data && entry.data.questions);
+                                        if (!hasData || !entry.isFullyLoaded) {
                                           fetchJsonEntryDetails(entry.id);
                                         }
                                       }
@@ -2196,13 +2299,13 @@ function AdminPage() {
 
                               {
                                 expandedJsonId === entry.id && (
-                                  <tr className="admin-expanded-row">
-                                    <td colSpan="8">
-                                      <div className="admin-expanded-content">
-                                        {!entry.isFullyLoaded ? (
-                                          <div className="admin-loading-details">
+                                  <tr className="admin-expansion-row">
+                                    <td colSpan={10}>
+                                      <div className="admin-expansion-content">
+                                        {entry.isLoadingDetails ? (
+                                          <div className="row-loading-state">
                                             <div className="admin-spinner"></div>
-                                            <p>Loading full exam details...</p>
+                                            <p>Loading details...</p>
                                           </div>
                                         ) : (
                                           <>
@@ -2650,7 +2753,8 @@ function AdminPage() {
 
                         return filteredMarkingSchemeEntries.map(entry => {
                           // Extract exam details from either structure
-                          const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+                          const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || entry.metadata || entry.exam || {};
+                          const questionsRaw = entry.questions || entry.markingSchemeData?.questions || entry.data?.questions || {};
                           const questions = entry.questions || entry.markingSchemeData?.questions || {};
 
                           // Get display values
@@ -2687,8 +2791,11 @@ function AdminPage() {
                                     onClick={() => {
                                       const newExpandedId = expandedMarkingSchemeId === entry.id ? null : entry.id;
                                       setExpandedMarkingSchemeId(newExpandedId);
-                                      if (newExpandedId && !entry.isFullyLoaded) {
-                                        fetchMarkingSchemeDetails(entry.id);
+                                      if (newExpandedId) {
+                                        const hasData = entry.questions || entry.markingSchemeData?.questions;
+                                        if (!hasData || !entry.isFullyLoaded) {
+                                          fetchMarkingSchemeDetails(entry.id);
+                                        }
                                       }
                                     }}
                                     title="Click to view marking scheme content"
@@ -2700,7 +2807,11 @@ function AdminPage() {
                                       }
                                     </span>
                                     <span className="expand-indicator">
-                                      {expandedMarkingSchemeId === entry.id ? '▼' : '▶'}
+                                      {entry.isLoadingDetails ? (
+                                        <div className="mini-spinner"></div>
+                                      ) : (
+                                        expandedMarkingSchemeId === entry.id ? '▼' : '▶'
+                                      )}
                                     </span>
                                   </div>
                                 </td>
@@ -2714,8 +2825,11 @@ function AdminPage() {
                                     onClick={() => {
                                       const newId = expandedMarkingSchemeId === entry.id ? null : entry.id;
                                       setExpandedMarkingSchemeId(newId);
-                                      if (newId && !entry.isFullyLoaded) {
-                                        fetchMarkingSchemeDetails(entry.id);
+                                      if (newId) {
+                                        const hasData = entry.questions || entry.markingSchemeData?.questions;
+                                        if (!hasData || !entry.isFullyLoaded) {
+                                          fetchMarkingSchemeDetails(entry.id);
+                                        }
                                       }
                                     }}
                                     title="View"
@@ -2741,13 +2855,13 @@ function AdminPage() {
 
                               {/* Expanded content row */}
                               {expandedMarkingSchemeId === entry.id && (
-                                <tr className="admin-expanded-row">
-                                  <td colSpan="8" className="admin-expanded-cell">
-                                    <div className="admin-expanded-content">
-                                      {!entry.isFullyLoaded ? (
-                                        <div className="admin-loading-details">
+                                <tr className="admin-expansion-row">
+                                  <td colSpan={10}>
+                                    <div className="admin-expansion-content">
+                                      {entry.isLoadingDetails ? (
+                                        <div className="row-loading-state">
                                           <div className="admin-spinner"></div>
-                                          <p>Loading marking scheme details...</p>
+                                          <p>Loading scheme details...</p>
                                         </div>
                                       ) : (
                                         <>
@@ -2855,12 +2969,13 @@ function AdminPage() {
                                                   <h6 className="admin-questions-summary__title">Summary Statistics</h6>
                                                   <div className="admin-questions-summary">
                                                     <span className="admin-summary-item">
-                                                      <strong>Total Questions:</strong> {displayData.questions ? Object.keys(displayData.questions).length : 'N/A'}
+                                                      <strong>Total Questions:</strong> {displayData.questions ? robustEnsureArray(displayData.questions).length : 'N/A'}
                                                     </span>
                                                     <span className="admin-summary-item">
                                                       <strong>Total Marks:</strong> {displayData.questions ?
-                                                        Object.values(displayData.questions).reduce((total, question) => {
-                                                          return total + (question.marks ? question.marks.length : 0);
+                                                        robustEnsureArray(displayData.questions).reduce((total, question) => {
+                                                          const marks = robustEnsureArray(question.marks);
+                                                          return total + marks.length;
                                                         }, 0) : 'N/A'}
                                                     </span>
                                                   </div>
@@ -2868,24 +2983,13 @@ function AdminPage() {
 
                                                 {/* Questions List */}
                                                 {(() => {
-                                                  const questionsRaw = displayData.questions;
-                                                  if (!questionsRaw) return null;
-
-                                                  let questionsList = [];
-                                                  if (Array.isArray(questionsRaw)) {
-                                                    questionsList = questionsRaw.map((q, idx) => ({
-                                                      number: String(q.number || q.questionNumber || q.question_number || (idx + 1)),
-                                                      ...q
-                                                    }));
-                                                  } else if (typeof questionsRaw === 'object') {
-                                                    questionsList = Object.entries(questionsRaw).map(([key, val]) => ({
-                                                      number: String(val.number || val.questionNumber || val.question_number || key),
-                                                      ...val
-                                                    }));
-                                                  }
+                                                  const questionsList = robustEnsureArray(displayData.questions).map((q, idx) => ({
+                                                    number: String(q.number || q.questionNumber || q.question_number || (idx + 1)),
+                                                    ...q
+                                                  }));
 
                                                   if (questionsList.length === 0) return (
-                                                    <div className="admin-no-questions">
+                                                    <div className="no-questions">
                                                       <p>No questions found in this marking scheme.</p>
                                                     </div>
                                                   );
@@ -2911,49 +3015,48 @@ function AdminPage() {
                                                                 <span className="admin-question-text">{q.answer ? `Answer: ${q.answer}` : 'No answer provided'}</span>
                                                               </div>
 
-                                                              {q.marks && q.marks.length > 0 && (
-                                                                <div className="admin-sub-questions">
-                                                                  <h6 className="admin-questions-summary__title">Marks ({q.marks.length})</h6>
-                                                                  <div className="markdown-marking-scheme">
-                                                                    {q.marks.map((m, i) => {
-                                                                      const mCode = m.mark || `M${i + 1}`;
-                                                                      let ans = m.answer || '';
-                                                                      ans = ans.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
-                                                                      ans = ans.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
-                                                                      ans = ans.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
-                                                                      ans = ans.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, num) => {
-                                                                        const bStr = ans.substring(0, ans.indexOf(match));
-                                                                        const aStr = ans.substring(ans.indexOf(match) + match.length);
-                                                                        const isMath = /[+\-*/=<>(){}[\]]/.test(bStr.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(aStr[0]);
-                                                                        return isMath ? `\\(${num}\\)` : num;
-                                                                      });
-                                                                      const comms = m.comments ? ` (${m.comments})` : '';
-                                                                      return (
-                                                                        <div key={i} className="marking-scheme-item">
-                                                                          <MarkdownMathRenderer content={`**${mCode}** ${ans}${comms}`} className="admin-markdown-content" />
-                                                                        </div>
-                                                                      );
-                                                                    })}
-                                                                  </div>
-                                                                </div>
-                                                              )}
-
-                                                              {q.guidance && q.guidance.length > 0 && (
-                                                                <div className="admin-sub-questions">
-                                                                  <h6 className="admin-questions-summary__title">Guidance ({q.guidance.length})</h6>
-                                                                  {q.guidance.map((g, gi) => (
-                                                                    <div key={gi} className="admin-sub-question-item">
-                                                                      <div className="admin-sub-question-content">
-                                                                        <span className="admin-sub-question-number">{gi + 1}</span>
-                                                                        <span className="admin-sub-question-text">
-                                                                          <strong>Scenario:</strong> {g.scenario}
-                                                                          {g.outcome && ` | <strong>Outcome:</strong> ${g.outcome}`}
-                                                                        </span>
-                                                                      </div>
+                                                              {(() => {
+                                                                const mArr = robustEnsureArray(q.marks);
+                                                                if (mArr.length === 0) return null;
+                                                                return (
+                                                                  <div className="admin-sub-questions">
+                                                                    <h6 className="admin-questions-summary__title">Marks ({mArr.length})</h6>
+                                                                    <div className="markdown-marking-scheme">
+                                                                      {mArr.map((m, i) => {
+                                                                        const mCode = m.mark || `M${i + 1}`;
+                                                                        let ans = m.answer || '';
+                                                                        const comms = m.comments ? ` (${m.comments})` : '';
+                                                                        return (
+                                                                          <div key={i} className="marking-scheme-item">
+                                                                            <MarkdownMathRenderer content={`**${mCode}** ${ans}${comms}`} className="admin-markdown-content" />
+                                                                          </div>
+                                                                        );
+                                                                      })}
                                                                     </div>
-                                                                  ))}
-                                                                </div>
-                                                              )}
+                                                                  </div>
+                                                                );
+                                                              })()}
+
+                                                              {(() => {
+                                                                const gArr = robustEnsureArray(q.guidance);
+                                                                if (gArr.length === 0) return null;
+                                                                return (
+                                                                  <div className="admin-sub-questions">
+                                                                    <h6 className="admin-questions-summary__title">Guidance ({gArr.length})</h6>
+                                                                    {gArr.map((g, gi) => (
+                                                                      <div key={gi} className="admin-sub-question-item">
+                                                                        <div className="admin-sub-question-content">
+                                                                          <span className="admin-sub-question-number">{gi + 1}</span>
+                                                                          <span className="admin-sub-question-text">
+                                                                            <strong>Scenario:</strong> {g.scenario}
+                                                                            {g.outcome && ` | <strong>Outcome:</strong> ${g.outcome}`}
+                                                                          </span>
+                                                                        </div>
+                                                                      </div>
+                                                                    ))}
+                                                                  </div>
+                                                                );
+                                                              })()}
                                                             </div>
                                                           ))}
                                                       </div>

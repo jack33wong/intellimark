@@ -2,38 +2,9 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-[PERF] getUserUnifiedSessions: Fetch 420ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 424ms for 50 sessions (limit: 50)
-[PERF] getUserUnifiedSessions: Fetch 265ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 267ms for 50 sessions (limit: 50)
-🚀 [MODEL-ANSWER] Controller HIT! Request for paper: J560-06-NOV2020
-ℹ️ [EXAM-REF] Looking for paper via search: J560-06-NOV2020
-ℹ️ [EXAM-REF] Searching papers with variations: ["j560-06-nov2020","j560 06 nov2020","j560/06/nov2020","j560-06-nov 2020","j560 06 nov 2020","j560/06/nov 2020","j560 06 november 2020"]
-✅ [EXAM-REF] Best match: J560/06 (November 2020) with score 4
-ℹ️ [EXAM-REF] Looking for scheme via Metadata: J560/06 / November 2020 (Variations: ["November 2020","november 2020"])
-✅ [EXAM-REF] Found scheme via Metadata Match: ee41dd20-8808-4614-a2d5-482ab8770f28 (November 2020)
-[MODEL-ANSWER] Found sub-marks for 1: 1a, 1b, 1c(i), 1c(ii), 1d
-[MODEL-ANSWER] Found sub-marks for 3: 3a, 3b
-[MODEL-ANSWER] Found sub-marks for 4: 4a, 4b
-[MODEL-ANSWER] Found sub-marks for 5: 5a, 5b
-[MODEL-ANSWER] Found sub-marks for 7: 7a, 7b
-[MODEL-ANSWER] Found sub-marks for 11: 11a(i), 11a(ii), 11b
-[MODEL-ANSWER] Found sub-marks for 16: 16a, 16b
-[MODEL-ANSWER] Found sub-marks for 17: 17a, 17b
-[MODEL-ANSWER] Found sub-marks for 19: 19a, 19b(i), 19b(ii)
-💳 Deducted 0.65 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1773756262016), remaining: 999439.99
-[PERF] getUserUnifiedSessions: Fetch 214ms, Process 2ms for 50 docs
-[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 217ms for 50 sessions (limit: 50)
-🚀 [MODEL-ANSWER] Controller HIT! Request for paper: 9MA0-31-SUM2023
-ℹ️ [EXAM-REF] Looking for paper via search: 9MA0-31-SUM2023
-ℹ️ [EXAM-REF] Searching papers with variations: ["9ma0-31-sum2023","9ma0 31 sum2023","9ma0/31/sum2023","9ma0-31-sum 2023","9ma0 31 sum 2023","9ma0/31/sum 2023"]
-✅ [EXAM-REF] Best match: 9MA0/31 (June 2023) with score 3
-ℹ️ [EXAM-REF] Looking for scheme via Metadata: 9MA0/31 / June 2023 (Variations: ["June 2023","june 2023","Summer 2023","May 2023"])
-✅ [EXAM-REF] Found scheme via Metadata Match: 9aee8921-bec4-4346-a03c-b84a70a6a18e (June 2023)
-[MODEL-ANSWER] Found sub-marks for 1: 1a, 1b, 1c
-[MODEL-ANSWER] Found sub-marks for 2: 2a, 2bi, 2bii, 2c, 2d
-[MODEL-ANSWER] Found sub-marks for 3: 3a, 3bi, 3bii, 3ci, 3cii
-[MODEL-ANSWER] Found sub-marks for 4: 4a, 4b, 4c
-[MODEL-ANSWER] Found sub-marks for 5: 5a, 5b, 5c
-[MODEL-ANSWER] Found sub-marks for 6: 6a, 6b, 6c, 6d, 6ei, 6eii, 6f
-💳 Deducted 0.36 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: session-model-1773756301576), remaining: 999439.63
+[PERF] getUserUnifiedSessions: Fetch 504ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 507ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 423ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 425ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 358ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 359ms for 50 sessions (limit: 50)
