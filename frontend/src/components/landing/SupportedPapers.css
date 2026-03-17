@@ -88,13 +88,21 @@
     background: #ffffff;
     padding: 32px 20px;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
+    gap: 16px;
     border-bottom: 1px solid #f3f3f1;
 }
 
+.header-top,
+.header-bottom {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
 .board-logo-pill {
-    padding: 12px 24px;
+    padding: 10px 24px;
     background-color: #fafafa;
     border: 1px solid #eeeeed;
     border-radius: 12px;
@@ -103,12 +111,26 @@
     color: var(--text-primary);
     letter-spacing: -0.01em;
     transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.board-tool-link {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #7f00ff;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.board-tool-link:hover {
+    text-decoration: underline;
+    opacity: 0.8;
 }
 
 .board-section:hover .board-logo-pill {
     background-color: white;
-    border-color: var(--text-brand);
-    color: var(--text-brand);
+    border-color: #7f00ff;
+    color: #7f00ff;
     box-shadow: 0 4px 12px rgba(127, 0, 255, 0.1);
 }
 
@@ -117,71 +139,36 @@
 }
 
 .series-header {
-    background: var(--fill-brand);
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--border-light);
+    padding: 14px 20px;
+    background-color: #f3e8ff;
+    /* Solid light purple */
+    border-bottom: 1px solid #e9d5ff;
 }
 
 .series-header h4 {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 700;
-    color: var(--text-brand);
+    color: #7f00ff;
     line-height: 1.3;
 }
 
-.series-papers-list {
-    padding: 8px 0;
-}
-
-.paper-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 20px;
-    transition: background-color 0.2s ease;
-}
-
-.paper-row:hover {
-    background-color: #fafafa;
-}
-
-.paper-row:not(:last-child) {
-    border-bottom: 1px solid var(--border-light);
-}
-
-.paper-info {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-}
-
-.paper-count {
-    font-weight: 600;
-    color: var(--text-secondary);
+.series-category-tag {
+    display: inline-block;
+    margin-top: 6px;
     font-size: 0.7rem;
-}
-
-.paper-type {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-}
-
-.paper-meta {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.paper-code-tag {
-    font-family: monospace;
     font-weight: 700;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    background: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-light);
+    color: #7f00ff;
+    background-color: white;
+    padding: 2px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Row elements are now in PastPaperShared.css */
+.supported-papers .paper-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-light);
 }
 
 .paper-tier-tag {
@@ -346,52 +333,7 @@
 }
 
 
-.supported-papers .paper-actions {
-    display: flex;
-    gap: 8px;
-    margin-left: auto;
-    padding-left: 12px;
-}
-
-.supported-papers .action-link {
-    padding: 6px 12px;
-    /* Slightly bigger hit area for mobile */
-    font-size: 0.65rem;
-    font-weight: 700;
-    border-radius: 6px;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.2s;
-    text-decoration: none;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-}
-
-.supported-papers .action-link.model {
-    background: var(--text-brand);
-    color: white;
-    border: none;
-}
-
-.supported-papers .action-link.mark {
-    background: transparent;
-    color: var(--text-brand);
-    border: 1px solid var(--text-brand);
-}
-
-.supported-papers .action-link.model:hover {
-    background: var(--text-brand);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(127, 0, 255, 0.2);
-}
-
-.supported-papers .action-link.mark:hover {
-    background: rgba(127, 0, 255, 0.05);
-    border-color: var(--text-brand);
-    color: var(--text-brand);
-    transform: translateY(-1px);
-}
+/* Action buttons and loading states are moved to PastPaperShared.css */
 
 .badge-container.center {
     display: flex;
@@ -402,4 +344,14 @@
 /* Hide pagination buttons on desktop */
 .mobile-pagination-btn {
     display: none;
+}
+
+/* Loading moved to PastPaperShared.css */
+
+.no-papers-found {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-style: italic;
+    font-size: 0.9rem;
 }

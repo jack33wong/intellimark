@@ -227,8 +227,8 @@ export class ExamReferenceService {
     /**
      * Formats metadata for display (e.g. "JUN2023" -> "June 2023")
      */
-    public static formatMetadataDisplay(meta: any): { series: string, tier: string, qualification: string, isAlevel: boolean, isGcse: boolean } {
-        let formattedSeries = meta.exam_series || '';
+    public static formatMetadataDisplay(meta: any): { series: string, tier: string, tierCode: string, qualification: string, isAlevel: boolean, isGcse: boolean } {
+        let formattedSeries = meta.exam_series || meta.session || meta.series || '';
         if (formattedSeries && /^[A-Z]{3}\d{4}$/.test(formattedSeries)) {
             const monthMap: Record<string, string> = {
                 'JAN': 'January', 'FEB': 'February', 'MAR': 'March', 'APR': 'April', 'MAY': 'May', 'JUN': 'June',
@@ -240,7 +240,7 @@ export class ExamReferenceService {
         }
 
         const rawQual = (meta.qualification || meta.subject || '').toLowerCase();
-        const code = (meta.exam_code || '').toLowerCase();
+        const code = (meta.exam_code || meta.code || '').toLowerCase();
         
         // Robust Qualification Detection: Check explicit metadata and common A-Level code patterns
         const isAlevel = rawQual.includes('a level') || rawQual.includes('alevel') || 
@@ -249,6 +249,8 @@ export class ExamReferenceService {
                         code.startsWith('h240') || code.startsWith('h230') || code.startsWith('h640') || code.startsWith('h630'); // OCR
         
         let formattedTier = '';
+        let tierCode = 'All';
+        
         if (!isAlevel) {
             let rawTier = (meta.tier || '').toLowerCase();
             
@@ -258,8 +260,13 @@ export class ExamReferenceService {
                 if (codeMatch) rawTier = codeMatch[1];
             }
 
-            if (rawTier === 'h' || rawTier === 'higher') formattedTier = 'Higher Tier';
-            else if (rawTier === 'f' || rawTier === 'foundation') formattedTier = 'Foundation Tier';
+            if (rawTier.includes('h') || rawTier.includes('higher')) {
+                formattedTier = 'Higher Tier';
+                tierCode = 'H';
+            } else if (rawTier.includes('f') || rawTier.includes('foundation')) {
+                formattedTier = 'Foundation Tier';
+                tierCode = 'F';
+            }
         }
 
         const isGcse = !isAlevel && (rawQual.includes('gcse') || !!formattedTier || !rawQual || rawQual === 'mathematics' || rawQual === 'maths');
@@ -267,6 +274,7 @@ export class ExamReferenceService {
         return { 
             series: formattedSeries, 
             tier: formattedTier, 
+            tierCode: tierCode,
             qualification: isAlevel ? 'A-Level' : 'GCSE',
             isAlevel,
             isGcse

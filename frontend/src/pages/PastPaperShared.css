@@ -1,0 +1,134 @@
+/* Shared styles for past paper rows across all landing pages */
+
+.paper-item-row,
+.paper-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 20px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.paper-item-row:hover,
+.paper-row:hover {
+    background-color: #fafafa;
+}
+
+.paper-meta,
+.paper-info {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.paper-name,
+.paper-count {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.paper-type-label {
+    font-size: 0.4em;
+    color: var(--text-tertiary);
+    background: #f7fafc;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.paper-code-tag {
+    font-family: monospace;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    background: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+}
+
+.paper-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.action-link {
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    text-decoration: none;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-link.model {
+    background: var(--board-accent-color, var(--text-brand));
+    color: white !important;
+    border: none;
+}
+
+.action-link.mark {
+    background: transparent;
+    color: var(--board-accent-color, var(--text-brand));
+    border: 1px solid var(--board-accent-color, var(--text-brand));
+}
+
+.action-link.model:hover {
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(127, 0, 255, 0.1);
+}
+
+.action-link.mark:hover {
+    background: rgba(127, 0, 255, 0.05);
+    transform: translateY(-1px);
+}
+
+/* Common Loading & Error States */
+.papers-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 0;
+    color: var(--text-secondary);
+    gap: 16px;
+}
+
+.papers-loading .spinner {
+    animation: spin 1s linear infinite;
+    color: var(--text-brand);
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.no-papers-found {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-style: italic;
+    font-size: 0.9rem;
+}

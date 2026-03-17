@@ -1,3 +1,5 @@
+@import './PastPaperShared.css';
+
 /* Shared Past Paper Table Styles */
 
 /* Board-level variable defaults (overridden by board pages) */
@@ -32,9 +34,11 @@
 }
 
 .year-card-header {
-    border-bottom: 2px solid var(--board-accent-color);
-    padding-bottom: 12px;
-    margin-bottom: 16px;
+    background-color: var(--board-bg-accent);
+    padding: 14px 20px;
+    margin: -28px -28px 24px -28px;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 1px solid var(--board-accent-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -44,6 +48,17 @@
     font-size: 17px;
     font-weight: 800;
     color: var(--text-primary, #1a1a1a);
+}
+
+.category-pill-small {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
 }
 
 .tier-groups-stack {
@@ -67,99 +82,12 @@
     padding-left: 16px;
 }
 
+/* Shared row elements are now in PastPaperShared.css */
 .paper-item-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
     margin: 0 -12px 8px -12px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    overflow: hidden;
 }
 
-.paper-item-row:hover {
-    background: var(--background-gray-main, #f8f9fa);
-}
-
-.paper-meta {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-}
-
-.paper-name {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-secondary, #4a5568);
-}
-
-.paper-type {
-    font-size: 0.5em;
-    color: var(--text-tertiary, #718096);
-    background: #f7fafc;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-}
-
-.paper-code-tag {
-    font-family: monospace;
-    font-weight: 700;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    background: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-light);
-}
-
-.paper-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.action-link {
-    padding: 6px 12px;
-    font-size: 9px;
-    font-weight: 600;
-    border-radius: 4px;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.2s;
-    text-decoration: none;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-}
-
-.action-link.model {
-    background: var(--board-accent-color);
-    color: white !important;
-    border: none;
-}
-
-.action-link.mark {
-    background: transparent;
-    color: var(--board-accent-color);
-    border: 1px solid var(--board-accent-color);
-}
-
-.action-link.model:hover {
-    filter: brightness(0.9);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--board-bg-accent);
-}
-
-.action-link.mark:hover {
-    background: var(--board-bg-accent);
-    transform: translateY(-1px);
-}
+/* Button styles moved to PastPaperShared.css */
 
 /* Mobile Optimizations */
 @media (max-width: 1100px) {
@@ -192,4 +120,15 @@
     .year-card-static {
         padding: 20px 16px;
     }
+}
+/* Loading and Empty States (Synced with SupportedPapers.css) */
+/* Loading moved to PastPaperShared.css */
+
+.no-papers-found {
+    padding: 60px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-style: italic;
+    font-size: 1.1rem;
+    grid-column: 1 / -1;
 }

@@ -7,108 +7,71 @@ import HeroAnimation from '../components/layout/HeroAnimation';
 import LandingFooter from '../components/layout/LandingFooter';
 import SeoHeader from '../components/common/SeoHeader';
 import { trackPaperInteraction } from '../utils/analytics';
+import LevelToggle from '../components/landing/LevelToggle';
+import { Loader2 } from 'lucide-react';
 import './AqaLandingPage.css';
 import './PastPaperTable.css';
 
-const AQA_PAST_PAPERS = [
-    {
-        year: "November 2024",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "June 2024",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "November 2023",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "June 2023",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "November 2022",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "June 2022",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "November 2021",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    },
-    {
-        year: "November 2020",
-        papers: [
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1F", tier: "F" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2F", tier: "F" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3F", tier: "F" },
-            { name: "Paper 1", type: "Non-Calculator", code: "8300/1H", tier: "H" },
-            { name: "Paper 2", type: "Calculator", code: "8300/2H", tier: "H" },
-            { name: "Paper 3", type: "Calculator", code: "8300/3H", tier: "H" }
-        ]
-    }
-];
+// Dynamic data handled by state
 
 const AqaLandingPage: React.FC = () => {
     const navigate = useNavigate();
     const [startAnimations, setStartAnimations] = React.useState(false);
+    const [level, setLevel] = React.useState<'GCSE' | 'A-Level'>('GCSE');
+    const [examData, setExamData] = React.useState<any>(null);
+    const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
         const timer = setTimeout(() => setStartAnimations(true), 100);
+        
+        const fetchData = async () => {
+            try {
+                const response = await fetch('/api/exams/public-list');
+                const json = await response.json();
+                if (json.success) {
+                    setExamData(json.data["AQA"] || {});
+                }
+            } catch (error) {
+                console.error('Error fetching exam data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
         return () => clearTimeout(timer);
     }, []);
+
+    const getSeriesList = () => {
+        if (!examData) return [];
+        if (level === 'GCSE') return examData.gcse || [];
+        
+        // Group A-Level by series (merging pure and stats_mech)
+        const seriesMap = new Map<string, any>();
+        
+        const processGroup = (papers: any[]) => {
+            papers.forEach((s: any) => {
+                if (!seriesMap.has(s.series)) {
+                    seriesMap.set(s.series, { series: s.series, papers: [] });
+                }
+                seriesMap.get(s.series).papers.push(...(s.papers || []));
+            });
+        };
+
+        if (examData.alevel?.pure) processGroup(examData.alevel.pure);
+        if (examData.alevel?.stats_mech) processGroup(examData.alevel.stats_mech);
+
+        return Array.from(seriesMap.values()).sort((a, b) => {
+            const parseDate = (s: string) => {
+                const parts = s.split(' ');
+                if (parts.length < 2) return new Date(0);
+                const months: any = { 'January': 0, 'June': 5, 'November': 10 };
+                return new Date(parseInt(parts[1]), months[parts[0]] || 0);
+            };
+            return parseDate(b.series).getTime() - parseDate(a.series).getTime();
+        });
+    };
+
+    const seriesList = getSeriesList();
 
 
     return (
@@ -195,73 +158,95 @@ const AqaLandingPage: React.FC = () => {
                 <div className="aqa-resources-content">
                     <h2 className="aqa-section-title">AQA Past Papers & Model Answers</h2>
 
-                    <div className="year-card-grid">
-                        {AQA_PAST_PAPERS.map((year, index) => (
-                            <div key={year.year} className="year-card-static">
-                                <div className="year-card-header">
-                                    <span className="year-title">{year.year} Series</span>
-                                    {index === 0 && <span className="new-tag">Latest</span>}
-                                </div>
+                    <LevelToggle level={level} onChange={setLevel} primaryColor="#004B98" />
 
-                                <div className="tier-groups-stack">
-                                    {['F', 'H'].map(tierCode => {
-                                        const tierPapers = year.papers.filter(p => p.tier === tierCode);
-                                        if (tierPapers.length === 0) return null;
+                    {loading ? (
+                        <div className="papers-loading">
+                            <Loader2 className="spinner" size={40} />
+                            <p>Loading AQA papers...</p>
+                        </div>
+                    ) : (
+                        <div className="year-card-grid">
+                            {seriesList.length > 0 ? seriesList.map((series: any, index: number) => (
+                                <div key={`${series.series}-${series.category || 'gcse'}`} className="year-card-static">
+                                    <div className="year-card-header">
+                                        <span className="year-title">{series.series} Series</span>
+                                        {index === 0 && <span className="new-tag">Latest</span>}
+                                        {series.category && <div className="category-pill-small">{series.category}</div>}
+                                    </div>
 
-                                        return (
-                                            <div key={tierCode} className="internal-tier-group">
-                                                <div className="tier-sublabel">
-                                                    {tierCode === 'H' ? 'Higher Tier' : 'Foundation Tier'}
-                                                </div>
-                                                <div className="paper-list-container">
-                                                    {tierPapers.map((paper) => {
-                                                        const paperCode = paper.code.replace('/', '-');
-                                                        const seriesParts = year.year.split(' ');
-                                                        const seriesYear = seriesParts[0].substring(0, 3).toUpperCase() + seriesParts[1];
-                                                        const finalCode = `${paperCode}-${seriesYear}`;
+                                    <div className="tier-groups-stack">
+                                        {(level === 'GCSE' ? ['F', 'H'] : ['Pure', 'Applied']).map(groupKey => {
+                                            const tierPapers = level === 'GCSE' 
+                                                ? series.papers.filter((p: any) => p.tierCode === groupKey)
+                                                : series.papers.filter((p: any) => p.category === groupKey);
+                                            
+                                            if (tierPapers.length === 0) return null;
 
-                                                        return (
-                                                            <div key={paper.code} className="paper-item-row">
-                                                                <div className="paper-meta">
-                                                                    <span className="paper-name">{paper.name}:</span>
-                                                                    <span className="paper-code-tag">{paper.code}</span>
-                                                                    <span className="paper-type">
-                                                                        {paper.type.includes('Non-Calculator') ? 'Non-Calc' : 'Calculator'}
-                                                                    </span>
+                                            return (
+                                                <div key={groupKey} className="internal-tier-group">
+                                                    <div className="tier-sublabel">
+                                                        {level === 'GCSE' 
+                                                            ? (groupKey === 'H' ? 'Higher Tier' : 'Foundation Tier')
+                                                            : (groupKey === 'Pure' ? 'Pure Mathematics' : 'Statistics & Mechanics')
+                                                        }
+                                                    </div>
+                                                    <div className="paper-list-container">
+                                                        {tierPapers.map((paper: any) => {
+                                                            const paperCode = paper.code.replace('/', '-');
+                                                            const seriesParts = series.series.split(' ');
+                                                            const seriesYear = seriesParts[0].substring(0, 3).toUpperCase() + seriesParts[1];
+                                                            const finalCode = `${paperCode}-${seriesYear}`;
+
+                                                            return (
+                                                                <div key={paper.code} className="paper-item-row">
+                                                                    <div className="paper-meta">
+                                                                        <span className="paper-name">{paper.name}:</span>
+                                                                        <span className="paper-code-tag">{paper.code}</span>
+                                                                        {paper.type && (
+                                                                            <span className="paper-type-label">
+                                                                                {paper.type}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="paper-actions">
+                                                                        <button
+                                                                            className="action-link model"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                trackPaperInteraction(finalCode, 'MODEL');
+                                                                                navigate(`/app?code=${finalCode}&mode=model`);
+                                                                            }}
+                                                                        >
+                                                                            Model
+                                                                        </button>
+                                                                        <button
+                                                                            className="action-link mark"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                trackPaperInteraction(finalCode, 'MARK');
+                                                                                navigate(`/app?code=${finalCode}&mode=markingscheme`);
+                                                                            }}
+                                                                        >
+                                                                            Mark
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="paper-actions">
-                                                                    <button
-                                                                        className="action-link model"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            trackPaperInteraction(finalCode, 'MODEL');
-                                                                            navigate(`/app?code=${finalCode}&mode=model`);
-                                                                        }}
-                                                                    >
-                                                                        Model
-                                                                    </button>
-                                                                    <button
-                                                                        className="action-link mark"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            trackPaperInteraction(finalCode, 'MARK');
-                                                                            navigate(`/app?code=${finalCode}&mode=markingscheme`);
-                                                                        }}
-                                                                    >
-                                                                        Mark
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            )) : (
+                                <div className="no-papers-found">
+                                    <p>No {level} papers found for AQA.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </section>
 

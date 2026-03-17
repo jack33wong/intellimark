@@ -1,0 +1,37 @@
+.level-toggle-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+  width: 100%;
+}
+
+.level-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px;
+  gap: 40px;
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.1);
+}
+
+.level-toggle__btn {
+  padding: 10px 24px;
+  border-radius: 40px;
+  border: 2px solid transparent;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+  min-width: 140px;
+}
+
+.level-toggle__btn:hover {
+  transform: translateY(-1px);
+}
+
+.level-toggle__btn--active {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}

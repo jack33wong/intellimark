@@ -2867,83 +2867,99 @@ function AdminPage() {
                                                 </div>
 
                                                 {/* Questions List */}
-                                                {displayData.questions && (
-                                                  <div className="admin-questions-content">
-                                                    <h6 className="admin-questions-summary__title">Questions ({Object.keys(displayData.questions).length})</h6>
-                                                    <div className="admin-questions-list">
-                                                      {Object.entries(displayData.questions)
-                                                        .sort(([a], [b]) => {
-                                                          const numA = parseInt(a);
-                                                          const numB = parseInt(b);
-                                                          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                                                          return a.localeCompare(b);
-                                                        })
-                                                        .map(([questionNum, question]) => (
-                                                          <div key={questionNum} className="admin-question-item">
-                                                            <div className="admin-question-main">
-                                                              <span className="admin-question-number">{questionNum}</span>
-                                                              <span className="admin-question-text">
-                                                                {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
-                                                              </span>
-                                                            </div>
+                                                {(() => {
+                                                  const questionsRaw = displayData.questions;
+                                                  if (!questionsRaw) return null;
 
-                                                            {/* Marks */}
-                                                            {question.marks && question.marks.length > 0 && (
-                                                              <div className="admin-sub-questions">
-                                                                <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
-                                                                <div className="markdown-marking-scheme">
-                                                                  {question.marks.map((mark, index) => {
-                                                                    const markCode = mark.mark || `M${index + 1}`;
-                                                                    let answer = mark.answer || '';
+                                                  let questionsList = [];
+                                                  if (Array.isArray(questionsRaw)) {
+                                                    questionsList = questionsRaw.map((q, idx) => ({
+                                                      number: String(q.number || q.questionNumber || q.question_number || (idx + 1)),
+                                                      ...q
+                                                    }));
+                                                  } else if (typeof questionsRaw === 'object') {
+                                                    questionsList = Object.entries(questionsRaw).map(([key, val]) => ({
+                                                      number: String(val.number || val.questionNumber || val.question_number || key),
+                                                      ...val
+                                                    }));
+                                                  }
 
-                                                                    // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
-                                                                    answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
-                                                                    answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
-                                                                    answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
-                                                                    answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
-                                                                      const before = answer.substring(0, answer.indexOf(match));
-                                                                      const after = answer.substring(answer.indexOf(match) + match.length);
-                                                                      const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
-                                                                      return mathContext ? `\\(${number}\\)` : number;
-                                                                    });
-
-                                                                    const comments = mark.comments ? ` (${mark.comments})` : '';
-
-                                                                    return (
-                                                                      <div key={index} className="marking-scheme-item">
-                                                                        <MarkdownMathRenderer
-                                                                          content={`**${markCode}** ${answer}${comments}`}
-                                                                          className="admin-markdown-content"
-                                                                        />
-                                                                      </div>
-                                                                    );
-                                                                  })}
-                                                                </div>
-                                                              </div>
-                                                            )}
-
-                                                            {/* Guidance */}
-                                                            {question.guidance && question.guidance.length > 0 && (
-                                                              <div className="admin-sub-questions">
-                                                                <h6 className="admin-questions-summary__title">Guidance ({question.guidance.length})</h6>
-                                                                {question.guidance.map((guidance, guidanceIndex) => (
-                                                                  <div key={guidanceIndex} className="admin-sub-question-item">
-                                                                    <div className="admin-sub-question-content">
-                                                                      <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
-                                                                      <span className="admin-sub-question-text">
-                                                                        <strong>Scenario:</strong> {guidance.scenario}
-                                                                        {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
-                                                                      </span>
-                                                                    </div>
-                                                                  </div>
-                                                                ))}
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        ))}
+                                                  if (questionsList.length === 0) return (
+                                                    <div className="admin-no-questions">
+                                                      <p>No questions found in this marking scheme.</p>
                                                     </div>
-                                                  </div>
-                                                )}
+                                                  );
+
+                                                  return (
+                                                    <div className="admin-questions-content">
+                                                      <h6 className="admin-questions-summary__title">Questions ({questionsList.length})</h6>
+                                                      <div className="admin-questions-list">
+                                                        {questionsList
+                                                          .sort((a, b) => {
+                                                            const numA = parseInt(a.number);
+                                                            const numB = parseInt(b.number);
+                                                            if (!isNaN(numA) && !isNaN(numB)) {
+                                                              if (numA !== numB) return numA - numB;
+                                                              return a.number.localeCompare(b.number);
+                                                            }
+                                                            return a.number.localeCompare(b.number);
+                                                          })
+                                                          .map((q) => (
+                                                            <div key={q.number} className="admin-question-item">
+                                                              <div className="admin-question-main">
+                                                                <span className="admin-question-number">{q.number}</span>
+                                                                <span className="admin-question-text">{q.answer ? `Answer: ${q.answer}` : 'No answer provided'}</span>
+                                                              </div>
+
+                                                              {q.marks && q.marks.length > 0 && (
+                                                                <div className="admin-sub-questions">
+                                                                  <h6 className="admin-questions-summary__title">Marks ({q.marks.length})</h6>
+                                                                  <div className="markdown-marking-scheme">
+                                                                    {q.marks.map((m, i) => {
+                                                                      const mCode = m.mark || `M${i + 1}`;
+                                                                      let ans = m.answer || '';
+                                                                      ans = ans.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
+                                                                      ans = ans.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
+                                                                      ans = ans.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
+                                                                      ans = ans.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, num) => {
+                                                                        const bStr = ans.substring(0, ans.indexOf(match));
+                                                                        const aStr = ans.substring(ans.indexOf(match) + match.length);
+                                                                        const isMath = /[+\-*/=<>(){}[\]]/.test(bStr.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(aStr[0]);
+                                                                        return isMath ? `\\(${num}\\)` : num;
+                                                                      });
+                                                                      const comms = m.comments ? ` (${m.comments})` : '';
+                                                                      return (
+                                                                        <div key={i} className="marking-scheme-item">
+                                                                          <MarkdownMathRenderer content={`**${mCode}** ${ans}${comms}`} className="admin-markdown-content" />
+                                                                        </div>
+                                                                      );
+                                                                    })}
+                                                                  </div>
+                                                                </div>
+                                                              )}
+
+                                                              {q.guidance && q.guidance.length > 0 && (
+                                                                <div className="admin-sub-questions">
+                                                                  <h6 className="admin-questions-summary__title">Guidance ({q.guidance.length})</h6>
+                                                                  {q.guidance.map((g, gi) => (
+                                                                    <div key={gi} className="admin-sub-question-item">
+                                                                      <div className="admin-sub-question-content">
+                                                                        <span className="admin-sub-question-number">{gi + 1}</span>
+                                                                        <span className="admin-sub-question-text">
+                                                                          <strong>Scenario:</strong> {g.scenario}
+                                                                          {g.outcome && ` | <strong>Outcome:</strong> ${g.outcome}`}
+                                                                        </span>
+                                                                      </div>
+                                                                    </div>
+                                                                  ))}
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                          ))}
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })()}
 
                                                 {/* Metadata */}
                                                 <div className="admin-metadata-section">

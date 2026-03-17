@@ -143,7 +143,7 @@ const FeaturesPage: React.FC = () => {
             <section className="features-hero">
                 <h1 className="features-h1">Pixel-Perfect AI Marking.</h1>
                 <p>
-                    Stop guessing your grade. Get your GCSE past papers marked instantly, with examiner-level accuracy.
+                    Stop guessing your grade. Get your GCSE and A-Level past papers marked instantly, with examiner-level accuracy.
                 </p>
             </section>
 

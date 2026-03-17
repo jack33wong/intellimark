@@ -85,6 +85,7 @@ import adminCreditsRoutes from './routes/admin/credits.js';
 import debugRoutes from './routes/debug.js';
 import modelAnswerRouter from './routes/modelAnswerRouter.js';
 import markingSchemeRouter from './routes/markingSchemeRouter.js';
+import examsRouter from './routes/exams.js';
 
 // Enable auth routes (Apply JSON/URLENCODED here)
 app.use('/api/auth', express.json({ limit: '50mb' }), express.urlencoded({ extended: true, limit: '50mb' }), authRoutes);
@@ -107,6 +108,7 @@ app.use('/api/admin/credits', jsonParser, urlParser, adminCreditsRoutes);
 app.use('/api/debug', jsonParser, urlParser, debugRoutes);
 app.use('/api/model-answer', jsonParser, urlParser, modelAnswerRouter);
 app.use('/api/marking-scheme', jsonParser, urlParser, markingSchemeRouter);
+app.use('/api/exams', jsonParser, urlParser, examsRouter);
 
 
 

@@ -34,6 +34,13 @@ export class NormalizationService {
             }
         }
 
+        // OCR: map "May [Year]" to "June [Year]" to group summer papers
+        if (normalizedBoard === 'OCR') {
+            if (/^May\s+\d{4}$/i.test(normalizedSeries)) {
+                return normalizedSeries.replace(/^May/i, 'June');
+            }
+        }
+
         return normalizedSeries;
     }
 }
