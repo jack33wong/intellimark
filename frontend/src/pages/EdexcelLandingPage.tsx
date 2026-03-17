@@ -64,7 +64,7 @@ const EdexcelLandingPage: React.FC = () => {
             const parseDate = (s: string) => {
                 const parts = s.split(' ');
                 if (parts.length < 2) return new Date(0);
-                const months: any = { 'January': 0, 'June': 5, 'November': 10 };
+                const months: any = { 'January': 0, 'Summer': 5, 'June': 5, 'November': 10 };
                 return new Date(parseInt(parts[1]), months[parts[0]] || 0);
             };
             return parseDate(b.series).getTime() - parseDate(a.series).getTime();
