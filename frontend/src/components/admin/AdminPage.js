@@ -26,11 +26,25 @@ const robustEnsureArray = (val) => {
   if (typeof val === 'object' && val !== null) {
     const entries = Object.entries(val);
     if (entries.length === 0) return [];
+
+    // Map over entries to preserve the key inside the object before it gets lost in values()
+    const mappedEntries = entries.map(([key, v]) => {
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        const enhancedV = { ...v };
+        // Only inject if it doesn't already have one of the identifier fields
+        if (enhancedV.number === undefined && enhancedV.questionNumber === undefined && enhancedV.question_number === undefined) {
+          // If the key looks like a subquestion (e.g. 'a', 'i', 'b(i)'), maybe use 'part', but 'number' is safer as normalizeExamContent handles it
+          enhancedV.number = key;
+        }
+        return [key, enhancedV];
+      }
+      return [key, v];
+    });
     
-    // Check if keys are predominantly numeric strings
-    const numericKeys = entries.filter(([key]) => !isNaN(parseInt(key)));
+    // Check if keys are predominantly numeric strings (for sorting)
+    const numericKeys = mappedEntries.filter(([key]) => !isNaN(parseInt(key)));
     if (numericKeys.length > 0) {
-      return entries
+      return mappedEntries
         .sort(([a], [b]) => {
           const numA = parseInt(a);
           const numB = parseInt(b);
@@ -40,7 +54,7 @@ const robustEnsureArray = (val) => {
         .map(([_, v]) => v);
     }
     // Final fallback: just use values
-    return Object.values(val);
+    return mappedEntries.map(([_, v]) => v);
   }
   return [];
 };
@@ -1179,58 +1193,46 @@ function AdminPage() {
       return nid.replace(/[^a-z0-9]/g, '');
     };
 
-    // 1. Metadata Checks
-    const pTotalMarks = examPaper.totalMarks || (examPaper.exam && examPaper.exam.totalMarks);
-    const sTotalMarks = markingScheme.totalMarks || (markingScheme.examDetails && markingScheme.examDetails.totalMarks);
-    if (pTotalMarks && sTotalMarks && parseInt(pTotalMarks) !== parseInt(sTotalMarks)) {
-      mismatches.push(`Total Marks Mismatch: Paper (${pTotalMarks}) vs Scheme (${sTotalMarks})`);
-    }
+    // Helper to build a flat map of all canonical identifiers in a paper/scheme
+    // e.g. "1" -> ["a", "b"] -> { "1a": true, "1b": true }
+    const getFlattenedIds = (qs) => {
+      const ids = new Set();
+      qs.forEach((q, i) => {
+        const qId = normId(q.number || q.questionNumber || q.question_number || String(i + 1));
+        const subQs = robustEnsureArray(q.subQuestions || q.sub_questions);
 
-    // 2. Question Count Checks
-    if (questions1.length !== questions2.length) {
-      mismatches.push(`Question count mismatch: Paper has ${questions1.length}, Scheme has ${questions2.length}`);
-    }
-
-    // 3. Detailed Structure Check (Iterate through the shorter list to find exact point of failure)
-    const maxLen = Math.max(questions1.length, questions2.length);
-    for (let i = 0; i < maxLen; i++) {
-      const q1 = questions1[i];
-      const q2 = questions2[i];
-
-      if (!q1) {
-        mismatches.push(`Question index ${i + 1}: Extra question in Marking Scheme`);
-        continue;
-      }
-      if (!q2) {
-        mismatches.push(`Question index ${i + 1}: Missing in Marking Scheme`);
-        continue;
-      }
-
-      const id1 = q1.number || q1.questionNumber || q1.question_number || String(i + 1);
-      const id2 = q2.number || q2.questionNumber || q2.question_number || String(i + 1);
-
-      if (normId(id1) !== normId(id2)) {
-        mismatches.push(`Question Identifier Mismatch at index ${i + 1}: Paper="${id1}", Scheme="${id2}"`);
-        continue;
-      }
-
-      // Check sub-questions
-      const sub1 = robustEnsureArray(q1.subQuestions || q1.sub_questions);
-      const sub2 = robustEnsureArray(q2.subQuestions || q2.sub_questions);
-
-      if (sub1.length !== sub2.length) {
-        mismatches.push(`Question ${id1}: Sub-question count mismatch (${sub1.length} vs ${sub2.length})`);
-        continue;
-      }
-
-      for (let j = 0; j < sub1.length; j++) {
-        const pPart = sub1[j].part || sub1[j].question_part || String(j + 1);
-        const sPart = sub2[j].part || sub2[j].question_part || String(j + 1);
-        if (normId(pPart) !== normId(sPart)) {
-          mismatches.push(`Question ${id1} Part Mismatch: Paper="${pPart}", Scheme="${sPart}"`);
+        if (subQs.length > 0) {
+          subQs.forEach((sq, j) => {
+            const sqId = normId(sq.part || sq.question_part || String(j + 1));
+            ids.add(`${qId}${sqId}`);
+          });
+        } else {
+          ids.add(qId);
         }
+      });
+      return ids;
+    };
+
+    const ids1 = getFlattenedIds(questions1);
+    const ids2 = getFlattenedIds(questions2);
+
+    // 1. Check for missing items (Paper -> Scheme)
+    // We only care if the Marking Scheme is MISSING something that is in the Paper
+    Array.from(ids1).forEach(id => {
+      if (!ids2.has(id)) {
+        // Attempt to find if the "parent" question exists in ids2
+        // Some schemes group subquestions under a single main question ID
+        const mainIdMatch = id.match(/^(\d+)/);
+        const mainId = mainIdMatch ? mainIdMatch[1] : null;
+        
+        if (mainId && ids2.has(mainId)) {
+          // It's a "soft match" - skipping for now to reduce noise as requested
+          return;
+        }
+        
+        mismatches.push(`Missing in Scheme: Question "${id}"`);
       }
-    }
+    });
 
     return mismatches;
   };
@@ -2176,65 +2178,59 @@ function AdminPage() {
                                 </td>
                                 <td className="admin-table__cell">
                                   {(() => {
-                                    // Logic to find marking scheme for mismatched check
-                                    // We replicate the finder logic here to properly conditionally color the badge
-                                    // Note: reusing the loop context 'board', 'examSeries', 'code'
+                                    const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
 
-                                    {(() => {
-                                      const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
+                                    if (matchingScheme) {
+                                      const mismatches = checkStructureMismatch(entry, matchingScheme);
+                                      const hasMismatch = mismatches.length > 0;
 
-                                      if (matchingScheme) {
-                                        const mismatches = checkStructureMismatch(entry, matchingScheme);
-                                        const hasMismatch = mismatches.length > 0;
+                                      return (
+                                        <span
+                                          className={`status-badge ${hasMismatch ? '' : 'status-badge--success'}`}
+                                          style={{
+                                            cursor: 'pointer',
+                                            backgroundColor: hasMismatch ? '#fef2f2' : undefined,
+                                            color: hasMismatch ? '#b91c1c' : undefined,
+                                            borderColor: hasMismatch ? '#f87171' : undefined,
+                                            borderWidth: hasMismatch ? '1px' : undefined,
+                                            borderStyle: hasMismatch ? 'solid' : undefined
+                                          }}
+                                          title={hasMismatch ? `Structural Mismatch (Triple Check):\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
 
-                                        return (
-                                          <span
-                                            className={`status-badge ${hasMismatch ? '' : 'status-badge--success'}`}
-                                            style={{
-                                              cursor: 'pointer',
-                                              backgroundColor: hasMismatch ? '#fef2f2' : undefined,
-                                              color: hasMismatch ? '#b91c1c' : undefined,
-                                              borderColor: hasMismatch ? '#f87171' : undefined,
-                                              borderWidth: hasMismatch ? '1px' : undefined,
-                                              borderStyle: hasMismatch ? 'solid' : undefined
-                                            }}
-                                            title={hasMismatch ? `Structural Mismatch (Triple Check):\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                            // Copy Mismatches to Clipboard (Admin Enhancement)
+                                            if (hasMismatch) {
+                                              const copyText = `Structure Mismatch for ${matchingScheme.board} ${matchingScheme.code}:\n${mismatches.join('\n')}`;
+                                              navigator.clipboard.writeText(copyText).then(() => {
+                                                alert('Copied structure mismatches to clipboard');
+                                              }).catch(err => {
+                                                console.error('Failed to copy mismatches:', err);
+                                              });
+                                            }
 
-                                              // Copy Mismatches to Clipboard (Admin Enhancement)
-                                              if (hasMismatch) {
-                                                const copyText = `Structure Mismatch for ${matchingScheme.board} ${matchingScheme.code}:\n${mismatches.join('\n')}`;
-                                                navigator.clipboard.writeText(copyText).then(() => {
-                                                  alert('Copied structure mismatches to clipboard');
-                                                }).catch(err => {
-                                                  console.error('Failed to copy mismatches:', err);
-                                                });
-                                              }
+                                            console.log('Navigating to marking scheme:', matchingScheme.id);
+                                            setActiveTab('marking-scheme');
+                                            setExpandedMarkingSchemeId(matchingScheme.id);
 
-                                              console.log('Navigating to marking scheme:', matchingScheme.id);
-                                              setActiveTab('marking-scheme');
-                                              setExpandedMarkingSchemeId(matchingScheme.id);
+                                            // Trigger fetch if not fully loaded
+                                            if (!matchingScheme.isFullyLoaded) {
+                                              fetchMarkingSchemeDetails(matchingScheme.id);
+                                            }
 
-                                              // Trigger fetch if not fully loaded
-                                              if (!matchingScheme.isFullyLoaded) {
-                                                fetchMarkingSchemeDetails(matchingScheme.id);
-                                              }
-
-                                              // Scroll attempt
-                                              setTimeout(() => {
-                                                const element = document.getElementById(matchingScheme.id);
-                                                if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                              }, 100);
-                                            }}
-                                          >
-                                            {hasMismatch ? 'Mismatch' : 'YES'}
-                                          </span>
-                                        );
-                                      } else {
-                                        return <span className="status-badge status-badge--warning">No</span>;
-                                      }
-                                    })()}
+                                            // Scroll attempt
+                                            setTimeout(() => {
+                                              const element = document.getElementById(matchingScheme.id);
+                                              if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                            }, 100);
+                                          }}
+                                        >
+                                          {hasMismatch ? 'Mismatch' : 'YES'}
+                                        </span>
+                                      );
+                                    } else {
+                                      return <span className="status-badge status-badge--warning">No</span>;
+                                    }
                                   })()}
                                 </td>
                                 <td className="admin-table__cell">

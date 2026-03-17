@@ -6,3 +6,11 @@
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 483ms for 50 sessions (limit: 50)
 [PERF] getUserUnifiedSessions: Fetch 433ms, Process 2ms for 50 docs
 [PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 436ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 500ms, Process 0ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 501ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 536ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 537ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 521ms, Process 1ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 522ms for 50 sessions (limit: 50)
+[PERF] getUserUnifiedSessions: Fetch 515ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 517ms for 50 sessions (limit: 50)
