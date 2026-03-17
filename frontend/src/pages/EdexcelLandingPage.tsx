@@ -127,8 +127,8 @@ const EdexcelLandingPage: React.FC = () => {
             <section className="landing-section edexcel-hero-section">
                 <div className={`edexcel-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
                     <h1 className="edexcel-hero-title">Instantly Mark Your <span className="edexcel-highlight-navy">Edexcel</span> Maths Paper</h1>
-                    <p className="edexcel-hero-subtitle">Stop staring at confusing Pearson mark schemes. Scan your handwritten 2020-2024 past papers and let our AI instantly grade your work like a real examiner. Supports Edexcel 1MA1 Higher & Foundation.</p>
-                    
+                    <p className="edexcel-hero-subtitle">Stop staring at confusing Pearson mark schemes. Scan your handwritten 2020-2024 past papers and let our AI instantly grade your work like a real examiner. Supports both GCSE (1MA1) and A-Level (9MA0).</p>
+
                     <div className="hero-cta-group">
                         <div className="anim-item">
                             <button className="hero-primary-cta" onClick={() => navigate('/app?action=scan')}>
@@ -147,7 +147,7 @@ const EdexcelLandingPage: React.FC = () => {
                             </button>
 
                             <p className="hero-trust-microcopy">
-                                Supports 2020-2024 Higher & Foundation. No credit card required.
+                                Supports Edexcel 2020-2024 (GCSE Higher/Foundation & A-Level). No credit card required.
                             </p>
                         </div>
                     </div>

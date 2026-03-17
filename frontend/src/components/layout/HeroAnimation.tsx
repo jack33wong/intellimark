@@ -40,7 +40,7 @@ const HeroAnimation: React.FC = () => {
                             preload="auto"
                             poster="/assets/images/red_pen_tick_hero.png"
                         >
-                            <source src="/video/mobilescan3.mp4" type="video/mp4" />
+                            <source src="https://firebasestorage.googleapis.com/v0/b/intellimark-6649e.firebasestorage.app/o/video%2Fmobilescan3.mp4?alt=media&token=a5d13680-177d-4445-bc0b-54c7c7d9876e" type="video/mp4" />
                             Your browser does not support the video tag.
                         </video>
                     </div>

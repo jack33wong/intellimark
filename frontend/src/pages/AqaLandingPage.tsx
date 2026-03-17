@@ -127,8 +127,8 @@ const AqaLandingPage: React.FC = () => {
             <section className="landing-section aqa-hero-section">
                 <div className={`aqa-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
                     <h1 className="aqa-hero-title">Instantly Mark Your <span className="aqa-highlight-blue">AQA</span> Maths Paper</h1>
-                    <p className="aqa-hero-subtitle">Stop staring at confusing AQA mark schemes. Scan your handwritten 2020-2024 past papers and let our AI instantly grade your work like a real examiner. Supports AQA 8300 Higher & Foundation.</p>
-                    
+                    <p className="aqa-hero-subtitle">Stop staring at confusing AQA mark schemes. Scan your handwritten 2020-2024 past papers and let our AI instantly grade your work like a real examiner. Supports both GCSE (8300) and A-Level (7357).</p>
+
                     <div className="hero-cta-group">
                         <div className="anim-item">
                             <button className="hero-primary-cta" onClick={() => navigate('/app?action=scan')}>
@@ -147,7 +147,7 @@ const AqaLandingPage: React.FC = () => {
                             </button>
 
                             <p className="hero-trust-microcopy">
-                                Supports 2020-2024 Higher & Foundation. No credit card required.
+                                Supports AQA 2020-2024 (GCSE Higher/Foundation & A-Level). No credit card required.
                             </p>
                         </div>
                     </div>

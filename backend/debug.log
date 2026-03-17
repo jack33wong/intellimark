@@ -2,5 +2,3 @@
 > ai-marking-backend@1.0.0 dev
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
-🔄 Fetching fresh prices from Stripe...
-✅ Stripe prices fetched and cached (with resilience)
