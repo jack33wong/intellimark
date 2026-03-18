@@ -4274,3 +4274,5 @@ database_persistence                0.2s (1%)
 💳 Deducted 0.68 credits from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2 (session: sub-1773870198121), remaining: 999434.02
 💳 Deducted 0.0068 credits (session: sub-1773870198121) from user 9mBfvniXTuMtQU8f0OnLhUK6aOv2
 ✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: Mathematics, session: sub-1773870198121
+[PERF] getUserUnifiedSessions: Fetch 555ms, Process 2ms for 50 docs
+[PERF] GET /sessions/9mBfvniXTuMtQU8f0OnLhUK6aOv2 took 557ms for 50 sessions (limit: 50)

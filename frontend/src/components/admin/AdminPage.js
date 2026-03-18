@@ -828,7 +828,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/json/collections/fullExamPapers/clear-all');
-      console.log('All entries deleted:', result.message);
       setJsonEntries([]);
       setError(`✅ All exam paper data has been deleted successfully.`);
       setTimeout(() => setError(null), 5000);
@@ -850,7 +849,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete(`/api/admin/json/collections/fullExamPapers/${entryId}`);
-      console.log('Entry deleted:', result.message);
       setJsonEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Exam paper deleted successfully.`);
       setTimeout(() => setError(null), 3000);
@@ -1107,7 +1105,6 @@ function AdminPage() {
 
       if (textToCopy) {
         navigator.clipboard.writeText(textToCopy).then(() => {
-          console.log('Question numbers copied to clipboard');
           setError('📋 Question list copied to clipboard');
           setTimeout(() => setError(null), 2000);
         }).catch(err => {
@@ -1258,7 +1255,6 @@ function AdminPage() {
 
     if (matchingPapers.length === 0) return;
 
-    console.log(`[Invalidate] Resetting status for ${matchingPapers.length} papers due to ${type} change`);
 
     // Perform individual updates to Firestore
     const updatePromises = matchingPapers.map(async (paper) => {
@@ -1357,7 +1353,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/json/collections/markingSchemes/clear-all');
-      console.log('All marking schemes deleted:', result.message);
       
       // Local reset for all papers to ensure re-calculation
       setJsonEntries(prev => prev.map(e => ({ ...e, relationshipStatus: null })));
@@ -1389,7 +1384,6 @@ function AdminPage() {
         await invalidateStatusForMatches('markingScheme', entryToDelete.markingSchemeData || entryToDelete);
       }
 
-      console.log('Marking scheme deleted:', result.message);
       setMarkingSchemeEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Marking scheme deleted successfully.`);
       setTimeout(() => setError(null), 3000);
@@ -1412,7 +1406,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/json/collections/gradeBoundaries/clear-all');
-      console.log('All grade boundaries deleted:', result.message);
       
       // Local reset for all papers to ensure re-calculation
       setJsonEntries(prev => prev.map(e => ({ ...e, relationshipStatus: null })));
@@ -1446,7 +1439,6 @@ function AdminPage() {
         await invalidateStatusForMatches('gradeBoundary', entryToDelete);
       }
 
-      console.log('Grade boundary deleted:', result.message);
       setGradeBoundaryEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Grade boundary deleted successfully.`);
       setTimeout(() => setError(null), 3000);
@@ -1550,7 +1542,6 @@ function AdminPage() {
       // Invalidate relationship status for matching papers
       await invalidateStatusForMatches('gradeBoundary', parsedData);
 
-      console.log('Grade boundary uploaded successfully:', result);
       setGradeBoundaryEntries(prev => [result.entry, ...prev]);
       resetGradeBoundaryForm();
       setError(`✅ Grade boundary uploaded successfully.`);
@@ -1572,7 +1563,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/clear-all-sessions');
-      console.log('All sessions cleared:', result.message);
       setError(`✅ All chat sessions have been cleared successfully.`);
       setTimeout(() => setError(null), 5000);
 
@@ -1600,7 +1590,6 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/usage/clear-all');
-      console.log('All usage records cleared:', result.message);
       setError(`✅ All usage records have been cleared successfully.`);
       setTimeout(() => setError(null), 5000);
 
@@ -1628,7 +1617,6 @@ function AdminPage() {
     if (!examPaper || syncingId === examPaper.id || loadingJson || loadingMarking) return;
 
     setSyncingId(examPaper.id);
-    console.log(`[Sync] Starting sync for ${examPaper.id}`);
 
     try {
       // 1. Ensure we have full questions for the paper
@@ -1676,7 +1664,6 @@ function AdminPage() {
         isFullyLoaded: true 
       } : e));
       sessionSyncedIds.current.add(examPaper.id);
-      console.log(`[Sync] Success for ${examPaper.id}`);
 
     } catch (err) {
       console.error(`[Sync] Failed for ${examPaper.id}:`, err);
@@ -1725,7 +1712,6 @@ function AdminPage() {
           const markType = isIntegerOnly ? 'integer_only' : 'codes';
  
           // 3. Patch backend (Use direct document root to ensure persistence)
-          console.log(`Auditing scheme ${scheme.id}: setting markType to ${markType}`);
           await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${scheme.id}`, {
             markType: markType
           });
@@ -3186,7 +3172,7 @@ function AdminPage() {
                           const isIntegerOnly = entry.markType === 'integer_only';
                           const hasAuditData = !!entry.markType;
                           if (expandedMarkingSchemeId === entry.id) {
-                            console.log(`[AdminPage] Rendering row ${entry.id}: markType=${entry.markType}, hasAudit=${hasAuditData}`);
+                            // Suppressed debug log for rendering row
                           }
 
                           // Determine render group color
