@@ -2536,7 +2536,6 @@ function AdminPage() {
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               if (matchingScheme) {
-                                                console.log('Navigating to marking scheme:', matchingScheme.id);
                                                 setActiveTab('marking-scheme');
                                                 setExpandedMarkingSchemeId(matchingScheme.id);
                                                 if (!matchingScheme.isFullyLoaded) fetchMarkingSchemeDetails(matchingScheme.id);
@@ -2570,7 +2569,6 @@ function AdminPage() {
                                                 alert('Copied structure mismatches to clipboard');
                                               });
                                               if (matchingScheme) {
-                                                console.log('Navigating to marking scheme:', matchingScheme.id);
                                                 setActiveTab('marking-scheme');
                                                 setExpandedMarkingSchemeId(matchingScheme.id);
                                                 if (!matchingScheme.isFullyLoaded) fetchMarkingSchemeDetails(matchingScheme.id);
