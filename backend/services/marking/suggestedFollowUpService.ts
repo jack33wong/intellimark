@@ -138,20 +138,56 @@ export class SuggestedFollowUpService {
       marksArray = scheme.marks;
     }
 
-    // Case 1: Standard Array (or extracted array)
-    if (Array.isArray(marksArray)) {
-      return marksArray.map((s: any) => {
-        let comment = s.comments ? `(${s.comments})` : '';
-        // Remove "Auto-balanced" from prompt - it doesn't help the AI write model answers
-        if (s.comments === 'Auto-balanced' || s.comments === '(Auto-balanced)') {
-          comment = '';
-        }
-        return `- ${s.mark || 'Mark'}: ${s.answer} ${comment}`;
-      }).join('\n');
+    if (!Array.isArray(marksArray)) {
+      return JSON.stringify(scheme, null, 2);
     }
 
-    // Fallback: JSON stringify for unknown object structures to ensure data is passed to AI
-    return JSON.stringify(scheme, null, 2);
+    // Grouping Logic: Check if marks have sub-question identifiers
+    const groups: Record<string, any[]> = {};
+    const ungrouped: any[] = [];
+
+    marksArray.forEach((m: any) => {
+      // Handle various sub-question identifiers (question_part from ModelAnswerController, subQuestion from others)
+      const part = m.question_part || m.subQuestion;
+      if (part) {
+        if (!groups[part]) groups[part] = [];
+        groups[part].push(m);
+      } else {
+        ungrouped.push(m);
+      }
+    });
+
+    const formatMark = (s: any) => {
+      let comment = s.comments ? `(${s.comments})` : '';
+      if (s.comments === 'Auto-balanced' || s.comments === '(Auto-balanced)') {
+        comment = '';
+      }
+      return `- ${s.mark || 'Mark'}: ${s.answer || s.text || ''} ${comment}`.trim();
+    };
+
+    const sortedParts = Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    if (sortedParts.length > 0) {
+      let output = '';
+      sortedParts.forEach(part => {
+        output += `[Part ${part}]\n`;
+        groups[part].forEach(m => {
+          output += `${formatMark(m)}\n`;
+        });
+        output += '\n';
+      });
+
+      if (ungrouped.length > 0) {
+        output += `[General]\n`;
+        ungrouped.forEach(m => {
+          output += `${formatMark(m)}\n`;
+        });
+      }
+      return output.trim();
+    }
+
+    // Case 1: Standard Array (Flattened)
+    return marksArray.map(formatMark).join('\n');
   }
 
   /**

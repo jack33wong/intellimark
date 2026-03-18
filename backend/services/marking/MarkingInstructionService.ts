@@ -235,6 +235,7 @@ function extractAtomicMarks(markObj: any, normalizedScheme?: Partial<NormalizedM
     }
 
     results.push({
+      ...markObj, // Preserve existing metadata (question_part, subQuestion)
       mark: markCode,
       value: parseInt(markCode.substring(1)) || 1,
       answer: answerText,
@@ -254,6 +255,7 @@ function extractAtomicMarks(markObj: any, normalizedScheme?: Partial<NormalizedM
     }
 
     results.push({
+      ...markObj, // Preserve existing metadata (question_part, subQuestion)
       mark: `${prefix}${numericTargetMark - currentExtractedTotal}`,
       value: numericTargetMark - currentExtractedTotal,
       answer: balancedAnswer,

@@ -577,6 +577,36 @@ router.post('/json/upload', async (req: Request, res: Response) => {
 });
 
 /**
+ * PATCH /api/admin/json/collections/fullExamPapers/:id/relationship-status
+ * Update the relationship status (mismatches, grade boundaries) for an exam paper
+ */
+router.patch('/json/collections/fullExamPapers/:id/relationship-status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { relationshipStatus } = req.body;
+
+    if (relationshipStatus === undefined) {
+      return res.status(400).json({ error: 'relationshipStatus is required' });
+    }
+
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ error: 'Firestore not available' });
+    }
+
+    await db.collection('fullExamPapers').doc(id).update({
+      relationshipStatus,
+      lastStatusUpdate: new Date().toISOString()
+    });
+
+    res.json({ message: 'Relationship status updated successfully' });
+  } catch (error) {
+    console.error('Update relationship status error:', error);
+    res.status(500).json({ error: `Failed to update relationship status: ${error.message}` });
+  }
+});
+
+/**
  * DELETE /api/admin/clear-all-sessions
  * Clear all chat sessions from the database
  */

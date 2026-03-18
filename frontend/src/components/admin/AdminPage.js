@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   FileText,
   Trash2,
@@ -31,11 +31,9 @@ const robustEnsureArray = (val) => {
     const mappedEntries = entries.map(([key, v]) => {
       if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
         const enhancedV = { ...v };
-        // Only inject if it doesn't already have one of the identifier fields
-        if (enhancedV.number === undefined && enhancedV.questionNumber === undefined && enhancedV.question_number === undefined) {
-          // If the key looks like a subquestion (e.g. 'a', 'i', 'b(i)'), maybe use 'part', but 'number' is safer as normalizeExamContent handles it
-          enhancedV.number = key;
-        }
+        // 🚨 Map Key Priority: The key IS the identifier in Map-based structures.
+        // We MUST prioritize it to avoid stale properties inside the object from causing mismatches.
+        enhancedV.number = key;
         return [key, enhancedV];
       }
       return [key, v];
@@ -56,7 +54,9 @@ const robustEnsureArray = (val) => {
     // Final fallback: just use values
     return mappedEntries.map(([_, v]) => v);
   }
-  return [];
+  // NEW: Don't turn primitives into empty arrays; wrap them or return as is if appropriate.
+  // For safety in normalization, return the value as an array of one if it's not null/undefined.
+  return (val !== null && val !== undefined) ? [val] : [];
 };
 
 const formatDate = (dateString) => {
@@ -212,84 +212,45 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
 const normalizeExamContent = (data) => {
   if (!data) return data;
 
-  // Clone to avoid mutating original source if it's already in state
+  // Clone to avoid mutating original source
   const normalized = JSON.parse(JSON.stringify(data));
   normalized._isNormalized = true;
   
-  // 1. Recursive check for nested markingSchemeData or data objects
+  // 1. Recursive check for nested containers
   if (normalized.markingSchemeData) {
     normalized.markingSchemeData = normalizeExamContent(normalized.markingSchemeData);
   }
-  if (normalized.data && typeof normalized.data === 'object') {
-    // Only normalize data if it looks like an exam paper (has questions)
-    if (normalized.data.questions) {
-      const normalizedData = normalizeExamContent(normalized.data);
-      normalized.data = { ...normalized.data, ...normalizedData };
-    }
+  if (normalized.data && typeof normalized.data === 'object' && normalized.data.questions) {
+    const normalizedData = normalizeExamContent(normalized.data);
+    normalized.data = { ...normalized.data, ...normalizedData };
   }
 
-  // 2. Normalize questions array (Top-level or root of current object)
-  if (normalized.questions) {
-    const questionsArray = robustEnsureArray(normalized.questions);
+  // Helper for single question normalization (RECURSIVE)
+  const normQ = (sq) => {
+    if (!sq || typeof sq !== 'object') return sq;
+    const qData = { ...sq };
     
-    normalized.questions = questionsArray.map((q, idx) => {
-      const qData = { ...q };
-      
-      // Standardize basic fields
-      qData.text = q.text !== undefined ? q.text : (q.question_text !== undefined ? q.question_text : (q.questionText !== undefined ? q.questionText : ''));
-      qData.number = q.number !== undefined ? q.number : (q.question_number !== undefined ? q.question_number : (q.questionNumber !== undefined ? q.questionNumber : String(idx + 1)));
+    // Normalize Sub-Questions Recursively (Passively)
+    const subQs = qData.subQuestions || qData.sub_questions;
+    if (subQs && Array.isArray(subQs)) {
+      const normalizedSubs = subQs.map((s) => normQ(s));
+      if (qData.sub_questions) qData.sub_questions = normalizedSubs;
+      else qData.subQuestions = normalizedSubs;
+    }
+    return qData;
+  };
 
-      // Cleanup legacy fields
-      delete qData.question_text;
-      delete qData.questionText;
-      delete qData.question_number;
-      delete qData.questionNumber;
-
-      // 3. Recursive normalization for Marking Schemes (marks and guidance)
-      if (q.marks || q.marking_scheme || q.markingScheme) {
-        const rawMarks = q.marks || q.marking_scheme || q.markingScheme;
-        qData.marks = robustEnsureArray(rawMarks).map(m => {
-          // Inner items might also be corrupted maps
-          if (typeof m === 'object' && m !== null) {
-            const mData = { ...m };
-            // Ensure any inner arrays are also cleaned
-            if (mData.alternative_answers) mData.alternative_answers = robustEnsureArray(mData.alternative_answers);
-            return mData;
-          }
-          return m;
-        });
-      }
-
-      if (q.guidance) {
-        qData.guidance = robustEnsureArray(q.guidance);
-      }
-
-      // 4. Normalize sub-questions
-      const subQs = q.subQuestions || q.sub_questions;
-      if (subQs) {
-        const subQsArray = robustEnsureArray(subQs);
-        qData.subQuestions = subQsArray.map((sq, sIdx) => {
-          const sqData = {
-            ...sq,
-            text: sq.text !== undefined ? sq.text : (sq.question_text !== undefined ? sq.question_text : (sq.questionText !== undefined ? sq.questionText : '')),
-            part: sq.part !== undefined ? sq.part : (sq.question_part !== undefined ? sq.question_part : (sq.subQuestionNumber !== undefined ? sq.subQuestionNumber : String(sIdx + 1)))
-          };
-          
-          // Recursive marks for sub-questions
-          if (sq.marks) sqData.marks = robustEnsureArray(sq.marks);
-          if (sq.guidance) sqData.guidance = robustEnsureArray(sq.guidance);
-          
-          delete sqData.question_text;
-          delete sqData.questionText;
-          delete sqData.question_part;
-          delete sqData.subQuestionNumber;
-          return sqData;
-        });
-        delete qData.sub_questions;
-      }
-
-      return qData;
-    });
+  // 2. Normalize questions
+  if (normalized.questions) {
+    if (Array.isArray(normalized.questions)) {
+      normalized.questions = normalized.questions.map((q, idx) => normQ(q, idx + 1));
+    } else if (typeof normalized.questions === 'object' && normalized.questions !== null) {
+      const qMap = {};
+      Object.entries(normalized.questions).forEach(([key, q]) => {
+        qMap[key] = normQ(q, key);
+      });
+      normalized.questions = qMap;
+    }
   }
 
   return normalized;
@@ -332,6 +293,115 @@ const isPaperMatch = (paper, scheme) => {
 };
 
 /**
+ * Compare Exam Paper and Marking Scheme structure
+ * Returns an array of mismatch descriptions or empty array if match
+ */
+const checkStructureMismatch = (paperInput, schemeInput) => {
+  if (!paperInput || !schemeInput) return [];
+  
+  // Robust Extraction: Handle if we were passed full objects or just the lists
+  const questions1 = Array.isArray(paperInput) ? paperInput : (paperInput.questions || []);
+  const questions2 = (!Array.isArray(schemeInput) && schemeInput.questions) ? schemeInput.questions : schemeInput;
+  const mismatches = [];
+
+  const normId = (id) => {
+    if (!id) return '';
+    let nid = String(id).toLowerCase().trim();
+    nid = nid.replace(/^q(?:uestion)?\.?\s*(\d)/, '$1');
+    // Keep only alphanumeric to match "3(a)" vs "3a"
+    return nid.replace(/[^a-z0-9]/g, '');
+  };
+
+  // Helper to build a flat map of all canonical identifiers
+  const getFlattenedIds = (data, isScheme = false) => {
+    const ids = new Set();
+    
+    const processRecursive = (item, parentId = '', keyId = '') => {
+      if (!item) return;
+      
+      // Determine Identity
+      // 🚨 CRITICAL: For papers (Array), we prioritize internal fields (number/part) over the array index (keyId).
+      // For schemes (Object Map), the key IS the primary ID.
+      let rawId = '';
+      if (isScheme && keyId) {
+        rawId = keyId;
+      } else {
+        rawId = item.part || item.question_part || item.number || item.questionNumber || item.question_number || item.question_part || keyId || '';
+      }
+      
+      const currentId = normId(rawId);
+      
+      // If we are deep nesting, join with no separator to match flat keys like "3ai"
+      // But if root has no ID, we'll handle that in the caller
+      const fullId = parentId ? `${parentId}${currentId}` : currentId;
+
+      // Identify Children
+      const children = item.subQuestions || item.sub_questions || item.questions;
+      const subList = [];
+      
+      if (Array.isArray(children)) {
+        subList.push(...children.map(c => ({ item: c, key: '' })));
+      } else if (children && typeof children === 'object' && !children.marks) { // Not a leaf node with a 'questions' field (unlikely)
+        Object.entries(children).forEach(([k, v]) => subList.push({ item: v, key: k }));
+      }
+
+      if (subList.length > 0) {
+        // It's a container - process children
+        subList.forEach(c => processRecursive(c.item, fullId, c.key));
+      } else if (fullId) {
+        // It's a leaf node - add the identifier
+        ids.add(fullId);
+      }
+    };
+
+    // Root level handling
+    if (Array.isArray(data)) {
+      data.forEach((q, i) => processRecursive(q, '', ''));
+    } else if (data && typeof data === 'object') {
+      Object.entries(data).forEach(([k, v]) => processRecursive(v, '', k));
+    }
+    
+    return ids;
+  };
+
+  const ids1 = getFlattenedIds(questions1, false);
+  const ids2 = getFlattenedIds(questions2, true);
+
+  const paperIdsList = Array.from(ids1);
+  const schemeIdsList = Array.from(ids2);
+
+  // Check for missing items (Paper -> Scheme)
+  // We only care if the Marking Scheme is MISSING something that is in the Paper
+  schemeIdsList.forEach(sId => {
+    // 1. Exact Match
+    if (ids1.has(sId)) return;
+
+    // 2. Soft Match: Does the paper have a parent (e.g. "14") that covers this part (e.g. "14i")?
+    const hasParentMatch = paperIdsList.some(pId => {
+      if (!sId.startsWith(pId) || sId === pId) return false;
+      const nextChar = sId.charAt(pId.length);
+      // Digit check: Avoid matching "1" to "10"
+      if (/\d$/.test(pId) && /\d/.test(nextChar)) return false;
+      return true;
+    });
+    if (hasParentMatch) return;
+
+    // 3. Child Match: Does the paper have parts (e.g. "11a", "11b") that cover a parent (e.g. "11")?
+    const hasChildMatch = paperIdsList.some(pId => {
+      if (!pId.startsWith(sId) || pId === sId) return false;
+      const nextChar = pId.charAt(sId.length);
+      if (/\d$/.test(sId) && /\d/.test(nextChar)) return false;
+      return true;
+    });
+    if (hasChildMatch) return;
+
+    mismatches.push(`Missing in Paper: Scheme Question "${sId}"`);
+  });
+
+  return mismatches;
+};
+
+/**
  * AdminPage component for managing AI model JSON data
  * @returns {JSX.Element} The admin page component
  */
@@ -351,6 +421,8 @@ function AdminPage() {
   const [activeTab, setActiveTab] = useState('json');
   const [examBoardFilter, setExamBoardFilter] = useState('Pearson Edexcel');
   const [qualificationFilter, setQualificationFilter] = useState('All');
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
 
   // JSON upload state
   const [jsonForm, setJsonForm] = useState({
@@ -360,6 +432,8 @@ function AdminPage() {
   // Marking scheme state
   const [markingSchemeEntries, setMarkingSchemeEntries] = useState([]);
   const [expandedMarkingSchemeId, setExpandedMarkingSchemeId] = useState(null);
+  const [isAuditingMarkTypes, setIsAuditingMarkTypes] = useState(false);
+  const [auditProgress, setAuditProgress] = useState({ current: 0, total: 0 });
   const [markingSchemeForm, setMarkingSchemeForm] = useState({
     markingSchemeData: ''
   });
@@ -418,6 +492,32 @@ function AdminPage() {
   const [loadingList, setLoadingList] = useState(false);
   const [subscriptionFilter, setSubscriptionFilter] = useState('active'); // Filter: 'active' or 'all'
 
+  // Memoized matching and structural check results
+  // This prevents the "Triple Check" from running hundreds of times per render.
+  const relationshipCache = useMemo(() => {
+    const cache = {};
+    jsonEntries.forEach(entry => {
+      const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
+      let mismatches = [];
+      let hasMismatch = false;
+      let checkPerformed = false;
+
+      if (matchingScheme && entry.isFullyLoaded && matchingScheme.isFullyLoaded) {
+        mismatches = checkStructureMismatch(entry.questions || [], matchingScheme.questions || {});
+        hasMismatch = mismatches.length > 0;
+        checkPerformed = true;
+      }
+
+      cache[entry.id] = {
+        matchingScheme,
+        mismatches,
+        hasMismatch,
+        checkPerformed
+      };
+    });
+    return cache;
+  }, [jsonEntries, markingSchemeEntries]);
+
   // Constants removed - using ApiClient instead
 
   // Form validation
@@ -451,6 +551,8 @@ function AdminPage() {
       gradeBoundaryData: ''
     });
   }, []);
+
+
 
   // Load JSON entries from fullExamPaper
   const loadJsonEntries = useCallback(async (listOnly = true, silent = false) => {
@@ -497,7 +599,8 @@ function AdminPage() {
     setJsonEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: true } : e));
     
     try {
-      const { data } = await ApiClient.get(`/api/admin/json/collections/fullExamPapers/${entryId}`);
+      // Add a cache-buster timestamp to ensure we get the absolute latest from Firestore
+      const { data } = await ApiClient.get(`/api/admin/json/collections/fullExamPapers/${entryId}?t=${Date.now()}`);
       const fullEntry = normalizeExamContent(data.entry || data);
 
       setJsonEntries(prev => prev.map(entry => {
@@ -646,6 +749,7 @@ function AdminPage() {
         entry.id === entryId ? {
           ...entry,
           ...fullEntry,
+          markType: fullEntry.markType || entry.markType, // Keep local markType if server didn't send it
           isFullyLoaded: true,
           isLoadingDetails: false
         } : entry
@@ -847,7 +951,20 @@ function AdminPage() {
     setEditedExamData(prev => {
       const updated = { ...prev };
       if (updated.questions && updated.questions[qIndex]) {
-        updated.questions[qIndex] = { ...updated.questions[qIndex], [field]: value };
+        const q = { ...updated.questions[qIndex] };
+        
+        // Smart update for parent question fields
+        let targetField = field;
+        if (field === 'number') {
+          if (q.question_number !== undefined) targetField = 'question_number';
+          else if (q.questionNumber !== undefined) targetField = 'questionNumber';
+        } else if (field === 'text') {
+          if (q.question_text !== undefined) targetField = 'question_text';
+          else if (q.questionText !== undefined) targetField = 'questionText';
+        }
+
+        q[targetField] = value;
+        updated.questions[qIndex] = q;
       }
       return updated;
     });
@@ -857,9 +974,32 @@ function AdminPage() {
     setEditedExamData(prev => {
       const updated = { ...prev };
       if (updated.questions && updated.questions[qIndex]) {
-        const subQs = updated.questions[qIndex].subQuestions || updated.questions[qIndex].sub_questions;
-        if (subQs && subQs[sIndex]) {
-          subQs[sIndex] = { ...subQs[sIndex], [field]: value };
+        const q = updated.questions[qIndex];
+        if (q && (q.subQuestions || q.sub_questions)) {
+          const subQsOriginal = q.subQuestions || q.sub_questions;
+          if (subQsOriginal && subQsOriginal[sIndex]) {
+            const subQs = [...subQsOriginal];
+            const sub = { ...subQs[sIndex] };
+            
+            // Smart update: if we're updating 'part' or 'text' but the object uses snake_case, update the snake_case field
+            let targetField = field;
+            if (field === 'part') {
+               if (sub.question_part !== undefined) targetField = 'question_part';
+               else if (sub.part !== undefined) targetField = 'part';
+               else if (sub.number !== undefined) targetField = 'number';
+            } else if (field === 'text') {
+               if (sub.question_text !== undefined) targetField = 'question_text';
+               else if (sub.questionText !== undefined) targetField = 'questionText';
+               else if (sub.text !== undefined) targetField = 'text';
+            }
+            
+            sub[targetField] = value;
+            subQs[sIndex] = sub;
+
+            // Re-assign back to the correct field
+            if (q.sub_questions) q.sub_questions = subQs;
+            else q.subQuestions = subQs;
+          }
         }
       }
       return updated;
@@ -883,16 +1023,27 @@ function AdminPage() {
 
         // Determine next part letter (a, b, c...)
         const nextPartLetter = String.fromCharCode(97 + subQs.length);
+        
+        // Smart creation: use the format of existing sub-questions if available
+        const newSub = { marks: '0' };
+        if (subQs.length > 0) {
+          const firstSub = subQs[0];
+          if (firstSub.question_part !== undefined) newSub.question_part = nextPartLetter;
+          else newSub.part = nextPartLetter;
+          
+          if (firstSub.question_text !== undefined) newSub.question_text = '';
+          else if (firstSub.questionText !== undefined) newSub.questionText = '';
+          else newSub.text = '';
+        } else {
+          // Default to camelCase if no siblings exist
+          newSub.part = nextPartLetter;
+          newSub.text = '';
+        }
 
-        subQs.push({
-          part: nextPartLetter,
-          text: '',
-          marks: '0'
-        });
+        subQs.push(newSub);
 
         // Maintain original key (subQuestions or sub_questions)
-        if (q.subQuestions) q.subQuestions = subQs;
-        else if (q.sub_questions) q.sub_questions = subQs;
+        if (q.sub_questions) q.sub_questions = subQs;
         else q.subQuestions = subQs; // Default to camelCase
       }
       return updated;
@@ -1047,16 +1198,29 @@ function AdminPage() {
     setIsSaving(true);
     try {
       const authToken = await getAuthToken();
-      await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${editingMarkingSchemeId}`, dataToSave);
+      
+      // Wrap payload in markingSchemeData if the original had it (preserving nesting)
+      const originalEntry = markingSchemeEntries.find(e => e.id === editingMarkingSchemeId);
+      const payload = (originalEntry && originalEntry.markingSchemeData) 
+        ? { markingSchemeData: dataToSave } 
+        : dataToSave;
 
-      // Update local state
+      await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${editingMarkingSchemeId}`, payload);
+
+      // Invalidate relationship status for matching papers
+      await invalidateStatusForMatches('markingScheme', dataToSave);
+
+      // Update local state - ensure we merge healed data correctly
       setMarkingSchemeEntries(prev => prev.map(entry => {
         if (entry.id === editingMarkingSchemeId) {
-          // Full replace with healed data
+          if (entry.markingSchemeData) {
+             return { ...entry, markingSchemeData: dataToSave, isFullyLoaded: true };
+          }
           return { ...entry, ...dataToSave, isFullyLoaded: true };
         }
         return entry;
       }));
+
 
       setError('✅ Marking scheme healed and saved successfully');
       setIsMarkingSchemeEditing(false);
@@ -1072,6 +1236,53 @@ function AdminPage() {
       setIsSaving(false);
     }
   }, [editedMarkingSchemeData, editingMarkingSchemeId, getAuthToken, isMarkingSchemeRawEditMode, markingSchemeRawJsonBuffer]);
+
+  /**
+   * Status Invalidation: Resets relationshipStatus for papers when dependencies change.
+   * This ensures that "YES" doesn't stay stale if a marking scheme or boundary is modified.
+   */
+  const invalidateStatusForMatches = useCallback(async (type, data) => {
+    if (!data) return;
+    
+    // Find all papers that might be affected
+    const matchingPapers = jsonEntries.filter(paper => {
+      if (type === 'markingScheme') {
+        const fullPaper = paper.data || paper;
+        return isPaperMatch(fullPaper, data);
+      }
+      if (type === 'gradeBoundary') {
+        return hasGradeBoundary(paper);
+      }
+      return false;
+    });
+
+    if (matchingPapers.length === 0) return;
+
+    console.log(`[Invalidate] Resetting status for ${matchingPapers.length} papers due to ${type} change`);
+
+    // Perform individual updates to Firestore
+    const updatePromises = matchingPapers.map(async (paper) => {
+      try {
+        await ApiClient.patch(`/api/admin/json/collections/fullExamPapers/${paper.id}/relationship-status`, {
+          relationshipStatus: null
+        });
+        return paper.id;
+      } catch (err) {
+        console.error(`[Invalidate] Failed for ${paper.id}:`, err);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(updatePromises);
+    const successIds = new Set(results.filter(id => id !== null));
+
+    // Update local state en-masse
+    if (successIds.size > 0) {
+      setJsonEntries(prev => prev.map(e => 
+        successIds.has(e.id) ? { ...e, relationshipStatus: null } : e
+      ));
+    }
+  }, [jsonEntries, hasGradeBoundary]);
 
   // Validation Helper
   const getValidationErrors = useCallback((data) => {
@@ -1147,6 +1358,10 @@ function AdminPage() {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/json/collections/markingSchemes/clear-all');
       console.log('All marking schemes deleted:', result.message);
+      
+      // Local reset for all papers to ensure re-calculation
+      setJsonEntries(prev => prev.map(e => ({ ...e, relationshipStatus: null })));
+
       setMarkingSchemeEntries([]);
       setError(`✅ All marking schemes deleted successfully.`);
       setTimeout(() => setError(null), 3000);
@@ -1165,7 +1380,15 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
+      const entryToDelete = markingSchemeEntries.find(e => e.id === entryId);
+      
       const { data: result } = await ApiClient.delete(`/api/admin/json/collections/markingSchemes/${entryId}`);
+      
+      // Invalidate relationship status for matching papers
+      if (entryToDelete) {
+        await invalidateStatusForMatches('markingScheme', entryToDelete.markingSchemeData || entryToDelete);
+      }
+
       console.log('Marking scheme deleted:', result.message);
       setMarkingSchemeEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Marking scheme deleted successfully.`);
@@ -1177,65 +1400,7 @@ function AdminPage() {
     }
   }, [getAuthToken]);
 
-  /**
-   * Compare Exam Paper and Marking Scheme structure
-   * Returns an array of mismatch descriptions or empty array if match
-   */
-  const checkStructureMismatch = (examPaper, markingScheme) => {
-    const questions1 = robustEnsureArray(examPaper.questions);
-    const questions2 = robustEnsureArray(markingScheme.questions || markingScheme.markingSchemeData?.questions);
-    const mismatches = [];
 
-    const normId = (id) => {
-      if (!id) return '';
-      let nid = String(id).toLowerCase().trim();
-      nid = nid.replace(/^q(?:uestion)?\.?\s*(\d)/, '$1');
-      return nid.replace(/[^a-z0-9]/g, '');
-    };
-
-    // Helper to build a flat map of all canonical identifiers in a paper/scheme
-    // e.g. "1" -> ["a", "b"] -> { "1a": true, "1b": true }
-    const getFlattenedIds = (qs) => {
-      const ids = new Set();
-      qs.forEach((q, i) => {
-        const qId = normId(q.number || q.questionNumber || q.question_number || String(i + 1));
-        const subQs = robustEnsureArray(q.subQuestions || q.sub_questions);
-
-        if (subQs.length > 0) {
-          subQs.forEach((sq, j) => {
-            const sqId = normId(sq.part || sq.question_part || String(j + 1));
-            ids.add(`${qId}${sqId}`);
-          });
-        } else {
-          ids.add(qId);
-        }
-      });
-      return ids;
-    };
-
-    const ids1 = getFlattenedIds(questions1);
-    const ids2 = getFlattenedIds(questions2);
-
-    // 1. Check for missing items (Paper -> Scheme)
-    // We only care if the Marking Scheme is MISSING something that is in the Paper
-    Array.from(ids1).forEach(id => {
-      if (!ids2.has(id)) {
-        // Attempt to find if the "parent" question exists in ids2
-        // Some schemes group subquestions under a single main question ID
-        const mainIdMatch = id.match(/^(\d+)/);
-        const mainId = mainIdMatch ? mainIdMatch[1] : null;
-        
-        if (mainId && ids2.has(mainId)) {
-          // It's a "soft match" - skipping for now to reduce noise as requested
-          return;
-        }
-        
-        mismatches.push(`Missing in Scheme: Question "${id}"`);
-      }
-    });
-
-    return mismatches;
-  };
 
   // Delete all grade boundary entries
   const deleteAllGradeBoundaryEntries = useCallback(async () => {
@@ -1248,6 +1413,10 @@ function AdminPage() {
       const authToken = await getAuthToken();
       const { data: result } = await ApiClient.delete('/api/admin/json/collections/gradeBoundaries/clear-all');
       console.log('All grade boundaries deleted:', result.message);
+      
+      // Local reset for all papers to ensure re-calculation
+      setJsonEntries(prev => prev.map(e => ({ ...e, relationshipStatus: null })));
+
       setGradeBoundaryEntries([]);
       setError(`✅ All grade boundaries deleted successfully.`);
       setTimeout(() => setError(null), 5000);
@@ -1268,7 +1437,15 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
+      const entryToDelete = gradeBoundaryEntries.find(e => e.id === entryId);
+      
       const { data: result } = await ApiClient.delete(`/api/admin/json/collections/gradeBoundaries/${entryId}`);
+      
+      // Invalidate relationship status for matching papers
+      if (entryToDelete) {
+        await invalidateStatusForMatches('gradeBoundary', entryToDelete);
+      }
+
       console.log('Grade boundary deleted:', result.message);
       setGradeBoundaryEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Grade boundary deleted successfully.`);
@@ -1299,11 +1476,7 @@ function AdminPage() {
         setTimeout(() => setError(null), 5000);
         return;
       }
-      if (validation.totalMismatch) {
-        setError(`❌ Upload Cancelled: Total marks mismatch (Found ${calculateExamTotalMarks(jsonData.questions)}, Expected ${validation.expectedMarks}).`);
-        setTimeout(() => setError(null), 5000);
-        return;
-      }
+      // Skip strict marks mismatch check as per user request
 
       const { data: result } = await ApiClient.post('/api/admin/json/collections/fullExamPapers', jsonData);
       setJsonEntries(prev => [result.entry, ...prev]);
@@ -1343,10 +1516,14 @@ function AdminPage() {
         markingSchemeData: parsedData
       });
 
+      // Invalidate relationship status for matching papers
+      await invalidateStatusForMatches('markingScheme', parsedData);
+
       setError(null);
       resetMarkingSchemeForm();
       // Reload marking scheme entries
       loadMarkingSchemeEntries();
+
       // Show success message
       setError('✅ Marking scheme uploaded successfully');
       setTimeout(() => setError(null), 5000);
@@ -1369,6 +1546,10 @@ function AdminPage() {
       const authToken = await getAuthToken();
       const parsedData = JSON.parse(gradeBoundaryForm.gradeBoundaryData);
       const { data: result } = await ApiClient.post('/api/admin/json/collections/gradeBoundaries', parsedData);
+      
+      // Invalidate relationship status for matching papers
+      await invalidateStatusForMatches('gradeBoundary', parsedData);
+
       console.log('Grade boundary uploaded successfully:', result);
       setGradeBoundaryEntries(prev => [result.entry, ...prev]);
       resetGradeBoundaryForm();
@@ -1436,23 +1617,184 @@ function AdminPage() {
 
 
 
-  // Refresh status checks
-  const refreshStatusChecks = useCallback(async () => {
+  const [syncingId, setSyncingId] = useState(null);
+  const sessionSyncedIds = useRef(new Set());
+
+  /**
+   * Sync logic: Calculates structural mismatch and saves it to Firestore as a denormalized field.
+   * This solves the "YES to MISMATCH" flicker on page load.
+   */
+  const syncExamRelationshipStatus = useCallback(async (examPaper, force = false) => {
+    if (!examPaper || syncingId === examPaper.id || loadingJson || loadingMarking) return;
+
+    setSyncingId(examPaper.id);
+    console.log(`[Sync] Starting sync for ${examPaper.id}`);
+
     try {
-      setLoading(true);
-      await Promise.all([
-        loadMarkingSchemeEntries(),
-        loadGradeBoundaryEntries()
-      ]);
-      setError('✅ Status checks updated successfully');
+      // 1. Ensure we have full questions for the paper
+      let fullPaper = examPaper;
+      // If force is true, we ALWAYS re-fetch from backend to get fresh cleaned data
+      if (force || !examPaper.isFullyLoaded || !examPaper.questions) {
+        fullPaper = await fetchJsonEntryDetails(examPaper.id);
+        if (!fullPaper) throw new Error('Failed to load full paper details');
+      }
+
+      // 2. Find matching marking scheme
+      const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(fullPaper, s));
+      
+      let status = {
+        hasMarkingScheme: "NO",
+        mismatches: [],
+        hasGradeBoundary: hasGradeBoundary(fullPaper) ? "YES" : "NO"
+      };
+
+      if (matchingScheme) {
+        // Ensure scheme is fully loaded
+        let fullScheme = matchingScheme;
+        if (!matchingScheme.isFullyLoaded || !matchingScheme.questions) {
+           fullScheme = await fetchMarkingSchemeDetails(matchingScheme.id);
+           if (!fullScheme) throw new Error('Failed to load full scheme details');
+        }
+
+        const mismatches = checkStructureMismatch(fullPaper.questions || [], fullScheme.questions || {});
+        status.hasMarkingScheme = mismatches.length > 0 ? "MISMATCH" : "YES";
+        status.mismatches = mismatches;
+      }
+
+      // 3. Update Firestore
+      await ApiClient.patch(`/api/admin/json/collections/fullExamPapers/${examPaper.id}/relationship-status`, {
+        relationshipStatus: status
+      });
+
+      // 4. Update local state
+      // 🚨 FIX: We must spread the fullPaper data here to ensure it is NOT clobbered by 
+      // the metadata-only version ('e') in the stale closure's 'prev'.
+      setJsonEntries(prev => prev.map(e => e.id === examPaper.id ? { 
+        ...e, 
+        ...fullPaper, 
+        relationshipStatus: status,
+        isFullyLoaded: true 
+      } : e));
+      sessionSyncedIds.current.add(examPaper.id);
+      console.log(`[Sync] Success for ${examPaper.id}`);
+
+    } catch (err) {
+      console.error(`[Sync] Failed for ${examPaper.id}:`, err);
+    } finally {
+      setSyncingId(null);
+    }
+  }, [syncingId, loadingJson, loadingMarking, fetchJsonEntryDetails, fetchMarkingSchemeDetails, markingSchemeEntries, hasGradeBoundary]);
+ 
+  // --- Audit All Marking Schemes for Mark Type (Integer Only vs Codes) ---
+  const runMarkTypeAudit = useCallback(async () => {
+    if (isAuditingMarkTypes) return;
+ 
+    const filteredSchemes = markingSchemeEntries;
+    if (filteredSchemes.length === 0) return;
+ 
+    if (!window.confirm(`Audit marking codes for all ${filteredSchemes.length} schemes? This will update the database.`)) {
+      return;
+    }
+ 
+    setIsAuditingMarkTypes(true);
+    setAuditProgress({ current: 0, total: filteredSchemes.length });
+ 
+    try {
+      for (let i = 0; i < filteredSchemes.length; i++) {
+        const scheme = filteredSchemes[i];
+        setAuditProgress({ current: i + 1, total: filteredSchemes.length });
+ 
+        try {
+          // 1. Ensure we have questions for the scheme
+          let fullScheme = scheme;
+          if (!scheme.questions || !scheme.isFullyLoaded) {
+            fullScheme = await fetchMarkingSchemeDetails(scheme.id);
+          }
+ 
+          if (!fullScheme || !fullScheme.questions) continue;
+ 
+          // 2. Perform the scan
+          const qValues = Object.values(fullScheme.questions);
+          const isIntegerOnly = qValues.length > 0 && qValues.every(q => {
+            const marks = Array.isArray(q.marks) ? q.marks : [];
+            // If it's a leaf question with no marks, we treat as true until proven otherwise
+            if (marks.length === 0) return true; 
+            return marks.every(m => !/[a-zA-Z]/.test(String(m.mark || '')));
+          });
+ 
+          const markType = isIntegerOnly ? 'integer_only' : 'codes';
+ 
+          // 3. Patch backend (Use direct document root to ensure persistence)
+          console.log(`Auditing scheme ${scheme.id}: setting markType to ${markType}`);
+          await ApiClient.patch(`/api/admin/json/collections/markingSchemes/${scheme.id}`, {
+            markType: markType
+          });
+ 
+          // 4. Update local state
+          setMarkingSchemeEntries(prev => prev.map(s => 
+            s.id === scheme.id ? { ...s, markType: markType } : s
+          ));
+        } catch (err) {
+          console.error(`Failed to audit marking scheme ${scheme.id}:`, err);
+        }
+      }
+      setError('✅ Marking code audit completed successfully.');
       setTimeout(() => setError(null), 3000);
     } catch (err) {
-      setError('Failed to refresh status checks');
-      setTimeout(() => setError(null), 3000);
+      console.error('Audit failed:', err);
+      setError('❌ Marking code audit failed. See console.');
     } finally {
-      setLoading(false);
+      setIsAuditingMarkTypes(false);
+      setAuditProgress({ current: 0, total: 0 });
     }
-  }, [loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
+  }, [markingSchemeEntries, isAuditingMarkTypes, fetchMarkingSchemeDetails, setError]);
+
+  const runBulkSync = useCallback(async (mode = 'pending') => {
+    if (isSyncingAll) return;
+    
+    // Determine which entries to sync
+    const targetEntries = jsonEntries.filter(entry => {
+      if (mode === 'all') return true;
+      // Pending mode: Missing or not 'YES'
+      if (!entry.relationshipStatus) return true;
+      return entry.relationshipStatus.hasMarkingScheme !== 'YES';
+    });
+
+    if (targetEntries.length === 0) {
+      setError('✅ No papers require status refresh.');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    setIsSyncingAll(true);
+    setSyncProgress({ current: 0, total: targetEntries.length });
+
+    try {
+      for (let i = 0; i < targetEntries.length; i++) {
+        setSyncProgress({ current: i + 1, total: targetEntries.length });
+        await syncExamRelationshipStatus(targetEntries[i], true); // Force re-calculate
+      }
+      setError(`✅ Completed refreshing ${targetEntries.length} status checks.`);
+      setTimeout(() => setError(null), 5000);
+    } catch (err) {
+      console.error('Bulk sync failed:', err);
+      setError('❌ Error during bulk status refresh');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsSyncingAll(false);
+      setSyncProgress({ current: 0, total: 0 });
+    }
+  }, [isSyncingAll, jsonEntries, syncExamRelationshipStatus]);
+
+  // Refresh status checks (Targets 'pending': Mismatch/No/Missing)
+  const refreshStatusChecks = useCallback(async () => {
+    runBulkSync('pending');
+  }, [runBulkSync]);
+
+  // Refresh ALL status checks
+  const refreshAllStatusChecks = useCallback(async () => {
+    runBulkSync('all');
+  }, [runBulkSync]);
 
   const toggleAdminUsageExpanded = useCallback((sessionId) => {
     setExpandedAdminSessions(prev => {
@@ -1503,6 +1845,8 @@ function AdminPage() {
       loadUsageData(usageFilter);
     }
   }, [activeTab, usageFilter, loadUsageData]);
+
+  // Background Sync Loop
 
   // Load subscriptions list when tab opens or page changes
   useEffect(() => {
@@ -2027,22 +2371,37 @@ function AdminPage() {
               {renderQualificationFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Full Exam Papers ({filteredJsonEntries.length})</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {isSyncingAll && (
+                    <div className="admin-status-badge admin-status-badge--mismatch" style={{ fontSize: '13px' }}>
+                       Refreshing: {syncProgress.current}/{syncProgress.total}
+                    </div>
+                  )}
                   <button
                     className="admin-btn admin-btn--secondary"
                     onClick={refreshStatusChecks}
-                    disabled={loadingJson || loadingMarking || loadingBoundaries}
-                    title="Refresh status checks"
+                    disabled={isSyncingAll || loadingJson || loadingMarking || loadingBoundaries}
+                    title="Refresh status for papers with Mismatch or No status"
                     style={{ marginBottom: 0 }}
                   >
-                    <RefreshCw size={16} className={(loadingJson || loadingMarking || loadingBoundaries) ? 'spin-animation' : ''} />
-                    Refresh Status
+                    <RefreshCw size={16} className={(isSyncingAll || loadingJson || loadingMarking || loadingBoundaries) ? 'spin-animation' : ''} />
+                    Refresh Pending
+                  </button>
+                  <button
+                    className="admin-btn admin-btn--secondary"
+                    onClick={refreshAllStatusChecks}
+                    disabled={isSyncingAll || loadingJson || loadingMarking || loadingBoundaries}
+                    title="Refresh ALL status checks in the database"
+                    style={{ marginBottom: 0 }}
+                  >
+                    <RefreshCw size={16} className={(isSyncingAll && syncProgress.total === jsonEntries.length) ? 'spin-animation' : ''} />
+                    Refresh ALL
                   </button>
                   {jsonEntries.length > 0 && (
                     <button
                       className="admin-btn admin-btn--danger"
                       onClick={deleteAllJsonEntries}
-                      disabled={isDeletingAll}
+                      disabled={isDeletingAll || isSyncingAll}
                     >
                       {isDeletingAll ? 'Deleting...' : 'Delete All'}
                     </button>
@@ -2178,54 +2537,114 @@ function AdminPage() {
                                 </td>
                                 <td className="admin-table__cell">
                                   {(() => {
-                                    const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
-
-                                    if (matchingScheme) {
-                                      const mismatches = checkStructureMismatch(entry, matchingScheme);
-                                      const hasMismatch = mismatches.length > 0;
-
-                                      return (
-                                        <span
-                                          className={`status-badge ${hasMismatch ? '' : 'status-badge--success'}`}
-                                          style={{
-                                            cursor: 'pointer',
-                                            backgroundColor: hasMismatch ? '#fef2f2' : undefined,
-                                            color: hasMismatch ? '#b91c1c' : undefined,
-                                            borderColor: hasMismatch ? '#f87171' : undefined,
-                                            borderWidth: hasMismatch ? '1px' : undefined,
-                                            borderStyle: hasMismatch ? 'solid' : undefined
-                                          }}
-                                          title={hasMismatch ? `Structural Mismatch (Triple Check):\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-
-                                            // Copy Mismatches to Clipboard (Admin Enhancement)
-                                            if (hasMismatch) {
-                                              const copyText = `Structure Mismatch for ${matchingScheme.board} ${matchingScheme.code}:\n${mismatches.join('\n')}`;
+                                    const status = entry.relationshipStatus;
+                                    
+                                    // If we have denormalized status, use it instantly!
+                                    if (status) {
+                                      if (status.hasMarkingScheme === "YES") {
+                                        const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
+                                        return (
+                                          <span 
+                                            className="status-badge status-badge--success"
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (matchingScheme) {
+                                                console.log('Navigating to marking scheme:', matchingScheme.id);
+                                                setActiveTab('marking-scheme');
+                                                setExpandedMarkingSchemeId(matchingScheme.id);
+                                                if (!matchingScheme.isFullyLoaded) fetchMarkingSchemeDetails(matchingScheme.id);
+                                              }
+                                            }}
+                                          >
+                                            YES
+                                          </span>
+                                        );
+                                      }
+                                      
+                                      if (status.hasMarkingScheme === "MISMATCH") {
+                                        const mismatches = status.mismatches || [];
+                                        const matchingScheme = markingSchemeEntries.find(s => isPaperMatch(entry, s));
+                                        return (
+                                          <span
+                                            className="status-badge"
+                                            style={{
+                                              cursor: 'pointer',
+                                              backgroundColor: '#fef2f2',
+                                              color: '#b91c1c',
+                                              borderColor: '#f87171',
+                                              borderWidth: '1px',
+                                              borderStyle: 'solid'
+                                            }}
+                                            title={`Structural Mismatch (Triple Check):\n${mismatches.slice(0, 5).join('\n')}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const copyText = `Structure Mismatch:\n${mismatches.join('\n')}`;
                                               navigator.clipboard.writeText(copyText).then(() => {
                                                 alert('Copied structure mismatches to clipboard');
-                                              }).catch(err => {
-                                                console.error('Failed to copy mismatches:', err);
                                               });
-                                            }
+                                              if (matchingScheme) {
+                                                console.log('Navigating to marking scheme:', matchingScheme.id);
+                                                setActiveTab('marking-scheme');
+                                                setExpandedMarkingSchemeId(matchingScheme.id);
+                                                if (!matchingScheme.isFullyLoaded) fetchMarkingSchemeDetails(matchingScheme.id);
+                                              }
+                                            }}
+                                          >
+                                            Mismatch
+                                          </span>
+                                        );
+                                      }
+                                      
+                                      return <span className="status-badge status-badge--warning">No</span>;
+                                    }
 
-                                            console.log('Navigating to marking scheme:', matchingScheme.id);
-                                            setActiveTab('marking-scheme');
-                                            setExpandedMarkingSchemeId(matchingScheme.id);
+                                    // Fallback for when data is still loading or not yet synced
+                                    if (syncingId === entry.id) {
+                                      return <span className="status-badge" style={{ backgroundColor: '#f0f9ff', color: '#0369a1' }}>Checking...</span>;
+                                    }
 
-                                            // Trigger fetch if not fully loaded
-                                            if (!matchingScheme.isFullyLoaded) {
-                                              fetchMarkingSchemeDetails(matchingScheme.id);
-                                            }
+                                    const { matchingScheme, mismatches, hasMismatch, checkPerformed } = relationshipCache[entry.id] || {};
 
-                                            // Scroll attempt
-                                            setTimeout(() => {
-                                              const element = document.getElementById(matchingScheme.id);
-                                              if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                            }, 100);
-                                          }}
+                                    if (matchingScheme) {
+                                      // "Triple Check": Real-time structural validation
+                                      // Only if pre-calculated in the memoized cache
+                                      if (checkPerformed) {
+                                        return (
+                                          <span
+                                            className={`status-badge ${hasMismatch ? '' : 'status-badge--success'}`}
+                                            style={{
+                                              cursor: 'pointer',
+                                              backgroundColor: hasMismatch ? '#fef2f2' : undefined,
+                                              color: hasMismatch ? '#b91c1c' : undefined,
+                                              borderColor: hasMismatch ? '#f87171' : undefined,
+                                              borderWidth: hasMismatch ? '1px' : undefined,
+                                              borderStyle: hasMismatch ? 'solid' : undefined
+                                            }}
+                                            title={hasMismatch ? `Structural Mismatch (Triple Check):\n${mismatches.slice(0, 5).join('\n')}` : 'View Marking Scheme'}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (hasMismatch) {
+                                                const copyText = `Structure Mismatch:\n${mismatches.join('\n')}`;
+                                                navigator.clipboard.writeText(copyText).then(() => alert('Copied mismatches'));
+                                              }
+                                              setActiveTab('marking-scheme');
+                                              setExpandedMarkingSchemeId(matchingScheme.id);
+                                            }}
+                                          >
+                                            {hasMismatch ? 'Mismatch' : 'YES'}
+                                          </span>
+                                        );
+                                      }
+
+                                      // Fallback: If not both loaded, show "YES" if we at least matched identifiers
+                                      return (
+                                        <span
+                                          className="status-badge status-badge--success"
+                                          style={{ opacity: 0.7, cursor: 'wait' }}
+                                          title="Checking structural mismatch (waiting for full data)..."
                                         >
-                                          {hasMismatch ? 'Mismatch' : 'YES'}
+                                          YES
                                         </span>
                                       );
                                     } else {
@@ -2483,18 +2902,18 @@ function AdminPage() {
                                                           <div className="admin-question-main">
                                                             {isEditing && editingId === entry.id ? (
                                                               <>
-                                                                <input
-                                                                  type="text"
-                                                                  className="admin-question-number-input"
-                                                                  value={question.number || ''}
-                                                                  onChange={(e) => handleQuestionFieldChange(qIndex, 'number', e.target.value)}
-                                                                />
-                                                                <textarea
-                                                                  className="admin-question-text-input"
-                                                                  value={question.text}
-                                                                  onChange={(e) => handleQuestionFieldChange(qIndex, 'text', e.target.value)}
-                                                                  rows={2}
-                                                                />
+                                                                  <input
+                                                                    type="text"
+                                                                    className="admin-question-number-input"
+                                                                    value={question.number || question.question_number || question.questionNumber || ''}
+                                                                    onChange={(e) => handleQuestionFieldChange(qIndex, 'number', e.target.value)}
+                                                                  />
+                                                                  <textarea
+                                                                    className="admin-question-text-input"
+                                                                    value={question.text || question.question_text || question.questionText || ''}
+                                                                    onChange={(e) => handleQuestionFieldChange(qIndex, 'text', e.target.value)}
+                                                                    rows={2}
+                                                                  />
                                                               </>
                                                             ) : (
                                                               <>
@@ -2549,12 +2968,12 @@ function AdminPage() {
                                                                       <input
                                                                         type="text"
                                                                         className="admin-sub-question-part-input"
-                                                                        value={subQ.part || ''}
+                                                                        value={subQ.part || subQ.question_part || subQ.number || ''}
                                                                         onChange={(e) => handleSubQuestionFieldChange(qIndex, sIndex, 'part', e.target.value)}
                                                                       />
                                                                       <textarea
                                                                         className="admin-sub-question-text-input"
-                                                                        value={subQ.text}
+                                                                        value={subQ.text || subQ.question_text || subQ.questionText || ''}
                                                                         onChange={(e) => handleSubQuestionFieldChange(qIndex, sIndex, 'text', e.target.value)}
                                                                         rows={1}
                                                                       />
@@ -2569,7 +2988,7 @@ function AdminPage() {
                                                                     </>
                                                                   ) : (
                                                                     <>
-                                                                      <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
+                                                                      <span className="admin-sub-question-number">{subQ.part || subQ.number || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
                                                                       <span className="admin-sub-question-text">{subQ.text || subQ.question_text || subQ.questionText || ''}</span>
                                                                     </>
                                                                   )}
@@ -2684,16 +3103,31 @@ function AdminPage() {
               {renderQualificationFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Marking Schemes ({filteredMarkingSchemeEntries.length})</h3>
-                {markingSchemeEntries.length > 0 && (
-                  <button
-                    onClick={deleteAllMarkingSchemeEntries}
-                    className="admin-btn admin-btn--danger"
-                    disabled={isDeletingAll}
-                  >
-                    <Trash2 size={16} />
-                    Delete All
-                  </button>
-                )}
+                 <div className="admin-data-section__actions" style={{ display: 'flex', gap: '8px' }}>
+                   {isAuditingMarkTypes && (
+                     <div className="audit-progress" style={{ fontSize: '0.8rem', color: '#666', display: 'flex', alignItems: 'center' }}>
+                       Auditing: {auditProgress.current}/{auditProgress.total}...
+                     </div>
+                   )}
+                   <button
+                     onClick={runMarkTypeAudit}
+                     className="admin-btn admin-btn--secondary"
+                     disabled={isAuditingMarkTypes}
+                   >
+                     <RefreshCw size={16} className={isAuditingMarkTypes ? 'animate-spin' : ''} />
+                     Audit Mark Types
+                   </button>
+                   {markingSchemeEntries.length > 0 && (
+                     <button
+                       onClick={deleteAllMarkingSchemeEntries}
+                       className="admin-btn admin-btn--danger"
+                       disabled={isDeletingAll || isAuditingMarkTypes}
+                     >
+                       <Trash2 size={16} />
+                       Delete All
+                     </button>
+                   )}
+                 </div>
               </div>
 
               {loadingMarking ? (
@@ -2714,6 +3148,7 @@ function AdminPage() {
                         <th className="admin-table__header">Qualification</th>
                         <th className="admin-table__header">Subject</th>
                         <th className="admin-table__header">Exam Series</th>
+                        <th className="admin-table__header">Mark Type</th>
                         <th className="admin-table__header">Uploaded</th>
                         <th className="admin-table__header">Actions</th>
                       </tr>
@@ -2746,6 +3181,13 @@ function AdminPage() {
                             return a.localeCompare(b);
                           });
                           const questionCount = entry.totalQuestions || sortedQuestionKeys.length || 0;
+ 
+                          // Use the persistent markType from server if it exists
+                          const isIntegerOnly = entry.markType === 'integer_only';
+                          const hasAuditData = !!entry.markType;
+                          if (expandedMarkingSchemeId === entry.id) {
+                            console.log(`[AdminPage] Rendering row ${entry.id}: markType=${entry.markType}, hasAudit=${hasAuditData}`);
+                          }
 
                           // Determine render group color
                           const currentGroupSeries = entry.normalizedSeries || examSeries;
@@ -2790,6 +3232,35 @@ function AdminPage() {
                                 <td className="admin-table__cell">{qualification}</td>
                                 <td className="admin-table__cell">{subject}</td>
                                 <td className="admin-table__cell">{examSeries}</td>
+                                <td className="admin-table__cell">
+                                  {!hasAuditData ? (
+                                    <span style={{ fontSize: '0.75rem', color: '#999' }}>--</span>
+                                  ) : isIntegerOnly ? (
+                                    <span style={{ 
+                                      padding: '2px 8px', 
+                                      borderRadius: '4px', 
+                                      backgroundColor: '#fff7ed', 
+                                      color: '#9a3412',
+                                      border: '1px solid #ffedd5',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '600'
+                                    }} title="Marks are integers only (missing M1, A1, etc.)">
+                                      Integer Only
+                                    </span>
+                                  ) : (
+                                    <span style={{ 
+                                      padding: '2px 8px', 
+                                      borderRadius: '4px', 
+                                      backgroundColor: '#f0fdf4', 
+                                      color: '#166534',
+                                      border: '1px solid #dcfce7',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '600'
+                                    }}>
+                                      Codes
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="admin-table__cell">{formatDate(entry.createdAt || entry.uploadedAt)}</td>
                                 <td className="admin-table__cell actions-cell">
                                   <button
@@ -3802,7 +4273,7 @@ function AdminPage() {
           </div>
         )}
       </div>
-    </div >
+    </div>
   );
 }
 
