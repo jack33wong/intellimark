@@ -15,7 +15,7 @@ const HeroAnimation: React.FC = () => {
 
     return (
         <div className="hero-animation-container static-scanner-showcase">
-            <div className="hero-main-row">
+            <div className="hero-main-row" id="scanner">
                 <div className="hero-text-side">
                     <h2 className="hero-headline static-headline">
                         Built-In Scanner for Messy Handwriting

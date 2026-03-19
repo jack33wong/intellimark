@@ -241,7 +241,7 @@ const LandingPage: React.FC = () => {
             </section>
 
 
-            <section className="universal-tutor-section">
+            <section className="universal-tutor-section" id="chat">
                 {/* Centered Section Header */}
                 <h2 className="section-title center">Interactive AI Maths Tutor</h2>
 
