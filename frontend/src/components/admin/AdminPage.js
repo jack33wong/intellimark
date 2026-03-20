@@ -370,32 +370,18 @@ const checkStructureMismatch = (paperInput, schemeInput) => {
   const paperIdsList = Array.from(ids1);
   const schemeIdsList = Array.from(ids2);
 
-  // Check for missing items (Paper -> Scheme)
-  // We only care if the Marking Scheme is MISSING something that is in the Paper
+  // 1. Check Paper -> Scheme (Are all paper questions covered?)
+  paperIdsList.forEach(pId => {
+    if (!ids2.has(pId)) {
+      mismatches.push(`Missing in Scheme: Paper Question "${pId}"`);
+    }
+  });
+
+  // 2. Check Scheme -> Paper (Are there extra marks in scheme?)
   schemeIdsList.forEach(sId => {
-    // 1. Exact Match
-    if (ids1.has(sId)) return;
-
-    // 2. Soft Match: Does the paper have a parent (e.g. "14") that covers this part (e.g. "14i")?
-    const hasParentMatch = paperIdsList.some(pId => {
-      if (!sId.startsWith(pId) || sId === pId) return false;
-      const nextChar = sId.charAt(pId.length);
-      // Digit check: Avoid matching "1" to "10"
-      if (/\d$/.test(pId) && /\d/.test(nextChar)) return false;
-      return true;
-    });
-    if (hasParentMatch) return;
-
-    // 3. Child Match: Does the paper have parts (e.g. "11a", "11b") that cover a parent (e.g. "11")?
-    const hasChildMatch = paperIdsList.some(pId => {
-      if (!pId.startsWith(sId) || pId === sId) return false;
-      const nextChar = pId.charAt(sId.length);
-      if (/\d$/.test(sId) && /\d/.test(nextChar)) return false;
-      return true;
-    });
-    if (hasChildMatch) return;
-
-    mismatches.push(`Missing in Paper: Scheme Question "${sId}"`);
+    if (!ids1.has(sId)) {
+      mismatches.push(`Missing in Paper: Scheme Question "${sId}"`);
+    }
   });
 
   return mismatches;
@@ -2625,10 +2611,10 @@ function AdminPage() {
                                       return (
                                         <span
                                           className="status-badge status-badge--success"
-                                          style={{ opacity: 0.7, cursor: 'wait' }}
-                                          title="Checking structural mismatch (waiting for full data)..."
+                                          style={{ opacity: 0.8, cursor: 'help', backgroundColor: '#ecfdf5', color: '#059669', border: '1px dashed #10b981' }}
+                                          title="Paper identifiers match, but full structural sync check is pending (expand row or click Refresh to verify)."
                                         >
-                                          YES
+                                          Link Verified
                                         </span>
                                       );
                                     } else {
