@@ -753,8 +753,12 @@ export class FirestoreService {
    */
   static async getUserUnifiedSessions(userId: string, limit: number = 50, lastUpdatedAt: string | null = null, messageType: string | null = null, searchQuery: string | null = null): Promise<any[]> {
     try {
-      let sessionsRef: any = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
-        .where('userId', '==', userId);
+      let sessionsRef: any = db.collection(COLLECTIONS.UNIFIED_SESSIONS);
+
+      // Support 'all' keyword for admins to fetch global history
+      if (userId !== 'all') {
+        sessionsRef = sessionsRef.where('userId', '==', userId);
+      }
 
       if (messageType && messageType !== 'all') {
         sessionsRef = sessionsRef.where('messageType', '==', messageType);

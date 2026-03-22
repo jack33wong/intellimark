@@ -761,7 +761,16 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
     const search = req.query.search as string || null;
 
     // Only return sessions for authenticated users who match the requested userId
-    if (req.user.uid !== userId) {
+    // OR if the requester is an admin and requesting 'all' users
+    if (userId === 'all') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied - admin role required for global history',
+          details: `Authenticated: ${req.user.uid}, Role: ${req.user.role}`
+        });
+      }
+    } else if (req.user.uid !== userId && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         error: 'Access denied - can only access your own sessions',

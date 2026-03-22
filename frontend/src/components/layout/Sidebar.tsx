@@ -108,10 +108,16 @@ const Sidebar: React.FC<SidebarProps> = ({
       }
 
       let messageType: string | null = null;
-      if (activeTab === 'mark') messageType = 'Marking';
-      if (activeTab === 'question') messageType = 'Question';
+      let targetUserId = user.uid;
 
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken, undefined, messageType as any) as MarkingHistoryResponse;
+      if (activeTab === 'admin_all') {
+        targetUserId = 'all';
+      } else {
+        if (activeTab === 'mark') messageType = 'Marking';
+        if (activeTab === 'question') messageType = 'Question';
+      }
+
+      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(targetUserId, 50, authToken, undefined, messageType as any) as MarkingHistoryResponse;
       const endTime = performance.now();
       console.log(`[PERF] Sidebar: getMarkingHistoryFromSessions took ${(endTime - startTime).toFixed(2)}ms for 50 records`);
 
@@ -162,10 +168,16 @@ const Sidebar: React.FC<SidebarProps> = ({
       const lastUpdatedAt = lastSession ? (lastSession.updatedAt || lastSession.createdAt) : undefined;
 
       let messageType: string | null = null;
-      if (activeTab === 'mark') messageType = 'Marking';
-      if (activeTab === 'question') messageType = 'Question';
+      let targetUserId = user.uid;
 
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken, lastUpdatedAt as any, messageType as any) as MarkingHistoryResponse;
+      if (activeTab === 'admin_all') {
+        targetUserId = 'all';
+      } else {
+        if (activeTab === 'mark') messageType = 'Marking';
+        if (activeTab === 'question') messageType = 'Question';
+      }
+
+      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(targetUserId, 50, authToken, lastUpdatedAt as any, messageType as any) as MarkingHistoryResponse;
       const endTime = performance.now();
       console.log(`[PERF] Sidebar: getMarkingHistoryFromSessions (more) took ${(endTime - startTime).toFixed(2)}ms`);
 
@@ -642,7 +654,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="mark-history-filter-trigger"
                     onClick={(e) => { e.stopPropagation(); setIsFilterDropdownOpen(!isFilterDropdownOpen); }}
                   >
-                    <span>{activeTab === 'all' ? 'All' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+                    <span>{activeTab === 'all' ? 'All' : (activeTab === 'admin_all' ? 'All Users' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1))}</span>
                     <ChevronDown size={14} className={`filter-chevron ${isFilterDropdownOpen ? 'open' : ''}`} />
                   </button>
                   {isFilterDropdownOpen && (
@@ -651,6 +663,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <div className={`filter-option ${activeTab === 'mark' ? 'selected' : ''}`} onClick={() => { setActiveTab('mark'); setIsFilterDropdownOpen(false); }}>Mark</div>
                       <div className={`filter-option ${activeTab === 'question' ? 'selected' : ''}`} onClick={() => { setActiveTab('question'); setIsFilterDropdownOpen(false); }}>Question</div>
                       <div className={`filter-option ${activeTab === 'favorite' ? 'selected' : ''}`} onClick={() => { setActiveTab('favorite'); setIsFilterDropdownOpen(false); }}>Favorite</div>
+                      {isAdmin() && (
+                        <div className={`filter-option ${activeTab === 'admin_all' ? 'selected' : ''}`} onClick={() => { setActiveTab('admin_all'); setIsFilterDropdownOpen(false); }}>All Users</div>
+                      )}
                     </div>
                   )}
                 </div>
