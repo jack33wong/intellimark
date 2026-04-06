@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Crown, CheckCircle, CreditCard, Calendar, AlertCircle } from 'lucide-react';
 import CreditIcon from '../common/CreditIcon';
 import SubscriptionService from '../../services/subscriptionService';
 import API_CONFIG from '../../config/api';
 
-const PlanSection = () => {
+const PlanSection = ({ onClose }) => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [subscription, setSubscription] = useState(null);
     const [credits, setCredits] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -74,7 +76,10 @@ const PlanSection = () => {
                     <Crown size={48} className="plan-icon-large" />
                     <h3>No Active Plan</h3>
                     <p>Upgrade to Pro to unlock advanced features.</p>
-                    <button className="action-btn primary" onClick={() => window.location.href = '/pricing'}>
+                    <button className="action-btn primary" onClick={() => {
+                        if (onClose) onClose();
+                        navigate('/pricing', { state: { fromApp: true } });
+                    }}>
                         Upgrade Now
                     </button>
                 </div>
@@ -169,7 +174,10 @@ const PlanSection = () => {
             {/* Manage Button */}
             <button
                 className="manage-subscription-btn"
-                onClick={() => window.location.href = '/pricing'} // Or open stripe portal if available
+                onClick={() => {
+                    if (onClose) onClose();
+                    navigate('/pricing', { state: { fromApp: true } });
+                }} // Or open stripe portal if available
             >
                 Manage Subscription
             </button>

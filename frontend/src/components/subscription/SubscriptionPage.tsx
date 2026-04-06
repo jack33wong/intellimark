@@ -485,13 +485,13 @@ const SubscriptionPage: React.FC = () => {
               body: JSON.stringify({
                 userId: user.uid,
                 newPlanId: 'free',
-                billingCycle: currentSubscription.billingCycle
+                billingCycle: currentSubscription.billingCycle || 'monthly'
               })
             });
 
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.details || 'Failed to cancel subscription');
+              throw new Error(error.details || error.error || 'Failed to cancel subscription');
             }
 
             const result = await response.json();
@@ -557,13 +557,13 @@ const SubscriptionPage: React.FC = () => {
                 body: JSON.stringify({
                   userId: user.uid,
                   newPlanId: planId,
-                  billingCycle: currentSubscription.billingCycle
+                  billingCycle: currentSubscription.billingCycle || 'monthly'
                 })
               });
 
               if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.details || 'Failed to upgrade plan');
+                throw new Error(error.details || error.error || 'Failed to upgrade plan');
               }
 
               const result = await response.json();
@@ -615,13 +615,13 @@ const SubscriptionPage: React.FC = () => {
                 body: JSON.stringify({
                   userId: user.uid,
                   newPlanId: planId,
-                  billingCycle: currentSubscription.billingCycle
+                  billingCycle: currentSubscription.billingCycle || 'monthly'
                 })
               });
 
               if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.details || 'Failed to schedule downgrade');
+                throw new Error(error.details || error.error || 'Failed to schedule downgrade');
               }
 
               const result = await response.json();

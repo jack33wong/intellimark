@@ -224,7 +224,8 @@
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  background: #7f00ff; /* Solid Purple Badge */
+  background: #7f00ff;
+  /* Solid Purple Badge */
   color: var(--text-white);
   padding: 8px 24px;
   border-radius: 0 0 12px 12px;
@@ -318,7 +319,8 @@
 }
 
 .has-subtext .plan-feature-text {
-  font-weight: 700; /* Extra emphasis for credit count */
+  font-weight: 700;
+  /* Extra emphasis for credit count */
 }
 
 .plan-feature-subtext {
@@ -533,8 +535,9 @@
 /* Specific button styles */
 .upgrade-plan-subscribe-button {
   width: 100%;
-  background: #1a1a19; /* Dark Grey/Black as requested */
-  color: white !important;
+  background: #1a1a19;
+  /* Dark Grey/Black as requested */
+  color: white;
   border: 1px solid transparent;
   padding: 16px 24px;
   border-radius: 12px;

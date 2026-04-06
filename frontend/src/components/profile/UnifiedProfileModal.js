@@ -48,7 +48,7 @@ const UnifiedProfileModal = () => {
             case 'settings':
                 return <SettingsSection />;
             case 'plan':
-                return <PlanSection />;
+                return <PlanSection onClose={handleClose} />;
             default:
                 return <AccountSection />;
         }

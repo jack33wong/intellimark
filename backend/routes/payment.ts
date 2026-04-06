@@ -304,8 +304,12 @@ router.post('/change-plan', async (req, res) => {
   try {
     const { userId, newPlanId, billingCycle } = req.body;
 
-    if (!userId || !newPlanId || !billingCycle) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!userId || !newPlanId) {
+      return res.status(400).json({ error: 'Missing required fields', details: 'userId and newPlanId are required' });
+    }
+
+    if (!billingCycle && newPlanId !== 'free') {
+      return res.status(400).json({ error: 'Missing required field', details: 'billingCycle is required for this plan change' });
     }
 
     // Get current subscription
@@ -316,10 +320,10 @@ router.post('/change-plan', async (req, res) => {
 
     const currentPlanId = subscription.planId;
 
-    // Helper to get plan level (free=0, pro=1, enterprise=2)
+    // Helper to get plan level (free=0, pro=1, ultra=2, admin_test=3)
     const getPlanLevel = (plan: string): number => {
-      const levels = { free: 0, pro: 1, ultra: 2 };
-      return levels[plan] || 0;
+      const levels: Record<string, number> = { free: 0, pro: 1, ultra: 2, admin_test: 3 };
+      return levels[plan] !== undefined ? levels[plan] : 1;
     };
 
     const isUpgrade = getPlanLevel(newPlanId) > getPlanLevel(currentPlanId);
