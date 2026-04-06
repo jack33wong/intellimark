@@ -473,15 +473,23 @@ router.post('/cancel-schedule', async (req, res) => {
     if (subscription.scheduleId) {
       await cancelSchedule(subscription.scheduleId);
     } else {
-      // For free plan or any other cancel_at_period_end downgrade
-      const stripe = (await import('../config/stripe.js')).default;
-      const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+      // Check if this is a test subscription (starts with 'sub_test_' or 'sub_debug_')
+      const isTestSubscription = subscription.stripeSubscriptionId?.startsWith('sub_test_') || 
+                                 subscription.stripeSubscriptionId?.startsWith('sub_debug_');
 
-      if (stripeSub.cancel_at_period_end) {
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-          cancel_at_period_end: false,
-        });
-        console.log(`✅ [CancelSchedule] Re-activated subscription ${subscription.stripeSubscriptionId}`);
+      if (!isTestSubscription) {
+        // For free plan or any other cancel_at_period_end downgrade
+        const stripe = (await import('../config/stripe.js')).default;
+        const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+
+        if (stripeSub.cancel_at_period_end) {
+          await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            cancel_at_period_end: false,
+          });
+          console.log(`✅ [CancelSchedule] Re-activated subscription ${subscription.stripeSubscriptionId}`);
+        }
+      } else {
+        console.log(`✅ [CancelSchedule] Skipped Stripe reactivation for test subscription ${subscription.stripeSubscriptionId}`);
       }
     }
 
@@ -493,9 +501,9 @@ router.post('/cancel-schedule', async (req, res) => {
     });
 
     res.json({ success: true, message: 'Scheduled plan change canceled' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error canceling schedule:', error);
-    res.status(500).json({ error: 'Failed to cancel schedule' });
+    res.status(500).json({ error: 'Failed to cancel schedule', details: error.message || String(error) });
   }
 });
 
