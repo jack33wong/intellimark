@@ -556,7 +556,7 @@
 }
 
 .upgrade-plan-subscribe-button.downgrade {
-  background: transparent;
+  background: var(--background-gray-main);
   border: 1px solid var(--border-main);
   color: var(--text-primary);
 }
