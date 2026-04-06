@@ -385,9 +385,35 @@ router.post('/change-plan', async (req, res) => {
         // Cancel subscription at period end (not immediately)
         const stripe = (await import('../config/stripe.js')).default;
 
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-          cancel_at_period_end: true,
-        });
+        let missingSubscription = false;
+        try {
+          await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            cancel_at_period_end: true,
+          });
+        } catch (stripeError: any) {
+          if (stripeError.message?.includes('No such subscription')) {
+            console.warn(`[ChangePlan] Stripe subscription ${subscription.stripeSubscriptionId} missing. Force-canceling locally.`);
+            missingSubscription = true;
+          } else {
+            throw stripeError;
+          }
+        }
+
+        // If it's already missing in Stripe, forcefully clear it from our DB (don't wait for period end)
+        if (missingSubscription) {
+          await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+            planId: 'free',
+            status: 'canceled',
+            scheduledPlanId: null,
+            scheduleId: null,
+            scheduleEffectiveDate: null
+          });
+          return res.json({ 
+            success: true, 
+            message: 'Subscription was missing in Stripe. Force-downgraded to free locally.', 
+            planId: 'free' 
+          });
+        }
 
         // Update Firestore with scheduled free plan
         await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
