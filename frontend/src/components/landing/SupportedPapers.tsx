@@ -103,7 +103,7 @@ const SupportedPapers: React.FC = () => {
                 <h2>Extensive Past Paper Support</h2>
                 <div className="status-freshness">
                     <span className="live-dot"></span>
-                    <span className="status-text">Mark Schemes Updated: Jan 2026</span>
+                    <span className="status-text">Mark Schemes Updated: June 2026</span>
                 </div>
 
                 <LevelToggle level={level} onChange={setLevel} />

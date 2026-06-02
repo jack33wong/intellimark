@@ -286,7 +286,7 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <Award size={16} />,
-          text: 'GCSE & 2024 A-Level Access'
+          text: 'GCSE & A-Level Access'
         },
         {
           icon: <MessageSquare size={16} />,
