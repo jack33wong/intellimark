@@ -21,12 +21,11 @@ import type { MarkingSessionContext, QuestionSessionContext } from '../../types/
 import { getBaseQuestionNumber, extractQuestionNumberFromFilename } from '../../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
+import { resolveModelTier } from '../../config/aiModels.js';
+
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
-    if (modelType === 'auto') {
-        return 'gemini-2.5-flash'; // Default model for backward compatibility
-    }
-    return modelType; // Return the actual model name
+    return resolveModelTier(modelType);
 }
 
 function getRealApiName(modelName: string): string {

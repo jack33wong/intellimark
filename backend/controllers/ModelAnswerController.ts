@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getFirestore } from '../config/firebase.js';
+import { resolveModelTier } from '../config/aiModels.js';
 import { FirestoreService } from '../services/firestoreService.js';
 import { SuggestedFollowUpService } from '../services/marking/suggestedFollowUpService.js';
 import { createUserMessage, createAIMessage } from '../utils/messageUtils.js';
@@ -301,7 +302,7 @@ export class ModelAnswerController {
                     isComplete: true
                 },
                 processingStats: {
-                    modelUsed: model,
+                    modelUsed: resolveModelTier(model),
                     apiUsed: followUpResult.apiUsed || 'SuggestedFollowUpService',
                     llmTokens: usageTracker.getTotalTokens(),
                     totalCost: usageTracker.calculateCost(model).total,
