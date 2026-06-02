@@ -488,6 +488,31 @@ const SessionHeader: React.FC = () => {
                         tier = detectedQuestion.tier;
                       }
 
+                      const isGeneric = 
+                        examCode === 'Generic Question' || 
+                        subject === 'Generic Question' || 
+                        examBoard === 'Unknown' || 
+                        examBoard === 'N/A' ||
+                        examCode === 'Unknown' ||
+                        examCode === 'N/A';
+
+                      if (isGeneric) {
+                        return (
+                          <div className="exam-paper-section">
+                            <div className="label-value-item">
+                              <span className="label">Paper Type:</span>
+                              <span className="value">Practice Paper / Custom Question</span>
+                            </div>
+                            {grade && (
+                              <div className="label-value-item">
+                                <span className="label">Grade:</span>
+                                <span className="value grade-value">{grade}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="exam-paper-section">
                           <div className="label-value-item">

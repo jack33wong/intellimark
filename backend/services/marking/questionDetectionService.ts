@@ -786,39 +786,48 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     return `${mode} - ${new Date().toLocaleDateString()}`;
   }
 
-  // NEW: Handle Generic Case (Bypass Ugly Structured Title)
-  // If ALL papers are generic, use the question text for a cleaner title
-  const allGeneric = examPapers.length > 0 && examPapers.every(p => p.isGeneric);
-  if (allGeneric && detectionResults.length > 0) {
-    const firstQText = detectionResults[0].question?.text || '';
-    return generateGenericTitleFromText(firstQText, mode);
-  }
+  // Support Rescue Logic: Find the first valid (non-generic) past paper in the batch
+  const validPaper = examPapers.find(p => 
+    !p.isGeneric && 
+    p.examCode !== 'Generic Question' && 
+    p.subject !== 'Generic Question' && 
+    p.examBoard !== 'Unknown' && 
+    p.examBoard !== 'N/A' &&
+    p.examCode !== 'Unknown' &&
+    p.examCode !== 'N/A'
+  );
 
-  // Pattern: Exam Series + Exam Code + Board Short + Subject Short + Tier
-  const p = examPapers[0];
-  const seriesPart = p.examSeries || '';
-  const codePart = p.examCode || '';
-  const boardPart = getShortExamBoard(p.examBoard);
-  const subjectPart = getShortSubjectName(p.subject || '');
-  const tierPart = p.tier ? `${p.tier}` : '';
+  if (validPaper) {
+    // Pattern: Exam Series + Exam Code + Board Short + Subject Short + Tier
+    const p = validPaper;
+    const seriesPart = p.examSeries || '';
+    const codePart = p.examCode || '';
+    const boardPart = getShortExamBoard(p.examBoard);
+    const subjectPart = getShortSubjectName(p.subject || '');
+    const tierPart = p.tier ? `${p.tier}` : '';
 
-  // Question Range (Q1 to Q8)
-  const qNums = p.questions
-    .map((q: any) => parseInt(q.questionNumber))
-    .filter((n: any) => !isNaN(n))
-    .sort((a: any, b: any) => a - b);
+    // Question Range (Q1 to Q8)
+    const qNums = p.questions
+      .map((q: any) => parseInt(q.questionNumber))
+      .filter((n: any) => !isNaN(n))
+      .sort((a: any, b: any) => a - b);
 
-  let qRange = '';
-  if (qNums.length > 0) {
-    if (qNums.length === 1) {
-      qRange = ` Q${qNums[0]}`;
-    } else {
-      qRange = ` Q${qNums[0]} to Q${qNums[qNums.length - 1]}`;
+    let qRange = '';
+    if (qNums.length > 0) {
+      if (qNums.length === 1) {
+        qRange = ` Q${qNums[0]}`;
+      } else {
+        qRange = ` Q${qNums[0]} to Q${qNums[qNums.length - 1]}`;
+      }
     }
+
+    const baseTitle = `${seriesPart} ${codePart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
+    return `${baseTitle}${qRange} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
   }
 
-  const baseTitle = `${seriesPart} ${codePart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
-  return `${baseTitle}${qRange} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
+  // All papers are generic or unknown. Bypass the structured builder and use the question text for a cleaner title
+  const firstQText = detectionResults[0]?.question?.text || '';
+  return generateGenericTitleFromText(firstQText, mode);
 }
 
 /**
