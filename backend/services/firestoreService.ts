@@ -1227,7 +1227,7 @@ export class FirestoreService {
       const currentApiRequests = existingStats.apiRequests || 0;
       const accumulatedApiRequests = currentApiRequests + (sanitizedMessage.role === 'assistant' ? 1 : 0);
 
-      const lastModelUsed = sanitizedMessage?.processingStats?.modelUsed || existingStats.lastModelUsed || 'gemini-2.0-flash';
+      const lastModelUsed = sanitizedMessage?.processingStats?.modelUsed || existingStats.lastModelUsed || 'gemini-2.5-flash';
       const lastApiUsed = sanitizedMessage?.processingStats?.apiUsed || existingStats.lastApiUsed || 'Unknown';
 
       const updatedStats = {

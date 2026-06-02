@@ -10,8 +10,7 @@ export const FILE_CONSTRAINTS = {
   MIN_SIZE: 1024 // 1KB minimum
 };
 
-// Model validation constants
-export const VALID_MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-pro-preview'];
+// Valid models are now fetched dynamically from the backend
 
 /**
  * Validate file input with fail-fast approach
@@ -52,12 +51,8 @@ export const validateFile = (file) => {
  * @throws {Error} - Throws immediately on validation failure
  */
 export const validateModel = (model) => {
-  if (!model) {
-    throw new Error('No model selected');
-  }
-
-  if (!VALID_MODELS.includes(model)) {
-    throw new Error(`Invalid model. Allowed: ${VALID_MODELS.join(', ')}`);
+  if (!model || typeof model !== 'string' || model.trim().length === 0) {
+    throw new Error('No valid model selected');
   }
 
   return true;

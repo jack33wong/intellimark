@@ -110,13 +110,15 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'gemini-2.0-flash' | 'gemini-2.5-flash' | 'gemini-3-flash-preview' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'auto';
+export type ModelType = 'gemini-3.1-flash-lite' | 'gemini-3-flash-preview' | 'gemini-3.5-flash' | 'gemini-2.5-flash-lite' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'auto';
 
 export interface AIModelConfig {
   name: string;
   apiEndpoint: string;
   maxTokens: number;
   temperature: number;
+  label?: string;
+  description?: string;
   model?: string;
   maxCompletionTokens?: number;
 }
@@ -291,7 +293,7 @@ export interface UnifiedMessage {
     imageSize?: number;
     ocrMethod?: string;
     classificationResult?: any;
-    modelUsed?: string;				// Real model version (e.g., "gemini-2.0-flash")
+    modelUsed?: string;				// Real model version (e.g., "gemini-2.5-flash")
     apiUsed?: string;              // API service used (e.g., "Google Gemini API")
     llmTokens?: number;
     llmInputTokens?: number;
@@ -349,8 +351,9 @@ export interface MarkingContext {
     totalMarks: number;
   };
   grade?: {
-    achieved: string;
-    boundaryType: 'Paper-Specific' | 'Overall-Total';
+    achieved: string | null;
+    predicted?: string | null;
+    boundaryType: 'Paper-Specific' | 'Overall-Total' | null;
     boundaries: { [grade: string]: number };
   };
   questionResults: MarkingContextQuestionResult[];
@@ -501,7 +504,7 @@ export interface SubjectMarkingResult {
     };
 
     // AI model used
-    modelUsed: string;            // "gemini-2.0-flash", "gpt-5-mini"
+    modelUsed: string;            // "gemini-2.5-flash", "gpt-5-mini"
   }>;
 
   // Aggregated statistics (calculated from all markingResults)

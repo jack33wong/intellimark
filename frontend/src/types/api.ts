@@ -29,7 +29,7 @@ export interface paths {
                     "application/json": {
                         imageData: string;
                         /** @enum {string} */
-                        model?: "gemini-2.0-flash" | "gemini-2.5-flash" | "gemini-2.5-pro" | "gemini-3-pro-preview" | "openai-gpt-4o";
+                        model?: "gemini-2.5-flash-lite" | "gemini-2.5-flash" | "gemini-2.5-pro" | "openai-gpt-4o";
                         sessionId?: string;
                     };
                 };

@@ -11,6 +11,7 @@ import ImageModeModal from '../common/ImageModeModal';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
+import { useModels } from '../../contexts/ModelContext';
 import { useSubscription } from '../../hooks/useSubscription';
 import ApiClient from '../../services/apiClient';
 import ConfigService from '../../services/configService';
@@ -78,6 +79,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
+  const { defaultModel } = useModels();
   const [canSelectModel, setCanSelectModel] = useState<boolean>(true); // Initialize with true, we'll check permission later
   const [chatInput, setChatInput] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -778,13 +780,13 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   };
 
   const handleModelSelection = useCallback((newModel: string) => {
-    // If user is trying to change away from 'auto' (or the current allowed default), check permissions
-    if (newModel !== 'auto' && !canSelectModel) {
+    // If user is trying to change away from defaultModel, check permissions
+    if (newModel !== defaultModel && !canSelectModel) {
       setShowUpgradeModal(true);
       return;
     }
     onModelChange(newModel);
-  }, [canSelectModel, onModelChange]);
+  }, [canSelectModel, onModelChange, defaultModel]);
 
   // V16.4: Background Mobile Sync Logic
   const handleMobileImages = useCallback(async (imageUrls: string[]) => {

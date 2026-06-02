@@ -32,6 +32,7 @@ export interface GradeBoundaryEntry {
 
 export interface GradeResult {
   grade: string | null;
+  predictedGrade?: string | null;
   boundaryType: 'Paper-Specific' | 'Overall-Total' | null;
   matchedBoundary: GradeBoundaryEntry | null;
   boundaries?: { [grade: string]: number }; // Store the actual boundaries used for calculation
@@ -126,6 +127,7 @@ export class GradeBoundaryService {
           matchingTier,
           examCode,
           studentScore,
+          totalMarks,
           boundaryEntry
         );
         if (result.error) {
@@ -143,6 +145,7 @@ export class GradeBoundaryService {
             matchingTier,
             examCode,
             studentScore,
+            totalMarks,
             boundaryEntry
           );
           if (result.error) {
@@ -160,7 +163,9 @@ export class GradeBoundaryService {
 
         const result = this.calculateOverallTotalGrade(
           matchingTier,
+          matchingSubject,
           studentScore,
+          totalMarks,
           boundaryEntry
         );
         if (result.error) {
@@ -202,14 +207,21 @@ export class GradeBoundaryService {
         return null;
       }
 
-      // Query grade boundaries collection
-      // Normalize search series (e.g., "May 2024" -> "June 2024" for Edexcel)
-      const normalizedSearchSeries = NormalizationService.normalizeExamSeries(examSeries, examBoard);
+      // Query grade boundaries collection using variations to catch "June", "May", or "Summer"
+      const seriesVariations = NormalizationService.getExamSeriesVariations(examSeries, examBoard);
 
-      const snapshot = await db.collection('gradeBoundaries')
-        .where('exam_board', '==', examBoard)
-        .where('exam_series', '==', normalizedSearchSeries)
-        .get();
+      let snapshot;
+      if (seriesVariations.length > 0) {
+        snapshot = await db.collection('gradeBoundaries')
+          .where('exam_board', '==', examBoard)
+          .where('exam_series', 'in', seriesVariations)
+          .get();
+      } else {
+        snapshot = await db.collection('gradeBoundaries')
+          .where('exam_board', '==', examBoard)
+          .where('exam_series', '==', examSeries)
+          .get();
+      }
 
       if (snapshot.empty) {
         return null;
@@ -243,6 +255,7 @@ export class GradeBoundaryService {
     tier: GradeBoundaryEntry['subjects'][0]['tiers'][0],
     examCode: string,
     studentScore: number,
+    currentPossibleScore: number,
     boundaryEntry: GradeBoundaryEntry
   ): GradeResult {
     if (!tier.papers || tier.papers.length === 0) {
@@ -281,8 +294,16 @@ export class GradeBoundaryService {
     // Calculate grade from boundaries
     const grade = this.findGradeFromBoundaries(studentScore, matchingPaper.boundaries);
 
+    let predictedGrade = grade;
+    if (currentPossibleScore > 0 && matchingPaper.max_mark && currentPossibleScore < matchingPaper.max_mark) {
+      const percentage = studentScore / currentPossibleScore;
+      const projectedScore = Math.round(percentage * matchingPaper.max_mark);
+      predictedGrade = this.findGradeFromBoundaries(projectedScore, matchingPaper.boundaries);
+    }
+
     return {
       grade,
+      predictedGrade,
       boundaryType: 'Paper-Specific',
       matchedBoundary: boundaryEntry,
       boundaries: matchingPaper.boundaries // Store boundaries for persistence
@@ -294,7 +315,9 @@ export class GradeBoundaryService {
    */
   private static calculateOverallTotalGrade(
     tier: GradeBoundaryEntry['subjects'][0]['tiers'][0],
+    subject: GradeBoundaryEntry['subjects'][0],
     studentScore: number,
+    currentPossibleScore: number,
     boundaryEntry: GradeBoundaryEntry
   ): GradeResult {
     if (!tier.overall_total_boundaries) {
@@ -309,8 +332,16 @@ export class GradeBoundaryService {
     // Calculate grade from boundaries
     const grade = this.findGradeFromBoundaries(studentScore, tier.overall_total_boundaries);
 
+    let predictedGrade = grade;
+    if (currentPossibleScore > 0 && subject.max_mark && currentPossibleScore < subject.max_mark) {
+      const percentage = studentScore / currentPossibleScore;
+      const projectedScore = Math.round(percentage * subject.max_mark);
+      predictedGrade = this.findGradeFromBoundaries(projectedScore, tier.overall_total_boundaries);
+    }
+
     return {
       grade,
+      predictedGrade,
       boundaryType: 'Overall-Total',
       matchedBoundary: boundaryEntry,
       boundaries: tier.overall_total_boundaries // Store boundaries for persistence
@@ -474,8 +505,9 @@ export class GradeBoundaryService {
     totalPossibleScore: number,
     questionDetection?: any,
     markingSchemesMap?: Map<string, any>
-  ): Promise<{ grade: string | null; boundaryType: 'Paper-Specific' | 'Overall-Total' | null; boundaries?: { [grade: string]: number } }> {
+  ): Promise<{ grade: string | null; predictedGrade: string | null; boundaryType: 'Paper-Specific' | 'Overall-Total' | null; boundaries?: { [grade: string]: number } }> {
     let calculatedGrade: string | null = null;
+    let predictedGrade: string | null = null;
     let gradeBoundaryType: 'Paper-Specific' | 'Overall-Total' | null = null;
     let gradeBoundaries: { [grade: string]: number } | undefined = undefined;
 
@@ -505,10 +537,16 @@ export class GradeBoundaryService {
           totalPossibleScore
         );
 
+        // Always store boundaries if available
+        if (gradeResult.boundaries) {
+          gradeBoundaryType = gradeResult.boundaryType;
+          gradeBoundaries = gradeResult.boundaries;
+        }
         if (gradeResult.grade) {
           calculatedGrade = gradeResult.grade;
-          gradeBoundaryType = gradeResult.boundaryType;
-          gradeBoundaries = gradeResult.boundaries; // Store boundaries for persistence
+        }
+        if (gradeResult.predictedGrade) {
+          predictedGrade = gradeResult.predictedGrade;
         } else if (gradeResult.error) {
         }
       } catch (gradeError) {
@@ -524,6 +562,7 @@ export class GradeBoundaryService {
 
     return {
       grade: calculatedGrade,
+      predictedGrade: predictedGrade,
       boundaryType: gradeBoundaryType,
       boundaries: gradeBoundaries
     };

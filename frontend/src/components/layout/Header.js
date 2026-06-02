@@ -26,6 +26,7 @@ import { useSubscription } from '../../hooks/useSubscription';
 import SubscriptionService from '../../services/subscriptionService';
 import ModelSelector from '../focused/ModelSelector';
 import { STORAGE_KEYS } from '../../utils/constants';
+import { useModels } from '../../contexts/ModelContext';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -33,7 +34,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const { credits: userCredits } = useCredits();
-  const { subscription: userSubscription, loading: subscriptionLoading, setSubscription: setUserSubscription } = useSubscription();
+  const { subscription: userSubscription, loading: subscriptionLoading, setSubscription: setUserSubscription, checkPermission } = useSubscription();
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -42,12 +43,14 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const profileRef = useRef(null);
   const subscriptionRef = useRef(null);
 
+  const { models, defaultModel, isLoading: isModelsLoading } = useModels();
+
   // New state for header model selection (syncing with MarkingPageContext)
   const [headerModel, setHeaderModel] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || 'gemini-2.0-flash';
+      return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || 'fast';
     } catch (e) {
-      return 'gemini-2.0-flash';
+      return 'fast';
     }
   });
 
@@ -65,6 +68,11 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   }, [headerModel]);
 
   const handleHeaderModelChange = (model) => {
+    if (model !== defaultModel && !checkPermission('model_selection')) {
+      navigate('/upgrade', { state: { fromApp: true } });
+      return;
+    }
+
     setHeaderModel(model);
     try {
       localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, model);

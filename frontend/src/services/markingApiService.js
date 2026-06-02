@@ -304,7 +304,7 @@ class SimpleSessionService {
           // Store processing metadata from backend (message-specific stats only)
           processingStats: {
             apiUsed: data.processingStats.apiUsed || 'Google Gemini API',
-            modelUsed: data.processingStats.modelUsed || 'gemini-2.5-flash',
+            modelUsed: data.processingStats.modelUsed || 'thinking',
             annotations: data.processingStats.totalAnnotations || 0,
             totalMarks: data.processingStats.totalMarks || 0,
             awardedMarks: data.processingStats.awardedMarks || 0,
@@ -510,7 +510,7 @@ class SimpleSessionService {
     }
   }
 
-  async processStream(endpoint, paper, model = 'gemini-2.0-flash', onProgress = null, aiMessageId = null) {
+  async processStream(endpoint, paper, model = 'thinking', onProgress = null, aiMessageId = null) {
     try {
       const authToken = await this.getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
@@ -611,7 +611,7 @@ class SimpleSessionService {
     }
   }
 
-  async processMultiImageWithProgress(files, model = 'gemini-2.0-flash', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
+  async processMultiImageWithProgress(files, model = 'thinking', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
     try {
       const authToken = await this.getAuthToken();
       const headers = {};
@@ -721,7 +721,7 @@ class SimpleSessionService {
     }
   }
 
-  async processImageWithProgress(imageData, model = 'gemini-2.0-flash', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, originalFileName = null) {
+  async processImageWithProgress(imageData, model = 'thinking', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, originalFileName = null) {
     try {
       const authToken = await this.getAuthToken();
       const headers = {};

@@ -190,6 +190,7 @@ export class MarkingPersistenceService {
                 markingSchemesMap
             );
             const calculatedGrade = gradeResult.grade;
+            const predictedGrade = gradeResult.predictedGrade;
             const gradeBoundaryType = gradeResult.boundaryType;
             const gradeBoundaries = gradeResult.boundaries;
 
@@ -231,6 +232,7 @@ export class MarkingPersistenceService {
                     scoreText: overallScoreText
                 },
                 grade: calculatedGrade,
+                predictedGrade: predictedGrade,
                 gradeBoundaryType: gradeBoundaryType,
                 gradeBoundaries: gradeBoundaries,
                 markingContext: richMarkingContext,

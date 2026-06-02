@@ -13,6 +13,7 @@
  * 
  * Migration completed: Now using AI Studio API key authentication
  */
+import { resolveModelTier } from './aiModels.js';
 
 /**
  * LLM Pricing (per 1M tokens)
@@ -25,10 +26,15 @@
  * NOTE: Gemini pricing reflects AI STUDIO rates (as of Dec 2025)
  */
 export const LLM_PRICING: Record<string, { input: number; output: number }> = {
-  // GOOGLE AI STUDIO PRICING (Current - Dec 2025)
-  'gemini-2.0-flash': { input: 0.10, output: 0.40 },      // Latest flash model (cheapest)
-  'gemini-2.5-flash': { input: 0.10, output: 0.40 },      // Assumed same as 2.0 Flash
+  // GOOGLE AI STUDIO PRICING
+  'gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
   'gemini-3-flash-preview': { input: 0.50, output: 3.00 },
+  'gemini-3.5-flash': { input: 1.50, output: 9.00 },
+  
+  // Legacy models (kept for compatibility)
+  'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 }, // Latest flash lite model
+  'gemini-2.5-flash': { input: 0.30, output: 2.50 },      // Corrected to official pricing
+  'gemini-2.5-pro': { input: 1.25, output: 10.00 },
 
   // OPENAI PRICING
   'openai-gpt-4o': { input: 2.50, output: 10.00 },
@@ -51,9 +57,8 @@ export const MATHPIX_PRICING = {
  * @returns Pricing object with input and output costs, or null if model not found
  */
 export function getLLMPricing(model: string): { input: number; output: number } | null {
-  // Normalize model name (handle 'auto' and resolve to default for backward compatibility)
-  const normalizedModel = model === 'auto' ? 'gemini-2.0-flash' : model;
-
+  // Normalize model name (handle tiers and exact strings)
+  let normalizedModel = resolveModelTier(model);
   const pricing = LLM_PRICING[normalizedModel];
   return pricing || null;
 }

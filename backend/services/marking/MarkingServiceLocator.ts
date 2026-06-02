@@ -219,7 +219,7 @@ export class MarkingServiceLocator {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.0-flash',
+    model: ModelType = 'gemini-2.5-flash',
     tracker?: any
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     try {
@@ -303,7 +303,7 @@ export class MarkingServiceLocator {
     ocrText: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.0-flash',
+    model: ModelType = 'gemini-2.5-flash',
     tracker?: any,
     category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage"
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
@@ -377,7 +377,7 @@ export class MarkingServiceLocator {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'gemini-2.0-flash'
+    model: ModelType = 'gemini-2.5-flash'
   ): Promise<Response> {
     const { getModelInfo } = await import('../../config/aiModels.js');
     const modelInfo = getModelInfo(model);

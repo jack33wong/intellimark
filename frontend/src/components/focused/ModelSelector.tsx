@@ -4,8 +4,8 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import './ModelSelector.css'; // Assuming styles are in this file
-import { AI_MODELS } from '../../utils/constants';
 import { Check } from 'lucide-react';
+import { useModels } from '../../contexts/ModelContext';
 
 // Define the type for the props this component receives
 interface ModelSelectorProps {
@@ -28,32 +28,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const models = [
-    {
-      id: AI_MODELS.GEMINI_2_0_FLASH,
-      name: 'Gemini 2.0 Flash',
-      label: 'Fast',
-      description: 'Answers quickly'
-    },
-    {
-      id: AI_MODELS.GEMINI_2_5_FLASH,
-      name: 'Gemini 2.5 Flash',
-      label: 'Thinking',
-      description: 'Solves complex problems'
-    },
-    {
-      id: AI_MODELS.GEMINI_3_FLASH_PREVIEW,
-      name: 'Gemini 3.0 Flash',
-      label: 'Pro',
-      description: 'Thinks longer for advanced math & code'
-    },
-    {
-      id: AI_MODELS.OPENAI_GPT_4O,
-      name: 'GPT-4o',
-      label: 'GPT-4o',
-      description: 'Latest advanced model from OpenAI'
-    },
-  ];
+  const { models } = useModels();
 
   const handleToggle = () => {
     if (!disabled) {
@@ -77,7 +52,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   }, []);
 
   const selectedModelData = models.find(m => m.id === selectedModel);
-  const selectedModelName = selectedModelData?.label || selectedModelData?.name || 'Select Model';
+  const selectedModelName = selectedModelData?.label || selectedModelData?.name || selectedModel || 'Select Model';
 
   return (
     <div className={`model-selector ${size}`} ref={dropdownRef}>

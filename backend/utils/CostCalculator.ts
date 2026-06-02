@@ -4,6 +4,7 @@
  */
 
 import { getLLMPricing, getMathpixPricing } from '../config/pricing.js';
+import { getDefaultModel, resolveModelTier } from '../config/aiModels.js';
 
 export interface CostBreakdown {
   llmCost: number;
@@ -13,7 +14,7 @@ export interface CostBreakdown {
 
 /**
  * Calculate LLM cost based on model and token usage
- * @param model - The model name (e.g., 'gemini-2.0-flash', 'openai-gpt-5-mini')
+ * @param model - The model name (e.g., 'gemini-2.5-flash', 'openai-gpt-5-mini')
  * @param inputTokens - Input tokens used
  * @param outputTokens - Output tokens used
  * @returns Cost in USD
@@ -24,8 +25,9 @@ export function calculateLLMCost(model: string, inputTokens: number, outputToken
   const pricing = getLLMPricing(model);
   if (!pricing) {
     console.warn(`[COST CALCULATOR] Unknown model: ${model}, using default pricing`);
-    // Fallback to gemini-2.0-flash pricing
-    const defaultPricing = getLLMPricing('gemini-2.0-flash');
+    // Fallback to default pricing
+    const defaultModel = resolveModelTier(getDefaultModel());
+    const defaultPricing = getLLMPricing(defaultModel);
     if (!defaultPricing) return 0;
 
     return (inputTokens / 1_000_000) * defaultPricing.input + (outputTokens / 1_000_000) * defaultPricing.output;
@@ -61,7 +63,7 @@ export function calculateTotalCost(sessionStats: any): CostBreakdown {
   const llmOutputTokens = sessionStats?.totalLlmOutputTokens ?? (totalLlmTokens * 0.2);
 
   const totalMathpixCalls = sessionStats?.totalMathpixCalls || 0;
-  const modelUsed = sessionStats?.lastModelUsed || 'gemini-2.0-flash';
+  const modelUsed = sessionStats?.lastModelUsed || getDefaultModel();
 
   const llmCost = calculateLLMCost(modelUsed, llmInputTokens, llmOutputTokens);
   const mathpixCost = calculateMathpixCost(totalMathpixCalls);

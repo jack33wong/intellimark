@@ -20,7 +20,7 @@
   /* More rounded corners */
   box-shadow: var(--shadow-L);
   min-width: 380px;
-  /* Even wider dropdown */
+  /* More compact dropdown */
   z-index: 10000 !important;
   opacity: 1;
   transform: translateY(0);
@@ -34,26 +34,28 @@
 }
 
 .info-dropdown-content {
-  padding: 20px;
+  padding: 12px;
   background: var(--background-card);
   /* Match chat history input background */
-  border-radius: 16px;
+  border-radius: 12px;
   /* Match parent rounded corners */
-  overflow: hidden;
-  /* Ensure content respects rounded corners */
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 550px;
+  /* Ensure content respects rounded corners and scrolls if too tall */
 }
 
 /* Dropdown Header */
 .dropdown-header {
   border-bottom: 1px solid var(--border-main);
   /* Darker border to match chat input */
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .dropdown-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   /* White text for contrast */
@@ -65,17 +67,17 @@
 
 /* Dropdown Main Content */
 .dropdown-main-content {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 /* Label-Value Pairs */
 .label-value-pairs {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 /* Exam Paper Section */
 .exam-paper-section {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 /* Label-Value Item */
@@ -83,7 +85,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: 4px 0;
   border-bottom: 1px solid var(--border-main);
   /* Darker border to match chat input */
 }
@@ -93,14 +95,14 @@
 }
 
 .label-value-item .label {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-secondary);
   /* Light grey text */
   font-weight: 500;
 }
 
 .label-value-item .value {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-primary);
   /* White text for contrast */
   font-weight: 600;
@@ -161,11 +163,11 @@
 .agent-speed-section {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16px;
-  padding: 12px;
+  margin-bottom: 8px;
+  padding: 8px;
   background: var(--background-menu-gray);
   /* Darker background for contrast */
-  border-radius: 12px;
+  border-radius: 8px;
   /* More rounded corners */
   border: 1px solid var(--border-main);
   /* Darker border to match chat input */
@@ -173,11 +175,11 @@
 
 /* Cost Section */
 .cost-section {
-  margin-bottom: 16px;
-  padding: 12px;
+  margin-bottom: 8px;
+  padding: 8px;
   background: var(--background-menu-gray);
   /* Darker background for contrast */
-  border-radius: 12px;
+  border-radius: 8px;
   /* More rounded corners */
   border: 1px solid var(--border-main);
   /* Darker border to match chat input */
@@ -223,7 +225,7 @@
 
 .agent-info .label,
 .speed-info .label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-secondary);
   /* Light grey text */
   text-transform: uppercase;
@@ -232,7 +234,7 @@
 
 .agent-info .value,
 .speed-info .value {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text-primary);
   /* White text for contrast */
   font-weight: 600;
@@ -248,12 +250,12 @@
 
 /* Dropdown Rating Section - Gray rounded background */
 .dropdown-rating-section {
-  margin-bottom: 16px;
-  margin-top: 16px;
-  padding: 12px 16px;
+  margin-bottom: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
   background: var(--background-menu-gray);
   /* Gray background */
-  border-radius: 12px;
+  border-radius: 8px;
   /* Rounded corners */
   border: 1px solid var(--border-main);
   /* Dark border */
@@ -272,7 +274,7 @@
 }
 
 .dropdown-rating-section .rating-label .label {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-secondary);
   /* Light grey text */
   font-weight: 500;
@@ -286,7 +288,7 @@
 }
 
 .rating-section .label {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-secondary);
   /* Light grey text */
   font-weight: 500;
@@ -296,10 +298,13 @@
 
 .star {
   font-size: 16px;
-  color: var(--text-tertiary);
-  /* Medium grey for empty stars */
+  color: #9ca3af; /* Darker grey for empty stars in light mode */
   cursor: pointer;
   transition: color 0.2s ease;
+}
+
+.dark .star {
+  color: #d1d5db; /* Original light grey for empty stars in dark mode */
 }
 
 .star.filled {
@@ -311,11 +316,11 @@
 .dropdown-footer {
   border-top: 1px solid var(--border-main);
   /* Darker border to match chat input */
-  padding-top: 12px;
+  padding-top: 8px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  font-size: 11px;
+  gap: 6px;
+  font-size: 10px;
 }
 
 .dropdown-footer .token-count,
@@ -334,8 +339,8 @@
 .dropdown-footer .last-update {
   grid-column: 1 / -1;
   /* Span full width */
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--border-main);
 }
 
@@ -553,12 +558,7 @@
 
 /* Star rating styles are defined in ChatInterface.css */
 
-.star {
-  cursor: pointer;
-  color: #d1d5db;
-  transition: color 0.2s ease;
-  font-size: 18px;
-}
+/* Star rating styles are defined above */
 
 .star:hover,
 .star.active {

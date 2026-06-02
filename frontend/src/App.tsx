@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ModelProvider } from './contexts/ModelContext';
 import { MarkingPageProvider } from './contexts/MarkingPageContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import OptionalAuthRoute from './components/auth/OptionalAuthRoute';
@@ -326,15 +327,17 @@ const App: React.FC = () => {
   return (
     <HelmetProvider>
       <AuthProvider>
-        <Router future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true
-        }}>
-          <ScrollToTop />
-          <AnalyticsTracker />
-          <AppContent />
-          <UnifiedProfileModal />
-        </Router>
+        <ModelProvider>
+          <Router future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}>
+            <ScrollToTop />
+            <AnalyticsTracker />
+            <AppContent />
+            <UnifiedProfileModal />
+          </Router>
+        </ModelProvider>
       </AuthProvider>
     </HelmetProvider>
   );

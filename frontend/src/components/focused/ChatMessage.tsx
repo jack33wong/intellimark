@@ -54,7 +54,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   session,
   addMessage,
   startAIThinking,
-  selectedModel = 'gemini-2.0-flash', // Default to Gemini 2.0 Flash
+  selectedModel = 'thinking', // Default to Gemini 2.0 Flash
   onEnterSplitMode,
   onNavigate,
   isSyncingRef
@@ -278,7 +278,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const requestBody: any = {
         message: suggestion,
         sessionId: session?.id,
-        model: selectedModel || 'gemini-2.0-flash',
+        model: selectedModel || 'thinking',
         mode: mode,
         sourceMessageId: message.id,
         contextQuestionId: message.contextQuestionId
@@ -301,7 +301,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const result = await response.json();
       if (result.success) {
         const { simpleSessionService } = await import('../../services/markingApiService.js');
-        simpleSessionService.handleTextChatComplete(result, selectedModel || 'gemini-2.0-flash');
+        simpleSessionService.handleTextChatComplete(result, selectedModel || 'thinking');
       }
     } catch (error) {
       console.error('❌ [FOLLOW-UP] Unexpected error:', error);

@@ -417,10 +417,15 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Prepend "Your Work" section if applicable
     let finalResponse = aiResponse;
     if (aiResponse && contextSummary) {
-      // Detect question number from AI response
-      const qMatch = aiResponse.match(/(?:question|q)\s*(\d+)/i);
+      // Detect explicit tag from AI response
+      const qMatch = aiResponse.match(/\[SHOW_WORK_Q:\s*(\d+)\]/i);
       if (qMatch && qMatch[1]) {
         const questionNumber = qMatch[1];
+        
+        // Remove the hidden tag from the text so the user doesn't see it
+        aiResponse = aiResponse.replace(qMatch[0], '').trim();
+        finalResponse = aiResponse;
+
         // Get marking context from last marking message or request
         const currentMarkingContext = !isAuthenticated && req.body.markingContext ? req.body.markingContext : null;
 

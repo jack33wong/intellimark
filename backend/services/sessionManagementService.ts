@@ -57,6 +57,7 @@ export interface AIMessageData {
     scoreText: string;
   };
   grade?: string | null;
+  predictedGrade?: string | null;
   gradeBoundaryType?: 'Paper-Specific' | 'Overall-Total' | null;
   gradeBoundaries?: { [grade: string]: number };
   markingContext?: import('../types/index.js').MarkingContext;
@@ -328,6 +329,11 @@ export class SessionManagementService {
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
           const { board, examSeries, tier, subject, qualification, paperCode } = firstQuestionDetection.match;
+          
+          if (paperCode === 'Generic Question' || board === 'Unknown') {
+            return `Generic Question Session - ${questionNumberDisplay}`;
+          }
+
           const boardShort = getShortExamBoard(board);
           const subjectShort = getShortSubjectName(subject || qualification || '');
           const baseTitle = `${examSeries} ${paperCode || ''} ${boardShort} ${subjectShort} ${tier || ''}`.replace(/\s+/g, ' ').trim();
@@ -463,7 +469,7 @@ export class SessionManagementService {
    */
   private static getRealModelName(modelType: string): string {
     if (modelType === 'auto') {
-      return 'gemini-2.0-flash'; // Default model for backward compatibility
+      return 'gemini-2.5-flash'; // Default model for backward compatibility
     }
     return modelType; // Return the actual model name
   }
@@ -773,6 +779,7 @@ export class SessionManagementService {
       questionOnlyResponses,
       studentScore,
       grade,
+      predictedGrade,
       gradeBoundaryType,
       gradeBoundaries,
       markingContext,

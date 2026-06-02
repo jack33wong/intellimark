@@ -186,6 +186,8 @@ export async function performQuestionDetection(extractedQuestionText: string | u
   return questionDetection;
 }
 
+import { resolveModelTier } from '../../config/aiModels.js';
+
 // Helper function to log performance summary
 export function logPerformanceSummary(stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } }, totalProcessingTime: number, actualModel: string, mode: string) {
   const totalTime = totalProcessingTime / 1000;
@@ -211,7 +213,7 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
 
   console.log('\n=== PERFORMANCE SUMMARY ===');
   console.log(`Total Processing Time: ${totalTime.toFixed(1)}s`);
-  console.log(`Model Used: ${actualModel}`);
+  console.log(`Model Used: ${resolveModelTier(actualModel)}`);
   console.log('----------------------------');
 
   // Calculate step percentages

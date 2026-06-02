@@ -189,7 +189,7 @@ export class MarkingController {
 
                 try {
                     // Calculate cost of the CURRENT operation from our local tracker
-                    const incrementalCost = usageTracker.calculateCost(options.model || 'gemini-2.0-flash').total;
+                    const incrementalCost = usageTracker.calculateCost(options.model || 'gemini-2.5-flash').total;
                     console.log(`💳 [CREDIT DEDUCT] Incremental cost from tracker: ${incrementalCost}`);
 
                     if (incrementalCost > 0) {

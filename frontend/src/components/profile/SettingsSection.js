@@ -1,39 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Moon, Sun, Monitor } from 'lucide-react';
 import useTheme from '../../hooks/useTheme';
-import { STORAGE_KEYS, AI_MODELS } from '../../utils/constants';
+import { STORAGE_KEYS } from '../../utils/constants';
+import { useModels } from '../../contexts/ModelContext';
 
 const SettingsSection = () => {
     // Theme management via hook
     const { theme, setTheme } = useTheme();
 
+    const { models, defaultModel, isLoading: isModelsLoading } = useModels();
+
     // Model management - synced with localStorage and other components
     const [selectedModel, setSelectedModel] = useState(() => {
-        return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || AI_MODELS.GEMINI_2_0_FLASH;
+        const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
+        if (saved) return saved;
+        return 'fast';
     });
 
-    const models = [
-        {
-            id: AI_MODELS.GEMINI_2_0_FLASH,
-            name: 'Gemini 2.0 Flash',
-            description: 'Answers quickly'
-        },
-        {
-            id: AI_MODELS.GEMINI_2_5_FLASH,
-            name: 'Gemini 2.5 Flash',
-            description: 'Solves complex problems'
-        },
-        {
-            id: AI_MODELS.GEMINI_3_FLASH_PREVIEW,
-            name: 'Gemini 3.0 Flash',
-            description: 'For advanced math & code'
-        },
-        {
-            id: AI_MODELS.OPENAI_GPT_4O,
-            name: 'GPT-4o',
-            description: 'Latest advanced model'
-        },
-    ];
+    // Validate selected model once models are loaded
+    useEffect(() => {
+        if (!isModelsLoading && models.length > 0) {
+            const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
+            if (!saved || !models.find(m => m.id === saved)) {
+                setSelectedModel(defaultModel);
+                localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, defaultModel);
+            }
+        }
+    }, [isModelsLoading, models, defaultModel]);
 
     // Sync with other components via window event
     useEffect(() => {

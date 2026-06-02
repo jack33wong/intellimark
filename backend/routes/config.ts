@@ -4,9 +4,10 @@
  */
 
 import express from 'express';
-import CREDIT_CONFIG from '../config/credit.config';
+import CREDIT_CONFIG from '../config/credit.config.js';
 import { getFirestore } from '../config/firebase.js';
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
+import { AI_MODELS, getDefaultModel, MODEL_TIERS } from '../config/aiModels.js';
 
 const router = express.Router();
 
@@ -19,6 +20,36 @@ router.get('/credits', (req, res) => {
         conversionRate: CREDIT_CONFIG.conversionRate,
         planCredits: CREDIT_CONFIG.planCredits
     });
+});
+
+/**
+ * GET /api/config/models
+ * Returns available AI models and their UI configuration
+ */
+router.get('/models', (req, res) => {
+    try {
+        // Return tiers for the UI
+        const models = Object.entries(MODEL_TIERS)
+            .filter(([id]) => id !== 'auto' && id !== 'gpt-4o-mini') // Hide internal and mini models
+            .map(([id, exactModel]) => {
+                const config = AI_MODELS[exactModel];
+                return {
+                    id,
+                    name: config.name,
+                    label: config.label || config.name,
+                    description: config.description || ''
+                };
+            });
+        
+        res.json({
+            success: true,
+            models,
+            defaultModel: getDefaultModel()
+        });
+    } catch (error) {
+        console.error('Error fetching models:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 /**

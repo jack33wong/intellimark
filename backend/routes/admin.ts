@@ -88,7 +88,28 @@ const mockData: { [key: string]: any[] } = {
 
 
 /**
+ * GET /api/admin/users/:userId/email
+ * Fetch a user's email address by their UID (Admin only)
+ */
+router.get('/users/:userId/email', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    // Fetch user from Firebase Auth
+    const userRecord = await admin.auth().getUser(userId);
+    res.json({ email: userRecord.email || 'No email associated' });
+  } catch (error) {
+    console.error('Error fetching user email:', error);
+    res.status(500).json({ error: `Failed to fetch user email: ${error.message}` });
+  }
+});
+
+/**
  * GET /api/admin/json/collections/:collectionName
+
  * Get all entries from a JSON collection
  */
 router.get('/json/collections/:collectionName', async (req: Request, res: Response) => {

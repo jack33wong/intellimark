@@ -43,4 +43,24 @@ export class NormalizationService {
 
         return normalizedSeries;
     }
+
+    /**
+     * Get all possible variations of an exam series for database querying
+     */
+    static getExamSeriesVariations(series: string, board: string): string[] {
+        if (!series) return [];
+        const normalizedSeries = series.trim();
+        const normalizedBoard = board ? this.normalizeExamBoard(board) : '';
+        const variations = [normalizedSeries];
+
+        const match = normalizedSeries.match(/^(May|June|Summer)\s+(\d{4})$/i);
+        if (match && (normalizedBoard === 'Pearson Edexcel' || normalizedBoard === 'OCR' || !normalizedBoard)) {
+            const year = match[2];
+            variations.push(`Summer ${year}`);
+            variations.push(`June ${year}`);
+            variations.push(`May ${year}`);
+        }
+
+        return Array.from(new Set(variations));
+    }
 }

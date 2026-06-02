@@ -9,7 +9,8 @@
  * - Simple cost calculation
  */
 
-import { getLLMPricing } from '../config/pricing.js';
+import { getLLMPricing, getMathpixPricing } from '../config/pricing.js';
+import { getDefaultModel, resolveModelTier } from '../config/aiModels.js';
 
 /**
  * Track token usage across different phases with input/output split
@@ -187,7 +188,7 @@ export class UsageTracker {
      * Calculate cost for a specific phase
      */
     private calculatePhaseCost(inputTokens: number, outputTokens: number, model?: string): number {
-        const pricing = getLLMPricing(model || 'gemini-2.0-flash');
+        const pricing = getLLMPricing(model || getDefaultModel());
         if (!pricing) {
             return 0;
         }
@@ -232,8 +233,9 @@ export class UsageTracker {
 
         if (!pricingToUse) {
             console.warn(`[UsageTracker] Unknown model: ${model}, using default pricing`);
-            // Fallback to gemini-2.0-flash
-            const defaultPricing = getLLMPricing('gemini-2.0-flash');
+            // Fallback to default model pricing
+            const defaultModel = resolveModelTier(getDefaultModel());
+            const defaultPricing = getLLMPricing(defaultModel);
             if (defaultPricing) {
                 pricingToUse = defaultPricing;
             }
@@ -372,7 +374,7 @@ export class UsageTracker {
      * Get summary for logging
      */
     getSummary(model?: string, _deprecatedMathpixCalls?: number): string {
-        const costs = this.calculateCost(model || 'gemini-2.5-flash');
+        const costs = this.calculateCost(model || getDefaultModel());
         const { inputTokens: totalInput, outputTokens: totalOutput } = this.getTotalInputOutput();
         const mathpixPages = this.usage.mathpixPages;
 

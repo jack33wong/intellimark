@@ -345,9 +345,12 @@ export class ModelProvider {
 
     // Check for truncation even if content exists
     if (finishReason === 'MAX_TOKENS') {
-      const tokenCount = result.usageMetadata?.totalTokenCount || 'unknown';
+      const outputTokens = result.usageMetadata?.candidatesTokenCount || 'unknown';
       const modelVersion = result.modelVersion || 'unknown';
-      throw new Error(`Gemini response truncated (MAX_TOKENS). Generated ${tokenCount} tokens using model version ${modelVersion}. The model limit may be lower than configured.`);
+      console.warn(`⚠️ [ModelProvider] Gemini response truncated (MAX_TOKENS). Generated ${outputTokens} output tokens using model version ${modelVersion}. The JSON parser will attempt to repair the truncated output.`);
+      if (content) {
+        return content;
+      }
     }
 
     if (!content) {
@@ -372,8 +375,9 @@ export class ModelProvider {
     tracker?: any,
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
-    // Resolve 'auto' to default model
-    const resolvedModel = model === 'auto' ? 'gemini-2.0-flash' : model;
+    // Resolve tier to actual model using aiModels
+    const { resolveModelTier } = await import('../config/aiModels.js');
+    const resolvedModel = resolveModelTier(model);
 
     // Detect provider from model name
     const isOpenAI = resolvedModel.startsWith('openai-');

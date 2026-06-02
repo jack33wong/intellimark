@@ -264,7 +264,7 @@ export class MarkingSchemeController {
                 mode: 'marking-scheme',
                 sessionId: sessionId,
                 sourceMessageId: userMessage.id,
-                model: model === 'auto' ? 'gemini-2.0-flash' : model,
+                model: model === 'auto' ? 'gemini-2.5-flash' : model,
                 detectedQuestion: detectedQuestion,
                 tracker: usageTracker
             });

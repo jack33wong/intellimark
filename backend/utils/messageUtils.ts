@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import type { UnifiedMessage, DetectedQuestion } from '../types/index.js';
+import { AIModelConfig, ModelType } from '../types/index.js';
+import { getDefaultModel, resolveModelTier } from '../config/aiModels.js';
 
 /**
  * Consolidated message utilities for backend
@@ -420,9 +422,9 @@ export function calculateMessageProcessingStats(
   // Get real model name (reusing logic from sessionManagementService.ts)
   const getRealModelName = (modelType: string): string => {
     if (modelType === 'auto') {
-      return 'gemini-2.0-flash'; // Default model for backward compatibility
+      return resolveModelTier(getDefaultModel());
     }
-    return modelType;
+    return resolveModelTier(modelType);
   };
 
   const realModel = getRealModelName(actualModel);
@@ -485,9 +487,9 @@ export function calculateSessionStats(
   // Get real model name (reusing logic from sessionManagementService.ts)
   const getRealModelName = (modelType: string): string => {
     if (modelType === 'auto') {
-      return 'gemini-2.0-flash'; // Default model for backward compatibility
+      return resolveModelTier(getDefaultModel());
     }
-    return modelType;
+    return resolveModelTier(modelType);
   };
 
   const realModel = getRealModelName(actualModel);

@@ -8,34 +8,21 @@ import { simpleSessionService } from '../services/markingApiService';
 import apiClient from '../services/apiClient';
 import { useScrollManager } from '../hooks/useScrollManager';
 import { createAIMessageId } from '../utils/messageUtils.js';
-import { STORAGE_KEYS, AI_MODELS } from '../utils/constants.js';
+import { STORAGE_KEYS } from '../utils/constants.js';
 import { getSessionImages } from '../utils/imageCollectionUtils';
 import { useCredits } from '../hooks/useCredits';
 import InsufficientCreditsModal from '../components/common/InsufficientCreditsModal';
+import { useModels } from './ModelContext';
 import GuestLimitModal from '../components/modals/GuestLimitModal';
 
 const MarkingPageContext = createContext();
 
-// Helper function to get saved model from localStorage with validation
 const getSavedModel = () => {
   try {
-    const savedModel = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
-    // Validate that saved model is one of the allowed models
-    const validModels = [
-      AI_MODELS.GEMINI_2_0_FLASH,
-      AI_MODELS.GEMINI_2_5_FLASH,
-      AI_MODELS.GEMINI_2_5_PRO,
-      AI_MODELS.GEMINI_3_FLASH_PREVIEW,
-      AI_MODELS.OPENAI_GPT_4O
-    ];
-    if (savedModel && validModels.includes(savedModel)) {
-      return savedModel;
-    }
+    return localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL) || 'fast';
   } catch (error) {
-    // localStorage might not be available (e.g., private browsing)
-    console.warn('Failed to read selected model from localStorage:', error);
+    return 'fast';
   }
-  return AI_MODELS.GEMINI_2_0_FLASH; // Default to Gemini 2.0 Flash (cheapest, latest)
 };
 
 const initialState = {
@@ -144,12 +131,25 @@ export const MarkingPageProvider = ({
     };
   }, [apiProcessor]);
 
+  const { models, defaultModel: dynamicDefaultModel, isLoading: isModelsLoading } = useModels();
+
   const [state, dispatch] = useReducer(markingPageReducer, undefined, () => ({
     ...initialState,
     selectedModel: getSavedModel(),
     visibleTableIds: new Set(),
   }));
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible, isContextFilterActive, isGlobalSplit } = state;
+
+  // Validate saved model once dynamic models are loaded
+  useEffect(() => {
+    if (!isModelsLoading && models.length > 0) {
+      const savedModel = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
+      if (!savedModel || !models.find(m => m.id === savedModel)) {
+        localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, dynamicDefaultModel);
+        dispatch({ type: 'SET_SELECTED_MODEL', payload: dynamicDefaultModel });
+      }
+    }
+  }, [isModelsLoading, models, dynamicDefaultModel]);
 
   const lastSyncedSessionId = useRef(null);
   const lastSyncedModeSessionId = useRef(null);
@@ -495,7 +495,7 @@ export const MarkingPageProvider = ({
       const response = await apiClient.post('/api/messages/chat', {
         message: trimmedText,
         messageId: userMessageId, // Pass the local user message ID to backend
-        model: selectedModel || 'gemini-2.0-flash',
+        model: selectedModel || 'fast',
         sessionId: currentSession?.id || null,
         markingContext: guestMarkingContext, // Send context for guest users
         aiMessageId: aiMessageId, // Pass the AI message ID to backend
@@ -507,7 +507,7 @@ export const MarkingPageProvider = ({
 
       if (data.success) {
         // Use the new standardized completion handler
-        simpleSessionService.handleTextChatComplete(data, selectedModel || 'gemini-2.0-flash');
+        simpleSessionService.handleTextChatComplete(data, selectedModel || 'fast');
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
@@ -575,7 +575,7 @@ export const MarkingPageProvider = ({
         '/api/model-answer',
         {
           paper: trimmedInput,
-          model: selectedModel || 'gemini-2.0-flash',
+          model: selectedModel || 'fast',
           sessionId: currentSession?.id || null,
           aiMessageId: aiMessageId
         },
@@ -653,7 +653,7 @@ export const MarkingPageProvider = ({
         '/api/marking-scheme',
         {
           paper: trimmedInput,
-          model: selectedModel || 'gemini-2.0-flash',
+          model: selectedModel || 'fast',
           sessionId: currentSession?.id || null,
           aiMessageId: aiMessageId
         },

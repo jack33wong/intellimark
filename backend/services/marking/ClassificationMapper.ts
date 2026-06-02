@@ -22,11 +22,11 @@ export class ClassificationMapper {
     static async mapQuestionsToPages(
         images: Array<{ imageData: string; fileName?: string; pageIndex: number }>,
         tracker?: UsageTracker,  // UsageTracker (optional)
-        model?: string,  // User-selected model (defaults to gemini-2.0-flash for backward compatibility)
+        model?: string,  // User-selected model (defaults to gemini-2.5-flash for backward compatibility)
         debug: boolean = false
     ): Promise<PageMap[]> {
         // Use user-selected model or default to Flash for cost optimization
-        const MAPPING_MODEL = model || 'gemini-2.0-flash';
+        const MAPPING_MODEL = model || 'gemini-2.5-flash';
 
         console.log(`[MAPPER] Using model: ${MAPPING_MODEL}`);
         console.log(`[MAPPER] Starting Map Pass for ${images.length} pages...`);

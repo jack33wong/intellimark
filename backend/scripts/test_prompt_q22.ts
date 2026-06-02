@@ -39,7 +39,7 @@ d) The line continues to the right. Will this line pass through the point (50, -
     const user = getPrompt('markingScheme.user', qText, qScheme, "22", 5);
 
     try {
-        const res = await ModelProvider.callText(sys, user, 'gemini-2.0-flash' as any);
+        const res = await ModelProvider.callText(sys, user, 'gemini-2.5-flash' as any);
         console.log("=== AI RESPONSE ===");
         console.log(res.content);
     } catch (e) {

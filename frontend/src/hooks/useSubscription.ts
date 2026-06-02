@@ -121,19 +121,18 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     const checkPermission = useCallback((feature: 'analysis' | 'model_selection') => {
         // ROBUST CHECK: Using keyword matching to handle Variations like "Ultra Plan" or "Pro Month"
-        const isUltra = planId.includes('ultra');
-        const isPro = planId.includes('pro');
+        const currentPlan = planId.toLowerCase();
+        const isUltra = currentPlan.includes('ultra');
+        const isPro = currentPlan.includes('pro');
 
         if (feature === 'analysis') {
-            // Both Pro and Ultra (or keywords) are allowed
-            return isPro || isUltra;
+            return isPro || isUltra || ALLOWED_ANALYSIS_PLANS.includes(currentPlan);
         }
         if (feature === 'model_selection') {
-            // Pro and Ultra allowed
-            return isPro || isUltra;
+            return isPro || isUltra || ALLOWED_MODEL_SELECTION_PLANS.includes(currentPlan);
         }
         return false;
-    }, [planId]);
+    }, [planId, ALLOWED_ANALYSIS_PLANS, ALLOWED_MODEL_SELECTION_PLANS]);
 
     return {
         subscription,

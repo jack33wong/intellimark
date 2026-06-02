@@ -174,13 +174,13 @@ export class ChatContextBuilder {
             };
         }
 
-        // 3. Build Grade Info
         let grade = undefined;
-        if (data.gradeBoundaryResult) {
+        if (data.gradeBoundaryResult && data.gradeBoundaryResult.boundaries) {
             grade = {
                 achieved: data.gradeBoundaryResult.grade,
+                predicted: data.gradeBoundaryResult.predictedGrade,
                 boundaryType: data.gradeBoundaryResult.boundaryType,
-                boundaries: data.gradeBoundaryResult.gradeBoundaries
+                boundaries: data.gradeBoundaryResult.boundaries
             };
         }
 
@@ -261,11 +261,25 @@ export class ChatContextBuilder {
      * Now uses clean nested parts[] structure - no parsing needed!
      */
     static formatContextAsPrompt(markingContext: MarkingContext, contextQuestionId?: string | null): string {
-        let prompt = `Here is the student's work and the marking results for context:\n\n`;
+        let prompt = `Here is the global state of the student's exam:\n\n`;
 
-        // 1. Overall Summary
-        prompt += `** Overall Score **: ${markingContext.overallScore.scoreText} (${markingContext.overallScore.percentage}%) \n`;
-        prompt += `** Questions Marked **: ${markingContext.totalQuestionsMarked} \n`;
+        // Global Performance
+        prompt += `\n** OVERALL PERFORMANCE **\n`;
+        prompt += `** Total Score **: ${markingContext.overallScore.scoreText} (${markingContext.overallScore.percentage}%)\n`;
+        if (markingContext.grade) {
+            prompt += `** Grade Achieved **: ${markingContext.grade.achieved || 'N/A'} \n`;
+            if (markingContext.grade.predicted) {
+                prompt += `** Predicted Grade **: ${markingContext.grade.predicted} \n`;
+            }
+            if (markingContext.grade.boundaries && Object.keys(markingContext.grade.boundaries).length > 0) {
+                prompt += `** Grade Boundaries (${markingContext.grade.boundaryType}) **: \n`;
+                const sortedBoundaries = Object.entries(markingContext.grade.boundaries)
+                    .sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
+                for (const [g, mark] of sortedBoundaries) {
+                    prompt += `- Grade ${g}: ${mark} marks\n`;
+                }
+            }
+        }
 
         if (markingContext.examInfo) {
             const e = markingContext.examInfo;
@@ -277,7 +291,12 @@ export class ChatContextBuilder {
             prompt += `** Grade Achieved **: ${markingContext.grade.achieved} \n`;
         }
 
-        prompt += `\n## Question Results\n\n`;
+        // Add Universal Score Breakdown Map
+        prompt += `\n## Score Breakdown Map\n`;
+        for (const q of markingContext.questionResults) {
+            prompt += `- Question ${q.number}: ${q.earnedMarks}/${q.totalMarks} marks\n`;
+        }
+        prompt += `\n`;
 
         // 2. Question Details - iterate parts[] directly
         let questionsToInclude = markingContext.questionResults;
@@ -286,18 +305,18 @@ export class ChatContextBuilder {
         if (contextQuestionId) {
             questionsToInclude = markingContext.questionResults.filter(q => String(q.number) === String(contextQuestionId));
             if (questionsToInclude.length > 0) {
-                prompt = `Here is the student's work and marking results for **Question ${contextQuestionId}** specifically:\n\n`;
-                // Re-add overall basics but focused
-                if (markingContext.examInfo) {
-                    const e = markingContext.examInfo;
-                    prompt += `** Exam **: ${e.examSeries} ${e.examCode} ${e.examBoard} \n`;
-                }
-                prompt += `\n`;
+                prompt += `## Deep Focus: Question ${contextQuestionId}\n`;
+                prompt += `The user is currently viewing Question ${contextQuestionId}. Here are the deep details for this specific question:\n\n`;
             } else {
-                // Fallback to all if not found (shouldn't happen)
+                // Fallback to all if not found
                 questionsToInclude = markingContext.questionResults;
+                prompt += `## Detailed Question Results\n\n`;
             }
+        } else {
+            prompt += `## Detailed Question Results\n\n`;
         }
+
+        const formatPartLabel = (qNum: string, pNum: string) => pNum.toLowerCase().startsWith(qNum.toLowerCase()) ? pNum : `${qNum}${pNum}`;
 
         for (const q of questionsToInclude) {
             prompt += `### Question ${q.number}: ${q.text} \n`;
@@ -317,7 +336,7 @@ export class ChatContextBuilder {
                     part.marks.forEach(mark => {
                         if (mark.work) {
                             if (part.part) {
-                                prompt += `[${q.number}${part.part}] ${mark.work}\n`;
+                                prompt += `[${formatPartLabel(q.number, part.part)}] ${mark.work}\n`;
                             } else {
                                 prompt += `${mark.work}\n`;
                             }
@@ -331,7 +350,7 @@ export class ChatContextBuilder {
                 q.parts.forEach(part => {
                     if (part.part) {
                         // Sub-question marks
-                        prompt += `[${q.number}${part.part}]\n`;
+                        prompt += `[${formatPartLabel(q.number, part.part)}]\n`;
                     }
                     part.marks.forEach(m => {
                         const cleanReasoning = m.reasoning ? m.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
@@ -361,7 +380,8 @@ export class ChatContextBuilder {
             }
         }
 
-        prompt += `Start your response by acknowledging the student's specific work if relevant.\n`;
+        // Start your response naturally.
+
         // The following block seems to be intended for a different context where 'messages' and 'chatContext' are available.
         // As they are not defined in this function, this block will be commented out to avoid errors,
         // or if the user intends to add these variables, they should be defined.

@@ -267,7 +267,7 @@ export class ModelAnswerController {
                 mode: 'model-answer',
                 sessionId: sessionId,
                 sourceMessageId: userMessage.id,
-                model: model === 'auto' ? 'gemini-2.0-flash' : model,
+                model: model === 'auto' ? 'gemini-2.5-flash' : model,
                 detectedQuestion: detectedQuestion,
                 tracker: usageTracker
             });

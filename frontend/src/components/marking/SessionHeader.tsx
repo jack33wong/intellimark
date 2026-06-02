@@ -9,7 +9,7 @@ import { Menu } from 'lucide-react';
 import './css/SessionManagement.css';
 
 const SessionHeader: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAdmin, getAuthToken } = useAuth();
   const {
     sessionTitle,
     isFavorite,
@@ -30,6 +30,8 @@ const SessionHeader: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the toggle button
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(sessionTitle);
+  const [adminUserEmail, setAdminUserEmail] = useState<string | null>(null);
+  const [isLoadingEmail, setIsLoadingEmail] = useState(false);
 
   const getModelUsed = (): string => {
     const stats = currentSession?.sessionStats;
@@ -83,6 +85,35 @@ const SessionHeader: React.FC = () => {
     setIsEditingTitle(true);
     setEditedTitle(sessionTitle);
   };
+
+  const fetchUserEmail = async (userId: string) => {
+    if (adminUserEmail || isLoadingEmail) return;
+    setIsLoadingEmail(true);
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(`/api/admin/users/${userId}/email`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAdminUserEmail(data.email);
+      } else {
+        setAdminUserEmail('Error');
+      }
+    } catch (err) {
+      setAdminUserEmail('Error');
+    } finally {
+      setIsLoadingEmail(false);
+    }
+  };
+
+  useEffect(() => {
+    const isUserAdmin = isAdmin ? isAdmin() : false;
+    if (showInfoDropdown && isUserAdmin && currentSession?.userId) {
+      fetchUserEmail(currentSession.userId);
+    }
+  }, [showInfoDropdown, isAdmin, currentSession?.userId]);
+
 
   const handleSaveTitle = async () => {
     if (editedTitle.trim() === '' || editedTitle === sessionTitle) {
@@ -253,8 +284,9 @@ const SessionHeader: React.FC = () => {
     // Get score and grade from messages
     const messageWithScore = currentSession?.messages?.find((m: any) => m.studentScore);
     const studentScore = messageWithScore?.studentScore;
-    const gradeMessage = currentSession?.messages?.find((m: any) => m.grade);
-    const gradeValue = gradeMessage?.grade || grade;
+    const messageWithGradeData = currentSession?.messages?.find((m: any) => m.grade !== undefined || m.predictedGrade !== undefined);
+    const gradeValue = messageWithGradeData?.grade || grade;
+    const predictedGradeValue = messageWithGradeData?.predictedGrade;
 
     if (detectedQuestion && detectedQuestion.found) {
       let examBoard, subject, examCode, examSeries, tier;
@@ -274,53 +306,81 @@ const SessionHeader: React.FC = () => {
         tier = detectedQuestion.tier;
       }
 
-      // FIX: If this is a generic question (mock match), do NOT use the detailed title logic.
-      // Instead, fall back to the pre-generated sessionTitle (which handles non-past paper titles nicely).
-      if (examCode === 'Generic Question' || examBoard === 'Unknown') {
-        return sessionTitle;
-      }
+      const isGeneric = 
+        examCode === 'Generic Question' || 
+        subject === 'Generic Question' || 
+        examBoard === 'Unknown' || 
+        examBoard === 'N/A' ||
+        examCode === 'Unknown' ||
+        examCode === 'N/A';
 
-      const mainTitle = (examBoard && subject && examCode)
+      const mainTitle = (examBoard && subject && examCode && !isGeneric)
         ? `${examBoard} ${subject} ${examCode}`
         : sessionTitle;
 
       const subtitleParts = [];
-      if (examSeries) subtitleParts.push(examSeries);
-      if (tier && tier !== 'N/A') subtitleParts.push(tier);
-
-      if (subtitleParts.length > 0) {
-        return (
-          <>
-            <span className="title-main">{mainTitle}</span>
-            <span className="title-separator"> • </span>
-            <span className="title-secondary">{subtitleParts.join(' • ')}</span>
-
-            {/* Score and Grade badges inline with title */}
-            {studentScore && studentScore.scoreText && (
-              <>
-                <span className="title-separator"> • </span>
-                <span className="title-badge score-badge">
-                  <span className="badge-label">Score:</span>
-                  <span className="badge-value">{studentScore.scoreText}</span>
-                </span>
-              </>
-            )}
-            {gradeValue && (
-              <>
-                <span className="title-separator"> • </span>
-                <span className="title-badge grade-badge">
-                  <span className="badge-label">Grade:</span>
-                  <span className="badge-value">{gradeValue}</span>
-                </span>
-              </>
-            )}
-          </>
-        );
+      if (!isGeneric) {
+        if (examSeries && examSeries !== 'N/A' && examSeries !== 'General') subtitleParts.push(examSeries);
+        if (tier && tier !== 'N/A') subtitleParts.push(tier);
       }
 
-      return mainTitle;
+      return (
+        <>
+          <span className="title-main">{mainTitle}</span>
+          {subtitleParts.length > 0 && (
+            <>
+              <span className="title-separator"> • </span>
+              <span className="title-secondary">{subtitleParts.join(' • ')}</span>
+            </>
+          )}
+
+          {/* Score and Grade badges inline with title */}
+          {studentScore && studentScore.scoreText && (
+            <>
+              <span className="title-separator"> • </span>
+              <span className="title-badge score-badge">
+                <span className="badge-label">Score:</span>
+                <span className="badge-value">{studentScore.scoreText}</span>
+              </span>
+            </>
+          )}
+          {gradeValue && (
+            <>
+              <span className="title-separator"> • </span>
+              <span className="title-badge grade-badge">
+                <span className="badge-label">Grade:</span>
+                <span className="badge-value">{gradeValue}</span>
+              </span>
+            </>
+          )}
+          {!gradeValue && predictedGradeValue && (
+            <>
+              <span className="title-separator"> • </span>
+              <span className="title-badge grade-badge predicted-grade">
+                <span className="badge-label">Predicted Grade:</span>
+                <span className="badge-value">{predictedGradeValue}</span>
+              </span>
+            </>
+          )}
+        </>
+      );
     }
-    return sessionTitle;
+    
+    // Fallback if no detected question but we still want to show score if available
+    return (
+      <>
+        <span className="title-main">{sessionTitle}</span>
+        {studentScore && studentScore.scoreText && (
+          <>
+            <span className="title-separator"> • </span>
+            <span className="title-badge score-badge">
+              <span className="badge-label">Score:</span>
+              <span className="badge-value">{studentScore.scoreText}</span>
+            </span>
+          </>
+        )}
+      </>
+    );
   };
 
   return (
@@ -544,6 +604,31 @@ const SessionHeader: React.FC = () => {
                       <span className="label">Last Update:</span>
                       <span className="value">{currentSession?.updatedAt ? new Date(currentSession.updatedAt).toLocaleString() : 'N/A'}</span>
                     </div>
+                    {(() => {
+                      const isUserAdmin = isAdmin ? isAdmin() : false;
+                      if (isUserAdmin && currentSession?.userId) {
+                        return (
+                          <div 
+                            className="admin-info-section" 
+                            style={{ gridColumn: '1 / -1', marginTop: '6px', borderTop: '1px solid var(--border-main)', paddingTop: '6px' }}
+                          >
+                            <div className="label-value-item" style={{ flexWrap: 'nowrap', padding: '4px 0' }}>
+                              <span className="label" style={{ whiteSpace: 'nowrap', minWidth: '40px', marginRight: '8px', fontSize: '10px' }}>USER ID</span>
+                              <span className="value" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '10px', textAlign: 'right' }}>
+                                {currentSession.userId}
+                              </span>
+                            </div>
+                            <div className="label-value-item" style={{ flexWrap: 'nowrap', padding: '4px 0', borderBottom: 'none' }}>
+                              <span className="label" style={{ whiteSpace: 'nowrap', minWidth: '40px', marginRight: '8px', fontSize: '10px' }}>EMAIL</span>
+                              <span className="value" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '10px', textAlign: 'right' }}>
+                                {isLoadingEmail ? 'Loading...' : (adminUserEmail || 'N/A')}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               </div>
