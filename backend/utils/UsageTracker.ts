@@ -281,8 +281,9 @@ export class UsageTracker {
         const performanceSummary = calculatePhaseCost(this.usage.performanceSummary);
         const other = calculatePhaseCost(this.usage.other);
 
-        // Mathpix: $0.004 per page
-        const mathpix = this.usage.mathpixPages * 0.004;
+        // Mathpix: Calculate dynamically from pricing config
+        const mathpixPrice = getMathpixPricing();
+        const mathpix = this.usage.mathpixPages * mathpixPrice;
 
         return {
             classification,
