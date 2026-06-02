@@ -80,7 +80,7 @@ export class MarkingSchemeController {
                     // Build metadata header HTML
                     const { series: formattedSeries, tier: formattedTier, qualification: qualName } = ExamReferenceService.formatMetadataDisplay(meta);
                     const totalQuestions = paperDoc.questions?.length || 0;
-                    const totalMarks = (paperDoc.questions || []).reduce((sum: number, q: any) => sum + (q.marks || 0), 0);
+                    const totalMarks = (paperDoc.questions || []).reduce((sum: number, q: any) => sum + (Number(q.marks) || 0), 0);
                     metadataHeader = `<div class="model-exam-header">
   <div class="exam-header-title">${qualName} ${meta.exam_board}</div>
   <div class="exam-header-pills">
