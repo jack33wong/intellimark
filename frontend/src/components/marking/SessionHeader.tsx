@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Menu } from 'lucide-react';
+import { Menu, Camera } from 'lucide-react';
 import './css/SessionManagement.css';
 
 const SessionHeader: React.FC = () => {
@@ -600,6 +600,25 @@ const SessionHeader: React.FC = () => {
                       <span className="label">Annotations</span>
                       <span className="value">{getAnnotations()}</span>
                     </div>
+                    {(() => {
+                      // Determine if this session came from a camera scan by checking original filenames
+                      const isCameraScan = currentSession?.messages?.some((m: any) => 
+                        m.imageDataArray?.some((img: any) => img.originalFileName?.startsWith('mobile-scan-'))
+                      );
+                      
+                      return (
+                        <div className="upload-source">
+                          <span className="label">Upload Source</span>
+                          <span className="value" style={{ color: isCameraScan ? 'var(--text-brand)' : 'inherit' }}>
+                            {isCameraScan ? (
+                              <><Camera size={14} style={{ verticalAlign: 'text-bottom', marginRight: '4px' }} /> Camera Scan</>
+                            ) : (
+                              'File Upload'
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <div className="last-update">
                       <span className="label">Last Update:</span>
                       <span className="value">{currentSession?.updatedAt ? new Date(currentSession.updatedAt).toLocaleString() : 'N/A'}</span>

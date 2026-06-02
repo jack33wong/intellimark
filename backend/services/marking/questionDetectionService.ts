@@ -382,7 +382,8 @@ export class QuestionDetectionService {
   private constructMatchResult(candidate: MatchCandidate, isRescueMode: boolean): ExamPaperMatch {
     const { paper, questionData, questionNumber, databaseText, score } = candidate;
     const meta = paper.metadata || {};
-    const parentMarks = questionData.marks ?? questionData.question_marks ?? questionData.max_marks ?? questionData.max_question_marks ?? questionData.total_marks ?? 0;
+    const rawMarks = questionData.marks ?? questionData.question_marks ?? questionData.max_marks ?? questionData.max_question_marks ?? questionData.total_marks ?? 0;
+    const parentMarks = Number(rawMarks) || 0;
 
     const board = meta.exam_board || meta.board;
     const code = meta.exam_code || meta.code;
@@ -732,7 +733,7 @@ export function buildExamPaperStructure(detectionResults: any[]) {
 
     const paperGroup = examPaperGroups.get(paperKey);
     const questionNumber = dr.question.questionNumber || match.questionNumber;
-    const marks = match.marks || 0;
+    const marks = Number(match.marks) || 0;
 
     // Use database text if available
     const questionText = match.databaseQuestionText || dr.question.text || '';
@@ -766,7 +767,7 @@ export function buildExamPaperStructure(detectionResults: any[]) {
   const multipleExamPapers = examPapers.length > 1;
 
   // Total marks across all uniqueness
-  const totalMarks = examPapers.reduce((sum, p) => sum + p.totalMarks, 0);
+  const totalMarks = examPapers.reduce((sum, p) => sum + (Number(p.totalMarks) || 0), 0);
 
   return {
     examPapers,
@@ -824,7 +825,7 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
  * Simple total marks calculator
  */
 export function calculateTotalMarks(detectionResults: any[]): number {
-  return detectionResults.reduce((sum, dr) => sum + (dr.detectionResult?.match?.marks || 0), 0);
+  return detectionResults.reduce((sum, dr) => sum + (Number(dr.detectionResult?.match?.marks) || 0), 0);
 }
 
 export const questionDetectionService = QuestionDetectionService.getInstance();
