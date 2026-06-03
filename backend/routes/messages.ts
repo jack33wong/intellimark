@@ -268,7 +268,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats
-      } else if (isFollowUpMode(mode) && (!message || mode === 'similarquestions')) {
+      } else if (isFollowUpMode(mode)) {
         // Handle all follow-up requests using the centralized service
         const { SuggestedFollowUpService } = await import('../services/marking/suggestedFollowUpService.js');
 
@@ -278,7 +278,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           sourceMessageId,
           model: resolvedModel,
           detectedQuestion: req.body.detectedQuestion, // Pass detectedQuestion from request (for unauthenticated users)
-          tracker: usageTracker // NEW: pass tracker for usage stats
+          tracker: usageTracker, // NEW: pass tracker for usage stats
+          contextQuestionId: contextQuestionId // Pass contextQuestionId so it only generates for the specific question if requested
         });
 
         aiResponse = followUpResult.response;
@@ -466,12 +467,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Create AI message using factory
     const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, aiResponse, 'chat');
 
-    // Dynamically determine the best context ID for the AI message
-    // If AI explicitly mentions a different question in its response, use that
+    // Use the explicitly provided context ID, or the one extracted from [SHOW_WORK_Q: X] if applicable
     let aiContextQuestionId = contextQuestionId;
-    const qMatchFinal = aiResponse.match(/(?:question|q)\s*(\d+)/i);
-    if (qMatchFinal && qMatchFinal[1]) {
-      aiContextQuestionId = qMatchFinal[1];
+    // We already extracted questionNumber from [SHOW_WORK_Q: X] tag earlier if it existed
+    if (aiResponse && aiResponse.match(/\[SHOW_WORK_Q:\s*(\d+)\]/i)) {
+      const match = aiResponse.match(/\[SHOW_WORK_Q:\s*(\d+)\]/i);
+      if (match && match[1]) {
+        aiContextQuestionId = match[1];
+      }
     }
 
     // --- NEW: Increment Guest Usage ---

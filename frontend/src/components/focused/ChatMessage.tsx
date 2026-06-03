@@ -479,7 +479,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 {(message as any).performanceSummary && (
                   <div className="ai-performance-summary">
                     <div className="ai-performance-summary-content">
-                      {(message as any).performanceSummary}
+                      <MarkdownMathRenderer
+                        content={(message as any).performanceSummary}
+                        className="chat-message-renderer"
+                        options={{
+                          throwOnError: false,
+                          errorColor: '#cc0000',
+                        }}
+                      />
                     </div>
                     <hr className="summary-separator" />
                   </div>

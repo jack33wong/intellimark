@@ -619,8 +619,7 @@ export class SessionManagementService {
     files: Express.Multer.File[],
     isPdf: boolean,
     isMultiplePdfs: boolean,
-    pdfContext?: any,
-    standardizedPages?: import('../types/markingRouter.ts').StandardizedPage[]
+    pdfContext?: any
   ): { structuredImageDataArray?: any[]; structuredPdfContexts?: any[] } {
     let structuredImageDataArray: any[] | undefined = undefined;
     let structuredPdfContexts: any[] | undefined = undefined;
@@ -669,15 +668,7 @@ export class SessionManagementService {
 
     } else {
       // For images, use imageDataArray for all users
-      if (standardizedPages && standardizedPages.length > 0) {
-        // PREFER standardizedPages for metadata sync (essential for re-indexing)
-        structuredImageDataArray = standardizedPages.map((page, idx) => ({
-          url: null,
-          originalFileName: page.originalFileName || 'unknown-page',
-          fileSize: page.fileSize || 0,
-          pageIndex: idx // Essential for sync
-        }));
-      } else if (files.length === 1) {
+      if (files.length === 1) {
         structuredImageDataArray = [{
           url: null, // Will be updated to Firebase URL for authenticated users
           originalFileName: files[0].originalname,
@@ -863,9 +854,11 @@ export class SessionManagementService {
       // Extract metadata from first detection result if available
       const firstDetection = aiData.detectionResults?.[0]?.detectionResult?.match || {};
       const firstQuestionMetadata = aiData.detectionResults?.[0]?.question || {};
+      
+      const isAnyQuestionFound = aiData.detectionResults?.some((r: any) => r.detectionResult?.found === true) || false;
 
       detectedQuestion = {
-        found: true,
+        found: isAnyQuestionFound,
         multipleExamPapers: false,
         multipleQuestions: questions.length > 1,
         totalMarks: syncTotal,
@@ -897,7 +890,29 @@ export class SessionManagementService {
 
     // Aggregated Summaries Redesign: Distilled Data Pass
     const summaryStartTime = Date.now();
-    const overallPerformanceSummary = await this.generateMasterPerformanceSummary(allQuestionResults, actualModel, aiData.usageTracker);
+    const firstExamPaper = detectedQuestion?.examPapers?.[0];
+    
+    // Check if it's a real past paper (not a generic fallback)
+    const isPastPaper = firstExamPaper && firstExamPaper.examBoard && firstExamPaper.examBoard !== 'Unknown' && detectedQuestion?.found === true;
+
+    const examInfo = firstExamPaper ? {
+      examBoard: firstExamPaper.examBoard,
+      examSeries: firstExamPaper.examSeries || (firstExamPaper as any).year,
+      subject: firstExamPaper.subject,
+      examCode: firstExamPaper.examCode,
+      tier: firstExamPaper.tier
+    } : undefined;
+
+    const overallPerformanceSummary = await this.generateMasterPerformanceSummary(
+      allQuestionResults, 
+      actualModel, 
+      aiData.usageTracker,
+      isPastPaper ? grade : undefined,
+      isPastPaper ? predictedGrade : undefined,
+      isPastPaper ? gradeBoundaries : undefined,
+      isPastPaper ? studentScore : studentScore, // Pass studentScore regardless
+      isPastPaper ? examInfo : undefined
+    );
 
     // Record timing if stepTimings is provided
     if (aiData.stepTimings) {
@@ -1024,7 +1039,16 @@ export class SessionManagementService {
   /**
    * Generates a cohesive master performance summary based on distilled results of all questions.
    */
-  private static async generateMasterPerformanceSummary(allQuestionResults: any[], model: string, tracker?: any): Promise<string | undefined> {
+  private static async generateMasterPerformanceSummary(
+    allQuestionResults: any[], 
+    model: string, 
+    tracker?: any,
+    grade?: string | null,
+    predictedGrade?: string | null,
+    gradeBoundaries?: any,
+    studentScore?: any,
+    examInfo?: any
+  ): Promise<string | undefined> {
     if (!allQuestionResults || allQuestionResults.length === 0) return undefined;
 
     // Distill the data for the AI pass
@@ -1049,12 +1073,27 @@ export class SessionManagementService {
       return `Q${qNum} (${topic}): Score ${score}. Key Points: ${feedback}`;
     }).join('\n');
 
+    let promptData = `DISTILLED QUESTION RESULTS:\n${distilledData}\n\n`;
+
+    if (examInfo) {
+      promptData += `EXAM INFO:\n- Board: ${examInfo.examBoard || 'N/A'}\n- Series: ${examInfo.examSeries || 'N/A'}\n- Subject: ${examInfo.subject || 'N/A'}\n- Paper Code: ${examInfo.examCode || 'N/A'}\n- Tier: ${examInfo.tier || 'N/A'}\n\n`;
+    }
+
+    if (studentScore) {
+      const percentage = studentScore.totalMarks > 0 ? Math.round((studentScore.awardedMarks / studentScore.totalMarks) * 100) : 0;
+      promptData += `STUDENT SCORE:\n- Awarded Marks: ${studentScore.awardedMarks}\n- Total Marks: ${studentScore.totalMarks}\n- Percentage: ${percentage}%\n\n`;
+    }
+
+    if (gradeBoundaries) {
+      promptData += `GRADE BOUNDARIES & RESULTS:\n- Grade Achieved: ${grade || 'N/A'}\n- Predicted Grade: ${predictedGrade || 'N/A'}\n- Grade Boundaries Breakdown: ${JSON.stringify(gradeBoundaries)}\n\n`;
+    }
+
     try {
       const { ModelProvider } = await import('../utils/ModelProvider.js');
       const { getPrompt } = await import('../config/prompts.js');
 
       const systemPrompt = getPrompt('masterSummary.system');
-      const userPrompt = getPrompt('masterSummary.user', distilledData);
+      const userPrompt = getPrompt('masterSummary.user', promptData);
 
       // Call AI for final synthesis
       const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, 'performanceSummary');

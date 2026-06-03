@@ -126,8 +126,7 @@ export class MarkingPersistenceService {
                 files,
                 isPdf,
                 isMultiplePdfs,
-                pdfContext,
-                standardizedPages
+                pdfContext
             );
 
             dbUserMessage = SessionManagementService.createUserMessageForDatabase(

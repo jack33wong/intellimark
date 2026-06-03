@@ -318,14 +318,22 @@ html.dark .guest-mode-floating-banner {
 .chat-message.assistant .chat-message-bubble {
   max-width: 100%;
   width: 100%;
-  border: none;
-  box-shadow: var(--shadow-sm);
-  padding: 0px 20px;
-  border-radius: 18px;
+  background: var(--background-nav);
+  border: 1px solid var(--border-main);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  padding: 16px 20px;
+  border-radius: 12px;
   border-bottom-left-radius: 4px;
   color: var(--text-primary);
   transition: all 0.2s ease;
   font-size: 1.0em;
+}
+
+.chat-message.assistant .chat-message-bubble.has-your-work {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 /* Split Mode Overrides: Reduce horizontal padding when space is halved */
@@ -668,9 +676,58 @@ html.dark .guest-mode-floating-banner {
   }
 }
 
+/* AI Performance Summary Table Styling */
+.ai-performance-summary table,
+.chat-message-renderer table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  background: var(--background-menu-white);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.ai-performance-summary th,
+.ai-performance-summary td,
+.chat-message-renderer th,
+.chat-message-renderer td {
+  padding: 6px 8px;
+  text-align: center;
+  border: 1px solid var(--border-main);
+}
+
+.ai-performance-summary th,
+.chat-message-renderer th {
+  background: var(--background-menu-gray);
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: left;
+  font-size: 12px;
+}
+
+/* For horizontal tables, center the values but keep headers left-aligned */
+.ai-performance-summary td,
+.chat-message-renderer td {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.ai-performance-summary th.highlighted-grade,
+.ai-performance-summary td.highlighted-grade,
+.chat-message-renderer th.highlighted-grade,
+.chat-message-renderer td.highlighted-grade {
+  background-color: var(--text-brand);
+  color: var(--text-white);
+  font-weight: 700;
+  border: 1px solid var(--border-white);
+  text-align: center;
+}
+
 .summary-separator {
   border: none;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-main);
   margin: 16px 0 8px 0;
   opacity: 0.3;
 }

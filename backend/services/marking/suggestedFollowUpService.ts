@@ -17,6 +17,7 @@ export interface SuggestedFollowUpRequest {
   model: string;
   detectedQuestion?: any; // Optional: for unauthenticated users who don't have sessions in Firestore
   tracker?: UsageTracker; // NEW: optional tracker for usage stats
+  contextQuestionId?: string; // Add contextQuestionId to filter
 }
 
 export interface SuggestedFollowUpResult {
@@ -31,7 +32,7 @@ export class SuggestedFollowUpService {
    * Handle any follow-up request with common logic
    */
   static async handleSuggestedFollowUp(request: SuggestedFollowUpRequest): Promise<SuggestedFollowUpResult> {
-    const { mode, sessionId, sourceMessageId, model, detectedQuestion, tracker } = request;
+    const { mode, sessionId, sourceMessageId, model, detectedQuestion, tracker, contextQuestionId } = request;
 
     // Validate inputs
     if (!isValidSuggestedFollowUpMode(mode)) {
@@ -82,7 +83,7 @@ export class SuggestedFollowUpService {
     });
 
     // Execute the follow-up action
-    const result = await this.executeFollowUpAction(mode, targetMessage, model, progressTracker, tracker);
+    const result = await this.executeFollowUpAction(mode, targetMessage, model, progressTracker, tracker, contextQuestionId);
 
     // Ensure progress data is included in result
     return {
@@ -198,7 +199,8 @@ export class SuggestedFollowUpService {
     targetMessage: any,
     model: string,
     progressTracker: ProgressTracker,
-    tracker?: UsageTracker
+    tracker?: UsageTracker,
+    contextQuestionId?: string
   ): Promise<SuggestedFollowUpResult> {
     // 1. Setup
     progressTracker.startStep('ai_thinking');
@@ -220,7 +222,7 @@ export class SuggestedFollowUpService {
     }
 
     // 2. Process Questions directly (Handle both examPapers and root questions)
-    const questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
+    let questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
       (ep.questions || []).map((q: any) => ({
         ...q,
         base: String(q.questionNumber || q.number || 'unknown'),
@@ -228,6 +230,25 @@ export class SuggestedFollowUpService {
         examCode: ep.examCode || 'N/A'
       }))
     );
+
+    // If contextQuestionId is provided, filter the questions array to ONLY include that question!
+    if (contextQuestionId) {
+      questions = questions.filter((q: any) => String(q.base).toLowerCase() === String(contextQuestionId).toLowerCase());
+      
+      // Fallback: If contextQuestionId didn't match any questions, proceed with all of them, or handle error?
+      // It's safer to proceed with what we have if the filter returns empty
+      if (questions.length === 0) {
+         console.warn(`[FOLLOW-UP] contextQuestionId '${contextQuestionId}' did not match any questions. Proceeding with all questions.`);
+         questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
+          (ep.questions || []).map((q: any) => ({
+            ...q,
+            base: String(q.questionNumber || q.number || 'unknown'),
+            examBoard: ep.examBoard || 'Custom',
+            examCode: ep.examCode || 'N/A'
+          }))
+        );
+      }
+    }
 
     // 3. Parallel Execution
     const results = await Promise.all(questions.map(async (q) => {

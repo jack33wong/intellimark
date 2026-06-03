@@ -116,4 +116,52 @@ export class ImageUtils {
       throw error;
     }
   }
+
+  /**
+   * Splits a wide image exactly down the middle vertically into two separate images (Left and Right).
+   * @param imageData Base64 image data (Data URL or raw base64)
+   * @returns Array of two Base64 Data URLs [LeftHalf, RightHalf]
+   */
+  static async splitImageVertically(imageData: string): Promise<string[]> {
+    try {
+      let imageBuffer: Buffer;
+      const isDataUrl = imageData.startsWith('data:');
+      const mimeType = isDataUrl ? imageData.split(';')[0].split(':')[1] || 'image/jpeg' : 'image/jpeg';
+      
+      if (isDataUrl) {
+        const base64Data = imageData.split(',')[1];
+        if (!base64Data) throw new Error('Invalid data URL format');
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        imageBuffer = Buffer.from(imageData, 'base64');
+      }
+
+      const image = sharp(imageBuffer);
+      const metadata = await image.metadata();
+
+      if (!metadata.width || !metadata.height) {
+        throw new Error('Unable to extract dimensions for splitting.');
+      }
+
+      const halfWidth = Math.floor(metadata.width / 2);
+
+      // Extract left half
+      const leftBuffer = await sharp(imageBuffer)
+        .extract({ left: 0, top: 0, width: halfWidth, height: metadata.height })
+        .toBuffer();
+
+      // Extract right half
+      const rightBuffer = await sharp(imageBuffer)
+        .extract({ left: halfWidth, top: 0, width: metadata.width - halfWidth, height: metadata.height })
+        .toBuffer();
+
+      return [
+        `data:${mimeType};base64,${leftBuffer.toString('base64')}`,
+        `data:${mimeType};base64,${rightBuffer.toString('base64')}`
+      ];
+    } catch (error) {
+      console.error(`❌ [IMAGE UTILS] Error splitting image vertically:`, error);
+      throw error;
+    }
+  }
 }

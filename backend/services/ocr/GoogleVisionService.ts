@@ -39,6 +39,75 @@ export class GoogleVisionService {
   }
 
   /**
+   * NEW: Detects the physical orientation of the text in the image.
+   * Uses a weighted voting system across all text blocks to prevent marginal vertical text from dominating.
+   * Returns the clockwise rotation degrees (0, 90, 180, 270) required to make the image upright.
+   */
+  static async detectOrientation(imageBuffer: Buffer): Promise<number> {
+    try {
+      const result = await this.detectText(imageBuffer, 'DOCUMENT_TEXT_DETECTION');
+      
+      const page = result.fullTextAnnotation?.pages?.[0];
+      if (!page || !page.blocks || page.blocks.length === 0) {
+        console.warn('⚠️ [GOOGLE VISION] No text blocks found for orientation detection. Assuming 0 degrees.');
+        return 0;
+      }
+
+      let upVotes = 0;    // Needs 0
+      let downVotes = 0;  // Needs 180
+      let rightVotes = 0; // Needs 270 (Image is rotated 90 CW)
+      let leftVotes = 0;  // Needs 90 (Image is rotated 90 CCW)
+
+      for (const block of page.blocks) {
+        if (!block.boundingBox || !block.boundingBox.vertices || block.boundingBox.vertices.length < 2) continue;
+
+        const v0 = block.boundingBox.vertices[0];
+        const v1 = block.boundingBox.vertices[1];
+        const v2 = block.boundingBox.vertices[2];
+
+        const x0 = v0.x || 0;
+        const y0 = v0.y || 0;
+        const x1 = v1.x || 0;
+        const y1 = v1.y || 0;
+        const x2 = v2?.x || 0;
+        const y2 = v2?.y || 0;
+
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+
+        // Calculate a rough block area weight to prioritize main body text over marginal text
+        const width = Math.sqrt(dx * dx + dy * dy) || 1;
+        const height = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2)) || 1;
+        const weight = width * height;
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            // Text is horizontal
+            if (dx > 0) upVotes += weight;
+            else downVotes += weight;
+        } else {
+            // Text is vertical
+            if (dy > 0) rightVotes += weight; // 90° Clockwise -> needs 270
+            else leftVotes += weight;         // 90° Counter-Clockwise -> needs 90
+        }
+      }
+
+      // Determine the winner
+      const maxVotes = Math.max(upVotes, downVotes, rightVotes, leftVotes);
+      
+      if (maxVotes === 0) return 0; // Fallback
+      if (maxVotes === upVotes) return 0;
+      if (maxVotes === rightVotes) return 270;
+      if (maxVotes === leftVotes) return 90;
+      if (maxVotes === downVotes) return 180;
+
+      return 0;
+    } catch (error) {
+      console.error('❌ [GOOGLE VISION] Error during detectOrientation:', error);
+      return 0; // Safe fallback
+    }
+  }
+
+  /**
    * Helper method to preprocess images with Sharp operations
    */
   static async preprocessImage(

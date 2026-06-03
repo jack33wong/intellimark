@@ -7,6 +7,7 @@ import { ImageUtils } from '../../utils/ImageUtils.js';
 import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { MarkingOutputService } from './MarkingOutputService.js';
 import { MarkingPersistenceService } from './MarkingPersistenceService.js';
+import { ImageGeometryService } from './ImageGeometryService.js';
 import { createProgressData } from '../../utils/sseUtils.js';
 import {
     logPerformanceSummary,
@@ -426,7 +427,8 @@ export class MarkingPipelineService {
                 progressCallback(createProgressData(2, 'Processing as single image with multi-question detection...', MULTI_IMAGE_STEPS));
 
                 // Convert single image to standardized format for unified pipeline
-                const singleFileData = `data:${files[0].mimetype};base64,${files[0].buffer.toString('base64')}`;
+                const rawFileData = `data:${files[0].mimetype};base64,${files[0].buffer.toString('base64')}`;
+                const singleFileData = await ImageUtils.normalizeOrientation(rawFileData);
 
                 // Standardize the single image as if it were a multi-image input
                 standardizedPages = [{
@@ -463,11 +465,17 @@ export class MarkingPipelineService {
                 standardizedPages = await Promise.all(files.map(async (file, index): Promise<StandardizedPage | null> => {
                     if (!file.mimetype.startsWith('image/')) return null;
                     try {
-                        const metadata = await sharp(file.buffer).metadata();
+                        const rawData = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+                        const normalizedImageData = await ImageUtils.normalizeOrientation(rawData);
+                        
+                        const base64Data = normalizedImageData.split(',')[1];
+                        const imageBuffer = Buffer.from(base64Data, 'base64');
+                        const metadata = await sharp(imageBuffer).metadata();
+                        
                         if (!metadata.width || !metadata.height) return null;
                         return {
                             pageIndex: index,
-                            imageData: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+                            imageData: normalizedImageData,
                             originalFileName: file.originalname,
                             width: metadata.width,
                             height: metadata.height
@@ -501,6 +509,75 @@ export class MarkingPipelineService {
             if (standardizedPages.length === 0) {
                 throw new Error('Standardization failed: No processable pages/images found.');
             }
+
+            // --- 1. Vision Orientation Fix (Deterministic) ---
+            progressCallback(createProgressData(2, `Detecting orientation via Google Vision for ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
+            const logOrientationComplete = logStep('Vision Orientation Check', 'Google Cloud Vision');
+            
+            const { GoogleVisionService } = await import('../ocr/GoogleVisionService.js');
+
+            for (let i = 0; i < standardizedPages.length; i++) {
+                const page = standardizedPages[i];
+                // Convert base64 to buffer for Vision API
+                const base64Data = page.imageData.replace(/^data:image\/\w+;base64,/, '');
+                const imageBuffer = Buffer.from(base64Data, 'base64');
+                
+                const rotationNeeded = await GoogleVisionService.detectOrientation(imageBuffer);
+                
+                if (rotationNeeded > 0) {
+                    console.log(`🔄 [VISION ORIENTATION] Page ${page.pageIndex} needs ${rotationNeeded} degrees. Rotating...`);
+                    const rotatedBuffer = await ImageUtils.rotateImage(page.imageData, rotationNeeded);
+                    const mimeType = page.imageData.startsWith('data:') ? page.imageData.split(';')[0] : 'data:image/jpeg';
+                    page.imageData = `${mimeType};base64,${rotatedBuffer.toString('base64')}`;
+                    
+                    // Refresh dimensions after physical rotation
+                    if (rotationNeeded === 90 || rotationNeeded === 270) {
+                        const temp = page.width;
+                        page.width = page.height;
+                        page.height = temp;
+                    }
+                } else {
+                    console.log(`✅ [VISION ORIENTATION] Page ${page.pageIndex} is upright (0 degrees).`);
+                }
+            }
+            logOrientationComplete();
+
+            // --- 2. AI Semantic Geometry & Quality Check ---
+            progressCallback(createProgressData(2, `Running semantic quality check on ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
+            const logGeometryComplete = logStep('Semantic Geometry Check', 'gemini-3.1-flash-lite (HARDCODED)');
+            
+            const newStandardizedPages: StandardizedPage[] = [];
+            const geometryResults = await Promise.all(
+                standardizedPages.map(page => ImageGeometryService.analyze(page.imageData, page.width, page.height, 'gemini-3.1-flash-lite', usageTracker))
+            );
+
+            for (let i = 0; i < standardizedPages.length; i++) {
+                const page = standardizedPages[i];
+                const geo = geometryResults[i];
+
+                if (!geo.is_acceptable_quality) {
+                    throw new Error(`Quality Check Failed (Page ${page.pageIndex + 1}): ${geo.rejection_reason || 'Image is blurry, unreadable, or contains too many pages.'}`);
+                }
+
+                // Handle 2-page spread splitting
+                if (geo.is_two_page_spread) {
+                    console.log(`✂️ [GEOMETRY] Splitting 2-page spread for Page ${page.pageIndex}.`);
+                    const splitImages = await ImageUtils.splitImageVertically(page.imageData);
+                    
+                    newStandardizedPages.push({ ...page, imageData: splitImages[0] }); // Left
+                    newStandardizedPages.push({ ...page, imageData: splitImages[1] }); // Right
+                } else {
+                    newStandardizedPages.push(page);
+                }
+            }
+
+            // Re-assign pageIndex so everything is perfectly sequential after potential splits
+            standardizedPages = newStandardizedPages.map((page, index) => ({
+                ...page,
+                pageIndex: index
+            }));
+
+            logGeometryComplete();
 
             // --- Preprocessing (Common for Multi-Page PDF & Multi-Image) ---
             progressCallback(createProgressData(2, `Preprocessing ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
