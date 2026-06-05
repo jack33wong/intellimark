@@ -67,6 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [editingTitle, setEditingTitle] = useState('');
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -80,6 +81,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
+  const activeTabRef = useRef(activeTab);
+  
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
       setChatSessions([]);
@@ -88,13 +91,16 @@ const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
 
-    if (isInitializingRef.current) {
-      console.log(`[PERF] Sidebar: initializeSessions already in progress, skipping.`);
+    // Only skip if initializing for the SAME tab
+    if (isInitializingRef.current && activeTabRef.current === activeTab) {
+      console.log(`[PERF] Sidebar: initializeSessions already in progress for ${activeTab}, skipping.`);
       return;
     }
+    
+    activeTabRef.current = activeTab;
 
     const startTime = performance.now();
-    console.log(`[PERF] Sidebar: Starting initializeSessions for user ${user.uid}`);
+    console.log(`[PERF] Sidebar: Starting initializeSessions for user ${user.uid}, tab ${activeTab}`);
     isInitializingRef.current = true;
     setInitialLoading(true);
     setHasMore(true);
@@ -133,8 +139,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
     } finally {
-      isInitializingRef.current = false;
-      setInitialLoading(false);
+      // Only reset the flag if we haven't started another initialization in the meantime
+      if (activeTabRef.current === activeTab) {
+        isInitializingRef.current = false;
+        setInitialLoading(false);
+      }
       const totalTime = performance.now() - startTime;
       console.log(`[PERF] Sidebar: initializeSessions total time: ${totalTime.toFixed(2)}ms`);
     }
@@ -153,6 +162,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       scrollRef.current.scrollTop = 0;
     }
   }, [user?.uid, activeTab, initializeSessions]);
+
+  const hasInitializedAdminTab = useRef(false);
+  useEffect(() => {
+    if (user && isAdmin() && !hasInitializedAdminTab.current) {
+      setActiveTab('admin_all');
+      hasInitializedAdminTab.current = true;
+    }
+  }, [user, isAdmin]);
 
   const loadMoreSessions = useCallback(async () => {
     if (!user?.uid || isLoadingMore || !hasMore || initialLoading) return;
@@ -678,6 +695,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                         key={session.id}
                         className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''} ${dropdownSessionId === session.id ? 'has-open-dropdown' : ''}`}
                         onClick={() => handleSessionClick(session)}
+                        onMouseEnter={() => setHoveredSessionId(session.id)}
+                        onMouseLeave={() => setHoveredSessionId(null)}
                       >
                         <div className="mark-history-content">
                           <div className="mark-history-item-top-row">
@@ -714,7 +733,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </div>
                           </div>
                           <div className="mark-history-item-bottom-row">
-                            <div className="mark-history-last-message">{getLastMessage(session)}</div>
+                            <div className="mark-history-last-message">
+                              {isAdmin() && activeTab === 'admin_all' && hoveredSessionId === session.id
+                                ? ((session as any).userEmail || `User: ${session.userId}`)
+                                : getLastMessage(session)}
+                            </div>
                             <div className="mark-history-meta">
                               <span className="mark-history-time">{formatSessionDate(session)}</span>
                               <div className={`mark-history-actions-container ${dropdownSessionId === session.id ? 'dropdown-open' : ''}`}>

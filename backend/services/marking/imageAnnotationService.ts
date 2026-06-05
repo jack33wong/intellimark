@@ -295,7 +295,7 @@ export class ImageAnnotationService {
       let burnedImage = originalImage;
       try {
         if (annotations && annotations.length > 0) {
-          const { SVGOverlayService } = await import('../marking/SVGOverlayService.js');
+          const { SVGOverlayService } = await import('./svgOverlayService.js');
           burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(
             originalImage,
             annotations,

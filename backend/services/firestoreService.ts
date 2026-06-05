@@ -864,6 +864,34 @@ export class FirestoreService {
         return timeB - timeA; // Descending order
       });
 
+      // Fetch user emails for admin 'all' view
+      if (userId === 'all' && sessions.length > 0) {
+        try {
+          const uniqueUserIds = [...new Set(sessions.map(s => s.userId))].filter(Boolean) as string[];
+          if (uniqueUserIds.length > 0) {
+            // Firebase limits getUsers to 100 identifiers at a time
+            const uidIdentifiers = uniqueUserIds.map(uid => ({ uid }));
+            const userRecords = await admin.auth().getUsers(uidIdentifiers);
+            const userEmails = new Map<string, string>();
+            
+            userRecords.users.forEach(userRecord => {
+              if (userRecord.email) {
+                userEmails.set(userRecord.uid, userRecord.email);
+              }
+            });
+            
+            // Attach email to sessions
+            sessions.forEach(session => {
+              if (userEmails.has(session.userId)) {
+                session.userEmail = userEmails.get(session.userId);
+              }
+            });
+          }
+        } catch (e) {
+          console.error("Failed to fetch user emails for admin view:", e);
+        }
+      }
+
       const processDuration = Date.now() - processStart;
       console.log(`[PERF] getUserUnifiedSessions: Fetch ${fetchDuration}ms, Process ${processDuration}ms for ${sessions.length} docs`);
 

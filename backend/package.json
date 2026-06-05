@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts",
-    "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck",
+    "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck && node fix-compiled-imports.cjs",
     "build:clean": "rm -rf dist && npm run build",
     "build:deploy": "node build-for-deploy.cjs",
     "build:production": "node build-production.cjs",

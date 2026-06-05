@@ -710,7 +710,7 @@ html.dark .guest-mode-floating-banner {
 .ai-performance-summary td,
 .chat-message-renderer td {
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 12px;
 }
 

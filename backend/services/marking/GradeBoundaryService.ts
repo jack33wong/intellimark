@@ -4,7 +4,7 @@
  */
 
 import { getFirestore } from '../../config/firebase.js';
-import { NormalizationService } from './NormalizationService';
+import { NormalizationService } from './NormalizationService.js';
 import type { UnifiedSession } from '../../types/index.js';
 
 export interface GradeBoundaryEntry {
@@ -295,11 +295,6 @@ export class GradeBoundaryService {
     const grade = this.findGradeFromBoundaries(studentScore, matchingPaper.boundaries);
 
     let predictedGrade = grade;
-    if (currentPossibleScore > 0 && matchingPaper.max_mark && currentPossibleScore < matchingPaper.max_mark) {
-      const percentage = studentScore / currentPossibleScore;
-      const projectedScore = Math.round(percentage * matchingPaper.max_mark);
-      predictedGrade = this.findGradeFromBoundaries(projectedScore, matchingPaper.boundaries);
-    }
 
     return {
       grade,
@@ -333,11 +328,6 @@ export class GradeBoundaryService {
     const grade = this.findGradeFromBoundaries(studentScore, tier.overall_total_boundaries);
 
     let predictedGrade = grade;
-    if (currentPossibleScore > 0 && subject.max_mark && currentPossibleScore < subject.max_mark) {
-      const percentage = studentScore / currentPossibleScore;
-      const projectedScore = Math.round(percentage * subject.max_mark);
-      predictedGrade = this.findGradeFromBoundaries(projectedScore, tier.overall_total_boundaries);
-    }
 
     return {
       grade,

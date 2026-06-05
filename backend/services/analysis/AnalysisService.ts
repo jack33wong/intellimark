@@ -564,95 +564,40 @@ export class AnalysisService {
     }
     formatted += `\n`;
 
-    // Include grade boundaries if available
     if (markingData.gradeBoundaries) {
       formatted += `GRADE BOUNDARIES:\n`;
-      formatted += `- Boundary Type: ${markingData.gradeBoundaries.boundaryType}\n`;
-      formatted += `- Boundaries:\n`;
       const sortedBoundaries = Object.entries(markingData.gradeBoundaries.boundaries)
         .sort(([a], [b]) => {
           const numA = parseInt(a, 10) || 0;
           const numB = parseInt(b, 10) || 0;
-          return numB - numA; // Descending: 9, 8, 7, ...
+          return numB - numA;
         });
 
       sortedBoundaries.forEach(([grade, boundary]) => {
         formatted += `  Grade ${grade}: ${boundary} marks\n`;
       });
       formatted += `\n`;
-      formatted += `Current Performance: ${markingData.overallScore.awarded} marks\n`;
+      
+      const gradeText = markingData.grade ? markingData.grade : 'U (Below minimum boundary)';
+
+      formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
+      formatted += `- Grade: ${gradeText}\n`;
+      formatted += `- Current Marks: ${markingData.overallScore.awarded} out of ${markingData.overallScore.total}\n`;
+      formatted += `- IMPORTANT: The user wants to see the raw Grade Boundaries table in your markdown response. DO NOT scale the user's score up. If the student scored 5 marks, and the lowest grade requires 7 marks, then their grade is simply 'U' or 'Ungraded'. In this case, present the table normally but DO NOT highlight or claim they achieved any grade on the table. Be mathematically honest: ${markingData.overallScore.awarded} marks simply maps to ${gradeText} on this table.\n`;
+      formatted += `\nSTRATEGIC FOCUS:\n`;
+      formatted += `- Focus on how to improve their score based on the specific errors made in the questions below.\n`;
+      formatted += `- Analyze question-by-question results to identify weak areas.\n`;
+      formatted += `- Prioritize improvements with the highest mark potential and "marks per effort" ratio.\n`;
       formatted += `\n`;
-
-      // Calculate grade gap and provide strategic context
-      const currentMarks = markingData.overallScore.awarded;
-      let currentGrade: string | null = null;
-      let nextGrade: string | null = null;
-      let marksToNextGrade: number | null = null;
-      let nextGradeBoundary: number | null = null;
-
-      // Find current grade and next grade
-      for (let i = 0; i < sortedBoundaries.length; i++) {
-        const [grade, boundary] = sortedBoundaries[i];
-        const boundaryMarks = boundary as number;
-        if (currentMarks >= boundaryMarks) {
-          currentGrade = grade;
-          if (i > 0) {
-            nextGrade = sortedBoundaries[i - 1][0];
-            nextGradeBoundary = sortedBoundaries[i - 1][1] as number;
-            marksToNextGrade = nextGradeBoundary - currentMarks;
-          }
-          break;
-        }
-      }
-
-      // If below lowest grade, set next grade as lowest
-      if (!currentGrade && sortedBoundaries.length > 0) {
-        nextGrade = sortedBoundaries[sortedBoundaries.length - 1][0];
-        nextGradeBoundary = sortedBoundaries[sortedBoundaries.length - 1][1] as number;
-        marksToNextGrade = nextGradeBoundary - currentMarks;
-      }
-
-      // Handle case where student is at highest grade (no next grade available)
-      if (currentGrade && !nextGrade && sortedBoundaries.length > 0) {
-        // Student is at highest grade - focus on maintaining or perfect score
-        const highestGradeBoundary = sortedBoundaries[0][1] as number;
-        const marksToPerfect = markingData.overallScore.total - currentMarks;
-        formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
-        formatted += `- Current Grade: ${currentGrade} (Highest Grade)\n`;
-        formatted += `- Current Marks: ${currentMarks} marks\n`;
-        formatted += `- Perfect Score: ${markingData.overallScore.total} marks\n`;
-        formatted += `- Marks to Perfect: ${marksToPerfect} marks\n`;
-        formatted += `\nSTRATEGIC FOCUS:\n`;
-        formatted += `- Focus on maintaining Grade ${currentGrade} and reducing errors\n`;
-        formatted += `- Analyze question-by-question results to identify where ${marksToPerfect} marks were lost\n`;
-        formatted += `- Target areas for perfection: reduce calculation errors, improve presentation, ensure all method marks are earned\n`;
-        formatted += `\n`;
-      } else if (currentGrade && nextGrade && marksToNextGrade !== null && marksToNextGrade > 0) {
-        formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
-        formatted += `- Current Grade: ${currentGrade}\n`;
-        formatted += `- Next Grade Target: ${nextGrade}\n`;
-        formatted += `- Marks Needed: ${marksToNextGrade} marks\n`;
-        formatted += `- Current Marks: ${currentMarks} marks\n`;
-        formatted += `- Next Grade Boundary: ${nextGradeBoundary} marks\n`;
-        formatted += `\nSTRATEGIC FOCUS:\n`;
-        formatted += `- Analyze question-by-question results to identify:\n`;
-        formatted += `  * Which weak areas, if improved, could gain the ${marksToNextGrade} marks needed\n`;
-        formatted += `  * Which strong areas can be leveraged for additional marks (1-2 marks through perfection)\n`;
-        formatted += `  * Prioritize improvements with highest mark potential and "marks per effort" ratio\n`;
-        formatted += `- Consider: If close to boundary (≤5 marks), focus on reducing errors and partial credit. If far (6+ marks), focus on foundational understanding.\n`;
-        formatted += `\n`;
-      } else if (nextGrade && marksToNextGrade !== null && marksToNextGrade > 0) {
-        formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
-        formatted += `- Current Performance: Below Grade ${nextGrade}\n`;
-        formatted += `- Target Grade: ${nextGrade}\n`;
-        formatted += `- Marks Needed: ${marksToNextGrade} marks\n`;
-        formatted += `- Current Marks: ${currentMarks} marks\n`;
-        formatted += `- Grade Boundary: ${nextGradeBoundary} marks\n`;
-        formatted += `\nSTRATEGIC FOCUS:\n`;
-        formatted += `- Focus on foundational understanding and systematic practice\n`;
-        formatted += `- Target areas with highest mark potential\n`;
-        formatted += `\n`;
-      }
+    } else if (markingData.grade) {
+      formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
+      formatted += `- Grade: ${markingData.grade}\n`;
+      formatted += `- Current Marks: ${markingData.overallScore.awarded} out of ${markingData.overallScore.total}\n`;
+      formatted += `\nSTRATEGIC FOCUS:\n`;
+      formatted += `- Focus on how to improve their score based on the specific errors made in the questions below.\n`;
+      formatted += `- Analyze question-by-question results to identify weak areas that could gain the marks needed for the next grade level.\n`;
+      formatted += `- Prioritize improvements with the highest mark potential and "marks per effort" ratio.\n`;
+      formatted += `\n`;
     }
 
     formatted += `QUESTION-BY-QUESTION RESULTS:\n`;
