@@ -35,15 +35,15 @@ class SimpleSessionService {
 
   getAuthToken = async () => {
     try {
-      if (getAuthTokenFromContext) {
-        // ALWAYS get fresh token from Firebase Auth Context
-        const token = await getAuthTokenFromContext();
-        if (token) return token;
+      const { auth } = await import('../config/firebase');
+      if (!auth) return null;
+      const user = auth.currentUser;
+      if (user) {
+        return await user.getIdToken();
       }
-      // Fallback only if context is not available (not recommended)
       return null;
     } catch (error) {
-      console.warn('Could not get auth token:', error);
+      console.warn('Failed to get auth token:', error);
       return null;
     }
   }
