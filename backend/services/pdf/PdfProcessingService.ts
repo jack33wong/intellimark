@@ -55,8 +55,8 @@ export class PdfProcessingService {
     }
 
     // Configuration for pdf2pic
-    // Calculate target width/height from PDF points at 600 DPI
-    const TARGET_DENSITY = 600;
+    // Calculate target width/height from PDF points at 300 DPI (reduced from 600 to prevent OOM)
+    const TARGET_DENSITY = 300;
     let targetWidth: number | undefined;
     let targetHeight: number | undefined;
     try {
