@@ -6,7 +6,7 @@
 import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { getFirestore } from '../config/firebase.js';
+import { getFirestore, getFirebaseAuth } from '../config/firebase.js';
 import { createUserMessage, createAIMessage, createChatProgressData, createMarkingProgressData } from '../utils/messageUtils.js';
 import { costToCredits } from '../config/credit.config.js';
 
@@ -867,18 +867,29 @@ export class FirestoreService {
       // Fetch user emails for admin 'all' view
       if (userId === 'all' && sessions.length > 0) {
         try {
-          const uniqueUserIds = [...new Set(sessions.map(s => s.userId))].filter(Boolean) as string[];
+          // Filter out 'anonymous' and other non-standard UIDs that would cause getUsers to throw an error
+          const uniqueUserIds = [...new Set(sessions.map(s => s.userId))]
+            .filter(uid => uid && uid !== 'anonymous' && uid !== 'system' && uid !== 'all') as string[];
           if (uniqueUserIds.length > 0) {
             // Firebase limits getUsers to 100 identifiers at a time
-            const uidIdentifiers = uniqueUserIds.map(uid => ({ uid }));
-            const userRecords = await admin.auth().getUsers(uidIdentifiers);
+            const firebaseAuth = getFirebaseAuth();
+            if (!firebaseAuth) {
+              throw new Error("Firebase Auth not available");
+            }
             const userEmails = new Map<string, string>();
             
-            userRecords.users.forEach(userRecord => {
-              if (userRecord.email) {
-                userEmails.set(userRecord.uid, userRecord.email);
-              }
-            });
+            // Chunk into batches of 100
+            for (let i = 0; i < uniqueUserIds.length; i += 100) {
+              const chunk = uniqueUserIds.slice(i, i + 100);
+              const uidIdentifiers = chunk.map(uid => ({ uid }));
+              const userRecords = await firebaseAuth.getUsers(uidIdentifiers);
+              
+              userRecords.users.forEach(userRecord => {
+                if (userRecord.email) {
+                  userEmails.set(userRecord.uid, userRecord.email);
+                }
+              });
+            }
             
             // Attach email to sessions
             sessions.forEach(session => {

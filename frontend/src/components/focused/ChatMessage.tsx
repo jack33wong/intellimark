@@ -565,11 +565,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             )}
 
           {/* Assistant Galleries and Images */}
-          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
+          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray?.length > 1 && (!message.isProcessing || message.progressData?.isComplete) && (
             <div className="gallery-side"><SimpleImageGallery key={`${session?.id}-${message.id}-multi`} images={(message as any).imageDataArray} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} /></div>
           )}
 
-          {!isUser && (message as any)?.imageDataArray?.length === 1 && !isPdfMessage() && (!message.isProcessing || message.progressData?.isComplete) && (
+          {!isUser && (message as any)?.imageDataArray?.length === 1 && (!message.isProcessing || message.progressData?.isComplete) && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
               <img src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''} alt="Marked homework" className="annotated-image" onLoad={onImageLoad} onError={handleImageError} key={`${session?.id}-${message.id}-single`} />
             </div>

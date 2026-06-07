@@ -632,12 +632,11 @@ export class SessionManagementService {
         // Multiple PDFs case - only use originalPdfLink (Firebase URL)
         structuredPdfContexts = pdfContext.pdfContexts.map((ctx: any) => {
           if (!ctx.originalPdfLink) {
-            // Detailed logging for authenticated users to diagnose why originalPdfLink is null
-            console.error(`❌ [PDF UPLOAD DIAGNOSTIC] Multiple PDFs - Missing Firebase URL for ${ctx.originalFileName || 'unknown'}:`);
-            throw new Error(`PDF upload failed for ${ctx.originalFileName || 'unknown'}: No Firebase URL available (authenticated user - upload should have succeeded)`);
+            // Log warning instead of throwing error since anonymous users won't have a Firebase URL
+            console.warn(`⚠️ [PDF UPLOAD DIAGNOSTIC] Multiple PDFs - Missing Firebase URL for ${ctx.originalFileName || 'unknown'} (Likely anonymous user)`);
           }
           return {
-            url: ctx.originalPdfLink, // Only Firebase URL, no base64 fallback
+            url: ctx.originalPdfLink || null, // Only Firebase URL, no base64 fallback
             originalFileName: ctx.originalFileName,
             fileSize: ctx.fileSize || 0
           };
@@ -645,12 +644,11 @@ export class SessionManagementService {
       } else if (pdfContext && !pdfContext.isMultiplePdfs) {
         // Single PDF case - only use originalPdfLink (Firebase URL)
         if (!pdfContext.originalPdfLink) {
-          // Detailed logging for authenticated users to diagnose why originalPdfLink is null
-          console.error(`❌ [PDF UPLOAD DIAGNOSTIC] Single PDF - Missing Firebase URL for ${pdfContext.originalFileName || 'unknown'}:`);
-          throw new Error(`PDF upload failed for ${pdfContext.originalFileName || 'unknown'}: No Firebase URL available (authenticated user - upload should have succeeded)`);
+          // Log warning instead of throwing error since anonymous users won't have a Firebase URL
+          console.warn(`⚠️ [PDF UPLOAD DIAGNOSTIC] Single PDF - Missing Firebase URL for ${pdfContext.originalFileName || 'unknown'} (Likely anonymous user)`);
         }
         structuredPdfContexts = [{
-          url: pdfContext.originalPdfLink, // Only Firebase URL, no base64 fallback
+          url: pdfContext.originalPdfLink || null, // Only Firebase URL, no base64 fallback
           originalFileName: pdfContext.originalFileName,
           fileSize: pdfContext.fileSize || 0
         }];
