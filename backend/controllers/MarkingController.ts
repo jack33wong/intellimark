@@ -222,6 +222,9 @@ export class MarkingController {
             });
 
             res.end();
+        } finally {
+            // 👇 CLEAR HEARTBEAT 👇
+            clearInterval(heartbeat);
         }
     }
 }

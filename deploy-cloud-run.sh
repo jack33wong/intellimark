@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # AI Marking Production Deployment Script (Cloud Run + Firebase Hosting)
-# This script builds the frontend and deploys it to Firebase Hosting,
-# and builds the backend container and deploys it to Google Cloud Run.
+# This script deploys the backend container to Google Cloud Run,
+# and builds the frontend and deploys it to Firebase Hosting.
 
 set -e  # Exit on any error
 
@@ -30,27 +30,6 @@ fi
 PROJECT_ID="intellimark-6649e"
 REGION="europe-west2"
 SERVICE_NAME="api-backend"
-
-echo "📦 Building production frontend..."
-
-# Build the production frontend
-cd frontend
-npm run build
-
-if [ $? -ne 0 ]; then
-    echo "❌ Frontend build failed"
-    exit 1
-fi
-
-echo "✅ Frontend build completed successfully"
-cd ..
-
-echo "🧹 Preparing deploy directory..."
-# Deep clean deploy directory but keep firebase config
-find deploy -mindepth 1 ! -name 'firebase.json' ! -name '.firebaserc' -delete
-
-echo "📦 Copying frontend files to deploy directory..."
-cp -r frontend/build/* deploy/
 
 echo "🚀 Deploying Backend to Google Cloud Run..."
 cd backend
@@ -80,6 +59,7 @@ gcloud run deploy $SERVICE_NAME \
   --project $PROJECT_ID \
   --allow-unauthenticated \
   --memory 2Gi \
+  --timeout 300 \
   $ENV_VARS_FLAG \
   --quiet
 
@@ -93,8 +73,32 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "✅ Backend deployed successfully to Cloud Run"
+CLOUD_RUN_URL=$(gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)')
+echo "✅ Backend deployed successfully to Cloud Run at: $CLOUD_RUN_URL"
 cd ..
+
+
+echo "📦 Building production frontend..."
+
+# Build the production frontend
+cd frontend
+export REACT_APP_API_BASE_URL=$CLOUD_RUN_URL
+npm run build
+
+if [ $? -ne 0 ]; then
+    echo "❌ Frontend build failed"
+    exit 1
+fi
+
+echo "✅ Frontend build completed successfully"
+cd ..
+
+echo "🧹 Preparing deploy directory..."
+# Deep clean deploy directory but keep firebase config
+find deploy -mindepth 1 ! -name 'firebase.json' ! -name '.firebaserc' -delete
+
+echo "📦 Copying frontend files to deploy directory..."
+cp -r frontend/build/* deploy/
 
 echo "🚀 Deploying Frontend and Routing to Firebase Hosting..."
 cd deploy
@@ -105,7 +109,7 @@ firebase deploy --only hosting --project $PROJECT_ID
 if [ $? -eq 0 ]; then
     echo "✅ Deployment completed successfully!"
     echo "🌐 Your app is live at: https://$PROJECT_ID.web.app"
-    echo "📊 Backend API is served via Cloud Run and routed through Firebase Hosting automatically."
+    echo "📊 Backend API is served via Cloud Run at $CLOUD_RUN_URL."
     echo "⏰ Deployment Time: $(date)"
 else
     echo "❌ Firebase Hosting deployment failed"
