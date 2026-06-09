@@ -14,6 +14,8 @@ import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/sugges
 import { checkCredits, deductCredits } from '../services/creditService.js';
 import UsageTracker from '../utils/UsageTracker.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
+import SubscriptionService from '../services/subscriptionService.js';
+import { getFirebaseAuth, getFirestore, getUserRole } from '../config/firebase.js';
 
 const router = express.Router();
 
@@ -750,6 +752,194 @@ router.get('/session/:sessionId', optionalAuth, async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to retrieve session',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * GET /messages/admin/sessions/subscribers
+ * Get UnifiedSessions for all active subscribers (Admin Only)
+ */
+router.get('/admin/sessions/subscribers', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied - admin role required',
+        details: `Authenticated: ${req.user.uid}, Role: ${req.user.role}`
+      });
+    }
+
+    const limit = parseInt(req.query.limit as string) || 50;
+    const messageType = req.query.messageType as string || null;
+    const lastUpdatedAt = req.query.lastUpdatedAt as string || null;
+
+    const startTime = Date.now();
+
+    // 1. Get active subscriber IDs
+    let activeSubscriberIds = await SubscriptionService.getActiveSubscriberIds();
+    
+    // Filter out Admin users from the subscriber list
+    if (activeSubscriberIds.length > 0) {
+      try {
+        const firebaseAuth = getFirebaseAuth();
+        if (firebaseAuth) {
+          const nonAdminSubscriberIds: string[] = [];
+          for (let i = 0; i < activeSubscriberIds.length; i += 100) {
+            const chunk = activeSubscriberIds.slice(i, i + 100);
+            const uidIdentifiers = chunk.map(uid => ({ uid }));
+            const userRecords = await firebaseAuth.getUsers(uidIdentifiers);
+            userRecords.users.forEach(userRecord => {
+              const role = getUserRole(userRecord.email || '');
+              if (role !== 'admin') {
+                nonAdminSubscriberIds.push(userRecord.uid);
+              }
+            });
+          }
+          activeSubscriberIds = nonAdminSubscriberIds;
+        }
+      } catch (e) {
+        console.error('Failed to filter admin subscribers:', e);
+      }
+    }
+
+    if (activeSubscriberIds.length === 0) {
+      return res.json({ success: true, sessions: [], count: 0, perfMs: Date.now() - startTime });
+    }
+
+    // 2. Fetch sessions for each subscriber individually to avoid Firestore composite index errors on 'in' + 'orderBy'
+    const db = getFirestore();
+    const sessionsRef = db.collection('unifiedSessions');
+
+    const promises = activeSubscriberIds.map(uid => {
+      let query = sessionsRef.where('userId', '==', uid);
+      if (messageType && messageType !== 'all') {
+        query = query.where('messageType', '==', messageType);
+      }
+      query = query.orderBy('updatedAt', 'desc');
+
+      if (lastUpdatedAt) {
+        let timestamp: any;
+        if (typeof lastUpdatedAt === 'string' && lastUpdatedAt.includes('T')) {
+          timestamp = new Date(lastUpdatedAt).getTime();
+        } else if (!isNaN(Number(lastUpdatedAt))) {
+          timestamp = Number(lastUpdatedAt);
+        } else {
+          timestamp = lastUpdatedAt;
+        }
+        query = query.startAfter(timestamp);
+      }
+
+      // Fetch up to 'limit' for EACH subscriber, so we can merge and slice the true top 'limit'
+      return query.limit(limit).get();
+    });
+
+    const snapshots = await Promise.all(promises);
+    
+    let allSessions: any[] = [];
+    for (const snapshot of snapshots) {
+      for (const doc of snapshot.docs) {
+        const sessionData = doc.data();
+        let lastMessage = sessionData.lastMessagePreview;
+
+        if (!lastMessage && sessionData.unifiedMessages) {
+          const unifiedMessages = sessionData.unifiedMessages || [];
+          if (unifiedMessages.length > 0) {
+            const sortedMessages = [...unifiedMessages].sort((a: any, b: any) => {
+              const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+              const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+              return timeB - timeA;
+            });
+            lastMessage = sortedMessages[0];
+          }
+        }
+
+        allSessions.push({
+          id: doc.id,
+          title: sessionData.title,
+          userId: sessionData.userId,
+          messageType: sessionData.messageType,
+          createdAt: sessionData.createdAt,
+          updatedAt: sessionData.updatedAt,
+          favorite: sessionData.favorite || false,
+          pinned: sessionData.pinned || false,
+          rating: sessionData.rating || 0,
+          messages: [],
+          detectedQuestion: sessionData.detectedQuestion || null,
+          lastMessage: lastMessage ? {
+            content: lastMessage.content,
+            role: lastMessage.role,
+            timestamp: lastMessage.timestamp || lastMessage.createdAt
+          } : null,
+          hasImage: sessionData.sessionStats?.hasImage || false,
+          imagesPreview: sessionData.imagesPreview || [],
+          lastApiUsed: sessionData.sessionStats?.lastApiUsed,
+          studentScore: sessionData.studentScore || null,
+          usageMode: sessionData.usageMode || null
+        });
+      }
+    }
+
+    // Sort all merged sessions by date descending (and respect pinned)
+    allSessions.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+
+      const timeA = new Date(a.updatedAt || 0).getTime();
+      const timeB = new Date(b.updatedAt || 0).getTime();
+      return timeB - timeA;
+    });
+    
+    // Slice top limit
+    const finalSessions = allSessions.slice(0, limit);
+
+    // Fetch user emails for admin view
+    if (finalSessions.length > 0) {
+      try {
+        const uniqueUserIds = [...new Set(finalSessions.map(s => s.userId))]
+          .filter(uid => uid && uid !== 'anonymous' && uid !== 'system' && uid !== 'all') as string[];
+        
+        if (uniqueUserIds.length > 0) {
+          const firebaseAuth = getFirebaseAuth();
+          if (firebaseAuth) {
+            const userEmails = new Map<string, string>();
+            for (let i = 0; i < uniqueUserIds.length; i += 100) {
+              const chunk = uniqueUserIds.slice(i, i + 100);
+              const uidIdentifiers = chunk.map(uid => ({ uid }));
+              const userRecords = await firebaseAuth.getUsers(uidIdentifiers);
+              userRecords.users.forEach(userRecord => {
+                if (userRecord.email) {
+                  userEmails.set(userRecord.uid, userRecord.email);
+                }
+              });
+            }
+            finalSessions.forEach(session => {
+              if (userEmails.has(session.userId)) {
+                session.userEmail = userEmails.get(session.userId);
+              }
+            });
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to fetch user emails:', emailError);
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[PERF] GET /admin/sessions/subscribers took ${duration}ms for ${finalSessions.length} sessions`);
+
+    return res.json({
+      success: true,
+      sessions: finalSessions,
+      count: finalSessions.length,
+      perfMs: duration
+    });
+  } catch (error) {
+    console.error('Failed to get subscriber sessions:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve subscriber sessions',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

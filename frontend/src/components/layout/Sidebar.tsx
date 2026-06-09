@@ -118,6 +118,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       if (activeTab === 'admin_all') {
         targetUserId = 'all';
+      } else if (activeTab === 'admin_subscriber') {
+        targetUserId = 'admin_subscriber';
       } else {
         if (activeTab === 'mark') messageType = 'Marking';
         if (activeTab === 'question') messageType = 'Question';
@@ -189,6 +191,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       if (activeTab === 'admin_all') {
         targetUserId = 'all';
+      } else if (activeTab === 'admin_subscriber') {
+        targetUserId = 'admin_subscriber';
       } else {
         if (activeTab === 'mark') messageType = 'Marking';
         if (activeTab === 'question') messageType = 'Question';
@@ -671,7 +675,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="mark-history-filter-trigger"
                     onClick={(e) => { e.stopPropagation(); setIsFilterDropdownOpen(!isFilterDropdownOpen); }}
                   >
-                    <span>{activeTab === 'all' ? 'All' : (activeTab === 'admin_all' ? 'All Users' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1))}</span>
+                    <span>{activeTab === 'all' ? 'All' : (activeTab === 'admin_all' ? 'All Users' : (activeTab === 'admin_subscriber' ? 'All Subscribers' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)))}</span>
                     <ChevronDown size={14} className={`filter-chevron ${isFilterDropdownOpen ? 'open' : ''}`} />
                   </button>
                   {isFilterDropdownOpen && (
@@ -681,7 +685,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <div className={`filter-option ${activeTab === 'question' ? 'selected' : ''}`} onClick={() => { setActiveTab('question'); setIsFilterDropdownOpen(false); }}>Question</div>
                       <div className={`filter-option ${activeTab === 'favorite' ? 'selected' : ''}`} onClick={() => { setActiveTab('favorite'); setIsFilterDropdownOpen(false); }}>Favorite</div>
                       {isAdmin() && (
-                        <div className={`filter-option ${activeTab === 'admin_all' ? 'selected' : ''}`} onClick={() => { setActiveTab('admin_all'); setIsFilterDropdownOpen(false); }}>All Users</div>
+                        <>
+                          <div className={`filter-option ${activeTab === 'admin_all' ? 'selected' : ''}`} onClick={() => { setActiveTab('admin_all'); setIsFilterDropdownOpen(false); }}>All Users</div>
+                          <div className={`filter-option ${activeTab === 'admin_subscriber' ? 'selected' : ''}`} onClick={() => { setActiveTab('admin_subscriber'); setIsFilterDropdownOpen(false); }}>All Subscribers</div>
+                        </>
                       )}
                     </div>
                   )}
@@ -734,7 +741,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           </div>
                           <div className="mark-history-item-bottom-row">
                             <div className="mark-history-last-message">
-                              {isAdmin() && activeTab === 'admin_all' && hoveredSessionId === session.id
+                              {isAdmin() && (activeTab === 'admin_all' || activeTab === 'admin_subscriber') && hoveredSessionId === session.id
                                 ? ((session as any).userEmail || `User: ${session.userId}`)
                                 : getLastMessage(session)}
                             </div>

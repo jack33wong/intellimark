@@ -26,7 +26,9 @@ class MarkingHistoryService {
     const fetchPromise = (async () => {
       try {
         // Use new messages API instead of old chat API
-        let url = `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
+        let url = userId === 'admin_subscriber' 
+          ? `${API_BASE}/api/messages/admin/sessions/subscribers?limit=${limit}`
+          : `${API_BASE}/api/messages/sessions/${userId}?limit=${limit}`;
         if (lastUpdatedAt && lastUpdatedAt !== 'undefined' && lastUpdatedAt !== 'null') {
           url += `&lastUpdatedAt=${encodeURIComponent(lastUpdatedAt)}`;
         }

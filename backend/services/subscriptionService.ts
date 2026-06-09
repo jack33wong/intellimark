@@ -151,6 +151,27 @@ export class SubscriptionService {
   }
 
   /**
+   * Get all active subscriber user IDs
+   */
+  static async getActiveSubscriberIds(): Promise<string[]> {
+    try {
+      const subscriptions = await FirestoreService.queryCollection(
+        this.COLLECTION_NAME,
+        'status',
+        '==',
+        'active'
+      );
+
+      // Extract unique userIds from active subscriptions
+      const subscriberIds = new Set(subscriptions.map(sub => sub.userId));
+      return Array.from(subscriberIds) as string[];
+    } catch (error) {
+      console.error('Error getting active subscriber IDs:', error);
+      return [];
+    }
+  }
+
+  /**
    * Update subscription status by Stripe subscription ID
    */
   static async updateSubscriptionStatus(
