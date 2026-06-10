@@ -55,13 +55,14 @@ export class PdfProcessingService {
     }
 
     // Configuration for pdf2pic
-    // Calculate target width/height from PDF points at 300 DPI (reduced from 600 to prevent OOM)
-    const TARGET_DENSITY = 300;
-    let targetWidth: number | undefined;
-    let targetHeight: number | undefined;
+    // Define target density (DPI) and calculate dimensions based on 72 DPI PDF space
+    const TARGET_DENSITY = 200;
+    let targetWidth = 2480; // Default A4 width at 200 DPI
+    let targetHeight = 3508; // Default A4 height at 200 DPI
+
     try {
       const pdfDoc = await PDFDocument.load(pdfBuffer);
-      const firstPage = pdfDoc.getPage(0);
+      const firstPage = pdfDoc.getPages()[0];
       const { width: pdfPtW, height: pdfPtH } = firstPage.getSize();
       targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
       targetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
@@ -72,7 +73,7 @@ export class PdfProcessingService {
     const defaultOptions: any = {
       density: TARGET_DENSITY,
       format: "png",
-      quality: 100,
+      quality: 85,
       savePath: tempDirPath,
       saveFilename: `page_${uuidv4()}`,
       width: targetWidth,

@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
+# Fix the security policy to explicitly allow PDF conversion
+RUN sed -i 's/name="pattern" value="PDF" \/>/name="pattern" value="PDF" \/ \n  <policy domain="coder" rights="read | write" pattern="PDF" \/>/' /etc/ImageMagick-6/policy.xml || true
+
 WORKDIR /app
 
 # Copy package files and install

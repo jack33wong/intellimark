@@ -58,7 +58,7 @@ gcloud run deploy $SERVICE_NAME \
   --region $REGION \
   --project $PROJECT_ID \
   --allow-unauthenticated \
-  --memory 2Gi \
+  --memory 4Gi \
   --timeout 300 \
   $ENV_VARS_FLAG \
   --quiet
@@ -73,7 +73,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-CLOUD_RUN_URL=$(gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)')
+CLOUD_RUN_URL=$(gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --project $PROJECT_ID --format 'value(status.url)')
 echo "✅ Backend deployed successfully to Cloud Run at: $CLOUD_RUN_URL"
 cd ..
 

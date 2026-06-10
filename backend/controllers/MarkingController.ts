@@ -79,6 +79,13 @@ export class MarkingController {
         // Send initial connection confirmation
         sendSseUpdate(res, { type: 'connected', message: 'Connection established' });
 
+        // 👇 KEEP-ALIVE HEARTBEAT 👇
+        const heartbeat = setInterval(() => {
+            // Sending a colon and newlines is an SSE comment. 
+            // The frontend fetch reader will completely ignore it, but GCP stays awake.
+            res.write(':\n\n'); 
+        }, 15000); // Ping every 15 seconds
+
         try {
             let sessionId = req.body.sessionId;
             // Sanitization: Reject temp- IDs from frontend

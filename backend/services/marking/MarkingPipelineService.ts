@@ -240,7 +240,8 @@ export class MarkingPipelineService {
                             return { index, pdfPages };
                         } catch (error) {
                             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
-                            return { index, pdfPages: [] };
+                            // 🚨 Throw a hard error so the pipeline stops and alerts the user
+                            throw new Error(`Failed to process document "${file.originalname}". The file may be too large or complex. Please try uploading it in smaller batches.`);
                         }
                     });
 
