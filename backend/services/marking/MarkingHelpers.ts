@@ -220,7 +220,7 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
   const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
   if (stepEntries.length > 0) {
     stepEntries
-      .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0))
+      .sort((a, b) => a[1].start - b[1].start)
       .forEach(([stepName, timing]) => {
         const duration = (timing.duration || 0) / 1000;
         const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);

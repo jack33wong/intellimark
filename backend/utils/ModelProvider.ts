@@ -1,7 +1,7 @@
 import type { ModelType } from '../types/index.js';
 import * as path from 'path';
 
-export type ModelPhase = 'classification' | 'marking' | 'questionMode' | 'contextChat' | 'modelAnswer' | 'markingScheme' | 'sampleQuestion' | 'analysis' | 'performanceSummary' | 'other';
+export type ModelPhase = 'preFlight' | 'classification' | 'marking' | 'questionMode' | 'contextChat' | 'modelAnswer' | 'markingScheme' | 'sampleQuestion' | 'analysis' | 'performanceSummary' | 'other';
 
 export class ModelProvider {
   /**
@@ -95,6 +95,9 @@ export class ModelProvider {
     // Auto-record via tracker if provided
     if (tracker) {
       switch (phase) {
+        case 'preFlight':
+          tracker.recordPreFlight(inputTokens, outputTokens);
+          break;
         case 'classification':
           tracker.recordClassification(inputTokens, outputTokens);
           break;
@@ -160,6 +163,9 @@ export class ModelProvider {
     // Auto-record via tracker
     if (tracker) {
       switch (phase) {
+        case 'preFlight':
+          tracker.recordPreFlight(inputTokens, outputTokens);
+          break;
         case 'classification':
           tracker.recordClassification(inputTokens, outputTokens);
           break;
@@ -479,6 +485,9 @@ export class ModelProvider {
     // Auto-record via tracker
     if (tracker) {
       switch (phase) {
+        case 'preFlight':
+          tracker.recordPreFlight(inputTokens, outputTokens);
+          break;
         case 'classification':
           tracker.recordClassification(inputTokens, outputTokens);
           break;
@@ -629,6 +638,9 @@ export class ModelProvider {
     // Auto-record via tracker
     if (tracker) {
       switch (phase) {
+        case 'preFlight':
+          tracker.recordPreFlight(inputTokens, outputTokens);
+          break;
         case 'classification':
           tracker.recordClassification(inputTokens, outputTokens);
           break;

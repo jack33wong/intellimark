@@ -3,7 +3,7 @@
  * Converts uploaded PDF buffers into page images (base64 data URLs) for downstream processing.
  */
 
-import { fromBuffer } from "pdf2pic";
+import { fromBuffer, fromPath } from "pdf2pic";
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { v4 as uuidv4 } from 'uuid';
@@ -81,7 +81,25 @@ export class PdfProcessingService {
     };
 
     const conversionOptions: any = { ...defaultOptions, ...options };
-    const convert = fromBuffer(pdfBuffer, conversionOptions as any);
+    
+    const tempPdfPath = path.join(tempDirPath, `temp-repaired-${Date.now()}.pdf`);
+    
+    // 1. THE AUTOMATIC LAUNDROMAT: Structural Repair via pdf-lib
+    let finalPdfBytes: Uint8Array | Buffer = pdfBuffer;
+    try {
+        console.log("🧼 [PDF-REPAIR] Loading document into pdf-lib to clean structural metadata...");
+        const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+        finalPdfBytes = await pdfDoc.save();
+        console.log("✨ [PDF-REPAIR] Structural repair complete. Binary rewritten safely.");
+    } catch (repairError) {
+        console.warn("⚠️ [PDF-REPAIR] Structural repair failed. Falling back to original buffer context.", repairError);
+    }
+    
+    // 2. DISK PERSISTENCE: Write file to Cloud Run's in-memory storage (/tmp) to bypass Node streams
+    await fs.writeFile(tempPdfPath, Buffer.from(finalPdfBytes));
+    
+    // 3. RASTERIZATION: Pass the clean file path directly to GraphicsMagick via pdf2pic
+    const convert = fromPath(tempPdfPath, conversionOptions as any);
 
     try {
       // Convert all pages; returns array of file outputs with paths

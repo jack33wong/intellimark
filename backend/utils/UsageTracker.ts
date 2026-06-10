@@ -22,6 +22,7 @@ interface TokenUsage {
 }
 
 export interface UsageBreakdown {
+    preFlight: TokenUsage;
     mapper: TokenUsage;
     classification: TokenUsage;
     marking: TokenUsage;
@@ -37,6 +38,7 @@ export interface UsageBreakdown {
 }
 
 export interface CostBreakdown {
+    preFlight: number;
     classification: number;
     marking: number;
     questionMode: number;
@@ -53,6 +55,7 @@ export interface CostBreakdown {
 
 export class UsageTracker {
     private usage: UsageBreakdown = {
+        preFlight: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         mapper: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
@@ -148,6 +151,12 @@ export class UsageTracker {
         this.usage.analysis.requestCount++;
     }
 
+    recordPreFlight(inputTokens: number, outputTokens: number): void {
+        this.usage.preFlight.inputTokens += inputTokens;
+        this.usage.preFlight.outputTokens += outputTokens;
+        this.usage.preFlight.requestCount++;
+    }
+
     recordPerformanceSummary(inputTokens: number, outputTokens: number): void {
         this.usage.performanceSummary.inputTokens += inputTokens;
         this.usage.performanceSummary.outputTokens += outputTokens;
@@ -208,6 +217,7 @@ export class UsageTracker {
      */
     getRequestCounts(): { [key: string]: number } {
         return {
+            preFlight: this.usage.preFlight.requestCount,
             mapper: this.usage.mapper.requestCount,
             classification: this.usage.classification.requestCount,
             marking: this.usage.marking.requestCount,
@@ -243,6 +253,7 @@ export class UsageTracker {
 
         if (!pricingToUse) {
             return {
+                preFlight: 0,
                 classification: 0,
                 marking: 0,
                 questionMode: 0,
@@ -270,6 +281,7 @@ export class UsageTracker {
                 (phase.outputTokens / 1_000_000 * pricing.output);
         };
 
+        const preFlight = calculatePhaseCost(this.usage.preFlight);
         const classification = calculatePhaseCost(this.usage.classification);
         const marking = calculatePhaseCost(this.usage.marking);
         const questionMode = calculatePhaseCost(this.usage.questionMode);
@@ -286,6 +298,7 @@ export class UsageTracker {
         const mathpix = this.usage.mathpixPages * mathpixPrice;
 
         return {
+            preFlight,
             classification,
             marking,
             questionMode,
@@ -297,7 +310,7 @@ export class UsageTracker {
             performanceSummary,
             other,
             mathpix,
-            total: classification + marking + questionMode + contextChat + modelAnswer + markingScheme + sampleQuestion + analysis + performanceSummary + other + mathpix
+            total: preFlight + classification + marking + questionMode + contextChat + modelAnswer + markingScheme + sampleQuestion + analysis + performanceSummary + other + mathpix
         };
     }
 
@@ -308,6 +321,7 @@ export class UsageTracker {
         // Return a deep copy to prevent mutation
         return {
             ...this.usage,
+            preFlight: { ...this.usage.preFlight },
             mapper: { ...this.usage.mapper },
             classification: { ...this.usage.classification },
             marking: { ...this.usage.marking },
@@ -394,6 +408,7 @@ export class UsageTracker {
 
         //Show each phase with tokens and request count
         const phases: Array<{ name: string; key: keyof UsageBreakdown }> = [
+            { name: 'Pre-Flight Check', key: 'preFlight' },
             { name: 'Mapper (Map Pass)', key: 'mapper' },
             { name: 'Classification (Marking Pass)', key: 'classification' },
             { name: 'Marking', key: 'marking' },
@@ -431,6 +446,7 @@ export class UsageTracker {
      */
     reset(): void {
         this.usage = {
+            preFlight: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             mapper: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },

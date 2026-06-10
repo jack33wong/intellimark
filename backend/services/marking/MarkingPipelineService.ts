@@ -141,7 +141,7 @@ export class MarkingPipelineService {
             const year = options.year || '2023';
             const season = options.season || 'June';
             const inputQuestionNumber = options.questionNumber;
-            const inputMarkingScheme = options.markingScheme;
+            let inputMarkingScheme = options.markingScheme;
 
             // Determine actual model
             if (model === 'auto') {
@@ -538,7 +538,7 @@ export class MarkingPipelineService {
                         page.height = temp;
                     }
                 } else {
-                    console.log(`✅ [VISION ORIENTATION] Page ${page.pageIndex} is upright (0 degrees).`);
+                    // console.log(`✅ [VISION ORIENTATION] Page ${page.pageIndex} is upright (0 degrees).`);
                 }
             }
             logOrientationComplete();
@@ -548,6 +548,9 @@ export class MarkingPipelineService {
             const logGeometryComplete = logStep('Semantic Geometry Check', 'gemini-3.1-flash-lite (HARDCODED)');
             
             const newStandardizedPages: StandardizedPage[] = [];
+            let pagesEjected = false;
+            const interceptedSchemeImages: string[] = [];
+            
             const geometryResults = await Promise.all(
                 standardizedPages.map(page => ImageGeometryService.analyze(page.imageData, page.width, page.height, 'gemini-3.1-flash-lite', usageTracker))
             );
@@ -557,7 +560,16 @@ export class MarkingPipelineService {
                 const geo = geometryResults[i];
 
                 if (!geo.is_acceptable_quality) {
-                    throw new Error(`Quality Check Failed (Page ${page.pageIndex + 1}): ${geo.rejection_reason || 'Image is blurry, unreadable, or contains too many pages.'}`);
+                    console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${geo.rejection_reason || 'Image is blurry, blank, or unreadable.'}`);
+                    continue; // Gracefully filter out the junk page instead of crashing the server
+                }
+
+                // 🛡️ THE INTERCEPTOR: Eject marking scheme pages
+                if (geo.is_marking_scheme) {
+                    console.log(`📄 [INTERCEPTOR] Page ${page.pageIndex} is a Marking Scheme`);
+                    pagesEjected = true;
+                    interceptedSchemeImages.push(page.imageData);
+                    continue; // Skip pushing to newStandardizedPages
                 }
 
                 // Handle 2-page spread splitting
@@ -615,6 +627,26 @@ export class MarkingPipelineService {
 
             // ========================= START: IMPLEMENT STAGE 2 =========================
             // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
+            
+            // 🧠 [DYNAMIC PARSER]: Parse intercepted scheme pages BEFORE Classification
+            const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-2.5-pro');
+            
+            if (pagesEjected && interceptedSchemeImages.length > 0) {
+                const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
+                const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
+                
+                if (parsedObj) {
+                    inputMarkingScheme = parsedObj;
+                }
+
+                if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
+                    console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
+                    console.log(JSON.stringify(inputMarkingScheme, null, 2));
+                    console.log(`----------------------------------------------------\n`);
+                }
+            }
+            logSchemeParserComplete();
+
             progressCallback(createProgressData(3, `Running OCR & Classification on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
 
             // --- Perform Classification on ALL Images (Question & Student Work) ---
@@ -1216,14 +1248,16 @@ export class MarkingPipelineService {
                 return maxGap > (pageHeight * 0.20); // Large vertical gap (at least 20% of page)
             });
 
-            console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Signal-Detected: ${isALevelPaper ? 'A-Level Type' : 'GCSE/Standard Type'})`);
+            if (process.env.LOG_REINDEX_DEBUG === 'true') {
+                console.log(`\n🔄 [RE-INDEXING] 🛡️ Aligning physical pages... (Signal-Detected: ${isALevelPaper ? 'A-Level Type' : 'GCSE/Standard Type'})`);
 
-            // 🔍 [RE-INDEX PROBE]: Verify pointer sync integrity
-            classificationResult.questions.forEach((q: any) => {
-                if (q.questionNumber === '11' || q.questionNumber === '1' || q.questionNumber?.startsWith('11')) {
-                    console.log(`🕵️ [PROBE] Q${q.questionNumber} | sourceImageIndex: ${q.sourceImageIndex} | text: ${q.text?.substring(0, 30)}...`);
-                }
-            });
+                // 🔍 [RE-INDEX PROBE]: Verify pointer sync integrity
+                classificationResult.questions.forEach((q: any) => {
+                    if (q.questionNumber === '11' || q.questionNumber === '1' || q.questionNumber?.startsWith('11')) {
+                        console.log(`🕵️ [PROBE] Q${q.questionNumber} | sourceImageIndex: ${q.sourceImageIndex} | text: ${q.text?.substring(0, 30)}...`);
+                    }
+                });
+            }
 
             // 1. Map pages to their Lowest VERIFIED Question Number (Sub-Question Aware)
             // 🛡️ [MULTI-ANCHOR REUSE]: We check sourceImageIndices (plural) to see if a page belongs to a question.
@@ -1300,7 +1334,9 @@ export class MarkingPipelineService {
                     }
 
                     // 🔍 DEBUG: Log the decision
-                    console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
+                    if (process.env.LOG_REINDEX_DEBUG === 'true') {
+                        console.log(`   ⚖️ [PAGE-WEIGHT] Page ${originalIdx}: Weights=[${pageWeights.map(pw => `${pw.q}:${pw.w}`).join(', ')}] -> Selected: ${minSortWeight}`);
+                    }
                 }
 
                 // 🛡️ [METADATA IDENTITY]: DO NOT force minSortWeight = Infinity for meta-pages.
@@ -1333,16 +1369,18 @@ export class MarkingPipelineService {
             }
 
             // 🔍 [DEBUG-PROBE] Dump the Sorting Decision Matrix
-            console.log('🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:');
-            console.log('-----------------------------------------------------------------------------------------');
-            console.log('| OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |');
-            console.log('-----------------------------------------------------------------------------------------');
-            pageSortMap.forEach(p => {
-                const fName = p.filename.padEnd(20).slice(0, 20);
-                const qList = p.debugQ.padEnd(34).slice(0, 34);
-                console.log(`| ${String(p.originalIdx).padEnd(7)} | ${fName} | ${String(p.isMeta).padEnd(6)} | ${String(p.minQ).padEnd(6)} | ${qList} |`);
-            });
-            console.log('-----------------------------------------------------------------------------------------');
+            if (process.env.LOG_REINDEX_DEBUG === 'true') {
+                console.log('🔍 [RE-INDEX DEBUG] Sorting Decision Matrix:');
+                console.log('-----------------------------------------------------------------------------------------');
+                console.log('| OrigIdx | Filename             | IsMeta | MinQ   | Detected Qs                        |');
+                console.log('-----------------------------------------------------------------------------------------');
+                pageSortMap.forEach(p => {
+                    const fName = p.filename.padEnd(20).slice(0, 20);
+                    const qList = p.debugQ.padEnd(34).slice(0, 34);
+                    console.log(`| ${String(p.originalIdx).padEnd(7)} | ${fName} | ${String(p.isMeta).padEnd(6)} | ${String(p.minQ).padEnd(6)} | ${qList} |`);
+                });
+                console.log('-----------------------------------------------------------------------------------------');
+            }
 
             // 1.5 PAST PAPER MODE: STRICT FAIL-FAST (Bible 1.1)
             if (isPastPaper) {
@@ -1374,12 +1412,14 @@ export class MarkingPipelineService {
                 return a.originalIdx - b.originalIdx;
             });
 
-            console.log(`\n🚀 [SORT-RESULT] Final Logical Order:`);
-            console.log('-----------------------------------------------------------------------------------------');
-            pageSortMap.forEach((p, i) => {
-                console.log(`| Seq ${i} | OrigIdx ${p.originalIdx} | isMeta: ${p.isMeta} | minQ: ${p.minQ} |`);
-            });
-            console.log('-----------------------------------------------------------------------------------------');
+            if (process.env.LOG_REINDEX_DEBUG === 'true') {
+                console.log(`\n🚀 [SORT-RESULT] Final Logical Order:`);
+                console.log('-----------------------------------------------------------------------------------------');
+                pageSortMap.forEach((p, i) => {
+                    console.log(`| Seq ${i} | OrigIdx ${p.originalIdx} | isMeta: ${p.isMeta} | minQ: ${p.minQ} |`);
+                });
+                console.log('-----------------------------------------------------------------------------------------');
+            }
 
             // 3. Create Index Lookups
             const oldToNewIndex = new Map<number, number>();
@@ -1416,7 +1456,9 @@ export class MarkingPipelineService {
             allPagesOcrData = reindexedOcrData;
             allClassificationResults = reindexedClassificationResults;
 
-            console.log(`✅ [RE-INDEXING] Completed. Pages have been straightened into Logical Order.`);
+            if (process.env.LOG_REINDEX_DEBUG === 'true') {
+                console.log(`✅ [RE-INDEXING] Completed. Pages have been straightened into Logical Order.`);
+            }
 
             // 5. CRITICAL: Update Classification Result Indices to match New Integrity (DEEP FIX)
             // We must update questions, sub-questions, AND studentWorkLines to match the new Physical Index.
@@ -1489,7 +1531,9 @@ export class MarkingPipelineService {
                     r.pageIndex = originalToNewIndexMap.get(r.pageIndex) ?? r.pageIndex;
                 }
             });
-            console.log(`✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.`);
+            if (process.env.LOG_REINDEX_DEBUG === 'true') {
+                console.log(`✅ [RE-INDEXING] Deep Pointer Update Complete. Lines now point to new physical pages.`);
+            }
 
             // ========================= 7. REGENERATE OCR BLOCK IDs =========================
             // CRITICAL FIX: The OCR blocks still carry IDs from their original page index (e.g. "p8_ocr_1").

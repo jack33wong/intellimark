@@ -125,17 +125,7 @@ export class MarkingSchemeOrchestrationService {
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
 
-    // If inputMarkingScheme is provided, normalize it and seed the map!
-    if (inputMarkingScheme) {
-      const { normalizeMarkingScheme } = await import('./MarkingInstructionService.js');
-      const normalized = normalizeMarkingScheme(inputMarkingScheme);
-      if (normalized) {
-        console.log(`🎯 [ORCHESTRATOR] Seeding map with user-provided marking scheme for Q${normalized.questionNumber || 'Unknown'}`);
-        // We use a special key or the question number to seed it
-        const key = normalized.questionNumber || 'input';
-        markingSchemesMap.set(key, normalized);
-      }
-    }
+
 
     const isSubQuestion = (questionNumber: string | null | undefined): boolean => {
       if (!questionNumber) return false;
@@ -246,11 +236,49 @@ export class MarkingSchemeOrchestrationService {
 
       const combinedAnchor = condensedFragments.join('\n\n');
 
-      const groupDetectionResult = await questionDetectionService.detectQuestion(
-        combinedAnchor,
-        baseNum,
-        examPaperHint
-      );
+      // 👇 THE CLEAN INTERCEPTION SWITCH 👇
+      let groupDetectionResult;
+
+      if (inputMarkingScheme && inputMarkingScheme.questions) {
+        // Dynamically reconcile the parent question total mark pool 
+        // by summing up the parts that belong to the current baseNum group (e.g. 1a + 1b)
+        let parentTotalMarks = 0;
+        const subScores = inputMarkingScheme.subQuestionMaxScores || {};
+        for (const [key, val] of Object.entries(subScores)) {
+          if (key.replace(/\D/g, '') === baseNum) {
+            parentTotalMarks += Number(val);
+          }
+        }
+
+        groupDetectionResult = {
+          found: true,
+          match: {
+            board: inputMarkingScheme.examDetails?.board || 'Custom',
+            qualification: inputMarkingScheme.examDetails?.qualification || 'GCSE',
+            paperCode: inputMarkingScheme.examDetails?.paperCode || 'Uploaded',
+            examSeries: inputMarkingScheme.examDetails?.exam_series || 'N/A',
+            tier: inputMarkingScheme.examDetails?.tier || 'N/A',
+            subject: inputMarkingScheme.examDetails?.subject || 'Mathematics',
+            paperTitle: 'Custom Uploaded Marking Scheme',
+            questionNumber: baseNum,
+            confidence: 1.0,
+            marks: parentTotalMarks,
+            subQuestionMaxScores: subScores, // Directly feeds the budget map downstream
+            markingScheme: {
+              allQuestions: inputMarkingScheme.questions, // Matches Database Payload mapping
+              generalMarkingGuidance: inputMarkingScheme.generalMarkingGuidance || ""
+            }
+          }
+        };
+      } else {
+        // Normal Database Path
+        groupDetectionResult = await questionDetectionService.detectQuestion(
+          combinedAnchor,
+          baseNum,
+          examPaperHint
+        );
+      }
+      // 👆 END OF INTERCEPTION SWITCH 👆
 
       // 🔍 [DEBUG] Question Detection Result for the group
       if (process.env.LOG_QUESTION_DETECTION === 'true') {

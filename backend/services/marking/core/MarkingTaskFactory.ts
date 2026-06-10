@@ -310,18 +310,20 @@ export class MarkingTaskFactory {
         globalZones = MarkingZoneService.refineZones(globalZones);
 
         // 🔍 [EVIDENCE LOG]: Prove the zones are correctly tightened and using individual margins.
-        console.log(`\n📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:`);
-        Object.entries(globalZones).forEach(([lbl, zs]: [string, any[]]) => {
-            zs.forEach(z => {
-                const pW = pageDimensionsMap.get(z.pageIndex)?.width || 0;
-                const pH = pageDimensionsMap.get(z.pageIndex)?.height || 0;
-                const marginXPct = ((z.x / pW) * 100).toFixed(1);
-                const marginYPct = ((z.startY / pH) * 100).toFixed(1);
-                const marginTarget = 6.0;
-                console.log(`   ✅ ${lbl.padEnd(6)} | P${z.pageIndex} | Y: ${String(Math.round(z.startY)).padStart(4)} (${marginYPct}%) to ${String(Math.round(z.endY)).padStart(4)} | X: ${z.x} (Margin: ${marginXPct}%) | W: ${z.width}`);
+        if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+            console.log(`\n📦 [ZONE-EVIDENCE] FINAL UPSTREAM ZONES:`);
+            Object.entries(globalZones).forEach(([lbl, zs]: [string, any[]]) => {
+                zs.forEach(z => {
+                    const pW = pageDimensionsMap.get(z.pageIndex)?.width || 0;
+                    const pH = pageDimensionsMap.get(z.pageIndex)?.height || 0;
+                    const marginXPct = ((z.x / pW) * 100).toFixed(1);
+                    const marginYPct = ((z.startY / pH) * 100).toFixed(1);
+                    const marginTarget = 6.0;
+                    console.log(`   ✅ ${lbl.padEnd(6)} | P${z.pageIndex} | Y: ${String(Math.round(z.startY)).padStart(4)} (${marginYPct}%) to ${String(Math.round(z.endY)).padStart(4)} | X: ${z.x} (Margin: ${marginXPct}%) | W: ${z.width}`);
+                });
             });
-        });
-        console.log(`-------------------------------------------\n`);
+            console.log(`-------------------------------------------\n`);
+        }
 
         // =========================================================================
         // PHASE 2: TASK GENERATION
@@ -502,7 +504,7 @@ export class MarkingTaskFactory {
             });
 
             if (metaPageIndices && metaPageIndices.length > 0) {
-                console.log(` 🏭 [FACTORY-META] Assigning Meta Indices ${metaPageIndices.join(', ')} to task Q${group.questionNumber}`);
+                // console.log(` 🏭 [FACTORY-META] Assigning Meta Indices ${metaPageIndices.join(', ')} to task Q${baseQNum}`);
             }
             tasks.push({
                 questionNumber: baseQNum,

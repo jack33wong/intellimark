@@ -290,7 +290,9 @@ export class MarkingZoneService {
         if (!rawBlocks || !expectedQuestions) return zones;
 
         const metaPages = new Set(metaPageIndices || []);
-        console.log(` 📏 [ZONE-SERVICE] detectSemanticZones initialized with Meta Pages: ${[...metaPages].join(', ') || 'none'}`);
+        if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+            console.log(` 📏 [ZONE-SERVICE] detectSemanticZones initialized with Meta Pages: ${[...metaPages].join(', ') || 'none'}`);
+        }
 
 
         // 1. Sort blocks strictly by Page and then Y
@@ -375,7 +377,9 @@ export class MarkingZoneService {
                     // console.log(`[SHARED-CURSOR] Q${finalKey} sharing cursor with children from P${currentSearchPage}@${minSearchY}.`);
                 }
             } else {
-                console.log(`[ZONE-MISS] ⚠️ Question ${finalKey} could not be anchored. Exhausted search from P${currentSearchPage}@${minSearchY}`);
+                if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+                    console.log(`[ZONE-MISS] ⚠️ Question ${finalKey} could not be anchored. Exhausted search from P${currentSearchPage}@${minSearchY}`);
+                }
             }
         }
 
@@ -462,7 +466,9 @@ export class MarkingZoneService {
                 
                 if ((gapHeight > 600 && !gapHasContent) || hasEmptyInterveningPage) {
                     groupHasALevelSignal = true;
-                    console.log(` 📊 [A-LEVEL-UPGRADE] Group ${ZoneUtils.getBaseNumber(l1.key)} upgraded via ${l1.key}->${l2.key} (H:${gapHeight}, EmptyPage:${hasEmptyInterveningPage})`);
+                    if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+                        console.log(` 📊 [A-LEVEL-UPGRADE] Group ${ZoneUtils.getBaseNumber(l1.key)} upgraded via ${l1.key}->${l2.key} (H:${gapHeight}, EmptyPage:${hasEmptyInterveningPage})`);
+                    }
                 }
                 baseEnd++;
             }
@@ -563,7 +569,9 @@ export class MarkingZoneService {
                 origH: pH
             } as any);
 
-            console.log(` 🏗️ [ZONE-CREATE] ${resultKey}: [${finalStartY} - ${finalEndY}] (P${current.pageIndex})`);
+            if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+                console.log(` 🏗️ [ZONE-CREATE] ${resultKey}: [${finalStartY} - ${finalEndY}] (P${current.pageIndex})`);
+            }
 
             // 🌉 [BIBLE-BRIDGE]: Fill empty pages between this landmark and the next.
             // If the next milestone (next landmark or next cluster) is on a further page, 
@@ -592,7 +600,9 @@ export class MarkingZoneService {
                         origW: bW,
                         origH: bH
                     } as any);
-                    console.log(` 🌉 [ZONE-BRIDGE] ${resultKey}: [FULL-PAGE] (P${p})`);
+                    if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+                        console.log(` 🌉 [ZONE-BRIDGE] ${resultKey}: [FULL-PAGE] (P${p})`);
+                    }
                 }
             } else if (!nextMilestone) {
                 // 🚩 [END-OF-PAPER BRIDGE]: If this is the last question, 
@@ -617,7 +627,9 @@ export class MarkingZoneService {
                         origW: bW,
                         origH: bH
                     } as any);
-                    console.log(` 🏁 [ZONE-END-BRIDGE] ${resultKey}: [FULL-PAGE] (P${p})`);
+                    if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+                        console.log(` 🏁 [ZONE-END-BRIDGE] ${resultKey}: [FULL-PAGE] (P${p})`);
+                    }
                 }
             }
         }
@@ -1028,8 +1040,10 @@ export class MarkingZoneService {
                 const isParentLaterBlock = parent.pageIndex === earliestChild.pageIndex && parentIdx > minChildIdx;
 
                 if (isParentLaterPage || isParentLaterBlock) {
-                    console.log(` ⚖️ [RECONCILE] Parent "${parent.label}" was anchored at block index ${parentIdx} (P${parent.pageIndex}).`);
-                    console.log(` ⚖️ [RECONCILE] SNAPPING "${parent.label}" to match child "${earliestChild.label}" at block index ${minChildIdx} (P${earliestChild.pageIndex}).`);
+                    if (process.env.LOG_ZONE_SERVICE_DEBUG === 'true') {
+                        console.log(` ⚖️ [RECONCILE] Parent "${parent.label}" was anchored at block index ${parentIdx} (P${parent.pageIndex}).`);
+                        console.log(` ⚖️ [RECONCILE] SNAPPING "${parent.label}" to match child "${earliestChild.label}" at block index ${minChildIdx} (P${earliestChild.pageIndex}).`);
+                    }
 
                     // Clean up the false positive flag on the old parent block
                     const oldParentBlock = sortedBlocks[parentIdx];

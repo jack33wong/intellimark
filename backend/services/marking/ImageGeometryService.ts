@@ -6,6 +6,7 @@ export interface GeometryAnalysisResult {
     rejection_reason?: string;
     needs_rotation: number;
     is_two_page_spread: boolean;
+    is_marking_scheme: boolean;
 }
 
 interface RawGeometryAnalysisResult {
@@ -13,6 +14,7 @@ interface RawGeometryAnalysisResult {
     is_acceptable_quality: boolean;
     rejection_reason: string;
     is_two_page_spread: boolean;
+    is_marking_scheme: boolean;
 }
 
 export class ImageGeometryService {
@@ -26,6 +28,7 @@ Your job is to analyze the provided image of student homework and return a stric
 2. is_acceptable_quality (boolean): Must be false if the image is extremely blurry, completely unreadable, photographed at an extreme skewed angle, or contains more than 2 pages squeezed into a single photo. Otherwise true.
 3. rejection_reason (string): If is_acceptable_quality is false, provide a very short, user-friendly reason (e.g., "The image is too blurry to read"). Omit if true.
 4. is_two_page_spread (boolean): Must be true ONLY if the image clearly shows exactly TWO distinct pages side-by-side (like an open booklet or textbook separated by a spine/fold). If it's just one single page, return false.
+5. is_marking_scheme (boolean): Must be true ONLY if the image is an official marking scheme or rubric containing explicit grading codes (e.g., M1, A1, B1), structural mark distributions, or evaluator notes. CRITICAL: If the image is a student exam page, a blank question page with no handwriting, a formula sheet, or an appendix, you MUST return false. Do not assume a page is a marking scheme just because it lacks handwritten student work.
 
 # Output Format
 Return ONLY valid JSON matching this schema:
@@ -33,7 +36,8 @@ Return ONLY valid JSON matching this schema:
     "visual_observations": string,
     "is_acceptable_quality": boolean,
     "rejection_reason": string,
-    "is_two_page_spread": boolean
+    "is_two_page_spread": boolean,
+    "is_marking_scheme": boolean
 }`;
     }
 
@@ -69,7 +73,7 @@ Return ONLY valid JSON matching this schema:
                 base64Image,
                 'gemini-3.1-flash-lite', // Hardcoded as per design
                 tracker,
-                'classification'
+                'preFlight'
             );
 
             let content = response.content.trim();
@@ -94,7 +98,8 @@ Return ONLY valid JSON matching this schema:
                 is_acceptable_quality: Boolean(parsed.is_acceptable_quality),
                 rejection_reason: parsed.rejection_reason || undefined,
                 needs_rotation: 0, // Rotation is handled by Vision now
-                is_two_page_spread: Boolean(parsed.is_two_page_spread)
+                is_two_page_spread: Boolean(parsed.is_two_page_spread),
+                is_marking_scheme: Boolean(parsed.is_marking_scheme)
             };
 
         } catch (error) {
@@ -103,7 +108,8 @@ Return ONLY valid JSON matching this schema:
             return {
                 is_acceptable_quality: true,
                 needs_rotation: 0,
-                is_two_page_spread: false
+                is_two_page_spread: false,
+                is_marking_scheme: false
             };
         }
     }
