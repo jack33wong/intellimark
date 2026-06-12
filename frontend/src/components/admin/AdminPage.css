@@ -298,6 +298,7 @@
 }
 
 .admin-btn--icon {
+  margin: 1px;
   background: none;
   border: none;
   padding: 8px;
@@ -1323,6 +1324,10 @@
   border: 4px solid var(--background-nav);
   border-top: 4px solid var(--text-brand);
   border-radius: 50%;
+  animation: admin-spin 1s linear infinite;
+}
+
+.spin-animation {
   animation: admin-spin 1s linear infinite;
 }
 

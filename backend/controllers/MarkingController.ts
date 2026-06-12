@@ -169,12 +169,25 @@ export class MarkingController {
             }
 
             // 4. Execute Pipeline
+            const progressCallback = (data: any) => {
+                if (process.env.CHAOS_MODE === 'true') {
+                    // Randomly drop non-essential packets (progress updates, not 'complete' or 'error' or first packet)
+                    if (data.type !== 'complete' && data.type !== 'error' && data.progress !== 0) {
+                        if (Math.random() < 0.3) {
+                            console.log(`🌪️ [CHAOS MODE] Dropped packet: ${data.message || data.type}`);
+                            return; // Simulate packet loss
+                        }
+                    }
+                }
+                sendSseUpdate(res, data);
+            };
+
             const result = await MarkingPipelineService.executePipeline(
                 req,
                 files,
                 submissionId,
                 options,
-                (data: any) => sendSseUpdate(res, data),
+                progressCallback,
                 usageTracker
             );
 

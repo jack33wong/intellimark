@@ -407,6 +407,8 @@ function AdminPage() {
   const [activeTab, setActiveTab] = useState('json');
   const [examBoardFilter, setExamBoardFilter] = useState('Pearson Edexcel');
   const [qualificationFilter, setQualificationFilter] = useState('All');
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditFilter, setAuditFilter] = useState('All');
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
 
@@ -1763,6 +1765,152 @@ function AdminPage() {
     runBulkSync('pending');
   }, [runBulkSync]);
 
+
+  const runDataAudit = async (paperId = null) => {
+    console.log('--- STARTING AI AUDIT ---');
+    setIsAuditing(true);
+    try {
+      let targets = [];
+      if (paperId) {
+        const paper = jsonEntries.find(e => e.id === paperId);
+        if (!paper) throw new Error('Paper not found in local state');
+        const scheme = markingSchemeEntries.find(s => isPaperMatch(paper, s));
+        targets.push({ paperId: paper.id, schemeId: scheme ? scheme.id : null });
+      } else {
+        const unchecked = filteredJsonEntries.filter(p => {
+          const pData = p.data || p;
+          return !pData.audit || pData.audit.status === 'UNCHECKED';
+        });
+        targets = unchecked.map(paper => {
+          const scheme = markingSchemeEntries.find(s => isPaperMatch(paper, s));
+          return { paperId: paper.id, schemeId: scheme ? scheme.id : null };
+        });
+
+        const cleanCount = filteredJsonEntries.filter(p => {
+          const pData = p.data || p;
+          return pData.audit && pData.audit.status === 'CLEAN';
+        }).length;
+        
+        const suspectCount = filteredJsonEntries.filter(p => {
+          const pData = p.data || p;
+          return pData.audit && pData.audit.status === 'SUSPECT';
+        }).length;
+
+        if (targets.length === 0) {
+          let msg = 'No unchecked papers found for these filters.';
+          if (cleanCount > 0 || suspectCount > 0) {
+            msg += `\n(${cleanCount} are already CLEAN and ${suspectCount} are already SUSPECT).`;
+          }
+          alert(msg);
+          setIsAuditing(false);
+          return;
+        }
+        if (targets.length > 15) {
+          let msg = `You are about to run a massive AI audit on ${targets.length} papers. This may take several minutes.\n\n`;
+          if (cleanCount > 0 || suspectCount > 0) {
+            msg += `(Note: Out of ${filteredJsonEntries.length} total papers in this view, ${cleanCount} are already CLEAN and ${suspectCount} are already SUSPECT, so they will be skipped.)\n\n`;
+          }
+          msg += `Do you wish to proceed?`;
+
+          if (!window.confirm(msg)) {
+            setIsAuditing(false);
+            return;
+          }
+        }
+      }
+
+      setAuditProgress({ current: 0, total: targets.length });
+      
+      let processed = 0;
+      let newSuspects = 0;
+
+      for (let i = 0; i < targets.length; i++) {
+        try {
+          const response = await ApiClient.post('/api/admin/audit/run', { targets: [targets[i]] }, { timeout: 300000 });
+          processed += response.data.papersProcessed;
+          newSuspects += response.data.newSuspectsCount;
+          setAuditProgress({ current: i + 1, total: targets.length });
+        } catch (err) {
+          console.error(`Audit chunk failed for paper ${targets[i].paperId}:`, err);
+        }
+      }
+
+      alert(`Audit Complete!\nPapers Processed: ${processed}\nNew Suspects Found: ${newSuspects}`);
+      setAuditProgress({ current: 0, total: 0 });
+      
+      loadJsonEntries(true, true);
+    } catch (err) {
+      console.error('Audit failed with error:', err);
+      alert('Audit Failed: ' + (err.response?.data?.error || err.message));
+      setError(err.response?.data?.error || err.message || 'Audit failed');
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  const clearAuditData = async () => {
+    // FIX: Calculate targets by applying the Board and Qual filters, 
+    // but EXPLICITLY IGNORING the "Audit Suspects" tab.
+    // This way it will always clear all 74 papers even if the Suspects tab is active!
+    const boardFiltered = filterByBoard(jsonEntries, (entry) => {
+      const examData = entry.data || entry;
+      const examMeta = examData.exam || examData.metadata || {};
+      return examMeta.board || examMeta.exam_board || JSON.stringify(entry);
+    });
+    
+    const qualFiltered = filterByQualification(boardFiltered, (entry) => {
+      const examData = entry.data || entry;
+      const examMeta = examData.exam || examData.metadata || {};
+      return examMeta.qualification || examMeta.subject || '';
+    });
+
+    const targets = qualFiltered.map(p => ({ paperId: p.id }));
+    
+    if (targets.length === 0) {
+      alert('No papers in the current filter view.');
+      return;
+    }
+
+    // Updated the alert text so you know exactly how many it is about to clear
+    if (!window.confirm(`Are you sure you want to permanently reset the audit history for these ${targets.length} filtered papers? They will be reset to 'UNCHECKED'.`)) {
+      return;
+    }
+
+    try {
+      setIsAuditing(true);
+      const response = await ApiClient.post('/api/admin/audit/clear', { targets }, { timeout: 300000 });
+      alert(response.data.message);
+      loadJsonEntries(true, true);
+    } catch (err) {
+      console.error('Clear Audit failed:', err);
+      alert('Clear Audit Failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  const resolveAuditSuspect = async (paperId, questionId, action) => {
+    try {
+      await ApiClient.post('/api/admin/audit/resolve', {
+        paperId, questionId, action
+      });
+      
+      loadJsonEntries(true, true);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Resolution failed');
+    }
+  };
+
+
+
+  const filterByAuditStatus = (entries) => {
+    if (auditFilter === 'All') return entries;
+    return entries.filter(e => {
+       const examData = e.data || e;
+       return examData.audit && examData.audit.status === 'SUSPECT';
+    });
+  };
+
   // Refresh ALL status checks
   const refreshAllStatusChecks = useCallback(async () => {
     runBulkSync('all');
@@ -1867,6 +2015,13 @@ function AdminPage() {
           {qual}
         </button>
       ))}
+      <button
+          className={`admin-filter-tab ${auditFilter === 'Suspects' ? 'admin-filter-tab--active' : ''}`}
+          onClick={() => setAuditFilter(auditFilter === 'All' ? 'Suspects' : 'All')}
+          style={{ marginLeft: 'auto', backgroundColor: auditFilter === 'Suspects' ? '#fee2e2' : undefined, color: auditFilter === 'Suspects' ? '#b91c1c' : undefined, borderColor: auditFilter === 'Suspects' ? '#f87171' : undefined }}
+      >
+          ⚠️ Audit Suspects
+      </button>
     </div>
   );
 
@@ -1938,6 +2093,7 @@ function AdminPage() {
   };
 
   const filteredJsonEntries = sortEntriesByDateAndCode(
+    filterByAuditStatus(
     filterByQualification(
       filterByBoard(jsonEntries, (entry) => {
         const examData = entry.data || entry;
@@ -1950,6 +2106,7 @@ function AdminPage() {
         return examMeta.qualification || examMeta.subject || '';
       }
     ),
+  ),
     (entry) => {
       const examData = entry.data || entry;
       const examMeta = examData.exam || examData.metadata || {};
@@ -2010,6 +2167,137 @@ function AdminPage() {
       return (entry.qualification || '') + (entry.subjects?.[0]?.name || '');
     }
   );
+
+  const [selectedFixes, setSelectedFixes] = useState({});
+  const [autoSelectText, setAutoSelectText] = useState("");
+
+  const handleAutoSelect = () => {
+    let count = 0;
+    const newSelected = { ...selectedFixes };
+    allPendingSuspects.forEach(s => {
+      const key = `${s.paperId}_${s.questionId}`;
+      // Use regex to match the exact key and prevent substring bugs (e.g. matching '1' inside '17')
+      // (?![a-zA-Z0-9]) ensures the key is not immediately followed by another letter or number
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedKey + '(?![a-zA-Z0-9])', 'i');
+      
+      if (regex.test(autoSelectText)) {
+        newSelected[key] = true;
+        count++;
+      }
+    });
+    setSelectedFixes(newSelected);
+    setAutoSelectText('');
+    alert(`Selected ${count} matching items based on keys.`);
+  };
+
+  const allPendingSuspects = useMemo(() => {
+    return filteredJsonEntries.flatMap(paper => {
+      const examData = paper.data || paper;
+      const examMeta = examData.exam || examData.metadata || {};
+      const audit = examData.audit || {};
+      const suspects = audit.suspects || [];
+      
+      const board = examMeta.board || examMeta.exam_board || 'N/A';
+      const examSeries = examMeta.exam_series || 'N/A';
+      const code = examMeta.code || examMeta.exam_code || 'N/A';
+      const beautifulName = board !== 'N/A' ?
+          `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
+          examData.originalName || examData.filename || paper.id;
+
+      return suspects
+        .filter(s => s.status === 'PENDING')
+        .map(s => ({
+          paperId: paper.id,
+          paperTitle: beautifulName,
+          ...s
+        }));
+    });
+  }, [filteredJsonEntries]);
+
+  useEffect(() => {
+    if (auditFilter === 'Suspects') {
+      const initial = {};
+      allPendingSuspects.forEach(s => {
+        initial[`${s.paperId}_${s.questionId}`] = false;
+      });
+      setSelectedFixes(initial);
+    }
+  }, [auditFilter, allPendingSuspects.length]);
+
+  const toggleFixSelection = (paperId, questionId) => {
+    const key = `${paperId}_${questionId}`;
+    setSelectedFixes(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const copyListForAIReview = () => {
+    let markdown = "### AI Audit Review Request\nPlease review these proposed database fixes for mathematical accuracy.\n\n";
+    allPendingSuspects.forEach((s, i) => {
+      markdown += `**[ID: ${s.paperId}_${s.questionId}] Paper: ${s.paperTitle} | Question: ${s.questionNumber}**\n`;
+      markdown += `* **Issue:** ${s.reason}\n`;
+      markdown += `* **Current:** ${s.currentText || 'N/A'}\n`;
+      markdown += `* **Proposed:** ${s.suggestedFix || 'N/A'}\n\n`;
+    });
+    navigator.clipboard.writeText(markdown).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(err => {
+      alert('Failed to copy: ' + err);
+    });
+  };
+
+  const acceptAllCheckedFixes = async () => {
+    // FIX: Extract fixes directly from the state keys, ignoring the UI filters
+    const fixes = Object.keys(selectedFixes)
+      .filter(key => selectedFixes[key]) // Only grab the ones that are 'true'
+      .map(key => {
+        const [paperId, questionId] = key.split('_');
+        
+        // Find the suggested fix text by looking up the paper in the raw JSON entries
+        const paper = jsonEntries.find(p => p.id === paperId);
+        const suspect = paper?.data?.audit?.suspects?.find(s => String(s.questionId) === String(questionId));
+
+        return {
+          paperId,
+          questionId,
+          suggestedFix: suspect?.suggestedFix
+        };
+      })
+      .filter(fix => fix.suggestedFix); // Ensure we actually found the fix text
+    
+    if (fixes.length === 0) {
+      alert('No fixes selected.');
+      return;
+    }
+
+    try {
+      setIsAuditing(true);
+      await ApiClient.post('/api/admin/audit/bulk-fix', { fixes }, { timeout: 300000 });
+      alert(`Successfully applied ${fixes.length} fixes!`);
+      // Uncheck everything after success
+      setSelectedFixes({});
+      loadJsonEntries(true, true);
+    } catch (err) {
+      alert('Bulk fix failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  const sweepPendingToNoise = async () => {
+    if (!window.confirm("Are you sure you want to mark ALL remaining pending suspects as AI noise (IGNORED)? This cannot be easily undone.")) {
+      return;
+    }
+    try {
+      setIsAuditing(true);
+      const response = await ApiClient.post('/api/admin/audit/sweep-noise', {}, { timeout: 300000 });
+      alert(response.data.message);
+      loadJsonEntries(true, true);
+    } catch (err) {
+      alert('Sweep failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsAuditing(false);
+    }
+  };
 
   return (
     <div className="admin-page">
@@ -2361,6 +2649,34 @@ function AdminPage() {
                   </button>
                   <button
                     className="admin-btn admin-btn--secondary"
+                    onClick={() => runDataAudit(null)}
+                    disabled={isAuditing || isSyncingAll || loadingJson}
+                    title="Run AI Contradiction Audit on currently filtered papers"
+                    style={{ marginBottom: 0 }}
+                  >
+                    {isAuditing ? (
+                      <>
+                        <RefreshCw size={16} className="spin-animation" />
+                        Auditing {auditProgress.total > 0 ? `${auditProgress.current}/${auditProgress.total}` : '...'}
+                      </>
+                    ) : (
+                      <>
+                        <Search size={16} />
+                        Audit Filtered
+                      </>
+                    )}
+                  </button>
+                  <button
+                    className="admin-btn admin-btn--secondary"
+                    onClick={clearAuditData}
+                    disabled={isAuditing || isSyncingAll || loadingJson}
+                    title="Reset audit data for all currently filtered papers"
+                    style={{ marginBottom: 0 }}
+                  >
+                    Clear Audit (Filtered)
+                  </button>
+                  <button
+                    className="admin-btn admin-btn--secondary"
                     onClick={refreshAllStatusChecks}
                     disabled={isSyncingAll || loadingJson || loadingMarking || loadingBoundaries}
                     title="Refresh ALL status checks in the database"
@@ -2369,15 +2685,7 @@ function AdminPage() {
                     <RefreshCw size={16} className={(isSyncingAll && syncProgress.total === jsonEntries.length) ? 'spin-animation' : ''} />
                     Refresh ALL
                   </button>
-                  {jsonEntries.length > 0 && (
-                    <button
-                      className="admin-btn admin-btn--danger"
-                      onClick={deleteAllJsonEntries}
-                      disabled={isDeletingAll || isSyncingAll}
-                    >
-                      {isDeletingAll ? 'Deleting...' : 'Delete All'}
-                    </button>
-                  )}
+                  {/* Delete All button removed per request */}
                 </div>
               </div>
 
@@ -2391,6 +2699,93 @@ function AdminPage() {
                   <Database size={48} />
                   <p>No exam paper data found</p>
                   <p>Upload JSON data to get started</p>
+                </div>
+              ) : auditFilter === 'Suspects' ? (
+                <div className="admin-table-container">
+                  <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="admin-btn admin-btn--secondary" onClick={copyListForAIReview}>
+                        📋 Copy List for AI Review
+                      </button>
+                      <button className="admin-btn admin-btn--primary" onClick={acceptAllCheckedFixes} disabled={isAuditing}>
+                        {isAuditing ? 'Processing...' : 'Accept All Checked Fixes'}
+                      </button>
+                      <button className="admin-btn admin-btn--secondary" onClick={sweepPendingToNoise} disabled={isAuditing} style={{ marginLeft: 'auto', backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }}>
+                        🧹 Mark All Remaining as Noise
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <textarea 
+                        value={autoSelectText}
+                        onChange={(e) => setAutoSelectText(e.target.value)}
+                        placeholder="Paste AI response here (e.g. ID: paperId_qId) to auto-select checkboxes"
+                        style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', resize: 'vertical', minHeight: '38px', fontSize: '13px' }}
+                        rows={1}
+                      />
+                      <button className="admin-btn admin-btn--secondary" onClick={handleAutoSelect}>
+                        🎯 Auto-Select by ID
+                      </button>
+                    </div>
+                  </div>
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th className="admin-table__header" style={{ width: '40px' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={allPendingSuspects.length > 0 && allPendingSuspects.every(s => selectedFixes[`${s.paperId}_${s.questionId}`])}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setSelectedFixes(prev => {
+                                const newState = { ...prev }; // Keep previous selections!
+                                allPendingSuspects.forEach(s => {
+                                  newState[`${s.paperId}_${s.questionId}`] = checked;
+                                });
+                                return newState;
+                              });
+                            }}
+                          />
+                        </th>
+                        <th className="admin-table__header" style={{ width: '20%' }}>Paper & Question</th>
+                        <th className="admin-table__header" style={{ width: '30%' }}>Current Text</th>
+                        <th className="admin-table__header" style={{ width: '20%' }}>AI Reason</th>
+                        <th className="admin-table__header" style={{ width: '30%' }}>Suggested Fix</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allPendingSuspects.length === 0 ? (
+                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No pending suspects found.</td></tr>
+                      ) : (
+                        allPendingSuspects.map(s => {
+                          const key = `${s.paperId}_${s.questionId}`;
+                          return (
+                            <tr key={key} className="admin-table__row">
+                              <td className="admin-table__cell">
+                                <input 
+                                  type="checkbox" 
+                                  checked={!!selectedFixes[key]} 
+                                  onChange={() => toggleFixSelection(s.paperId, s.questionId)} 
+                                />
+                              </td>
+                              <td className="admin-table__cell">
+                                <strong>{s.paperTitle}</strong><br/>
+                                <span style={{ color: '#666' }}>Q: {s.questionNumber}</span>
+                              </td>
+                              <td className="admin-table__cell" style={{ whiteSpace: 'pre-wrap', fontSize: '13px' }}>
+                                {s.currentText || 'N/A'}
+                              </td>
+                              <td className="admin-table__cell" style={{ color: '#b91c1c', fontSize: '13px' }}>
+                                {s.reason}
+                              </td>
+                              <td className="admin-table__cell" style={{ whiteSpace: 'pre-wrap', fontSize: '13px', backgroundColor: '#f0fdf4' }}>
+                                {s.suggestedFix || 'No fix suggested'}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <div className="admin-table-container">
@@ -2631,22 +3026,12 @@ function AdminPage() {
                                 </td>
                                 <td className="admin-table__cell actions-cell">
                                   <button
-                                    className="admin-btn admin-btn--icon"
-                                    onClick={() => {
-                                      const newId = expandedJsonId === entry.id ? null : entry.id;
-                                      setExpandedJsonId(newId);
-                                      if (newId) {
-                                        extractAndCopyQuestionNumbers(entry);
-                                        // Fetch full details if data is incomplete
-                                        const hasData = entry.questions || (entry.data && entry.data.questions);
-                                        if (!hasData || !entry.isFullyLoaded) {
-                                          fetchJsonEntryDetails(entry.id);
-                                        }
-                                      }
-                                    }}
-                                    title="View"
+                                    className="admin-btn admin-btn--icon btn-danger"
+                                    onClick={() => runDataAudit(entry.id)}
+                                    title="Run AI Audit"
+                                    disabled={isAuditing}
                                   >
-                                    <FileText size={16} />
+                                    <Search size={16} className={isAuditing ? 'spin-animation' : ''} />
                                   </button>
                                   <button
                                     className="admin-btn admin-btn--icon btn-danger"
@@ -2671,6 +3056,36 @@ function AdminPage() {
                                         ) : (
                                           <>
                                             <div className="admin-content-header">
+                                              {(examData.audit && examData.audit.status === 'SUSPECT') && (
+                                                <div style={{ background: '#fef2f2', borderLeft: '4px solid #ef4444', padding: '12px', marginBottom: '16px', borderRadius: '4px' }}>
+                                                  <h4 style={{ color: '#b91c1c', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    ⚠️ AI Contradiction Detected
+                                                  </h4>
+                                                  {examData.audit.suspects.filter(s => s.status === 'PENDING').map(suspect => (
+                                                    <div key={suspect.questionId} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #fecaca' }}>
+                                                      <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#991b1b' }}>
+                                                        <strong>Q{suspect.questionNumber}:</strong> {suspect.reason}
+                                                      </p>
+                                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button 
+                                                          className="admin-btn admin-btn--secondary" 
+                                                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                                                          onClick={() => resolveAuditSuspect(entry.id, suspect.questionId, 'FIXED')}
+                                                        >
+                                                          Mark as Fixed
+                                                        </button>
+                                                        <button 
+                                                          className="admin-btn admin-btn--secondary" 
+                                                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                                                          onClick={() => resolveAuditSuspect(entry.id, suspect.questionId, 'IGNORED')}
+                                                        >
+                                                          Ignore False Positive
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
                                               <h4 className="admin-content-header__title">
                                                 {isEditing && editingId === entry.id ? 'Editing: ' : 'Exam Paper Content: '}
                                                 {
@@ -3087,16 +3502,7 @@ function AdminPage() {
                      <RefreshCw size={16} className={isAuditingMarkTypes ? 'animate-spin' : ''} />
                      Audit Mark Types
                    </button>
-                   {markingSchemeEntries.length > 0 && (
-                     <button
-                       onClick={deleteAllMarkingSchemeEntries}
-                       className="admin-btn admin-btn--danger"
-                       disabled={isDeletingAll || isAuditingMarkTypes}
-                     >
-                       <Trash2 size={16} />
-                       Delete All
-                     </button>
-                   )}
+                   {/* Delete All button removed per request */}
                  </div>
               </div>
 
@@ -3564,16 +3970,7 @@ function AdminPage() {
               {renderQualificationFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Grade Boundaries ({filteredGradeBoundaries.length})</h3>
-                {gradeBoundaryEntries.length > 0 && (
-                  <button
-                    onClick={deleteAllGradeBoundaryEntries}
-                    className="admin-btn admin-btn--danger"
-                    disabled={isDeletingAllGradeBoundaries}
-                  >
-                    <Trash2 size={16} />
-                    Delete All
-                  </button>
-                )}
+                {/* Delete All button removed per request */}
               </div>
 
               {loadingBoundaries ? (

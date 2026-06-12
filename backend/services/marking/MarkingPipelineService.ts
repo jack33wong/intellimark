@@ -2416,6 +2416,10 @@ export class MarkingPipelineService {
             };
 
             // --- Send FINAL Complete Event ---
+            if (process.env.CHAOS_MODE === 'true') {
+                console.log('🌪️ [CHAOS MODE] Simulating 85s latency before complete payload...');
+                await new Promise(resolve => setTimeout(resolve, 85000));
+            }
             progressCallback({ type: 'complete', result: finalOutput }); // 'true' marks as final
 
             // --- Performance Summary ---

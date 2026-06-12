@@ -227,6 +227,26 @@ class SimpleSessionService {
     this.setState({ currentSession: updatedSession });
   }
 
+  // Architectural Defense: Single Source of Truth for State
+  _commitServerSessionState = (serverId, serverTitle) => {
+    if (!serverId || !this.state.currentSession) return;
+    
+    const currentTitle = this.state.currentSession.title;
+    const shouldUpdateTitle = !currentTitle || currentTitle === 'Processing...' || currentTitle === 'Chat Session';
+    
+    const updatedSession = {
+        ...this.state.currentSession,
+        id: serverId,
+        title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : currentTitle,
+        updatedAt: new Date().toISOString()
+    };
+    
+    this.updateCurrentSessionOnly(updatedSession);
+    if (!serverId.startsWith('temp-')) {
+        this.updateSidebarSession(updatedSession);
+    }
+  }
+
   handleProcessComplete = (data, modelUsed, aiMessageId = null) => {
     try {
       // Trigger credit refresh after completion
@@ -245,22 +265,18 @@ class SimpleSessionService {
           this.addMessage(aiMessage);
         }
 
-        // Update session title and sidebar (only for authenticated users)
+        // Update session title and sidebar
         if (data.unifiedSession.title && this.state.currentSession) {
-          const updatedSession = {
-            ...this.state.currentSession,
-            title: data.unifiedSession.title,
-            id: data.unifiedSession.id,
-            sessionStats: data.unifiedSession.sessionStats || this.state.currentSession.sessionStats,
-            updatedAt: data.unifiedSession.updatedAt || new Date().toISOString()
-          };
-
-          this.updateCurrentSessionOnly(updatedSession);
-
-          // Update sidebar with the new session (only for authenticated users)
-          if (data.unifiedSession.userId) {
-            this.updateSidebarSession(updatedSession);
+          // First update the session stats
+          if (data.unifiedSession.sessionStats) {
+            this.updateCurrentSessionOnly({
+              ...this.state.currentSession,
+              sessionStats: data.unifiedSession.sessionStats
+            });
           }
+
+          // Then sync ID and title via the single funnel
+          this._commitServerSessionState(data.unifiedSession.id, data.unifiedSession.title);
         }
 
         return this.state.currentSession;
@@ -321,6 +337,9 @@ class SimpleSessionService {
 
         // Append to current session as an AI message
         this.addMessage(aiMessage);
+
+        // 🛑 THE FIX: Sync the permanent Session ID and handle the Title!
+        this._commitServerSessionState(data.sessionId, data.sessionTitle);
 
         // Stop spinners
         apiControls.stopAIThinking();
@@ -456,25 +475,14 @@ class SimpleSessionService {
             costBreakdown: existingStats.costBreakdown
           };
 
-          // For unauthenticated users: Only update title if it's the first AI response
-          // Keep the original title from the first AI response, don't overwrite on follow-ups
-          const shouldUpdateTitle = !this.state.currentSession.title ||
-            this.state.currentSession.title === 'Processing...' ||
-            this.state.currentSession.title === 'Chat Session';
-
-          const updatedSession = {
+          // First update the session stats
+          this.updateCurrentSessionOnly({
             ...this.state.currentSession,
-            title: shouldUpdateTitle ? data.sessionTitle : this.state.currentSession.title,
-            id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
-            sessionStats: sessionStats,
-            updatedAt: new Date().toISOString() // Add last updated time
-          };
-          this.updateCurrentSessionOnly(updatedSession);
+            sessionStats: sessionStats
+          });
 
-          // FIX: Also update sidebar so changes (like "Model Answers Generated" preview) show immediately
-          if (data.sessionId && !data.sessionId.startsWith('temp-')) {
-            this.updateSidebarSession(updatedSession);
-          }
+          // Then use the centralized single source of truth for ID and Title sync
+          this._commitServerSessionState(data.sessionId, data.sessionTitle);
         }
 
         return this.state.currentSession;
