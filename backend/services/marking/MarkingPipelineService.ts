@@ -555,12 +555,15 @@ export class MarkingPipelineService {
                 standardizedPages.map(page => ImageGeometryService.analyze(page.imageData, page.width, page.height, 'gemini-3.1-flash-lite', usageTracker))
             );
 
+            let lastRejectionReason = 'Image is blurry, blank, unreadable, or not mathematics content.';
+
             for (let i = 0; i < standardizedPages.length; i++) {
                 const page = standardizedPages[i];
                 const geo = geometryResults[i];
 
-                if (!geo.is_acceptable_quality) {
-                    console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${geo.rejection_reason || 'Image is blurry, blank, or unreadable.'}`);
+                if (!geo.is_acceptable_quality || geo.is_math_content === false) {
+                    lastRejectionReason = geo.rejection_reason || lastRejectionReason;
+                    console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${lastRejectionReason}`);
                     continue; // Gracefully filter out the junk page instead of crashing the server
                 }
 
@@ -589,6 +592,11 @@ export class MarkingPipelineService {
                 ...page,
                 pageIndex: index
             }));
+
+            if (standardizedPages.length === 0) {
+                // If all pages were ejected/rejected, stop downstream
+                throw new Error(lastRejectionReason);
+            }
 
             logGeometryComplete();
 

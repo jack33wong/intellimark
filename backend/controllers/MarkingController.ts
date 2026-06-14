@@ -233,15 +233,44 @@ export class MarkingController {
             res.end();
 
         } catch (error: any) {
-            console.error('❌ [CONTROLLER] Marking request failed:', error);
+            console.error(`❌ [CONTROLLER] Marking request failed: ${error.message}`);
+            
+            // Safely extract IDs to tie the response back to the user's UI
+            const aiMessageId = req.body?.aiMessageId || `ai-${Date.now()}`;
+            const sessionId = req.body?.sessionId;
 
-            // Send error via SSE since headers are already sent
-            sendSseUpdate(res, {
-                type: 'error',
-                message: error.message || 'An unexpected error occurred during marking.'
+            // 🛑 THE FIX: Wrap the error as a successful AI chat message so it renders gracefully in the UI
+            const gracefulPayload = JSON.stringify({
+                type: 'complete',
+                result: {
+                    success: true, // Force true so the frontend renders it instead of throwing a JS exception
+                    sessionId: sessionId,
+                    sessionTitle: "Document Rejected",
+                    aiMessage: {
+                        id: aiMessageId,
+                        role: 'assistant',
+                        content: `**Analysis Halted:**\n\n${error.message}`,
+                        timestamp: new Date().toISOString(),
+                        type: 'text',
+                        isProcessing: false,
+                        processingStats: {
+                            apiUsed: 'System Validation',
+                            modelUsed: 'Pre-flight Check'
+                        }
+                    }
+                }
             });
 
-            res.end();
+            // Ensure headers are set if the stream hasn't started yet
+            if (!res.headersSent) {
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                res.status(200);
+            }
+            
+            res.write(`data: ${gracefulPayload}\n\n`);
+            res.end(); // Gracefully close the connection
         } finally {
             // 👇 CLEAR HEARTBEAT 👇
             clearInterval(heartbeat);

@@ -7,6 +7,7 @@ export interface GeometryAnalysisResult {
     needs_rotation: number;
     is_two_page_spread: boolean;
     is_marking_scheme: boolean;
+    is_math_content?: boolean;
 }
 
 interface RawGeometryAnalysisResult {
@@ -15,6 +16,7 @@ interface RawGeometryAnalysisResult {
     rejection_reason: string;
     is_two_page_spread: boolean;
     is_marking_scheme: boolean;
+    is_math_content: boolean;
 }
 
 export class ImageGeometryService {
@@ -26,9 +28,10 @@ Your job is to analyze the provided image of student homework and return a stric
 # Requirements
 1. visual_observations (string): A brief Chain-of-Thought scratchpad. Describe the general clarity of the text and whether you see a physical spine or line dividing exactly two distinct pages side-by-side. Do this BEFORE evaluating the other fields.
 2. is_acceptable_quality (boolean): Must be false if the image is extremely blurry, completely unreadable, photographed at an extreme skewed angle, or contains more than 2 pages squeezed into a single photo. Otherwise true.
-3. rejection_reason (string): If is_acceptable_quality is false, provide a very short, user-friendly reason (e.g., "The image is too blurry to read"). Omit if true.
-4. is_two_page_spread (boolean): Must be true ONLY if the image clearly shows exactly TWO distinct pages side-by-side (like an open booklet or textbook separated by a spine/fold). If it's just one single page, return false.
-5. is_marking_scheme (boolean): Must be true ONLY if the image is an official marking scheme or rubric containing explicit grading codes (e.g., M1, A1, B1), structural mark distributions, or evaluator notes. CRITICAL: If the image is a student exam page, a blank question page with no handwriting, a formula sheet, or an appendix, you MUST return false. Do not assume a page is a marking scheme just because it lacks handwritten student work.
+3. is_two_page_spread (boolean): Must be true ONLY if the image clearly shows exactly TWO distinct pages side-by-side (like an open booklet or textbook separated by a spine/fold). If it's just one single page, return false.
+4. is_marking_scheme (boolean): Must be true ONLY if the image is an official marking scheme or rubric containing explicit grading codes (e.g., M1, A1, B1), structural mark distributions, or evaluator notes. CRITICAL: If the image is a student exam page, a blank question page with no handwriting, a formula sheet, or an appendix, you MUST return false. Do not assume a page is a marking scheme just because it lacks handwritten student work.
+5. is_math_content (boolean): You must verify the academic subject of the document. If the document is an essay, a piece of creative writing, or clearly belongs to a non-mathematical subject (like English, History, or Geography), you must set this to false. Otherwise true.
+6. rejection_reason (string): If is_acceptable_quality or is_math_content is false, provide a very short, user-friendly reason (e.g., "The image is too blurry to read" or "Document appears to be an English essay, not a mathematics paper."). Omit if both are true.
 
 # Output Format
 Return ONLY valid JSON matching this schema:
@@ -37,7 +40,8 @@ Return ONLY valid JSON matching this schema:
     "is_acceptable_quality": boolean,
     "rejection_reason": string,
     "is_two_page_spread": boolean,
-    "is_marking_scheme": boolean
+    "is_marking_scheme": boolean,
+    "is_math_content": boolean
 }`;
     }
 
@@ -99,7 +103,8 @@ Return ONLY valid JSON matching this schema:
                 rejection_reason: parsed.rejection_reason || undefined,
                 needs_rotation: 0, // Rotation is handled by Vision now
                 is_two_page_spread: Boolean(parsed.is_two_page_spread),
-                is_marking_scheme: Boolean(parsed.is_marking_scheme)
+                is_marking_scheme: Boolean(parsed.is_marking_scheme),
+                is_math_content: parsed.is_math_content === undefined ? true : Boolean(parsed.is_math_content)
             };
 
         } catch (error) {
@@ -109,7 +114,8 @@ Return ONLY valid JSON matching this schema:
                 is_acceptable_quality: true,
                 needs_rotation: 0,
                 is_two_page_spread: false,
-                is_marking_scheme: false
+                is_marking_scheme: false,
+                is_math_content: true // Fall open to let OCR handle it
             };
         }
     }

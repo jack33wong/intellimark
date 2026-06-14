@@ -400,7 +400,7 @@ const SessionHeader: React.FC = () => {
         </h1>
       </div>
 
-      {displaySession && !displaySession.id.startsWith('temp-') && (
+      {displaySession && !displaySession.id?.startsWith('temp-') && (
         <div className="session-actions">
           {user && (
             <button
