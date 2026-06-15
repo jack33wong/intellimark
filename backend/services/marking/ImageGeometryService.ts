@@ -8,6 +8,7 @@ export interface GeometryAnalysisResult {
     is_two_page_spread: boolean;
     is_marking_scheme: boolean;
     is_math_content?: boolean;
+    evidence_text_snippet?: string;
 }
 
 interface RawGeometryAnalysisResult {
@@ -17,6 +18,7 @@ interface RawGeometryAnalysisResult {
     is_two_page_spread: boolean;
     is_marking_scheme: boolean;
     is_math_content: boolean;
+    evidence_text_snippet: string;
 }
 
 export class ImageGeometryService {
@@ -32,6 +34,7 @@ Your job is to analyze the provided image of student homework and return a stric
 4. is_marking_scheme (boolean): Must be true ONLY if the image is an official marking scheme or rubric containing explicit grading codes (e.g., M1, A1, B1), structural mark distributions, or evaluator notes. CRITICAL: If the image is a student exam page, a blank question page with no handwriting, a formula sheet, or an appendix, you MUST return false. Do not assume a page is a marking scheme just because it lacks handwritten student work.
 5. is_math_content (boolean): You must verify the academic subject of the document. If the document is an essay, a piece of creative writing, or clearly belongs to a non-mathematical subject (like English, History, or Geography), you must set this to false. Otherwise true.
 6. rejection_reason (string): If is_acceptable_quality or is_math_content is false, provide a very short, user-friendly reason (e.g., "The image is too blurry to read" or "Document appears to be an English essay, not a mathematics paper."). Omit if both are true.
+7. evidence_text_snippet (string): If you set is_math_content to false, you MUST also provide an evidence_text_snippet containing the first 20 to 30 words transcribed directly from the document to serve as proof of the subject matter. Otherwise omit or leave empty.
 
 # Output Format
 Return ONLY valid JSON matching this schema:
@@ -41,7 +44,8 @@ Return ONLY valid JSON matching this schema:
     "rejection_reason": string,
     "is_two_page_spread": boolean,
     "is_marking_scheme": boolean,
-    "is_math_content": boolean
+    "is_math_content": boolean,
+    "evidence_text_snippet": string
 }`;
     }
 
@@ -104,7 +108,8 @@ Return ONLY valid JSON matching this schema:
                 needs_rotation: 0, // Rotation is handled by Vision now
                 is_two_page_spread: Boolean(parsed.is_two_page_spread),
                 is_marking_scheme: Boolean(parsed.is_marking_scheme),
-                is_math_content: parsed.is_math_content === undefined ? true : Boolean(parsed.is_math_content)
+                is_math_content: parsed.is_math_content === undefined ? true : Boolean(parsed.is_math_content),
+                evidence_text_snippet: parsed.evidence_text_snippet || undefined
             };
 
         } catch (error) {

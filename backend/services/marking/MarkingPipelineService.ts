@@ -563,7 +563,11 @@ export class MarkingPipelineService {
 
                 if (!geo.is_acceptable_quality || geo.is_math_content === false) {
                     lastRejectionReason = geo.rejection_reason || lastRejectionReason;
-                    console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${lastRejectionReason}`);
+                    
+                    const reason = geo.rejection_reason || "Unacceptable quality or non-math content.";
+                    const evidence = geo.evidence_text_snippet ? `\n   📄 Evidence: "${geo.evidence_text_snippet}"` : "";
+                    console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
+                    
                     continue; // Gracefully filter out the junk page instead of crashing the server
                 }
 
