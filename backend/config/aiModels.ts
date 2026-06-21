@@ -81,12 +81,12 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
  * Model Tiers mapping
  */
 export const MODEL_TIERS: Record<string, ModelType> = {
-  'fast': 'gemini-3.1-flash-lite',
+  'fast': 'gemini-2.5-flash',
   'thinking': 'gemini-2.5-flash',
   'pro': 'gemini-3.5-flash',
   'gpt-4o': 'openai-gpt-4o',
   'gpt-4o-mini': 'openai-gpt-4o-mini',
-  'auto': 'gemini-3.1-flash-lite' // Default tier mapping
+  'auto': 'gemini-2.5-flash' // Default tier mapping
 };
 
 /**
@@ -96,7 +96,7 @@ export const MODEL_TIERS: Record<string, ModelType> = {
  */
 export function resolveModelTier(modelOrTier: string): ModelType {
   if (modelOrTier === 'auto' || !modelOrTier) {
-    return 'gemini-3.1-flash-lite';
+    return 'gemini-2.5-flash';
   }
   
   // If it's a known tier, resolve it
@@ -110,7 +110,7 @@ export function resolveModelTier(modelOrTier: string): ModelType {
   }
   
   // Fallback
-  return 'gemini-3.1-flash-lite';
+  return 'gemini-2.5-flash';
 }
 
 /**
@@ -256,6 +256,7 @@ export function getModelParameters(modelOrTier: string): Record<string, any> {
       };
     default:
       return {
+        maxOutputTokens: config.maxTokens,
         temperature: config.temperature
       };
   }

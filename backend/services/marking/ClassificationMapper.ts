@@ -1,6 +1,7 @@
 import { ModelProvider } from '../../utils/ModelProvider.js';
 import { getPrompt } from '../../config/prompts.js';
 import UsageTracker from '../../utils/UsageTracker.js';
+import { combineQuestionAndPart } from './MarkingHelpers.js';
 
 export interface PageMap {
     pageIndex: number;
@@ -113,7 +114,7 @@ export class ClassificationMapper {
                         structuredQuestions.push(q);
                         if (q.subQuestions && q.subQuestions.length > 0) {
                             q.subQuestions.forEach((sq: string) => {
-                                flatQuestions.push(`${q.questionNumber}${sq}`);
+                                flatQuestions.push(combineQuestionAndPart(String(q.questionNumber), String(sq)));
                             });
                         } else {
                             flatQuestions.push(q.questionNumber);

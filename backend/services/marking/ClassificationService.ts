@@ -428,6 +428,10 @@ ${pageHints}
 
               // Apply to all questions
               processedQuestions.forEach(q => injectPageIndex(q));
+
+              // 🛡️ MAPPER SANITIZER HAS BEEN REMOVED TO PREVENT CORRUPTING VALID QUESTIONS
+              // The Mapper is fast but can miss questions (e.g. Q5 on a dense page). 
+              // Coercing AI results to the Mapper's incomplete list destroys valid data.
             }
 
             results.push({

@@ -545,14 +545,14 @@ export class MarkingPipelineService {
 
             // --- 2. AI Semantic Geometry & Quality Check ---
             progressCallback(createProgressData(2, `Running semantic quality check on ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
-            const logGeometryComplete = logStep('Semantic Geometry Check', 'gemini-3.1-flash-lite (HARDCODED)');
+            const logGeometryComplete = logStep('Semantic Geometry Check', 'FAST (HARDCODED)');
             
             const newStandardizedPages: StandardizedPage[] = [];
             let pagesEjected = false;
             const interceptedSchemeImages: string[] = [];
             
             const geometryResults = await Promise.all(
-                standardizedPages.map(page => ImageGeometryService.analyze(page.imageData, page.width, page.height, 'gemini-3.1-flash-lite', usageTracker))
+                standardizedPages.map(page => ImageGeometryService.analyze(page.imageData, page.width, page.height, 'fast', usageTracker))
             );
 
             let lastRejectionReason = 'Image is blurry, blank, unreadable, or not mathematics content.';
@@ -566,7 +566,9 @@ export class MarkingPipelineService {
                     
                     const reason = geo.rejection_reason || "Unacceptable quality or non-math content.";
                     const evidence = geo.evidence_text_snippet ? `\n   📄 Evidence: "${geo.evidence_text_snippet}"` : "";
-                    console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
+                    if (process.env.DEBUG_SEMANTIC_GEOMETRY === 'true') {
+                        console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
+                    }
                     
                     continue; // Gracefully filter out the junk page instead of crashing the server
                 }
@@ -770,11 +772,14 @@ export class MarkingPipelineService {
 
                         // Only merge if questionNumber exists and is not null/undefined
                         if (qNum && qNum !== 'null' && qNum !== 'undefined') {
-                            const qNumStr = String(qNum);
-                            if (!questionsByNumber.has(qNumStr)) {
-                                questionsByNumber.set(qNumStr, []);
+                            // Extract the entire base number (e.g. '12' from '12.1' or '12a')
+                            const numMatch = String(qNum).match(/^(\d+)/);
+                            const baseNumStr = numMatch ? numMatch[1] : String(qNum);
+                            
+                            if (!questionsByNumber.has(baseNumStr)) {
+                                questionsByNumber.set(baseNumStr, []);
                             }
-                            questionsByNumber.get(qNumStr)!.push({
+                            questionsByNumber.get(baseNumStr)!.push({
                                 question,
                                 pageIndex: individualPageIndex
                             });
@@ -1358,6 +1363,7 @@ export class MarkingPipelineService {
 
                 return {
                     originalIdx,
+                    originalPageIndex: page.originalPageIndex,
                     filename: page.originalFileName,
                     minQ: minSortWeight === Infinity ? 999999 : minSortWeight,
                     isMeta,
@@ -1408,12 +1414,22 @@ export class MarkingPipelineService {
                 }
             }
 
+            // 1.6 SINGLE PDF MODE: STRICT PHYSICAL ORDER
+            const isSinglePdf = files.length === 1 && files[0].mimetype === 'application/pdf';
+
             // 2. LOGICAL SORT (The Straightener) - [RESTORED]
-            // This ensures that the PDF is "straightened" into numerical order regardless of upload sequence.
+            // This ensures that the images are "straightened" into numerical order regardless of upload sequence.
             pageSortMap.sort((a, b) => {
                 // Rule 1: Metadata First
                 if (a.isMeta && !b.isMeta) return -1;
                 if (!a.isMeta && b.isMeta) return 1;
+
+                // 🛡️ [PDF INTEGRITY]: If the user uploaded a single PDF, the physical order IS the logical order.
+                // Do NOT scramble the PDF based on AI OCR which might misread question numbers!
+                // Past papers ALSO rely entirely on physical order.
+                if (isPastPaper || isSinglePdf) {
+                    return a.originalIdx - b.originalIdx;
+                }
 
                 // Rule 2: Logical Question Order
                 if (Math.abs(a.minQ - b.minQ) > 0.00001) {
@@ -1476,9 +1492,11 @@ export class MarkingPipelineService {
             // We must update questions, sub-questions, AND studentWorkLines to match the new Physical Index.
             // If we don't, the Zone Detector looks at Page 5 but ignores lines tagged as "Page 1".
 
-            // Create a lookup: OriginalIdx -> NewIdx
+            // Create a lookup: PostSplitIdx (from after ModeSplit) -> NewIdx
             const originalToNewIndexMap = new Map<number, number>();
             pageSortMap.forEach((p, newIdx) => {
+                // The classification questions JSON was generated on the POST-split array (0 to N-1),
+                // so we MUST use originalIdx (the array index) rather than originalPageIndex (physical upload index).
                 originalToNewIndexMap.set(p.originalIdx, newIdx);
             });
 
@@ -2316,6 +2334,12 @@ export class MarkingPipelineService {
                     originalToPhysicalMap.set(p.originalPageIndex, physicalIdx);
                 }
             });
+            
+
+
+            
+            // ===========================================================================================
+
 
             const reindexedDetectionResults = detectionResults.map(dr => {
                 const newDr = { ...dr };

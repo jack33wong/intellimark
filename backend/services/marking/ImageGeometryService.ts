@@ -62,7 +62,7 @@ Return ONLY valid JSON matching this schema:
         base64Image: string,
         width?: number,
         height?: number,
-        model: ModelType = 'gemini-3.1-flash-lite',
+        model: ModelType | 'fast' | 'thinking' | 'pro' | 'auto' = 'fast',
         tracker?: any
     ): Promise<GeometryAnalysisResult> {
         try {
@@ -79,7 +79,7 @@ Return ONLY valid JSON matching this schema:
                 prompt,
                 "Analyze this image and return the JSON.",
                 base64Image,
-                'gemini-3.1-flash-lite', // Hardcoded as per design
+                'fast', // Hardcoded as per design to the fast tier
                 tracker,
                 'preFlight'
             );
@@ -96,10 +96,12 @@ Return ONLY valid JSON matching this schema:
             const parsed = JSON.parse(content) as RawGeometryAnalysisResult;
             
             // Print pretty JSON if enabled, otherwise print single line
-            if (process.env.LOG_GEOMETRY_SYSTEM_PROMPT === 'true') {
-                console.log(`\n🤖 [SEMANTIC GEOMETRY AI DEBUG] Pretty Response:\n${JSON.stringify(parsed, null, 2)}\n`);
-            } else {
-                console.log(`🤖 [SEMANTIC GEOMETRY AI DEBUG] Response for image: ${JSON.stringify(parsed)}`);
+            if (process.env.DEBUG_SEMANTIC_GEOMETRY === 'true') {
+                if (process.env.LOG_GEOMETRY_SYSTEM_PROMPT === 'true') {
+                    console.log(`\n🤖 [SEMANTIC GEOMETRY AI DEBUG] Pretty Response:\n${JSON.stringify(parsed, null, 2)}\n`);
+                } else {
+                    console.log(`🤖 [SEMANTIC GEOMETRY AI DEBUG] Response for image: ${JSON.stringify(parsed)}`);
+                }
             }
 
             return {

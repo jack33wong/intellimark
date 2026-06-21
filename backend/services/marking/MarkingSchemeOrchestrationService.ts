@@ -272,11 +272,17 @@ export class MarkingSchemeOrchestrationService {
         };
       } else {
         // Normal Database Path
-        groupDetectionResult = await questionDetectionService.detectQuestion(
-          combinedAnchor,
-          baseNum,
-          examPaperHint
-        );
+        if (combinedAnchor.includes('MANUAL_REVIEW_REQUIRED_JSON_ERROR')) {
+          // If the AI parsing completely failed, do NOT attempt to find a marking scheme
+          // because searching the error message will lead to random/false positive matches.
+          groupDetectionResult = { found: false };
+        } else {
+          groupDetectionResult = await questionDetectionService.detectQuestion(
+            combinedAnchor,
+            baseNum,
+            examPaperHint
+          );
+        }
       }
       // 👆 END OF INTERCEPTION SWITCH 👆
 

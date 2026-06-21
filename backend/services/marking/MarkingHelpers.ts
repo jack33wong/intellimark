@@ -77,6 +77,23 @@ export function getShortExamBoard(board: string | undefined): string {
   return board;
 }
 
+export function combineQuestionAndPart(base: string, part: string): string {
+  if (!part) return String(base);
+  if (!base) return String(part);
+  
+  const b = String(base).trim();
+  let p = String(part).trim();
+  
+  if (p.startsWith('.')) p = p.substring(1);
+  if (p === b || p.startsWith(b + '.')) return p;
+  
+  // If part starts with a number (e.g., base "5", part "1"), add a dot -> "5.1"
+  if (/^\d/.test(p)) return `${b}.${p}`;
+  
+  // Otherwise standard GCSE format (e.g., base "5", part "a") -> "5a"
+  return `${b}${p}`;
+}
+
 // Common function to generate session titles for non-past-paper images
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   // Use shared utility for consistent title generation
@@ -568,9 +585,10 @@ export function extractQuestionsFromClassification(
   const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string }> = [];
 
   const recurse = (q: any, parentNum?: string, parentText?: string, rootSourceIdx?: number) => {
+    // 🛑 THE FIX: Use safe combiner for the local variable
     const currentNum = q.questionNumber !== undefined
       ? (q.questionNumber || null)
-      : (parentNum ? `${parentNum}${q.part || ''}` : null);
+      : (parentNum ? combineQuestionAndPart(parentNum, q.part || '') : null);
 
     const sourceImageIndex = q.sourceImageIndex !== undefined ? q.sourceImageIndex : rootSourceIdx;
 
@@ -717,12 +735,12 @@ export function getQuestionSortValue(questionNumber: string | null | undefined):
 
   const str = String(questionNumber).trim().toLowerCase();
 
-  // 1. Extract Base Number (e.g. "11" from "11a(i)")
-  const baseMatch = str.match(/^(\d+)/);
+  // 🛑 THE FIX: Find the first occurrence of a number to handle "q5", "Question 2.8", etc.
+  const baseMatch = str.match(/(\d+(?:\.\d+)?)/);
   if (!baseMatch) return Infinity;
-  const baseNum = parseInt(baseMatch[1]);
+  const baseNum = parseFloat(baseMatch[1]);
 
-  let remaining = str.replace(/^\d+/, '').replace(/[\(\)\[\]]/g, '').trim();
+  let remaining = str.substring(baseMatch.index! + baseMatch[1].length).replace(/[\(\)\[\]]/g, '').trim();
   let weight = baseNum;
 
   // 🛡️ [GENERIC OFFSET]: Pure numbers (e.g. "2") are continuations. 
@@ -786,9 +804,9 @@ export function buildClassificationPageToSubQuestionMap(
         // Map each sub-question to its page(s)
         q.subQuestions.forEach((subQ: any, subIndex: number) => {
           const part = subQ.part || '';
-          // if (!part) return; // Allow empty part for some cases? No, usually subQ has part.
 
-          const subQNum = `${baseQNum}${part}`;
+          // 🛑 THE FIX: Use safe combiner for the mapping key
+          const subQNum = combineQuestionAndPart(baseQNum, part);
 
           // NEW LOGIC: Use explicit pageIndex if available (from markingRouter merging)
           if (subQ.pageIndex !== undefined) {
@@ -1403,13 +1421,21 @@ export function mergeQuestionsFromPages(
       });
     } else {
       // Multiple pages with same questionNumber - merge them
-      // Find page with question text (not null/empty)
-      const pageWithText = questionInstances.find(({ question }) =>
+      
+      // 🛑 THE FIX: Sort instances and concatenate ALL text so Q2.9 isn't lost
+      const sortedInstances = [...questionInstances].sort((a, b) => a.pageIndex - b.pageIndex);
+
+      const combinedQuestionText = sortedInstances
+        .map(({ question }) => question.text)
+        .filter(text => text && text !== 'null' && text.trim().length > 0)
+        .join('\n');
+
+      const pageWithText = sortedInstances.find(({ question }) =>
         question.text && question.text !== 'null' && question.text.trim().length > 0
-      ) || questionInstances[0];
+      ) || sortedInstances[0];
 
       // Combine student work from all pages
-      const combinedStudentWork = questionInstances
+      const combinedStudentWork = sortedInstances
         .map(({ question }) => question.studentWork)
         .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
         .join('\n');
@@ -1480,10 +1506,8 @@ export function mergeQuestionsFromPages(
       const merged = {
         ...pageWithText.question,
         questionNumber: questionNumber,
-        // Use text from page that has it (not null/empty)
-        text: pageWithText.question.text && pageWithText.question.text !== 'null'
-          ? pageWithText.question.text
-          : questionInstances[0].question.text,
+        // 🛑 THE FIX: Inject the fully combined text
+        text: combinedQuestionText || null,
         // Combine student work from all pages
         studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
         // Use sourceImageIndex from page with text, or first page (for backward compatibility)

@@ -5,7 +5,7 @@
  */
 
 import type { Request } from 'express';
-import { generateSessionTitle, getShortSubjectName, getShortExamBoard } from '../services/marking/MarkingHelpers.js';
+import { generateSessionTitle, getShortSubjectName, getShortExamBoard, getQuestionSortValue } from '../services/marking/MarkingHelpers.js';
 import { createUserMessage, createAIMessage, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
@@ -521,12 +521,28 @@ export class SessionManagementService {
           questionText: qr.questionText || '', // CLEAN STRING
           markingScheme: qr.markingScheme || '', // CLEAN STRING
           score: qr.score,
-          annotations: qr.annotations,
+          // [SORT FIX] Guarantee UI annotations are always mathematically sorted
+          annotations: Array.isArray(qr.annotations) 
+            ? [...qr.annotations].sort((a, b) => getQuestionSortValue(a.subQuestion) - getQuestionSortValue(b.subQuestion))
+            : qr.annotations,
           studentWork: qr.studentWork,
           pageIndex: qr.pageIndex, // [SYNC FIX] Ensure navigator knows where this question is
           overallPerformanceSummary: qr.overallPerformanceSummary || qr.feedback
         }));
         console.log(`[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)`);
+        console.log(`[UI DEBUG] 🔍 Final Payload to Frontend (Question / Annotation Sort Order):`);
+        responseAiMessage.questionResponses.forEach(qr => {
+          const annos = qr.annotations || [];
+          console.log(`[UI DEBUG] Q${qr.questionNumber} | Page: ${qr.pageIndex} | Annotations (${annos.length}): ${annos.map((a: any) => a.subQuestion || '?').join(', ')}`);
+        });
+
+        console.log(`\n======================================================`);
+        console.log(`[FRONTEND UI SORT SIMULATION] How the UI will order the tabs/rendering based on pageIndex:`);
+        const uiSortOrder = [...responseAiMessage.questionResponses].sort((a, b) => (a.pageIndex || 0) - (b.pageIndex || 0));
+        uiSortOrder.forEach(qr => {
+          console.log(`   -> Renders on Page: ${qr.pageIndex} | Q${qr.questionNumber}`);
+        });
+        console.log(`======================================================\n`);
       }
     }
 

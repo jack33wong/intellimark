@@ -253,7 +253,8 @@ export class ModelProvider {
           }],
           generationConfig: {
             temperature: config.temperature,
-            maxOutputTokens: config.maxTokens
+            maxOutputTokens: config.maxTokens,
+            responseMimeType: "application/json"
           },
           safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },

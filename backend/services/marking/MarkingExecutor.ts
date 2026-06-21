@@ -14,7 +14,7 @@ import { ScoreAuditor } from './core/ScoreAuditor.js';
 
 // Utils
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
-import { sanitizeAiLineId } from './MarkingHelpers.js';
+import { sanitizeAiLineId, getQuestionSortValue } from './MarkingHelpers.js';
 
 export async function executeMarkingForQuestion(
   task: MarkingTask,
@@ -205,10 +205,18 @@ export async function executeMarkingForQuestion(
     const rawOcrText = rawOcrBlocks.map(b => `[${b.id}]: "${b.text}"`).join('\n');
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
+    // 🛑 AGGRESSIVE SANITIZER: Nuke stale IDs and tags from the Question Text
+    let sanitizedQuestionText = task.markingScheme?.databaseQuestionText || task.questionText || '';
+    if (sanitizedQuestionText) {
+        sanitizedQuestionText = sanitizedQuestionText
+            .replace(/\[ID:\s*[^\]]+\]\s*/g, '')
+            .replace(/\[SUB-QUESTION[^\]]+\]\s*/g, '');
+    }
+
     const markingInputs = {
       imageData: task.imageData || '', images: task.images, model: model,
       processedImage: { ocrText: rawOcrText, cleanDataForMarking: { steps: stepsDataForMapping }, rawOcrBlocks: rawOcrBlocks, classificationStudentWork: ocrTextForPrompt } as any,
-      questionDetection: task.markingScheme, questionText: task.markingScheme?.databaseQuestionText, questionNumber: String(questionId),
+      questionDetection: task.markingScheme, questionText: sanitizedQuestionText, questionNumber: String(questionId),
       sourceImageIndices: task.sourcePages, subQuestionPageMap: task.subQuestionPageMap, tracker: tracker
     };
 
@@ -246,7 +254,13 @@ export async function executeMarkingForQuestion(
           if (typeof probeId === 'string' && probeId.match(/^p(\d+)_/)) {
             const match = probeId.match(/^p(\d+)_/);
             if (match) {
-              anno.pageIndex = parseInt(match[1], 10);
+              const localPageIndex = parseInt(match[1], 10);
+              
+              // 🛑 TRANSLATE LOCAL INDEX BACK TO GLOBAL PHYSICAL PAGE
+              anno.pageIndex = (task.sourcePages && task.sourcePages[localPageIndex] !== undefined) 
+                               ? Number(task.sourcePages[localPageIndex]) 
+                               : localPageIndex;
+                               
               anno.isPhysicalPage = true;
               break;
             }
@@ -417,10 +431,15 @@ export async function executeMarkingForQuestion(
       });
     }
 
+    // 🛑 THE LIVE SORT FIX
+    const sortedAnnotations = Array.isArray(strictResult.annotations)
+      ? [...strictResult.annotations].sort((a, b) => getQuestionSortValue(a.subQuestion) - getQuestionSortValue(b.subQuestion))
+      : strictResult.annotations;
+
     const result = {
       questionNumber: questionId,
       score: parsedScore,
-      annotations: strictResult.annotations,
+      annotations: sortedAnnotations,
       pageIndex: task.sourcePages?.[0] ?? 0,
       sourceImageIndices: task.sourcePages,
       usageTokens: markingResult.usage?.llmTokens || 0,
