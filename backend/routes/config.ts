@@ -33,11 +33,27 @@ router.get('/models', (req, res) => {
             .filter(([id]) => id !== 'auto' && id !== 'gpt-4o-mini') // Hide internal and mini models
             .map(([id, exactModel]) => {
                 const config = AI_MODELS[exactModel];
+                
+                // Override UI labels based on the tier ID so the user sees the logical tiers
+                let uiLabel = config.label || config.name;
+                let uiDesc = config.description || '';
+                
+                if (id === 'fast') {
+                    uiLabel = 'Fast';
+                    uiDesc = 'Answers quickly';
+                } else if (id === 'thinking') {
+                    uiLabel = 'Thinking';
+                    uiDesc = 'Deep reasoning, takes longer';
+                } else if (id === 'pro') {
+                    uiLabel = 'Pro';
+                    uiDesc = 'Best for complex coding & math';
+                }
+                
                 return {
                     id,
                     name: config.name,
-                    label: config.label || config.name,
-                    description: config.description || ''
+                    label: uiLabel,
+                    description: uiDesc
                 };
             });
         
