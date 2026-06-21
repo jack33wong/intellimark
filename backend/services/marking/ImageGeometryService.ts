@@ -79,7 +79,7 @@ Return ONLY valid JSON matching this schema:
                 prompt,
                 "Analyze this image and return the JSON.",
                 base64Image,
-                'fast', // Hardcoded as per design to the fast tier
+                'gemini-2.5-flash', // Hardcoded to the fast tier model
                 tracker,
                 'preFlight'
             );
