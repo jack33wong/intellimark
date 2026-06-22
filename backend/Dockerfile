@@ -27,6 +27,7 @@ RUN npm run build
 # Expose the port Cloud Run expects
 EXPOSE 8080
 ENV PORT=8080
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 
 # Start the built server
 CMD ["npm", "start"]
