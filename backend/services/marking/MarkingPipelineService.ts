@@ -1319,8 +1319,13 @@ export class MarkingPipelineService {
                     }
                 };
 
-                if (classificationResult.questions && Array.isArray(classificationResult.questions)) {
-                    classificationResult.questions.forEach((q: any) => checkWeightRecursive(q));
+                if (pageRawResult.questions && Array.isArray(pageRawResult.questions) && pageRawResult.questions.length > 0) {
+                    pageRawResult.questions.forEach((q: any) => checkWeightRecursive(q));
+                } else if (pageRawResult.mapperHints && Array.isArray(pageRawResult.mapperHints)) {
+                    pageRawResult.mapperHints.forEach((qStr: string) => {
+                        debugQList.push(qStr);
+                        pageWeights.push({ q: qStr, w: getQuestionSortValue(qStr) });
+                    });
                 }
 
                 // 🛡️ [ROLE-BASED TIE-BREAKER]: 
