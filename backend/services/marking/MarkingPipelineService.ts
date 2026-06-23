@@ -1293,7 +1293,7 @@ export class MarkingPipelineService {
                 // 🏗️ TRUTH-FIRST: Look at database-verified questions and their SUB-QUENCES
                 const pageWeights: { q: string, w: number }[] = [];
                 const checkWeightRecursive = (node: any, parentQNum: string = '') => {
-                    const currentQNum = node.questionNumber || node.part || '';
+                    const currentQNum = typeof node === 'string' ? node : (node.questionNumber || node.part || '');
                     // Build full context (e.g. "11" + "c" = "11c")
                     let qNumContext = parentQNum;
                     if (currentQNum) {
@@ -1305,17 +1305,12 @@ export class MarkingPipelineService {
                         }
                     }
 
-                    // Check if this specific node (Question or Sub-Question) is on this page
-                    const indices = node.sourceImageIndices || (node.sourceImageIndex !== undefined ? [node.sourceImageIndex] : []);
-                    const pageIndexOnNode = node.pageIndex !== undefined ? [node.pageIndex] : [];
-                    const allIndicesOnNode = [...new Set([...indices, ...pageIndexOnNode])];
-
-                    if (allIndicesOnNode.includes(physicalPageIndex)) {
-                        if (qNumContext) {
-                            debugQList.push(qNumContext);
-                            const weight = getQuestionSortValue(qNumContext);
-                            pageWeights.push({ q: qNumContext, w: weight });
-                        }
+                    // 🛡️ [SCOPE FIX]: We no longer check `allIndicesOnNode` because `pageRawResult` is
+                    // ALREADY 1:1 mapped to this `physicalPageIndex` by ClassificationMapper!
+                    if (qNumContext) {
+                        debugQList.push(qNumContext);
+                        const weight = getQuestionSortValue(qNumContext);
+                        pageWeights.push({ q: qNumContext, w: weight });
                     }
 
                     // Recurse into sub-questions to find the earliest part on this page
