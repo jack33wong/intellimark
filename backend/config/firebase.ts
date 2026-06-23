@@ -22,7 +22,7 @@ let isInitialized = false;
 /**
  * Initialize Firebase Admin SDK
  */
-const initializeFirebase = (): boolean => {
+export const initializeFirebase = (): boolean => {
   try {
     // Check if already initialized
     if (isInitialized && firebaseAdmin) {
