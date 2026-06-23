@@ -1321,8 +1321,8 @@ export class MarkingPipelineService {
 
                 if (pageRawResult.questions && Array.isArray(pageRawResult.questions) && pageRawResult.questions.length > 0) {
                     pageRawResult.questions.forEach((q: any) => checkWeightRecursive(q));
-                } else if (pageRawResult.mapperHints && Array.isArray(pageRawResult.mapperHints)) {
-                    pageRawResult.mapperHints.forEach((qStr: string) => {
+                } else if ((pageRawResult as any).mapperHints && Array.isArray((pageRawResult as any).mapperHints)) {
+                    (pageRawResult as any).mapperHints.forEach((qStr: string) => {
                         debugQList.push(qStr);
                         pageWeights.push({ q: qStr, w: getQuestionSortValue(qStr) });
                     });
