@@ -54,7 +54,9 @@ export class MarkingResultParser {
             fixedJson = fixedJson.replace(/\\(?![\\"/nrtbfu])/g, '\\\\');
 
             try {
-                parsed = JSON.parse(fixedJson);
+                // Try JSON5 parsing which allows unquoted keys, trailing commas, etc.
+                const JSON5 = require('json5');
+                parsed = JSON5.parse(fixedJson);
             } catch (e2) {
                 // Fix 3: Aggressive escaping
                 fixedJson = jsonString.replace(/\\/g, '\\\\')
@@ -73,7 +75,8 @@ export class MarkingResultParser {
                 });
 
                 try {
-                    parsed = JSON.parse(fixedJson);
+                    const JSON5 = require('json5');
+                    parsed = JSON5.parse(fixedJson);
                 } catch (e3) {
                     console.error('❌ JSON parsing failed after fix attempts.');
                     throw e3;
