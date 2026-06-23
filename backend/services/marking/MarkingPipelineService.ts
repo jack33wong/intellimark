@@ -1345,8 +1345,15 @@ export class MarkingPipelineService {
                             // Sparse: Likely an A-Level Continuation. Sort last.
                             minSortWeight = baseWeight + 0.9;
                         } else {
-                            // Dense: Likely a GCSE Question Stem. Sort first.
-                            minSortWeight = baseWeight - 0.1;
+                            // Dense: Continuation page. Sort slightly after the main stem (e.g. 2.0 -> 2.01).
+                            // This ensures continuation pages sort AFTER specific subquestions like 2a (2.1), wait, no.
+                            // If baseWeight is 2, and specific is 2a (2.1), we want the stem to be BEFORE 2a?
+                            // Wait, if it's a generic continuation page, we want it AFTER the stem.
+                            // Let's use baseWeight + 0.05 so it's right after the base but before subquestions?
+                            // Actually, if a page has 2a, its weight is 2.1.
+                            // If a page just has '2', it could be the stem (should be < 2.1) or continuation (should be > last subquestion).
+                            // Let's just use + 0.9 for both, so generic pages always sort at the end of the question group.
+                            minSortWeight = baseWeight + 0.9;
                         }
                     }
 
@@ -1414,9 +1421,6 @@ export class MarkingPipelineService {
                 }
             }
 
-            // 1.6 SINGLE PDF MODE: STRICT PHYSICAL ORDER
-            const isSinglePdf = files.length === 1 && files[0].mimetype === 'application/pdf';
-
             // 2. LOGICAL SORT (The Straightener) - [RESTORED]
             // This ensures that the images are "straightened" into numerical order regardless of upload sequence.
             pageSortMap.sort((a, b) => {
@@ -1424,13 +1428,9 @@ export class MarkingPipelineService {
                 if (a.isMeta && !b.isMeta) return -1;
                 if (!a.isMeta && b.isMeta) return 1;
 
-                // 🛡️ [PDF INTEGRITY]: If the user uploaded a single PDF, the physical order IS the logical order.
-                // Do NOT scramble the PDF based on AI OCR which might misread question numbers!
-                // Past papers ALSO rely entirely on physical order.
-                if (isPastPaper || isSinglePdf) {
-                    return a.originalIdx - b.originalIdx;
-                }
-
+                // The straightener is now fully enabled for all uploads (PDFs, Images, Past Papers, Generic)
+                // because the UI depends on logical question-number sorting, NOT upload sequence.
+                
                 // Rule 2: Logical Question Order
                 if (Math.abs(a.minQ - b.minQ) > 0.00001) {
                     return a.minQ - b.minQ;

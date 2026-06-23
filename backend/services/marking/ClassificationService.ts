@@ -352,10 +352,7 @@ ${pageHints}
           outputTokens = aiResponse.outputTokens || 0;
         }
 
-        // Extract real input/output split and record via tracker
-        if (tracker) {
-          tracker.recordClassification(inputTokens, outputTokens);  // Classification Marking Pass
-        }
+        // Tracker recording is handled automatically inside ModelProvider.callGeminiChat based on phase.
         const cleanContent = this.cleanGeminiResponse(content);
         // [DEBUG] Log the classification response per task - ENABLED
         if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
