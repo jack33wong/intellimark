@@ -85,7 +85,12 @@ export class MathpixService {
 
       const axios = await import('axios');
       // The v3/text POST processes synchronously and returns the full result.
-      const response = await axios.default.post(this.API_URL, body, { headers });
+      // 🛡️ [TIMEOUT PREVENTER]: Mathpix API outages (504s) can take >30s to resolve, causing the overall Vercel connection to hit its 60s limit.
+      // We enforce a strict 15s timeout. If it fails, we fall back to Google Vision instantly to save the pipeline.
+      const response = await axios.default.post(this.API_URL, body, { 
+          headers,
+          timeout: 15000
+      });
 
       // Auto-record via tracker if provided
       if (tracker && !response.data.error) {
