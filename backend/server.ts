@@ -8,6 +8,7 @@ import swaggerUi from 'swagger-ui-express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { initializeFirebase, getFirebaseAuth } from './config/firebase.js';
 
 // Static import for API spec (bundled by esbuild)
 // @ts-ignore
@@ -179,6 +180,17 @@ app.use('*', (_req, res) => {
  */
 function startServer(port: number) {
   const server = app.listen(port, () => {
+    console.log(`✅ [SERVER] Listening on port ${port}`);
+
+    // 🔥 Warm up Firebase Auth Cache (prevents first-request timeout on Cloud Run)
+    initializeFirebase();
+    const auth = getFirebaseAuth();
+    if (auth) {
+        auth.verifyIdToken('warmup-token-prevent-cold-start-timeout')
+            .catch(() => {
+                console.log('✅ [FIREBASE] Auth Certificate Cache Warmed Up');
+            });
+    }
   });
 
   server.on('error', (err: any) => {
