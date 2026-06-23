@@ -589,7 +589,7 @@ class SimpleSessionService {
             const { done, value } = await reader.read();
             if (done) {
               if (buffer) processChunk(buffer);
-              break;
+              throw new Error("Stream disconnected unexpectedly before completion. The request may have timed out.");
             }
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
@@ -701,7 +701,7 @@ class SimpleSessionService {
           const { done, value } = await reader.read();
           if (done) {
             if (buffer) processChunk(buffer);
-            break;
+            throw new Error("Stream disconnected unexpectedly before completion. The request may have timed out.");
           }
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -831,7 +831,7 @@ class SimpleSessionService {
           const { done, value } = await reader.read();
           if (done) {
             if (buffer) processChunk(buffer);
-            break;
+            throw new Error("Stream disconnected unexpectedly before completion. The request may have timed out.");
           }
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
