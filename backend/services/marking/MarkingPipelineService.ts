@@ -663,13 +663,36 @@ export class MarkingPipelineService {
 
             progressCallback(createProgressData(3, `Running OCR & Classification on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
 
+            // --- FIRE CONCURRENT OCR PROMISES ---
+            // We run OCR at the exact same time as AI Classification to save massive amounts of time
+            const logOcrComplete = logStep('OCR Processing', 'mathpix');
+            const ocrPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
+                const ocrResult = await OCRService.processImage(
+                    page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
+                    {}, // Empty hint because Classification is running concurrently
+                    usageTracker
+                );
+                return {
+                    pageIndex: page.pageIndex,
+                    ocrData: ocrResult,
+                    classificationText: '' // We backfill this later
+                };
+            });
+
             // --- Perform Classification on ALL Images (Question & Student Work) ---
             const logClassificationComplete = logStep('Classification', actualModel);
 
+            console.log(`📉 [IMAGE-UTILS] Creating lightweight down-sampled copies for AI vision pass...`);
+            const lightweightPages = await Promise.all(
+                standardizedPages.map(async page => ({
+                    ...page,
+                    imageData: await ImageUtils.createLightweightCopy(page.imageData, 800)
+                }))
+            );
 
             // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
             let allClassificationResults = await ClassificationService.classifyMultipleImages(
-                standardizedPages,
+                lightweightPages,
                 actualModel as ModelType,  // Cast to ModelType
                 debugClassification,  // debug (controlled by ENV)
                 usageTracker  // Pass tracker for auto-recording
@@ -1144,32 +1167,14 @@ export class MarkingPipelineService {
                 console.log(`  - Question-only images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.category === "questionOnly").length}`);
             }
 
-            // --- Run OCR on each page in parallel (Marking Mode) ---
-            const logOcrComplete = logStep('OCR Processing', 'mathpix');
+            // --- Wait for Concurrent OCR (Mathpix) ---
+            allPagesOcrData = await Promise.all(ocrPromises);
+            logOcrComplete();
 
-
-            const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
-                // Skip OCR for metadata and frontPage (to save Mathpix costs)
-                const pageRawResult = allClassificationResults[index]?.result;
-                const isMetadataPage = pageRawResult?.category === "metadata";
-                const isFrontPage = pageRawResult?.category === "frontPage";
-
-
-                const ocrResult = await OCRService.processImage(
-                    page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
-                    { extractedQuestionText: globalQuestionText },
-                    usageTracker // Pass tracker here
-                );
-                return {
-                    pageIndex: page.pageIndex,
-                    ocrData: ocrResult,
-                    classificationText: globalQuestionText
-                };
+            // Backfill the globalQuestionText that we now have from the completed Classification pass
+            allPagesOcrData.forEach(ocr => {
+                 ocr.classificationText = globalQuestionText;
             });
-
-            allPagesOcrData = await Promise.all(pageProcessingPromises);
-
-
 
             // [DEBUG] Verify Data Integrity immediately after OCR
             if (allPagesOcrData.length > 1) {

@@ -146,16 +146,25 @@ export class ClassificationMapper {
         const processedPageIndices = new Set<number>();
 
         try {
+            const bucketPromises: Promise<PageMap[]>[] = [];
+
             for (let start = 0; start < images.length; start += (BUCKET_SIZE - OVERLAP)) {
                 const end = Math.min(start + BUCKET_SIZE, images.length);
                 const bucket = images.slice(start, end);
 
                 if (bucket.length === 0) break;
 
-                console.log(`   📦 [MAPPER-BUCKET] Processing pages ${start} to ${end - 1}...`);
-                const bucketResults = await processAllPages(bucket, !!debug);
+                console.log(`   📦 [MAPPER-BUCKET] Queueing pages ${start} to ${end - 1}...`);
+                bucketPromises.push(processAllPages(bucket, !!debug));
 
-                // Merge results, prioritizing new data for pages we haven't seen or that were empty
+                if (end === images.length) break; // Finished all images
+            }
+
+            // Wait for all chunks to finish concurrently
+            const allBucketResults = await Promise.all(bucketPromises);
+
+            // Merge sequentially to preserve overlapping priority logic
+            allBucketResults.forEach(bucketResults => {
                 bucketResults.forEach(res => {
                     const existingIdx = results.findIndex(r => r.pageIndex === res.pageIndex);
                     if (existingIdx === -1) {
@@ -169,9 +178,7 @@ export class ClassificationMapper {
                         }
                     }
                 });
-
-                if (end === images.length) break; // Finished all images
-            }
+            });
 
             const duration = (Date.now() - startTime) / 1000;
             console.log(`✅ [MAPPER] Map Pass complete in ${duration.toFixed(2)}s. Mapped ${results.length} pages.`);

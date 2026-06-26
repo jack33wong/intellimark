@@ -164,4 +164,46 @@ export class ImageUtils {
       throw error;
     }
   }
+
+  /**
+   * Creates a lightweight down-sampled copy of the image for fast AI classification.
+   * Maintains aspect ratio while restricting maximum width to save token bandwidth.
+   * @param imageData Base64 image data
+   * @param maxWidth Maximum width in pixels (default: 800)
+   * @returns Down-sampled base64 image data
+   */
+  static async createLightweightCopy(imageData: string, maxWidth: number = 800): Promise<string> {
+    try {
+      let imageBuffer: Buffer;
+      let mimeType = 'image/jpeg';
+
+      if (imageData.startsWith('data:')) {
+        const matches = imageData.match(/^data:(image\/\w+);base64,/);
+        if (matches) mimeType = matches[1];
+        const base64Data = imageData.split(',')[1];
+        if (!base64Data) throw new Error('Invalid data URL format');
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        imageBuffer = Buffer.from(imageData, 'base64');
+      }
+
+      const metadata = await sharp(imageBuffer).metadata();
+      
+      // Only resize if the image is wider than maxWidth
+      if (metadata.width && metadata.width > maxWidth) {
+        const resizedBuffer = await sharp(imageBuffer)
+          .resize({ width: maxWidth, withoutEnlargement: true })
+          .jpeg({ quality: 80 }) // Compress aggressively for vision model
+          .toBuffer();
+          
+        return `data:${mimeType};base64,${resizedBuffer.toString('base64')}`;
+      }
+      
+      // If already small enough, just return original to save time
+      return imageData;
+    } catch (error) {
+      console.error(`❌ [IMAGE UTILS] Error creating lightweight copy, falling back to original:`, error);
+      return imageData;
+    }
+  }
 }
