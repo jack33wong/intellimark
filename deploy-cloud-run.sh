@@ -61,6 +61,7 @@ gcloud run deploy $SERVICE_NAME \
   --memory 4Gi \
   --timeout 3600 \
   --concurrency 5 \
+  --no-cpu-throttling \
   $ENV_VARS_FLAG \
   --quiet
 
