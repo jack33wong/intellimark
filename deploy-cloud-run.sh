@@ -59,7 +59,7 @@ gcloud run deploy $SERVICE_NAME \
   --project $PROJECT_ID \
   --allow-unauthenticated \
   --memory 4Gi \
-  --timeout 300 \
+  --timeout 3600 \
   --concurrency 5 \
   $ENV_VARS_FLAG \
   --quiet

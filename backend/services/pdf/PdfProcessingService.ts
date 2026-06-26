@@ -61,7 +61,7 @@ export class PdfProcessingService {
     let targetHeight = 3508; // Default A4 height at 200 DPI
 
     try {
-      const pdfDoc = await PDFDocument.load(pdfBuffer);
+      const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
       const firstPage = pdfDoc.getPages()[0];
       const { width: pdfPtW, height: pdfPtH } = firstPage.getSize();
       targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
