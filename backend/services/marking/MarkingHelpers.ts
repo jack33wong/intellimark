@@ -770,8 +770,8 @@ export function getQuestionSortValue(questionNumber: string | null | undefined):
   if (romanMap[remaining]) {
     weight += romanMap[remaining] * 0.0001;
   } else {
-    // Check for numeric sub-part (e.g. 1, 2 from "(1)")
-    const numMatch = remaining.match(/^(\d+)/);
+    // Check for numeric sub-part anywhere in the remaining string (e.g. 1, 2 from "(1)", or "SUB-QUESTION 2")
+    const numMatch = remaining.match(/(\d+)/);
     if (numMatch) {
       weight += parseInt(numMatch[1]) * 0.0001;
     }

@@ -552,7 +552,11 @@ export class MarkingPipelineService {
             const interceptedSchemeImages: string[] = [];
             
             const geometryResults = await Promise.all(
-                standardizedPages.map(page => ImageGeometryService.analyze(page.imageData, page.width, page.height, 'fast', usageTracker))
+                standardizedPages.map(async page => {
+                    // 🛑 THE FIX: Downsample IMMEDIATELY before Semantic Geometry to prevent network bottleneck
+                    const lightweightGeo = await ImageUtils.createLightweightCopy(page.imageData, 800);
+                    return ImageGeometryService.analyze(lightweightGeo, page.width, page.height, 'fast', usageTracker);
+                })
             );
 
             let lastRejectionReason = 'Image is blurry, blank, unreadable, or not mathematics content.';
@@ -666,18 +670,31 @@ export class MarkingPipelineService {
             // --- FIRE CONCURRENT OCR PROMISES ---
             // We run OCR at the exact same time as AI Classification to save massive amounts of time
             const logOcrComplete = logStep('OCR Processing', 'mathpix');
-            const ocrPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
-                const ocrResult = await OCRService.processImage(
-                    page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
-                    {}, // Empty hint because Classification is running concurrently
-                    usageTracker
-                );
-                return {
-                    pageIndex: page.pageIndex,
-                    ocrData: ocrResult,
-                    classificationText: '' // We backfill this later
-                };
-            });
+            
+            // 🛑 THE FIX: Limit Mathpix to 3 concurrent uploads to prevent network gridlock
+            const runOcrBatched = async () => {
+                const results: PageOcrResult[] = [];
+                const BATCH_SIZE = 3;
+                for (let i = 0; i < standardizedPages.length; i += BATCH_SIZE) {
+                    const batch = standardizedPages.slice(i, i + BATCH_SIZE);
+                    const batchResults = await Promise.all(batch.map(async (page) => {
+                        const ocrResult = await OCRService.processImage(
+                            page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
+                            {}, // Empty hint because Classification is running concurrently
+                            usageTracker
+                        );
+                        return {
+                            pageIndex: page.pageIndex,
+                            ocrData: ocrResult,
+                            classificationText: '' // We backfill this later
+                        };
+                    }));
+                    results.push(...batchResults);
+                }
+                return results;
+            };
+            
+            const ocrMasterPromise = runOcrBatched();
 
             // --- Perform Classification on ALL Images (Question & Student Work) ---
             const logClassificationComplete = logStep('Classification', actualModel);
@@ -1168,7 +1185,7 @@ export class MarkingPipelineService {
             }
 
             // --- Wait for Concurrent OCR (Mathpix) ---
-            allPagesOcrData = await Promise.all(ocrPromises);
+            allPagesOcrData = await ocrMasterPromise;
             logOcrComplete();
 
             // Backfill the globalQuestionText that we now have from the completed Classification pass
@@ -1426,24 +1443,27 @@ export class MarkingPipelineService {
                 }
             }
 
-            // 2. LOGICAL SORT (The Straightener) - [RESTORED]
-            // This ensures that the images are "straightened" into numerical order regardless of upload sequence.
-            pageSortMap.sort((a, b) => {
-                // Rule 1: Metadata First
-                if (a.isMeta && !b.isMeta) return -1;
-                if (!a.isMeta && b.isMeta) return 1;
+            // 2. LOGICAL SORT (The Straightener) - [RESTORED FOR IMAGES ONLY]
+            // This ensures that LOOSE IMAGES are "straightened" into numerical order.
+            // DO NOT apply this to PDFs! PDFs are already chronologically sequenced by the student.
+            // Scrambling a PDF because of an OCR misread destroys the visual flow of the document.
+            if (!isPdf && !isMultiplePdfs) {
+                pageSortMap.sort((a, b) => {
+                    // Rule 1: Metadata First
+                    if (a.isMeta && !b.isMeta) return -1;
+                    if (!a.isMeta && b.isMeta) return 1;
+                    
+                    // Rule 2: Logical Question Order
+                    if (Math.abs(a.minQ - b.minQ) > 0.00001) {
+                        return a.minQ - b.minQ;
+                    }
 
-                // The straightener is now fully enabled for all uploads (PDFs, Images, Past Papers, Generic)
-                // because the UI depends on logical question-number sorting, NOT upload sequence.
-                
-                // Rule 2: Logical Question Order
-                if (Math.abs(a.minQ - b.minQ) > 0.00001) {
-                    return a.minQ - b.minQ;
-                }
-
-                // Rule 3: Physical Tie-breaker (Original Upload Order)
-                return a.originalIdx - b.originalIdx;
-            });
+                    // Rule 3: Physical Tie-breaker (Original Upload Order)
+                    return a.originalIdx - b.originalIdx;
+                });
+            } else {
+                console.log('🛡️ [PDF INTEGRITY] Straightener bypassed. Maintaining exact physical sequence of the PDF.');
+            }
 
             if (process.env.LOG_REINDEX_DEBUG === 'true') {
                 console.log(`\n🚀 [SORT-RESULT] Final Logical Order:`);

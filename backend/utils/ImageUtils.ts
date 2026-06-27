@@ -187,20 +187,14 @@ export class ImageUtils {
         imageBuffer = Buffer.from(imageData, 'base64');
       }
 
-      const metadata = await sharp(imageBuffer).metadata();
-      
-      // Only resize if the image is wider than maxWidth
-      if (metadata.width && metadata.width > maxWidth) {
-        const resizedBuffer = await sharp(imageBuffer)
-          .resize({ width: maxWidth, withoutEnlargement: true })
-          .jpeg({ quality: 80 }) // Compress aggressively for vision model
-          .toBuffer();
-          
-        return `data:${mimeType};base64,${resizedBuffer.toString('base64')}`;
-      }
-      
-      // If already small enough, just return original to save time
-      return imageData;
+      // 🛑 THE FIX: We MUST always compress to JPEG (quality: 80) even if the image is narrow!
+      // Otherwise, an 800px wide 5MB raw PNG bypasses compression and kills network performance.
+      const resizedBuffer = await sharp(imageBuffer)
+        .resize({ width: maxWidth, withoutEnlargement: true })
+        .jpeg({ quality: 80 }) // Compress aggressively for vision model
+        .toBuffer();
+        
+      return `data:image/jpeg;base64,${resizedBuffer.toString('base64')}`;
     } catch (error) {
       console.error(`❌ [IMAGE UTILS] Error creating lightweight copy, falling back to original:`, error);
       return imageData;

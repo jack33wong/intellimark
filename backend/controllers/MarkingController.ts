@@ -76,8 +76,8 @@ export class MarkingController {
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
 
-        // Send initial connection confirmation
-        sendSseUpdate(res, { type: 'connected', message: 'Connection established' });
+        // Send initial connection confirmation with the guaranteed submissionId
+        sendSseUpdate(res, { type: 'connected', message: 'Connection established', sessionId: submissionId });
 
         // 👇 KEEP-ALIVE HEARTBEAT 👇
         const heartbeat = setInterval(() => {

@@ -58,7 +58,8 @@ gcloud run deploy $SERVICE_NAME \
   --region $REGION \
   --project $PROJECT_ID \
   --allow-unauthenticated \
-  --memory 4Gi \
+  --memory 8Gi \
+  --cpu 8 \
   --timeout 3600 \
   --concurrency 5 \
   --no-cpu-throttling \

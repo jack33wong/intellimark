@@ -56,9 +56,10 @@ export class PdfProcessingService {
 
     // Configuration for pdf2pic
     // Define target density (DPI) and calculate dimensions based on 72 DPI PDF space
-    const TARGET_DENSITY = 200;
-    let targetWidth = 2480; // Default A4 width at 200 DPI
-    let targetHeight = 3508; // Default A4 height at 200 DPI
+    // 150 DPI is Mathpix's recommended optimal density for speed and readable text
+    const TARGET_DENSITY = 150;
+    let targetWidth = 1860; // Default A4 width at 150 DPI
+    let targetHeight = 2631; // Default A4 height at 150 DPI
 
     try {
       const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
@@ -127,18 +128,29 @@ export class PdfProcessingService {
         try {
           const imagePath = result.path;
           const imageFileBuffer = await fs.readFile(imagePath);
+          
+          // The Optimization Pipeline
+          // 1. Flatten to solid white background (fixes transparent PDF backgrounds rendering as black)
+          // 2. Grayscale (removes RGB color data for massive file size savings, math is black/white anyway)
+          // 3. JPEG compression (quality 80 is visually identical for text but reduces payload heavily)
+          const optimizedBuffer = await sharp(imageFileBuffer)
+              .flatten({ background: { r: 255, g: 255, b: 255 } })
+              .grayscale()
+              .jpeg({ quality: 80 })
+              .toBuffer();
+
           // Get reliable dimensions via sharp
-          const meta = await sharp(imageFileBuffer).metadata();
+          const meta = await sharp(optimizedBuffer).metadata();
           const width = meta.width;
           const height = meta.height;
           if (!width || !height) {
             console.warn(`⚠️ [PDF Processing] Sharp failed to get valid dimensions for page ${i + 1}. Skipping page.`);
             continue;
           }
-          const base64Image = imageFileBuffer.toString('base64');
+          const base64Image = optimizedBuffer.toString('base64');
           standardizedPages.push({
             pageIndex: i,
-            imageData: `data:image/${conversionOptions.format};base64,${base64Image}`,
+            imageData: `data:image/jpeg;base64,${base64Image}`,
             width,
             height
           });

@@ -1,4 +1,5 @@
 import type { NormalizedMarkingScheme } from '../../types/marking.js';
+import JSON5 from 'json5';
 
 /**
  * Service dedicated to parsing and sanitizing the output from the AI marking model.
@@ -55,7 +56,6 @@ export class MarkingResultParser {
 
             try {
                 // Try JSON5 parsing which allows unquoted keys, trailing commas, etc.
-                const JSON5 = require('json5');
                 parsed = JSON5.parse(fixedJson);
             } catch (e2) {
                 // Fix 3: Aggressive escaping
@@ -75,7 +75,6 @@ export class MarkingResultParser {
                 });
 
                 try {
-                    const JSON5 = require('json5');
                     parsed = JSON5.parse(fixedJson);
                 } catch (e3) {
                     console.error('❌ JSON parsing failed after fix attempts.');

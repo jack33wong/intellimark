@@ -139,7 +139,23 @@ router.post('/chat', optionalAuth, async (req, res) => {
     const isAuthenticated = !!req.user?.uid;
     const userIP = req.ip || '0.0.0.0';
 
-    console.log(`[CHAT DEBUG] Message: "${message.substring(0, 50)}...", Mode: ${mode}, Session: ${sessionId}`);
+    console.log(`[CHAT DEBUG] Message: "${message?.substring(0, 50) || ''}...", Mode: ${mode}, Session: ${sessionId}`);
+
+    // 🛑 THE GUARD: Anti-Ghost Strategy
+    // Prevent initializing chat with temporary or incomplete marking sessions
+    if (sessionId) {
+      if (sessionId.startsWith('temp-')) {
+        console.warn(`⚠️ [CHAT] Rejected temp- session: ${sessionId}`);
+        return res.status(400).json({ success: false, error: "Session not ready or invalid." });
+      }
+      if (sessionId.startsWith('sub-') && isAuthenticated) {
+        const sessionExists = await FirestoreService.getUnifiedSession(sessionId);
+        if (!sessionExists) {
+          console.warn(`⚠️ [CHAT] Rejected non-existent sub- session: ${sessionId}`);
+          return res.status(400).json({ success: false, error: "Marking session not ready or invalid." });
+        }
+      }
+    }
 
     // --- NEW: Guest Usage Limit Check ---
     if (!isAuthenticated) {

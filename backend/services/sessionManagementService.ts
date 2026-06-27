@@ -529,6 +529,13 @@ export class SessionManagementService {
           pageIndex: qr.pageIndex, // [SYNC FIX] Ensure navigator knows where this question is
           overallPerformanceSummary: qr.overallPerformanceSummary || qr.feedback
         }));
+        
+        // [SORT FIX] Sort the overall array by questionNumber so UI tabs are perfectly sequential
+        // (Solves the "q2.2 appears after q5" bug caused by worker pool async completion)
+        responseAiMessage.questionResponses.sort((a, b) => {
+          return getQuestionSortValue(a.questionNumber) - getQuestionSortValue(b.questionNumber);
+        });
+
         console.log(`[V2 CLEAN FIX] ✅ UI Structure ready (Strings preserved)`);
         console.log(`[UI DEBUG] 🔍 Final Payload to Frontend (Question / Annotation Sort Order):`);
         responseAiMessage.questionResponses.forEach(qr => {
@@ -582,7 +589,12 @@ export class SessionManagementService {
     }
 
     try {
-      const uploadPromises = files.map(async (file, index) => {
+      // 🛑 THE FIX: Upload sequentially to prevent Firebase 503 rate limits
+      // Previously, Promise.all blasted all 15 massive PDF pages into Firebase at once,
+      // overloading the server and causing a 503 Service Unavailable crash.
+      const uploadedLinks: string[] = [];
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
         try {
           // Check if file is a PDF
           const isPdf = file.mimetype === 'application/pdf';
@@ -595,7 +607,7 @@ export class SessionManagementService {
               `multi-${submissionId}`,
               file.originalname || `document-${index + 1}.pdf`
             );
-            return pdfLink;
+            uploadedLinks.push(pdfLink);
           } else {
             // Upload as image
             const imageLink = await ImageStorageService.uploadImage(
@@ -604,7 +616,7 @@ export class SessionManagementService {
               `multi-${submissionId}`,
               'original'
             );
-            return imageLink;
+            uploadedLinks.push(imageLink);
           }
         } catch (uploadError) {
           const fileName = file.originalname || `file-${index + 1}`;
@@ -616,11 +628,14 @@ export class SessionManagementService {
           if (uploadError instanceof Error && uploadError.stack) {
             console.error(`  - Stack: ${uploadError.stack}`);
           }
-          throw new Error(`Failed to upload original file ${index} (${fileName}): ${errorMessage}`);
+          // Do not throw! Let the other pages continue uploading, and just push a placeholder or continue
+          // But wait, the frontend needs the array to map to the correct page index!
+          // We MUST push an empty string or null so the array indices match the file indices
+          uploadedLinks.push(""); 
         }
-      });
+      }
 
-      result.originalImageLinks = await Promise.all(uploadPromises);
+      result.originalImageLinks = uploadedLinks;
     } catch (error) {
       console.error('❌ [UPLOAD] Failed to upload original files:', error);
     }

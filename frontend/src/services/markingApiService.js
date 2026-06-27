@@ -562,6 +562,11 @@ class SimpleSessionService {
                 continue;
               }
 
+              if (data.type === 'connected' && data.sessionId) {
+                this._commitServerSessionState(data.sessionId, 'Processing...');
+                continue;
+              }
+
               if (data.type === 'complete') {
                 this.handleTextChatComplete(data.result, model);
                 return true; // Stop processing
@@ -673,6 +678,12 @@ class SimpleSessionService {
             if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
               if (onProgress) onProgress(data);
               continue; // Next line
+            }
+
+            // Handle Atomic Handshake
+            if (data.type === 'connected' && data.sessionId) {
+              this._commitServerSessionState(data.sessionId, 'Processing...');
+              continue;
             }
 
             // Handle completion events
@@ -809,6 +820,12 @@ class SimpleSessionService {
               if (onProgress) onProgress(data);
               continue; // Next line
             }
+
+            if (data.type === 'connected' && data.sessionId) {
+              this._commitServerSessionState(data.sessionId, 'Processing...');
+              continue;
+            }
+
             if (data.type === 'complete') {
               this.handleProcessComplete(data.result, model, aiMessageId);
               return true;
