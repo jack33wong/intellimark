@@ -684,36 +684,7 @@ export class MarkingPipelineService {
             }
             logSchemeParserComplete();
 
-            progressCallback(createProgressData(3, `Running OCR & Classification on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
-
-            // --- FIRE CONCURRENT OCR PROMISES ---
-            // We run OCR at the exact same time as AI Classification to save massive amounts of time
-            const logOcrComplete = logStep('OCR Processing', 'mathpix');
-            
-            // 🛑 THE FIX: Limit Mathpix to 10 concurrent uploads (safe now due to mandatory image resizing and JPEG compression)
-            const runOcrBatched = async () => {
-                const results: PageOcrResult[] = [];
-                const BATCH_SIZE = 10;
-                for (let i = 0; i < standardizedPages.length; i += BATCH_SIZE) {
-                    const batch = standardizedPages.slice(i, i + BATCH_SIZE);
-                    const batchResults = await Promise.all(batch.map(async (page) => {
-                        const ocrResult = await OCRService.processImage(
-                            page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
-                            {}, // Empty hint because Classification is running concurrently
-                            usageTracker
-                        );
-                        return {
-                            pageIndex: page.pageIndex,
-                            ocrData: ocrResult,
-                            classificationText: '' // We backfill this later
-                        };
-                    }));
-                    results.push(...batchResults);
-                }
-                return results;
-            };
-            
-            const ocrMasterPromise = runOcrBatched();
+            progressCallback(createProgressData(3, `Running Classification on ${lightweightPages.length} pages...`, MULTI_IMAGE_STEPS));
 
             // --- Perform Classification on ALL Images (Question & Student Work) ---
             const logClassificationComplete = logStep('Classification', actualModel);
@@ -1197,8 +1168,57 @@ export class MarkingPipelineService {
                 console.log(`  - Question-only images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.category === "questionOnly").length}`);
             }
 
-            // --- Wait for Concurrent OCR (Mathpix) ---
-            allPagesOcrData = await ocrMasterPromise;
+            // ========================= CLASSIFICATION-DRIVEN OCR ROUTING =========================
+            // Identify which pages actually need OCR based on Gemini's classification
+            let pagesToOcr: Set<number>;
+            if (allClassificationResults && allClassificationResults.length > 0) {
+                // Surgical Routing: Only OCR pages that have questions or student work
+                const validIndices = allClassificationResults
+                    .filter(r => r.result?.category === 'questionAnswer' || r.result?.category === 'questionOnly')
+                    .map(r => r.pageIndex);
+                pagesToOcr = new Set(validIndices);
+                console.log(`🎯 [OCR ROUTING] Surgical Mathpix routing: Skipping ${standardizedPages.length - pagesToOcr.size} non-exam pages.`);
+            } else {
+                // Fail-safe: If AI fails, OCR everything
+                console.warn(`⚠️ [OCR ROUTING] Classification failed or returned empty! Defaulting to OCRing all ${standardizedPages.length} pages.`);
+                pagesToOcr = new Set(standardizedPages.map(p => p.pageIndex));
+            }
+
+            progressCallback(createProgressData(3, `Running Precision OCR on ${pagesToOcr.size} pages...`, MULTI_IMAGE_STEPS));
+            const logOcrComplete = logStep('OCR Processing', 'mathpix');
+
+            const runPrecisionOcrBatched = async () => {
+                const results: PageOcrResult[] = [];
+                const BATCH_SIZE = 5;
+                for (let i = 0; i < standardizedPages.length; i += BATCH_SIZE) {
+                    const batch = standardizedPages.slice(i, i + BATCH_SIZE);
+                    const batchResults = await Promise.all(batch.map(async (page) => {
+                        // Skip Mathpix completely if this page was ejected by Classification
+                        if (!pagesToOcr.has(page.pageIndex)) {
+                            return {
+                                pageIndex: page.pageIndex,
+                                ocrData: { text: '', mathBlocks: [], rawResponse: null } as any, // Empty mock response
+                                classificationText: '' 
+                            };
+                        }
+
+                        const ocrResult = await OCRService.processImage(
+                            page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
+                            {}, // Empty hint
+                            usageTracker
+                        );
+                        return {
+                            pageIndex: page.pageIndex,
+                            ocrData: ocrResult,
+                            classificationText: '' // We backfill this later
+                        };
+                    }));
+                    results.push(...batchResults);
+                }
+                return results;
+            };
+
+            allPagesOcrData = await runPrecisionOcrBatched();
             logOcrComplete();
 
             // Backfill the globalQuestionText that we now have from the completed Classification pass

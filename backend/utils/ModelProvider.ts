@@ -245,7 +245,7 @@ export class ModelProvider {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          system_instruction: {
+          systemInstruction: {
             parts: [{ text: systemPrompt }]
           },
           contents: [{
@@ -306,7 +306,7 @@ export class ModelProvider {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          system_instruction: {
+          systemInstruction: {
             parts: [{ text: systemPrompt }]
           },
           contents: [{ parts: [{ text: userPrompt }] }],
