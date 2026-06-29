@@ -253,7 +253,7 @@ export class ModelProvider {
           }],
           generationConfig: {
             temperature: config.temperature,
-            maxOutputTokens: config.maxTokens,
+            maxOutputTokens: Math.max(config.maxTokens || 8192, 8192),
             responseMimeType: "application/json"
           },
           safetySettings: [
@@ -312,7 +312,7 @@ export class ModelProvider {
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens,
+            maxOutputTokens: Math.max((await import('../config/aiModels.js')).getModelConfig(model).maxTokens || 8192, 8192),
             ...(forceJsonResponse && { responseMimeType: "application/json" })
           }, // Use centralized config
           safetySettings: [
@@ -353,11 +353,7 @@ export class ModelProvider {
     // Check for truncation even if content exists
     if (finishReason === 'MAX_TOKENS') {
       const outputTokens = result.usageMetadata?.candidatesTokenCount || 'unknown';
-      const modelVersion = result.modelVersion || 'unknown';
-      console.warn(`⚠️ [ModelProvider] Gemini response truncated (MAX_TOKENS). Generated ${outputTokens} output tokens using model version ${modelVersion}. The JSON parser will attempt to repair the truncated output.`);
-      if (content) {
-        return content;
-      }
+      throw new Error(`MAX_TOKENS_EXCEEDED: Gemini truncated response at ${outputTokens} tokens. The JSON is corrupted and cannot be used.`);
     }
 
     if (!content) {
@@ -448,7 +444,8 @@ export class ModelProvider {
 
     const body: any = {
       model,
-      messages
+      messages,
+      max_tokens: 8192
     };
 
     // Only add JSON format if requested (Question Mode doesn't need it)
@@ -545,7 +542,8 @@ export class ModelProvider {
     const body: any = {
       model,
       messages,
-      response_format: { type: 'json_object' }
+      response_format: { type: 'json_object' },
+      max_tokens: 8192
     };
 
     // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
@@ -601,7 +599,8 @@ export class ModelProvider {
 
     const body: any = {
       model: modelName,
-      messages
+      messages,
+      max_tokens: 8192
     };
 
     // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
