@@ -12,6 +12,7 @@ import master_summary_system_prompt from './prompts/master_summary_system_prompt
 import classification_light_system_prompt from './prompts/classification_light_system_prompt.js';
 import classification_mapper_system_prompt from './prompts/classification_mapper_system_prompt.js';
 import classification_system_prompt from './prompts/classification_system_prompt.js';
+import worksheet_fallback_prompt from './prompts/worksheet_fallback_prompt.js';
 import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
 
 /**
@@ -34,6 +35,10 @@ export const AI_PROMPTS = {
     },
     heavy: {
       system: classification_system_prompt,
+      user: `Please classify the image and extract the question text verbatim, including any mathematical expressions in LaTeX.`
+    },
+    fallback: {
+      system: worksheet_fallback_prompt,
       user: `Please classify the image and extract the question text verbatim, including any mathematical expressions in LaTeX.`
     }
   },

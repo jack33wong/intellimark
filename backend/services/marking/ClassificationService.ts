@@ -304,37 +304,69 @@ ${pageHints}
           let outputTokens = 0;
           const imagePayload = chunkImages.map(img => img.imageData);
 
-          if (isOpenAI) {
-            const openaiModel = (validatedModel as string).replace('openai-', '');
-            const aiResponse = await ModelProvider.callOpenAIChat(
-              taskSystemPrompt,
-              taskUserPrompt,
-              imagePayload,
-              openaiModel,
-              true,
-              tracker,
-              'classification'
-            );
-            content = aiResponse.content;
-            usageTokens = aiResponse.usageTokens;
-            inputTokens = aiResponse.inputTokens || 0;
-            outputTokens = aiResponse.outputTokens || 0;
-            apiUsed = `OpenAI ${aiResponse.modelName}`;
-          } else {
-            const aiResponse = await ModelProvider.callGeminiChat(
-              taskSystemPrompt,
-              taskUserPrompt,
-              imagePayload,
-              validatedModel as any,
-              tracker,
-              'classification'
-            );
-            content = aiResponse.content;
-            usageTokens = aiResponse.usageTokens;
-            inputTokens = aiResponse.inputTokens || 0;
-            outputTokens = aiResponse.outputTokens || 0;
-            apiUsed = `Google ${modelName} (Service Account)`;
+          let aiResponse: any;
+          try {
+            if (isOpenAI) {
+              const openaiModel = (validatedModel as string).replace('openai-', '');
+              aiResponse = await ModelProvider.callOpenAIChat(
+                taskSystemPrompt,
+                taskUserPrompt,
+                imagePayload,
+                openaiModel,
+                true,
+                tracker,
+                'classification'
+              );
+              apiUsed = `OpenAI ${aiResponse.modelName}`;
+            } else {
+              aiResponse = await ModelProvider.callGeminiChat(
+                taskSystemPrompt,
+                taskUserPrompt,
+                imagePayload,
+                validatedModel as any,
+                tracker,
+                'classification'
+              );
+              apiUsed = `Google ${modelName} (Service Account)`;
+            }
+          } catch (error: any) {
+            if (error.message && error.message.includes('MAX_TOKENS_EXCEEDED')) {
+              console.warn(`\n\x1b[33m⚠️ [FALLBACK TRIGGERED] MAX_TOKENS hit on Q${questionNumber} Chunk ${i/BATCH_SIZE + 1}. Retrying with aggressive targeted extraction prompt.\x1b[0m\n`);
+              
+              const fallbackSystemPrompt = getPrompt('classification.fallback.system');
+              
+              if (isOpenAI) {
+                const openaiModel = (validatedModel as string).replace('openai-', '');
+                aiResponse = await ModelProvider.callOpenAIChat(
+                  fallbackSystemPrompt,
+                  taskUserPrompt,
+                  imagePayload,
+                  openaiModel,
+                  true,
+                  tracker,
+                  'classification'
+                );
+                apiUsed = `OpenAI ${aiResponse.modelName} (Fallback)`;
+              } else {
+                aiResponse = await ModelProvider.callGeminiChat(
+                  fallbackSystemPrompt,
+                  taskUserPrompt,
+                  imagePayload,
+                  validatedModel as any,
+                  tracker,
+                  'classification'
+                );
+                apiUsed = `Google ${modelName} (Service Account - Fallback)`;
+              }
+            } else {
+              throw error; // Rethrow if it's not a MAX_TOKENS error
+            }
           }
+
+          content = aiResponse.content;
+          usageTokens = aiResponse.usageTokens;
+          inputTokens = aiResponse.inputTokens || 0;
+          outputTokens = aiResponse.outputTokens || 0;
 
           totalUsageTokens += usageTokens;
           totalInputTokens += inputTokens;
