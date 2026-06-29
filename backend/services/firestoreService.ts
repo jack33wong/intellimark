@@ -18,14 +18,32 @@ function sanitizeForFirestore(obj: any): any {
   if (obj === null || obj === undefined) {
     return null;
   }
-  if (Array.isArray(obj)) {
-    return obj.map(sanitizeForFirestore).filter(item => item !== undefined);
+
+  // Globally strip base64 strings (images or PDFs) to prevent 1MB limit crashes
+  if (typeof obj === 'string' && (obj.startsWith('data:image') || obj.startsWith('data:application'))) {
+    return null;
   }
+
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore).filter(item => item !== undefined && item !== null);
+  }
+  
   if (typeof obj === 'object') {
     const sanitized: any = {};
     for (const [key, value] of Object.entries(obj)) {
       if (value !== undefined) {
-        sanitized[key] = sanitizeForFirestore(value);
+        // Explicitly omit the top-level imageData property if it contains base64
+        if (key === 'imageData' && typeof value === 'string' && value.startsWith('data:image')) {
+            continue;
+        }
+        
+        const cleanedValue = sanitizeForFirestore(value);
+        if (cleanedValue !== null) {
+          sanitized[key] = cleanedValue;
+        } else if (key === 'url') {
+          // If a URL was stripped because it was base64, keep the key as null for frontend consistency
+          sanitized[key] = null;
+        }
       }
     }
     return sanitized;
@@ -504,6 +522,17 @@ export class FirestoreService {
                 messageDoc[key] = filteredPdfContexts;
                 return true;
               }
+              if (key === 'imageDataArray' && Array.isArray(value)) {
+                // Filter out base64 URLs from imageDataArray - keep metadata but remove the base64 string
+                const filteredImageDataArray = value.map((img: any) => {
+                  if (img.url && typeof img.url === 'string' && img.url.startsWith('data:')) {
+                    return { ...img, url: null };
+                  }
+                  return img;
+                });
+                messageDoc[key] = filteredImageDataArray;
+                return true;
+              }
               return true;
             })
           );
@@ -616,13 +645,53 @@ export class FirestoreService {
       }
 
       // Save complete session document to unifiedSessions collection
-
       if (!db) {
         throw new Error('Database instance is null - Firestore not properly initialized');
       }
 
       try {
-        await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
+        // 1. Run the base64 stripper (applied across the entire session doc)
+        let finalPayload = sanitizeForFirestore(sessionDoc);
+
+        // 2. Measure the actual byte size of the pure text/JSON
+        const byteSize = Buffer.byteLength(JSON.stringify(finalPayload), 'utf8');
+
+        // 3. 🛑 THE FAILSAFE (1MB limit = 1,048,576 bytes)
+        if (byteSize > 900000) { // If it's over 900KB, it's dangerously close
+          console.warn(`⚠️ Payload is ${byteSize} bytes! Offloading heavy OCR arrays to avoid Firestore crash.`);
+
+          const heavyData: any = {};
+          let strippedCount = 0;
+
+          // Strip the heaviest, non-essential arrays from the nested messages
+          if (finalPayload.unifiedMessages && Array.isArray(finalPayload.unifiedMessages)) {
+            finalPayload.unifiedMessages.forEach((msg: any, idx: number) => {
+              if (msg.rawOcrBlocks || msg.stepsDataForMapping || msg.taggedOcrBlocks || msg.studentWork) {
+                heavyData[`msg_${idx}`] = {
+                  rawOcrBlocks: msg.rawOcrBlocks,
+                  stepsDataForMapping: msg.stepsDataForMapping,
+                  taggedOcrBlocks: msg.taggedOcrBlocks,
+                  studentWork: msg.studentWork
+                };
+                delete msg.rawOcrBlocks;
+                delete msg.stepsDataForMapping;
+                delete msg.taggedOcrBlocks;
+                delete msg.studentWork;
+                strippedCount++;
+              }
+            });
+          }
+
+          if (strippedCount > 0) {
+            // Upload 'heavyData' to Google Cloud Storage as a .json file
+            const fileUrl = await ImageStorageService.uploadJson(heavyData, userId, sessionId);
+            finalPayload.heavyDataUrl = fileUrl; // Frontend can fetch this if needed
+          }
+        }
+
+        // 4. Safe to save!
+        await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(finalPayload);
+
         // Verify the session was saved
         const verifyDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
         if (!verifyDoc.exists) {

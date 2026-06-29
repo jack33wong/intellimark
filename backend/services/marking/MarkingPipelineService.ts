@@ -548,21 +548,30 @@ export class MarkingPipelineService {
             const logGeometryComplete = logStep('Semantic Geometry Check', 'FAST (HARDCODED)');
             
             const newStandardizedPages: StandardizedPage[] = [];
+            const newLightweightPages: StandardizedPage[] = [];
             let pagesEjected = false;
             const interceptedSchemeImages: string[] = [];
             
+            // --- 1.5 Create Tier 2 (Low-Res WEBP) for Gemini ---
+            // 🛑 CRITICAL: We generate lightweightPages ONCE here from the raw color uploads.
+            let lightweightPages = await Promise.all(
+                standardizedPages.map(async page => ({
+                    ...page,
+                    imageData: await ImageUtils.createLightweightCopy(page.imageData, 800)
+                }))
+            );
+
             const geometryResults = await Promise.all(
-                standardizedPages.map(async page => {
-                    // 🛑 THE FIX: Downsample IMMEDIATELY before Semantic Geometry to prevent network bottleneck
-                    const lightweightGeo = await ImageUtils.createLightweightCopy(page.imageData, 800);
-                    return ImageGeometryService.analyze(lightweightGeo, page.width, page.height, 'fast', usageTracker);
+                lightweightPages.map(async page => {
+                    return ImageGeometryService.analyze(page.imageData, page.width, page.height, 'fast', usageTracker);
                 })
             );
 
             let lastRejectionReason = 'Image is blurry, blank, unreadable, or not mathematics content.';
 
             for (let i = 0; i < standardizedPages.length; i++) {
-                const page = standardizedPages[i];
+                const stdPage = standardizedPages[i];
+                const lightPage = lightweightPages[i];
                 const geo = geometryResults[i];
 
                 if (!geo.is_acceptable_quality || geo.is_math_content === false) {
@@ -571,34 +580,44 @@ export class MarkingPipelineService {
                     const reason = geo.rejection_reason || "Unacceptable quality or non-math content.";
                     const evidence = geo.evidence_text_snippet ? `\n   📄 Evidence: "${geo.evidence_text_snippet}"` : "";
                     if (process.env.DEBUG_SEMANTIC_GEOMETRY === 'true') {
-                        console.warn(`⚠️ [GEOMETRY] Dropping Page ${page.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
+                        console.warn(`⚠️ [GEOMETRY] Dropping Page ${stdPage.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
                     }
                     
-                    continue; // Gracefully filter out the junk page instead of crashing the server
+                    continue; // Gracefully filter out the junk page
                 }
 
                 // 🛡️ THE INTERCEPTOR: Eject marking scheme pages
                 if (geo.is_marking_scheme) {
-                    console.log(`📄 [INTERCEPTOR] Page ${page.pageIndex} is a Marking Scheme`);
+                    console.log(`📄 [INTERCEPTOR] Page ${stdPage.pageIndex} is a Marking Scheme`);
                     pagesEjected = true;
-                    interceptedSchemeImages.push(page.imageData);
-                    continue; // Skip pushing to newStandardizedPages
+                    interceptedSchemeImages.push(stdPage.imageData);
+                    continue; // Skip pushing
                 }
 
                 // Handle 2-page spread splitting
                 if (geo.is_two_page_spread) {
-                    console.log(`✂️ [GEOMETRY] Splitting 2-page spread for Page ${page.pageIndex}.`);
-                    const splitImages = await ImageUtils.splitImageVertically(page.imageData);
+                    console.log(`✂️ [GEOMETRY] Splitting 2-page spread for Page ${stdPage.pageIndex}.`);
+                    const splitStdImages = await ImageUtils.splitImageVertically(stdPage.imageData);
+                    const splitLightImages = await ImageUtils.splitImageVertically(lightPage.imageData);
                     
-                    newStandardizedPages.push({ ...page, imageData: splitImages[0] }); // Left
-                    newStandardizedPages.push({ ...page, imageData: splitImages[1] }); // Right
+                    newStandardizedPages.push({ ...stdPage, imageData: splitStdImages[0] }); // Left (Canonical)
+                    newStandardizedPages.push({ ...stdPage, imageData: splitStdImages[1] }); // Right (Canonical)
+                    
+                    newLightweightPages.push({ ...lightPage, imageData: splitLightImages[0] }); // Left (Lightweight)
+                    newLightweightPages.push({ ...lightPage, imageData: splitLightImages[1] }); // Right (Lightweight)
                 } else {
-                    newStandardizedPages.push(page);
+                    newStandardizedPages.push(stdPage);
+                    newLightweightPages.push(lightPage);
                 }
             }
 
             // Re-assign pageIndex so everything is perfectly sequential after potential splits
             standardizedPages = newStandardizedPages.map((page, index) => ({
+                ...page,
+                pageIndex: index
+            }));
+            
+            lightweightPages = newLightweightPages.map((page, index) => ({
                 ...page,
                 pageIndex: index
             }));
@@ -671,10 +690,10 @@ export class MarkingPipelineService {
             // We run OCR at the exact same time as AI Classification to save massive amounts of time
             const logOcrComplete = logStep('OCR Processing', 'mathpix');
             
-            // 🛑 THE FIX: Limit Mathpix to 3 concurrent uploads to prevent network gridlock
+            // 🛑 THE FIX: Limit Mathpix to 10 concurrent uploads (safe now due to mandatory image resizing and JPEG compression)
             const runOcrBatched = async () => {
                 const results: PageOcrResult[] = [];
-                const BATCH_SIZE = 3;
+                const BATCH_SIZE = 10;
                 for (let i = 0; i < standardizedPages.length; i += BATCH_SIZE) {
                     const batch = standardizedPages.slice(i, i + BATCH_SIZE);
                     const batchResults = await Promise.all(batch.map(async (page) => {
@@ -699,15 +718,9 @@ export class MarkingPipelineService {
             // --- Perform Classification on ALL Images (Question & Student Work) ---
             const logClassificationComplete = logStep('Classification', actualModel);
 
-            console.log(`📉 [IMAGE-UTILS] Creating lightweight down-sampled copies for AI vision pass...`);
-            const lightweightPages = await Promise.all(
-                standardizedPages.map(async page => ({
-                    ...page,
-                    imageData: await ImageUtils.createLightweightCopy(page.imageData, 800)
-                }))
-            );
-
             // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
+            // 🛑 CRITICAL: We pass the lightweightPages (Tier 2) which was already generated before Semantic Geometry
+            // This prevents Gemini from doing massive inference on 2000px Mathpix images.
             let allClassificationResults = await ClassificationService.classifyMultipleImages(
                 lightweightPages,
                 actualModel as ModelType,  // Cast to ModelType

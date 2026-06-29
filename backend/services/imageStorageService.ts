@@ -78,6 +78,52 @@ export class ImageStorageService {
   }
 
   /**
+   * Upload JSON data to Firebase Storage
+   * Used for offloading heavy metadata arrays (like rawOcrBlocks) when Firestore limits are exceeded.
+   */
+  static async uploadJson(
+    jsonData: any,
+    userId: string,
+    sessionId: string,
+    filenamePrefix: string = 'heavy-data'
+  ): Promise<string> {
+    try {
+      const config = getImageStorageConfig();
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substr(2, 9);
+      const filename = `${filenamePrefix}-${timestamp}-${random}.json`;
+
+      const storageRef = this.getStorage().bucket(config.bucketName).file(`${config.filenamePrefix}/${userId}/${sessionId}/${filename}`);
+      
+      const jsonString = JSON.stringify(jsonData);
+      const jsonBuffer = Buffer.from(jsonString, 'utf8');
+
+      await storageRef.save(jsonBuffer, {
+        metadata: {
+          contentType: 'application/json',
+          metadata: {
+            userId,
+            sessionId,
+            fileType: 'json',
+            uploadedAt: new Date().toISOString(),
+            sizeMB: (jsonBuffer.length / (1024 * 1024)).toFixed(2)
+          }
+        }
+      });
+
+      const downloadURL = await storageRef.getSignedUrl({
+        action: 'read',
+        expires: '03-01-2500' // Far future date
+      }).then(urls => urls[0]);
+
+      return downloadURL;
+    } catch (error) {
+      console.error(`❌ Failed to upload JSON to Firebase Storage:`, error);
+      throw new Error(`JSON upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Upload an image to Firebase Storage
    * FIXED: Uses FilenameService for consistent naming patterns
    */

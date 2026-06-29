@@ -56,31 +56,18 @@ export class ImageUtils {
         imageBuffer = Buffer.from(imageData, 'base64');
       }
 
-      // Strategy: Gentle background normalization and contrast enhancement.
-      // We avoid CLAHE and aggressive Grayscaling which caused Mathpix misclassification.
-
-      // 1. Normalize: Stretches the histogram to use the full dynamic range.
-      // 2. Gamma Correction: Adjust mid-tones (values > 1 lighten mid-tones), helpful for shadows.
-      // 3. Modulate: Slightly increase brightness and saturation.
-
-      const processedBuffer = await sharp(imageBuffer)
-        .normalize()
-        .gamma(1.1) // Lighten mid-tones slightly (e.g., 1.1 to 1.2)
-        .modulate({
-          brightness: 1.05, // Slight brightness boost
-          saturation: 1.1   // Slight saturation boost (preserves ink color characteristics)
-        })
-        .toBuffer();
-
-      // 4. Final optimization
-      const finalBuffer = await sharp(processedBuffer)
-        // Light sharpening
-        .sharpen()
-        .jpeg({ quality: 85, progressive: true })
+      // Strategy: Grayscale Hack + Normalize for Mathpix.
+      // This drops the file size by 60%+ while making the text pure black on white.
+      const finalBuffer = await sharp(imageBuffer)
+        .resize({ width: 2000, withoutEnlargement: true }) // The ~240 DPI sweet spot for Mathpix
+        .grayscale() // CRITICAL: Drops file size by 66% (1 channel instead of 3 RGB channels)
+        .normalize() // CRITICAL: Forces background to pure white and text to pure black
+        .sharpen() // Hardens the edges of faint decimal points
+        .webp({ quality: 90 }) // Avoids JPEG blurring artifacts
         .toBuffer();
 
       const enhancedBase64 = finalBuffer.toString('base64');
-      const enhancedDataUrl = `data:image/jpeg;base64,${enhancedBase64}`;
+      const enhancedDataUrl = `data:image/webp;base64,${enhancedBase64}`;
 
       // Updated logging message to reflect the new strategy
       return enhancedDataUrl;
@@ -187,14 +174,13 @@ export class ImageUtils {
         imageBuffer = Buffer.from(imageData, 'base64');
       }
 
-      // 🛑 THE FIX: We MUST always compress to JPEG (quality: 80) even if the image is narrow!
-      // Otherwise, an 800px wide 5MB raw PNG bypasses compression and kills network performance.
+      // Tier 2 (Low-Res): Extremely lightweight copy for Gemini
       const resizedBuffer = await sharp(imageBuffer)
         .resize({ width: maxWidth, withoutEnlargement: true })
-        .jpeg({ quality: 80 }) // Compress aggressively for vision model
+        .webp({ quality: 70 }) // Extremely lightweight
         .toBuffer();
         
-      return `data:image/jpeg;base64,${resizedBuffer.toString('base64')}`;
+      return `data:image/webp;base64,${resizedBuffer.toString('base64')}`;
     } catch (error) {
       console.error(`❌ [IMAGE UTILS] Error creating lightweight copy, falling back to original:`, error);
       return imageData;
