@@ -60,7 +60,7 @@ You must ONLY extract the following two types of content:
 2. **Meaningful Student Work:** The handwritten numbers, equations, text, or drawings provided by the student as an answer (or typed model answers).
 
 **THE BOUNDARY:** If a visual element does not fit into the two categories above, it does not exist. You must ignore it completely. 
-* Explicitly excluded: You must never extract formatting lines, answer boxes, dotted lines (`....`), or repeating underscores (`____`). Extracting these will corrupt the JSON payload.
+* Explicitly excluded: You must never extract formatting lines, answer boxes, dotted lines ('....'), or repeating underscores ('____'). Extracting these will corrupt the JSON payload.
 
 1. **Question Text: Extract hierarchy (Main Number -> Sub-parts)**:
    - **CONTEXT/STEM**: If intro text describes a specific scenario for ONE sub-question (e.g. "The doctor says... (a)"), include it in that sub-question's text.
