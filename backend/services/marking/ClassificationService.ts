@@ -820,6 +820,10 @@ ${pageHints}
       // Gemini sometimes appends `undefined` after numbers (e.g., 4.08undefined) or at the end of properties.
       sanitized = sanitized.replace(/undefined/gi, '');
 
+      // 🛡️ [TOXIC-UNDERSCORE FIX]: If the AI gets caught in a loop generating escaped underscores,
+      // it causes MAX_TOKENS truncation. We must strip these massive strings before JSON parsing.
+      sanitized = sanitized.replace(/(?:\\+_+|_+){5,}/g, '');
+
       // FIX: Escape raw newlines and tabs within string literals
       // This handles the "Bad control character in string literal" error
       sanitized = sanitized.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/gs, (match) => {

@@ -59,37 +59,13 @@ export class ModeSplitService {
             }
         });
 
-        // Re-index question pages consecutively from 0
-        const questionOnlyPages = questionOnlyOriginalPages.map((page, idx) => ({
+        // PRESERVE PAGE INDICES: Do not consecutively re-index, as this breaks UI bounding box alignments.
+        const questionOnlyPages = questionOnlyOriginalPages.map((page) => ({
             ...page,
-            originalPageIndex: page.pageIndex,  // Preserve for final sorting
-            pageIndex: idx  // New consecutive index: 0, 1, 2...
+            originalPageIndex: page.pageIndex
         }));
 
-        // Re-index question classifications to match new page indices
-        const questionOnlyClassificationResults = questionOnlyOriginalResults.map(result => {
-            const originalIdx = result.pageIndex;
-            const newIdx = questionOnlyPages.findIndex(p => p.originalPageIndex === originalIdx);
-
-            // Deep copy and re-index ALL nested structures
-            return {
-                ...result,
-                pageIndex: newIdx >= 0 ? newIdx : result.pageIndex,
-                result: result.result ? {
-                    ...result.result,
-                    questions: result.result.questions?.map((q: any) => ({
-                        ...q,
-                        sourcePageIndex: newIdx >= 0 ? newIdx : q.sourcePageIndex,
-                        pageIndex: newIdx >= 0 ? newIdx : q.pageIndex,
-                        // Re-index blocks array inside each question
-                        blocks: q.blocks?.map((block: any) => ({
-                            ...block,
-                            pageIndex: newIdx >= 0 ? newIdx : block.pageIndex
-                        })) || q.blocks
-                    })) || result.result.questions
-                } : result.result
-            };
-        });
+        const questionOnlyClassificationResults = [...questionOnlyOriginalResults];
 
         // ===== 2. BUILD MARKING MODE STRUCTURE =====
         const markingOriginalPages: StandardizedPage[] = [];
@@ -106,50 +82,13 @@ export class ModeSplitService {
             }
         });
 
-        // Re-index marking pages consecutively from 0
-        const markingPages = markingOriginalPages.map((page, idx) => ({
+        // PRESERVE PAGE INDICES: Do not consecutively re-index, as this breaks UI bounding box alignments.
+        const markingPages = markingOriginalPages.map((page) => ({
             ...page,
-            originalPageIndex: page.pageIndex,  // Preserve for final sorting
-            pageIndex: idx  // New consecutive index: 0, 1, 2...
+            originalPageIndex: page.pageIndex
         }));
 
-        // Re-index marking classifications to match new page indices
-        const markingClassificationResults = markingOriginalResults.map(result => {
-            const originalIdx = result.pageIndex;
-            const newIdx = markingPages.findIndex(p => p.originalPageIndex === originalIdx);
-
-            // Deep copy and re-index ALL nested structures
-            const reindexed = {
-                ...result,
-                pageIndex: newIdx >= 0 ? newIdx : result.pageIndex,
-                result: result.result ? {
-                    ...result.result,
-                    // Re-index questions array
-                    questions: result.result.questions?.map((q: any) => {
-                        const qNewIdx = markingPages.findIndex(p => p.originalPageIndex === q.sourceImageIndex);
-                        return {
-                            ...q,
-                            sourceImageIndex: qNewIdx >= 0 ? qNewIdx : q.sourceImageIndex,
-                            sourceImageIndices: q.sourceImageIndices?.map((oldIdx: number) => {
-                                const foundIdx = markingPages.findIndex(p => p.originalPageIndex === oldIdx);
-                                return foundIdx >= 0 ? foundIdx : oldIdx;
-                            }) || q.sourceImageIndices,
-                            pageIndex: qNewIdx >= 0 ? qNewIdx : q.pageIndex,
-                            // Re-index blocks array inside each question
-                            blocks: q.blocks?.map((block: any) => {
-                                const blockFoundIdx = markingPages.findIndex(p => p.originalPageIndex === block.pageIndex);
-                                return {
-                                    ...block,
-                                    pageIndex: blockFoundIdx >= 0 ? blockFoundIdx : block.pageIndex
-                                };
-                            }) || q.blocks
-                        };
-                    }) || result.result.questions
-                } : result.result
-            };
-
-            return reindexed;
-        });
+        const markingClassificationResults = [...markingOriginalResults];
 
         // ===== 3. DETERMINE MODE AND FINAL STRUCTURES =====
         const hasMarkingData = markingPages.length > 0;
