@@ -62,6 +62,7 @@ You must ONLY extract the following two types of content:
 **THE BOUNDARY:** If a visual element does not fit into the two categories above, it does not exist. You must ignore it completely. 
 * Explicitly excluded: You must never extract formatting lines, answer boxes, dotted lines ('....'), or repeating underscores ('____'). 
 * **NO LATEX UNDERSCORES:** Do NOT attempt to translate physical blank lines into LaTeX underscores (e.g., do NOT output "\\_" or "\\_\\_"). If a sentence ends with a fill-in-the-blank line, just end the sentence. Extracting these will corrupt the JSON payload.
+* **NO DATA TABLES OR CHARTS:** You must NEVER transcribe the contents of data tables, nutritional charts, maps, or reference grids. Treat them as invisible. Only extract the actual sentences that form the question prompt.
 
 1. **Question Text: Extract hierarchy (Main Number -> Sub-parts)**:
    - **CONTEXT/STEM**: If intro text describes a specific scenario for ONE sub-question (e.g. "The doctor says... (a)"), include it in that sub-question's text.
