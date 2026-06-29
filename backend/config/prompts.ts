@@ -13,6 +13,7 @@ import classification_light_system_prompt from './prompts/classification_light_s
 import classification_mapper_system_prompt from './prompts/classification_mapper_system_prompt.js';
 import classification_system_prompt from './prompts/classification_system_prompt.js';
 import worksheet_fallback_prompt from './prompts/worksheet_fallback_prompt.js';
+import marking_fallback_system_prompt from './prompts/marking_fallback_system_prompt.js';
 import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
 
 /**
@@ -65,6 +66,7 @@ export const AI_PROMPTS = {
   markingInstructions: {
     withMarkingScheme: {
       system: (isGeneric: boolean = false) => marking_scheme_system_prompt(isGeneric),
+      fallbackSystem: (isGeneric: boolean = false) => marking_fallback_system_prompt(isGeneric),
       user: (qNum: string, scheme: string, studentWork: string, blocks: any, questionText: string, pageMap: any, guidance: string, isGeneric: boolean) => {
         return `# MARKING TASK: Question ${qNum}
         

@@ -836,14 +836,38 @@ export class MarkingInstructionService {
 
     if (imageData && imageData.trim() !== '') {
       const isOpenAI = model && model.toString().startsWith('openai-');
-      if (isOpenAI) {
-        let openaiModel = model.toString().replace('openai-', '');
-        const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel, true, tracker, 'marking');
-        res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
-      } else {
-        const imageInput = (images && images.length > 0) ? images : imageData;
-        const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model, tracker, 'marking');
-        res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
+      
+      try {
+        if (isOpenAI) {
+          let openaiModel = model.toString().replace('openai-', '');
+          const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel, true, tracker, 'marking');
+          res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
+        } else {
+          const imageInput = (images && images.length > 0) ? images : imageData;
+          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model, tracker, 'marking');
+          res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
+        }
+      } catch (error: any) {
+        if (error.message && error.message.includes('MAX_TOKENS_EXCEEDED')) {
+          console.warn(`\n\x1b[33m⚠️ [MARKING FALLBACK TRIGGERED] MAX_TOKENS hit. Retrying marking without table analysis.\x1b[0m\n`);
+          
+          let fallbackSystemPrompt = systemPrompt;
+          if (hasMarkingScheme && AI_PROMPTS.markingInstructions.withMarkingScheme.fallbackSystem) {
+            fallbackSystemPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.fallbackSystem(normalizedScheme?.isGeneric === true);
+          }
+
+          if (isOpenAI) {
+            let openaiModel = model.toString().replace('openai-', '');
+            const visionResult = await ModelProvider.callOpenAIChat(fallbackSystemPrompt, userPrompt, imageData, openaiModel, true, tracker, 'marking');
+            res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
+          } else {
+            const imageInput = (images && images.length > 0) ? images : imageData;
+            const visionResult = await ModelProvider.callGeminiChat(fallbackSystemPrompt, userPrompt, imageInput, model, tracker, 'marking');
+            res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
+          }
+        } else {
+          throw error;
+        }
       }
     } else {
       res = await ModelProvider.callText(systemPrompt, userPrompt, model, true, tracker, 'marking');
