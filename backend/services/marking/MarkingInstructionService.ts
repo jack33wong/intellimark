@@ -849,22 +849,17 @@ export class MarkingInstructionService {
         }
       } catch (error: any) {
         if (error.message && error.message.includes('MAX_TOKENS_EXCEEDED')) {
-          console.warn(`\n\x1b[33m⚠️ [MARKING FALLBACK TRIGGERED] MAX_TOKENS hit. Retrying marking without table analysis.\x1b[0m\n`);
+          console.warn(`\n\x1b[33m⚠️ [MARKING FALLBACK TRIGGERED] MAX_TOKENS hit. Retrying marking in BLIND TEXT MODE (No Image).\x1b[0m\n`);
           
           let fallbackSystemPrompt = systemPrompt;
           if (hasMarkingScheme && AI_PROMPTS.markingInstructions.withMarkingScheme.fallbackSystem) {
             fallbackSystemPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.fallbackSystem(normalizedScheme?.isGeneric === true);
           }
 
-          if (isOpenAI) {
-            let openaiModel = model.toString().replace('openai-', '');
-            const visionResult = await ModelProvider.callOpenAIChat(fallbackSystemPrompt, userPrompt, imageData, openaiModel, true, tracker, 'marking');
-            res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
-          } else {
-            const imageInput = (images && images.length > 0) ? images : imageData;
-            const visionResult = await ModelProvider.callGeminiChat(fallbackSystemPrompt, userPrompt, imageInput, model, tracker, 'marking');
-            res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
-          }
+          // BLIND FALLBACK: We completely strip the imageData from the request.
+          // By falling back to callText, we force the AI to rely entirely on the Mathpix OCR text
+          // and prevent the Vision model from looping on dense tables or maps.
+          res = await ModelProvider.callText(fallbackSystemPrompt, userPrompt, model, true, tracker, 'marking');
         } else {
           throw error;
         }

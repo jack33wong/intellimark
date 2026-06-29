@@ -348,15 +348,20 @@ ${pageHints}
                 );
                 apiUsed = `OpenAI ${aiResponse.modelName} (Fallback)`;
               } else {
+                // PRO SWAP: If the original model hit a visual loop (like gemini-2.5-flash),
+                // we elevate the fallback to the heavier Pro model which has superior attention
+                // mechanics and is less likely to get hijacked by dense grids/tables.
+                const fallbackModel = 'gemini-2.5-pro';
+                console.warn(`\n\x1b[35m🔄 [PRO SWAP] Elevating fallback to ${fallbackModel} due to high visual complexity.\x1b[0m\n`);
                 aiResponse = await ModelProvider.callGeminiChat(
                   fallbackSystemPrompt,
                   taskUserPrompt,
                   imagePayload,
-                  validatedModel as any,
+                  fallbackModel,
                   tracker,
                   'classification'
                 );
-                apiUsed = `Google ${modelName} (Service Account - Fallback)`;
+                apiUsed = `Google ${fallbackModel} (Service Account - Fallback Swap)`;
               }
             } else {
               throw error; // Rethrow if it's not a MAX_TOKENS error
