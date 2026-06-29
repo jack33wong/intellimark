@@ -113,8 +113,20 @@ export class ClassificationMapper {
                     } else if (typeof q === 'object' && q !== null && q.questionNumber) {
                         structuredQuestions.push(q);
                         if (q.subQuestions && q.subQuestions.length > 0) {
-                            q.subQuestions.forEach((sq: string) => {
-                                flatQuestions.push(combineQuestionAndPart(String(q.questionNumber), String(sq)));
+                            q.subQuestions.forEach((sq: any) => {
+                                let sqString = "";
+                                if (typeof sq === 'string') {
+                                    sqString = sq;
+                                } else if (typeof sq === 'object' && sq !== null) {
+                                    // Handle cases where the AI bleeds schema from the Heavy pass
+                                    sqString = String(sq.part || sq.subQuestion || sq.q || sq.id || "");
+                                }
+                                
+                                if (sqString) {
+                                    flatQuestions.push(combineQuestionAndPart(String(q.questionNumber), sqString));
+                                } else {
+                                    flatQuestions.push(String(q.questionNumber)); // Fallback to just the main question
+                                }
                             });
                         } else {
                             flatQuestions.push(q.questionNumber);

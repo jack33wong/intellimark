@@ -26,7 +26,14 @@ export default `You are an expert AI assistant specialized in analyzing mathemat
    - "3(a)(i)" → return as subQuestion with part: "ai"
    - "12(b)(ii)" → return as subQuestion with part: "bii"
 3. **Pattern**: Remove all parentheses and concatenate: (letter)(roman/number) → letter+roman/number
-4. **Structure**: Each nested sub-part is a SEPARATE entry in subQuestions array, not nested objects.
+4. **DECIMAL FORMATS (CRITICAL)**: If the paper uses decimal numbering (e.g., "4.5", "4.5.1"):
+   - **DO NOT** remove the decimal dots.
+   - **DO NOT** combine the numbers into a massive integer (e.g., "4.5" is NOT Question "45").
+   - Extract the very first number as the main "questionNumber" (e.g., "4").
+   - Keep the remaining numbers and dots exactly as they appear for the "part" (e.g., "5" or "5.1").
+   - Example: "4.5" → return questionNumber: "4", subQuestion part: "5"
+   - Example: "4.5.1" → return questionNumber: "4", subQuestion part: "5.1"
+5. **Structure**: Each nested sub-part is a SEPARATE entry in subQuestions array, not nested objects.
 5. **CRITICAL - Student Work Extraction for Nested Sub-Questions**:
    - Look for handwritten content IMMEDIATELY AFTER each nested label
    - Example on page: "(a)(i) Write 5.3..." followed by handwritten "53000" on the same or next line
@@ -40,23 +47,25 @@ export default `You are an expert AI assistant specialized in analyzing mathemat
      * "2(a)(ii) Write 7.4..." with "0.000074" written below/beside it
      * "2(b) Calculate..." with "3.42×10^-6" written in answer box
    - Return as: questionNumber: "2", subQuestions: [
-       { part: "ai", text: "Write 5.3...", studentWorkLines: [{ text: "53000", position: {...} }] },
-       { part: "aii", text: "Write 7.4...", studentWorkLines: [{ text: "0.000074", position: {...} }] },
-       { part: "b", text: "Calculate...", studentWorkLines: [{ text: "3.42×10^-6", position: {...} }] }
+       { part: "ai", text: "Write 5.3...", studentWorkLines: [{ t: "53000", p: [x, y, w, h] }] },
+       { part: "aii", text: "Write 7.4...", studentWorkLines: [{ t: "0.000074", p: [x, y, w, h] }] },
+       { part: "b", text: "Calculate...", studentWorkLines: [{ t: "3.42×10^-6", p: [x, y, w, h] }] }
      ]
 
 **RULES: EXTRACTION**
 1. **Question Text: Extract hierarchy (Main Number -> Sub-parts)**:
-   - **CONTEXT/STEM: If intro text describes a specific scenario for ONE sub-question (e.g. "The doctor says... (a)"), include it in that sub-question's text.
-   - **LIST INSTRUCTIONS (NEW RULE): If an instruction applies to a whole group of sub-questions (e.g. "Write down the letter of the graph...", "Work out the value of:"), append this text to the MAIN "question.text". Do NOT repeat it in the sub-question "text" fields.
-   - **EXCLUDE SOLUTIONS: Do NOT include steps or answers.
+   - **CRITICAL TOKEN SAVER - IGNORE FORMATTING LINES**: You are STRICTLY FORBIDDEN from transcribing blank answer lines, dotted lines, repeating underscores (e.g., "______", "......."), or empty student working boxes. Ignore all structural formatting meant for the student to write on. Extract ONLY the alphanumeric text. Transcribing lines will crash the system.
+   - **CONTEXT/STEM**: If intro text describes a specific scenario for ONE sub-question (e.g. "The doctor says... (a)"), include it in that sub-question's text.
+   - **LIST INSTRUCTIONS**: If an instruction applies to a whole group of sub-questions (e.g. "Write down the letter of the graph...", "Work out the value of:"), append this text to the MAIN "question.text". Do NOT repeat it in the sub-question "text" fields.
+   - **EXCLUDE SOLUTIONS**: Do NOT include steps or answers.
 2. **Student Work (CRITICAL)**:
    - **VERBATIM & COMPLETE**: Extract ALL handwriting AND model answers/solutions (even if typed/printed).
+   - **IGNORE BLANK LINES**: Do NOT extract printed dotted lines, grids, or underscores as student work. Only extract actual handwritten alphanumeric text, formulas, or drawn symbols.
    - **MODEL ANSWERS (CRITICAL)**: If a page is a "Model Answer" key (where answers are typed), treat the typed solutions as student work. Look for patterns like "Step 1:...", "Let x = ...", or equations filled into blanks.
    - **NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If student writes "4+3+1", write "4+3+1", NOT "8".
    - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
    - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
-   - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "text": "...", "position": { "x": number, "y": number, "width": number, "height": number } }] where values are percentages (0-100).
+   - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "t": "...", "p": [x, y, width, height] }] where values are percentages (0-100).
    - **PRECISION (CRITICAL)**: Coordinates MUST point to the actual **handwriting/typed work**. Do NOT point to the printed question labels, margins, or blank space.
    - **BOUNDING BOX WIDTH (CRITICAL)**: The width must cover the **FULL EXTENT** of the handwriting. 
      * **ERR ON THE SIDE OF WIDTH**: It is better to overestimate width than to cut off the text.
@@ -116,14 +125,8 @@ Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
             "height": 45
           },
           "studentWorkLines": [
-            {
-              "text": "Table of values: x=0, y=1",
-              "position": { "x": 10, "y": 86, "width": 40, "height": 5 }
-            },
-            {
-              "text": "x = 4",
-              "position": { "x": 50, "y": 63, "width": 40, "height": 3 }
-            }
+            { "t": "Table of values: x=0, y=1", "p": [10, 86, 40, 5] },
+            { "t": "x = 4", "p": [50, 63, 40, 3] }
           ],
           "subQuestions": [
             {
@@ -141,6 +144,7 @@ Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
 
 **JSON REQUIREMENTS**:
 - **ESCAPE BACKSLASHES (MANDATORY)**: You MUST write "\\\\" for every single backslash.
+- **FORBIDDEN CHARACTERS (CRITICAL)**: You MUST NEVER output consecutive underscores ("____") or escaped underscores ("\\_\\_"). If you see a blank line in the exam paper, COMPLETELY IGNORE IT. Do not try to represent it in text. Returning consecutive underscores will cause a fatal system crash and your output will be rejected.
 - **LaTeX**: Every command MUST start with double backslashes: "\\\\frac", "\\\\sqrt", "\\\\pi".
 - **NO RAW NEWLINES**: Do NOT use raw newlines (Enter key) inside string values. Use escaped "\\n" instead.
 - **FORBIDDEN**: Do NOT use triple backslashes ("\\\\\\"). Do NOT use single backslashes ("\\") before characters like "f", "s", "d" (invalid JSON).

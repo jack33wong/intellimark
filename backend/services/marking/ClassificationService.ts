@@ -243,22 +243,17 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const processQuestionTask = async (task: { questionNumber: string; pageIndices: number[]; baseQNumbers?: string[] }) => {
         const { questionNumber, pageIndices, baseQNumbers } = task;
 
-        // Get images for this question
-        const taskImages = pageIndices.map(idx => images[idx]);
+        const BATCH_SIZE = 2;
+        let finalParsedPages: any[] = [];
+        let finalApiUsed = '';
+        let totalUsageTokens = 0;
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
 
-        // ROUTING: Select light vs heavy classification based on mapper category
-        const firstPageIndex = pageIndices[0];
-        const mapperCategory = resolvedPageMaps[firstPageIndex]?.category || 'questionAnswer';
-
-        // CRITICAL: questionAnswer and frontPage MUST use heavy (needs positions)
-        // ONLY questionOnly uses light (no student work, no positions needed)
-        // ALWAYS use heavy mode. We need bounding boxes for ALL pages to ensure 
-        // the "Red Debug Zone" can be drawn even if the page is just printed text.
+        // ROUTING: Select heavy classification based on mapper category
+        // CRITICAL: ALWAYS use heavy mode. We need bounding boxes for ALL pages
         const useLight = false;
 
-
-
-        // Select prompt based on category
         const baseSystemPrompt = useLight
           ? getPrompt('classification.light.system')
           : getPrompt('classification.heavy.system');
@@ -266,127 +261,120 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           ? getPrompt('classification.light.user')
           : getPrompt('classification.heavy.user');
 
-        // Construct prompt for this specific question
-        // We tell the AI to focus ONLY on this question
-        let taskSystemPrompt = baseSystemPrompt;
-        let taskUserPrompt = '';
+        const { getModelConfig } = await import('../../config/aiModels.js');
+        const modelConfig = getModelConfig(validatedModel);
+        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
 
-        if ((task as any).isFullPage) {
-          // Full page extraction mode
-          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${pageIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${pageIndices[0] + 1}" (representing the page number).`;
-          taskUserPrompt = `Extract all text and student work from Page ${pageIndices[0] + 1}.`;
-        } else {
-          // Connected components extraction mode (handles one or more questions)
-          const qList = baseQNumbers && baseQNumbers.length > 0 ? baseQNumbers : [questionNumber];
+        for (let i = 0; i < pageIndices.length; i += BATCH_SIZE) {
+          const chunkIndices = pageIndices.slice(i, i + BATCH_SIZE);
+          const chunkImages = chunkIndices.map(idx => images[idx]);
 
-          const pageHints = pageIndices.map(idx => {
-            const partsOnThisPage: string[] = [];
-            qList.forEach((bq: string) => {
-              const parts = Array.from(subQuestionPageMap.get(bq)?.get(idx) || []);
-              partsOnThisPage.push(...parts);
-            });
-            return `Page ${idx + 1}: [${partsOnThisPage.join(', ')}]`;
-          }).join('\n');
+          let taskSystemPrompt = baseSystemPrompt;
+          let taskUserPrompt = '';
 
-          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question(s): ${qList.join(', ')}. 
+          if ((task as any).isFullPage) {
+            taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${chunkIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${chunkIndices[0] + 1}" (representing the page number).`;
+            taskUserPrompt = `Extract all text and student work from Page ${chunkIndices[0] + 1}.`;
+          } else {
+            const qList = baseQNumbers && baseQNumbers.length > 0 ? baseQNumbers : [questionNumber];
+            const pageHints = chunkIndices.map(idx => {
+              const partsOnThisPage: string[] = [];
+              qList.forEach((bq: string) => {
+                const parts = Array.from(subQuestionPageMap.get(bq)?.get(idx) || []);
+                partsOnThisPage.push(...parts);
+              });
+              return `Page ${idx + 1}: [${partsOnThisPage.join(', ')}]`;
+            }).join('\n');
+
+            taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question(s): ${qList.join(', ')}. 
 Focus ONLY on extracting these specific questions and their parts assigned to each page:
 ${pageHints}
 
 **PAGE ASSIGNMENT RULE**: You MUST assign each sub-question part (e.g., "3b") to the EXACT page listed above. Do NOT pull a sub-question onto a preceding page just because its header is visible there.`;
 
-          taskUserPrompt = `Extract Question(s) ${qList.join(', ')} and their parts from these pages following the provided mapping.`;
+            taskUserPrompt = `Extract Question(s) ${qList.join(', ')} and their parts from these pages following the provided mapping.`;
+          }
+
+          let parsedChunk: any;
+          const isOpenAI = (validatedModel as string).startsWith('openai-');
+          let content: string;
+          let apiUsed: string;
+          let usageTokens = 0;
+          let inputTokens = 0;
+          let outputTokens = 0;
+          const imagePayload = chunkImages.map(img => img.imageData);
+
+          if (isOpenAI) {
+            const openaiModel = (validatedModel as string).replace('openai-', '');
+            const aiResponse = await ModelProvider.callOpenAIChat(
+              taskSystemPrompt,
+              taskUserPrompt,
+              imagePayload,
+              openaiModel,
+              true,
+              tracker,
+              'classification'
+            );
+            content = aiResponse.content;
+            usageTokens = aiResponse.usageTokens;
+            inputTokens = aiResponse.inputTokens || 0;
+            outputTokens = aiResponse.outputTokens || 0;
+            apiUsed = `OpenAI ${aiResponse.modelName}`;
+          } else {
+            const aiResponse = await ModelProvider.callGeminiChat(
+              taskSystemPrompt,
+              taskUserPrompt,
+              imagePayload,
+              validatedModel as any,
+              tracker,
+              'classification'
+            );
+            content = aiResponse.content;
+            usageTokens = aiResponse.usageTokens;
+            inputTokens = aiResponse.inputTokens || 0;
+            outputTokens = aiResponse.outputTokens || 0;
+            apiUsed = `Google ${modelName} (Service Account)`;
+          }
+
+          totalUsageTokens += usageTokens;
+          totalInputTokens += inputTokens;
+          totalOutputTokens += outputTokens;
+
+          finalApiUsed = apiUsed;
+          const cleanContent = this.cleanGeminiResponse(content);
+          
+          if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
+            console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Chunk ${i/BATCH_SIZE + 1} Raw Response:\x1b[0m`);
+            console.log(cleanContent);
+          }
+
+          try {
+            parsedChunk = this.parseJsonWithSanitization(cleanContent);
+          } catch (error) {
+            console.error(`❌ [CLASSIFICATION] JSON Parse Failure for Q${questionNumber} Chunk ${i/BATCH_SIZE + 1}. Creating Fallback.`, error);
+            parsedChunk = {
+              pages: chunkIndices.map(idx => ({
+                category: "questionAnswer",
+                reasoning: `JSON Parse Error for Q${questionNumber} on Page ${idx + 1}. Falling back to manual review placeholder.`,
+                questions: [
+                  {
+                    questionNumber: questionNumber,
+                    text: "MANUAL_REVIEW_REQUIRED_JSON_ERROR (The AI output was malformed)",
+                    studentWorkLines: [],
+                    confidence: 0.1
+                  }
+                ]
+              }))
+            };
+          }
+
+          if (parsedChunk.pages && Array.isArray(parsedChunk.pages)) {
+            finalParsedPages.push(...parsedChunk.pages);
+          }
         }
 
-
-        // Call AI (User Selected Model)
-        // We reuse the existing single-request logic but with a subset of images
-        // To avoid duplicating 100 lines of code, we should refactor the AI call into a helper method.
-        // For now, I will inline the essential parts or call a helper if I create one.
-        // Let's use the existing logic structure but applied to taskImages.
-
-        let parsed: any;
-
-        // ... (Reuse existing AI call logic, adapted for taskImages) ...
-        // To avoid duplicating 100 lines of code, we should refactor the AI call into a helper method.
-        // For now, I will inline the essential parts or call a helper if I create one.
-        // Let's use the existing logic structure but applied to taskImages.
-
-        const isOpenAI = (validatedModel as string).startsWith('openai-');
-        let content: string;
-        let usageTokens = 0;
-        let apiUsed: string;
-        let inputTokens = 0;
-        let outputTokens = 0;
-
-        const imagePayload = taskImages.map(img => img.imageData);
-
-        if (isOpenAI) {
-          const openaiModel = (validatedModel as string).replace('openai-', '');
-          const aiResponse = await ModelProvider.callOpenAIChat(
-            taskSystemPrompt,
-            taskUserPrompt,
-            imagePayload,
-            openaiModel,
-            true, // forceJsonResponse
-            tracker,
-            'classification'
-          );
-          content = aiResponse.content;
-          usageTokens = aiResponse.usageTokens;
-          apiUsed = `OpenAI ${aiResponse.modelName}`;
-          inputTokens = aiResponse.inputTokens || 0;
-          outputTokens = aiResponse.outputTokens || 0;
-        } else {
-          const aiResponse = await ModelProvider.callGeminiChat(
-            taskSystemPrompt,
-            taskUserPrompt,
-            imagePayload,
-            validatedModel as any,
-            tracker,
-            'classification'
-          );
-          content = aiResponse.content;
-          usageTokens = aiResponse.usageTokens;
-          apiUsed = `Google Gemini ${validatedModel}`;
-          inputTokens = aiResponse.inputTokens || 0;
-          outputTokens = aiResponse.outputTokens || 0;
-        }
-
-        // Tracker recording is handled automatically inside ModelProvider.callGeminiChat based on phase.
-        const cleanContent = this.cleanGeminiResponse(content);
-        // [DEBUG] Log the classification response per task - ENABLED
-        if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
-          console.log(`\n\x1b[36m[CLASSIFICATION DEBUG] Q${questionNumber} Raw Response:\x1b[0m`);
-          console.log(cleanContent); // Full response (User Request)
-        }
-
-        try {
-          parsed = this.parseJsonWithSanitization(cleanContent);
-        } catch (error) {
-          console.error(`❌ [CLASSIFICATION] JSON Parse Failure for Q${questionNumber}. Creating Fallback.`, error);
-          // Create dummy structure that matches Gemini output format to keep the pipeline moving
-          parsed = {
-            pages: pageIndices.map(idx => ({
-              category: "questionAnswer",
-              reasoning: `JSON Parse Error for Q${questionNumber} on Page ${idx + 1}. Falling back to manual review placeholder.`,
-              questions: [
-                {
-                  questionNumber: questionNumber,
-                  text: "MANUAL_REVIEW_REQUIRED_JSON_ERROR (The AI output was malformed)",
-                  studentWorkLines: [],
-                  confidence: 0.1
-                }
-              ]
-            }))
-          };
-        }
-
-
-
-        const { getModelConfig } = await import('../../config/aiModels.js');
-        const modelConfig = getModelConfig(validatedModel);
-        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
-        apiUsed = `Google ${modelName} (Service Account)`;
+        let parsed = { pages: finalParsedPages };
+        let apiUsed = finalApiUsed;
 
         // Process results
         // The AI returns a "pages" array. We need to map these back to the original page indices.
@@ -439,9 +427,9 @@ ${pageHints}
                 reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
                 questions: processedQuestions,
                 apiUsed,
-                usageTokens: isFirstPageOfQuestion ? usageTokens : 0,
-                llmInputTokens: isFirstPageOfQuestion ? inputTokens : 0,
-                llmOutputTokens: isFirstPageOfQuestion ? outputTokens : 0,
+                usageTokens: isFirstPageOfQuestion ? totalUsageTokens : 0,
+                llmInputTokens: isFirstPageOfQuestion ? totalInputTokens : 0,
+                llmOutputTokens: isFirstPageOfQuestion ? totalOutputTokens : 0,
                 mapperHints: resolvedPageMaps[globalPageIndex]?.questions?.map((q: any) => typeof q === 'string' ? q : q.questionNumber) || []
               }
             });
@@ -959,9 +947,19 @@ ${pageHints}
     }
 
     const recursiveParse = (q: any): any => {
-      // 1. Normalize Coordinates (0-1000 to 0-100)
+      // 1. Normalize Coordinates (0-1000 to 0-100) and Translate Minified JSON
       if (q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
         q.studentWorkLines.forEach((line: any) => {
+          // Translate minified 't' and 'p' from prompt back to internal 'text' and 'position'
+          if (line.t !== undefined) {
+            line.text = line.t;
+            delete line.t;
+          }
+          if (line.p !== undefined && Array.isArray(line.p) && line.p.length === 4) {
+            line.position = { x: line.p[0], y: line.p[1], width: line.p[2], height: line.p[3] };
+            delete line.p;
+          }
+
           let p = line.position;
           const isLargeScale = p && (
             (p.x > 120 || p.y > 120) ||

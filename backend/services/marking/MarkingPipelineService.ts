@@ -611,15 +611,15 @@ export class MarkingPipelineService {
                 }
             }
 
-            // Re-assign pageIndex so everything is perfectly sequential after potential splits
-            standardizedPages = newStandardizedPages.map((page, index) => ({
-                ...page,
-                pageIndex: index
+            // We MUST NOT blindly re-assign pageIndex = index.
+            // If a page was ejected (e.g. marking scheme or blurry), shifting the indices down by 1 
+            // will permanently corrupt the bounding box alignment on the frontend PDF viewer!
+            standardizedPages = newStandardizedPages.map((page) => ({
+                ...page
             }));
             
-            lightweightPages = newLightweightPages.map((page, index) => ({
-                ...page,
-                pageIndex: index
+            lightweightPages = newLightweightPages.map((page) => ({
+                ...page
             }));
 
             if (standardizedPages.length === 0) {

@@ -3,6 +3,8 @@ import { ZoneUtils } from '../../../utils/ZoneUtils.js';
 import { CoordinateAuditLogger } from '../../../utils/LoggerUtils.js';
 import { sanitizeAiLineId } from '../MarkingHelpers.js';
 
+const DEBUG_VETO_REJECT = false;
+
 export class AnnotationLinker {
 
     /**
@@ -103,7 +105,9 @@ export class AnnotationLinker {
                         for (const vetoItem of vetoList) {
                             if (vetoItem.length < 2) continue;
                             if (vetoItem.includes(bTextNorm) || bTextNorm.includes(vetoItem)) {
-                                console.log(` 🚫 [VETO-REJECT] Candidate "${b.text}" matches Veto "${vetoItem}"`);
+                                if (DEBUG_VETO_REJECT) {
+                                    console.log(` 🚫 [VETO-REJECT] Candidate "${b.text}" matches Veto "${vetoItem}"`);
+                                }
                                 return false;
                             }
                         }
