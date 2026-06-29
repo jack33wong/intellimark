@@ -47,7 +47,7 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
   'gemini-2.5-flash': {
     name: 'Gemini 2.5 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-    maxTokens: 64000,
+    maxTokens: 8192,
     temperature: 0.1,
     label: 'Thinking',
     description: 'Deep reasoning, takes longer'
@@ -55,7 +55,7 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
   'gemini-2.5-pro': {
     name: 'Gemini 2.5 Pro',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    maxTokens: 64000,
+    maxTokens: 8192,
     temperature: 0.1,
     label: 'Pro',
     description: 'Best for complex coding & math'
