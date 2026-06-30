@@ -13,8 +13,6 @@ import admin from 'firebase-admin';
 import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
 import { NormalizationService } from '../services/marking/NormalizationService.js';
 import { ImageStorageService } from '../services/imageStorageService.js';
-import auditRouter from './admin/audit.js';
-
 const router = express.Router();
 
 /**
@@ -52,9 +50,6 @@ function validateExamPaper(data: any): string | null {
 
 // Apply admin authentication to all admin routes
 router.use(authenticateUser, requireAdmin);
-
-// Mount the audit router under /api/admin/audit
-router.use('/audit', auditRouter);
 
 // Types
 interface JSONExamPaper {
