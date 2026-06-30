@@ -341,6 +341,8 @@ ${pageHints}
                   questions: [{
                     questionNumber: questionNumber,
                     text: "MANUAL_REVIEW_REQUIRED_TOO_DENSE (The visual layout on this page is too complex for auto-marking)",
+                    sourceImageIndex: idx,
+                    sourceImageIndices: [idx],
                     studentWorkLines: [],
                     confidence: 0.1
                   }]
@@ -421,6 +423,7 @@ ${pageHints}
                 // 1. Fix the Node itself (This overrides the AI's relative "0" with the true Global Index)
                 node.pageIndex = globalPageIndex;
                 node.sourceImageIndex = globalPageIndex;
+                node.sourceImageIndices = [globalPageIndex];
 
                 // 2. Fix Student Work Lines
                 if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {

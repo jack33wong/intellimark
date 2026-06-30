@@ -253,7 +253,7 @@ export class ModelProvider {
           }],
           generationConfig: {
             temperature: config.temperature,
-            maxOutputTokens: config.maxTokens || 4096,
+            maxOutputTokens: Math.max(config.maxTokens || 8192, 8192),
             responseMimeType: "application/json"
           },
           safetySettings: [
@@ -312,7 +312,7 @@ export class ModelProvider {
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens || 4096,
+            maxOutputTokens: Math.max((await import('../config/aiModels.js')).getModelConfig(model).maxTokens || 8192, 8192),
             ...(forceJsonResponse && { responseMimeType: "application/json" })
           }, // Use centralized config
           safetySettings: [
@@ -353,7 +353,9 @@ export class ModelProvider {
     // Check for truncation even if content exists
     if (finishReason === 'MAX_TOKENS') {
       const outputTokens = result.usageMetadata?.candidatesTokenCount || 'unknown';
-      throw new Error(`MAX_TOKENS_EXCEEDED: Gemini truncated response at ${outputTokens} tokens. The JSON is corrupted and cannot be used.`);
+      const error = new Error(`MAX_TOKENS_EXCEEDED: Gemini truncated response at ${outputTokens} tokens. The JSON is corrupted and cannot be used.`);
+      (error as any).partialContent = content || '';
+      throw error;
     }
 
     if (!content) {

@@ -2222,8 +2222,18 @@ export class MarkingPipelineService {
                                         })
                                         .catch(error => {
                                             console.error(`❌ Worker failed for Q${task.questionNumber}:`, error);
-                                            // Don't reject the whole batch, just log and continue (maybe push a failed result?)
-                                            // For now, we'll just let it be missing from results, or we could push a dummy error result
+                                            if (error.message && error.message.includes('MANUAL_REVIEW_REQUIRED_TOO_DENSE')) {
+                                                console.log(`[DEBUG] Catching Dense Error for Q${task.questionNumber}. task.sourcePages = ${JSON.stringify(task.sourcePages)}`);
+                                                results.push({
+                                                    questionNumber: task.questionNumber,
+                                                    pageIndex: task.sourcePages?.[0] ?? 0,
+                                                    sourceImageIndices: task.sourcePages || [],
+                                                    annotations: [],
+                                                    score: { totalMarks: task.markingScheme?.marks || 0, awardedMarks: 0 },
+                                                    isError: true,
+                                                    errorMessage: 'Too Dense'
+                                                } as any);
+                                            }
                                         })
                                         .finally(() => {
                                             activeWorkers--;

@@ -849,8 +849,21 @@ export class MarkingInstructionService {
         }
       } catch (error: any) {
         if (error.message && error.message.includes('MAX_TOKENS_EXCEEDED')) {
-          console.warn(`\n\x1b[31m❌ [MARKING] MAX_TOKENS hit. Skipping retry to prevent billing spike.\x1b[0m\n`);
-          throw new Error("MANUAL_REVIEW_REQUIRED_TOO_DENSE: The student's work or table layout is too dense for auto-marking.");
+          console.warn(`\n\x1b[31m❌ [MARKING] MAX_TOKENS hit. Attempting to salvage partial content.\x1b[0m\n`);
+          if (error.partialContent) {
+            console.log(`\n=================== TRUNCATED CONTENT DUMP ===================`);
+            console.log(error.partialContent.substring(error.partialContent.length - 2000));
+            console.log(`==============================================================\n`);
+            res = { 
+              content: error.partialContent, 
+              usageTokens: 8192, 
+              inputTokens: 0, 
+              outputTokens: 8192, 
+              isTruncated: true 
+            };
+          } else {
+            throw new Error("MANUAL_REVIEW_REQUIRED_TOO_DENSE: The student's work or table layout is too dense for auto-marking.");
+          }
         } else {
           throw error;
         }
@@ -868,9 +881,21 @@ export class MarkingInstructionService {
     }
 
     const jsonString = MarkingResultParser.extractJsonFromResponse(res.content);
-    let parsedResponse = MarkingResultParser.repairJson(jsonString);
+    let parsedResponse;
+    try {
+      parsedResponse = MarkingResultParser.repairJson(jsonString, (res as any).isTruncated);
+    } catch (e) {
+      if ((res as any).isTruncated) {
+        throw new Error("MANUAL_REVIEW_REQUIRED_TOO_DENSE: The student's work or table layout is too dense for auto-marking.");
+      } else {
+        throw e;
+      }
+    }
 
-
+    if ((res as any).isTruncated && parsedResponse?.annotations?.length > 0) {
+      // Pop the last annotation because it is highly likely to be partially written and corrupted
+      parsedResponse.annotations.pop();
+    }
 
     parsedResponse = MarkingResultParser.postProcessMarkingResponse(parsedResponse, normalizedScheme, subQuestionPageMap || {}, inputQuestionNumber || '');
 
@@ -890,7 +915,7 @@ export class MarkingInstructionService {
     // [DEBUG] Strict Prompt Text Trace
     const finalPromptText = (hasMarkingScheme && normalizedScheme) ? structuredQuestionText : formattedOcrText;
 
-    const resultObj = {
+    const resultObj: any = {
       annotations: parsedResponse.annotations,
       usage: {
         llmTokens: res.usageTokens || 0,
@@ -906,6 +931,11 @@ export class MarkingInstructionService {
       promptQuestionText: finalPromptText,
       taggedOcrBlocks: sanitizedBlocks // [FIX] Propagate tagged blocks upstream
     };
+
+    if ((res as any).isTruncated) {
+      // It was salvaged, so it's NOT a full error, but it has a density error
+      resultObj.hasDensityError = true;
+    }
 
     return resultObj;
   }

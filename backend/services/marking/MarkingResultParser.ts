@@ -37,12 +37,18 @@ export class MarkingResultParser {
     /**
      * Attempts to repair common JSON issues returned by LLMs.
      */
-    public static repairJson(jsonString: string): any {
+    public static repairJson(jsonString: string, isTruncated: boolean = false): any {
         let parsed: any = null;
+        
+        let stringToParse = jsonString;
+        if (isTruncated) {
+            stringToParse = this.salvageTruncatedJson(stringToParse);
+        }
+
         try {
-            parsed = JSON.parse(jsonString);
+            parsed = JSON.parse(stringToParse);
         } catch (e) {
-            let fixedJson = jsonString;
+            let fixedJson = stringToParse;
 
             // Fix 1: Missing closing brace before comma
             fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
@@ -59,7 +65,7 @@ export class MarkingResultParser {
                 parsed = JSON5.parse(fixedJson);
             } catch (e2) {
                 // Fix 3: Aggressive escaping
-                fixedJson = jsonString.replace(/\\/g, '\\\\')
+                fixedJson = stringToParse.replace(/\\/g, '\\\\')
                     .replace(/\\\\n/g, '\\n')
                     .replace(/\\\\"/g, '\\"')
                     .replace(/\\\\r/g, '\\r')
@@ -334,5 +340,52 @@ export class MarkingResultParser {
                 }
             }
         });
+    }
+
+    private static salvageTruncatedJson(str: string): string {
+        let stack: string[] = [];
+        let inString = false;
+        let escapeNext = false;
+        
+        // Quick sanitization: if it doesn't start with {, find the first {
+        let startIdx = str.indexOf('{');
+        if (startIdx === -1) startIdx = str.indexOf('[');
+        if (startIdx !== -1) str = str.substring(startIdx);
+        
+        for (let i = 0; i < str.length; i++) {
+            let char = str[i];
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = !inString;
+                continue;
+            }
+            if (!inString) {
+                if (char === '{' || char === '[') {
+                    stack.push(char === '{' ? '}' : ']');
+                } else if (char === '}' || char === ']') {
+                    stack.pop();
+                }
+            }
+        }
+        
+        let repaired = str;
+        if (inString) repaired += '"';
+        
+        // Strip trailing incomplete key-value pairs like `"key": ` or `, "key"`
+        repaired = repaired.replace(/,\s*(?:"[^"]*"?\s*:?\s*)?$/, '');
+        repaired = repaired.replace(/([{\[])\s*"[^"]*"?\s*:\s*$/, '$1');
+        
+        while (stack.length > 0) {
+            repaired += stack.pop();
+        }
+        
+        return repaired;
     }
 }

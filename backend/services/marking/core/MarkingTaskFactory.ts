@@ -33,6 +33,10 @@ export class MarkingTaskFactory {
 
             const groupingKey = baseQNum;
             const sourceImageIndices = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
+            
+            if (q.confidence === 0.1) {
+                console.log(`[DEBUG] Factory saw mock question ${q.questionNumber}. sourceImageIndex: ${q.sourceImageIndex}, sourceImageIndices: ${JSON.stringify(sourceImageIndices)}`);
+            }
 
             // --- Anchor Page Logic (Standard) ---
             let anchorMainPage = sourceImageIndices[0] ?? 0;

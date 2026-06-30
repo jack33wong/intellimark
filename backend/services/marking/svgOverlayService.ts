@@ -110,11 +110,12 @@ export class SVGOverlayService {
     scoreToDraw?: { scoreText: string } | { scoreText: string }[],
     totalScoreText?: string,
     hasMetaPage?: boolean,
-    semanticZones?: any[]
+    semanticZones?: any[],
+    hasDensityError?: boolean
   ): Promise<string> {
     try {
       const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
-      if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText) {
+      if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && !hasDensityError) {
         return originalImageData;
       }
 
@@ -128,7 +129,7 @@ export class SVGOverlayService {
       const burnWidth = imageMetadata.width || imageDimensions.width;
       const burnHeight = imageMetadata.height || imageDimensions.height;
 
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones, hasDensityError);
       const svgBuffer = Buffer.from(svgOverlay);
 
       const burnedImageBuffer = await sharp(uprightImageBuffer)
@@ -147,9 +148,9 @@ export class SVGOverlayService {
   // SVG GENERATION LOGIC
   // =========================================================================
 
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[]): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[], hasDensityError?: boolean): string {
     const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
-    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && (!semanticZones || semanticZones.length === 0)) {
+    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && (!semanticZones || semanticZones.length === 0) && !hasDensityError) {
       return '';
     }
 
@@ -243,9 +244,27 @@ export class SVGOverlayService {
     }
 
     if (totalScoreText) svg += this.createTotalScoreWithDoubleUnderline(totalScoreText, actualWidth, actualHeight, hasMetaPage);
-    if (scoreToDraw) {
-      const scores = Array.isArray(scoreToDraw) ? scoreToDraw : [scoreToDraw];
-      svg += this.createStudentScoreCircles(scores, actualWidth, actualHeight);
+
+    // --- DENSITY ERROR WARNING ---
+    if (hasDensityError && !hasMetaPage) {
+      const scaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
+      const rectWidth = 450 * scaleFactor;
+      const rectHeight = 60 * scaleFactor;
+      const margin = 20 * scaleFactor;
+      const x = actualWidth - rectWidth - margin;
+      const y = margin;
+      
+      svg += `
+        <rect x="${x}" y="${y}" width="${rectWidth}" height="${rectHeight}" rx="${8 * scaleFactor}" fill="rgba(254, 226, 226, 0.9)" stroke="#EF4444" stroke-width="${3 * scaleFactor}"/>
+        <text x="${x + rectWidth / 2}" y="${y + (rectHeight / 2) + (6 * scaleFactor)}" font-family="${this.CONFIG.fontFamily}" font-size="${24 * scaleFactor}" font-weight="bold" fill="#EF4444" text-anchor="middle">
+          MANUAL REVIEW: PAGE TOO DENSE
+        </text>`;
+    }
+
+    // --- SCORES AND ANNOTATIONS ---
+    if (hasScores) {
+      const scoresArray = Array.isArray(scoreToDraw) ? scoreToDraw : [scoreToDraw];
+      svg += this.createStudentScoreCircles(scoresArray, actualWidth, actualHeight);
     }
 
     return svg + '</svg>';

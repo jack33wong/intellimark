@@ -85,9 +85,13 @@ export class SessionManagementService {
 
     // Generate session title
     // Generate session title using common function (if detectionResults available)
-    const sessionTitle = context.detectionResults && context.detectionResults.length > 0
+    let sessionTitle = context.detectionResults && context.detectionResults.length > 0
       ? generateSessionTitleFromDetectionResults(context.detectionResults, 'Marking')
       : this.generateMarkingSessionTitle(context);  // Fallback to old method
+
+    if (context.allQuestionResults?.some((qr: any) => qr.isError && qr.errorMessage === 'Too Dense')) {
+      sessionTitle = `⚠️ ${sessionTitle}`;
+    }
 
     // FIXED: Create separate database and response objects
     const { MessageFactory } = await import('./messageFactory.js');
@@ -1141,6 +1145,9 @@ export class SessionManagementService {
         } catch (e) {
           console.warn('[MASTER SUMMARY] Failed to parse accidental JSON:', e);
         }
+      }
+      if (allQuestionResults.some((qr: any) => qr.isError && qr.errorMessage === 'Too Dense')) {
+        finalContent = `> [!WARNING]\n> **MANUAL REVIEW REQUIRED:** Some questions were too dense for auto-marking and were skipped. Please review the paper manually.\n\n` + finalContent;
       }
 
       return finalContent;

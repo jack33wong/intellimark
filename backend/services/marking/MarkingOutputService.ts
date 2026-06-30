@@ -74,7 +74,7 @@ export class MarkingOutputService {
             const totalScoreToDraw = isFirstOutputPage ? overallScoreText : undefined;
 
             const mapperCategory = allClassificationResults.find(c => c.pageIndex === pageIndex)?.result?.category;
-            const hasMetaPage = mapperCategory === 'metadata' || mapperCategory === 'frontPage';
+            const hasMetaPage = mapperCategory === 'metadata' || mapperCategory === 'frontPage' || pageQuestions.length === 0;
 
             // [RESOLUTION-SYNC] Synchronize burn dimensions
             const burnW = page.width;
@@ -97,6 +97,7 @@ export class MarkingOutputService {
                     });
                 }
             });
+            const hasDensityError = pageQuestions.some((q: any) => (q.isError && q.errorMessage === 'Too Dense') || q.hasDensityError);
 
             try {
                 const zonesForThisPageArray = Array.from(uniqueZonesMap.values());
@@ -107,7 +108,8 @@ export class MarkingOutputService {
                     scoresToDraw,
                     totalScoreToDraw,
                     hasMetaPage,
-                    zonesForThisPageArray
+                    zonesForThisPageArray,
+                    hasDensityError
                 );
                 return annotatedImageData;
             } catch (drawError) {

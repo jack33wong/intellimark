@@ -160,6 +160,9 @@ export async function executeMarkingForQuestion(
 
     // Generate Prompt
     let ocrTextForPrompt = task.classificationStudentWork || "Student's Work:\n";
+    if (ocrTextForPrompt.includes('MANUAL_REVIEW_REQUIRED_TOO_DENSE')) {
+      throw new Error("MANUAL_REVIEW_REQUIRED_TOO_DENSE: The student's work or table layout is too dense for auto-marking.");
+    }
     if (ocrTextForPrompt.length < 15 && task.aiSegmentationResults?.length > 0) {
       task.aiSegmentationResults.forEach((result, index) => {
         const clean = result.content.replace(/\s+/g, ' ').trim();
@@ -457,7 +460,10 @@ export async function executeMarkingForQuestion(
       promptMarkingScheme: markingResult.schemeTextForPrompt,
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
       rawAnnotations: rawAnnotationsFromAI,
-      semanticZones: semanticZones
+      semanticZones: semanticZones,
+      isError: (markingResult as any).isError,
+      hasDensityError: (markingResult as any).hasDensityError,
+      errorMessage: (markingResult as any).errorMessage
     };
 
     return result;
