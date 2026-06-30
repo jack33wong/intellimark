@@ -253,7 +253,7 @@ export class ModelProvider {
           }],
           generationConfig: {
             temperature: config.temperature,
-            maxOutputTokens: Math.max(config.maxTokens || 8192, 8192),
+            maxOutputTokens: config.maxTokens || 4096,
             responseMimeType: "application/json"
           },
           safetySettings: [
@@ -312,7 +312,7 @@ export class ModelProvider {
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: Math.max((await import('../config/aiModels.js')).getModelConfig(model).maxTokens || 8192, 8192),
+            maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens || 4096,
             ...(forceJsonResponse && { responseMimeType: "application/json" })
           }, // Use centralized config
           safetySettings: [

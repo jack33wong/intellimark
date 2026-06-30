@@ -331,38 +331,26 @@ ${pageHints}
             }
           } catch (error: any) {
             if (error.message && error.message.includes('MAX_TOKENS_EXCEEDED')) {
-              console.warn(`\n\x1b[33m⚠️ [FALLBACK TRIGGERED] MAX_TOKENS hit on Q${questionNumber} Chunk ${i/BATCH_SIZE + 1}. Retrying with aggressive targeted extraction prompt.\x1b[0m\n`);
+              console.warn(`\n\x1b[31m❌ [CLASSIFICATION] MAX_TOKENS hit on Q${questionNumber}. Skipping retry to prevent billing spike.\x1b[0m\n`);
               
-              const fallbackSystemPrompt = getPrompt('classification.fallback.system');
+              // Gracefully mock a JSON failure response
+              parsedChunk = {
+                pages: chunkIndices.map(idx => ({
+                  category: "questionAnswer",
+                  reasoning: `Paper too dense. AI structural complexity limit exceeded on Page ${idx + 1}.`,
+                  questions: [{
+                    questionNumber: questionNumber,
+                    text: "MANUAL_REVIEW_REQUIRED_TOO_DENSE (The visual layout on this page is too complex for auto-marking)",
+                    studentWorkLines: [],
+                    confidence: 0.1
+                  }]
+                }))
+              };
               
-              if (isOpenAI) {
-                const openaiModel = (validatedModel as string).replace('openai-', '');
-                aiResponse = await ModelProvider.callOpenAIChat(
-                  fallbackSystemPrompt,
-                  taskUserPrompt,
-                  imagePayload,
-                  openaiModel,
-                  true,
-                  tracker,
-                  'classification'
-                );
-                apiUsed = `OpenAI ${aiResponse.modelName} (Fallback)`;
-              } else {
-                // PRO SWAP: If the original model hit a visual loop (like gemini-2.5-flash),
-                // we elevate the fallback to the heavier Pro model which has superior attention
-                // mechanics and is less likely to get hijacked by dense grids/tables.
-                const fallbackModel = 'gemini-2.5-pro';
-                console.warn(`\n\x1b[35m🔄 [PRO SWAP] Elevating fallback to ${fallbackModel} due to high visual complexity.\x1b[0m\n`);
-                aiResponse = await ModelProvider.callGeminiChat(
-                  fallbackSystemPrompt,
-                  taskUserPrompt,
-                  imagePayload,
-                  fallbackModel,
-                  tracker,
-                  'classification'
-                );
-                apiUsed = `Google ${fallbackModel} (Service Account - Fallback Swap)`;
+              if (parsedChunk.pages && Array.isArray(parsedChunk.pages)) {
+                finalParsedPages.push(...parsedChunk.pages);
               }
+              continue; // Move to the next chunk safely
             } else {
               throw error; // Rethrow if it's not a MAX_TOKENS error
             }
