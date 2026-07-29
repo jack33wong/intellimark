@@ -1,4 +1,5 @@
 import { UserSubscription } from '../types/payment';
+import API_CONFIG from '../config/api';
 
 export interface SubscriptionResponse {
   hasSubscription: boolean;
@@ -6,7 +7,7 @@ export interface SubscriptionResponse {
 }
 
 class SubscriptionService {
-  private static readonly API_BASE = '/api/payment';
+  private static readonly API_BASE = `${API_CONFIG.BASE_URL}/api/payment`;
 
   /**
    * Get user subscription details
