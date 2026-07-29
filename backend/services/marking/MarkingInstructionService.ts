@@ -667,6 +667,7 @@ export class MarkingInstructionService {
       });
 
       return {
+        step_by_step_evaluation: annotationData.step_by_step_evaluation,
         annotations: stackedAnnotations,
         usage: annotationData.usage || { llmTokens: 0, llmInputTokens: 0, llmOutputTokens: 0 },
         cleanedOcrText: cleanedOcrText,

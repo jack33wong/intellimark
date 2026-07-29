@@ -153,6 +153,7 @@ export interface Annotation {
 }
 
 export interface MarkingInstructions {
+  step_by_step_evaluation?: string[]; // Chain-of-thought mathematical reasoning scratchpad
   annotations: Annotation[];
   studentScore?: {
     totalMarks: number;

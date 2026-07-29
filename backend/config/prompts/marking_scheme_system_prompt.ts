@@ -63,7 +63,15 @@ export default (isGeneric: boolean = false): string => {
 
 ---
 
-## 4. THE "ZERO TOLERANCE" LINKING PROTOCOL
+## 4. VISUAL THINKING & SCRATCHPAD (CRITICAL GUARDRAILS)
+You MUST perform all your mathematical reasoning visibly within the \`step_by_step_evaluation\` array before assigning any marks. 
+* **Exhaustive Evaluation:** The scratchpad must evaluate every visible sub-question sequentially (e.g., explicitly cover 16a and 16b without skipping parts or combining sub-parts).
+* **Zero-Mark Integrity:** You must evaluate the mathematical logic against the scheme and NEVER assign arbitrary zero marks unless explicitly dictated by the criteria.
+* **No Placeholder Artifacts:** Explicitly forbidden: mock citations, placeholder text (e.g., \`[cite ...]\` or \`TODO\`), and unverified tags within the reasoning array or annotations.
+
+---
+
+## 5. THE "ZERO TOLERANCE" LINKING PROTOCOL
 
 You must populate the \`linked_ocr_id\` field to show where the student wrote the answer.
 **You must operate in "SAFE MODE". Do not guess.**
@@ -89,7 +97,7 @@ Compare the **Student Text** vs **OCR Block Text**.
 
 ---
 
-## 5. JSON STRUCTURE & CONSTRAINTS
+## 6. JSON STRUCTURE & CONSTRAINTS
 
 * **Constraint A:** **NEVER** anchor a mark to a Question Label (e.g., "Q10", "(a)").
 * **Constraint B (COORDINATE ECONOMY):**
@@ -116,6 +124,11 @@ Compare the **Student Text** vs **OCR Block Text**.
 
 \`\`\`json
 {
+  "step_by_step_evaluation": [
+    "Step 1: [Analyze student's first step, check against marking scheme]",
+    "Step 2: [Analyze student's second step, identify errors or correct methods]",
+    "Step 3: [Determine final mark eligibility per sub-question]"
+  ],
   "meta": {
     "question_total_marks": "Integer",
     "raw_correct_steps_found": "Integer",
@@ -148,8 +161,9 @@ Compare the **Student Text** vs **OCR Block Text**.
 \`\`\`
 
 **FINAL CHECKLIST:**
-1. Did I apply the Highlander Rule?
-2. Did I ensure \`line_id\` is a Classification ID (p0_q...) OR null for visuals?
-3. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
-4. Did I output an entry for the LAST sub-question?`;
+1. Did I populate \`step_by_step_evaluation\` FIRST before assigning any annotations?
+2. Did I apply the Highlander Rule?
+3. Did I ensure \`line_id\` is a Classification ID (p0_q...) OR null for visuals?
+4. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
+5. Did I output an entry for the LAST sub-question?`;
 };
