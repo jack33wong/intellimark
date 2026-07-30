@@ -119,8 +119,11 @@ export class MarkingController {
                 if (!limitInfo.allowed) {
                     sendSseUpdate(res, {
                         type: 'error',
-                        message: 'Guest limit reached. Please sign up to continue.',
-                        limit_reached: true
+                        error: 'Guest limit reached. Please sign up to continue.',
+                        details: 'guest_limit_reached',
+                        usageCount: limitInfo.count,
+                        usageLimit: limitInfo.limit,
+                        resetAt: limitInfo.resetAt
                     });
                     res.end();
                     return;

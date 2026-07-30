@@ -82,7 +82,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     isHistoryLoading,
     isModelAnswerMode,
     isMarkingSchemeMode,
-    user
+    user,
+    guestLimitInfo
   } = useMarkingPage();
 
   const isGuest = !user;
@@ -596,9 +597,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
         </>
       )}
       
-      {isGuest && (chatMessages || []).length > 0 && (
+      {isGuest && (chatMessages || []).length > 0 && guestLimitInfo?.usageLimit > 0 && (
         <div className="guest-mode-floating-banner">
-          <span className="guest-banner-text">🔒 Viewing 4 free answers</span>
+          <span className="guest-banner-text">
+            🔒 Viewing {Math.max(0, guestLimitInfo.usageLimit - (guestLimitInfo.usageCount || 0))} free answers
+          </span>
           <button className="guest-banner-btn" onClick={() => {
             import('../../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
               EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });

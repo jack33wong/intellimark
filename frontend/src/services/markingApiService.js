@@ -692,7 +692,13 @@ class SimpleSessionService {
               return true;
             }
             if (data.type === 'error') {
-              const error = new Error(data.error);
+              const error = new Error(data.error || 'Unknown error from server');
+              if (data.details === 'guest_limit_reached') {
+                error.guest_limit_reached = true;
+                error.usageCount = data.usageCount;
+                error.usageLimit = data.usageLimit;
+                error.resetAt = data.resetAt;
+              }
               if (data.credits_exhausted) {
                 error.credits_exhausted = true;
               }
@@ -831,7 +837,13 @@ class SimpleSessionService {
               return true;
             }
             if (data.type === 'error') {
-              const error = new Error(data.error);
+              const error = new Error(data.error || 'Unknown error from server');
+              if (data.details === 'guest_limit_reached') {
+                error.guest_limit_reached = true;
+                error.usageCount = data.usageCount;
+                error.usageLimit = data.usageLimit;
+                error.resetAt = data.resetAt;
+              }
               if (data.credits_exhausted) {
                 error.credits_exhausted = true;
               }

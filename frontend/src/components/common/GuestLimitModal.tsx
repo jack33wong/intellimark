@@ -7,9 +7,10 @@ import './GuestLimitModal.css';
 interface GuestLimitModalProps {
     isOpen: boolean;
     onClose: () => void;
+    limit?: number;
 }
 
-const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) => {
+const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose, limit = 5 }) => {
     const navigate = useNavigate();
 
     if (!isOpen) return null;
@@ -36,10 +37,11 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose }) =>
                         <Lock size={32} className="guest-limit-icon" />
                     </div>
 
-                    <h2>Guest Limit Reached</h2>
+                    <h2>{limit === 0 ? "Unlock AI Marking" : "Guest Limit Reached"}</h2>
                     <p>
-                        You've reached the free limit for guest users.
-                        Sign up for a free account to continue marking papers and save your history.
+                        {limit === 0 
+                            ? "Create a free account to unlock our AI marking tools, save your progress, and get started instantly." 
+                            : "You've reached the free limit for guest users. Sign up for a free account to continue marking papers and save your history."}
                     </p>
 
                     <div className="guest-limit-benefits">

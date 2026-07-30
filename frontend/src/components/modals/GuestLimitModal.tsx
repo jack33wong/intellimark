@@ -63,32 +63,38 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({
           <Lock size={28} />
         </div>
 
-        <h2 className="guest-limit-title">Guest Limit Reached</h2>
+        <h2 className="guest-limit-title">
+          {limit === 0 ? "Unlock AI Marking" : "Guest Limit Reached"}
+        </h2>
         <p className="guest-limit-subtitle">
-          You've used all your free guest requests. Sign up for free to continue.
+          {limit === 0 
+            ? "Create a free account to unlock our AI marking tools, save your progress, and get started instantly." 
+            : "You've used all your free guest requests. Sign up for free to continue."}
         </p>
 
-        {/* Usage stats bar */}
-        <div className="guest-limit-stats">
-          <div className="guest-limit-stat-row">
-            <TrendingUp size={14} />
-            <span>Usage</span>
-            <span className="guest-limit-stat-value"><strong>{count}</strong> / {limit} requests</span>
-          </div>
+        {/* Usage stats bar - Hidden if limit is 0 */}
+        {limit > 0 && (
+          <div className="guest-limit-stats">
+            <div className="guest-limit-stat-row">
+              <TrendingUp size={14} />
+              <span>Usage</span>
+              <span className="guest-limit-stat-value"><strong>{count}</strong> / {limit} requests</span>
+            </div>
 
-          <div className="guest-limit-bar-track">
-            <div
-              className="guest-limit-bar-fill"
-              style={{ width: `${usedPercent}%` }}
-            />
-          </div>
+            <div className="guest-limit-bar-track">
+              <div
+                className="guest-limit-bar-fill"
+                style={{ width: `${usedPercent}%` }}
+              />
+            </div>
 
-          <div className="guest-limit-stat-row">
-            <Clock size={14} />
-            <span>Resets</span>
-            <span className="guest-limit-stat-value">{resetLabel}</span>
+            <div className="guest-limit-stat-row">
+              <Clock size={14} />
+              <span>Resets</span>
+              <span className="guest-limit-stat-value">{resetLabel}</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Actions */}
         <button className="guest-limit-cta" onClick={onSignup}>

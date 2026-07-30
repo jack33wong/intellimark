@@ -516,7 +516,24 @@ export const MarkingPageProvider = ({
       textRequestInProgress.current = false;
       return true;
     } catch (err) {
-      if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+      if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+        stopAIThinking();
+        stopProcessing();
+        setGuestLimitInfo({ 
+          usageCount: err.usageCount || 0, 
+          usageLimit: err.usageLimit || 0, 
+          resetAt: err.resetAt || null 
+        });
+        setShowGuestLimitModal(true);
+        textRequestInProgress.current = false;
+        
+        // Revert UI to main upload page if this is a fresh session
+        if (!currentSession || (currentSession.messages && currentSession.messages.length <= 1)) {
+           clearSession();
+           dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+        }
+        return false;
+      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
       handleError(err);
@@ -586,10 +603,13 @@ export const MarkingPageProvider = ({
           'generating': 2
         }
       ).catch(err => {
-        console.error('Error in model answer flow:', err);
-        if (err.guest_limit_reached) {
-          setGuestLimitInfo({ usageCount: err.usageCount, usageLimit: err.usageLimit, resetAt: err.resetAt });
+        if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+          setGuestLimitInfo({ usageCount: err.usageCount || 0, usageLimit: err.usageLimit || 0, resetAt: err.resetAt || null });
           setShowGuestLimitModal(true);
+          
+          // Revert UI to main upload page
+          clearSession();
+          dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
         } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
           setShowCreditsModal(true);
         } else {
@@ -664,10 +684,13 @@ export const MarkingPageProvider = ({
           'generating': 2
         }
       ).catch(err => {
-        console.error('Error in marking scheme explanation flow:', err);
-        if (err.guest_limit_reached) {
-          setGuestLimitInfo({ usageCount: err.usageCount, usageLimit: err.usageLimit, resetAt: err.resetAt });
+        if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+          setGuestLimitInfo({ usageCount: err.usageCount || 0, usageLimit: err.usageLimit || 0, resetAt: err.resetAt || null });
           setShowGuestLimitModal(true);
+          
+          // Revert UI to main upload page
+          clearSession();
+          dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
         } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
           setShowCreditsModal(true);
         } else {
@@ -790,8 +813,21 @@ export const MarkingPageProvider = ({
       // Execute API call in background so UI resets immediately
       processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name)
         .catch(err => {
-          console.error('Error in image analysis flow:', err);
-          if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+          if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+            stopAIThinking();
+            stopProcessing();
+            setGuestLimitInfo({ 
+              usageCount: err.usageCount || 0, 
+              usageLimit: err.usageLimit || 0, 
+              resetAt: err.resetAt || null 
+            });
+            setShowGuestLimitModal(true);
+            
+            // Revert UI to main upload page
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            return;
+          } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
           }
           handleError(err);
@@ -802,8 +838,21 @@ export const MarkingPageProvider = ({
       clearFile();
       return true;
     } catch (err) {
-      console.error('Error starting image analysis:', err);
-      if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+      if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+        stopAIThinking();
+        stopProcessing();
+        setGuestLimitInfo({ 
+          usageCount: err.usageCount || 0, 
+          usageLimit: err.usageLimit || 0, 
+          resetAt: err.resetAt || null 
+        });
+        setShowGuestLimitModal(true);
+        
+        // Revert UI to main upload page
+        clearSession();
+        dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+        return false;
+      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
       handleError(err);
@@ -937,8 +986,21 @@ export const MarkingPageProvider = ({
       // Execute API call in background so UI resets immediately
       processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId)
         .catch(err => {
-          console.error('Error in multi-image analysis flow:', err);
-          if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+          if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+            stopAIThinking();
+            stopProcessing();
+            setGuestLimitInfo({ 
+              usageCount: err.usageCount || 0, 
+              usageLimit: err.usageLimit || 0, 
+              resetAt: err.resetAt || null 
+            });
+            setShowGuestLimitModal(true);
+            
+            // Revert UI to main upload page
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            return;
+          } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
           }
           handleError(err);
@@ -948,8 +1010,21 @@ export const MarkingPageProvider = ({
 
       return true;
     } catch (err) {
-      console.error('Error in multi-image analysis flow:', err);
-      if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+      if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+        stopAIThinking();
+        stopProcessing();
+        setGuestLimitInfo({ 
+          usageCount: err.usageCount || 0, 
+          usageLimit: err.usageLimit || 0, 
+          resetAt: err.resetAt || null 
+        });
+        setShowGuestLimitModal(true);
+        
+        // Revert UI to main upload page
+        clearSession();
+        dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+        return false;
+      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
       handleError(err);
@@ -1060,6 +1135,7 @@ export const MarkingPageProvider = ({
     credits,
     refreshCredits,
     setSidebarOpen,
+    guestLimitInfo,
     lastHandledSessionIdRef, // Expose ref if needed
     ...progressProps
   }), [

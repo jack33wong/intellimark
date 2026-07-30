@@ -630,29 +630,36 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     }
   }, []);
 
+  const actionHandledRef = useRef(false);
+
   // Handle Action deep links (from Landing Page) via FileHandoff Bridge
   useEffect(() => {
     if (mode !== 'first-time') return;
+    if (actionHandledRef.current) return;
 
     const params = new URLSearchParams(location.search);
     const action = params.get('action');
 
-    if (action === 'select' || action === 'upload') {
-      setShowHandoff(true);
-    } else if (action === 'scan') {
-      // Direct detection of mobile to skip bridge on desktop
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-      if (isMobile) {
+    if (action) {
+      if (action === 'select' || action === 'upload') {
         setShowHandoff(true);
-      } else {
-        // Desktop: Show QR code modal immediately
-        setIsMobileUploadOpen(true);
-        // Clean URL to prevent re-opening on refresh
-        window.history.replaceState({}, '', '/app');
+      } else if (action === 'scan') {
+        // Direct detection of mobile to skip bridge on desktop
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        if (isMobile) {
+          setShowHandoff(true);
+        } else {
+          // Desktop: Show QR code modal immediately
+          setIsMobileUploadOpen(true);
+        }
       }
+      
+      // Clean URL via React Router so it doesn't re-trigger on remount
+      navigate(location.pathname, { replace: true });
+      actionHandledRef.current = true;
     }
-  }, [location.search, mode]);
+  }, [location.search, mode, navigate, location.pathname]);
 
   const removePreview = useCallback(() => {
     setPreviewImage(null);
