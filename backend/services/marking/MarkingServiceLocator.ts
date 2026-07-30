@@ -90,7 +90,7 @@ export class MarkingServiceLocator {
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
-      const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
+      const apiUsed = `Google ${modelInfo.modelName} (Vertex AI)`;
 
       // ModelProvider now returns tokens from Gemini's usageMetadata
       const inputTokens = response.inputTokens || Math.floor((response.usageTokens || 0) * 0.8);
@@ -245,39 +245,20 @@ export class MarkingServiceLocator {
 
       // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const accessToken = ModelProvider.getGeminiApiKey();
-
-      /*
-      // [DEBUG] Log raw input prompt for Question Mode validation
-      console.log(`\n🔍 [QUESTION MODE PROMPT]`);
-      console.log(`SYSTEM: ${systemPrompt}`);
-      console.log(`USER: ${userPrompt}`);
-      console.log('----------------------------------------\n');
-      */
-
-      const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
-      const result = await response.json() as any;
-
-      /*
-      // [DEBUG] Log raw JSON response for Question Mode validation
-      console.log(`\n🔍 [QUESTION MODE RAW RESPONSE]`);
-      console.log(JSON.stringify(result, null, 2));
-      console.log('----------------------------------------\n');
-      */
-
-      const content = this.extractGeminiChatContent(result);
-
+      
+      const result = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageData, model, tracker, 'marking');
+      
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
-      const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
+      const apiUsed = `Google ${modelInfo.modelName} (Vertex AI)`;
 
       return {
-        response: content,
+        response: result.content,
         apiUsed: apiUsed,
-        confidence: 0.85, // Default confidence for AI responses (question mode)
-        usageTokens: (result.usageMetadata?.totalTokenCount as number) || 0,
-        inputTokens: (result.usageMetadata?.promptTokenCount as number) || 0,
-        outputTokens: (result.usageMetadata?.candidatesTokenCount as number) || 0
+        confidence: 0.85,
+        usageTokens: result.usageTokens,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens
       };
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
@@ -334,19 +315,11 @@ export class MarkingServiceLocator {
       const isQuestionOnly = category === "questionOnly";
       const phase = isQuestionOnly ? 'questionMode' : 'marking';
 
-      /*
-      // [DEBUG] Log raw input prompt for Text/Question Mode validation
-      console.log(`\n🔍 [TEXT RESPONSE PROMPT] (${phase})`);
-      console.log(`SYSTEM: ${systemPrompt}`);
-      console.log(`USER: ${userPrompt}`);
-      console.log('----------------------------------------\n');
-      */
-
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, phase);
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
-      const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
+      const apiUsed = `Google ${modelInfo.modelName} (Vertex AI)`;
 
       return {
         response: result.content,
@@ -372,111 +345,8 @@ export class MarkingServiceLocator {
       throw error;
     }
   }
-  private static async makeGeminiChatRequest(
-    accessToken: string,
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    model: ModelType = 'gemini-2.5-flash'
-  ): Promise<Response> {
-    const { getModelInfo } = await import('../../config/aiModels.js');
-    const modelInfo = getModelInfo(model);
 
-    const response = await fetch(`${modelInfo.config.apiEndpoint}?key=${accessToken}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            {
-              inline_data: {
-                mime_type: 'image/jpeg',
-                data: imageData.split(',')[1]
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: modelInfo.config.maxTokens, // Use centralized config
-        }
-      })
-    });
 
-    if (!response.ok) {
-      // Capture error response body for detailed diagnostics
-      let errorText = '';
-      try {
-        errorText = await response.text();
-      } catch (e) {
-        errorText = 'Unable to read error response body';
-      }
-
-      console.error(`❌ [GEMINI CHAT API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
-      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-      console.error(`❌ [ERROR RESPONSE BODY] ${errorText}`);
-
-      // Try to parse error body for structured error info
-      let parsedError = null;
-      try {
-        parsedError = JSON.parse(errorText);
-        if (parsedError.error) {
-          console.error(`❌ [ERROR DETAILS]`, JSON.stringify(parsedError.error, null, 2));
-        }
-      } catch (e) {
-        // Not JSON, that's okay
-      }
-
-      // Include error details in thrown error
-      const errorMessage = parsedError?.error?.message || errorText || response.statusText;
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${modelInfo.modelName} (${modelInfo.apiVersion}) - ${errorMessage}`);
-    }
-
-    return response;
-  }
-  private static extractGeminiChatContent(result: any): string {
-    // Check if this is an error response first
-    if (result.error) {
-      console.error('❌ [DEBUG] Gemini API returned error response:', result.error);
-      throw new Error(`Gemini API error: ${result.error.message || 'Unknown error'}`);
-    }
-
-    const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!content) {
-      console.error('❌ [DEBUG] No content found in Gemini response');
-      console.error('❌ [DEBUG] Response structure:', {
-        hasCandidates: !!result.candidates,
-        candidatesLength: result.candidates?.length,
-        firstCandidate: result.candidates?.[0],
-        hasContent: !!result.candidates?.[0]?.content,
-        hasParts: !!result.candidates?.[0]?.content?.parts,
-        partsLength: result.candidates?.[0]?.content?.parts?.length,
-        firstPart: result.candidates?.[0]?.content?.parts?.[0]
-      });
-
-      // Check for safety filters or other issues
-      const finishReason = result.candidates?.[0]?.finishReason;
-      if (finishReason) {
-        console.error('❌ [DEBUG] Finish reason:', finishReason);
-
-        // Handle MAX_TOKENS specifically
-        if (finishReason === 'MAX_TOKENS') {
-          console.error('❌ [MAX_TOKENS] Response truncated due to token limit. Consider using a model with higher limits or reducing prompt length.');
-          throw new Error(`Response truncated due to token limit. The model response was too long and got cut off. Consider using a model with higher token limits for longer responses.`);
-        }
-      }
-
-      throw new Error(`No content in Gemini response. Finish reason: ${finishReason || 'unknown'}`);
-    }
-
-    return content;
-  }
 
 
 

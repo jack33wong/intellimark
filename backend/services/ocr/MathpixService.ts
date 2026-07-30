@@ -3,6 +3,15 @@
  * Handles Mathpix API operations for mathematical expression recognition using v3/text endpoint.
  */
 
+import https from 'https';
+
+// 1. Create a global HTTPS Agent with Keep-Alive enabled
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,       // Adjust based on your concurrency limits
+  keepAliveMsecs: 30000 // Keep sockets open for 30 seconds
+});
+
 export class MathpixService {
   // Revert to the v3/text endpoint
   private static readonly API_URL = 'https://api.mathpix.com/v3/text';
@@ -89,7 +98,10 @@ export class MathpixService {
       // We enforce a strict 15s timeout. If it fails, we fall back to Google Vision instantly to save the pipeline.
       const response = await axios.default.post(this.API_URL, body, { 
           headers,
-          timeout: 15000
+          timeout: 15000, 
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+          httpsAgent: keepAliveAgent
       });
 
       // Auto-record via tracker if provided

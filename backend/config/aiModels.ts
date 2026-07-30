@@ -7,6 +7,10 @@ import { ModelType, AIModelConfig } from '../types/index.js';
 
 
 
+// Vertex AI Configuration (from Environment variables)
+export const VERTEX_PROJECT_ID = process.env.GCP_PROJECT_ID || 'intellimark-6649e';
+export const VERTEX_LOCATION = process.env.GCP_REGION || 'europe-west2';
+
 /**
  * Configuration for all supported AI models
  */

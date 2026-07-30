@@ -74,63 +74,68 @@ export class ModelProvider {
     tracker?: any, // UsageTracker (optional for backward compatibility during migration)
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
-    const accessToken = this.getGeminiApiKey();
-    const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
-    const result = await response.json() as any;
-    const content = this.extractGeminiTextContent(result);
+    return this.withRetry(async () => {
+      const { VERTEX_PROJECT_ID, VERTEX_LOCATION, getModelConfig } = await import('../config/aiModels.js');
+      const config = getModelConfig(model);
+      const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
 
-    // Extract REAL input/output split from API response
-    let inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
-    let outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
-    let totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+      const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = await import('@google/genai');
+      const ai = new GoogleGenAI({});
+      
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: userPrompt,
+        config: {
+          temperature: config.temperature,
+          maxOutputTokens: forceJsonResponse ? 65536 : Math.max(config.maxTokens || 8192, 8192),
+          ...(forceJsonResponse && { responseMimeType: "application/json" }),
+          systemInstruction: systemPrompt,
+          safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
+          ]
+        }
+      });
 
-    // Defensive fallback: If API returns 0 or missing usageMetadata, estimate based on content length
-    // (approx 4 chars per token) to ensure non-zero tracking for successful responses
-    if (totalTokens === 0 && content) {
-      inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-      outputTokens = Math.ceil(content.length / 4);
-      totalTokens = inputTokens + outputTokens;
-    }
-
-    // Auto-record via tracker if provided
-    if (tracker) {
-      switch (phase) {
-        case 'preFlight':
-          tracker.recordPreFlight(inputTokens, outputTokens);
-          break;
-        case 'classification':
-          tracker.recordClassification(inputTokens, outputTokens);
-          break;
-        case 'marking':
-          tracker.recordMarking(inputTokens, outputTokens);
-          break;
-        case 'questionMode':
-          tracker.recordQuestionMode(inputTokens, outputTokens);
-          break;
-        case 'contextChat':
-          tracker.recordContextChat(inputTokens, outputTokens);
-          break;
-        case 'modelAnswer':
-          tracker.recordModelAnswer(inputTokens, outputTokens);
-          break;
-        case 'markingScheme':
-          tracker.recordMarkingScheme(inputTokens, outputTokens);
-          break;
-        case 'sampleQuestion':
-          tracker.recordSampleQuestion(inputTokens, outputTokens);
-          break;
-        case 'analysis':
-          tracker.recordAnalysis(inputTokens, outputTokens);
-          break;
-        case 'performanceSummary':
-          tracker.recordPerformanceSummary(inputTokens, outputTokens);
-          break;
-        default:
-          tracker.recordOther(inputTokens, outputTokens);
+      const content = response.text;
+      
+      if (!content) {
+         throw new Error(`Gemini API error: No content in response`);
       }
-    }
 
-    return { content, usageTokens: totalTokens, inputTokens, outputTokens };
+      // Extract REAL input/output split from API response
+      let inputTokens = response.usageMetadata?.promptTokenCount || 0;
+      let outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
+      let totalTokens = response.usageMetadata?.totalTokenCount || 0;
+
+      // Defensive fallback: If API returns 0 or missing usageMetadata, estimate based on content length
+      if (totalTokens === 0 && content) {
+        inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+        outputTokens = Math.ceil(content.length / 4);
+        totalTokens = inputTokens + outputTokens;
+      }
+
+      // Auto-record via tracker if provided
+      if (tracker) {
+        switch (phase) {
+          case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
+          case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
+          case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
+          case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
+          case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
+          case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
+          case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
+          case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
+          case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
+          case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
+          default: tracker.recordOther(inputTokens, outputTokens);
+        }
+      }
+
+      return { content, usageTokens: totalTokens, inputTokens, outputTokens };
+    }, 5, 2000);
   }
 
   static async callGeminiChat(
@@ -141,233 +146,86 @@ export class ModelProvider {
     tracker?: any,
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
-    const accessToken = this.getGeminiApiKey();
-    const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model, phase);
-    const result = await response.json() as any;
-    const content = this.extractGeminiTextContent(result);
-
-    // Extract REAL input/output split
-    let inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
-    let outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
-    let totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
-
-    // Defensive fallback: If API returns 0 or missing usageMetadata, estimate based on content length
-    if (totalTokens === 0 && content) {
-      // For images, we add a base cost of ~258 tokens (standard for many models) 
-      // plus character count of prompts
-      inputTokens = 258 + Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-      outputTokens = Math.ceil(content.length / 4);
-      totalTokens = inputTokens + outputTokens;
-    }
-
-    // Auto-record via tracker
-    if (tracker) {
-      switch (phase) {
-        case 'preFlight':
-          tracker.recordPreFlight(inputTokens, outputTokens);
-          break;
-        case 'classification':
-          tracker.recordClassification(inputTokens, outputTokens);
-          break;
-        case 'marking':
-          tracker.recordMarking(inputTokens, outputTokens);
-          break;
-        case 'questionMode':
-          tracker.recordQuestionMode(inputTokens, outputTokens);
-          break;
-        case 'contextChat':
-          tracker.recordContextChat(inputTokens, outputTokens);
-          break;
-        case 'modelAnswer':
-          tracker.recordModelAnswer(inputTokens, outputTokens);
-          break;
-        case 'markingScheme':
-          tracker.recordMarkingScheme(inputTokens, outputTokens);
-          break;
-        case 'sampleQuestion':
-          tracker.recordSampleQuestion(inputTokens, outputTokens);
-          break;
-        case 'analysis':
-          tracker.recordAnalysis(inputTokens, outputTokens);
-          break;
-        case 'performanceSummary':
-          tracker.recordPerformanceSummary(inputTokens, outputTokens);
-          break;
-        default:
-          tracker.recordOther(inputTokens, outputTokens);
-      }
-    }
-
-    return { content, usageTokens: totalTokens, inputTokens, outputTokens };
-  }
-
-  private static async makeGeminiChatRequest(
-    accessToken: string,
-    imageData: string | string[],
-    systemPrompt: string,
-    userPrompt: string,
-    model: ModelType = 'auto',
-    phase: ModelPhase = 'other'
-  ): Promise<Response> {
     return this.withRetry(async () => {
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { VERTEX_PROJECT_ID, VERTEX_LOCATION, getModelConfig } = await import('../config/aiModels.js');
       const config = getModelConfig(model);
-      const endpoint = config.apiEndpoint;
+      const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
 
-      const parts: any[] = [
-        { text: userPrompt }
-      ];
-
-      // Handle single or multiple images
+      const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = await import('@google/genai');
+      const ai = new GoogleGenAI({});
+      
       const images = Array.isArray(imageData) ? imageData : [imageData];
-      const isMultiImageMarking = images.length > 1 && phase === 'marking';
-
-      images.forEach((img, index) => {
-        if (img && img.trim() !== '') {
-          // If multi-image marking, add a text part before each image to help AI orient itself
-          if (isMultiImageMarking) {
-            parts.push({ text: `\n--- Page Index ${index} ---` });
+      const imageParts = images.map(img => {
+        const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
+        return {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: cleanImageData
           }
+        };
+      });
 
-          const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
-          parts.push({
-            inline_data: {
-              mime_type: 'image/jpeg',
-              data: cleanImageData
-            }
-          });
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: [
+          ...imageParts,
+          { text: userPrompt }
+        ] as any,
+        config: {
+          temperature: config.temperature,
+          maxOutputTokens: config.maxTokens,
+          systemInstruction: systemPrompt,
+          safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
+          ]
         }
       });
 
-      const response = await fetch(`${endpoint}?key=${accessToken}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemPrompt }]
-          },
-          contents: [{
-            parts: parts
-          }],
-          generationConfig: {
-            temperature: config.temperature,
-            maxOutputTokens: 65536,
-            responseMimeType: "application/json"
-          },
-          safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+      const content = response.text;
+      
+      if (!content) {
+         throw new Error(`Gemini API error: No content in response`);
       }
 
-      return response;
+      // Extract REAL input/output split
+      let inputTokens = response.usageMetadata?.promptTokenCount || 0;
+      let outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
+      let totalTokens = response.usageMetadata?.totalTokenCount || 0;
+
+      if (totalTokens === 0 && content) {
+        inputTokens = 258 + Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+        outputTokens = Math.ceil(content.length / 4);
+        totalTokens = inputTokens + outputTokens;
+      }
+
+      if (tracker) {
+        switch (phase) {
+          case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
+          case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
+          case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
+          case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
+          case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
+          case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
+          case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
+          case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
+          case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
+          case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
+          default: tracker.recordOther(inputTokens, outputTokens);
+        }
+      }
+
+      return { content, usageTokens: totalTokens, inputTokens, outputTokens };
     }, 5, 2000);
   }
 
-  /**
-   * Get Gemini API key for AI Studio
-   * Reads from GEMINI_API_KEY environment variable
-   */
-  static getGeminiApiKey(): string {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY not configured in environment');
-    }
 
-    return apiKey;
-  }
 
-  private static async makeGeminiTextRequest(
-    accessToken: string,
-    systemPrompt: string,
-    userPrompt: string,
-    model: ModelType = 'auto',
-    forceJsonResponse: boolean = false
-  ): Promise<Response> {
-    return this.withRetry(async () => {
-      // Use centralized model configuration
-      const { getModelConfig } = await import('../config/aiModels.js');
-      const config = getModelConfig(model);
-      const endpoint = config.apiEndpoint;
 
-      const response = await fetch(`${endpoint}?key=${accessToken}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemPrompt }]
-          },
-          contents: [{ parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: forceJsonResponse ? 65536 : Math.max((await import('../config/aiModels.js')).getModelConfig(model).maxTokens || 8192, 8192),
-            ...(forceJsonResponse && { responseMimeType: "application/json" })
-          }, // Use centralized config
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_NONE"
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_NONE"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_NONE"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_NONE"
-            }
-          ]
-        })
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
-      }
 
-      return response;
-    }, 5, 2000);
-  }
-
-  static extractGeminiTextContent(result: any): string {
-    const candidate = result.candidates?.[0];
-    const content = candidate?.content?.parts?.[0]?.text;
-    const finishReason = candidate?.finishReason;
-
-    // Check for truncation even if content exists
-    if (finishReason === 'MAX_TOKENS') {
-      const outputTokens = result.usageMetadata?.candidatesTokenCount || 'unknown';
-      const error = new Error(`MAX_TOKENS_EXCEEDED: Gemini truncated response at ${outputTokens} tokens. The JSON is corrupted and cannot be used.`);
-      (error as any).partialContent = content || '';
-      throw error;
-    }
-
-    if (!content) {
-      // Extract meaningful error from Gemini response
-      const errorMessage = result.error?.message ||
-        finishReason ||
-        result.promptFeedback?.blockReason ||
-        'No content in Gemini response';
-      throw new Error(`Gemini API error: ${errorMessage}`);
-    }
-    return content;
-  }
 
   // ----------------------------------------------------------------------------
   // Unified Text Call - Routes to Gemini or OpenAI based on model type

@@ -6,6 +6,14 @@ import UsageTracker from '../utils/UsageTracker.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
 import axios from 'axios';
+import https from 'https';
+
+// Global HTTPS Agent with Keep-Alive enabled
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  keepAliveMsecs: 30000
+});
 
 export class MarkingController {
     /**
@@ -25,7 +33,8 @@ export class MarkingController {
             const response = await axios({
                 method: 'get',
                 url: imageUrl,
-                responseType: 'stream'
+                responseType: 'stream',
+                httpsAgent: keepAliveAgent
             });
 
             // Forward relevant headers

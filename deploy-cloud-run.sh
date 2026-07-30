@@ -62,7 +62,7 @@ gcloud run deploy $SERVICE_NAME \
   --cpu 8 \
   --timeout 3600 \
   --concurrency 5 \
-  --cpu-throttling \
+  --no-cpu-throttling \
   $ENV_VARS_FLAG \
   --quiet
 
