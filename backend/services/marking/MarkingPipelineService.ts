@@ -23,6 +23,7 @@ import { getBaseQuestionNumber, extractQuestionNumberFromFilename } from '../../
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
 import { resolveModelTier } from '../../config/aiModels.js';
+import { checkCredits } from '../creditService.js';
 
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
@@ -511,6 +512,26 @@ export class MarkingPipelineService {
                 throw new Error('Standardization failed: No processable pages/images found.');
             }
 
+            // --- Input Page Gating ---
+            const userPlan = (req as any).userPlan || 'free';
+            const isFreeUser = !userId || userPlan === 'free';
+            const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || '30');
+
+            // 1. Check Product Tier Limits
+            if (isFreeUser && standardizedPages.length > MAX_FREE_PAGES) {
+                throw new Error(`Free accounts are limited to grading ${MAX_FREE_PAGES} pages at a time. Upgrade to Pro to grade full past papers.`);
+            }
+
+            // 2. Check Financial Limits
+            if (userId && userId !== 'anonymous') {
+                const exactEstimatedCost = standardizedPages.length * 0.020; // $0.02 per page (Mathpix + Gemini tokens)
+                const creditCheck = await checkCredits(userId, exactEstimatedCost, userPlan);
+
+                if (!creditCheck.canProceed) {
+                    throw new Error(creditCheck.warning);
+                }
+            }
+
             // --- 1. Vision Orientation Fix (Deterministic) ---
             progressCallback(createProgressData(2, `Detecting orientation via Google Vision for ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
             const logOrientationComplete = logStep('Vision Orientation Check', 'Google Cloud Vision');
@@ -611,15 +632,18 @@ export class MarkingPipelineService {
                 }
             }
 
-            // We MUST NOT blindly re-assign pageIndex = index.
-            // If a page was ejected (e.g. marking scheme or blurry), shifting the indices down by 1 
-            // will permanently corrupt the bounding box alignment on the frontend PDF viewer!
-            standardizedPages = newStandardizedPages.map((page) => ({
-                ...page
+            // CRITICAL FIX: We MUST re-assign pageIndex = index for ALL files (PDFs and Images).
+            // A previous developer incorrectly assumed the frontend uses a native PDF viewer that relies on physical page mapping.
+            // In reality, PDFs are rasterized into images and the frontend displays the annotated *images*.
+            // If we don't re-index after splitting/ejecting, downstream AI passes collapse duplicate indices, causing a fatal Merge Mismatch.
+            standardizedPages = newStandardizedPages.map((page, index) => ({
+                ...page,
+                pageIndex: index
             }));
             
-            lightweightPages = newLightweightPages.map((page) => ({
-                ...page
+            lightweightPages = newLightweightPages.map((page, index) => ({
+                ...page,
+                pageIndex: index
             }));
 
             if (standardizedPages.length === 0) {
@@ -666,20 +690,29 @@ export class MarkingPipelineService {
             // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
             
             // 🧠 [DYNAMIC PARSER]: Parse intercepted scheme pages BEFORE Classification
-            const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-2.5-pro');
+            const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-3.7-flash');
             
             if (pagesEjected && interceptedSchemeImages.length > 0) {
-                const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
-                const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
-                
-                if (parsedObj) {
-                    inputMarkingScheme = parsedObj;
-                }
-
-                if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
-                    console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
-                    console.log(JSON.stringify(inputMarkingScheme, null, 2));
-                    console.log(`----------------------------------------------------\n`);
+                try {
+                    const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
+                    const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
+                    
+                    // Ensure the object actually contains parsed questions before overriding
+                    if (parsedObj && Object.keys(parsedObj).length > 0) {
+                        inputMarkingScheme = parsedObj;
+                        console.log(`✅ [SCHEME PARSER] Successfully extracted marking scheme via gemini-3.7-flash.`);
+                        
+                        if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
+                            console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
+                            console.log(JSON.stringify(inputMarkingScheme, null, 2));
+                            console.log(`----------------------------------------------------\n`);
+                        }
+                    } else {
+                        console.warn(`⚠️ [SCHEME PARSER] Parser returned empty object. Falling back to generic marking scheme.`);
+                    }
+                } catch (err) {
+                    console.error(`⚠️ [SCHEME PARSER] Exception during custom marking scheme parsing. Proceeding with generic fallback. Error:`, err instanceof Error ? err.message : String(err));
+                    // Leaves inputMarkingScheme untouched (as undefined/null), allowing the rest of the pipeline to default to the generic prompt.
                 }
             }
             logSchemeParserComplete();
@@ -1171,7 +1204,12 @@ export class MarkingPipelineService {
             // ========================= CLASSIFICATION-DRIVEN OCR ROUTING =========================
             // Identify which pages actually need OCR based on Gemini's classification
             let pagesToOcr: Set<number>;
-            if (allClassificationResults && allClassificationResults.length > 0) {
+            
+            if (standardizedPages.length === 1) {
+                // FIX: Single-image uploads MUST ALWAYS be OCR'd. Do not trust classification to drop them.
+                pagesToOcr = new Set([0]);
+                console.log(`🎯 [OCR ROUTING] Single image detected. Forcing OCR on the only page.`);
+            } else if (allClassificationResults && allClassificationResults.length > 0) {
                 // Surgical Routing: Only OCR pages that have questions or student work
                 const validIndices = allClassificationResults
                     .filter(r => r.result?.category === 'questionAnswer' || r.result?.category === 'questionOnly')

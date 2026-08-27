@@ -71,7 +71,7 @@ export class ModelProvider {
     userPrompt: string,
     model: ModelType = 'auto',
     forceJsonResponse: boolean = false,
-    tracker?: any, // UsageTracker (optional for backward compatibility during migration)
+    tracker?: any,
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     return this.withRetry(async () => {
@@ -79,17 +79,34 @@ export class ModelProvider {
       const config = getModelConfig(model);
       const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
 
-      const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = await import('@google/genai');
+      const { GoogleGenAI, HarmCategory, HarmBlockThreshold, ThinkingLevel } = await import('@google/genai');
       const ai = new GoogleGenAI({});
       
+      let thinkingConfig: any = undefined;
+      let maxTokens = config.maxTokens;
+      
+      if (modelName.includes('3.7-flash')) {
+        if ((model as string) === 'pro') {
+          thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+          maxTokens = 8192;
+        } else if ((model as string) === 'thinking') {
+          thinkingConfig = { thinkingBudget: 4096 };
+          maxTokens = 8192; // 🛑 INCREASED from 4096 to ensure response has room
+        } else {
+          thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
+          maxTokens = 8192; // ⬅️ BUMPED to 8192 to prevent JSON truncation
+        }
+      }
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: userPrompt,
         config: {
           temperature: config.temperature,
-          maxOutputTokens: forceJsonResponse ? 65536 : Math.max(config.maxTokens || 8192, 8192),
+          maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
+          ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -105,19 +122,24 @@ export class ModelProvider {
          throw new Error(`Gemini API error: No content in response`);
       }
 
-      // Extract REAL input/output split from API response
+      // --- NEW TELEMETRY ---
+      const finishReason = response.candidates?.[0]?.finishReason;
+      // Log abnormal stops (e.g., 'MAX_TOKENS', 'SAFETY', 'RECITATION')
+      if (finishReason !== 'STOP' && finishReason !== undefined) {
+          console.warn(`⚠️ [GEMINI FINISH REASON] Abnormal termination detected: ${finishReason}`);
+      }
+      // ---------------------
+
       let inputTokens = response.usageMetadata?.promptTokenCount || 0;
       let outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
       let totalTokens = response.usageMetadata?.totalTokenCount || 0;
 
-      // Defensive fallback: If API returns 0 or missing usageMetadata, estimate based on content length
       if (totalTokens === 0 && content) {
         inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
         outputTokens = Math.ceil(content.length / 4);
         totalTokens = inputTokens + outputTokens;
       }
 
-      // Auto-record via tracker if provided
       if (tracker) {
         switch (phase) {
           case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
@@ -151,7 +173,7 @@ export class ModelProvider {
       const config = getModelConfig(model);
       const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
 
-      const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = await import('@google/genai');
+      const { GoogleGenAI, HarmCategory, HarmBlockThreshold, ThinkingLevel } = await import('@google/genai');
       const ai = new GoogleGenAI({});
       
       const images = Array.isArray(imageData) ? imageData : [imageData];
@@ -165,6 +187,22 @@ export class ModelProvider {
         };
       });
 
+      let thinkingConfig: any = undefined;
+      let maxTokens = config.maxTokens;
+      
+      if (modelName.includes('3.7-flash')) {
+        if ((model as string) === 'pro') {
+          thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+          maxTokens = 8192;
+        } else if ((model as string) === 'thinking') {
+          thinkingConfig = { thinkingBudget: 4096 };
+          maxTokens = 8192; // 🛑 INCREASED from 4096 to ensure response has room
+        } else {
+          thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
+          maxTokens = 8192; // ⬅️ BUMPED to 8192 to prevent JSON truncation on dense math matrices
+        }
+      }
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: [
@@ -173,8 +211,9 @@ export class ModelProvider {
         ] as any,
         config: {
           temperature: config.temperature,
-          maxOutputTokens: config.maxTokens,
+          maxOutputTokens: maxTokens,
           systemInstruction: systemPrompt,
+          ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -189,6 +228,13 @@ export class ModelProvider {
       if (!content) {
          throw new Error(`Gemini API error: No content in response`);
       }
+
+      // --- NEW TELEMETRY ---
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (finishReason !== 'STOP' && finishReason !== undefined) {
+          console.warn(`⚠️ [GEMINI FINISH REASON] Abnormal termination detected: ${finishReason}`);
+      }
+      // ---------------------
 
       // Extract REAL input/output split
       let inputTokens = response.usageMetadata?.promptTokenCount || 0;

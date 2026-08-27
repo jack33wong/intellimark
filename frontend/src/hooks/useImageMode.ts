@@ -233,7 +233,7 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
         window.URL.revokeObjectURL(url);
       } else {
         // External URL - use backend proxy
-        const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+        const backendUrl = process.env.REACT_APP_API_BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5001');
         const downloadUrl = `${backendUrl}/api/marking/download-image?url=${encodeURIComponent(image.src)}&filename=${encodeURIComponent(image.filename || 'image')}`;
 
         const link = document.createElement('a');

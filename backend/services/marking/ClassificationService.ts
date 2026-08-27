@@ -395,9 +395,21 @@ ${pageHints}
             };
           }
 
-          if (parsedChunk.pages && Array.isArray(parsedChunk.pages)) {
-            finalParsedPages.push(...parsedChunk.pages);
-          }
+          // ALIGNMENT FIX: Zip parsed pages exactly with chunkIndices
+          chunkIndices.forEach((globalIdx, localIdxInChunk) => {
+            let aiPage = (parsedChunk.pages && Array.isArray(parsedChunk.pages)) ? parsedChunk.pages[localIdxInChunk] : null;
+            if (!aiPage) {
+               console.warn(`⚠️ [CLASSIFICATION] AI omitted page result for global index ${globalIdx} (Chunk ${i/BATCH_SIZE + 1}). Creating empty placeholder.`);
+               aiPage = {
+                 category: "questionAnswer",
+                 reasoning: "AI dropped this page from its response array.",
+                 questions: []
+               };
+            }
+            // Bind the absolute global index to the page object
+            aiPage._globalPageIndex = globalIdx;
+            finalParsedPages.push(aiPage);
+          });
         }
 
         let parsed = { pages: finalParsedPages };
@@ -407,8 +419,8 @@ ${pageHints}
         // The AI returns a "pages" array. We need to map these back to the original page indices.
         if (parsed.pages && Array.isArray(parsed.pages)) {
           parsed.pages.forEach((pageResult: any, localIdx: number) => {
-            if (localIdx >= pageIndices.length) return;
-            const globalPageIndex = pageIndices[localIdx];
+            // Retrieve the strictly bound global index
+            const globalPageIndex = pageResult._globalPageIndex;
 
             // Assign usage tokens to the first page of the question to avoid double counting
             const isFirstPageOfQuestion = localIdx === 0;
