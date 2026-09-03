@@ -32,6 +32,14 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     label: 'Thinking',
     description: 'Deep reasoning, takes longer'
   },
+  'gemini-3.7-flash': {
+    name: 'Gemini 3.7 Flash',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent',
+    maxTokens: 8192,
+    temperature: 0.1,
+    label: 'Pro',
+    description: 'High-performance reasoning'
+  },
   'gemini-3.5-flash': {
     name: 'Gemini 3.5 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
@@ -85,12 +93,12 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
  * Model Tiers mapping
  */
 export const MODEL_TIERS: Record<string, ModelType> = {
-  'fast': 'gemini-2.5-flash',
-  'thinking': 'gemini-2.5-flash',
-  'pro': 'gemini-3.5-flash',
+  'fast': 'gemini-3.7-flash',
+  'thinking': 'gemini-3.7-flash',
+  'pro': 'gemini-3.7-flash',
   'gpt-4o': 'openai-gpt-4o',
   'gpt-4o-mini': 'openai-gpt-4o-mini',
-  'auto': 'gemini-2.5-flash' // Default tier mapping
+  'auto': 'gemini-3.7-flash' // Default tier mapping
 };
 
 /**
@@ -103,14 +111,16 @@ export function resolveModelTier(modelOrTier: string): ModelType {
     return 'gemini-2.5-flash';
   }
   
+  const normalized = modelOrTier.toLowerCase();
+  
   // If it's a known tier, resolve it
-  if (modelOrTier in MODEL_TIERS) {
-    return MODEL_TIERS[modelOrTier];
+  if (normalized in MODEL_TIERS) {
+    return MODEL_TIERS[normalized];
   }
   
   // If it's already an exact model ID that exists, use it
-  if (modelOrTier in AI_MODELS) {
-    return modelOrTier as ModelType;
+  if (normalized in AI_MODELS) {
+    return normalized as ModelType;
   }
   
   // Fallback

@@ -2,6 +2,7 @@ import { ModelProvider } from '../../utils/ModelProvider.js';
 import { getPrompt } from '../../config/prompts.js';
 import UsageTracker from '../../utils/UsageTracker.js';
 import { combineQuestionAndPart } from './MarkingHelpers.js';
+import { resolveModelTier, getModelDisplayName } from '../../config/aiModels.js';
 
 export interface PageMap {
     pageIndex: number;
@@ -27,9 +28,12 @@ export class ClassificationMapper {
         debug: boolean = false
     ): Promise<PageMap[]> {
         // Use user-selected model or default to Flash for cost optimization
-        const MAPPING_MODEL = model || 'gemini-2.5-flash';
+        const MAPPING_MODEL = resolveModelTier(model || 'gemini-2.5-flash');
+        
+        // Convert the internal ID to the real name (e.g. 'Gemini 3.7 Flash') for the log
+        const displayModelName = getModelDisplayName(MAPPING_MODEL);
 
-        console.log(`[MAPPER] Using model: ${MAPPING_MODEL}`);
+        console.log(`[MAPPER] Using model: ${displayModelName}`);
         console.log(`[MAPPER] Starting Map Pass for ${images.length} pages...`);
         const startTime = Date.now(); // Track performance
 

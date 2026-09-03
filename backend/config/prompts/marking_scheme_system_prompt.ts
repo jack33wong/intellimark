@@ -71,29 +71,52 @@ You MUST perform all your mathematical reasoning visibly within the \`step_by_st
 
 ---
 
-## 5. THE "ZERO TOLERANCE" LINKING PROTOCOL
+## 5. THE OCR LINKING PROTOCOL
 
-You must populate the \`linked_ocr_id\` field to show where the student wrote the answer.
-**You must operate in "SAFE MODE". Do not guess.**
+You are given two data sources with DIFFERENT ID namespaces:
+- **STUDENT WORK** → Contains Classification IDs (e.g., \`p0_q5_line_3\`)
+- **RAW OCR BLOCKS** → Contains OCR Block IDs (e.g., \`p0_ocr_7\`)
 
-### THE MATCHING RULE: EXACT VALUE ONLY
-Compare the **Student Text** vs **OCR Block Text**.
+Your job is to **bridge** them. For each annotation:
+1. Set \`line_id\` to the Classification ID from STUDENT WORK.
+2. Find the matching OCR Block in RAW OCR BLOCKS by comparing the **text content**.
+3. Set \`linked_ocr_id\` to that OCR Block's ID.
 
-1.  **ISOLATED INTEGERS:**
-    * Student: "36" | OCR: "3" -> **REJECT** (Missing digit).
-    * Student: "36" | OCR: "136" -> **REJECT** (Extra digit / Substring risk).
-    * Student: "36" | OCR: "36" -> **MATCH**.
-2.  **FRACTIONS/MATH:**
-    * Student: "1/2" | OCR: "\\frac{1}{2}" -> **MATCH** (Value is identical).
-    * Student: "77/100" | OCR: "19/60" -> **REJECT** (Different numbers).
+### MATCHING RULES (EXACT VALUE ONLY)
+Compare the student's text content against each OCR Block's text:
+* \`"36"\` vs OCR \`"36"\` → **MATCH** ✅
+* \`"36"\` vs OCR \`"3"\` → **REJECT** ❌ (Missing digit)
+* \`"36"\` vs OCR \`"136"\` → **REJECT** ❌ (Extra digit)
+* \`"1/2"\` vs OCR \`"\\\\frac{1}{2}"\` → **MATCH** ✅ (Same mathematical value)
 
-### THE OUTCOME
-* **IF EXACT MATCH FOUND:**
-    * Set \`ocr_match_status: "MATCHED"\`.
-    * Set \`linked_ocr_id\` to the ID.
-* **IF ANY DOUBT:**
-    * Set \`ocr_match_status: "UNMATCHED"\`.
-    * Set \`linked_ocr_id: null\`.
+### ⚠️ CRITICAL SAFETY RULE
+**A wrong link is CATASTROPHIC. A missing link is RECOVERABLE.**
+- If you find an exact match → set \`ocr_match_status: "MATCHED"\` and \`linked_ocr_id\` to the OCR ID.
+- If there is ANY doubt → set \`ocr_match_status: "UNMATCHED"\` and \`linked_ocr_id: null\`.
+- **NEVER guess.** The system has a rescue pathway for UNMATCHED annotations.
+- **NEVER omit \`linked_ocr_id\`.** You MUST always include it (either an ID string or \`null\`).
+
+### WORKED EXAMPLE
+Given STUDENT WORK line: \`[ID: p0_q5_line_3] 36 km\`
+Given RAW OCR BLOCK: \`[p0_ocr_7]: "36 km"\`
+
+The annotation should be:
+\`\`\`json
+{
+  "line_id": "p0_q5_line_3",
+  "linked_ocr_id": "p0_ocr_7",
+  "ocr_match_status": "MATCHED"
+}
+\`\`\`
+
+If NO matching OCR block is found:
+\`\`\`json
+{
+  "line_id": "p0_q5_line_3",
+  "linked_ocr_id": null,
+  "ocr_match_status": "UNMATCHED"
+}
+\`\`\`
 
 ---
 
@@ -143,7 +166,7 @@ Compare the **Student Text** vs **OCR Block Text**.
       "line_id": "String (The ID of the handwriting line being marked. NULL if marking a drawing/diagram)",
       "content_desc": "String (OPTIONAL. Only use if marking a DRAWING to describe what was found, e.g. 'Box plot with median at 40'. For text, leave null.)",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
-      "linked_ocr_id": "String (The p0_ocr_... ID or null)",
+      "linked_ocr_id": "MANDATORY. The p0_ocr_... ID if matched, or null if unmatched. NEVER omit this field.",
       "reasoning": "String",
       "subQuestion": "String",
       "pageIndex": "Integer",
@@ -165,5 +188,6 @@ Compare the **Student Text** vs **OCR Block Text**.
 2. Did I apply the Highlander Rule?
 3. Did I ensure \`line_id\` is a Classification ID (p0_q...) OR null for visuals?
 4. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
-5. Did I output an entry for the LAST sub-question?`;
+5. Did I output an entry for the LAST sub-question?
+6. Did I set \`linked_ocr_id\` to an OCR Block ID or \`null\` for EVERY annotation? (Never omit it)`;
 };

@@ -145,12 +145,8 @@ export class MarkingPipelineService {
             let inputMarkingScheme = options.markingScheme;
 
             // Determine actual model
-            if (model === 'auto') {
-                const { getDefaultModel } = await import('../../config/aiModels.js');
-                actualModel = getDefaultModel();
-            } else {
-                actualModel = model;
-            }
+            const { resolveModelTier, getDefaultModel } = await import('../../config/aiModels.js');
+            actualModel = resolveModelTier(model === 'auto' ? getDefaultModel() : model);
 
             const debugClassification = process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true';
 

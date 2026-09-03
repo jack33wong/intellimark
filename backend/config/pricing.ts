@@ -29,6 +29,7 @@ export const LLM_PRICING: Record<string, { input: number; output: number }> = {
   // GOOGLE AI STUDIO PRICING
   'gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
   'gemini-3-flash-preview': { input: 0.50, output: 3.00 },
+  'gemini-3.7-flash': { input: 0.75, output: 3.75 },
   'gemini-3.5-flash': { input: 1.50, output: 9.00 },
   
   // Legacy models (kept for compatibility)
@@ -48,7 +49,7 @@ export const LLM_PRICING: Record<string, { input: number; output: number }> = {
  * Source: https://mathpix.com/pricing
  */
 export const MATHPIX_PRICING = {
-  image: 0.002,  // $0.002 per image call (0-1M images tier)
+  image: 0.005,
 };
 
 /**

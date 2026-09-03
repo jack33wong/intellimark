@@ -80,7 +80,7 @@ ${scheme}
 ${studentWork}
 
 ## RAW OCR BLOCKS
-Use these IDs to map the student's work. Match them yourself based on the Semantic Fidelity Rules.
+Use these OCR Block IDs to populate \`linked_ocr_id\`. Match by comparing text content with the STUDENT WORK above.
 
 ${Array.isArray(blocks) && blocks.length > 0 ? (
             blocks.map(b => `[${b.id}]: "${(b.text || '').replace(/\n/g, ' ')}"`).join('\n')
