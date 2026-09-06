@@ -513,6 +513,8 @@ export class MarkingPipelineService {
             const isFreeUser = !userId || userPlan === 'free';
             const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || '30');
 
+            console.log(`📊 [PAGE GATING] User ${userId || 'anonymous'} (${userPlan}) uploaded ${standardizedPages.length} page(s).`);
+
             // 1. Check Product Tier Limits
             if (isFreeUser && standardizedPages.length > MAX_FREE_PAGES) {
                 throw new Error(`Free accounts are limited to grading ${MAX_FREE_PAGES} pages at a time. Upgrade to Pro to grade full past papers.`);
