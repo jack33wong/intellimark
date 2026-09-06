@@ -50,62 +50,76 @@ export async function initializeUserCredits(
 /**
  * Get user credits
  */
-export async function getUserCredits(userId: string): Promise<UserCredits | null> {
+export async function getUserCredits(userId: string): Promise<UserCredits> {
     const doc = await db.collection('userCredits').doc(userId).get();
-    return doc.exists ? doc.data() as UserCredits : null;
+    
+    if (doc.exists) {
+        return doc.data() as UserCredits;
+    }
+
+    // SELF-HEALING: New user signed up but has no Firestore credit record yet.
+    // Initialize them immediately on the 'free' plan.
+    console.log(`[CREDITS] Initializing missing credit record for new user: ${userId}`);
+    
+    // Set a standard 30-day reset period for the free tier
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    const resetDate = Date.now() + thirtyDaysInMs;
+    
+    // This utilizes your existing initializeUserCredits function and the FREE_PLAN_CREDITS env variable
+    return await initializeUserCredits(userId, 'free', resetDate);
 }
 
 /**
  * Check if user has enough credits
- * Returns warning but ALLOWS operation even if exhausted
+ * Self-healing: auto-initializes credits for users without a record,
+ * and reconciles plan drift when subscriptions expire or change.
  */
 export async function checkCredits(
     userId: string,
-    estimatedCost: number
+    estimatedCost: number,
+    currentPlan: 'free' | 'pro' | 'ultra' | 'admin_test' = 'free'
 ): Promise<{ canProceed: boolean; warning?: string; remaining: number }> {
-    const credits = await getUserCredits(userId);
+    let credits = await getUserCredits(userId);
 
-    if (!credits) {
-        return {
-            canProceed: true,
-            warning: 'Credits not initialized. Operation will proceed.',
-            remaining: 0
-        };
+    // Reconcile if the subscription plan has changed since the credit record was created
+    // (e.g., subscription expired → planMiddleware says 'free', but record still says 'pro')
+    if (credits.planId !== currentPlan) {
+        console.log(`🔄 [CREDIT] Plan drift detected: record=${credits.planId}, actual=${currentPlan}. Reconciling...`);
+        await updateCreditsOnPlanChange(
+            userId,
+            credits.planId,
+            currentPlan,
+            Date.now() + 30 * 24 * 60 * 60 * 1000
+        );
+        credits = await getUserCredits(userId) as UserCredits;
     }
 
     const creditsNeeded = costToCredits(estimatedCost);
     const remaining = credits.remainingCredits;
 
-    // BLOCK if negative, warn if zero
-    if (remaining < 0) {
+    // BLOCK if negative or zero
+    if (remaining <= 0) {
         return {
             canProceed: false,
-            warning: `❌ You have negative credits (${remaining.toFixed(2)}). Please top up to continue using AI features.`,
+            warning: `❌ You have exhausted your credits (${remaining.toFixed(2)} remaining). Please top up to continue using AI features.`,
             remaining
         };
     }
 
-    if (remaining === 0) {
+    // Safety Cap: Block if the transaction itself is too large (>$0.60 / 60 credits) AND they are relying on an overdraft
+    if (creditsNeeded > 60 && creditsNeeded > remaining) {
         return {
-            canProceed: true, // Allow exactly zero to make it less frustrating for the very last bit? 
-            // Actually, "negative" was specified.
-            warning: `⚠️ You have exhausted your ${credits.planId} plan credits (0 remaining). This operation will proceed but may affect your quota.`,
-            remaining: 0
-        };
-    }
-
-    if (creditsNeeded > remaining) {
-        return {
-            canProceed: true,
-            warning: `⚠️ Low credits: Need ${creditsNeeded}, have ${remaining}. Upgrade your plan for more credits. This operation will proceed.`,
+            canProceed: false,
+            warning: `❌ Upload too large. Estimated cost (${creditsNeeded} credits) exceeds the 60-credit safety limit for overdrafts.`,
             remaining
         };
     }
 
+    // Otherwise, PROCEED! (Allowing overdrafts up to the safety limit)
     if (remaining < 5) {
         return {
             canProceed: true,
-            warning: `⚠️ Low credits: ${remaining} remaining. Consider upgrading your plan.`,
+            warning: `⚠️ Low credits: ${remaining.toFixed(2)} remaining. Consider upgrading your plan.`,
             remaining
         };
     }
@@ -197,7 +211,7 @@ export async function updateCreditsOnPlanChange(
     }
 
     const currentCredits = doc.data() as UserCredits;
-    const levels = { free: 0, pro: 1, ultra: 2 };
+    const levels: Record<string, number> = { free: 0, pro: 1, ultra: 2, admin_test: 3 };
     const isUpgrade = levels[newPlanId] > levels[oldPlanId];
 
     if (isUpgrade) {

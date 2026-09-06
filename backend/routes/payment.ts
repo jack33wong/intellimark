@@ -859,19 +859,18 @@ router.post('/test-create-subscription', async (req, res) => {
 });
 
 // Stripe webhook endpoint
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', async (req, res) => {
   try {
-
     const sig = req.headers['stripe-signature'];
     if (!sig) {
       return res.status(400).json({ error: 'Missing stripe-signature header' });
     }
 
-    // Note: In production, you should verify the webhook signature
-    // const event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_CONFIG.webhookSecret);
-
-    // For now, just parse the body
-    const event = JSON.parse(req.body.toString());
+    const stripe = (await import('../config/stripe.js')).default;
+    const { STRIPE_CONFIG } = await import('../config/stripe.js');
+    
+    // Securely verify the event using the raw body and webhook secret
+    const event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_CONFIG.webhookSecret);
 
     // Handle the event
     switch (event.type) {
@@ -898,7 +897,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     res.json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('Webhook signature verification failed:', error);
     res.status(400).json({ error: 'Webhook error' });
   }
 });

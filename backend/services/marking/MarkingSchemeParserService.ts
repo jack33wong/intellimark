@@ -57,8 +57,9 @@ Do not include markdown blocks, just the raw JSON object. Ensure all numbers are
         base64Images: string[],
         tracker?: UsageTracker
     ): Promise<any> {
+        const PARSER_MODEL = 'gemini-3.7-flash';
         console.log(`🧠 [MarkingSchemeParser] Processing ${base64Images.length} marking scheme images...`);
-        console.log(`🤖 [MarkingSchemeParser] Using Hardcoded Model: gemini-2.5-pro (Required for complex table extraction)`);
+        console.log(`🤖 [MarkingSchemeParser] Using Hardcoded Model: ${PARSER_MODEL}`);
 
         if (base64Images.length === 0) {
             return null;
@@ -72,7 +73,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all numbers are
                 prompt,
                 "Extract the marking scheme data from these images into the requested JSON format.",
                 base64Images,
-                'gemini-2.5-pro', // Prefer Pro for complex table extraction across multiple pages
+                PARSER_MODEL,
                 tracker,
                 'markingScheme'
             );

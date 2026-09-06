@@ -5,7 +5,7 @@
   "description": "Backend for AI Marking application",
   "main": "server.js",
   "scripts": {
-    "start": "node dist/server.js",
+    "start": "NODE_ENV=production node dist/server.js",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts",
     "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck && node fix-compiled-imports.cjs",
     "build:clean": "rm -rf dist && npm run build",

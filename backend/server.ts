@@ -102,6 +102,7 @@ app.use('/api/admin', jsonParser, urlParser, adminRoutes);
 app.use('/api/messages', jsonParser, urlParser, messagesRoutes);
 app.use('/api/analysis', jsonParser, urlParser, analysisRouter);
 app.use('/api/usage', jsonParser, urlParser, usageRoutes);
+app.use('/api/payment/webhook', express.raw({ type: 'application/json' }), paymentRoutes);
 app.use('/api/payment', jsonParser, urlParser, paymentRoutes);
 app.use('/api/config', jsonParser, urlParser, configRoutes);
 app.use('/api/credits', jsonParser, urlParser, creditsRoutes);

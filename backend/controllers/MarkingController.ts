@@ -56,6 +56,11 @@ export class MarkingController {
         const startTime = Date.now();
         const usageTracker = new UsageTracker();
 
+        // Track critical IDs for credit deduction even if the pipeline crashes
+        let finalUserId: string | null = null;
+        let finalSessionId: string | null = null;
+        let finalModel: string = 'gemini-3.7-flash';
+
         // 1. Validate Request
         console.log(`🚀 [MARKING] Controller started - Files: ${Array.isArray(req.files) ? req.files.length : 0}, Body Keys: ${Object.keys(req.body || {}).join(', ')}`);
 
@@ -104,21 +109,37 @@ export class MarkingController {
             }
 
             // 3. Prepare Options
-            const options = {
-                userId: (req as any).user?.uid, // Assuming auth middleware populates this
-                sessionId: sessionId,
-                customText: req.body.customText,
-                model: req.body.model
-            };
+            let requestedModel = req.body.model;
+            if (!requestedModel || requestedModel.toUpperCase() === 'AUTO') {
+                requestedModel = 'FAST';
+            }
 
             // Enforce Plan Limits: Only allowed plans can select custom models
             const userPlan = (req as any).userPlan || 'free';
-            if (!hasPermission(userPlan, PERMISSIONS.MODEL_SELECTION_PLANS) && options.model && options.model !== 'auto') {
-                console.log(`🔒 [PLAN LIMIT] User ${options.userId} (${userPlan}) tried to use model '${options.model}'. Forcing 'auto'.`);
-                options.model = 'auto';
+            if (!hasPermission(userPlan, PERMISSIONS.MODEL_SELECTION_PLANS) && requestedModel !== 'FAST') {
+                const uid = (req as any).user?.uid;
+                const userIdentifier = (uid && uid !== 'anonymous') ? `User ${uid}` : 'Guest User';
+                console.log(`🔒 [PLAN LIMIT] ${userIdentifier} (${userPlan}) tried to use model '${requestedModel}'. Forcing 'FAST'.`);
+                requestedModel = 'FAST';
             }
 
+            // Write back so downstream services see the final string
+            req.body.model = requestedModel;
+
+            const options = {
+                userId: (req as any).user?.uid,
+                sessionId: sessionId,
+                customText: req.body.customText,
+                model: requestedModel
+            };
+
             const userId = options.userId;
+            
+            // Populate tracking variables for finally block
+            finalUserId = userId || null;
+            finalSessionId = sessionId || null;
+            finalModel = requestedModel;
+
             const isAuthenticated = !!userId && userId !== 'anonymous';
             const userIP = req.ip || '0.0.0.0';
 
@@ -141,44 +162,8 @@ export class MarkingController {
 
             console.log(`🔍 [CREDIT DEBUG] userId: ${userId}, isAuthenticated: ${isAuthenticated}`);
 
-            // Check credits before processing (skip for anonymous users)
-            if (userId && userId !== 'anonymous') {
-                console.log(`💳 [CREDIT CHECK] Starting credit check for user: ${userId}`);
-                try {
-                    // Estimate cost based on file size and count
-                    const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
-                    const estimatedCost = (totalBytes / 10000 + files.length * 5) * 0.001;
-                    console.log(`💳 [CREDIT CHECK] Estimated cost: ${estimatedCost}, files: ${files.length}, bytes: ${totalBytes}`);
-                    const creditCheck = await checkCredits(userId, estimatedCost);
-                    console.log(`💳 [CREDIT CHECK] Result: ${JSON.stringify(creditCheck)}`);
-
-                    if (!creditCheck.canProceed) {
-                        sendSseUpdate(res, {
-                            type: 'error',
-                            message: creditCheck.warning,
-                            credits_exhausted: true,
-                            remaining: creditCheck.remaining
-                        });
-                        res.end();
-                        return;
-                    }
-
-                    if (creditCheck.warning) {
-                        console.log(`💳 Credit warning for user ${userId}: ${creditCheck.warning}`);
-                        // Send warning via SSE
-                        sendSseUpdate(res, {
-                            type: 'credit_warning',
-                            message: creditCheck.warning,
-                            remaining: creditCheck.remaining
-                        });
-                    }
-                } catch (error) {
-                    console.error('❌ Credit check failed:', error);
-                    // Continue anyway - don't block user on credit check failure
-                }
-            } else {
-                console.log(`⏭️  [CREDIT CHECK] Skipped for userId: ${userId} (anonymous or missing)`);
-            }
+            // Note: Credit check is now securely handled inside MarkingPipelineService.ts 
+            // AFTER files have been standardized into explicit images for 100% accurate page counts.
 
             // 4. Execute Pipeline
             const progressCallback = (data: any) => {
@@ -202,6 +187,10 @@ export class MarkingController {
                 progressCallback,
                 usageTracker
             );
+            
+            if (result?.sessionId) {
+                finalSessionId = result.sessionId;
+            }
 
             console.log(`✅ [CONTROLLER] Pipeline completed, result exists: ${!!result}, sessionId: ${result?.sessionId}`);
 
@@ -214,29 +203,9 @@ export class MarkingController {
             // But usually, we want to ensure the 'complete' message was sent.
             // The service logic sends { type: 'complete', result: finalOutput } as the last callback.
 
-            // Deduct credits after processing (skip for anonymous users)
-            if (userId && userId !== 'anonymous') {
-                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId: ${result?.sessionId}`);
-                const actualSessionId = result?.sessionId || options.sessionId;
-
-                try {
-                    // Calculate cost of the CURRENT operation from our local tracker
-                    const incrementalCost = usageTracker.calculateCost(options.model || 'gemini-2.5-flash').total;
-                    console.log(`💳 [CREDIT DEDUCT] Incremental cost from tracker: ${incrementalCost}`);
-
-                    if (incrementalCost > 0) {
-                        await deductCredits(userId, incrementalCost, actualSessionId);
-                        console.log(`💳 Deducted ${incrementalCost.toFixed(4)} credits (session: ${actualSessionId}) from user ${userId}`);
-                    } else {
-                        console.log(`⚠️  [CREDIT DEDUCT] incrementalCost is 0, skipping deduction`);
-                    }
-                } catch (error) {
-                    console.error('❌ Credit deduction failed:', error);
-                }
-            } else {
-                console.log(`⏭️  [CREDIT DEDUCT] Skipped for userId: ${userId} (anonymous or missing)`);
-            }
-
+            // Credit deduction was moved to the finally block to ensure it always runs (even on crash).
+            // We NO LONGER deduct credits here in the success path to prevent double-charging.
+            
             // --- NEW: Increment Guest Usage ---
             if (!isAuthenticated) {
                 await GuestUsageService.incrementUsage(userIP);
@@ -286,6 +255,21 @@ export class MarkingController {
         } finally {
             // 👇 CLEAR HEARTBEAT 👇
             clearInterval(heartbeat);
+            
+            // 🛑 THE FIX: Guarantee credit deduction regardless of pipeline success or failure
+            try {
+                const finalCost = usageTracker.calculateCost(finalModel).total;
+                
+                if (finalCost > 0 && finalUserId && finalUserId !== 'anonymous') {
+                    console.log(`💳 [CREDIT DEDUCT] Calculating final cost: $${finalCost} for user ${finalUserId}`);
+                    await deductCredits(finalUserId, finalCost, finalSessionId || 'unknown');
+                    console.log(`💳 ✅ Successfully deducted $${finalCost} from user ${finalUserId}`);
+                } else if (finalCost > 0) {
+                    console.log(`⏭️  [CREDIT DEDUCT] Skipped deduction for anonymous user (Cost: $${finalCost})`);
+                }
+            } catch (deductionError) {
+                console.error('❌ CRITICAL: Failed to deduct credits during cleanup:', deductionError);
+            }
         }
     }
 }

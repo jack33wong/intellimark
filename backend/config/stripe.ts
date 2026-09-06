@@ -11,11 +11,28 @@ const isProd = process.env.NODE_ENV === 'production';
 
 /**
  * Helper to get environment-specific Stripe variables
- * Priority: STRIPE_[TEST/LIVE]_[KEY] > STRIPE_[KEY]
+ * Hard-fails in production if live keys are missing or test keys are detected.
  */
 const getStripeEnv = (key: string): string => {
-  const prefix = isProd ? 'LIVE' : 'TEST';
-  return process.env[`STRIPE_${prefix}_${key}`] || process.env[`STRIPE_${key}`] || '';
+  if (isProd) {
+    const liveKey = process.env[`STRIPE_LIVE_${key}`] || process.env[`STRIPE_${key}`];
+
+    if (!liveKey || liveKey.trim() === '') {
+      throw new Error(
+        `🚨 [STRIPE CRITICAL] Production mode is active, but STRIPE_LIVE_${key} (or STRIPE_${key}) is missing!`
+      );
+    }
+
+    if (liveKey.includes('_test_')) {
+      throw new Error(
+        `🚨 [STRIPE CRITICAL] Production mode is active, but a TEST key was supplied for ${key} (${liveKey.substring(0, 8)}...)!`
+      );
+    }
+
+    return liveKey;
+  }
+
+  return process.env[`STRIPE_TEST_${key}`] || process.env[`STRIPE_${key}`] || '';
 };
 
 export const STRIPE_CONFIG = {

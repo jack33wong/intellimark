@@ -30,7 +30,7 @@ router.get('/models', (req, res) => {
     try {
         // Return tiers for the UI
         const models = Object.entries(MODEL_TIERS)
-            .filter(([id]) => id !== 'auto' && id !== 'gpt-4o-mini') // Hide internal and mini models
+            .filter(([id]) => id !== 'auto' && id !== 'gpt-4o-mini' && id !== 'gpt-4o') // Hide internal, mini, and gpt-4o models
             .map(([id, exactModel]) => {
                 const config = AI_MODELS[exactModel];
                 

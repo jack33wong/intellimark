@@ -628,12 +628,13 @@ class SimpleSessionService {
     try {
       const authToken = await this.getAuthToken();
       const headers = {};
+      const formData = new FormData();
+      
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
+        // THE FIX: Inject token into body to bypass iOS Safari header stripping
+        formData.append('token', authToken);
       }
-
-      // Create FormData for multipart/form-data upload with multiple files
-      const formData = new FormData();
 
       // Add all files to the FormData under the 'files' key
       files.forEach((file, index) => {
@@ -642,6 +643,7 @@ class SimpleSessionService {
 
       // Add other form data
       formData.append('model', model);
+      formData.append('clientCompressed', 'true');
       if (aiMessageId) formData.append('aiMessageId', aiMessageId);
       if (customText) formData.append('customText', customText);
 
@@ -793,8 +795,18 @@ class SimpleSessionService {
 
       // Create FormData for multipart/form-data upload
       const formData = new FormData();
+      
+      // 1. APPEND TOKEN FIRST (So it stays within the first 4KB for the backend)
+      if (authToken) {
+        // THE FIX: Inject token into body to bypass iOS Safari header stripping
+        formData.append('token', authToken);
+      }
+      
+      // 2. APPEND FILE SECOND
       formData.append('files', file);
+      
       formData.append('model', model);
+      formData.append('clientCompressed', 'true');
       if (sessionId) formData.append('sessionId', sessionId);
       if (aiMessageId) formData.append('aiMessageId', aiMessageId);
       if (customText) formData.append('customText', customText);

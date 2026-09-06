@@ -101,6 +101,7 @@ const router = express.Router();
  * Unified endpoint for marking images and PDFs
  */
 router.post('/process',
+  // Auth MUST run first
   optionalAuth,
   attachUserPlan,
   (req, _res, next) => {
@@ -108,10 +109,11 @@ router.post('/process',
     console.log(`📡 [MARKING] Processing ${req.method} ${req.originalUrl} (hasRawBody: ${!!(req as any).rawBody})`);
     next();
   },
-  // 1. Try standard Multer (works in some envs/local dev)
+  // Then parse the files safely
   upload.array('files'),
-  // 2. Fallback to custom Busboy parser for Firebase (handles req.rawBody)
   firebaseMultipartHandler,
+  
+  // Finally, execute controller
   MarkingController.processMarkingRequest
 );
 

@@ -15,8 +15,8 @@ export const performInstantCrop = async (
         img.onload = () => {
             URL.revokeObjectURL(url);
 
-            // 1. MAX RESOLUTION (3800px)
-            const MAX_DIM = 3800;
+            // 1. MAX RESOLUTION (2500px)
+            const MAX_DIM = 2500;
             let w = img.width;
             let h = img.height;
             let scale = 1;
@@ -132,7 +132,7 @@ export const performInstantCrop = async (
             fCanvas.width = finalWidth; fCanvas.height = finalHeight;
             fCanvas.getContext('2d')?.putImageData(imgData, 0, 0);
 
-            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', 0.85);
         };
         img.onerror = reject;
         img.src = url;
@@ -156,7 +156,7 @@ export const processScannerImage = async (
         img.onload = () => {
             URL.revokeObjectURL(url);
 
-            const MAX_DIM = 2400;
+            const MAX_DIM = 2500;
             let w = img.width;
             let h = img.height;
             let scale = 1;
@@ -228,7 +228,7 @@ export const processScannerImage = async (
             fCanvas.width = w; fCanvas.height = h;
             fCanvas.getContext('2d')?.putImageData(imgData, 0, 0);
 
-            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', options.quality || 0.90);
+            fCanvas.toBlob(b => resolve(b!), 'image/jpeg', options.quality || 0.85);
         };
         img.onerror = reject;
         img.src = url;

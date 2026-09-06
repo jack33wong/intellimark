@@ -12,6 +12,7 @@ import { normalizeMarkingScheme } from '../services/marking/MarkingInstructionSe
 import { MarkingPromptService } from '../services/marking/MarkingPromptService.js';
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
 import { ChatContextBuilder } from '../services/marking/ChatContextBuilder.js';
+import { PERMISSIONS, hasPermission } from '../config/permissions.js';
 
 export class MarkingSchemeController {
     /**
@@ -31,7 +32,23 @@ export class MarkingSchemeController {
         sendSseUpdate(res, { type: 'connected', message: 'Retrieving marking scheme...' });
 
         try {
-            const { paper, model = 'auto', sessionId: providedSessionId, aiMessageId: providedAiMessageId } = req.body;
+            let requestedModel = req.body.model;
+            if (!requestedModel || requestedModel.toUpperCase() === 'AUTO') {
+                requestedModel = 'FAST';
+            }
+
+            // 🛑 NEW: Enforce Plan Limits in secondary controllers
+            const userPlan = (req as any).userPlan || 'free';
+            if (!hasPermission(userPlan, PERMISSIONS.MODEL_SELECTION_PLANS) && requestedModel !== 'FAST') {
+                const uid = (req as any).user?.uid;
+                const userIdentifier = (uid && uid !== 'anonymous') ? `User ${uid}` : 'Guest User';
+                console.log(`🔒 [PLAN LIMIT] ${userIdentifier} (${userPlan}) tried to use model '${requestedModel}'. Forcing 'FAST'.`);
+                requestedModel = 'FAST';
+            }
+
+            req.body.model = requestedModel; // Write back
+            const model = requestedModel;
+            const { paper, sessionId: providedSessionId, aiMessageId: providedAiMessageId } = req.body;
             console.log(`🚀 [MARKING_SCHEME] Controller HIT! Request for paper: ${paper}`);
             let sessionId = providedSessionId;
 
@@ -265,7 +282,7 @@ export class MarkingSchemeController {
                 mode: 'marking-scheme',
                 sessionId: sessionId,
                 sourceMessageId: userMessage.id,
-                model: model === 'auto' ? 'gemini-2.5-flash' : model,
+                model: model,
                 detectedQuestion: detectedQuestion,
                 tracker: usageTracker
             });

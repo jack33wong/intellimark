@@ -3,6 +3,7 @@
  * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import imageCompression from 'browser-image-compression';
 import { Plus, Brain, X, Check, Sparkles, Smartphone, UploadCloud, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LandingPageUploadWidget from '../common/LandingPageUploadWidget';
@@ -457,16 +458,41 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     );
   };
 
-  const processFiles = useCallback((newFiles: File[]) => {
+  const processFiles = useCallback(async (newFiles: File[]) => {
     if (newFiles.length === 0) return;
     // Block file selection while processing
     if (isProcessing) return;
+
+    const compressedFilesPromises = newFiles.map(async (file) => {
+      // Skip PDFs and files already processed by your OpenCV scanner
+      if (file.type === 'application/pdf' || file.name.startsWith('mobile-scan-')) {
+        return file; 
+      }
+  
+      const options = {
+        maxSizeMB: 1.5,
+        maxWidthOrHeight: 2500, 
+        useWebWorker: true,
+        initialQuality: 0.85,
+        alwaysKeepResolution: true // Prevents shrinking small images
+      };
+  
+      try {
+        const compressedBlob = await imageCompression(file, options);
+        return new File([compressedBlob], file.name, { type: 'image/jpeg' });
+      } catch (error) {
+        console.warn(`Compression failed for ${file.name}, using original.`, error);
+        return file;
+      }
+    });
+  
+    const processedNewFiles = await Promise.all(compressedFilesPromises);
 
     // If we already have files and user selects more, add to existing
     if (imageFiles.length > 0 || imageFile) {
       // Filter out duplicate files by name and size
       const existingFiles: File[] = [...imageFiles, ...(imageFile ? [imageFile] : [])];
-      const uniqueNewFiles = newFiles.filter(newFile =>
+      const uniqueNewFiles = processedNewFiles.filter(newFile =>
         !existingFiles.some(existingFile =>
           existingFile.name === newFile.name && existingFile.size === newFile.size
         )
@@ -502,9 +528,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       } else {
         setPreviewImages([]);
       }
-    } else if (newFiles.length === 1) {
+    } else if (processedNewFiles.length === 1) {
       // Single file mode - but treat PDFs as multi-image for proper SSE handling
-      const file = newFiles[0];
+      const file = processedNewFiles[0];
 
       if (isPDF(file)) {
         // PDFs go through multi-image path for proper SSE handling
@@ -532,7 +558,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     } else {
       // Multi-file mode (first selection)
       setImageFile(null);
-      setImageFiles(newFiles);
+      setImageFiles(processedNewFiles);
       setPreviewImage(null);
       setIsMultiImage(true);
 

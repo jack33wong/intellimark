@@ -885,11 +885,22 @@ export class MarkingInstructionService {
     let parsedResponse;
     try {
       parsedResponse = MarkingResultParser.repairJson(jsonString, (res as any).isTruncated);
-    } catch (e) {
+    } catch (parseError: any) {
+      // 1. Log the EXACT error from the JSON parser
+      console.error(`🚨 [JSON PARSE ERROR] ${parseError.message}`);
+      
+      // 2. Dump the final 1,000 characters of the raw string to see the exact cut-off point
+      const stringTail = jsonString.length > 1000 
+          ? '...' + jsonString.substring(jsonString.length - 1000) 
+          : jsonString;
+      
+      console.error(`🚨 [RAW LLM TAIL END]:\n${stringTail}\n`);
+      console.error(`🚨 [STRING LENGTH]: ${jsonString.length} characters`);
+
       if ((res as any).isTruncated) {
         throw new Error("MANUAL_REVIEW_REQUIRED_TOO_DENSE: The student's work or table layout is too dense for auto-marking.");
       } else {
-        throw e;
+        throw new Error(`AI failed to generate valid JSON. Raw output tail: ${stringTail.substring(stringTail.length - 200)}`);
       }
     }
 
@@ -910,7 +921,8 @@ export class MarkingInstructionService {
     }
 
     if (!parsedResponse || !parsedResponse.annotations) {
-      throw new Error('AI failed to generate valid annotations array');
+      console.error(`🚨 [ANNOTATIONS MISSING] The AI returned this object instead:\n`, JSON.stringify(parsedResponse, null, 2));
+      throw new Error('AI failed to generate valid annotations array. See logs for raw output.');
     }
 
     // [DEBUG] Strict Prompt Text Trace

@@ -39,15 +39,21 @@ declare global {
 export const authenticateUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        error: 'Unauthorized', 
-        message: 'No valid authorization header found' 
-      });
-    }
+    let token = null;
 
-    const token = authHeader.split('Bearer ')[1];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split('Bearer ')[1];
+    } 
+    // Fallback: If Safari stripped the header, aggressively search the raw payload
+    else if ((req as any).rawBody) {
+       // FIX: Only decode the first 4KB to prevent massive memory spikes from image binaries
+       const rawString = (req as any).rawBody.subarray(0, 4096).toString('utf8');
+       // Refined Regex: Looks for name="token", followed by a blank line, capturing everything until the next line break or boundary
+       const tokenMatch = rawString.match(/name="token"(?:\r?\n){2}(.*?)(?:\r?\n|--)/);
+       if (tokenMatch && tokenMatch[1]) {
+           token = tokenMatch[1].trim();
+       }
+    }
     
     if (!token) {
       return res.status(401).json({ 
@@ -154,11 +160,23 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    
+    let token = null;
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split('Bearer ')[1];
+      token = authHeader.split('Bearer ')[1];
+    } 
+    // Fallback: If Safari stripped the header, aggressively search the raw payload
+    else if ((req as any).rawBody) {
+       // FIX: Only decode the first 4KB to prevent massive memory spikes from image binaries
+       const rawString = (req as any).rawBody.subarray(0, 4096).toString('utf8');
+       // Refined Regex: Looks for name="token", followed by a blank line, capturing everything until the next line break or boundary
+       const tokenMatch = rawString.match(/name="token"(?:\r?\n){2}(.*?)(?:\r?\n|--)/);
+       if (tokenMatch && tokenMatch[1]) {
+           token = tokenMatch[1].trim();
+       }
+    }
       
-      if (token) {
+    if (token) {
         // Handle test token for development
         if (token === 'test-token') {
           req.user = {
@@ -239,7 +257,6 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
           }
         }
       }
-    }
     
     next();
     

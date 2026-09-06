@@ -286,6 +286,10 @@ const SubscriptionPage: React.FC = () => {
         },
         {
           icon: <Award size={16} />,
+          text: 'Grade full-length exam papers (up to 50+ pages per upload)'
+        },
+        {
+          icon: <Award size={16} />,
           text: 'GCSE & A-Level Access'
         },
         {
@@ -311,7 +315,7 @@ const SubscriptionPage: React.FC = () => {
       id: 'ultra' as Plan,
       name: 'Ultra',
       price: dynamicPlans?.ultra?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 19.99 : 191.90),
-      description: 'Best for maximum progress & heavy practice.',
+      description: 'Best for max. progress & heavy practice.',
       icon: <Building2 size={24} />,
       features: [
         {

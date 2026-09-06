@@ -11,24 +11,46 @@ export class MarkingResultParser {
     public static extractJsonFromResponse(aiResponseString: string): string {
         const jsonStartMarker = '```json';
         const jsonEndMarker = '```';
-        const startIndex = aiResponseString.indexOf(jsonStartMarker);
-
+        let startIndex = aiResponseString.indexOf(jsonStartMarker);
+        
+        let contentStart = -1;
         if (startIndex !== -1) {
-            const contentStart = startIndex + jsonStartMarker.length;
+            contentStart = startIndex + jsonStartMarker.length;
+        } else {
+            const simpleStartMarker = '```';
+            startIndex = aiResponseString.indexOf(simpleStartMarker);
+            if (startIndex !== -1) {
+                contentStart = startIndex + simpleStartMarker.length;
+            }
+        }
+
+        if (contentStart !== -1) {
             const lastEndIndex = aiResponseString.lastIndexOf(jsonEndMarker);
             if (lastEndIndex > contentStart) {
                 return aiResponseString.substring(contentStart, lastEndIndex).trim();
+            } else {
+                // No closing marker found, just strip the starting marker
+                return aiResponseString.substring(contentStart).trim();
             }
-        } else {
-            const simpleStartMarker = '```';
-            const simpleStart = aiResponseString.indexOf(simpleStartMarker);
-            if (simpleStart !== -1) {
-                const contentStart = simpleStart + simpleStartMarker.length;
-                const lastEndIndex = aiResponseString.lastIndexOf(jsonEndMarker);
-                if (lastEndIndex > contentStart) {
-                    return aiResponseString.substring(contentStart, lastEndIndex).trim();
-                }
-            }
+        }
+
+        // If no markdown code block is found, try to locate the first { or [
+        const startObjIdx = aiResponseString.indexOf('{');
+        const startArrIdx = aiResponseString.indexOf('[');
+        let firstValidChar = -1;
+        
+        if (startObjIdx !== -1 && startArrIdx !== -1) {
+            firstValidChar = Math.min(startObjIdx, startArrIdx);
+        } else if (startObjIdx !== -1) {
+            firstValidChar = startObjIdx;
+        } else if (startArrIdx !== -1) {
+            firstValidChar = startArrIdx;
+        }
+
+        if (firstValidChar > -1) {
+            const str = aiResponseString.substring(firstValidChar).trim();
+            // Optional: trim off trailing backticks if they are orphaned
+            return str.replace(/```\s*$/, '').trim();
         }
 
         return aiResponseString.trim();
@@ -83,8 +105,15 @@ export class MarkingResultParser {
                 try {
                     parsed = JSON5.parse(fixedJson);
                 } catch (e3) {
-                    console.error('❌ JSON parsing failed after fix attempts.');
-                    throw e3;
+                    // Last resort: try salvaging as truncated JSON even if not explicitly flagged
+                    try {
+                        const salvaged = this.salvageTruncatedJson(jsonString);
+                        parsed = JSON5.parse(salvaged);
+                        console.warn('⚠️ [JSON REPAIR] Salvaged silently truncated JSON (not flagged by SDK).');
+                    } catch (e4) {
+                        console.error('❌ JSON parsing failed after all fix attempts (including truncation salvage).');
+                        throw e3;
+                    }
                 }
             }
         }

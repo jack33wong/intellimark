@@ -42,6 +42,10 @@ if [ -f ".env.local" ]; then
 const fs = require('fs');
 const dotenv = require('dotenv');
 const parsed = dotenv.parse(fs.readFileSync('.env.local'));
+
+// 🛑 OVERRIDE: Never allow local 'development' to leak to Cloud Run
+parsed['NODE_ENV'] = 'production';
+
 let yaml = '';
 for (const [k, v] of Object.entries(parsed)) {
   yaml += k + ': ' + JSON.stringify(v) + '\n';
@@ -58,11 +62,11 @@ gcloud run deploy $SERVICE_NAME \
   --region $REGION \
   --project $PROJECT_ID \
   --allow-unauthenticated \
-  --memory 8Gi \
-  --cpu 8 \
+  --memory 4Gi \
+  --cpu 4 \
   --timeout 3600 \
   --concurrency 5 \
-  --no-cpu-throttling \
+  --cpu-throttling \
   $ENV_VARS_FLAG \
   --quiet
 
@@ -86,6 +90,7 @@ echo "📦 Building production frontend..."
 # Build the production frontend
 cd frontend
 export REACT_APP_API_BASE_URL=$CLOUD_RUN_URL
+export REACT_APP_FIREBASE_AUTH_DOMAIN="auth.aimarking.ai"
 npm run build
 
 if [ $? -ne 0 ]; then
