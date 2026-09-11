@@ -45,6 +45,12 @@ export class PaymentService {
   async createCheckoutSession(data: CreateCheckoutSessionRequest) {
     const { planId, billingCycle, successUrl, cancelUrl, userId } = data;
 
+    // Defensive check: If a malicious or legacy client requests a checkout session for the Free plan,
+    // gracefully redirect them to the success URL instead of crashing (since Free isn't a Stripe product).
+    if (planId === 'free') {
+      return { url: successUrl };
+    }
+
     const planConfig = STRIPE_CONFIG.plans[planId as keyof typeof STRIPE_CONFIG.plans];
     if (!planConfig) {
       throw new Error(`Plan ${planId} not found`);

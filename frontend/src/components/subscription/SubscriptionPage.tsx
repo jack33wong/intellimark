@@ -400,6 +400,12 @@ const SubscriptionPage: React.FC = () => {
       return;
     }
 
+    // Intercept Free tier clicks (Free tier is managed internally, no Stripe checkout needed)
+    if (planId === 'free') {
+      navigate('/app');
+      return;
+    }
+
     // ============================================
     // CASE 1: Already on this plan
     // ============================================
