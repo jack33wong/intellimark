@@ -324,6 +324,7 @@ ${pageHints}
                 taskUserPrompt,
                 imagePayload,
                 validatedModel as any,
+                true, // ⬅️ NEW: FORCE JSON RESPONSE
                 tracker,
                 'classification'
               );
@@ -685,6 +686,7 @@ ${pageHints}
           userPrompt,
           imageData,
           validatedModel as any,
+          true, // ⬅️ FORCE JSON RESPONSE
           undefined, // tracker (will record manually if needed)
           'classification'
         );
@@ -859,6 +861,17 @@ ${pageHints}
       // 🛡️ [TOXIC-HALLUCINATION FIX]: Strip "undefined" if it appears in the JSON source.
       // Gemini sometimes appends `undefined` after numbers (e.g., 4.08undefined) or at the end of properties.
       sanitized = sanitized.replace(/undefined/gi, '');
+
+      // 🛡️ [MATH EVALUATION FIX]: Catch un-evaluated division ONLY inside the "p" arrays
+      // This calculates things like "p": [9.33, 676.0 / 10] into "p": [9.33, 67.6]
+      // while safely ignoring math inside the student transcription text.
+      sanitized = sanitized.replace(/"p"\s*:\s*\[([^\]]+)\]/g, (match, arrayContents) => {
+        const evaluatedContents = arrayContents.replace(/(\d+\.?\d*)\s*\/\s*(\d+\.?\d*)/g, (mathMatch: string, num1: string, num2: string) => {
+          const result = parseFloat(num1) / parseFloat(num2);
+          return isNaN(result) ? mathMatch : result.toString();
+        });
+        return `"p": [${evaluatedContents}]`;
+      });
 
       // 🛡️ [TOXIC-UNDERSCORE FIX]: If the AI gets caught in a loop generating escaped underscores,
       // it causes MAX_TOKENS truncation. We must strip these massive strings before JSON parsing.

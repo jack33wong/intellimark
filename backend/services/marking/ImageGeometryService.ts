@@ -50,11 +50,17 @@ Return ONLY valid JSON matching this schema:
     }
 
     /**
-     * Analyzes an image for quality, orientation, and spread layout.
+     * "Pre-flight Quality Inspector"
+     * Analyzes every uploaded image BEFORE expensive OCR or classification begins.
+     * Purpose:
+     * 1. Detect and reject blurry, unreadable, or non-educational images (saves compute cost).
+     * 2. Detect layout issues like two-page spreads.
+     * 3. Detect if the user accidentally uploaded a marking scheme instead of student work.
+     * 
      * @param base64Image The base64 image data to analyze
      * @param width The image width
      * @param height The image height
-     * @param model The model to use (defaults to fast tier)
+     * @param model The model to use (defaults to fast tier, but overridden internally)
      * @param tracker Optional usage tracker
      * @returns GeometryAnalysisResult
      */
@@ -79,7 +85,12 @@ Return ONLY valid JSON matching this schema:
                 prompt,
                 "Analyze this image and return the JSON.",
                 base64Image,
-                'gemini-2.5-flash', // Hardcoded to the fast tier model
+                // CRITICAL: We hardcode 'gemini-2.5-flash' here regardless of the user's selected tier (Pro/Auto).
+                // Because this pre-flight check runs on EVERY single page, it acts as a cheap filter.
+                // gemini-2.5-flash is extremely fast and cost-effective, preventing us from burning
+                // expensive Pro or 3.7-flash tokens just to check if an image is blurry.
+                'gemini-2.5-flash', 
+                true, // forceJsonResponse
                 tracker,
                 'preFlight'
             );

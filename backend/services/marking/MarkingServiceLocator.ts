@@ -246,7 +246,7 @@ export class MarkingServiceLocator {
       // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       
-      const result = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageData, model, tracker, 'marking');
+      const result = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageData, model, true, tracker, 'marking');
       
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);

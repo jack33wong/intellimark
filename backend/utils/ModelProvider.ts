@@ -165,6 +165,7 @@ export class ModelProvider {
     userPrompt: string,
     imageData: string | string[],
     model: ModelType = 'auto',
+    forceJsonResponse: boolean = true, // ⬅️ NEW PARAMETER
     tracker?: any,
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
@@ -211,7 +212,8 @@ export class ModelProvider {
         ] as any,
         config: {
           temperature: config.temperature,
-          maxOutputTokens: maxTokens,
+          maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens, // ⬅️ MATCH callGeminiText BEHAVIOR
+          ...(forceJsonResponse && { responseMimeType: "application/json" }), // ⬅️ FORCE JSON SCHEMA
           systemInstruction: systemPrompt,
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [

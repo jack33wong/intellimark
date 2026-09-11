@@ -68,12 +68,12 @@ Do not include markdown blocks, just the raw JSON object. Ensure all numbers are
         try {
             const prompt = this.getSystemPrompt();
 
-            // We use callGeminiChat which supports an array of images.
             const response = await ModelProvider.callGeminiChat(
                 prompt,
                 "Extract the marking scheme data from these images into the requested JSON format.",
                 base64Images,
                 PARSER_MODEL,
+                true, // forceJsonResponse
                 tracker,
                 'markingScheme'
             );

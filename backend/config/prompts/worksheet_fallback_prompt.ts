@@ -71,7 +71,8 @@ You must ONLY extract the following two types of content:
 2. **Student Work (CRITICAL)**:
    - **VERBATIM & COMPLETE**: Extract ALL handwriting AND model answers/solutions (even if typed/printed).
    - **MODEL ANSWERS (CRITICAL)**: If a page is a "Model Answer" key (where answers are typed), treat the typed solutions as student work. Look for patterns like "Step 1:...", "Let x = ...", or equations filled into blanks.
-   - **NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If student writes "4+3+1", write "4+3+1", NOT "8".
+   - **TEXT FIELD ("t") ONLY - NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If the student writes "4+3+1", write "4+3+1", NOT "8". This rule applies **EXCLUSIVELY** to the transcribed "t" string.
+   - **COORDINATE FORMATTING ("p" ARRAY) (CRITICAL)**: Coordinates MUST be fully evaluated decimal numbers (e.g., 67.6). Do NOT output formulas, fractions, or operators here (e.g., "676.0 / 10" is FATAL). You MUST internally calculate and evaluate all coordinates before outputting them.
    - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
    - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
    - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "t": "...", "p": [x, y, width, height] }] where values are percentages (0-100).

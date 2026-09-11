@@ -845,7 +845,7 @@ export class MarkingInstructionService {
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
         } else {
           const imageInput = (images && images.length > 0) ? images : imageData;
-          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model, tracker, 'marking');
+          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model, true, tracker, 'marking');
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens, inputTokens: visionResult.inputTokens, outputTokens: visionResult.outputTokens };
         }
       } catch (error: any) {

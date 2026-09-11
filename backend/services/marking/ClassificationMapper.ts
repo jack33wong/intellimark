@@ -63,6 +63,7 @@ export class ClassificationMapper {
                     userPrompt,
                     imagesToProcess.map(img => img.imageData),
                     MAPPING_MODEL as any,
+                    true, // forceJsonResponse
                     tracker,
                     'classification'
                 );
