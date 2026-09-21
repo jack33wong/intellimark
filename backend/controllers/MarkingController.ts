@@ -220,6 +220,13 @@ export class MarkingController {
             const aiMessageId = req.body?.aiMessageId || `ai-${Date.now()}`;
             const sessionId = req.body?.sessionId;
 
+            // 🛡️ NEW: INTERCEPT UNREADABLE PDF ERRORS FOR THE UI
+            let displayMessage = `**Analysis Halted:**\n\n${error.message}`;
+            
+            if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('Postscript delegate failed')) {
+                displayMessage = `**Analysis Halted: Unreadable PDF format** 🛑\n\nI couldn't read the text inside this PDF because it appears to be corrupted, password-protected, or saved in an unsupported format.\n\n**Quick Fix:**\n1. Open the file on your device.\n2. Select **Print** and choose **"Save as PDF"**.\n3. Upload that newly saved file!`;
+            }
+
             // 🛑 THE FIX: Wrap the error as a successful AI chat message so it renders gracefully in the UI
             const gracefulPayload = JSON.stringify({
                 type: 'complete',
@@ -230,7 +237,7 @@ export class MarkingController {
                     aiMessage: {
                         id: aiMessageId,
                         role: 'assistant',
-                        content: `**Analysis Halted:**\n\n${error.message}`,
+                        content: displayMessage,
                         timestamp: new Date().toISOString(),
                         type: 'text',
                         isProcessing: false,

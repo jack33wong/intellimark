@@ -164,7 +164,15 @@ export class PdfProcessingService {
 
     } catch (error) {
       console.error('❌ [PDF Processing] PDF conversion failed:', error);
-      throw new Error(`PDF processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // 🛡️ INTERCEPT UNREADABLE PDFs
+      if (errorMessage.includes('Postscript delegate failed') || errorMessage.includes('gm identify')) {
+        throw new Error('PDF_UNREADABLE: The uploaded PDF is corrupted, password-protected, or in an unsupported format. Please open the file, select "Print to PDF", and upload the new version.');
+      }
+
+      throw new Error(`PDF processing failed: ${errorMessage}`);
     } finally {
       try {
         if (tempDirPath) {

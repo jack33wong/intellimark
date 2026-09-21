@@ -235,9 +235,15 @@ export class MarkingPipelineService {
                             });
 
                             return { index, pdfPages };
-                        } catch (error) {
+                        } catch (error: any) {
                             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
-                            // 🚨 Throw a hard error so the pipeline stops and alerts the user
+                            
+                            // 🛡️ LET CUSTOM UNREADABLE ERRORS BUBBLE UP TO THE CONTROLLER
+                            if (error.message?.includes('PDF_UNREADABLE')) {
+                                throw error;
+                            }
+                            
+                            // 🚨 Fallback for generic size/complexity failures
                             throw new Error(`Failed to process document "${file.originalname}". The file may be too large or complex. Please try uploading it in smaller batches.`);
                         }
                     });
