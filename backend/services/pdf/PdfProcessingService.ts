@@ -56,10 +56,9 @@ export class PdfProcessingService {
 
     // Configuration for pdf2pic
     // Define target density (DPI) and calculate dimensions based on 72 DPI PDF space
-    // 150 DPI is Mathpix's recommended optimal density for speed and readable text
-    const TARGET_DENSITY = 150;
-    let targetWidth = 1860; // Default A4 width at 150 DPI
-    let targetHeight = 2631; // Default A4 height at 150 DPI
+    const TARGET_DENSITY = 300; // Bump to 300 for crisp math text
+    let targetWidth = 3720; // Default A4 width at 300 DPI
+    let targetHeight = 5262; // Default A4 height at 300 DPI
 
     try {
       const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
@@ -74,11 +73,16 @@ export class PdfProcessingService {
     const defaultOptions: any = {
       density: TARGET_DENSITY,
       format: "png",
-      quality: 85,
+      quality: 100, // Let sharp handle the final compression
       savePath: tempDirPath,
       saveFilename: `page_${uuidv4()}`,
       width: targetWidth,
-      height: targetHeight
+      height: targetHeight,
+      // Force GraphicsMagick to render transparency as white
+      compression: "jpeg",
+      "-background": "white",
+      "-alpha": "remove",
+      "-flatten": true
     };
 
     const conversionOptions: any = { ...defaultOptions, ...options };
