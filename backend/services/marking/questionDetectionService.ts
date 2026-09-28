@@ -139,6 +139,7 @@ export class QuestionDetectionService {
     examPaperHint?: string | null
   ): Promise<QuestionDetectionResult> {
     try {
+      console.log('🚨 [HINT CHECK] Received Hint:', examPaperHint);
       // 1. Input Sanitization
       // console.log(`[DEBUG_INPUT_CAPTURE] detectQuestion Input for ${questionNumberHint}:`, extractedQuestionText);
       const cleanText = (extractedQuestionText || '').trim();
@@ -584,8 +585,10 @@ export class QuestionDetectionService {
       const snapshot = await this.db.collection('markingSchemes').get();
       const schemes: any[] = [];
       snapshot.forEach((doc: any) => schemes.push({ id: doc.id, ...doc.data() }));
+      
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
+      
       for (const scheme of schemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, scheme);
         if (match) {
@@ -597,6 +600,20 @@ export class QuestionDetectionService {
           }
         }
       }
+
+      // 🔍 --- ADDED DEBUG LOGGING HERE --- 🔍
+      if (bestMatch) {
+        console.log('\n==================================================================');
+        console.log(`🚨 [DEBUG-SCHEME] EXAM PAPER MATCH: ${examPaperMatch.paperCode} Q${examPaperMatch.questionNumber}`);
+        console.log(`🚨 [DEBUG-SCHEME] FETCHED FIRESTORE DOC ID: ${bestMatch.id}`);
+        console.log(`🚨 [DEBUG-SCHEME] RAW QUESTION PAYLOAD EXTRACTED:`);
+        console.log(JSON.stringify(bestMatch.questionMarks, null, 2));
+        console.log('==================================================================\n');
+      } else {
+        console.log(`\n🚨 [DEBUG-SCHEME] No marking scheme match found for ${examPaperMatch.paperCode} Q${examPaperMatch.questionNumber}\n`);
+      }
+      // ------------------------------------
+
       return bestMatch;
     } catch (error) {
       console.error('Error finding marking scheme', error);
