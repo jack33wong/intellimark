@@ -644,7 +644,7 @@ export class QuestionDetectionService {
           questionMarks = mainQ;
         } else {
           const subKeys = Object.keys(questions).filter(k => {
-            const m = k.match(/^(\d+)([a-z]+|\(?[ivx]+\)?)$/i);
+            const m = k.match(/^(\d+)\(?([a-z]+)\)?$/i);
             return m && m[1] === baseNum;
           }).sort();
 
