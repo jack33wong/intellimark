@@ -483,9 +483,10 @@ export class QuestionDetectionService {
   private filterPapersByHint(papers: any[], hint: string): any[] {
     const normalizedHint = hint.toLowerCase().trim();
     if (!normalizedHint) return papers;
+    
     const normalizeForSearch = (t: string) => {
-      return t.toLowerCase()
-        .replace(/\bmathematics\b/g, 'maths') // Normalize subject names
+      return (t || '').toLowerCase()
+        .replace(/\bmathematics\b/g, 'maths')
         .replace(/\b(june|may|summer)\b/g, 'summer')
         .replace(/[-,/]/g, ' ')
         .trim();
@@ -495,38 +496,43 @@ export class QuestionDetectionService {
     const rawKeywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
     if (rawKeywords.length === 0) return papers;
 
-    // V9.6 Vocabulary-Based Filtering: 
-    // 1. Build a set of all valid words from all available papers
-    const vocabulary = new Set<string>();
-    papers.forEach(p => {
-      const meta = p.metadata;
-      if (!meta) return;
-      const validText = normalizeForSearch(`${meta.exam_board} ${meta.exam_code} ${meta.exam_series} ${meta.tier}`);
-      validText.split(/\s+/).forEach(word => {
-        if (word.length > 0) vocabulary.add(word);
-      });
-    });
-
-    // 2. Only keep user keywords that are actually part of our paper metadata "vocabulary"
-    // This naturally ignores "Mathematics", "Paper", "•", etc.
-    const validKeywords = rawKeywords.filter(k => vocabulary.has(k));
-    if (validKeywords.length === 0) return papers;
-
-    return papers.filter(paper => {
+    // 1. Score each paper based on how many hint keywords it matches
+    const scoredPapers = papers.map(paper => {
       const metadata = paper.metadata;
-      if (!metadata) return false;
-      const combined = normalizeForSearch(`${metadata.exam_board} ${metadata.exam_code} ${metadata.exam_series} ${metadata.tier} ${metadata.subject}`);
+      if (!metadata) return { paper, score: 0 };
+      
+      // Explicitly include qualification to catch things like "GCSE"
+      const combined = normalizeForSearch(
+        `${metadata.qualification || ''} ${metadata.exam_board || ''} ${metadata.exam_code || ''} ${metadata.exam_series || ''} ${metadata.tier || ''} ${metadata.subject || ''}`
+      );
+      const pTokens = combined.split(/\s+/);
 
-      // 3. Strict match on all non-noisy keywords
-      return validKeywords.every(it => {
-        const pTokens = combined.split(/\s+/);
-        return pTokens.some(pt => {
-          if (pt === it) return true;
-          if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
-          return pt.includes(it);
+      let matchCount = 0;
+      rawKeywords.forEach(keyword => {
+        const isMatch = pTokens.some(pt => {
+          if (pt === keyword) return true;
+          if (/^\d+$/.test(pt) && /^\d+$/.test(keyword)) return parseInt(pt) === parseInt(keyword);
+          return pt.includes(keyword);
         });
+        if (isMatch) matchCount++;
       });
+
+      return { paper, score: matchCount };
     });
+
+    if (scoredPapers.length === 0) return papers;
+
+    // 2. Find the highest keyword match score across all papers
+    const maxScore = Math.max(...scoredPapers.map(sp => sp.score));
+    
+    // 3. Fallback if literally zero words matched any paper in the DB
+    if (maxScore === 0) return papers;
+
+    // 4. Return only the papers that achieved the highest overlap score.
+    // This allows words like "Tier" to simply be ignored without penalizing the correct paper.
+    return scoredPapers
+      .filter(sp => sp.score === maxScore)
+      .map(sp => sp.paper);
   }
 
   private async getAllExamPapers(): Promise<any[]> {
