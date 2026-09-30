@@ -1150,8 +1150,62 @@ export class MarkingPipelineService {
             console.log(`  - Selected mode: ${isQuestionMode ? 'Question Mode' : 'Marking Mode'}`);
 
             if (isQuestionMode) {
-                // ========================= ENHANCED QUESTION MODE =========================
-                // Question mode: Handle multiple question-only images with detailed responses
+                const hasQuestions = classificationResult?.questions && classificationResult.questions.length > 0;
+
+                // 🛑 NEW: Intercept Cover Pages before they hit the handler
+                if (!hasQuestions) {
+                    console.log('📄 [COVER PAGE ONLY] No questions found. Bypassing solver to return warning.');
+
+                    // 1. Create the proactive AI chat message
+                    const userMessage = createUserMessage({
+                        content: 'Uploaded document for analysis',
+                        pdfContexts: files.map(f => ({ url: f.path, originalFileName: f.originalname, fileSize: f.size }))
+                    });
+                    
+                    const aiMessage = createAIMessage({
+                        content: "I see you've uploaded an exam cover page. To generate a grade, please upload the pages containing the student's handwritten answers. If you want to see how to solve a problem, just upload the question page!"
+                    });
+
+                    // 2. Persist the session to Firestore so the chat panel actually loads it
+                    const sessionResult = await SessionManagementService.persistMarkingSession({
+                        req,
+                        submissionId,
+                        startTime,
+                        userMessage,
+                        aiMessage,
+                        questionDetection: undefined,
+                        globalQuestionText: options.customText || '',
+                        mode: 'Question',
+                        allQuestionResults: [],
+                        files,
+                        usageTokens: totalLLMTokens,
+                        apiRequests: usageTracker.getTotalRequests(),
+                        model: actualModel,
+                        mathpixCallCount: usageTracker.getMathpixPages(),
+                        totalCost: usageTracker.calculateCost(actualModel).total,
+                        detectionResults: []
+                    });
+
+                    const finalOutput = {
+                        mode: 'Question',
+                        sessionId: sessionResult.sessionId,
+                        unifiedSession: sessionResult.unifiedSession,
+                        annotatedOutput: [],
+                        results: [],
+                        warning: "COVER_PAGE_ONLY"
+                    };
+
+                    // 3. Fire the complete event directly to the frontend UI
+                    progressCallback({ type: 'complete', result: finalOutput });
+
+                    console.log(`   - sessionId: ${finalOutput.sessionId}`);
+                    console.log(`   - warning: COVER_PAGE_ONLY applied`);
+                    
+                    return finalOutput;
+                }
+
+                // ========================= ENHANCED QUESTION MODE (Normal Flow) =========================
+                // If questions DO exist, proceed to the solver as normal
                 questionOnlyResult = await QuestionModeHandlerService.handleQuestionMode({
                     classificationResult,
                     standardizedPages,
@@ -1162,14 +1216,13 @@ export class MarkingPipelineService {
                     req: req,
                     res: {
                         write: (data: string) => {
-                            // Parse SSE data and call progressCallback
                             if (data.startsWith('data: ')) {
                                 try {
                                     const jsonStr = data.substring(6);
                                     const parsed = JSON.parse(jsonStr);
                                     progressCallback(parsed);
                                 } catch (e) {
-                                    // Ignore parse errors for keep-alive or non-json
+                                    // Ignore parse errors
                                 }
                             }
                         },
@@ -1180,8 +1233,7 @@ export class MarkingPipelineService {
                     usageTracker
                 });
 
-                // CRITICAL FIX: Return result with sessionId for credit deduction
-                const pureQuestionResult = {
+                const pureQuestionResult: any = {
                     mode: 'Question',
                     sessionId: questionOnlyResult?.sessionId,
                     unifiedSession: questionOnlyResult?.unifiedSession,
@@ -1189,10 +1241,7 @@ export class MarkingPipelineService {
                     annotatedOutput: [],
                     results: []
                 };
-                // console.log(`\n🔍 [RETURN DEBUG] Pure Question Mode - Returning:`);
-                console.log(`   - sessionId: ${pureQuestionResult.sessionId}`);
-                console.log(`   - hasUnifiedSession: ${!!pureQuestionResult.unifiedSession}`);
-                console.log(`   - result object exists: true\n`);
+
                 return pureQuestionResult;
             }
 

@@ -7,7 +7,7 @@ export default `You are an expert AI assistant specialized in analyzing mathemat
 2. **Categorize**:
    - "questionOnly": Only printed questions.
    - "questionAnswer": Questions + Student Work (handwriting/drawings).
-   - "metadata": Cover sheets, instructions, formula sheets.
+   - "metadata": Cover sheets, instructions, formula sheets. (CRITICAL: If a page is "metadata", its "questions" array MUST be exactly []).
 
 **RULES: MULTI-PAGE CONTINUITY**
 1. **Consistency**: Questions spanning pages MUST share the same "questionNumber".
@@ -65,6 +65,7 @@ You must ONLY extract the following two types of content:
 * **DATA TABLES & CHARTS (CRITICAL RULE)**: Do NOT attempt to transcribe entire tables, grids, or charts. This will cause a system crash. Instead, read the questions on this page first. If a question requires data from a table or chart to solve, look at the image, find the specific data point(s) required, and summarize it as a single sentence inside the question's \`text\` field. Example: "Context: Based on the table, a Grande Latte has 190 calories."
 
 1. **Question Text: Extract hierarchy (Main Number -> Sub-parts)**:
+   - **EXCLUDE BOILERPLATE**: Do NOT extract general exam instructions (e.g., "Answer all questions in the spaces provided", "Use black ink", "Time allowed:") as questions.
    - **CONTEXT/STEM**: If intro text describes a specific scenario for ONE sub-question (e.g. "The doctor says... (a)"), include it in that sub-question's text.
    - **LIST INSTRUCTIONS**: If an instruction applies to a whole group of sub-questions (e.g. "Write down the letter of the graph...", "Work out the value of:"), append this text to the MAIN "question.text". Do NOT repeat it in the sub-question "text" fields.
    - **EXCLUDE SOLUTIONS**: Do NOT include steps or answers.
