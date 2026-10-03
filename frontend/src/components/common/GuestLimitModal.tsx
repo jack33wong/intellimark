@@ -8,16 +8,25 @@ interface GuestLimitModalProps {
     isOpen: boolean;
     onClose: () => void;
     limit?: number;
+    onSignup?: () => Promise<void> | void; // Add this
 }
 
-const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose, limit = 5 }) => {
+const GuestLimitModal: React.FC<GuestLimitModalProps> = ({ isOpen, onClose, limit = 5, onSignup }) => {
     const navigate = useNavigate();
 
     if (!isOpen) return null;
 
-    const handleSignUp = () => {
-        onClose();
-        EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+    const handleSignUp = async () => {
+        // If the parent provided an onSignup function (like our IndexedDB stash), run it and wait
+        if (onSignup) {
+            await onSignup();
+        } else {
+            // Fallback for other pages
+            onClose();
+            import('../../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+                EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+            });
+        }
     };
 
     const handleSignIn = () => {

@@ -158,7 +158,7 @@ function AppContent() {
       },
       [EVENT_TYPES.OPEN_AUTH_MODAL]: (event: any) => {
         const mode = event?.detail?.mode;
-        navigate('/login', { state: { mode } });
+        navigate('/login', { state: { mode, returnTo: window.location.pathname } });
       }
     });
 

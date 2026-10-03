@@ -15,6 +15,41 @@ import InsufficientCreditsModal from '../components/common/InsufficientCreditsMo
 import { useModels } from './ModelContext';
 import GuestLimitModal from '../components/modals/GuestLimitModal';
 
+// --- INDEXEDDB AUTH STASH HELPERS ---
+const STASH_DB_NAME = 'IntelliMarkStashDB';
+const STASH_STORE = 'pendingUploads';
+
+const initStashDB = () => new Promise((resolve, reject) => {
+  const request = indexedDB.open(STASH_DB_NAME, 1);
+  request.onupgradeneeded = (e) => e.target.result.createObjectStore(STASH_STORE);
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+
+const stashUploadData = async (data) => {
+  const db = await initStashDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STASH_STORE, 'readwrite');
+    tx.objectStore(STASH_STORE).put(data, 'authStash');
+    tx.oncomplete = resolve;
+    tx.onerror = reject;
+  });
+};
+
+const retrieveAndClearStash = async () => {
+  const db = await initStashDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STASH_STORE, 'readwrite');
+    const store = tx.objectStore(STASH_STORE);
+    const request = store.get('authStash');
+    request.onsuccess = () => {
+      store.delete('authStash'); // Clear immediately so it only fires once
+      resolve(request.result);
+    };
+    request.onerror = reject;
+  });
+};
+
 const MarkingPageContext = createContext();
 
 const getSavedModel = () => {
@@ -99,6 +134,7 @@ export const MarkingPageProvider = ({
   initialImageIndex = 0
 }) => {
   const { user, getAuthToken } = useAuth();
+  const pendingUploadRef = useRef(null);
   const { selectedFile, processImage, clearFile, handleFileSelect } = useImageUpload();
 
   const {
@@ -821,11 +857,12 @@ export const MarkingPageProvider = ({
               usageLimit: err.usageLimit || 0, 
               resetAt: err.resetAt || null 
             });
-            setShowGuestLimitModal(true);
             
-            // Revert UI to main upload page
-            clearSession();
-            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            // NEW: Save the intended upload to memory
+            pendingUploadRef.current = { type: 'single', file: targetFile, customText };
+            
+            setShowGuestLimitModal(true);
+            // REMOVED clearSession() and SET_PAGE_MODE
             return;
           } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
@@ -846,11 +883,12 @@ export const MarkingPageProvider = ({
           usageLimit: err.usageLimit || 0, 
           resetAt: err.resetAt || null 
         });
-        setShowGuestLimitModal(true);
         
-        // Revert UI to main upload page
-        clearSession();
-        dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+        // NEW: Save the intended upload to memory
+        pendingUploadRef.current = { type: 'single', file: targetFile, customText };
+        
+        setShowGuestLimitModal(true);
+        // REMOVED clearSession() and SET_PAGE_MODE
         return false;
       } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
@@ -994,11 +1032,12 @@ export const MarkingPageProvider = ({
               usageLimit: err.usageLimit || 0, 
               resetAt: err.resetAt || null 
             });
-            setShowGuestLimitModal(true);
             
-            // Revert UI to main upload page
-            clearSession();
-            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            // NEW: Save the intended upload to memory
+            pendingUploadRef.current = { type: 'multi', files, customText };
+            
+            setShowGuestLimitModal(true);
+            // REMOVED clearSession() and SET_PAGE_MODE
             return;
           } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
@@ -1018,11 +1057,12 @@ export const MarkingPageProvider = ({
           usageLimit: err.usageLimit || 0, 
           resetAt: err.resetAt || null 
         });
-        setShowGuestLimitModal(true);
         
-        // Revert UI to main upload page
-        clearSession();
-        dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+        // NEW: Save the intended upload to memory
+        pendingUploadRef.current = { type: 'multi', files, customText };
+        
+        setShowGuestLimitModal(true);
+        // REMOVED clearSession() and SET_PAGE_MODE
         return false;
       } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
@@ -1162,6 +1202,24 @@ export const MarkingPageProvider = ({
     lastHandledSessionIdRef
   ]);
 
+  // --- ADD THIS USEEFFECT: Auto-Resume after login ---
+  useEffect(() => {
+    if (user) {
+      retrieveAndClearStash().then((stashedData) => {
+        if (stashedData) {
+          console.log("Recovered stashed files after login, auto-resuming...");
+          // Small delay to ensure the UI is fully painted before starting the heavy load
+          setTimeout(() => {
+            if (stashedData.type === 'multi') {
+              handleMultiImageAnalysis(stashedData.files, stashedData.customText);
+            } else if (stashedData.type === 'single') {
+              handleImageAnalysis(stashedData.file, stashedData.customText);
+            }
+          }, 500);
+        }
+      }).catch(console.error);
+    }
+  }, [user, handleMultiImageAnalysis, handleImageAnalysis]);
 
   return (
     <MarkingPageContext.Provider value={value}>
@@ -1174,8 +1232,18 @@ export const MarkingPageProvider = ({
       <GuestLimitModal
         isOpen={showGuestLimitModal}
         onClose={() => setShowGuestLimitModal(false)}
-        onSignup={() => {
+        onSignup={async () => {
           setShowGuestLimitModal(false);
+          
+          // NEW: Stash the files in the browser database before navigating away
+          if (pendingUploadRef.current) {
+            try {
+              await stashUploadData(pendingUploadRef.current);
+            } catch (e) {
+              console.error("Failed to stash files:", e);
+            }
+          }
+
           import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
             EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
           });

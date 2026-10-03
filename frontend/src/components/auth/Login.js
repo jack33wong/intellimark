@@ -59,9 +59,11 @@ const Login = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/app');
+      // Safely route the user back to where they hit the limit, fallback to /app
+      const returnPath = location.state?.returnTo || '/app';
+      navigate(returnPath, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, location]);
 
   useEffect(() => {
     if (currentPage === 'main' && emailInputRef.current) {
