@@ -2179,117 +2179,48 @@ function AdminPage() {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th className="admin-table__header">User ID</th>
-                        <th className="admin-table__header">Created At</th>
-                        <th className="admin-table__header">Mode</th>
-                        <th className="admin-table__header">Model Used</th>
-                        <th className="admin-table__header">API Requests</th>
+                        <th className="admin-table__header">User Email</th>
+                        <th className="admin-table__header">Last Active</th>
+                        <th className="admin-table__header">Sessions</th>
+                        <th className="admin-table__header">Avg Rating</th>
                         <th className="admin-table__header">Total Cost</th>
-                        <th className="admin-table__header">Model Cost</th>
-                        <th className="admin-table__header">Mathpix Cost</th>
+                        <th className="admin-table__header">API Requests</th>
+                        <th className="admin-table__header">Paywall Hits</th>
+                        <th className="admin-table__header">Churn Reason</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {usageData.map((session) => {
-                        // We need a state for expanded sessions. Since this is a massive component, 
-                        // and we can't easily add a new top-level state right here without viewing the top of the file,
-                        // we will assume we added 'const [expandedUsageSessions, setExpandedUsageSessions] = useState(new Set());'
-                        // at the component level. 
-                        // WAIT: use view_file to check component top first?
-                        // Actually, I'll use a local variable for now, but really I need to add the state hook.
-                        // Implemented check: I will inject the state hook in a separate tool call if needed.
-                        // For now, let's assume 'expandedUsageRows' is available or I will add it.
-                        // Let's use a unique name: expandedAdminSessions
-
-                        const isExpanded = expandedAdminSessions.has(session.sessionId);
-                        const hasHistory = session.modeHistory && session.modeHistory.length > 1;
-
-                        return (
-                          <React.Fragment key={session.sessionId}>
-                            <tr className={`admin-table__row ${isExpanded ? 'admin-row-expanded' : ''}`}>
-                              <td className="admin-table__cell">{session.userId}</td>
-                              <td className="admin-table__cell">{formatDate(session.createdAt)}</td>
-                              <td className="admin-table__cell">
-                                {hasHistory ? (
-                                  <button
-                                    className="mode-expand-btn"
-                                    style={{ padding: 0, fontSize: '12px' }}
-                                    onClick={() => toggleAdminUsageExpanded(session.sessionId)}
-                                  >
-                                    {isExpanded ? (
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                    ) : (
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                    )}
-                                    <span className={`status-badge ${session.mode === 'marking' ? 'status-badge--primary' : 'status-badge--secondary'}`}>
-                                      {formatMode(session.mode)}
-                                    </span>
-                                  </button>
-                                ) : (
-                                  <span className={`status-badge ${session.mode === 'marking' ? 'status-badge--primary' : 'status-badge--secondary'}`}>
-                                    {formatMode(session.mode)}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="admin-table__cell">{session.modelUsed}</td>
-                              <td className="admin-table__cell">{session.apiRequests || 0}</td>
-                              <td className="admin-table__cell">${session.totalCost.toFixed(4)}</td>
-                              <td className="admin-table__cell">${(session.modelCost || 0).toFixed(4)}</td>
-                              <td className="admin-table__cell">${session.mathpixCost.toFixed(4)}</td>
-                            </tr>
-                            {isExpanded && session.modeHistory && session.modeHistory.map((h, i, arr) => {
-                              let usageCost = 0;
-                              // Logic for deltas
-                              if (i < arr.length - 1) {
-                                const next = arr[i + 1];
-                                usageCost = next.costAtSwitch - h.costAtSwitch;
-                              } else {
-                                usageCost = session.totalCost - h.costAtSwitch;
-                              }
-
-                              const apiDelta = (h.apiRequestsAtSwitch !== undefined && i < arr.length - 1)
-                                ? (arr[i + 1].apiRequestsAtSwitch - h.apiRequestsAtSwitch)
-                                : (h.apiRequestsAtSwitch !== undefined)
-                                  ? (session.apiRequests - h.apiRequestsAtSwitch)
-                                  : null;
-
-                              const aiCostDelta = (h.modelCostAtSwitch !== undefined && i < arr.length - 1)
-                                ? (arr[i + 1].modelCostAtSwitch - h.modelCostAtSwitch)
-                                : (h.modelCostAtSwitch !== undefined)
-                                  ? ((session.modelCost || 0) - h.modelCostAtSwitch)
-                                  : null;
-
-                              return (
-                                <tr key={`history-${i}`} className="usage-history-row">
-                                  <td className="admin-table__cell">{/* Spacer for User ID column */}</td>
-                                  <td className="admin-table__cell" style={{ paddingLeft: '32px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                    {new Date(h.timestamp).toLocaleString(undefined, {
-                                      year: 'numeric', month: '2-digit', day: '2-digit',
-                                      hour: '2-digit', minute: '2-digit'
-                                    })}
-                                  </td>
-                                  <td className="admin-table__cell">
-                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{formatMode(h.mode)}</span>
-                                  </td>
-                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                    {h.modelUsed || '-'}
-                                  </td>
-                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                    {apiDelta !== null ? apiDelta : '-'}
-                                  </td>
-                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                    ${Math.max(0, usageCost).toFixed(4)}
-                                  </td>
-                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                    {aiCostDelta !== null ? `$${aiCostDelta.toFixed(4)}` : '-'}
-                                  </td>
-                                  <td className="admin-table__cell">{/* Mathpix column removed/empty per request */}</td>
-                                </tr>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      })}
+                      {usageData.map((userStats) => (
+                        <tr key={userStats.userId} className="admin-table__row">
+                          <td className="admin-table__cell" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={userStats.email}>{userStats.email}</td>
+                          <td className="admin-table__cell">{formatDate(userStats.lastActive)}</td>
+                          <td className="admin-table__cell">{userStats.sessionCount}</td>
+                          <td className="admin-table__cell">
+                            {userStats.avgRating > 0 ? (
+                                <span 
+                                  title={userStats.feedbackReasons || 'No detailed feedback provided'} 
+                                  style={{ color: '#fbbf24', fontWeight: 'bold', cursor: userStats.feedbackReasons ? 'help' : 'default' }}
+                                >
+                                  {userStats.avgRating.toFixed(1)} ★
+                                </span>
+                            ) : '-'}
+                          </td>
+                          <td className="admin-table__cell">${userStats.totalCost.toFixed(4)}</td>
+                          <td className="admin-table__cell">{userStats.apiRequests}</td>
+                          <td className="admin-table__cell">
+                            {userStats.paywallHits > 0 ? (
+                                <span className="status-badge status-badge--error">{userStats.paywallHits} Hits</span>
+                            ) : '-'}
+                          </td>
+                          <td className="admin-table__cell">
+                            {userStats.churnReason !== 'None' ? (
+                                <span className="status-badge status-badge--secondary">{userStats.churnReason}</span>
+                            ) : (
+                                <span className="status-badge status-badge--success">Active</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

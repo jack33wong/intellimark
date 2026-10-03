@@ -5,7 +5,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './ChatMessage.css';
 import YourWorkSection from './YourWorkSection';
-import { Brain, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Lock, Star } from 'lucide-react';
+import MarkingFeedbackModal from '../modals/MarkingFeedbackModal';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
@@ -64,6 +65,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
   const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal } = useMarkingPage();
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
@@ -585,6 +587,28 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           {/* Suggested Follow-ups */}
           {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <SuggestedFollowUpButtons suggestions={message.suggestedFollowUps as string[]} onSuggestionClick={handleFollowUpClick} disabled={isAnyMessageProcessing} />
+          )}
+
+          {/* Provide Feedback Button (Only on final AI response containing follow-ups or results) */}
+          {!isUser && session && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+            <>
+              <div className="provide-feedback-container" style={{ marginTop: '16px', paddingLeft: '25px' }}>
+                <button 
+                  className="provide-feedback-btn" 
+                  onClick={() => setIsFeedbackModalOpen(true)}
+                  style={{ width: 'fit-content', padding: '8px 16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <Star size={16} color="#fbbf24" fill="#fbbf24" />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#4b5563' }}>Provide Feedback</span>
+                </button>
+              </div>
+              <MarkingFeedbackModal
+                isOpen={isFeedbackModalOpen}
+                onClose={() => setIsFeedbackModalOpen(false)}
+                sessionId={session.id}
+                modelUsed={session.sessionStats?.modelUsed || selectedModel}
+              />
+            </>
           )}
 
           {isUser && content && <div className="message-text">{ensureStringContent(content)}</div>}

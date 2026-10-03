@@ -804,8 +804,8 @@ router.get('/usage', async (req: Request, res: Response) => {
     const startTime = startDate.getTime();
     const endTime = endDate ? endDate.getTime() : Infinity;
 
-    // Group transactions by sessionId (Global view)
-    const sessionsMap = new Map<string, any>();
+    // Group transactions by userId (User-Centric view)
+    const usersMap = new Map<string, any>();
     let totalCost = 0;
     let totalModelCost = 0;
     let totalMathpixCost = 0;
@@ -821,37 +821,36 @@ router.get('/usage', async (req: Request, res: Response) => {
         if (txTime < startTime || txTime >= endTime) return;
       }
 
-      const sessionId = tx.sessionId;
+      const userId = tx.userId || 'guest';
       const interactionCost = tx.totalCost || 0;
       const interactionModelCost = tx.costBreakdown?.llmCost || 0;
       const interactionMathpixCost = tx.costBreakdown?.mathpixCost || 0;
-      const createdAt = txTimestamp.toISOString();
+      const txDateIso = txTimestamp.toISOString();
 
-      if (!sessionsMap.has(sessionId)) {
-        sessionsMap.set(sessionId, {
-          sessionId,
-          userId: tx.userId,
-          createdAt,
+      if (!usersMap.has(userId)) {
+        usersMap.set(userId, {
+          userId,
+          email: userId, // Default to userId, will override with email later
           totalCost: 0,
           modelCost: 0,
           mathpixCost: 0,
-          modelUsed: tx.modelUsed,
           apiRequests: 0,
-          mode: tx.mode,
-          modeHistory: []
+          sessionIds: new Set(),
+          lastActive: txDateIso,
+          paywallHits: 0,
+          churnReason: 'None'
         });
       }
 
-      const session = sessionsMap.get(sessionId);
-      session.totalCost += interactionCost;
-      session.modelCost += interactionModelCost;
-      session.mathpixCost += interactionMathpixCost;
-      session.apiRequests += 1;
+      const userStats = usersMap.get(userId)!;
+      userStats.totalCost += interactionCost;
+      userStats.modelCost += interactionModelCost;
+      userStats.mathpixCost += interactionMathpixCost;
+      userStats.apiRequests += 1;
+      if (tx.sessionId) userStats.sessionIds.add(tx.sessionId);
 
-      // Update session totals based on latest interaction
-      if (new Date(createdAt) > new Date(session.createdAt)) {
-        session.mode = tx.mode;
-        session.modelUsed = tx.modelUsed;
+      if (new Date(txDateIso) > new Date(userStats.lastActive)) {
+          userStats.lastActive = txDateIso;
       }
 
       // Update global totals
@@ -861,12 +860,112 @@ router.get('/usage', async (req: Request, res: Response) => {
       totalApiRequests += 1;
     });
 
-    const usageData = Array.from(sessionsMap.values());
+    // Fetch Telemetry to map drop-offs (with time boundaries)
+    try {
+      const telemetrySnapshot = await db.collection('telemetry_events').get();
+      telemetrySnapshot.forEach(doc => {
+          const data = doc.data();
+          const txTimestamp = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+          const txTime = txTimestamp.getTime();
+          
+          if (filter !== 'all') {
+              if (txTime < startTime || txTime >= endTime) return;
+          }
+
+          if (data.userId && usersMap.has(data.userId)) {
+              const userStats = usersMap.get(data.userId)!;
+              if (data.eventType === 'paywall_viewed') {
+                  userStats.paywallHits += 1;
+              }
+              if (data.eventType === 'exit_survey_submitted') {
+                  userStats.churnReason = data.metadata?.reason || 'Unknown';
+              }
+          }
+      });
+
+      const feedbackSnapshot = await db.collection('marking_feedback').get();
+      console.log(`[DEBUG] Fetched ${feedbackSnapshot.size} marking_feedback documents`);
+      feedbackSnapshot.forEach(doc => {
+          const data = doc.data();
+          console.log(`[DEBUG] Feedback Doc: userId=${data.userId}, stars=${data.stars}, createdAt=${data.createdAt}`);
+          const txTimestamp = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+          const txTime = txTimestamp.getTime();
+
+          if (filter !== 'all') {
+              if (txTime < startTime || txTime >= endTime) {
+                  console.log(`[DEBUG] -> Excluded by date filter (txTime=${txTime}, start=${startTime}, end=${endTime})`);
+                  return;
+              }
+          }
+
+          if (data.userId && usersMap.has(data.userId)) {
+              console.log(`[DEBUG] -> Matched to user: ${data.userId}`);
+              const userStats = usersMap.get(data.userId)!;
+              if (!userStats.feedback) userStats.feedback = [];
+              userStats.feedback.push({ stars: data.stars || 0, tags: data.tags || [] });
+          } else {
+              console.log(`[DEBUG] -> User not in usersMap: ${data.userId}`);
+          }
+      });
+    } catch(e) {
+      console.warn("Failed to fetch telemetry events", e);
+    }
+
+    // Resolve UIDs to Emails
+    const userIdsToResolve = Array.from(usersMap.keys()).filter(id => id && id !== 'guest' && id !== 'anonymous');
+    
+    // Batch resolve in chunks of 100
+    for (let i = 0; i < userIdsToResolve.length; i += 100) {
+        const chunk = userIdsToResolve.slice(i, i + 100);
+        const identifiers = chunk.map(uid => ({ uid }));
+        try {
+            const result = await admin.auth().getUsers(identifiers);
+            result.users.forEach(userRecord => {
+                if (usersMap.has(userRecord.uid)) {
+                    usersMap.get(userRecord.uid)!.email = userRecord.email || userRecord.uid;
+                }
+            });
+        } catch (e) {
+            console.error("Failed to resolve user emails chunk:", e);
+        }
+    }
+
+    const usageData = Array.from(usersMap.values()).map(u => {
+        let avgRating = 0;
+        let feedbackReasons: string[] = [];
+        
+        if (u.feedback && u.feedback.length > 0) {
+            console.log(`[DEBUG] Calculating rating for user ${u.userId}. Feedback array:`, JSON.stringify(u.feedback));
+            avgRating = u.feedback.reduce((sum: number, f: any) => sum + (f.stars || 0), 0) / u.feedback.length;
+            
+            // Extract and count all tags across all feedback
+            const tagsMap = new Map<string, number>();
+            u.feedback.forEach((f: any) => {
+                console.log(`[DEBUG] Inspecting feedback object:`, f);
+                if (f.tags && Array.isArray(f.tags)) {
+                    f.tags.forEach((tag: string) => {
+                        tagsMap.set(tag, (tagsMap.get(tag) || 0) + 1);
+                    });
+                }
+            });
+            
+            // Format as "2x Accuracy issues, 1x Math errors"
+            feedbackReasons = Array.from(tagsMap.entries()).map(([tag, count]) => `${count}x ${tag}`);
+            console.log(`[DEBUG] Final feedback reasons string:`, feedbackReasons);
+        }
+        return {
+            ...u,
+            avgRating,
+            feedbackReasons: feedbackReasons.length > 0 ? feedbackReasons.join(' | ') : '',
+            sessionCount: u.sessionIds.size,
+            sessionIds: Array.from(u.sessionIds) // Set cannot be JSON serialized directly
+        };
+    });
 
     // Sort by date descending (newest first)
     usageData.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
+      const dateA = new Date(a.lastActive).getTime();
+      const dateB = new Date(b.lastActive).getTime();
       return dateB - dateA;
     });
 

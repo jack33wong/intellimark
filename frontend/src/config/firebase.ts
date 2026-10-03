@@ -4,6 +4,7 @@
  */
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration from environment variables
 const firebaseConfig = {
@@ -20,11 +21,13 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let googleProvider: GoogleAuthProvider | null = null;
 let facebookProvider: FacebookAuthProvider | null = null;
+let db: Firestore | null = null;
 
 try {
   // Initialize Firebase
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
+  db = getFirestore(app);
 
   // Initialize Google Auth Provider
   googleProvider = new GoogleAuthProvider();
@@ -69,9 +72,10 @@ try {
   auth = null;
   googleProvider = null;
   facebookProvider = null;
+  db = null;
 }
 
 // Export all Firebase instances
-export { auth, googleProvider, facebookProvider };
+export { auth, googleProvider, facebookProvider, db };
 export default app;
 

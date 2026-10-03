@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Menu, Camera } from 'lucide-react';
+import { Menu, Camera, Star } from 'lucide-react';
 import './css/SessionManagement.css';
 
 const SessionHeader: React.FC = () => {
