@@ -19,14 +19,16 @@ const globalCache = {
     subscription: null as UserSubscription | null,
     loaded: false,
     timestamp: 0,
-    inProgressPromise: null as Promise<UserSubscription | null> | null
+    inProgressPromise: null as Promise<UserSubscription | null> | null,
+    userId: null as string | null
 };
 
 export const useSubscription = (): UseSubscriptionResult => {
     const { user } = useAuth();
-    // Initialize with cached data if available (prevents flickering)
-    const [subscription, setSubscription] = useState<UserSubscription | null>(globalCache.subscription);
-    const [loading, setLoading] = useState(!globalCache.loaded);
+    // Initialize with cached data if available AND belongs to current user
+    const isCacheValidForUser = globalCache.loaded && globalCache.userId === user?.uid;
+    const [subscription, setSubscription] = useState<UserSubscription | null>(isCacheValidForUser ? globalCache.subscription : null);
+    const [loading, setLoading] = useState(!isCacheValidForUser);
     const [error, setError] = useState<string | null>(null);
 
     const fetchSubscription = async () => {
@@ -36,15 +38,15 @@ export const useSubscription = (): UseSubscriptionResult => {
             return;
         }
 
-        // 1. Use cache if valid (1 minute)
-        if (!globalCache.inProgressPromise && globalCache.loaded && (Date.now() - globalCache.timestamp < 60000)) {
+        // 1. Use cache if valid (1 minute) AND belongs to the current user
+        if (!globalCache.inProgressPromise && globalCache.loaded && globalCache.userId === user.uid && (Date.now() - globalCache.timestamp < 60000)) {
             setSubscription(globalCache.subscription);
             setLoading(false);
             return;
         }
 
         // 2. Dedup parallel requests
-        if (globalCache.inProgressPromise) {
+        if (globalCache.inProgressPromise && globalCache.userId === user.uid) {
             setLoading(true);
             try {
                 const sub = await globalCache.inProgressPromise;
@@ -64,11 +66,13 @@ export const useSubscription = (): UseSubscriptionResult => {
                 globalCache.subscription = response.subscription;
                 globalCache.loaded = true;
                 globalCache.timestamp = Date.now();
+                globalCache.userId = user.uid;
                 return response.subscription;
             } else {
                 globalCache.subscription = null;
                 globalCache.loaded = true;
                 globalCache.timestamp = Date.now();
+                globalCache.userId = user.uid;
                 return null;
             }
         };
@@ -109,6 +113,7 @@ export const useSubscription = (): UseSubscriptionResult => {
         if (!user?.uid) {
             globalCache.subscription = null;
             globalCache.loaded = false;
+            globalCache.userId = null;
         }
     }, [user?.uid]);
 
