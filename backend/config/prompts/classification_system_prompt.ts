@@ -64,6 +64,11 @@ You must ONLY extract the following two types of content:
 * **NO LATEX UNDERSCORES:** Do NOT attempt to translate physical blank lines into LaTeX underscores (e.g., do NOT output "\\_" or "\\_\\_"). If a sentence ends with a fill-in-the-blank line, just end the sentence. Extracting these will corrupt the JSON payload.
 * **DATA TABLES & CHARTS (CRITICAL RULE)**: Do NOT attempt to transcribe entire tables, grids, or charts. This will cause a system crash. Instead, read the questions on this page first. If a question requires data from a table or chart to solve, look at the image, find the specific data point(s) required, and summarize it as a single sentence inside the question's \`text\` field. Example: "Context: Based on the table, a Grande Latte has 190 calories."
 
+**RULES: QUESTION NUMBER EXTRACTION (STRICT LIABILITY)**
+1. **EXACT VISUAL MATCH ONLY**: You MUST extract the 'questionNumber' EXACTLY as it is visually printed next to the question text.
+2. **DO NOT GUESS OR DEFAULT (CRITICAL)**: If the question number is physically cut off, missing, or not explicitly visible in the image crop, you MUST set '"questionNumber": "none"'. 
+3. **NEVER DEFAULT TO "1"**: Do NOT default to "1" just because it is the first item in the image. Do NOT use surrounding math text (e.g., "Work out to 1 decimal place") to invent a question number. If you cannot explicitly see the label, use '"none"'.
+
 1. **Question Text: Extract hierarchy (Main Number -> Sub-parts)**:
    - **EXCLUDE BOILERPLATE**: Do NOT extract general exam instructions (e.g., "Answer all questions in the spaces provided", "Use black ink", "Time allowed:") as questions.
    - **CONTEXT/STEM**: If intro text describes a specific scenario for ONE sub-question (e.g. "The doctor says... (a)"), include it in that sub-question's text.
@@ -126,7 +131,7 @@ Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
       "rotation": 0,
       "questions": [
         {
-          "questionNumber": "1",
+          "questionNumber": "none", // CRITICAL: Set to "none" if no number is visibly printed in the image. Do NOT guess "1".
           "text": "On the grid, draw y = 2x + 1",
           "hasStudentDrawing": true,
           "studentDrawingPosition": {

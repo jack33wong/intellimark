@@ -195,13 +195,20 @@ export const MarkingPageProvider = ({
     if (selectedMarkingResult) {
       const images = getSessionImages(selectedMarkingResult);
       if (images && images.length > 0) {
-        // Only auto-split on desktop
         const isMobile = window.innerWidth <= 768;
-        if (!isMobile) {
+        // Match MainLayout logic: check messages if session mode is undefined
+        const isQuestionMode = selectedMarkingResult.mode === 'Question' || 
+                               selectedMarkingResult.mode === 'Question Mode' ||
+                               (selectedMarkingResult.messages || []).some(m => m.type === 'question_response');
+        
+        // Only auto-split on desktop if NOT in Question Mode
+        if (!isMobile && !isQuestionMode) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',
             payload: { images: images, index: 0, isGlobal: true }
           });
+        } else {
+          dispatch({ type: 'EXIT_SPLIT_MODE' });
         }
         // Sync the ref now so the second useEffect knows we've already handled THIS session
         lastSyncedSessionId.current = selectedMarkingResult.id;
@@ -328,50 +335,65 @@ export const MarkingPageProvider = ({
       return;
     }
 
-    if (splitModeImages) {
-      const newImages = getSessionImages(currentSession);
-      const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
+    const newImages = getSessionImages(currentSession);
+    const sessionChanged = currentSession.id !== lastSyncedSessionId.current;
 
-      if (sessionChanged) {
-        // SAFETY: If we are in the middle of a history transition, don't revert to old session data
-        if (selectedMarkingResult && currentSession.id !== selectedMarkingResult.id) {
-          return;
-        }
+    // SAFETY: If we are in the middle of a history transition, don't revert to old session data
+    if (sessionChanged && selectedMarkingResult && currentSession.id !== selectedMarkingResult.id) {
+      return;
+    }
 
-        // [FIX]: If this is the FIRST time we are seeing a session ID (previously null),
-        // it means we just entered split mode in a fresh session. We should NOT force-reset
-        // to global view, but rather respect the user's intent (e.g., they clicked a specific image).
-        // Just sync the ID and return.
-        if (lastSyncedSessionId.current === null) {
-          lastSyncedSessionId.current = currentSession.id;
-          return;
-        }
+    const isMobile = window.innerWidth <= 768;
+    
+    const currentMode = (currentSession.mode || '').toLowerCase();
+    const isQuestionMode = currentMode === 'question' || 
+                           currentMode === 'question mode' ||
+                           (currentSession.messages || []).some(m => m.type === 'question_response');
+    
+    // 🌟 SIMPLIFIED FIX: Detect any active processing
+    const isActivelyProcessing = isProcessing || isAIThinking;
 
-        if (newImages && newImages.length > 0) {
-          // Only auto-split on desktop
-          const isMobile = window.innerWidth <= 768;
-          if (!isMobile) {
-            dispatch({
-              type: 'ENTER_SPLIT_MODE',
-              payload: { images: newImages, index: 0, isGlobal: true }
-            });
-          }
-          lastSyncedSessionId.current = currentSession.id;
-        } else {
-          dispatch({ type: 'EXIT_SPLIT_MODE' });
-          lastSyncedSessionId.current = currentSession.id;
-        }
+    // We ONLY auto-open if we are NOT on mobile, NOT in Question Mode, and NOT currently processing
+    const shouldAutoOpen = !isMobile && !isQuestionMode && !isActivelyProcessing && newImages && newImages.length > 0;
+
+    if (sessionChanged) {
+      if (shouldAutoOpen) {
+        dispatch({
+          type: 'ENTER_SPLIT_MODE',
+          payload: { images: newImages, index: 0, isGlobal: true }
+        });
+      } else if (splitModeImages && (!newImages || newImages.length === 0 || isQuestionMode || isActivelyProcessing)) {
+        dispatch({ type: 'EXIT_SPLIT_MODE' });
+      }
+      
+      if (!isActivelyProcessing) {
+        lastSyncedSessionId.current = currentSession.id;
+      }
+      return;
+    }
+
+    if (newImages && newImages.length > 0) {
+      if ((!splitModeImages || splitModeImages.length === 0) && shouldAutoOpen) {
+        dispatch({
+          type: 'ENTER_SPLIT_MODE',
+          payload: { images: newImages, index: 0, isGlobal: true }
+        });
+        lastSyncedSessionId.current = currentSession.id;
         return;
       }
 
-      // If same session but we are in GLOBAL split mode, sync with any NEW images (e.g. from more marking)
-      if (isGlobalSplit && newImages && newImages.length > 0) {
+      // 2. If we shouldn't auto-open but the panel is globally forced open, close it.
+      // (We check isGlobalSplit to ensure we don't close a modal the user manually clicked open)
+      if (splitModeImages && splitModeImages.length > 0 && !shouldAutoOpen && isGlobalSplit) {
+         dispatch({ type: 'EXIT_SPLIT_MODE' });
+         return;
+      }
+
+      // 3. Sync image sets if already open and valid
+      if (splitModeImages && splitModeImages.length > 0 && isGlobalSplit && !isQuestionMode && !isActivelyProcessing) {
         const hasAnnotatedNew = newImages.some(img => img.filename?.startsWith('annotated-'));
         const hasAnnotatedPrev = splitModeImages.some(img => img.filename?.startsWith('annotated-'));
 
-        // JUMP TO INDEX 0 IF:
-        // 1. Image set changed AND
-        // 2. We previously had NO annotated images but now we DO
         const shouldJumpToResults = hasAnnotatedNew && !hasAnnotatedPrev;
 
         if (newImages[0]?.id !== splitModeImages[0]?.id || newImages.length !== splitModeImages.length || shouldJumpToResults) {
@@ -386,7 +408,7 @@ export const MarkingPageProvider = ({
         }
       }
     }
-  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length, isGlobalSplit, currentSession]);
+  }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length, isGlobalSplit, currentSession, isProcessing, isAIThinking]);
 
   // Listen for model changes from Settings (or other tabs)
   useEffect(() => {
@@ -408,26 +430,28 @@ export const MarkingPageProvider = ({
     if (autoSplit && currentSession && selectedMarkingResult && currentSession.id === selectedMarkingResult.id) {
       const images = getSessionImages(currentSession);
       if (images && images.length > 0) {
-
-        // Ensure index is valid
-        const validIndex = initialImageIndex >= 0 && initialImageIndex < images.length
-          ? initialImageIndex
-          : 0;
-
-        // Only auto-split on desktop
+        const validIndex = initialImageIndex >= 0 && initialImageIndex < images.length ? initialImageIndex : 0;
         const isMobile = window.innerWidth <= 768;
-        if (!isMobile) {
+        
+        const currentMode = (currentSession.mode || '').toLowerCase();
+        const isQuestionMode = currentMode === 'question' || 
+                               currentMode === 'question mode' ||
+                               (currentSession.messages || []).some(m => m.type === 'question_response');
+        
+        const isActivelyProcessing = isProcessing || isAIThinking;
+
+        // DO NOT auto-split on mobile, in Question Mode, or during active processing
+        if (!isMobile && !isQuestionMode && !isActivelyProcessing) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',
             payload: { images, index: validIndex, isGlobal: true }
           });
         }
 
-        // Also ensure page mode is chat so we see the results
         dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
       }
     }
-  }, [autoSplit, selectedMarkingResult, currentSession, initialImageIndex]);
+  }, [autoSplit, selectedMarkingResult, currentSession, initialImageIndex, isProcessing, isAIThinking]);
 
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);

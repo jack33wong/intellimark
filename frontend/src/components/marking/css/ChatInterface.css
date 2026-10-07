@@ -1517,13 +1517,32 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 
 /* Mobile responsive */
 
+/* Full Screen Image Mode Overlay (Used on Mobile AND Question Mode Desktop) */
+.mobile-image-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20000;
+  /* Above everything including loading spinner */
+  background: var(--background-gray-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-image-viewer-overlay .image-viewer-root {
+  height: 100%;
+  width: 100%;
+}
+
 /* Mobile responsive adjustments for Split Mode and Chat */
 @media (max-width: 768px) {
   .landing-intro-image {
     width: 95%;
   }
 
-  /* Full Screen Image Mode on Mobile */
   /* Full-width Chat on Mobile */
   .mark-homework-main-content {
     width: 100%;
@@ -1531,23 +1550,6 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
     flex-direction: column;
     min-height: 0;
     flex: 1;
-  }
-
-  /* Mobile Image Viewer Overlay */
-  .mobile-image-viewer-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 20000;
-    /* Above everything including loading spinner */
-    background: var(--background-gray-main);
-  }
-
-  .mobile-image-viewer-overlay .image-viewer-root {
-    height: 100%;
-    width: 100%;
   }
 
   /* Compact Headers on Mobile */

@@ -425,7 +425,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
             <SessionManagement key={currentSession.id} />
           )}
 
-          {!isModelAnswerMode && !isMarkingSchemeMode && (
+          {/* 🛡️ HIDE RIBBON IN QUESTION MODE: Added !isQuestionMode to the condition */}
+          {!isModelAnswerMode && !isMarkingSchemeMode && !isQuestionMode && (
             <div className="marking-header-ribbon-row">
               <div className="ribbon-wrapper-full-width">
                 {/* Sticky Ribbon Navigator for Chat Mode */}
@@ -550,7 +551,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   // Determine layout class
   const isMobile = window.innerWidth <= 768;
   const hasImages = splitModeImages && splitModeImages.length > 0;
-  const showSplitView = hasImages && !isMobile;
+  
+  // 1. Lift Question Mode evaluation
+  const sessionMode = (currentSession?.mode || '').toLowerCase();
+  const hasQuestionResponseType = (chatMessages || []).some((m: any) => m.type === 'question_response');
+  
+  const isQuestionMode = sessionMode === 'question' || 
+                         sessionMode === 'question mode' ||
+                         hasQuestionResponseType;
+
+  // 2. Simplified Processing Check: If AI is thinking at all, block the view
+  const isActivelyProcessing = isProcessing || isAIThinking;
+
+  // 3. Force showSplitView to false if in Question Mode OR during any active processing
+  const showSplitView = hasImages && !isMobile && !isQuestionMode && !isActivelyProcessing;
 
   const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${showSplitView ? 'split-mode' : ''}`;
 
@@ -582,7 +596,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
           <div className="mark-homework-main-content">
             {renderChatContent()}
           </div>
-          {isMobile && hasImages && (
+          {(isMobile || isQuestionMode) && hasImages && (
             <div className="mobile-image-viewer-overlay">
               <ImageViewer
                 key={currentSession?.id || 'viewer-mobile'}

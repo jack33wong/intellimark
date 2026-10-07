@@ -26,7 +26,7 @@ export interface SessionImage {
  * @returns boolean - True if message has image
  */
 export const hasImage = (message: UnifiedMessage): boolean => {
-  return !!(message.imageData || message.imageLink || (message.imageDataArray && message.imageDataArray.length > 0));
+  return !!(message.imageData || message.imageLink || (message.imageDataArray && message.imageDataArray.length > 0) || ((message as any).pdfContexts && (message as any).pdfContexts.length > 0) || (message as any).originalFileType === 'pdf');
 };
 
 /**
@@ -96,6 +96,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             if (typeof src !== 'string' || seenImageSrcs.has(src)) {
               return;
             }
+
+            // Filter strictly by the actual URL extension, not the original document name
+            const isPdfUrl = typeof src === 'string' && src.toLowerCase().split('?')[0].endsWith('.pdf');
+            if (isPdfUrl) return;
+
             seenImageSrcs.add(src);
 
             const finalFileName = originalFileName ||
@@ -129,7 +134,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
         // Handle single image
         try {
           const src = getImageSrc(message);
-          if (typeof src === 'string' && !seenImageSrcs.has(src)) {
+          
+          // Filter strictly by the actual URL extension
+          const isPdfUrl = typeof src === 'string' && src.toLowerCase().split('?')[0].endsWith('.pdf');
+          
+          if (typeof src === 'string' && !seenImageSrcs.has(src) && !isPdfUrl) {
             seenImageSrcs.add(src);
             const originalFileName = (message as any)?.originalFileName || `image-${message.id}`;
             const filename = isAnnotated ? `annotated-${originalFileName}` : originalFileName;

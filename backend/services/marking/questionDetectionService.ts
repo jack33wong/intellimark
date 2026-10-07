@@ -223,10 +223,17 @@ export class QuestionDetectionService {
         if (isRescueMode) {
           shouldAccept = winner.score >= rescueThreshold;
         } else {
-          shouldAccept = (winner.score >= strictThreshold) || isRelativeWinner;
+          // 🛡️ GLOBAL SEARCH PROTECTION
+          // Prevent a random paper from hijacking the session just because it's the "best of the worst"
+          // If it's a global search and relying on relative confidence, demand a minimum text score.
+          if (!isNarrowSearch && isRelativeWinner && winner.score < strictThreshold) {
+             shouldAccept = winner.scoreDetails.text >= 0.50; 
+          } else {
+             shouldAccept = (winner.score >= strictThreshold) || isRelativeWinner;
+          }
         }
 
-        const minimumTextScore = isRescueMode ? 0.15 : 0.25; // Relaxed slightly for context matches
+        const minimumTextScore = isRescueMode ? 0.15 : 0.25; 
 
         if (shouldAccept && winner.scoreDetails.text >= minimumTextScore) {
 
@@ -286,15 +293,11 @@ export class QuestionDetectionService {
       : Object.entries(questions).map(([k, v]) => ({ num: String((v as any).question_number || k), data: v }));
 
     for (const { num: qNum, data: qData } of questionIterator) {
-      // 1. Base Number Check
-      const hintBase = hintQNum ? hintQNum.match(/^\d+/)?.[0] : null;
-      const currentBase = qNum.match(/^\d+/)?.[0];
+      // [REMOVED THE HARD SKIP CONTINUATION LOOP]
+      // We no longer skip candidates based on mismatched numbers. 
+      // We rely entirely on the scoring engine to filter them out safely.
 
-      if (!isRescueMode && hintBase && currentBase && hintBase !== currentBase) {
-        continue;
-      }
-
-      // 2. CONSTRUCT AGGREGATE DB TEXT (For Scoring Only)
+      // 2. CONSTRUCT AGGREGATE DB TEXT
       const parentText = (qData.question_text || qData.text || qData.question || '').trim();
       let searchAggregateText = parentText + ' ';
 
@@ -306,7 +309,7 @@ export class QuestionDetectionService {
       }
 
       // 3. COMPARE BLOCKS
-      const scoreDetails = this.calculateHybridScore(inputQueryText, searchAggregateText, hintQNum, qNum, null, isRescueMode);
+      const scoreDetails = this.calculateHybridScore(inputQueryText, searchAggregateText, hintQNum, qNum, isRescueMode);
 
       // 4. THRESHOLD
       if (scoreDetails.total > 0.15) {
@@ -315,7 +318,7 @@ export class QuestionDetectionService {
           questionData: qData,
           questionNumber: qNum,
           subQuestionNumber: '',
-          databaseText: parentText, // [FIX]: Return ONLY the parent text, not the search join.
+          databaseText: parentText, 
           score: scoreDetails.total,
           scoreDetails
         });
@@ -330,41 +333,57 @@ export class QuestionDetectionService {
     dbText: string,
     hint: string | null,
     dbQNum: string,
-    dbSubPart: string | null,
     isRescueMode: boolean
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
-    // 🛡️ [REUSE]: Delegate to centralized SimilarityService (Strict Question Mode)
     const details = SimilarityService.calculateQuestionHybridScore(inputText, dbText, isRescueMode);
 
-    // 4. Structural Match (Remains in Detection Service as it's specific to Paper search)
-    let structureScore = 0.5; // Neutral for global search without hints
+    // 1. Standard Structural Match
+    let structureScore = 0.5; // Neutral default
+    
+    // Define safeguard early so we can use it here
+    const isLikelyCroppedDefault = hint && hint.match(/^\d+/)?.[0] === "1";
+
     if (hint) {
       const hintBase = hint.match(/^\d+/)?.[0];
       const dbBase = dbQNum.match(/^\d+/)?.[0];
-      if (hintBase === dbBase) structureScore = 1.0;
-      else structureScore = 0.0; // Hard fail if numbers differ
+      
+      if (hintBase === dbBase) {
+        structureScore = 1.0;
+      } else if (isLikelyCroppedDefault) {
+        // 🌟 GIVE IT BREATHING ROOM: 
+        // If the AI hallucinated "1", treat the structure score as Neutral (0.5) 
+        // instead of a Hard Fail (0.0). This lets the text score carry the win.
+        structureScore = 0.5;
+      } else {
+        structureScore = 0.0;
+      }
     }
 
-    // [AND GATE LOGIC]: 
-    // Final score is a mix, but we apply a "Kill Switch" if either side is too weak.
+    // 🌟 TEXT-DOMINANCE OVERRIDE (The Permanent Fix)
+    // If text similarity is extremely high, it's definitively the exact same question.
+    // This safely overrules AI number hallucinations, cropped images, or custom teacher worksheets.
+    const isDefinitiveTextMatch = details.text >= 0.85;
+
     let finalTotal = (details.total * 0.7) + (structureScore * 0.3);
 
-    // 🛡️ [CONTENT-LOCK]: If text similarity is low (<0.4), 
-    // don't let a matching Question Number (structureScore=1.0) push it into the success zone.
-    // This implements the "AND" condition: Quality Text AND Correct Number.
-    if (structureScore > 0.8 && details.text < 0.4) {
-      finalTotal *= 0.4; // Drastic drop for generic labels like "Question 12"
+    // 🛡️ [CONTENT-LOCK]: Stop math coincidence matching (The False-Positive Killer)
+    if (structureScore > 0.8 && details.text < 0.50) {
+      finalTotal *= 0.4; 
     }
 
-    // 🛡️ [GREAT PENALTY - HARD REJECT]: If hint is provided but doesn't match, strictly suppress.
-    // [V30 FIX] Only apply if NOT in rescue mode.
-    if (!isRescueMode && hint && structureScore < 0.8) {
+    // 🛡️ [GREAT PENALTY - HARD REJECT]
+    // Only crush the score if the numbers don't match AND the text isn't a definitive match.
+    if (!isRescueMode && hint && structureScore < 0.8 && !isDefinitiveTextMatch) {
       finalTotal = 0;
-    } else if (hint && structureScore < 0.8) {
-      // Still apply a small penalty in rescue mode to favor better matches,
-      // but don't Hard Reject.
+    } else if (hint && structureScore < 0.8 && !isDefinitiveTextMatch) {
       finalTotal *= 0.1;
+    }
+
+    // 🏆 CROWN THE WINNER
+    // If text is undeniably identical, bypass the structural penalty completely to guarantee a win.
+    if (isDefinitiveTextMatch && structureScore === 0.0) {
+      finalTotal = details.total; 
     }
 
     return {
@@ -449,9 +468,25 @@ export class QuestionDetectionService {
   }
 
   private sanitizeQuestionHint(hint: string | undefined | null): string | null {
-    if (!hint) return null;
-    let clean = hint.toLowerCase().trim();
+    if (hint === null || hint === undefined) return null;
+    
+    // Safely cast to string to handle unexpected types, then normalize
+    let clean = String(hint).toLowerCase().trim();
+    
+    // 🛡️ Destroy stringified nulls, undefineds, or empty strings
+    if (clean === 'null' || clean === 'undefined' || clean === '') {
+      return null;
+    }
+    
     if (clean === 'l') clean = '1';
+    
+    // 🛡️ CROPPED IMAGE SAFEGUARD: 
+    // If the upstream mapper replaces null with a placeholder like "General" or "?",
+    // destroy it. A valid question hint MUST contain at least one digit.
+    if (!/\d/.test(clean)) {
+      return null;
+    }
+    
     return clean;
   }
 
