@@ -20,7 +20,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 3.1 Flash-Lite',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent',
     maxTokens: 8192,
-    temperature: 0.3,
     label: 'Fast',
     description: 'Answers quickly'
   },
@@ -28,7 +27,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 3 Flash Preview',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
     maxTokens: 8192,
-    temperature: 0.1,
     label: 'Thinking',
     description: 'Deep reasoning, takes longer'
   },
@@ -36,7 +34,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 3.7 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent',
     maxTokens: 8192,
-    temperature: 0.1,
     label: 'Pro',
     description: 'High-performance reasoning'
   },
@@ -44,7 +41,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 3.5 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
     maxTokens: 8192,
-    temperature: 0.1,
     label: 'Pro',
     description: 'Best for complex coding & math'
   },
@@ -52,7 +48,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 2.5 Flash-Lite',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
     maxTokens: 8192,
-    temperature: 0.3,
     label: 'Fast',
     description: 'Answers quickly'
   },
@@ -60,7 +55,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 2.5 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
     maxTokens: 8192,
-    temperature: 0.1,
     label: 'Thinking',
     description: 'Deep reasoning, takes longer'
   },
@@ -68,7 +62,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'Gemini 2.5 Pro',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     maxTokens: 8192,
-    temperature: 0.1,
     label: 'Pro',
     description: 'Best for complex coding & math'
   },
@@ -76,7 +69,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'OpenAI GPT-4o',
     apiEndpoint: 'openai', // Special marker for OpenAI provider
     maxTokens: 16384,
-    temperature: 0.1,
     label: 'GPT-4o',
     description: 'OpenAI flagship model'
   },
@@ -84,7 +76,6 @@ export const AI_MODELS: Record<Exclude<ModelType, 'auto'>, AIModelConfig> = {
     name: 'OpenAI GPT-4o Mini',
     apiEndpoint: 'openai', // Special marker for OpenAI provider
     maxTokens: 16384,
-    temperature: 0.1
   },
 
 };
@@ -187,8 +178,7 @@ export function validateModelConfig(modelOrTier: string): boolean {
     return !!(
       config.name &&
       config.apiEndpoint &&
-      config.maxTokens &&
-      typeof config.temperature === 'number'
+      typeof config.maxTokens === 'number'
     );
   } catch {
     return false;
@@ -260,20 +250,9 @@ export function getModelParameters(modelOrTier: string): Record<string, any> {
   const modelType = resolveModelTier(modelOrTier);
   const config = getModelConfig(modelType);
 
-  switch (modelType) {
-    case 'gemini-2.5-flash-lite':
-      return {
-        maxOutputTokens: config.maxTokens,
-        temperature: config.temperature,
-        topP: 0.8,
-        topK: 40
-      };
-    default:
-      return {
-        maxOutputTokens: config.maxTokens,
-        temperature: config.temperature
-      };
-  }
+  return {
+    maxOutputTokens: config.maxTokens
+  };
 }
 
 /**

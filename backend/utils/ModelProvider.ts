@@ -90,7 +90,7 @@ export class ModelProvider {
           thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
           maxTokens = 8192;
         } else if ((model as string) === 'thinking') {
-          thinkingConfig = { thinkingBudget: 4096 };
+          thinkingConfig = { thinkingLevel: ThinkingLevel.MEDIUM };
           maxTokens = 8192; // 🛑 INCREASED from 4096 to ensure response has room
         } else {
           thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
@@ -102,7 +102,6 @@ export class ModelProvider {
         model: modelName,
         contents: userPrompt,
         config: {
-          temperature: config.temperature,
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
@@ -196,7 +195,7 @@ export class ModelProvider {
           thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
           maxTokens = 8192;
         } else if ((model as string) === 'thinking') {
-          thinkingConfig = { thinkingBudget: 4096 };
+          thinkingConfig = { thinkingLevel: ThinkingLevel.MEDIUM };
           maxTokens = 8192; // 🛑 INCREASED from 4096 to ensure response has room
         } else {
           thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
@@ -211,7 +210,6 @@ export class ModelProvider {
           { text: userPrompt }
         ] as any,
         config: {
-          temperature: config.temperature,
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens, // ⬅️ MATCH callGeminiText BEHAVIOR
           ...(forceJsonResponse && { responseMimeType: "application/json" }), // ⬅️ FORCE JSON SCHEMA
           systemInstruction: systemPrompt,

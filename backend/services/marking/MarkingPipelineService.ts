@@ -651,8 +651,75 @@ export class MarkingPipelineService {
             }));
 
             if (standardizedPages.length === 0) {
-                // If all pages were ejected/rejected, stop downstream
-                throw new Error(lastRejectionReason);
+                console.log(`⚠️ [PIPELINE] All pages rejected by Geometry check. Short-circuiting gracefully.`);
+                progressCallback(createProgressData(2, 'Content rejected by quality inspector.', MULTI_IMAGE_STEPS));
+                
+                // Persist the rejected session so it shows in Library and chat history
+                try {
+                    const userMessage = createUserMessage({
+                        content: 'Uploaded document for analysis',
+                        pdfContexts: files.map(f => ({ url: f.path, originalFileName: f.originalname, fileSize: f.size }))
+                    });
+                    
+                    const aiMessage = createAIMessage({
+                        content: lastRejectionReason || 'The uploaded image could not be processed because it is blurry, unreadable, or does not contain educational content.'
+                    });
+
+                    const markingContext: MarkingSessionContext = {
+                        req,
+                        submissionId,
+                        startTime,
+                        userMessage,
+                        aiMessage,
+                        questionDetection: options.markingScheme,
+                        // 🛡️ SAFE TITLE FALLBACK: Use custom text, OR the filename, OR a safe default
+                        globalQuestionText: options.customText || (files && files[0] ? files[0].originalname : 'Rejected Document'),
+                        mode: 'Question', // Fallback to Question Mode so no marking UI is rendered
+                        allQuestionResults: [],
+                        files,
+                        usageTokens: usageTracker.getTotalTokens(),
+                        apiRequests: usageTracker.getTotalRequests(),
+                        model: actualModel,
+                        mathpixCallCount: 0, // Bypassed Mathpix!
+                        totalCost: usageTracker.calculateCost(actualModel).total,
+                        detectionResults: []
+                    };
+
+                    const sessionResult = await SessionManagementService.persistMarkingSession(markingContext);
+                    
+                    const finalOutput = {
+                        success: true,
+                        submissionId,
+                        mode: 'Question',
+                        sessionId: sessionResult.sessionId,
+                        unifiedSession: sessionResult.unifiedSession,
+                        annotatedOutput: [],
+                        results: [],
+                        warning: "CONTENT_REJECTED",
+                        processingStats: {
+                            totalLLMTokens: usageTracker.getTotalTokens(),
+                            mathpixCalls: 0
+                        },
+                        // Attach the PDF/File context so the frontend renders the user's upload card
+                        ...(pdfContext && {
+                            originalFileType: pdfContext.originalFileType,
+                            originalPdfLink: pdfContext.originalPdfLink,
+                            originalPdfDataUrl: pdfContext.originalPdfDataUrl,
+                            originalFileName: pdfContext.originalFileName,
+                            ...(pdfContext.pdfContexts && {
+                                pdfContexts: pdfContext.pdfContexts
+                            })
+                        })
+                    };
+
+                    progressCallback({ type: 'complete', result: finalOutput });
+                    console.log(`✅ [EARLY EXIT] Persisted rejected session: ${sessionResult.sessionId} | Reason: ${lastRejectionReason}`);
+                    return finalOutput;
+
+                } catch (persistError) {
+                    console.error('❌ [EARLY EXIT] Failed to persist rejected session:', persistError);
+                    throw new Error(lastRejectionReason); // Fallback to hard crash if database fails
+                }
             }
 
             logGeometryComplete();
