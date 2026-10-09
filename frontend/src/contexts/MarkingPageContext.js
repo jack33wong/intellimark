@@ -674,6 +674,11 @@ export const MarkingPageProvider = ({
           setShowCreditsModal(true);
         } else {
           handleError(err);
+          // 🛡️ THE FIX: Destroy the temp session so the UI doesn't lock up
+          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+          }
         }
         stopAIThinking();
         stopProcessing();
@@ -755,6 +760,11 @@ export const MarkingPageProvider = ({
           setShowCreditsModal(true);
         } else {
           handleError(err);
+          // 🛡️ THE FIX: Destroy the temp session so the UI doesn't lock up
+          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+          }
         }
         stopAIThinking();
         stopProcessing();

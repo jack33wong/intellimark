@@ -31,7 +31,7 @@ export class ExamReferenceService {
                 }
                 return c;
             });
-            
+
             if (hasConcat) {
                 expandedVariations.push(newChunks.join(' '));
                 expandedVariations.push(newChunks.join('/'));
@@ -47,7 +47,7 @@ export class ExamReferenceService {
 
         const mappedVariations: string[] = [];
         variations.forEach(v => {
-            // Split to ensure we accurately replace full words only (e.g., 'nov' -> 'november', not 'november' -> 'novemberember')
+            // Split to ensure we accurately replace full words only
             const words = v.split(/[\s/]+/);
             let hasShortMonth = false;
             const newWords = words.map(w => {
@@ -63,7 +63,6 @@ export class ExamReferenceService {
             }
         });
         variations.push(...mappedVariations);
-
 
         // 4. Handle Summer/June/May equivalence (Existing Logic)
         const yearMatch = input.match(/\d{4}/);
@@ -91,7 +90,6 @@ export class ExamReferenceService {
 
         // Final Merge
         const all = [...variations, ...summerVariations];
-        // Deduplicate and lower-case checks
         return Array.from(new Set(all));
     }
 
@@ -99,7 +97,7 @@ export class ExamReferenceService {
      * Finds an exam paper by ID or by searching with simplified fallbacks
      */
     public static async findPaper(paperInput: string): Promise<any | null> {
-        // 1. Try direct ID lookup first
+        // 1. Try direct ID lookup first (Catches Main Page links)
         try {
             const directDoc = await this.db.collection('fullExamPapers').doc(paperInput).get();
             if (directDoc.exists) {
@@ -117,19 +115,10 @@ export class ExamReferenceService {
         const searchVariations = this.generateFallbacks(normalizedInput);
         console.log(`ℹ️ [EXAM-REF] Searching papers with variations: ${JSON.stringify(searchVariations)}`);
 
-        // Build vocabulary once (not inside the loop)
+        // Common "fluff" words that users type but aren't strictly in the database metadata
+        const stopWords = new Set(['gcse', 'igcse', 'alevel', 'a-level', 'tier', 'paper', 'exam', 'the', 'for']);
         const normalize = (t: string) => t.toLowerCase().replace(/\bmathematics\b/g, 'maths').replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
-        const vocabulary = new Set<string>();
-        papers.forEach((paper: any) => {
-            const m = paper.metadata;
-            if (!m) return;
-            normalize(`${m.exam_board} ${m.exam_code} ${m.exam_series} ${m.tier}`)
-                .split(/\s+/).forEach(word => { if (word.length > 0) vocabulary.add(word); });
-        });
 
-        // Best-Match Scoring: pick the paper with the highest number of specific tokens matched.
-        // This prevents ambiguous variations (e.g. 'j560 02') from winning over specific ones
-        // (e.g. 'j560 02 november 2021') just because the ambiguous one appears first.
         let bestPaper: any = null;
         let bestScore = 0;
 
@@ -140,28 +129,59 @@ export class ExamReferenceService {
             const pCode = normalize(meta.exam_board || '') + ' ' + normalize(meta.exam_code || '') + ' ' + normalize(meta.exam_series || '') + (meta.tier ? ' ' + normalize(meta.tier) : '');
             const pTokens = pCode.split(/\s+/);
 
+            // Clean exam code for exact substring matching (e.g., "8300/1f" -> "83001f")
+            const exactCode = (meta.exam_code || '').toLowerCase().replace(/[\s\-\/]/g, '');
+            const exactYearMatch = (meta.exam_series || '').match(/\d{4}/);
+            const exactYear = exactYearMatch ? exactYearMatch[0] : null;
+
             let paperBestScore = 0;
+
             searchVariations.forEach(v => {
                 const nv = normalize(v);
                 const rawInputTokens = nv.split(/\s+/).filter(t => t.length > 0 && /[a-z0-9]/i.test(t));
                 if (rawInputTokens.length === 0) return;
 
-                // Filter to known vocabulary tokens only
-                const inputTokens = Array.from(new Set(rawInputTokens.filter(k => vocabulary.has(k))));
-                if (inputTokens.length === 0) return;
+                // Remove fluff words before scoring
+                const inputTokens = rawInputTokens.filter(t => !stopWords.has(t));
 
-                // Check if all input tokens are found in this paper
-                const allMatch = inputTokens.every(it =>
-                    pTokens.some(pt => {
+                let matchScore = 0;
+                let matchedTokens = 0;
+
+                // 1. Calculate Token Overlap
+                inputTokens.forEach(it => {
+                    const matched = pTokens.some(pt => {
                         if (pt === it) return true;
                         if (/^\d+$/.test(pt) && /^\d+$/.test(it)) return parseInt(pt) === parseInt(it);
-                        return pt.includes(it);
-                    })
-                );
+                        // Allow partial overlap only for longer strings to avoid false positives
+                        return (pt.length > 3 && it.length > 3) && (pt.includes(it) || it.includes(pt));
+                    });
 
-                if (allMatch) {
-                    // Score = number of matched tokens (more specific = higher score)
-                    paperBestScore = Math.max(paperBestScore, inputTokens.length);
+                    if (matched) {
+                        matchedTokens++;
+                        matchScore += 1;
+                    }
+                });
+
+                // 2. Heavy Bonus for Exact Exam Code Match (Crucial for disambiguation)
+                const rawInputNoSpaces = v.toLowerCase().replace(/[\s\-\/]/g, '');
+                if (exactCode && exactCode.length > 2 && rawInputNoSpaces.includes(exactCode)) {
+                    matchScore += 10;
+                }
+
+                // 3. Heavy Bonus for Exact Year Match
+                if (exactYear && rawInputNoSpaces.includes(exactYear)) {
+                    matchScore += 5;
+                }
+
+                // 4. Heavy Penalty for Year Contradiction (Prevents grabbing 2024 when asking for 2025)
+                const inputYearMatch = v.match(/\d{4}/);
+                if (inputYearMatch && exactYear && inputYearMatch[0] !== exactYear) {
+                    matchScore -= 20;
+                }
+
+                // Only consider it a valid candidate if it matched the exam code OR matched at least 2 strong tokens
+                if (matchScore > 0 && (matchScore >= 10 || matchedTokens >= 2)) {
+                    paperBestScore = Math.max(paperBestScore, matchScore);
                 }
             });
 
@@ -199,19 +219,19 @@ export class ExamReferenceService {
         const queryVariations = schemeSearchVariations.slice(0, 10);
 
         let metaSnapshot = await this.db.collection('markingSchemes')
-            .where('examDetails.paperCode', '==', paperCode)
-            .where('examDetails.exam_series', 'in', queryVariations)
-            .limit(1)
-            .get();
+        .where('examDetails.paperCode', '==', paperCode)
+        .where('examDetails.exam_series', 'in', queryVariations)
+        .limit(1)
+        .get();
 
         if (metaSnapshot.empty && paperCode?.includes('/')) {
             const altCode = paperCode.replace('/', '-');
             console.log(`ℹ️ [EXAM-REF] Retrying scheme search with alt code: ${altCode}`);
             metaSnapshot = await this.db.collection('markingSchemes')
-                .where('examDetails.paperCode', '==', altCode)
-                .where('examDetails.exam_series', 'in', queryVariations)
-                .limit(1)
-                .get();
+            .where('examDetails.paperCode', '==', altCode)
+            .where('examDetails.exam_series', 'in', queryVariations)
+            .limit(1)
+            .get();
         }
 
         if (!metaSnapshot.empty) {
@@ -241,19 +261,19 @@ export class ExamReferenceService {
 
         const rawQual = (meta.qualification || meta.subject || '').toLowerCase();
         const code = (meta.exam_code || meta.code || '').toLowerCase();
-        
+
         // Robust Qualification Detection: Check explicit metadata and common A-Level code patterns
-        const isAlevel = rawQual.includes('a level') || rawQual.includes('alevel') || 
-                        code.startsWith('7357') || code.startsWith('7356') || code.startsWith('7367') || // AQA
-                        code.startsWith('9ma0') || code.startsWith('8ma0') || code.startsWith('9fm0') || code.startsWith('8fm0') || // Edexcel
-                        code.startsWith('h240') || code.startsWith('h230') || code.startsWith('h640') || code.startsWith('h630'); // OCR
-        
+        const isAlevel = rawQual.includes('a level') || rawQual.includes('alevel') ||
+            code.startsWith('7357') || code.startsWith('7356') || code.startsWith('7367') || // AQA
+            code.startsWith('9ma0') || code.startsWith('8ma0') || code.startsWith('9fm0') || code.startsWith('8fm0') || // Edexcel
+            code.startsWith('h240') || code.startsWith('h230') || code.startsWith('h640') || code.startsWith('h630'); // OCR
+
         let formattedTier = '';
         let tierCode = 'All';
-        
+
         if (!isAlevel) {
             let rawTier = (meta.tier || '').toLowerCase();
-            
+
             // Fallback: Extract Tier from code suffix (e.g. 8300/1F -> Foundation)
             if (!rawTier || (rawTier !== 'h' && rawTier !== 'f' && rawTier !== 'higher' && rawTier !== 'foundation')) {
                 const codeMatch = code.match(/([fh])($|\s|\/)/);
@@ -271,9 +291,9 @@ export class ExamReferenceService {
 
         const isGcse = !isAlevel && (rawQual.includes('gcse') || !!formattedTier || !rawQual || rawQual === 'mathematics' || rawQual === 'maths');
 
-        return { 
-            series: formattedSeries, 
-            tier: formattedTier, 
+        return {
+            series: formattedSeries,
+            tier: formattedTier,
             tierCode: tierCode,
             qualification: isAlevel ? 'A-Level' : 'GCSE',
             isAlevel,

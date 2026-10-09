@@ -244,7 +244,69 @@ export class MarkingSchemeController {
             }
 
             if (!detectedQuestion) {
-                throw new Error('Could not find exam paper metadata. Please check the paper name.');
+                console.log(`⚠️ [MARKING-SCHEME] Paper not found. Generating graceful fallback response.`);
+                
+                // 1. Create a real session ID since we are bypassing the normal flow
+                if (!sessionId) {
+                    sessionId = `session-marking-scheme-${Date.now()}`;
+                }
+
+                // 2. Create the user message
+                const userMessage = createUserMessage({
+                    content: `Explain marking scheme for: ${paper}`,
+                    sessionId: sessionId,
+                    model: model
+                });
+
+                // 3. Create a polite AI fallback message
+                const fallbackContent = `I couldn't find the exact exam paper for "**${paper}**" in my database just yet. \n\nPlease check the spelling or try providing the specific exam board, qualification (e.g., GCSE/A-Level), year, and paper code (e.g., "AQA GCSE Math 8300 Paper 1 2023").`;
+
+                const aiMessage = createAIMessage({
+                    content: fallbackContent,
+                    messageId: providedAiMessageId,
+                    category: 'questionOnly', 
+                    progressData: {
+                        type: 'marking-scheme',
+                        currentStepDescription: 'Search completed',
+                        allSteps: ['Finding exam paper...'],
+                        currentStepIndex: 1,
+                        isComplete: true
+                    },
+                    processingStats: {
+                        modelUsed: resolveModelTier(model),
+                        apiUsed: 'System Fallback',
+                        llmTokens: 0,
+                        totalCost: 0,
+                        processingTimeMs: Date.now() - startTime
+                    }
+                });
+
+                // 4. Persist to database so the frontend gets a real, permanent chat history
+                if (isAuthenticated) {
+                    await FirestoreService.createUnifiedSessionWithMessages({
+                        sessionId: sessionId,
+                        title: `Search: ${paper.substring(0, 30)}`,
+                        userId: userId,
+                        messageType: 'Chat',
+                        messages: [userMessage, aiMessage],
+                        usageMode: 'marking-scheme'
+                    });
+                }
+
+                // 5. Send successful complete event to the frontend
+                sendSseUpdate(res, {
+                    type: 'complete',
+                    result: {
+                        success: true,
+                        sessionId,
+                        sessionTitle: `Search: ${paper.substring(0, 30)}`,
+                        aiMessage,
+                        warning: 'PAPER_NOT_FOUND'
+                    }
+                });
+
+                res.end();
+                return; // 🛑 Exit early so it doesn't crash or run downstream code!
             }
 
             // 4. Create Session & Messages
