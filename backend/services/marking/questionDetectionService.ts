@@ -341,49 +341,48 @@ export class QuestionDetectionService {
     // 1. Standard Structural Match
     let structureScore = 0.5; // Neutral default
     
-    // Define safeguard early so we can use it here
-    const isLikelyCroppedDefault = hint && hint.match(/^\d+/)?.[0] === "1";
+    // 🛡️ THE FIX: Define safeguard for hallucinated "1"s and track explicit conflicts
+    const hintBase = hint ? hint.match(/^\d+/)?.[0] : null;
+    const isLikelyCroppedDefault = hintBase === "1";
+    let explicitNumberConflict = false; 
 
     if (hint) {
-      const hintBase = hint.match(/^\d+/)?.[0];
       const dbBase = dbQNum.match(/^\d+/)?.[0];
       
       if (hintBase === dbBase) {
         structureScore = 1.0;
       } else if (isLikelyCroppedDefault) {
-        // 🌟 GIVE IT BREATHING ROOM: 
-        // If the AI hallucinated "1", treat the structure score as Neutral (0.5) 
-        // instead of a Hard Fail (0.0). This lets the text score carry the win.
+        // 🌟 OCR EXEMPTION: Give breathing room if the AI likely hallucinated "1" due to cropping
         structureScore = 0.5;
       } else {
+        // The hint is NOT '1' and it does NOT match the DB. This is a definitive conflict.
         structureScore = 0.0;
+        explicitNumberConflict = true; 
       }
     }
 
-    // 🌟 TEXT-DOMINANCE OVERRIDE (The Permanent Fix)
-    // If text similarity is extremely high, it's definitively the exact same question.
-    // This safely overrules AI number hallucinations, cropped images, or custom teacher worksheets.
     const isDefinitiveTextMatch = details.text >= 0.85;
-
     let finalTotal = (details.total * 0.7) + (structureScore * 0.3);
 
-    // 🛡️ [CONTENT-LOCK]: Stop math coincidence matching (The False-Positive Killer)
+    // 🛡️ [CONTENT-LOCK]: Stop math coincidence matching
     if (structureScore > 0.8 && details.text < 0.50) {
       finalTotal *= 0.4; 
     }
 
-    // 🛡️ [GREAT PENALTY - HARD REJECT]
-    // Only crush the score if the numbers don't match AND the text isn't a definitive match.
-    if (!isRescueMode && hint && structureScore < 0.8 && !isDefinitiveTextMatch) {
-      finalTotal = 0;
-    } else if (hint && structureScore < 0.8 && !isDefinitiveTextMatch) {
-      finalTotal *= 0.1;
-    }
-
-    // 🏆 CROWN THE WINNER
-    // If text is undeniably identical, bypass the structural penalty completely to guarantee a win.
-    if (isDefinitiveTextMatch && structureScore === 0.0) {
-      finalTotal = details.total; 
+    // 🛡️ THE FIX: Strict Conflict Handling
+    if (explicitNumberConflict) {
+      if (!isRescueMode) {
+        // HARD REJECT: In Global Search, a hard number mismatch (e.g. Q3 vs Q8) is a guaranteed fail.
+        finalTotal = 0; 
+      } else {
+        // PENALTY: Heavily penalize in Rescue Mode to prevent overwriting other valid questions.
+        finalTotal *= 0.1;
+      }
+    } else {
+      // 🏆 CROWN THE WINNER (Only if NO explicit conflict exists)
+      if (isDefinitiveTextMatch && structureScore === 0.0) {
+        finalTotal = details.total; 
+      }
     }
 
     return {

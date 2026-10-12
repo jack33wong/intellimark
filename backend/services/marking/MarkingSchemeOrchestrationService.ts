@@ -376,6 +376,47 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
+    // --- STEP 2.5: 1-TO-1 TARGET DE-DUPLICATION (The Unique Lock) ---
+    const targetClaims = new Map<string, { groupKey: string, score: number }>();
+    
+    // First pass: Find the highest scoring uploaded question for each specific DB question
+    for (const dr of detectionResults) {
+      if (dr.detectionResult.found && dr.detectionResult.match) {
+        const match = dr.detectionResult.match;
+        const targetId = `${match.paperCode}_${match.questionNumber}`;
+        const currentBest = targetClaims.get(targetId);
+        
+        if (!currentBest || match.confidence > currentBest.score) {
+          targetClaims.set(targetId, { 
+            groupKey: String(dr.question.questionNumber), 
+            score: match.confidence 
+          });
+        }
+      }
+    }
+    
+    // Second pass: Invalidate "losers" who tried to claim an already-locked DB question
+    for (const dr of detectionResults) {
+      if (dr.detectionResult.found && dr.detectionResult.match) {
+        const match = dr.detectionResult.match;
+        const targetId = `${match.paperCode}_${match.questionNumber}`;
+        const bestClaim = targetClaims.get(targetId);
+        
+        if (bestClaim && bestClaim.groupKey !== String(dr.question.questionNumber)) {
+           if (process.env.LOG_QUESTION_DETECTION === 'true') {
+             console.log(`   🔒 [1-TO-1 LOCK] Q${dr.question.questionNumber} lost claim to ${targetId} (Beaten by Q${bestClaim.groupKey})`);
+           }
+           dr.detectionResult.found = false;
+           dr.detectionResult.match = null;
+           dr.detectionResult.message = "Lost 1-to-1 target lock collision";
+        }
+      }
+    }
+
+    // Re-calculate detection stats after the cull
+    detectionStats.detected = detectionResults.filter(r => r.detectionResult.found).length;
+    detectionStats.notDetected = detectionStats.totalQuestions - detectionStats.detected;
+
     // --- STEP 3: RECOVERY LOGIC ---
     const hintInfo = detectionStats.hintInfo;
     if (hintInfo) {
@@ -405,42 +446,58 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 4: CONSENSUS RULE ---
-    const paperCounts = new Map<string, number>();
+    // --- STEP 4: CONSENSUS RULE (Dynamic Proportional Gate) ---
+    // Count DISTINCT unique questions matched per paper, not just total flat matches
+    const paperUniqueQuestions = new Map<string, Set<string>>();
     const paperToMatch = new Map<string, any>();
+    
     detectionResults.forEach(dr => {
-      if (dr.detectionResult.match?.paperTitle) {
+      if (dr.detectionResult.found && dr.detectionResult.match?.paperTitle) {
         const title = dr.detectionResult.match.paperTitle;
-        paperCounts.set(title, (paperCounts.get(title) || 0) + 1);
+        if (!paperUniqueQuestions.has(title)) paperUniqueQuestions.set(title, new Set());
+        // Track the DB question number to ensure they are distinct parts of the paper
+        paperUniqueQuestions.get(title)!.add(dr.detectionResult.match.questionNumber);
         if (!paperToMatch.has(title)) paperToMatch.set(title, dr.detectionResult.match);
       }
     });
 
-    if (process.env.LOG_QUESTION_DETECTION === 'true') {
-      console.log(`\n🗳️ [CONSENSUS CHECK] Vote Count:`);
-      paperCounts.forEach((count, title) => {
-        console.log(`   ${title}: ${count} votes`);
-      });
-      console.log(`   Total votes: ${Array.from(paperCounts.values()).reduce((a, b) => a + b, 0)}`);
-      console.log(`   Failed detections: ${detectionStats.notDetected}`);
-    }
+    const paperCounts = paperUniqueQuestions;
 
     let dominantPaper: string | null = null;
-    const totalVotes = Array.from(paperCounts.values()).reduce((a, b) => a + b, 0);
-    for (const [title, count] of paperCounts.entries()) {
-      const percentage = totalVotes > 0 ? (count / totalVotes) : 0;
+    const totalQuestionsExtracted = detectionStats.totalQuestions;
+
+    if (process.env.LOG_QUESTION_DETECTION === 'true') {
+      console.log(`\n🗳️ [CONSENSUS CHECK - DYNAMIC GATE] Total Uploaded Questions: ${totalQuestionsExtracted}`);
+    }
+
+    for (const [title, uniqueQs] of paperUniqueQuestions.entries()) {
+      const distinctCount = uniqueQs.size;
+      let meetsDynamicGate = false;
+
+      // The Dynamic Threshold Logic
+      if (totalQuestionsExtracted <= 2) {
+        meetsDynamicGate = distinctCount >= 1; 
+      } else if (totalQuestionsExtracted <= 10) {
+        meetsDynamicGate = distinctCount >= 2;
+      } else {
+        const ratio = distinctCount / totalQuestionsExtracted;
+        meetsDynamicGate = (ratio >= 0.20) || (distinctCount >= 3);
+      }
+
+      // Check percentage of valid votes against competing papers
+      const totalVotes = detectionResults.filter(r => r.detectionResult.found).length;
+      const paperVotes = detectionResults.filter(r => r.detectionResult.match?.paperTitle === title).length;
+      const percentage = totalVotes > 0 ? (paperVotes / totalVotes) : 0;
       const meetsThreshold = percentage >= 0.8;
-      const meetsCountRule = count > 1 || paperCounts.size === 1;
 
       if (process.env.LOG_QUESTION_DETECTION === 'true') {
         console.log(`   🔍 Checking "${title}":`);
-        console.log(`      Percentage: ${(percentage * 100).toFixed(1)}% (need >= 80%)`);
-        console.log(`      Count: ${count} (need > 1 OR only paper)`);
-        console.log(`      Meets threshold: ${meetsThreshold}`);
-        console.log(`      Meets count rule: ${meetsCountRule}`);
+        console.log(`      Distinct DB Questions Matched: ${distinctCount}`);
+        console.log(`      Passes Dynamic Gate: ${meetsDynamicGate}`);
+        console.log(`      Vote Dominance: ${(percentage * 100).toFixed(1)}% (need >= 80%)`);
       }
 
-      if (meetsThreshold && meetsCountRule) {
+      if (meetsDynamicGate && meetsThreshold) {
         dominantPaper = title;
         if (process.env.LOG_QUESTION_DETECTION === 'true') {
           console.log(`   ✅ DOMINANT PAPER SET: "${dominantPaper}"`);
@@ -516,6 +573,27 @@ export class MarkingSchemeOrchestrationService {
         matchedPaperTitle: r.detectionResult.match?.paperTitle,
         hasMarkingScheme: !!r.detectionResult.match?.markingScheme
       }));
+    }
+
+    // --- STEP 4.5: TEARDOWN ROGUE MATCHES ---
+    // If the document failed the Dynamic Gate (no dominant paper), 
+    // invalidate any isolated coincidental matches to force Generic Mode.
+    if (!dominantPaper && detectionStats.detected > 0) {
+      if (process.env.LOG_QUESTION_DETECTION === 'true') {
+        console.log(`   🚨 [TEARDOWN] Consensus failed. Stripping official identities from ${detectionStats.detected} rogue match(es).`);
+      }
+      
+      for (const dr of detectionResults) {
+        if (dr.detectionResult.found) {
+          dr.detectionResult.found = false;
+          dr.detectionResult.match = null;
+          dr.detectionResult.message = "Match stripped: Document failed consensus gate";
+        }
+      }
+      
+      // Reset stats since everything is now Generic
+      detectionStats.detected = 0;
+      detectionStats.notDetected = detectionStats.totalQuestions;
     }
 
     // --- STEP 5: MERGE & FORMAT OUTPUT (SIMPLIFIED PREFIX-FIRST) ---
