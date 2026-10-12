@@ -189,10 +189,12 @@ export const MarkingPageProvider = ({
 
   const lastSyncedSessionId = useRef(null);
   const lastSyncedModeSessionId = useRef(null);
+  const userClosedSplitSessionIdRef = useRef(null);
 
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
     if (selectedMarkingResult) {
+      userClosedSplitSessionIdRef.current = null;
       const images = getSessionImages(selectedMarkingResult);
       if (images && images.length > 0) {
         const isMobile = window.innerWidth <= 768;
@@ -353,11 +355,15 @@ export const MarkingPageProvider = ({
     // 🌟 SIMPLIFIED FIX: Detect any active processing
     const isActivelyProcessing = isProcessing || isAIThinking;
 
-    // We ONLY auto-open if we are NOT on mobile, NOT in Question Mode, and NOT currently processing
-    const shouldAutoOpen = !isMobile && !isQuestionMode && !isActivelyProcessing && newImages && newImages.length > 0;
+    const isUserClosed = userClosedSplitSessionIdRef.current === currentSession.id;
+
+    // We ONLY auto-open if we are NOT on mobile, NOT in Question Mode, NOT currently processing, and NOT manually closed by the user
+    const shouldAutoOpen = !isMobile && !isQuestionMode && !isActivelyProcessing && !isUserClosed && newImages && newImages.length > 0;
 
     if (sessionChanged) {
-      if (shouldAutoOpen) {
+      userClosedSplitSessionIdRef.current = null;
+      const shouldAutoOpenNewSession = !isMobile && !isQuestionMode && !isActivelyProcessing && newImages && newImages.length > 0;
+      if (shouldAutoOpenNewSession) {
         dispatch({
           type: 'ENTER_SPLIT_MODE',
           payload: { images: newImages, index: 0, isGlobal: true }
@@ -440,8 +446,8 @@ export const MarkingPageProvider = ({
         
         const isActivelyProcessing = isProcessing || isAIThinking;
 
-        // DO NOT auto-split on mobile, in Question Mode, or during active processing
-        if (!isMobile && !isQuestionMode && !isActivelyProcessing) {
+        // DO NOT auto-split on mobile, in Question Mode, during active processing, or if manually closed by user
+        if (!isMobile && !isQuestionMode && !isActivelyProcessing && userClosedSplitSessionIdRef.current !== currentSession.id) {
           dispatch({
             type: 'ENTER_SPLIT_MODE',
             payload: { images, index: validIndex, isGlobal: true }
@@ -855,6 +861,7 @@ export const MarkingPageProvider = ({
     }
 
     try {
+      userClosedSplitSessionIdRef.current = null;
       startProcessing();
       const imageData = await processImage(targetFile);
       const optimisticMessage = {
@@ -901,7 +908,13 @@ export const MarkingPageProvider = ({
           } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
           }
+          
           handleError(err);
+          // 🛡️ THE FIX: Destroy the temp session on upload failure
+          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+          }
           stopAIThinking();
           stopProcessing();
         });
@@ -944,6 +957,7 @@ export const MarkingPageProvider = ({
     }
 
     try {
+      userClosedSplitSessionIdRef.current = null;
       startProcessing();
 
       // Check if any files are PDFs
@@ -1076,7 +1090,13 @@ export const MarkingPageProvider = ({
           } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
           }
+          
           handleError(err);
+          // 🛡️ THE FIX: Destroy the temp session on upload failure
+          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+          }
           stopAIThinking();
           stopProcessing();
         });
@@ -1146,6 +1166,7 @@ export const MarkingPageProvider = ({
   const setHoveredRating = useCallback((rating) => dispatch({ type: 'SET_HOVERED_RATING', payload: rating }), []);
 
   const enterSplitMode = useCallback((images, index = 0, isGlobal = true) => {
+    userClosedSplitSessionIdRef.current = null;
     dispatch({ type: 'ENTER_SPLIT_MODE', payload: { images, index, isGlobal } });
     // Auto-collapse sidebar to mini mode (72px) - DISABLED by user request
     // if (setSidebarOpen) {
@@ -1154,8 +1175,9 @@ export const MarkingPageProvider = ({
   }, [setSidebarOpen]);
 
   const exitSplitMode = useCallback(() => {
+    userClosedSplitSessionIdRef.current = currentSession?.id || 'active';
     dispatch({ type: 'EXIT_SPLIT_MODE' });
-  }, []);
+  }, [currentSession?.id]);
 
   const setActiveImageIndex = useCallback((index) => {
     dispatch({ type: 'SET_ACTIVE_IMAGE_INDEX', payload: index });
@@ -1242,9 +1264,26 @@ export const MarkingPageProvider = ({
       retrieveAndClearStash().then((stashedData) => {
         if (stashedData) {
           console.log("Recovered stashed files after login, auto-resuming...");
-          // Small delay to ensure the UI is fully painted before starting the heavy load
+          
+          // Helper to convert base64 back to File object
+          const base64ToFile = (base64, filename, mimeType) => {
+            const arr = base64.split(',');
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) { u8arr[n] = bstr.charCodeAt(n); }
+            return new File([u8arr], filename, { type: mimeType });
+          };
+
           setTimeout(() => {
-            if (stashedData.type === 'multi') {
+            // Reconstruct and fire
+            if (stashedData.type === 'multi_base64') {
+              const files = stashedData.files.map(f => base64ToFile(f.base64, f.name, f.type));
+              handleMultiImageAnalysis(files, stashedData.customText);
+            } else if (stashedData.type === 'single_base64') {
+              const file = base64ToFile(stashedData.base64, stashedData.fileName, stashedData.mimeType);
+              handleImageAnalysis(file, stashedData.customText);
+            } else if (stashedData.type === 'multi') {
               handleMultiImageAnalysis(stashedData.files, stashedData.customText);
             } else if (stashedData.type === 'single') {
               handleImageAnalysis(stashedData.file, stashedData.customText);
@@ -1269,12 +1308,41 @@ export const MarkingPageProvider = ({
         onSignup={async () => {
           setShowGuestLimitModal(false);
           
-          // NEW: Stash the files in the browser database before navigating away
+          // 🛡️ THE FIX: Convert Files to Base64 BEFORE stashing so they survive OAuth reload
           if (pendingUploadRef.current) {
             try {
-              await stashUploadData(pendingUploadRef.current);
+              const uploadData = pendingUploadRef.current;
+              
+              if (uploadData.type === 'single' && uploadData.file) {
+                // Convert single file to base64
+                const reader = new FileReader();
+                reader.readAsDataURL(uploadData.file);
+                reader.onload = async () => {
+                  await stashUploadData({
+                    type: 'single_base64',
+                    fileName: uploadData.file.name,
+                    mimeType: uploadData.file.type,
+                    base64: reader.result,
+                    customText: uploadData.customText
+                  });
+                };
+              } else if (uploadData.type === 'multi' && uploadData.files) {
+                // Convert multiple files to base64
+                const base64Files = await Promise.all(uploadData.files.map(f => {
+                  return new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(f);
+                    reader.onload = () => resolve({ name: f.name, type: f.type, base64: reader.result });
+                  });
+                }));
+                await stashUploadData({
+                  type: 'multi_base64',
+                  files: base64Files,
+                  customText: uploadData.customText
+                });
+              }
             } catch (e) {
-              console.error("Failed to stash files:", e);
+              console.error("Failed to stash files securely:", e);
             }
           }
 
