@@ -166,7 +166,11 @@ export class MarkingController {
             // AFTER files have been standardized into explicit images for 100% accurate page counts.
 
             // 4. Execute Pipeline
+            let completeEventSent = false;
             const progressCallback = (data: any) => {
+                if (data?.type === 'complete') {
+                    completeEventSent = true;
+                }
                 if (process.env.CHAOS_MODE === 'true') {
                     // Randomly drop non-essential packets (progress updates, not 'complete' or 'error' or first packet)
                     if (data.type !== 'complete' && data.type !== 'error' && data.progress !== 0) {
@@ -194,14 +198,11 @@ export class MarkingController {
 
             console.log(`✅ [CONTROLLER] Pipeline completed, result exists: ${!!result}, sessionId: ${result?.sessionId}`);
 
-            // 6. Handle Completion (if not already handled by progressCallback with type: 'complete')
-            // The service sends a 'complete' event via the callback, so we might not need to do anything here
-            // except ensure the response is ended if it hasn't been already.
-            // However, sendSseUpdate doesn't end the response.
-
-            // We can explicitly end the response here if the service returns successfully.
-            // But usually, we want to ensure the 'complete' message was sent.
-            // The service logic sends { type: 'complete', result: finalOutput } as the last callback.
+            // 6. Handle Completion (guarantee 'complete' event was sent before closing stream)
+            if (result && !completeEventSent) {
+                sendSseUpdate(res, { type: 'complete', result });
+                completeEventSent = true;
+            }
 
             // Credit deduction was moved to the finally block to ensure it always runs (even on crash).
             // We NO LONGER deduct credits here in the success path to prevent double-charging.

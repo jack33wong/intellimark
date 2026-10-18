@@ -59,6 +59,9 @@ const Login = () => {
 
   useEffect(() => {
     if (user) {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
       // Safely route the user back to where they hit the limit, fallback to /app
       const returnPath = location.state?.returnTo || '/app';
       navigate(returnPath, { replace: true });
@@ -66,7 +69,7 @@ const Login = () => {
   }, [user, navigate, location]);
 
   useEffect(() => {
-    if (currentPage === 'main' && emailInputRef.current) {
+    if (currentPage === 'main' && emailInputRef.current && window.innerWidth > 768) {
       emailInputRef.current.focus();
     }
   }, [currentPage]);

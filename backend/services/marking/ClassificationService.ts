@@ -511,7 +511,11 @@ ${pageHints}
         const hasResult = results.some(r => r.pageIndex === i);
         if (!hasResult) {
           const mapResult = resolvedPageMaps.find(m => m.pageIndex === i);
-          const category = mapResult?.category || "metadata";
+          const rawCategory = mapResult?.category;
+          const category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage" =
+            (rawCategory === "questionOnly" || rawCategory === "questionAnswer" || rawCategory === "frontPage" || rawCategory === "metadata")
+              ? rawCategory
+              : "metadata";
 
           // Mark as front page or metadata based on Map Pass category
           results.push({

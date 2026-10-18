@@ -14,6 +14,7 @@ import { useCredits } from '../hooks/useCredits';
 import InsufficientCreditsModal from '../components/common/InsufficientCreditsModal';
 import { useModels } from './ModelContext';
 import GuestLimitModal from '../components/modals/GuestLimitModal';
+import { trackFunnelEvent } from '../utils/funnelTracker';
 
 // --- INDEXEDDB AUTH STASH HELPERS ---
 const STASH_DB_NAME = 'IntelliMarkStashDB';
@@ -123,6 +124,32 @@ function markingPageReducer(state, action) {
   }
 }
 
+// Helper to normalize Guest Limit errors across Fetch SSE streams and Axios 403 responses
+const extractGuestLimitError = (err) => {
+  const data = err?.response?.data || err || {};
+  const isGuestLimit = Boolean(
+    err?.details === 'guest_limit_reached' ||
+    err?.guest_limit_reached ||
+    data?.details === 'guest_limit_reached' ||
+    data?.guest_limit_reached ||
+    data?.limit_reached ||
+    (err?.response?.status === 403 && (data?.error || '').toLowerCase().includes('limit'))
+  );
+
+  return {
+    isGuestLimit,
+    usageCount: data.usageCount ?? err?.usageCount ?? 0,
+    usageLimit: data.usageLimit ?? err?.usageLimit ?? 0,
+    resetAt: data.resetAt ?? err?.resetAt ?? null,
+  };
+};
+
+// Helper to check if a session has at least one completed AI response
+const hasCompletedAITurn = (session) => {
+  if (!session || !Array.isArray(session.messages)) return false;
+  return session.messages.some(m => m.role === 'assistant' && !m.isProcessing);
+};
+
 export const MarkingPageProvider = ({
   children,
   selectedMarkingResult,
@@ -145,7 +172,7 @@ export const MarkingPageProvider = ({
   const { credits, isNegative, refreshCredits } = useCredits();
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
   const [showGuestLimitModal, setShowGuestLimitModal] = React.useState(false);
-  const [guestLimitInfo, setGuestLimitInfo] = React.useState({ usageCount: 0, usageLimit: 5, resetAt: null });
+  const [guestLimitInfo, setGuestLimitInfo] = React.useState({ usageCount: 0, usageLimit: 0, resetAt: null });
   const [isModelAnswerMode, setIsModelAnswerMode] = React.useState(false);
   const [isMarkingSchemeMode, setIsMarkingSchemeMode] = React.useState(false);
   const [initialInput, setInitialInput] = React.useState('');
@@ -361,14 +388,21 @@ export const MarkingPageProvider = ({
     const shouldAutoOpen = !isMobile && !isQuestionMode && !isActivelyProcessing && !isUserClosed && newImages && newImages.length > 0;
 
     if (sessionChanged) {
-      userClosedSplitSessionIdRef.current = null;
-      const shouldAutoOpenNewSession = !isMobile && !isQuestionMode && !isActivelyProcessing && newImages && newImages.length > 0;
+      const wasTempSession = lastSyncedSessionId.current?.startsWith('temp-');
+      if (!wasTempSession) {
+        userClosedSplitSessionIdRef.current = null;
+      } else if (userClosedSplitSessionIdRef.current === lastSyncedSessionId.current || userClosedSplitSessionIdRef.current === 'active') {
+        // Carry over the user's manual close decision from temp- ID to the permanent ID
+        userClosedSplitSessionIdRef.current = currentSession.id;
+      }
+      const isUserClosedNew = userClosedSplitSessionIdRef.current === currentSession.id;
+      const shouldAutoOpenNewSession = !isMobile && !isQuestionMode && !isActivelyProcessing && !isUserClosedNew && newImages && newImages.length > 0;
       if (shouldAutoOpenNewSession) {
         dispatch({
           type: 'ENTER_SPLIT_MODE',
           payload: { images: newImages, index: 0, isGlobal: true }
         });
-      } else if (splitModeImages && (!newImages || newImages.length === 0 || isQuestionMode || isActivelyProcessing)) {
+      } else if (splitModeImages && (!newImages || newImages.length === 0 || isQuestionMode || isActivelyProcessing || isUserClosedNew)) {
         dispatch({ type: 'EXIT_SPLIT_MODE' });
       }
       
@@ -414,6 +448,7 @@ export const MarkingPageProvider = ({
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession?.id, splitModeImages?.[0]?.id, splitModeImages?.length, isGlobalSplit, currentSession, isProcessing, isAIThinking]);
 
   // Listen for model changes from Settings (or other tabs)
@@ -519,7 +554,7 @@ export const MarkingPageProvider = ({
 
       // If user explicitly mentioned a question, update the focus automatically
       if (explicitQuestionId && explicitQuestionId !== activeQuestionId) {
-        setActiveQuestionId(explicitQuestionId);
+        dispatch({ type: 'SET_ACTIVE_QUESTION_ID', payload: explicitQuestionId });
       }
 
       const userMessageId = `user-${Date.now()}`;
@@ -582,39 +617,55 @@ export const MarkingPageProvider = ({
       textRequestInProgress.current = false;
       return true;
     } catch (err) {
-      if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+      const guestCheck = extractGuestLimitError(err);
+      if (guestCheck.isGuestLimit) {
         stopAIThinking();
         stopProcessing();
-        setGuestLimitInfo({ 
-          usageCount: err.usageCount || 0, 
-          usageLimit: err.usageLimit || 0, 
-          resetAt: err.resetAt || null 
+        setGuestLimitInfo({
+          usageCount: guestCheck.usageCount,
+          usageLimit: guestCheck.usageLimit,
+          resetAt: guestCheck.resetAt
         });
         setShowGuestLimitModal(true);
         textRequestInProgress.current = false;
-        
-        // Revert UI to main upload page if this is a fresh session
-        if (!currentSession || (currentSession.messages && currentSession.messages.length <= 1)) {
-           clearSession();
-           dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+
+        // If this session has no completed AI responses, clean up the dead chat view
+        const liveSession = simpleSessionService.getCurrentSession();
+        if (!hasCompletedAITurn(liveSession)) {
+          clearSession();
+          dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
         }
         return false;
       } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
       handleError(err);
-      // Stop state only if the initial fetch fails. The service handles success.
       stopAIThinking();
       stopProcessing();
-      // Reset the request flag on error
       textRequestInProgress.current = false;
       return false;
     }
-  }, [user, isNegative, getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
+  }, [
+    user, isNegative, getAuthToken, currentSession, selectedModel,
+    activeQuestionId, isModelAnswerMode, isMarkingSchemeMode,
+    addMessage, clearSession, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing
+  ]);
 
   const onGenerateModelAnswer = useCallback(async (input) => {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
+
+    if (!user) {
+      pendingUploadRef.current = { type: 'model_answer', paper: trimmedInput };
+      setGuestLimitInfo({ usageCount: 0, usageLimit: 0, resetAt: null });
+      setShowGuestLimitModal(true);
+      trackFunnelEvent('guest_limit_modal_shown', {
+        trigger: 'feature_client_gate',
+        usageCount: 0,
+        paper: trimmedInput
+      }, null);
+      return false;
+    }
 
     if (user && isNegative) {
       setShowCreditsModal(true);
@@ -669,21 +720,29 @@ export const MarkingPageProvider = ({
           'generating': 2
         }
       ).catch(err => {
-        if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
-          setGuestLimitInfo({ usageCount: err.usageCount || 0, usageLimit: err.usageLimit || 0, resetAt: err.resetAt || null });
+        const guestCheck = extractGuestLimitError(err);
+        if (guestCheck.isGuestLimit) {
+          pendingUploadRef.current = { type: 'model_answer', paper: trimmedInput };
+          setGuestLimitInfo({
+            usageCount: guestCheck.usageCount,
+            usageLimit: guestCheck.usageLimit,
+            resetAt: guestCheck.resetAt
+          });
           setShowGuestLimitModal(true);
-          
-          // Revert UI to main upload page
-          clearSession();
-          dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+          }
         } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
           setShowCreditsModal(true);
         } else {
           handleError(err);
-          // 🛡️ THE FIX: Destroy the temp session so the UI doesn't lock up
-          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
             clearSession();
-            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
           }
         }
         stopAIThinking();
@@ -697,11 +756,23 @@ export const MarkingPageProvider = ({
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedModel, currentSession, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
+  }, [user, isNegative, selectedModel, currentSession, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   const onExplainMarkingScheme = useCallback(async (input) => {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
+
+    if (!user) {
+      pendingUploadRef.current = { type: 'marking_scheme', paper: trimmedInput };
+      setGuestLimitInfo({ usageCount: 0, usageLimit: 0, resetAt: null });
+      setShowGuestLimitModal(true);
+      trackFunnelEvent('guest_limit_modal_shown', {
+        trigger: 'feature_client_gate',
+        usageCount: 0,
+        paper: trimmedInput
+      }, null);
+      return false;
+    }
 
     if (user && isNegative) {
       setShowCreditsModal(true);
@@ -755,21 +826,29 @@ export const MarkingPageProvider = ({
           'generating': 2
         }
       ).catch(err => {
-        if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
-          setGuestLimitInfo({ usageCount: err.usageCount || 0, usageLimit: err.usageLimit || 0, resetAt: err.resetAt || null });
+        const guestCheck = extractGuestLimitError(err);
+        if (guestCheck.isGuestLimit) {
+          pendingUploadRef.current = { type: 'marking_scheme', paper: trimmedInput };
+          setGuestLimitInfo({
+            usageCount: guestCheck.usageCount,
+            usageLimit: guestCheck.usageLimit,
+            resetAt: guestCheck.resetAt
+          });
           setShowGuestLimitModal(true);
-          
-          // Revert UI to main upload page
-          clearSession();
-          dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+          }
         } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
           setShowCreditsModal(true);
         } else {
           handleError(err);
-          // 🛡️ THE FIX: Destroy the temp session so the UI doesn't lock up
-          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
             clearSession();
-            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
           }
         }
         stopAIThinking();
@@ -783,7 +862,7 @@ export const MarkingPageProvider = ({
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedModel, currentSession, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
+  }, [user, isNegative, selectedModel, currentSession, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
@@ -826,7 +905,7 @@ export const MarkingPageProvider = ({
       // [FIX] Clear URL parameters using Router to prevent re-triggering
       navigate(location.pathname, { replace: true });
     }
-  }, [location.search]);
+  }, [location.search, location.pathname, navigate]);
 
   useEffect(() => {
     if (selectedMarkingResult && currentSession?.id === selectedMarkingResult.id) {
@@ -848,11 +927,33 @@ export const MarkingPageProvider = ({
       }, 150);
       return () => clearTimeout(timeoutId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession?.id, selectedMarkingResult, scrollToMessage, scrollToBottom]);
 
   const handleImageAnalysis = useCallback(async (file = null, customText = null) => {
     const targetFile = file || selectedFile;
     if (!targetFile) return;
+
+    trackFunnelEvent('upload_initiated', {
+      mode: 'single',
+      fileCount: 1,
+      fileTypes: [targetFile.type || targetFile.name?.split('.').pop() || 'unknown'],
+      totalBytes: targetFile.size || 0
+    }, user?.uid);
+
+    // --- INSTANT GUEST GATE (0ms response, avoids uploading large files before auth) ---
+    if (!user) {
+      pendingUploadRef.current = { type: 'single', file: targetFile, customText };
+      setGuestLimitInfo({ usageCount: 0, usageLimit: 0, resetAt: null });
+      setShowGuestLimitModal(true);
+      trackFunnelEvent('guest_limit_modal_shown', {
+        trigger: 'upload_client_gate',
+        usageCount: 0,
+        fileCount: 1
+      }, null);
+      clearFile();
+      return false;
+    }
 
     // --- CREDIT ENFORCEMENT ---
     if (user && isNegative) {
@@ -890,30 +991,35 @@ export const MarkingPageProvider = ({
       // Execute API call in background so UI resets immediately
       processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name)
         .catch(err => {
-          if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+          const guestCheck = extractGuestLimitError(err);
+          if (guestCheck.isGuestLimit) {
             stopAIThinking();
             stopProcessing();
-            setGuestLimitInfo({ 
-              usageCount: err.usageCount || 0, 
-              usageLimit: err.usageLimit || 0, 
-              resetAt: err.resetAt || null 
+            setGuestLimitInfo({
+              usageCount: guestCheck.usageCount,
+              usageLimit: guestCheck.usageLimit,
+              resetAt: guestCheck.resetAt
             });
-            
-            // NEW: Save the intended upload to memory
             pendingUploadRef.current = { type: 'single', file: targetFile, customText };
-            
             setShowGuestLimitModal(true);
-            // REMOVED clearSession() and SET_PAGE_MODE
+            trackFunnelEvent('guest_limit_modal_shown', {
+              trigger: 'upload',
+              usageCount: guestCheck.usageCount,
+              fileCount: 1
+            }, null);
             return;
           } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
           }
-          
+
+          trackFunnelEvent('upload_failed_client_seen', {
+            errorMessage: err?.response?.data?.error || err?.message || 'Unknown upload error'
+          }, user?.uid);
           handleError(err);
-          // 🛡️ THE FIX: Destroy the temp session on upload failure
-          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
             clearSession();
-            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
           }
           stopAIThinking();
           stopProcessing();
@@ -922,33 +1028,67 @@ export const MarkingPageProvider = ({
       clearFile();
       return true;
     } catch (err) {
-      if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+      const guestCheck = extractGuestLimitError(err);
+      if (guestCheck.isGuestLimit) {
         stopAIThinking();
         stopProcessing();
         setGuestLimitInfo({ 
-          usageCount: err.usageCount || 0, 
-          usageLimit: err.usageLimit || 0, 
-          resetAt: err.resetAt || null 
+          usageCount: guestCheck.usageCount, 
+          usageLimit: guestCheck.usageLimit, 
+          resetAt: guestCheck.resetAt 
         });
         
         // NEW: Save the intended upload to memory
         pendingUploadRef.current = { type: 'single', file: targetFile, customText };
         
         setShowGuestLimitModal(true);
+        trackFunnelEvent('guest_limit_modal_shown', {
+          trigger: 'upload',
+          usageCount: guestCheck.usageCount,
+          fileCount: 1
+        }, null);
         // REMOVED clearSession() and SET_PAGE_MODE
         return false;
       } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
+      trackFunnelEvent('upload_failed_client_seen', {
+        errorMessage: err?.response?.data?.error || err?.message || 'Unknown upload error'
+      }, user?.uid);
       handleError(err);
+      const liveSession = simpleSessionService.getCurrentSession();
+      if (!hasCompletedAITurn(liveSession)) {
+        clearSession();
+        dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+      }
       stopAIThinking();
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedFile, selectedModel, processImage, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
+  }, [user, isNegative, selectedFile, selectedModel, activeQuestionId, processImage, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
 
   const handleMultiImageAnalysis = useCallback(async (files = [], customText = null) => {
     if (!files || files.length === 0) return;
+
+    trackFunnelEvent('upload_initiated', {
+      mode: 'multi',
+      fileCount: files.length,
+      fileTypes: files.map(f => f?.type || f?.name?.split('.').pop() || 'unknown'),
+      totalBytes: files.reduce((sum, f) => sum + (f?.size || 0), 0)
+    }, user?.uid);
+
+    // --- INSTANT GUEST GATE (0ms response, avoids uploading large PDFs/images before auth) ---
+    if (!user) {
+      pendingUploadRef.current = { type: 'multi', files, customText };
+      setGuestLimitInfo({ usageCount: 0, usageLimit: 0, resetAt: null });
+      setShowGuestLimitModal(true);
+      trackFunnelEvent('guest_limit_modal_shown', {
+        trigger: 'upload_client_gate',
+        usageCount: 0,
+        fileCount: files.length
+      }, null);
+      return false;
+    }
 
     // --- CREDIT ENFORCEMENT ---
     if (user && isNegative) {
@@ -960,21 +1100,24 @@ export const MarkingPageProvider = ({
       userClosedSplitSessionIdRef.current = null;
       startProcessing();
 
-      // Check if any files are PDFs
-      const hasPDFs = files.some(file => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+      // Separate PDFs and Images so mixed uploads display properly
+      const isPdfFile = (file) => file?.type === 'application/pdf' || (file?.name || '').toLowerCase().endsWith('.pdf');
+      const pdfFiles = files.filter(isPdfFile);
+      const imageFiles = files.filter(file => !isPdfFile(file));
+      const hasPDFs = pdfFiles.length > 0;
+      const hasImages = imageFiles.length > 0;
 
-      let optimisticMessage;
+      let pdfContexts = [];
+      let imageDataArray = [];
 
       if (hasPDFs) {
-        // For PDFs, create message with PDF context instead of image data
-        // Convert each PDF file to base64 and create blob URL for immediate display
+        // Convert each PDF file to a Blob URL for immediate display (avoids data URL length limits)
         const convertPdfToBlobUrl = async (file) => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
               try {
                 const base64DataUrl = e.target.result;
-                // Convert base64 data URL to Blob URL to avoid browser length limits
                 const base64String = base64DataUrl.split(',')[1];
                 const byteCharacters = atob(base64String);
                 const byteNumbers = new Array(byteCharacters.length);
@@ -994,31 +1137,18 @@ export const MarkingPageProvider = ({
           });
         };
 
-        const pdfContexts = await Promise.all(files.map(async (file) => {
+        pdfContexts = await Promise.all(pdfFiles.map(async (file) => {
           const { blobUrl } = await convertPdfToBlobUrl(file);
-
           return {
             originalFileName: file.name,
             fileSize: file.size, // Use bytes (number) to match imageDataArray structure
-            url: blobUrl // Use simplified structure: url field only
+            url: blobUrl
           };
         }));
+      }
 
-        optimisticMessage = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: customText || `I have uploaded ${files.length} file(s) for analysis.`,
-          timestamp: new Date().toISOString(),
-          originalFileType: 'pdf',
-          pdfContexts: pdfContexts,
-          // NO fileName for PDFs - use pdfContexts instead
-          isMultiImage: false, // Don't treat PDFs as multi-image
-          fileCount: files.length,
-          originalFiles: files.map(f => ({ name: f.name, type: f.type }))
-        };
-      } else {
-        // For images, process as before
-        const processImage = async (file) => {
+      if (hasImages) {
+        const readImageAsDataUrl = (file) => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
@@ -1027,21 +1157,27 @@ export const MarkingPageProvider = ({
           });
         };
 
-        const imageDataArray = await Promise.all(files.map(processImage));
-
-        optimisticMessage = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: customText || `I have uploaded ${files.length} image(s) for analysis.`,
-          timestamp: new Date().toISOString(),
-          imageData: imageDataArray[0], // Show first image as primary
-          imageDataArray: imageDataArray, // Store all images
-          fileName: files.length === 1 ? files[0].name : files.map(f => f.name).join(', '),
-          isMultiImage: true,
-          fileCount: files.length,
-          originalFiles: files.map(f => ({ name: f.name, type: f.type }))
-        };
+        imageDataArray = await Promise.all(imageFiles.map(readImageAsDataUrl));
       }
+
+      const optimisticMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: customText || `I have uploaded ${files.length} file(s) for analysis.`,
+        timestamp: new Date().toISOString(),
+        ...(hasPDFs && {
+          originalFileType: 'pdf',
+          pdfContexts: pdfContexts,
+        }),
+        ...(hasImages && {
+          imageData: imageDataArray[0], // Show first image as primary
+          imageDataArray: imageDataArray,
+          fileName: imageFiles.length === 1 ? imageFiles[0].name : imageFiles.map(f => f.name).join(', '),
+        }),
+        isMultiImage: hasImages,
+        fileCount: files.length,
+        originalFiles: files.map(f => ({ name: f.name, type: f.type }))
+      };
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
 
@@ -1066,36 +1202,44 @@ export const MarkingPageProvider = ({
         currentStepIndex: 0,
       };
 
-      const thinkingImages = hasPDFs ? optimisticMessage.pdfContexts : optimisticMessage.imageDataArray;
+      const thinkingImages = [
+        ...(optimisticMessage.pdfContexts || []),
+        ...(optimisticMessage.imageDataArray || [])
+      ];
       startAIThinking(multiImageProgressData, multiImageAiMessageId, thinkingImages);
 
       // Execute API call in background so UI resets immediately
       processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId)
         .catch(err => {
-          if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+          const guestCheck = extractGuestLimitError(err);
+          if (guestCheck.isGuestLimit) {
             stopAIThinking();
             stopProcessing();
-            setGuestLimitInfo({ 
-              usageCount: err.usageCount || 0, 
-              usageLimit: err.usageLimit || 0, 
-              resetAt: err.resetAt || null 
+            setGuestLimitInfo({
+              usageCount: guestCheck.usageCount,
+              usageLimit: guestCheck.usageLimit,
+              resetAt: guestCheck.resetAt
             });
-            
-            // NEW: Save the intended upload to memory
             pendingUploadRef.current = { type: 'multi', files, customText };
-            
             setShowGuestLimitModal(true);
-            // REMOVED clearSession() and SET_PAGE_MODE
+            trackFunnelEvent('guest_limit_modal_shown', {
+              trigger: 'upload',
+              usageCount: guestCheck.usageCount,
+              fileCount: files?.length || 1
+            }, null);
             return;
           } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
             setShowCreditsModal(true);
           }
-          
+
+          trackFunnelEvent('upload_failed_client_seen', {
+            errorMessage: err?.response?.data?.error || err?.message || 'Unknown upload error'
+          }, user?.uid);
           handleError(err);
-          // 🛡️ THE FIX: Destroy the temp session on upload failure
-          if (!currentSession?.id || currentSession.id.startsWith('temp-') || (currentSession.messages && currentSession.messages.length <= 1)) {
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
             clearSession();
-            dispatch({ type: 'SET_PAGE_MODE', payload: 'main' });
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
           }
           stopAIThinking();
           stopProcessing();
@@ -1103,30 +1247,44 @@ export const MarkingPageProvider = ({
 
       return true;
     } catch (err) {
-      if (err.details === 'guest_limit_reached' || err.guest_limit_reached || err.response?.data?.limit_reached) {
+      const guestCheck = extractGuestLimitError(err);
+      if (guestCheck.isGuestLimit) {
         stopAIThinking();
         stopProcessing();
         setGuestLimitInfo({ 
-          usageCount: err.usageCount || 0, 
-          usageLimit: err.usageLimit || 0, 
-          resetAt: err.resetAt || null 
+          usageCount: guestCheck.usageCount, 
+          usageLimit: guestCheck.usageLimit, 
+          resetAt: guestCheck.resetAt 
         });
         
         // NEW: Save the intended upload to memory
         pendingUploadRef.current = { type: 'multi', files, customText };
         
         setShowGuestLimitModal(true);
+        trackFunnelEvent('guest_limit_modal_shown', {
+          trigger: 'upload',
+          usageCount: guestCheck.usageCount,
+          fileCount: files?.length || 1
+        }, null);
         // REMOVED clearSession() and SET_PAGE_MODE
         return false;
       } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
         setShowCreditsModal(true);
       }
+      trackFunnelEvent('upload_failed_client_seen', {
+        errorMessage: err?.response?.data?.error || err?.message || 'Unknown upload error'
+      }, user?.uid);
       handleError(err);
+      const liveSession = simpleSessionService.getCurrentSession();
+      if (!hasCompletedAITurn(liveSession)) {
+        clearSession();
+        dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+      }
       stopAIThinking();
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
+  }, [user, isNegative, selectedModel, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
 
   // Handle files passed from Landing Pages (SEO Phase 2)
   const handoverProcessedRef = useRef(false);
@@ -1168,11 +1326,7 @@ export const MarkingPageProvider = ({
   const enterSplitMode = useCallback((images, index = 0, isGlobal = true) => {
     userClosedSplitSessionIdRef.current = null;
     dispatch({ type: 'ENTER_SPLIT_MODE', payload: { images, index, isGlobal } });
-    // Auto-collapse sidebar to mini mode (72px) - DISABLED by user request
-    // if (setSidebarOpen) {
-    //   setSidebarOpen(false); // Collapsed = false in your Sidebar logic
-    // }
-  }, [setSidebarOpen]);
+  }, []);
 
   const exitSplitMode = useCallback(() => {
     userClosedSplitSessionIdRef.current = currentSession?.id || 'active';
@@ -1255,44 +1409,90 @@ export const MarkingPageProvider = ({
     setShowCreditsModal,
     showCreditsModal, credits, refreshCredits,
     setSidebarOpen,
+    guestLimitInfo,
     lastHandledSessionIdRef
   ]);
 
-  // --- ADD THIS USEEFFECT: Auto-Resume after login ---
+  // Track if a user refreshes or closes the browser tab while an upload/marking is actively running
   useEffect(() => {
-    if (user) {
+    if (!isProcessing && !isAIThinking) return;
+
+    const startTime = Date.now();
+    const handleBeforeUnload = () => {
+      trackFunnelEvent('user_abandoned_during_processing', {
+        elapsedSec: Number(((Date.now() - startTime) / 1000).toFixed(1)),
+        loadingMessage: progressProps.loadingMessage || 'unknown',
+        stepIndex: progressProps.currentStepIndex ?? -1,
+        pageMode
+      }, user?.uid);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isProcessing, isAIThinking, progressProps.loadingMessage, progressProps.currentStepIndex, pageMode, user?.uid]);
+
+  // Keep latest handlers in a ref so post-login auto-resume only triggers once per login and always uses fresh closures
+  const resumeHandlersRef = useRef({
+    handleMultiImageAnalysis,
+    handleImageAnalysis,
+    onGenerateModelAnswer,
+    onExplainMarkingScheme
+  });
+
+  useEffect(() => {
+    resumeHandlersRef.current = {
+      handleMultiImageAnalysis,
+      handleImageAnalysis,
+      onGenerateModelAnswer,
+      onExplainMarkingScheme
+    };
+  }, [handleMultiImageAnalysis, handleImageAnalysis, onGenerateModelAnswer, onExplainMarkingScheme]);
+
+  // --- Auto-Resume after login (Chrome, Desktop Safari, iOS Safari safe) ---
+  useEffect(() => {
+    if (user?.uid) {
       retrieveAndClearStash().then((stashedData) => {
+        trackFunnelEvent('post_login_stash_check', {
+          hasStashedData: Boolean(stashedData),
+          stashType: stashedData?.type || null,
+          fileCount: stashedData?.files?.length || (stashedData?.base64 ? 1 : 0),
+          paper: stashedData?.paper || null
+        }, user.uid);
+
         if (stashedData) {
-          console.log("Recovered stashed files after login, auto-resuming...");
-          
-          // Helper to convert base64 back to File object
+          console.log("Recovered stashed data after login, auto-resuming...");
+
+          // Helper to convert base64 back to File object (falls back if iOS leaves MIME blank)
           const base64ToFile = (base64, filename, mimeType) => {
-            const arr = base64.split(',');
-            const bstr = atob(arr[1]);
+            const parts = base64.split(',');
+            const rawBase64 = parts.length > 1 ? parts[1] : parts[0];
+            const detectedMime = mimeType || (parts[0].match(/:(.*?);/)?.[1]) || 'application/octet-stream';
+            const bstr = atob(rawBase64);
             let n = bstr.length;
             const u8arr = new Uint8Array(n);
-            while (n--) { u8arr[n] = bstr.charCodeAt(n); }
-            return new File([u8arr], filename, { type: mimeType });
+            while (n--) {
+              u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new File([u8arr], filename || 'upload', { type: detectedMime });
           };
 
           setTimeout(() => {
-            // Reconstruct and fire
-            if (stashedData.type === 'multi_base64') {
+            if (stashedData.type === 'multi_base64' && Array.isArray(stashedData.files)) {
               const files = stashedData.files.map(f => base64ToFile(f.base64, f.name, f.type));
-              handleMultiImageAnalysis(files, stashedData.customText);
-            } else if (stashedData.type === 'single_base64') {
+              resumeHandlersRef.current.handleMultiImageAnalysis(files, stashedData.customText);
+            } else if (stashedData.type === 'single_base64' && stashedData.base64) {
               const file = base64ToFile(stashedData.base64, stashedData.fileName, stashedData.mimeType);
-              handleImageAnalysis(file, stashedData.customText);
-            } else if (stashedData.type === 'multi') {
-              handleMultiImageAnalysis(stashedData.files, stashedData.customText);
-            } else if (stashedData.type === 'single') {
-              handleImageAnalysis(stashedData.file, stashedData.customText);
+              resumeHandlersRef.current.handleImageAnalysis(file, stashedData.customText);
+            } else if (stashedData.type === 'model_answer' && stashedData.paper) {
+              resumeHandlersRef.current.onGenerateModelAnswer(stashedData.paper);
+            } else if (stashedData.type === 'marking_scheme' && stashedData.paper) {
+              resumeHandlersRef.current.onExplainMarkingScheme(stashedData.paper);
             }
           }, 500);
         }
       }).catch(console.error);
     }
-  }, [user, handleMultiImageAnalysis, handleImageAnalysis]);
+  }, [user?.uid]);
 
   return (
     <MarkingPageContext.Provider value={value}>
@@ -1304,50 +1504,75 @@ export const MarkingPageProvider = ({
       />
       <GuestLimitModal
         isOpen={showGuestLimitModal}
-        onClose={() => setShowGuestLimitModal(false)}
-        onSignup={async () => {
+        hasPendingUpload={Boolean(pendingUploadRef.current)}
+        onClose={() => {
+          trackFunnelEvent('guest_limit_modal_dismissed', {
+            hadPendingUpload: Boolean(pendingUploadRef.current)
+          }, null);
+          pendingUploadRef.current = null;
           setShowGuestLimitModal(false);
-          
-          // 🛡️ THE FIX: Convert Files to Base64 BEFORE stashing so they survive OAuth reload
+          const liveSession = simpleSessionService.getCurrentSession();
+          if (!hasCompletedAITurn(liveSession)) {
+            clearSession();
+            dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
+          }
+        }}
+        onSignup={async (authMode = 'signup') => {
+          const resolvedMode = authMode === 'login' ? 'login' : 'signup';
+          trackFunnelEvent('guest_limit_signup_clicked', {
+            authMode: resolvedMode,
+            stashedPendingUpload: Boolean(pendingUploadRef.current),
+            stashType: pendingUploadRef.current?.type || null,
+            fileCount: pendingUploadRef.current?.files?.length || (pendingUploadRef.current?.file ? 1 : 0),
+            paper: pendingUploadRef.current?.paper || null
+          }, null);
+
+          setShowGuestLimitModal(false);
+
+          // Convert File(s) to Base64 strings (or stash paper code) and await IndexedDB transaction completion BEFORE redirect
           if (pendingUploadRef.current) {
             try {
               const uploadData = pendingUploadRef.current;
-              
-              if (uploadData.type === 'single' && uploadData.file) {
-                // Convert single file to base64
+              const fileToBase64 = (file) => new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.readAsDataURL(uploadData.file);
-                reader.onload = async () => {
-                  await stashUploadData({
-                    type: 'single_base64',
-                    fileName: uploadData.file.name,
-                    mimeType: uploadData.file.type,
-                    base64: reader.result,
-                    customText: uploadData.customText
-                  });
-                };
-              } else if (uploadData.type === 'multi' && uploadData.files) {
-                // Convert multiple files to base64
-                const base64Files = await Promise.all(uploadData.files.map(f => {
-                  return new Promise(resolve => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(f);
-                    reader.onload = () => resolve({ name: f.name, type: f.type, base64: reader.result });
-                  });
-                }));
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+
+              if (uploadData.type === 'single' && uploadData.file) {
+                const base64 = await fileToBase64(uploadData.file);
+                await stashUploadData({
+                  type: 'single_base64',
+                  fileName: uploadData.file.name,
+                  mimeType: uploadData.file.type || (uploadData.file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                  base64,
+                  customText: uploadData.customText
+                });
+              } else if (uploadData.type === 'multi' && Array.isArray(uploadData.files)) {
+                const base64Files = await Promise.all(uploadData.files.map(async (f) => ({
+                  name: f.name,
+                  type: f.type || (f.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                  base64: await fileToBase64(f)
+                })));
                 await stashUploadData({
                   type: 'multi_base64',
                   files: base64Files,
                   customText: uploadData.customText
                 });
+              } else if ((uploadData.type === 'model_answer' || uploadData.type === 'marking_scheme') && uploadData.paper) {
+                await stashUploadData({
+                  type: uploadData.type,
+                  paper: uploadData.paper
+                });
               }
             } catch (e) {
-              console.error("Failed to stash files securely:", e);
+              console.error("Failed to stash files:", e);
             }
           }
 
           import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
-            EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: 'signup' });
+            EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode: resolvedMode });
           });
         }}
         usageCount={guestLimitInfo.usageCount}

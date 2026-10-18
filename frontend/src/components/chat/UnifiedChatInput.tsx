@@ -216,6 +216,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHandoff, setShowHandoff] = useState<boolean>(false);
+  const [handoffType, setHandoffType] = useState<'upload' | 'scan' | null>(null);
   const handoverProcessedRef = useRef(false);
 
   // Check model selection permission once subscribe hook is available
@@ -661,30 +662,35 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   // Handle Action deep links (from Landing Page) via FileHandoff Bridge
   useEffect(() => {
     if (mode !== 'first-time') return;
-    if (actionHandledRef.current) return;
 
     const params = new URLSearchParams(location.search);
     const action = params.get('action');
 
-    if (action) {
-      if (action === 'select' || action === 'upload') {
-        setShowHandoff(true);
-      } else if (action === 'scan') {
-        // Direct detection of mobile to skip bridge on desktop
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-        if (isMobile) {
-          setShowHandoff(true);
-        } else {
-          // Desktop: Show QR code modal immediately
-          setIsMobileUploadOpen(true);
-        }
-      }
-      
-      // Clean URL via React Router so it doesn't re-trigger on remount
-      navigate(location.pathname, { replace: true });
-      actionHandledRef.current = true;
+    if (!action) {
+      actionHandledRef.current = false;
+      return;
     }
+    if (actionHandledRef.current) return;
+
+    if (action === 'select' || action === 'upload') {
+      setHandoffType('upload');
+      setShowHandoff(true);
+    } else if (action === 'scan') {
+      // Direct detection of mobile to skip bridge on desktop
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        setHandoffType('scan');
+        setShowHandoff(true);
+      } else {
+        // Desktop: Show QR code modal immediately
+        setIsMobileUploadOpen(true);
+      }
+    }
+
+    // Clean URL via React Router so it doesn't re-trigger on remount
+    navigate(location.pathname, { replace: true });
+    actionHandledRef.current = true;
   }, [location.search, mode, navigate, location.pathname]);
 
   const removePreview = useCallback(() => {
@@ -1224,8 +1230,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       {showHandoff && (
         <FileHandoff
+          initialType={handoffType}
           onFilesSelected={(files) => processFiles(files)}
-          onClose={() => setShowHandoff(false)}
+          onClose={() => {
+            setShowHandoff(false);
+            setHandoffType(null);
+          }}
           onOpenCamera={handleOpenCameraHandoff}
         />
       )}

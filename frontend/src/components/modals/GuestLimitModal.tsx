@@ -1,111 +1,106 @@
-import React, { useEffect } from 'react';
-import { X, Lock, Clock, TrendingUp } from 'lucide-react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { User, Lock, Sparkles, ArrowRight, X } from 'lucide-react';
 import './GuestLimitModal.css';
 
 interface GuestLimitModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSignup: () => void;
-  usageCount?: number;
-  usageLimit?: number;
-  resetAt?: string | null;
-}
-
-function formatResetTime(resetAt: string | null): string {
-  if (!resetAt) return 'in 24 hours';
-  const resetDate = new Date(resetAt);
-  const now = new Date();
-  const diffMs = resetDate.getTime() - now.getTime();
-  if (diffMs <= 0) return 'soon';
-
-  const totalMins = Math.floor(diffMs / 60000);
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-
-  if (hours > 0 && mins > 0) return `in ${hours}h ${mins}m`;
-  if (hours > 0) return `in ${hours}h`;
-  return `in ${mins}m`;
+    isOpen: boolean;
+    onClose: () => void;
+    limit?: number;
+    usageLimit?: number;
+    usageCount?: number;
+    resetAt?: string | null;
+    hasPendingUpload?: boolean;
+    onSignup?: (mode?: 'signup' | 'login') => Promise<void> | void;
 }
 
 const GuestLimitModal: React.FC<GuestLimitModalProps> = ({
-  isOpen,
-  onClose,
-  onSignup,
-  usageCount,
-  usageLimit,
-  resetAt,
+    isOpen,
+    onClose,
+    limit,
+    usageLimit,
+    hasPendingUpload = false,
+    onSignup
 }) => {
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const navigate = useNavigate();
+
+    if (!isOpen) return null;
+
+    // Support both prop names and default to 0 (since signup is required before first use)
+    const effectiveLimit = limit ?? usageLimit ?? 0;
+
+    const handleAuthAction = async (mode: 'signup' | 'login') => {
+        if (onSignup) {
+            await onSignup(mode);
+        } else {
+            onClose();
+            import('../../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+                EventManager.dispatch(EVENT_TYPES.OPEN_AUTH_MODAL, { mode });
+            }).catch(() => {
+                navigate('/login');
+            });
+        }
     };
-    if (isOpen) document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+    return (
+        <div className="guest-limit-modal-overlay">
+            <div className="guest-limit-modal-container">
+                <button className="guest-limit-modal-close" onClick={onClose} aria-label="Close">
+                    <X size={20} />
+                </button>
 
-  const count = usageCount ?? 0;
-  const limit = usageLimit ?? 5;
-  const usedPercent = Math.min(100, Math.round((count / limit) * 100));
-  const resetLabel = formatResetTime(resetAt ?? null);
+                <div className="guest-limit-modal-content">
+                    <div className="guest-limit-icon-wrapper">
+                        {effectiveLimit === 0 || hasPendingUpload ? (
+                            <Sparkles size={32} className="guest-limit-icon" />
+                        ) : (
+                            <Lock size={32} className="guest-limit-icon" />
+                        )}
+                    </div>
 
-  return (
-    <div className="guest-limit-overlay" onClick={onClose}>
-      <div className="guest-limit-modal" onClick={e => e.stopPropagation()}>
-        {/* Close button */}
-        <button className="guest-limit-close" onClick={onClose} aria-label="Close">
-          <X size={18} />
-        </button>
+                    <h2>
+                        {hasPendingUpload
+                            ? "Your Work is Ready to Mark!"
+                            : effectiveLimit === 0
+                                ? "Unlock Free AI Marking"
+                                : "Guest Limit Reached"}
+                    </h2>
+                    <p>
+                        {hasPendingUpload
+                            ? "Create a free account in seconds to grade your uploaded work immediately and get 10 free credits."
+                            : effectiveLimit === 0
+                                ? "Create a free account to unlock our AI marking tools, model answers, and get 10 free credits instantly."
+                                : "You've reached the free limit for guest users. Sign up for a free account to continue marking papers and save your history."}
+                    </p>
 
-        {/* Icon */}
-        <div className="guest-limit-icon-wrap">
-          <Lock size={28} />
+                    <div className="guest-limit-benefits">
+                        <div className="benefit-item">
+                            <ArrowRight size={16} className="benefit-icon" />
+                            <span>{hasPendingUpload ? "Auto-resumes your upload immediately after sign-in" : "10 free credits included instantly"}</span>
+                        </div>
+                        <div className="benefit-item">
+                            <ArrowRight size={16} className="benefit-icon" />
+                            <span>Step-by-step GCSE & A-Level exam marking</span>
+                        </div>
+                        <div className="benefit-item">
+                            <ArrowRight size={16} className="benefit-icon" />
+                            <span>Save and sync your marked papers & history</span>
+                        </div>
+                    </div>
+
+                    <div className="guest-limit-actions">
+                        <button className="guest-limit-primary-btn" onClick={() => handleAuthAction('signup')}>
+                            <User size={18} />
+                            <span>{hasPendingUpload ? "Continue Free to See Results" : "Sign up for free"}</span>
+                        </button>
+                        <button className="guest-limit-secondary-btn" onClick={() => handleAuthAction('login')}>
+                            Already have an account? Sign In
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <h2 className="guest-limit-title">
-          {limit === 0 ? "Unlock AI Marking" : "Guest Limit Reached"}
-        </h2>
-        <p className="guest-limit-subtitle">
-          {limit === 0 
-            ? "Create a free account to unlock our AI marking tools, save your progress, and get started instantly." 
-            : "You've used all your free guest requests. Sign up for free to continue."}
-        </p>
-
-        {/* Usage stats bar - Hidden if limit is 0 */}
-        {limit > 0 && (
-          <div className="guest-limit-stats">
-            <div className="guest-limit-stat-row">
-              <TrendingUp size={14} />
-              <span>Usage</span>
-              <span className="guest-limit-stat-value"><strong>{count}</strong> / {limit} requests</span>
-            </div>
-
-            <div className="guest-limit-bar-track">
-              <div
-                className="guest-limit-bar-fill"
-                style={{ width: `${usedPercent}%` }}
-              />
-            </div>
-
-            <div className="guest-limit-stat-row">
-              <Clock size={14} />
-              <span>Resets</span>
-              <span className="guest-limit-stat-value">{resetLabel}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <button className="guest-limit-cta" onClick={onSignup}>
-          Create Free Account
-        </button>
-        <button className="guest-limit-secondary" onClick={onClose}>
-          Maybe later
-        </button>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default GuestLimitModal;

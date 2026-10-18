@@ -3,15 +3,20 @@ import { FileText, Camera, X } from 'lucide-react';
 import './FileHandoff.css';
 
 interface FileHandoffProps {
+    initialType?: 'upload' | 'scan' | null;
     onFilesSelected: (files: File[]) => void;
     onClose: () => void;
     onOpenCamera?: () => void;
 }
 
-export const FileHandoff: React.FC<FileHandoffProps> = ({ onFilesSelected, onClose, onOpenCamera }) => {
-    const [handoffType, setHandoffType] = useState<'upload' | 'scan' | null>(null);
+export const FileHandoff: React.FC<FileHandoffProps> = ({ initialType = null, onFilesSelected, onClose, onOpenCamera }) => {
+    const [handoffType, setHandoffType] = useState<'upload' | 'scan' | null>(initialType);
 
     useEffect(() => {
+        if (initialType) {
+            setHandoffType(initialType);
+            return;
+        }
         const params = new URLSearchParams(window.location.search);
         const action = params.get('action');
 
@@ -21,7 +26,7 @@ export const FileHandoff: React.FC<FileHandoffProps> = ({ onFilesSelected, onClo
         } else if (action === 'scan') {
             setHandoffType('scan');
         }
-    }, []);
+    }, [initialType]);
 
     if (!handoffType) return null;
 

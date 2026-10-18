@@ -900,10 +900,14 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   justify-content: flex-start;
   gap: 12px;
   flex-direction: row;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .assistant-header .thinking-indicator {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding-top: 10px;
 }
@@ -1149,6 +1153,9 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   gap: 8px;
   white-space: nowrap;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 0px 0px 8px 0px;
 }
 

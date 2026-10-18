@@ -137,4 +137,17 @@ router.get('/exam-metadata', async (req, res) => {
     }
 });
 
+// POST /api/config/telemetry - Lightweight client funnel & drop-off logger
+router.post('/telemetry', express.json({ limit: '50kb' }), (req, res) => {
+  try {
+    const { event, userId, anonymousId, path, origin, timestamp, ...metadata } = req.body || {};
+    console.log(
+      `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
+    );
+  } catch (err) {
+    // Ignore malformed telemetry payloads
+  }
+  res.status(204).end();
+});
+
 export default router;

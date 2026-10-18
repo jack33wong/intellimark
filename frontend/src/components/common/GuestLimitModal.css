@@ -120,8 +120,8 @@
 
 .guest-limit-primary-btn {
     width: 100%;
-    background: var(--primary-color);
-    color: white;
+    background: transparent;
+    color: var(--text-primary);
     border: none;
     padding: 14px;
     border-radius: 12px;

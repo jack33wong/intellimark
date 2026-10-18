@@ -162,14 +162,33 @@ export class MarkingPipelineService {
             const isPdf = files.length === 1 && firstMime === 'application/pdf';
             const isMultiplePdfs = files.length > 1 && files.every(f => f.mimetype === 'application/pdf');
             const isSingleImage = files.length === 1 && !isPdf && firstMime.startsWith('image/');
-            const isMultipleImages = files.length > 1 && files.every(f => {
-                const ok = f.mimetype?.startsWith('image/');
-                if (!ok) console.warn(`[MIME CHECK] Non-image file detected in multi-upload: ${f.mimetype}`);
-                return ok;
-            });
+            const isMultipleImages = files.length > 1 && files.every(f => f.mimetype?.startsWith('image/'));
+            const isMixedUpload = files.length > 1 && !isMultiplePdfs && !isMultipleImages && files.every(f =>
+                f.mimetype === 'application/pdf' || f.mimetype?.startsWith('image/')
+            );
 
-            const inputType = isPdf ? 'PDF' : (isMultiplePdfs ? 'Multiple PDFs' : (isSingleImage ? 'Single Image' : 'Multiple Images'));
+            const inputType = isPdf
+                ? 'PDF'
+                : isMultiplePdfs
+                    ? 'Multiple PDFs'
+                    : isSingleImage
+                        ? 'Single Image'
+                        : isMultipleImages
+                            ? 'Multiple Images'
+                            : isMixedUpload
+                                ? 'Mixed (Images + PDFs)'
+                                : 'Unknown';
             console.log(`[INPUT TYPE] Detected: ${inputType} (${files.length} files)`);
+
+            // --- Hoisted Page Limits (so PDFs can be gated in 10ms BEFORE 45s rasterization) ---
+            const userPlan = (req as any).userPlan || 'free';
+            const isFreeUser = !userId || userPlan === 'free';
+            const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || '40'); // Bumped from 30 -> 40 for 36-page GCSE booklets
+            const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
+            const effectiveMaxPages = isFreeUser ? Math.min(MAX_FREE_PAGES, MAX_PAGES_LIMIT) : MAX_PAGES_LIMIT;
+            const getPageLimitErrorMessage = (count?: number) => isFreeUser
+                ? `PDF_PAGE_LIMIT_EXCEEDED: Free accounts are limited to grading ${MAX_FREE_PAGES} pages at a time${count ? ` (uploaded ${count} pages)` : ''}. Upgrade to Pro to grade larger past papers.`
+                : `PDF_PAGE_LIMIT_EXCEEDED: Upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images${count ? ` (uploaded ${count} pages)` : ''}.`;
 
             // --- Declare variables at proper scope ---
             let standardizedPages: StandardizedPage[] = [];
@@ -191,17 +210,20 @@ export class MarkingPipelineService {
                     stepTimings['pdf_conversion'] = { start: Date.now() };
 
                     // Use convertPdfToImages as in markingRouter.ts
-                    standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
+                    standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer, {
+                        maxPages: effectiveMaxPages,
+                        maxPagesErrorMessage: getPageLimitErrorMessage
+                    });
 
                     // TEMP: Limit to first 10 pages
                     // Enforce Page Limit
-                    const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
                     if (standardizedPages.length > MAX_PAGES_LIMIT) {
                         throw new Error(`Upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
                     }
-                    // Set originalFileName
+                    // Set originalFileName and _sourceIndex
                     standardizedPages.forEach((page) => {
                         page.originalFileName = originalFileName;
+                        (page as any)._sourceIndex = 0;
                     });
 
                     if (stepTimings['pdf_conversion']) {
@@ -216,14 +238,16 @@ export class MarkingPipelineService {
 
                     const pdfConversionPromises = files.map(async (file, index) => {
                         try {
-                            const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer);
+                            const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer, {
+                                maxPages: effectiveMaxPages,
+                                maxPagesErrorMessage: getPageLimitErrorMessage
+                            });
                             if (pdfPages.length === 0) {
                                 console.warn(`PDF ${index + 1} (${file.originalname}) yielded no pages.`);
                                 return { index, pdfPages: [] };
                             }
 
                             // Enforce Page Limit per PDF (part of total check later, but good early check)
-                            const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
                             if (pdfPages.length > MAX_PAGES_LIMIT) {
                                 throw new Error(`Single PDF exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages.`);
                             }
@@ -239,7 +263,7 @@ export class MarkingPipelineService {
                             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
                             
                             // 🛡️ LET CUSTOM UNREADABLE ERRORS BUBBLE UP TO THE CONTROLLER
-                            if (error.message?.includes('PDF_UNREADABLE')) {
+                            if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('limited to grading') || error.message?.includes('exceeds the maximum limit')) {
                                 throw error;
                             }
                             
@@ -268,7 +292,6 @@ export class MarkingPipelineService {
                     standardizedPages = allPdfPages;
 
                     // Enforce Total Page Limit for Multiple PDFs
-                    const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
                     if (standardizedPages.length > MAX_PAGES_LIMIT) {
                         throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
                     }
@@ -281,6 +304,7 @@ export class MarkingPipelineService {
                 progressCallback(createProgressData(1, `Extracting dimensions for ${standardizedPages.length} converted page(s)...`, MULTI_IMAGE_STEPS));
                 try {
                     await Promise.all(standardizedPages.map(async (page, i) => {
+                        if (page.width && page.height) return; // Already populated by PdfProcessingService
                         const base64Data = page.imageData.split(',')[1];
                         if (!base64Data) {
                             console.warn(`[DIMENSIONS - PDF Path] Invalid base64 data for page ${i}, skipping.`);
@@ -504,6 +528,118 @@ export class MarkingPipelineService {
 
                 progressCallback(createProgressData(1, `Collected ${standardizedPages.length} image(s).`, MULTI_IMAGE_STEPS));
 
+            } else if (isMixedUpload) {
+                // --- Mixed Upload Path (Images + PDFs in the same batch) ---
+                // NOTE: isPdf / isMultiplePdfs stay false so downstream image sorting still applies.
+                progressCallback(createProgressData(1, `Preparing mixed files (${files.length} files)...`, MULTI_IMAGE_STEPS));
+                stepTimings['pdf_conversion'] = { start: Date.now() };
+
+                const mixedConversionPromises = files.map(async (file, index): Promise<StandardizedPage[]> => {
+                    if (file.mimetype === 'application/pdf') {
+                        try {
+                            const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer, {
+                                maxPages: effectiveMaxPages,
+                                maxPagesErrorMessage: getPageLimitErrorMessage
+                            });
+                            await Promise.all(pdfPages.map(async (page) => {
+                                page.originalFileName = file.originalname || `pdf-${index + 1}.pdf`;
+                                (page as any)._sourceIndex = index;
+                                if (page.width && page.height) return; // Already populated by PdfProcessingService
+                                const base64Data = page.imageData.split(',')[1];
+                                if (base64Data) {
+                                    const metadata = await sharp(Buffer.from(base64Data, 'base64')).metadata();
+                                    page.width = metadata.width || 0;
+                                    page.height = metadata.height || 0;
+                                }
+                            }));
+                            return pdfPages;
+                        } catch (error: any) {
+                            console.error(`❌ Failed to convert PDF in mixed batch (${file.originalname}):`, error);
+                            if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('limited to grading') || error.message?.includes('exceeds the maximum limit')) throw error;
+                            throw new Error(`Failed to process PDF "${file.originalname}".`);
+                        }
+                    } else if (file.mimetype?.startsWith('image/')) {
+                        try {
+                            const rawData = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+                            const normalizedImageData = await ImageUtils.normalizeOrientation(rawData);
+                            const base64Data = normalizedImageData.split(',')[1];
+                            const metadata = await sharp(Buffer.from(base64Data, 'base64')).metadata();
+                            if (!metadata.width || !metadata.height) return [];
+                            return [{
+                                pageIndex: 0, // Re-indexed sequentially below
+                                imageData: normalizedImageData,
+                                originalFileName: file.originalname || `image-${index + 1}.jpg`,
+                                width: metadata.width,
+                                height: metadata.height
+                            }];
+                        } catch (imgErr) {
+                            console.warn(`[MIXED UPLOAD] Failed to process image ${file.originalname}:`, imgErr);
+                            return [];
+                        }
+                    }
+                    return [];
+                });
+
+                const nestedPages = await Promise.all(mixedConversionPromises);
+                if (stepTimings['pdf_conversion']) {
+                    stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
+                }
+
+                // Flatten in original upload order and re-index sequentially
+                standardizedPages = nestedPages.flat().map((page, idx) => ({
+                    ...page,
+                    pageIndex: idx
+                }));
+
+                if (standardizedPages.length > MAX_PAGES_LIMIT) {
+                    throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
+                }
+
+                // Store PDF context for any PDFs included in the mixed batch
+                const pdfFiles = files.filter(f => f.mimetype === 'application/pdf');
+                if (pdfFiles.length > 0) {
+                    const pdfContexts: any[] = [];
+                    for (let i = 0; i < pdfFiles.length; i++) {
+                        const file = pdfFiles[i];
+                        let originalPdfLink = null;
+                        const originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
+
+                        if (isAuthenticated) {
+                            const originalFileName = file.originalname || `document-${i + 1}.pdf`;
+                            try {
+                                const { ImageStorageService } = await import('../imageStorageService.js');
+                                const sessionId = options.sessionId || submissionId;
+                                originalPdfLink = await ImageStorageService.uploadPdf(
+                                    originalPdfDataUrl,
+                                    userId || 'anonymous',
+                                    sessionId,
+                                    originalFileName
+                                );
+                            } catch (e) {
+                                console.warn(`⚠️ [MIXED PDF UPLOAD] Non-fatal storage error for ${file.originalname}:`, e);
+                            }
+                        }
+
+                        const fileSizeBytes = file.buffer.length;
+                        const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+                        pdfContexts.push({
+                            originalFileType: 'pdf' as const,
+                            originalPdfLink,
+                            originalPdfDataUrl,
+                            originalFileName: file.originalname || `document-${i + 1}.pdf`,
+                            fileSize: fileSizeBytes,
+                            fileSizeMB: fileSizeMB + ' MB',
+                            fileIndex: i
+                        });
+                    }
+                    pdfContext = {
+                        isMultiplePdfs: true,
+                        pdfContexts
+                    };
+                }
+
+                progressCallback(createProgressData(1, `Prepared ${standardizedPages.length} total page(s) from mixed upload.`, MULTI_IMAGE_STEPS));
+
             } else {
                 // This case should technically be caught by initial validation, but belt-and-suspenders.
                 throw new Error("Unhandled submission type.");
@@ -514,11 +650,7 @@ export class MarkingPipelineService {
                 throw new Error('Standardization failed: No processable pages/images found.');
             }
 
-            // --- Input Page Gating ---
-            const userPlan = (req as any).userPlan || 'free';
-            const isFreeUser = !userId || userPlan === 'free';
-            const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || '30');
-
+            // --- Input Page Gating (Final Check for Multi-Image / Combined Totals) ---
             console.log(`📊 [PAGE GATING] User ${userId || 'anonymous'} (${userPlan}) uploaded ${standardizedPages.length} page(s).`);
 
             // 1. Check Product Tier Limits
@@ -600,9 +732,16 @@ export class MarkingPipelineService {
                 const geo = geometryResults[i];
 
                 if (!geo.is_acceptable_quality || geo.is_math_content === false) {
-                    lastRejectionReason = geo.rejection_reason || lastRejectionReason;
+                    if (geo.is_math_content === false) {
+                        const rawReason = (geo.rejection_reason || '').trim();
+                        lastRejectionReason = rawReason.toLowerCase().includes('not math')
+                            ? rawReason
+                            : (rawReason ? `Not maths related image: ${rawReason}` : 'Not maths related image. Please upload a mathematics question or student homework image.');
+                    } else {
+                        lastRejectionReason = geo.rejection_reason || lastRejectionReason;
+                    }
                     
-                    const reason = geo.rejection_reason || "Unacceptable quality or non-math content.";
+                    const reason = lastRejectionReason;
                     const evidence = geo.evidence_text_snippet ? `\n   📄 Evidence: "${geo.evidence_text_snippet}"` : "";
                     if (process.env.DEBUG_SEMANTIC_GEOMETRY === 'true') {
                         console.warn(`⚠️ [GEOMETRY] Dropping Page ${stdPage.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
@@ -636,6 +775,58 @@ export class MarkingPipelineService {
                 }
             }
 
+            // 🛡️ [PURE MARKING SCHEME SWEEP]:
+            // If >= 75% of pages from a single multi-page source file (with at least 3 pages) were flagged as a Marking Scheme,
+            // any remaining 1-2 pages from that same file are almost certainly diagram/formula pages of the scheme itself
+            // that suffered a false negative. Sweep them into interceptedSchemeImages so they aren't graded as student work!
+            if (interceptedSchemeImages.length >= 2 && newStandardizedPages.length > 0) {
+                const getFileKey = (p: StandardizedPage) => `${(p as any)._sourceIndex ?? 'img'}_${p.originalFileName || 'default'}`;
+
+                const fileStats = new Map<string, { total: number; scheme: number; name: string }>();
+                for (let i = 0; i < standardizedPages.length; i++) {
+                    const key = getFileKey(standardizedPages[i]);
+                    const stat = fileStats.get(key) || { total: 0, scheme: 0, name: standardizedPages[i].originalFileName || 'default' };
+                    stat.total++;
+                    if (geometryResults[i]?.is_marking_scheme) {
+                        stat.scheme++;
+                    }
+                    fileStats.set(key, stat);
+                }
+
+                const pureSchemeFileKeys = new Set<string>();
+                fileStats.forEach((stat, key) => {
+                    if (stat.total >= 3 && (stat.scheme / stat.total) >= 0.75) {
+                        pureSchemeFileKeys.add(key);
+                        console.log(`🧹 [INTERCEPTOR SWEEP] File "${stat.name}" is ${(stat.scheme / stat.total * 100).toFixed(0)}% Marking Scheme (${stat.scheme}/${stat.total}). Sweeping remaining leaked pages into scheme parser.`);
+                    }
+                });
+
+                if (pureSchemeFileKeys.size > 0) {
+                    const filteredStd: StandardizedPage[] = [];
+                    const filteredLight: StandardizedPage[] = [];
+                    for (let i = 0; i < newStandardizedPages.length; i++) {
+                        const page = newStandardizedPages[i];
+                        if (pureSchemeFileKeys.has(getFileKey(page))) {
+                            console.log(`📄 [INTERCEPTOR SWEEP] Ejecting leaked scheme page ${page.pageIndex} from "${page.originalFileName}"`);
+                            pagesEjected = true;
+                            interceptedSchemeImages.push(page.imageData);
+                        } else {
+                            filteredStd.push(page);
+                            filteredLight.push(newLightweightPages[i]);
+                        }
+                    }
+                    newStandardizedPages.length = 0;
+                    newStandardizedPages.push(...filteredStd);
+                    newLightweightPages.length = 0;
+                    newLightweightPages.push(...filteredLight);
+                }
+            }
+
+            // If ALL pages were ejected because the user ONLY uploaded a Marking Scheme (no student work or questions):
+            if (newStandardizedPages.length === 0 && interceptedSchemeImages.length > 0) {
+                lastRejectionReason = 'It looks like you uploaded a Marking Scheme without any exam questions or student answers! Please upload your question paper or handwritten answers along with the marking scheme so I can grade them.';
+            }
+
             // CRITICAL FIX: We MUST re-assign pageIndex = index for ALL files (PDFs and Images).
             // A previous developer incorrectly assumed the frontend uses a native PDF viewer that relies on physical page mapping.
             // In reality, PDFs are rasterized into images and the frontend displays the annotated *images*.
@@ -656,13 +847,28 @@ export class MarkingPipelineService {
                 
                 // Persist the rejected session so it shows in Library and chat history
                 try {
+                    const earlyExitPdfContexts = pdfContext?.pdfContexts
+                        ? pdfContext.pdfContexts.map((c: any) => ({
+                            url: c.originalPdfLink || c.originalPdfDataUrl,
+                            originalFileName: c.originalFileName,
+                            fileSize: c.fileSize
+                        }))
+                        : (pdfContext?.originalPdfLink || pdfContext?.originalPdfDataUrl)
+                            ? [{
+                                url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl,
+                                originalFileName: pdfContext.originalFileName,
+                                fileSize: pdfContext.fileSize
+                            }]
+                            : undefined;
+
                     const userMessage = createUserMessage({
                         content: 'Uploaded document for analysis',
-                        pdfContexts: files.map(f => ({ url: f.path, originalFileName: f.originalname, fileSize: f.size }))
+                        ...(earlyExitPdfContexts && { pdfContexts: earlyExitPdfContexts })
                     });
                     
                     const aiMessage = createAIMessage({
-                        content: lastRejectionReason || 'The uploaded image could not be processed because it is blurry, unreadable, or does not contain educational content.'
+                        content: lastRejectionReason || 'The uploaded image could not be processed because it is blurry, unreadable, or does not contain educational content.',
+                        messageId: req.body?.aiMessageId
                     });
 
                     const markingContext: MarkingSessionContext = {
@@ -692,7 +898,9 @@ export class MarkingPipelineService {
                         submissionId,
                         mode: 'Question',
                         sessionId: sessionResult.sessionId,
+                        sessionTitle: sessionResult.sessionTitle,
                         unifiedSession: sessionResult.unifiedSession,
+                        aiMessage,
                         annotatedOutput: [],
                         results: [],
                         warning: "CONTENT_REJECTED",
@@ -1219,18 +1427,41 @@ export class MarkingPipelineService {
             if (isQuestionMode) {
                 const hasQuestions = classificationResult?.questions && classificationResult.questions.length > 0;
 
-                // 🛑 NEW: Intercept Cover Pages before they hit the handler
+                // 🛑 Intercept Cover Pages or Non-Maths/Metadata Pages with 0 questions before they hit the handler
                 if (!hasQuestions) {
-                    console.log('📄 [COVER PAGE ONLY] No questions found. Bypassing solver to return warning.');
+                    const isCoverPage = (classificationResult as any)?.hasFrontPages === true ||
+                        (classificationResult as any)?.category === 'frontPage' ||
+                        (classificationResult as any)?.pages?.some((p: any) => p.category === 'frontPage');
+
+                    console.log(`📄 [${isCoverPage ? 'COVER PAGE ONLY' : 'NO MATHS QUESTIONS'}] No questions found. Bypassing solver to return warning.`);
 
                     // 1. Create the proactive AI chat message
+                    const earlyExitPdfContexts = pdfContext?.pdfContexts
+                        ? pdfContext.pdfContexts.map((c: any) => ({
+                            url: c.originalPdfLink || c.originalPdfDataUrl,
+                            originalFileName: c.originalFileName,
+                            fileSize: c.fileSize
+                        }))
+                        : (pdfContext?.originalPdfLink || pdfContext?.originalPdfDataUrl)
+                            ? [{
+                                url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl,
+                                originalFileName: pdfContext.originalFileName,
+                                fileSize: pdfContext.fileSize
+                            }]
+                            : undefined;
+
                     const userMessage = createUserMessage({
                         content: 'Uploaded document for analysis',
-                        pdfContexts: files.map(f => ({ url: f.path, originalFileName: f.originalname, fileSize: f.size }))
+                        ...(earlyExitPdfContexts && { pdfContexts: earlyExitPdfContexts })
                     });
-                    
+
+                    const earlyExitText = isCoverPage
+                        ? "I see you've uploaded an exam cover page. To generate a grade, please upload the pages containing the student's handwritten answers. If you want to see how to solve a problem, just upload the question page!"
+                        : "Not maths related image. No mathematics questions or student work were detected on the uploaded image. Please upload a mathematics question or student homework image.";
+
                     const aiMessage = createAIMessage({
-                        content: "I see you've uploaded an exam cover page. To generate a grade, please upload the pages containing the student's handwritten answers. If you want to see how to solve a problem, just upload the question page!"
+                        content: earlyExitText,
+                        messageId: req.body?.aiMessageId
                     });
 
                     // 2. Persist the session to Firestore so the chat panel actually loads it
@@ -1254,19 +1485,22 @@ export class MarkingPipelineService {
                     });
 
                     const finalOutput = {
+                        success: true,
                         mode: 'Question',
                         sessionId: sessionResult.sessionId,
                         unifiedSession: sessionResult.unifiedSession,
+                        aiMessage: sessionResult.unifiedSession?.messages?.find((m: any) => m.role === 'assistant') || aiMessage,
+                        sessionTitle: sessionResult.unifiedSession?.title || (isCoverPage ? 'Cover Page' : 'Rejected Upload'),
                         annotatedOutput: [],
                         results: [],
-                        warning: "COVER_PAGE_ONLY"
+                        warning: isCoverPage ? "COVER_PAGE_ONLY" : "NOT_MATHS_CONTENT"
                     };
 
                     // 3. Fire the complete event directly to the frontend UI
                     progressCallback({ type: 'complete', result: finalOutput });
 
                     console.log(`   - sessionId: ${finalOutput.sessionId}`);
-                    console.log(`   - warning: COVER_PAGE_ONLY applied`);
+                    console.log(`   - warning: ${finalOutput.warning} applied`);
                     
                     return finalOutput;
                 }
@@ -2050,11 +2284,13 @@ export class MarkingPipelineService {
             // Handle case where no student work is found
             if (markingTasks.length === 0) {
                 console.log('No marking tasks created, exiting early');
-                progressCallback(createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
+                const hasDetectedQuestions = allQuestions.length > 0;
+                progressCallback(createProgressData(5, hasDetectedQuestions ? 'No student work found to mark.' : 'Not maths related image.', MULTI_IMAGE_STEPS));
 
                 // 🛡️ [SESSION-STABILITY]: Ensure we have a sessionId even if no tasks were found
                 let finalSessionId = questionOnlyResult?.sessionId || questionOnlyResult?.unifiedSession?.sessionId;
                 let finalUnifiedSession = questionOnlyResult?.unifiedSession;
+                let fallbackAiMessage: any = null;
 
                 if (!finalSessionId) {
                     console.log(`📡 [EARLY EXIT] Generating fallback sessionId from submissionId: ${submissionId}`);
@@ -2062,13 +2298,31 @@ export class MarkingPipelineService {
 
                     // Persist an empty marking session so it shows in Library
                     try {
+                        const earlyExitPdfContexts = pdfContext?.pdfContexts
+                            ? pdfContext.pdfContexts.map((c: any) => ({
+                                url: c.originalPdfLink || c.originalPdfDataUrl,
+                                originalFileName: c.originalFileName,
+                                fileSize: c.fileSize
+                            }))
+                            : (pdfContext?.originalPdfLink || pdfContext?.originalPdfDataUrl)
+                                ? [{
+                                    url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl,
+                                    originalFileName: pdfContext.originalFileName,
+                                    fileSize: pdfContext.fileSize
+                                }]
+                                : undefined;
+
                         const userMessage = createUserMessage({
                             content: 'Uploaded document for marking',
-                            pdfContexts: files.map(f => ({ url: f.path, originalFileName: f.originalname, fileSize: f.size }))
+                            ...(earlyExitPdfContexts && { pdfContexts: earlyExitPdfContexts })
                         });
                         const aiMessage = createAIMessage({
-                            content: 'No student work was detected on the uploaded pages.'
+                            content: hasDetectedQuestions
+                                ? 'No student work was detected on the uploaded pages.'
+                                : 'Not maths related image. No mathematics questions or student work were detected on the uploaded image. Please upload a mathematics question or student homework image.',
+                            messageId: req.body?.aiMessageId
                         });
+                        fallbackAiMessage = aiMessage;
 
                         const markingContext: MarkingSessionContext = {
                             req,
@@ -2099,11 +2353,14 @@ export class MarkingPipelineService {
                 }
 
                 const finalOutput = {
+                    success: true,
                     submissionId, // Pass through submissionId
                     annotatedOutput: [],
                     results: [],
                     mode: isQuestionMode ? 'Question' : 'Marking',
                     unifiedSession: finalUnifiedSession,
+                    aiMessage: finalUnifiedSession?.messages?.find((m: any) => m.role === 'assistant') || fallbackAiMessage,
+                    sessionTitle: finalUnifiedSession?.title || (hasDetectedQuestions ? 'Marking Session' : 'Rejected Upload'),
                     // Add sessionId for credit deduction
                     sessionId: finalSessionId,
                     // Add sessionStats for usageRecord lookup
@@ -2111,8 +2368,11 @@ export class MarkingPipelineService {
                     processingStats: {
                         totalLLMTokens,
                         mathpixCalls: usageTracker.getMathpixPages()
-                    }
+                    },
+                    ...(pdfContext && { pdfContext })
                 };
+
+                progressCallback({ type: 'complete', result: finalOutput });
 
                 console.log(`   - submissionId: ${finalOutput.submissionId}`);
                 console.log(`   - sessionId: ${finalOutput.sessionId}`);
@@ -2624,7 +2884,7 @@ export class MarkingPipelineService {
                 totalPossibleScore,
                 overallScoreText,
                 isPdf,
-                isMultiplePdfs,
+                isMultiplePdfs || isMixedUpload, // ✅ Ensures PDF contexts are persisted in mixed uploads
                 pdfContext,
                 isMixedContent,
                 stepTimings,

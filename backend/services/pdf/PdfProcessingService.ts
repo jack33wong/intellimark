@@ -35,8 +35,9 @@ export class PdfProcessingService {
 
   /**
    * Converts a PDF buffer into an array of image data URLs (base64 encoded).
+   *
    * @param pdfBuffer The buffer containing the PDF data.
-   * @param options Optional configuration for conversion.
+   * @param options Optional configuration for conversion (including maxPages & maxPagesErrorMessage).
    * @returns A promise that resolves to an array of StandardizedPage objects.
    */
   static async convertPdfToImages(
@@ -44,6 +45,7 @@ export class PdfProcessingService {
     options: any = {}
   ): Promise<StandardizedPage[]> {
     const startTime = Date.now();
+    const { maxPages, maxPagesErrorMessage, ...pdf2picCustomOptions } = options;
 
     // Create a unique temporary directory for this conversion
     let tempDirPath: string | undefined;
@@ -60,14 +62,42 @@ export class PdfProcessingService {
     let targetWidth = 3720; // Default A4 width at 300 DPI
     let targetHeight = 5262; // Default A4 height at 300 DPI
 
+    // 1. SINGLE-PASS PRE-FLIGHT & LAUNDROMAT:
+    // Load into pdf-lib ONCE to check page count (in ~10ms), read dimensions, and clean structural metadata.
+    let finalPdfBytes: Uint8Array | Buffer = pdfBuffer;
     try {
+      console.log("🧼 [PDF-REPAIR] Loading document into pdf-lib to check page count & clean structural metadata...");
       const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
-      const firstPage = pdfDoc.getPages()[0];
-      const { width: pdfPtW, height: pdfPtH } = firstPage.getSize();
-      targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
-      targetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
-    } catch (pdfErr) {
-      console.error('❌ [PDF Processing] Failed to read PDF dimensions with pdf-lib:', pdfErr);
+      const pageCount = pdfDoc.getPageCount();
+
+      // ⚡ INSTANT PAGE GATING (0.05s instead of 45s rasterization)
+      if (maxPages && pageCount > maxPages) {
+        const customMsg = typeof maxPagesErrorMessage === 'function'
+          ? maxPagesErrorMessage(pageCount)
+          : maxPagesErrorMessage;
+        const msg = customMsg || `PDF_PAGE_LIMIT_EXCEEDED: Upload exceeds the maximum limit of ${maxPages} pages (found ${pageCount} pages).`;
+        const finalMsg = msg.startsWith('PDF_PAGE_LIMIT_EXCEEDED:') ? msg : `PDF_PAGE_LIMIT_EXCEEDED: ${msg}`;
+        throw new Error(finalMsg);
+      }
+
+      if (pageCount > 0) {
+        const firstPage = pdfDoc.getPages()[0];
+        const { width: pdfPtW, height: pdfPtH } = firstPage.getSize();
+        targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
+        targetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
+      }
+
+      finalPdfBytes = await pdfDoc.save();
+      console.log(`✨ [PDF-REPAIR] Structural repair complete (${pageCount} pages). Binary rewritten safely.`);
+    } catch (repairError: any) {
+      // Let instant page-limit errors bubble straight up without rasterizing!
+      if (repairError?.message?.includes('PDF_PAGE_LIMIT_EXCEEDED')) {
+        try {
+          if (tempDirPath) await fs.rm(tempDirPath, { recursive: true, force: true });
+        } catch (_) {}
+        throw new Error(repairError.message.replace('PDF_PAGE_LIMIT_EXCEEDED: ', ''));
+      }
+      console.warn("⚠️ [PDF-REPAIR] Structural repair failed. Falling back to original buffer context.", repairError);
     }
 
     const defaultOptions: any = {
@@ -85,28 +115,16 @@ export class PdfProcessingService {
       "-flatten": true
     };
 
-    const conversionOptions: any = { ...defaultOptions, ...options };
-    
+    const conversionOptions: any = { ...defaultOptions, ...pdf2picCustomOptions };
     const tempPdfPath = path.join(tempDirPath, `temp-repaired-${Date.now()}.pdf`);
-    
-    // 1. THE AUTOMATIC LAUNDROMAT: Structural Repair via pdf-lib
-    let finalPdfBytes: Uint8Array | Buffer = pdfBuffer;
-    try {
-        console.log("🧼 [PDF-REPAIR] Loading document into pdf-lib to clean structural metadata...");
-        const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
-        finalPdfBytes = await pdfDoc.save();
-        console.log("✨ [PDF-REPAIR] Structural repair complete. Binary rewritten safely.");
-    } catch (repairError) {
-        console.warn("⚠️ [PDF-REPAIR] Structural repair failed. Falling back to original buffer context.", repairError);
-    }
-    
-    // 2. DISK PERSISTENCE: Write file to Cloud Run's in-memory storage (/tmp) to bypass Node streams
-    await fs.writeFile(tempPdfPath, Buffer.from(finalPdfBytes));
-    
-    // 3. RASTERIZATION: Pass the clean file path directly to GraphicsMagick via pdf2pic
-    const convert = fromPath(tempPdfPath, conversionOptions as any);
 
     try {
+      // 2. DISK PERSISTENCE: Write file to Cloud Run's in-memory storage (/tmp) to bypass Node streams
+      await fs.writeFile(tempPdfPath, Buffer.from(finalPdfBytes));
+
+      // 3. RASTERIZATION: Pass the clean file path directly to GraphicsMagick via pdf2pic
+      const convert = fromPath(tempPdfPath, conversionOptions as any);
+
       // Convert all pages; returns array of file outputs with paths
       const conversionResults = await convert.bulk(-1) as unknown as ConversionResult[];
 
@@ -115,7 +133,6 @@ export class PdfProcessingService {
         if (Array.isArray(conversionResults) && conversionResults.length === 0) return [];
         throw new Error('PDF conversion returned an invalid result or no pages.');
       }
-
 
       // Ensure ordered by page number
       conversionResults.sort((a, b) => (a.page || 0) - (b.page || 0));
@@ -132,16 +149,16 @@ export class PdfProcessingService {
         try {
           const imagePath = result.path;
           const imageFileBuffer = await fs.readFile(imagePath);
-          
+
           // The Optimization Pipeline
           // 1. Flatten to solid white background (fixes transparent PDF backgrounds rendering as black)
           // 2. Grayscale (removes RGB color data for massive file size savings, math is black/white anyway)
           // 3. JPEG compression (quality 80 is visually identical for text but reduces payload heavily)
           const optimizedBuffer = await sharp(imageFileBuffer)
-              .flatten({ background: { r: 255, g: 255, b: 255 } })
-              .grayscale()
-              .jpeg({ quality: 80 })
-              .toBuffer();
+            .flatten({ background: { r: 255, g: 255, b: 255 } })
+            .grayscale()
+            .jpeg({ quality: 80 })
+            .toBuffer();
 
           // Get reliable dimensions via sharp
           const meta = await sharp(optimizedBuffer).metadata();
@@ -168,9 +185,9 @@ export class PdfProcessingService {
 
     } catch (error) {
       console.error('❌ [PDF Processing] PDF conversion failed:', error);
-      
+
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // 🛡️ INTERCEPT UNREADABLE PDFs
       if (errorMessage.includes('Postscript delegate failed') || errorMessage.includes('gm identify')) {
         throw new Error('PDF_UNREADABLE: The uploaded PDF is corrupted, password-protected, or in an unsupported format. Please open the file, select "Print to PDF", and upload the new version.');
@@ -190,5 +207,3 @@ export class PdfProcessingService {
 }
 
 export default PdfProcessingService;
-
-

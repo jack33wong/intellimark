@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { trackFunnelEvent } from '../utils/funnelTracker';
 
 // Define the shape of the state managed by this hook
 interface ImageUploadState {
@@ -17,6 +18,12 @@ export const useImageUpload = () => {
   const handleFileSelect = useCallback((file: File) => {
     // Basic file validation
     if (!file.type.startsWith('image/')) {
+      trackFunnelEvent('client_file_rejected', {
+        reason: 'unsupported_type_or_size',
+        fileName: file?.name || 'unknown',
+        fileType: file?.type || 'unknown',
+        fileSize: file?.size || 0
+      });
       setState(prev => ({ ...prev, error: 'Please select a valid image file.' }));
       return;
     }

@@ -12,6 +12,7 @@ import {
   FILE_CONSTRAINTS
 } from '../../utils/fileUtils';
 import { createFileError, createValidationError } from '../../utils/errorUtils';
+import { trackFunnelEvent } from '../../utils/funnelTracker';
 import './ImageUpload.css';
 
 const ImageUpload = ({
@@ -35,12 +36,24 @@ const ImageUpload = ({
 
     // Validate file
     if (!isImageFile(file)) {
+      trackFunnelEvent('client_file_rejected', {
+        reason: 'unsupported_type',
+        fileName: file?.name || 'unknown',
+        fileType: file?.type || 'unknown',
+        fileSize: file?.size || 0
+      });
       const error = createFileError('Please select a valid image file');
       onError?.(error);
       return;
     }
 
     if (file.size > maxSize) {
+      trackFunnelEvent('client_file_rejected', {
+        reason: 'file_too_large',
+        fileName: file?.name || 'unknown',
+        fileType: file?.type || 'unknown',
+        fileSize: file?.size || 0
+      });
       const error = createValidationError(
         `File size must be less than ${formatFileSize(maxSize)}`
       );

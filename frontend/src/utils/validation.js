@@ -3,6 +3,8 @@
  * Implements fail-fast design principles with early validation
  */
 
+import { trackFunnelEvent } from './funnelTracker';
+
 // File validation constants
 export const FILE_CONSTRAINTS = {
   MAX_SIZE: 10 * 1024 * 1024, // 10MB
@@ -25,20 +27,44 @@ export const validateFile = (file) => {
 
   // Fail fast on invalid file type
   if (!FILE_CONSTRAINTS.ALLOWED_TYPES.includes(file.type)) {
+    trackFunnelEvent('client_file_rejected', {
+      reason: 'unsupported_type',
+      fileName: file?.name || 'unknown',
+      fileType: file?.type || 'unknown',
+      fileSize: file?.size || 0
+    });
     throw new Error(`Invalid file type. Allowed: ${FILE_CONSTRAINTS.ALLOWED_TYPES.join(', ')}`);
   }
 
   // Fail fast on file size
   if (file.size > FILE_CONSTRAINTS.MAX_SIZE) {
+    trackFunnelEvent('client_file_rejected', {
+      reason: 'file_too_large',
+      fileName: file?.name || 'unknown',
+      fileType: file?.type || 'unknown',
+      fileSize: file?.size || 0
+    });
     throw new Error(`File too large. Maximum size: ${FILE_CONSTRAINTS.MAX_SIZE / (1024 * 1024)}MB`);
   }
 
   if (file.size < FILE_CONSTRAINTS.MIN_SIZE) {
+    trackFunnelEvent('client_file_rejected', {
+      reason: 'file_too_small',
+      fileName: file?.name || 'unknown',
+      fileType: file?.type || 'unknown',
+      fileSize: file?.size || 0
+    });
     throw new Error(`File too small. Minimum size: ${FILE_CONSTRAINTS.MIN_SIZE / 1024}KB`);
   }
 
   // Fail fast on invalid file name
   if (!file.name || file.name.trim().length === 0) {
+    trackFunnelEvent('client_file_rejected', {
+      reason: 'invalid_file_name',
+      fileName: file?.name || 'unknown',
+      fileType: file?.type || 'unknown',
+      fileSize: file?.size || 0
+    });
     throw new Error('Invalid file name');
   }
 

@@ -306,7 +306,7 @@ body:has(.light-mode-forced) .app-container {
   border-radius: 8px;
   background: var(--background-menu-gray);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 16px;
   transition: all 0.2s ease;
 }
 

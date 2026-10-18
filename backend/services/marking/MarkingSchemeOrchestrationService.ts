@@ -377,34 +377,38 @@ export class MarkingSchemeOrchestrationService {
     }
 
     // --- STEP 2.5: 1-TO-1 TARGET DE-DUPLICATION (The Unique Lock) ---
+    // Lock by parent question group (baseNum) so sub-questions (e.g. 10, 10a, 10bi, 10bii)
+    // share the lock for Q10 while still blocking different parent questions from claiming the same DB question.
     const targetClaims = new Map<string, { groupKey: string, score: number }>();
     
-    // First pass: Find the highest scoring uploaded question for each specific DB question
+    // First pass: Find the highest scoring uploaded parent question group for each specific DB question
     for (const dr of detectionResults) {
       if (dr.detectionResult.found && dr.detectionResult.match) {
         const match = dr.detectionResult.match;
-        const targetId = `${match.paperCode}_${match.questionNumber}`;
+        const targetId = `${match.paperTitle || match.paperCode}_${match.questionNumber}`;
+        const groupKey = getBaseQuestionNumber(dr.question.questionNumber) || String(dr.question.questionNumber);
         const currentBest = targetClaims.get(targetId);
         
         if (!currentBest || match.confidence > currentBest.score) {
           targetClaims.set(targetId, { 
-            groupKey: String(dr.question.questionNumber), 
+            groupKey, 
             score: match.confidence 
           });
         }
       }
     }
     
-    // Second pass: Invalidate "losers" who tried to claim an already-locked DB question
+    // Second pass: Invalidate "losers" from OTHER parent question groups who tried to claim an already-locked DB question
     for (const dr of detectionResults) {
       if (dr.detectionResult.found && dr.detectionResult.match) {
         const match = dr.detectionResult.match;
-        const targetId = `${match.paperCode}_${match.questionNumber}`;
+        const targetId = `${match.paperTitle || match.paperCode}_${match.questionNumber}`;
+        const groupKey = getBaseQuestionNumber(dr.question.questionNumber) || String(dr.question.questionNumber);
         const bestClaim = targetClaims.get(targetId);
         
-        if (bestClaim && bestClaim.groupKey !== String(dr.question.questionNumber)) {
+        if (bestClaim && bestClaim.groupKey !== groupKey) {
            if (process.env.LOG_QUESTION_DETECTION === 'true') {
-             console.log(`   🔒 [1-TO-1 LOCK] Q${dr.question.questionNumber} lost claim to ${targetId} (Beaten by Q${bestClaim.groupKey})`);
+             console.log(`   🔒 [1-TO-1 LOCK] Q${dr.question.questionNumber} (Group ${groupKey}) lost claim to ${targetId} (Beaten by Group Q${bestClaim.groupKey})`);
            }
            dr.detectionResult.found = false;
            dr.detectionResult.match = null;
@@ -416,6 +420,13 @@ export class MarkingSchemeOrchestrationService {
     // Re-calculate detection stats after the cull
     detectionStats.detected = detectionResults.filter(r => r.detectionResult.found).length;
     detectionStats.notDetected = detectionStats.totalQuestions - detectionStats.detected;
+    detectionStats.questionDetails = detectionResults.map(r => ({
+      questionNumber: r.question.questionNumber,
+      detected: r.detectionResult.found,
+      similarity: r.detectionResult.match?.confidence || 0,
+      matchedPaperTitle: r.detectionResult.match?.paperTitle,
+      hasMarkingScheme: !!r.detectionResult.match?.markingScheme
+    }));
 
     // --- STEP 3: RECOVERY LOGIC ---
     const hintInfo = detectionStats.hintInfo;
@@ -441,14 +452,17 @@ export class MarkingSchemeOrchestrationService {
         shouldRestart = true; restartReason = `Poor match density`;
       }
 
-      if (shouldRestart && examPaperHint !== null) {
+      if (shouldRestart && Boolean(examPaperHint)) {
         return this.orchestrateMarkingSchemeLookup(individualQuestions, classificationResult, null);
       }
     }
 
     // --- STEP 4: CONSENSUS RULE (Dynamic Proportional Gate) ---
-    // Count DISTINCT unique questions matched per paper, not just total flat matches
+    // Count DISTINCT unique parent DB questions matched per paper, and compare against
+    // the number of uploaded parent question groups (questionGroups.size) so sub-questions
+    // (e.g. 10a, 10bi, 10bii) neither penalize single-question uploads nor inflate vote counts.
     const paperUniqueQuestions = new Map<string, Set<string>>();
+    const paperMaxConfidence = new Map<string, number>();
     const paperToMatch = new Map<string, any>();
     
     detectionResults.forEach(dr => {
@@ -457,6 +471,10 @@ export class MarkingSchemeOrchestrationService {
         if (!paperUniqueQuestions.has(title)) paperUniqueQuestions.set(title, new Set());
         // Track the DB question number to ensure they are distinct parts of the paper
         paperUniqueQuestions.get(title)!.add(dr.detectionResult.match.questionNumber);
+        const conf = dr.detectionResult.match.confidence || 0;
+        if (conf > (paperMaxConfidence.get(title) || 0)) {
+          paperMaxConfidence.set(title, conf);
+        }
         if (!paperToMatch.has(title)) paperToMatch.set(title, dr.detectionResult.match);
       }
     });
@@ -464,35 +482,36 @@ export class MarkingSchemeOrchestrationService {
     const paperCounts = paperUniqueQuestions;
 
     let dominantPaper: string | null = null;
-    const totalQuestionsExtracted = detectionStats.totalQuestions;
+    const totalParentQuestionsUploaded = questionGroups.size;
+    const totalDistinctVotes = Array.from(paperUniqueQuestions.values()).reduce((sum, set) => sum + set.size, 0);
 
     if (process.env.LOG_QUESTION_DETECTION === 'true') {
-      console.log(`\n🗳️ [CONSENSUS CHECK - DYNAMIC GATE] Total Uploaded Questions: ${totalQuestionsExtracted}`);
+      console.log(`\n🗳️ [CONSENSUS CHECK - DYNAMIC GATE] Total Uploaded Parent Questions: ${totalParentQuestionsUploaded} (Sub-items: ${detectionStats.totalQuestions})`);
     }
 
     for (const [title, uniqueQs] of paperUniqueQuestions.entries()) {
       const distinctCount = uniqueQs.size;
+      const maxConf = paperMaxConfidence.get(title) || 0;
       let meetsDynamicGate = false;
 
-      // The Dynamic Threshold Logic
-      if (totalQuestionsExtracted <= 2) {
-        meetsDynamicGate = distinctCount >= 1; 
-      } else if (totalQuestionsExtracted <= 10) {
+      // The Dynamic Threshold Logic (measured in parent questions, with strict confidence guard for single matches)
+      if (totalParentQuestionsUploaded <= 2) {
+        // For 1-2 question uploads, a single matched question must also have high confidence (>= 0.75) to prevent false positives
+        meetsDynamicGate = (distinctCount >= 2) || (distinctCount === 1 && maxConf >= 0.75);
+      } else if (totalParentQuestionsUploaded <= 10) {
         meetsDynamicGate = distinctCount >= 2;
       } else {
-        const ratio = distinctCount / totalQuestionsExtracted;
+        const ratio = distinctCount / totalParentQuestionsUploaded;
         meetsDynamicGate = (ratio >= 0.20) || (distinctCount >= 3);
       }
 
-      // Check percentage of valid votes against competing papers
-      const totalVotes = detectionResults.filter(r => r.detectionResult.found).length;
-      const paperVotes = detectionResults.filter(r => r.detectionResult.match?.paperTitle === title).length;
-      const percentage = totalVotes > 0 ? (paperVotes / totalVotes) : 0;
+      // Check percentage of distinct parent question votes against competing papers
+      const percentage = totalDistinctVotes > 0 ? (distinctCount / totalDistinctVotes) : 0;
       const meetsThreshold = percentage >= 0.8;
 
       if (process.env.LOG_QUESTION_DETECTION === 'true') {
         console.log(`   🔍 Checking "${title}":`);
-        console.log(`      Distinct DB Questions Matched: ${distinctCount}`);
+        console.log(`      Distinct DB Questions Matched: ${distinctCount} (Max Conf: ${maxConf.toFixed(3)})`);
         console.log(`      Passes Dynamic Gate: ${meetsDynamicGate}`);
         console.log(`      Vote Dominance: ${(percentage * 100).toFixed(1)}% (need >= 80%)`);
       }
@@ -594,6 +613,13 @@ export class MarkingSchemeOrchestrationService {
       // Reset stats since everything is now Generic
       detectionStats.detected = 0;
       detectionStats.notDetected = detectionStats.totalQuestions;
+      detectionStats.questionDetails = detectionResults.map(r => ({
+        questionNumber: r.question.questionNumber,
+        detected: false,
+        similarity: 0,
+        matchedPaperTitle: undefined,
+        hasMarkingScheme: false
+      }));
     }
 
     // --- STEP 5: MERGE & FORMAT OUTPUT (SIMPLIFIED PREFIX-FIRST) ---
