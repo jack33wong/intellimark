@@ -7,7 +7,7 @@ import { trackFunnelEvent } from './funnelTracker';
 
 // File validation constants
 export const FILE_CONSTRAINTS = {
-  MAX_SIZE: 10 * 1024 * 1024, // 10MB
+  MAX_SIZE: 25 * 1024 * 1024, // 25MB (aligned with backend & UnifiedChatInput)
   ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'],
   MIN_SIZE: 1024 // 1KB minimum
 };

@@ -56,10 +56,11 @@ export class MarkingController {
         const startTime = Date.now();
         const usageTracker = new UsageTracker();
 
-        // Track critical IDs for credit deduction even if the pipeline crashes
+        // Track critical IDs and completion state for credit deduction
         let finalUserId: string | null = null;
         let finalSessionId: string | null = null;
         let finalModel: string = 'gemini-3.7-flash';
+        let shouldDeductCredits = false;
 
         // 1. Validate Request
         console.log(`🚀 [MARKING] Controller started - Files: ${Array.isArray(req.files) ? req.files.length : 0}, Body Keys: ${Object.keys(req.body || {}).join(', ')}`);
@@ -196,6 +197,16 @@ export class MarkingController {
                 finalSessionId = result.sessionId;
             }
 
+            const warningCode = (result as any)?.warning || (result as any)?.submissionResult?.warning;
+            const isRejectedOrEmpty = warningCode === 'CONTENT_REJECTED' ||
+                warningCode === 'NOT_MATHS_CONTENT' ||
+                warningCode === 'COVER_PAGE_ONLY' ||
+                warningCode === 'NO_STUDENT_WORK';
+
+            if (result && result.sessionId && !isRejectedOrEmpty) {
+                shouldDeductCredits = true;
+            }
+
             console.log(`✅ [CONTROLLER] Pipeline completed, result exists: ${!!result}, sessionId: ${result?.sessionId}`);
 
             // 6. Handle Completion (guarantee 'complete' event was sent before closing stream)
@@ -204,11 +215,8 @@ export class MarkingController {
                 completeEventSent = true;
             }
 
-            // Credit deduction was moved to the finally block to ensure it always runs (even on crash).
-            // We NO LONGER deduct credits here in the success path to prevent double-charging.
-            
             // --- NEW: Increment Guest Usage ---
-            if (!isAuthenticated) {
+            if (!isAuthenticated && shouldDeductCredits) {
                 await GuestUsageService.incrementUsage(userIP);
             }
 
@@ -264,16 +272,16 @@ export class MarkingController {
             // 👇 CLEAR HEARTBEAT 👇
             clearInterval(heartbeat);
             
-            // 🛑 THE FIX: Guarantee credit deduction regardless of pipeline success or failure
+            // 🛑 TRANSACTION-SAFE CREDIT DEDUCTION: Only deduct credits when the pipeline succeeded without crashing or rejecting content
             try {
                 const finalCost = usageTracker.calculateCost(finalModel).total;
                 
-                if (finalCost > 0 && finalUserId && finalUserId !== 'anonymous') {
+                if (shouldDeductCredits && finalCost > 0 && finalUserId && finalUserId !== 'anonymous') {
                     console.log(`💳 [CREDIT DEDUCT] Calculating final cost: $${finalCost} for user ${finalUserId}`);
                     await deductCredits(finalUserId, finalCost, finalSessionId || 'unknown');
                     console.log(`💳 ✅ Successfully deducted $${finalCost} from user ${finalUserId}`);
                 } else if (finalCost > 0) {
-                    console.log(`⏭️  [CREDIT DEDUCT] Skipped deduction for anonymous user (Cost: $${finalCost})`);
+                    console.log(`⏭️  [CREDIT DEDUCT] Skipped deduction for user ${finalUserId || 'anonymous'} (shouldDeductCredits=${shouldDeductCredits}, Cost: $${finalCost})`);
                 }
             } catch (deductionError) {
                 console.error('❌ CRITICAL: Failed to deduct credits during cleanup:', deductionError);

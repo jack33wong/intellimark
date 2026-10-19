@@ -160,7 +160,7 @@ export const MarkingPageProvider = ({
   autoSplit = false,
   initialImageIndex = 0
 }) => {
-  const { user, getAuthToken } = useAuth();
+  const { user, loading: authLoading, getAuthToken } = useAuth();
   const pendingUploadRef = useRef(null);
   const { selectedFile, processImage, clearFile, handleFileSelect } = useImageUpload();
 
@@ -1290,6 +1290,7 @@ export const MarkingPageProvider = ({
   const handoverProcessedRef = useRef(false);
 
   useEffect(() => {
+    if (authLoading) return;
     if (location.state?.pendingFiles && location.state.pendingFiles.length > 0 && !handoverProcessedRef.current) {
       handoverProcessedRef.current = true;
       const files = location.state.pendingFiles;
@@ -1301,7 +1302,7 @@ export const MarkingPageProvider = ({
         window.history.replaceState({}, document.title);
       }, 100);
     }
-  }, [location.state, handleMultiImageAnalysis]);
+  }, [authLoading, location.state, handleMultiImageAnalysis]);
 
   const getImageSrc = useCallback((message) => {
     if (message?.imageData) return message.imageData;

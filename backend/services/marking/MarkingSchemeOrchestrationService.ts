@@ -217,6 +217,52 @@ export class MarkingSchemeOrchestrationService {
       questionDetails: [], hintInfo: undefined
     };
 
+    const groupCombinedAnchors = new Map<string, string>();
+
+    const cloneAndExtractSubQuestionMatch = (
+      question: { questionNumber?: string | null },
+      sourceResult: any,
+      baseNum: string,
+      isRescued: boolean = false
+    ) => {
+      const effectiveResult = { ...sourceResult };
+
+      // [V28 FIX] DEEP CLONE MATCH to avoid shared state poisoning across sub-questions
+      if (effectiveResult.match) {
+        effectiveResult.match = { ...effectiveResult.match };
+        if (isRescued) {
+          effectiveResult.match.isRescued = true;
+        }
+        if (effectiveResult.match.markingScheme) {
+          effectiveResult.match.markingScheme = { ...effectiveResult.match.markingScheme };
+        }
+      }
+
+      // --- CLEANUP: Extract Clean Marking Scheme Array ---
+      // If we have a composite object (raw DB dump), parse it now to save only relevant data.
+      if (effectiveResult.found && effectiveResult.match?.markingScheme?.questionMarks?.isComposite) {
+        const qNum = question.questionNumber || effectiveResult.match.questionNumber; // e.g. "5a"
+        const composite = effectiveResult.match.markingScheme.questionMarks;
+
+        if (qNum && composite.subQuestionMarks && composite.subQuestionMarks[qNum]) {
+          // Found specific marks! Overwrite with simple array.
+          const partData = composite.subQuestionMarks[qNum];
+          effectiveResult.match.markingScheme.questionMarks = partData.marks || partData || [];
+        } else {
+          // Fallback: If specific marks are missing, default to empty to avoid saving "messy" data.
+          effectiveResult.match.markingScheme.questionMarks = [];
+        }
+      }
+
+      if (effectiveResult.found && effectiveResult.match) {
+        effectiveResult.message = isRescued
+          ? `Rescued via Group ${baseNum}`
+          : `Matched via Group ${baseNum}`;
+      }
+
+      return effectiveResult;
+    };
+
     for (const [baseNum, group] of questionGroups.entries()) {
       // IMPROVED GROUP ANCHOR: Combine all unique question text fragments into one dense query
       const uniqueFragments = new Set<string>();
@@ -235,6 +281,7 @@ export class MarkingSchemeOrchestrationService {
       });
 
       const combinedAnchor = condensedFragments.join('\n\n');
+      groupCombinedAnchors.set(baseNum, combinedAnchor);
 
       // 👇 THE CLEAN INTERCEPTION SWITCH 👇
       let groupDetectionResult;
@@ -307,45 +354,7 @@ export class MarkingSchemeOrchestrationService {
       }
 
       for (const question of group) {
-        const effectiveResult = { ...groupDetectionResult };
-
-        // [V28 FIX] DEEP CLONE MATCH to avoid shared state poisoning across sub-questions
-        if (effectiveResult.match) {
-          effectiveResult.match = { ...effectiveResult.match };
-          if (effectiveResult.match.markingScheme) {
-            effectiveResult.match.markingScheme = { ...effectiveResult.match.markingScheme };
-          }
-        }
-
-        // --- CLEANUP: Extract Clean Marking Scheme Array ---
-        // If we have a composite object (raw DB dump), parse it now to save only relevant data.
-        if (effectiveResult.found && effectiveResult.match?.markingScheme?.questionMarks?.isComposite) {
-          const qNum = question.questionNumber || effectiveResult.match.questionNumber; // e.g. "5a"
-          const composite = effectiveResult.match.markingScheme.questionMarks;
-
-          if (qNum && composite.subQuestionMarks && composite.subQuestionMarks[qNum]) {
-            // Found specific marks! Overwrite with simple array.
-            const partData = composite.subQuestionMarks[qNum];
-            effectiveResult.match.markingScheme.questionMarks = partData.marks || partData || [];
-
-            // [TRUTH BRIDGE] Override marks with the specific sub-question budget from DB
-            const partLabel = qNum.replace(/^\d+/, '');
-            const normalizedPart = normalizeSubQuestionPart(partLabel);
-
-            const specificMarks = effectiveResult.match.subQuestionMaxScores?.[qNum] ??
-              effectiveResult.match.subQuestionMaxScores?.[partLabel] ??
-              effectiveResult.match.subQuestionMaxScores?.[normalizedPart];
-
-          } else {
-            // Fallback: If specific marks are missing, default to empty to avoid saving "messy" data.
-            effectiveResult.match.markingScheme.questionMarks = [];
-          }
-        }
-        // ---------------------------------------------------
-
-        if (effectiveResult.found && effectiveResult.match) {
-          effectiveResult.message = `Matched via Group ${baseNum}`;
-        }
+        const effectiveResult = cloneAndExtractSubQuestionMatch(question, groupDetectionResult, baseNum, false);
 
         detectionResults.push({ question, detectionResult: effectiveResult });
 
@@ -428,36 +437,7 @@ export class MarkingSchemeOrchestrationService {
       hasMarkingScheme: !!r.detectionResult.match?.markingScheme
     }));
 
-    // --- STEP 3: RECOVERY LOGIC ---
-    const hintInfo = detectionStats.hintInfo;
-    if (hintInfo) {
-      const matchedPapersCount = hintInfo.matchedPapersCount || 0;
-      const detectedCount = detectionStats.detected;
-      const totalCount = detectionStats.totalQuestions;
-      const detectionRate = totalCount > 0 ? detectedCount / totalCount : 0;
-
-      const distinctPapers = new Set(detectionStats.questionDetails
-        .filter(q => q.detected && q.matchedPaperTitle)
-        .map(q => q.matchedPaperTitle)
-      );
-
-      let shouldRestart = false;
-      let restartReason = '';
-
-      if (detectedCount > 0 && distinctPapers.size > 1) {
-        shouldRestart = true; restartReason = `Frankenstein result detected`;
-      } else if (matchedPapersCount === 1 && detectionRate < 0.8) {
-        shouldRestart = true; restartReason = `Low adherence to unique hint`;
-      } else if (matchedPapersCount > 1 && detectionRate < 0.5) {
-        shouldRestart = true; restartReason = `Poor match density`;
-      }
-
-      if (shouldRestart && Boolean(examPaperHint)) {
-        return this.orchestrateMarkingSchemeLookup(individualQuestions, classificationResult, null);
-      }
-    }
-
-    // --- STEP 4: CONSENSUS RULE (Dynamic Proportional Gate) ---
+    // --- STEP 3 & 4: CONSENSUS RULE (Dynamic Proportional Gate) + HINT RECOVERY ---
     // Count DISTINCT unique parent DB questions matched per paper, and compare against
     // the number of uploaded parent question groups (questionGroups.size) so sub-questions
     // (e.g. 10a, 10bi, 10bii) neither penalize single-question uploads nor inflate vote counts.
@@ -525,6 +505,27 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
+    // --- STEP 3 RECOVERY FALLBACK (Only if examPaperHint failed to establish strong consensus) ---
+    const hintInfo = detectionStats.hintInfo;
+    if (hintInfo && Boolean(examPaperHint)) {
+      const matchedPapersCount = hintInfo.matchedPapersCount || 0;
+      const detectedCount = detectionStats.detected;
+      const totalCount = detectionStats.totalQuestions;
+      const detectionRate = totalCount > 0 ? detectedCount / totalCount : 0;
+
+      const shouldRestartGlobalSearch =
+        !dominantPaper ||
+        (matchedPapersCount === 1 && detectionRate < 0.8) ||
+        (matchedPapersCount > 1 && detectionRate < 0.5);
+
+      if (shouldRestartGlobalSearch) {
+        if (process.env.LOG_QUESTION_DETECTION === 'true') {
+          console.log(`   🔄 [HINT FALLBACK] Hint "${examPaperHint}" did not yield strong consensus (dominantPaper=${dominantPaper || 'NONE'}, detectionRate=${(detectionRate * 100).toFixed(1)}%). Restarting in Global Search...`);
+        }
+        return this.orchestrateMarkingSchemeLookup(individualQuestions, classificationResult, null, inputMarkingScheme);
+      }
+    }
+
     if (process.env.LOG_QUESTION_DETECTION === 'true') {
       console.log(`\n🚑 [RESCUE MODE CHECK]:`);
       console.log(`   Dominant paper: ${dominantPaper || 'NONE'}`);
@@ -549,13 +550,14 @@ export class MarkingSchemeOrchestrationService {
 
         if (needsRescue && notProcessed) {
           const forcedHint = `${dominantMatchBase.board} ${dominantMatchBase.paperCode} ${dominantMatchBase.examSeries} ${dominantMatchBase.tier}`;
+          const rescueAnchorText = groupCombinedAnchors.get(baseNum) || dr.question.text;
 
           if (process.env.LOG_QUESTION_DETECTION === 'true') {
             console.log(`\n   🔄 Attempting rescue for Q${dr.question.questionNumber} (Group ${baseNum}):`);
             console.log(`      Forced hint: "${forcedHint}"`);
           }
 
-          const rescuedResult = await questionDetectionService.detectQuestion(dr.question.text, dr.question.questionNumber, forcedHint);
+          const rescuedResult = await questionDetectionService.detectQuestion(rescueAnchorText, baseNum || dr.question.questionNumber, forcedHint);
 
           if (process.env.LOG_QUESTION_DETECTION === 'true') {
             console.log(`      Rescue result: ${rescuedResult.found ? '✅ SUCCESS' : '❌ STILL FAILED'}`);
@@ -570,8 +572,10 @@ export class MarkingSchemeOrchestrationService {
             processedGroups.add(baseNum);
             detectionResults.filter(d => getBaseQuestionNumber(d.question.questionNumber) === baseNum)
               .forEach(d => {
-                d.detectionResult = rescuedResult;
-                d.detectionResult.match.isRescued = true;
+                d.detectionResult = cloneAndExtractSubQuestionMatch(d.question, rescuedResult, baseNum, true);
+                if (detectionStats.hintInfo?.rescuedQuestions && d.question.questionNumber) {
+                  detectionStats.hintInfo.rescuedQuestions.push(String(d.question.questionNumber));
+                }
               });
 
             if (process.env.LOG_QUESTION_DETECTION === 'true') {

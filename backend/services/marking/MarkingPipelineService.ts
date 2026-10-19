@@ -183,12 +183,19 @@ export class MarkingPipelineService {
             // --- Hoisted Page Limits (so PDFs can be gated in 10ms BEFORE 45s rasterization) ---
             const userPlan = (req as any).userPlan || 'free';
             const isFreeUser = !userId || userPlan === 'free';
-            const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || '40'); // Bumped from 30 -> 40 for 36-page GCSE booklets
             const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
+            const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || String(MAX_PAGES_LIMIT)); // Unified to 50 for combined 48-page booklets
             const effectiveMaxPages = isFreeUser ? Math.min(MAX_FREE_PAGES, MAX_PAGES_LIMIT) : MAX_PAGES_LIMIT;
-            const getPageLimitErrorMessage = (count?: number) => isFreeUser
-                ? `PDF_PAGE_LIMIT_EXCEEDED: Free accounts are limited to grading ${MAX_FREE_PAGES} pages at a time${count ? ` (uploaded ${count} pages)` : ''}. Upgrade to Pro to grade larger past papers.`
-                : `PDF_PAGE_LIMIT_EXCEEDED: Upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images${count ? ` (uploaded ${count} pages)` : ''}.`;
+            const getPageLimitErrorMessage = (count?: number) =>
+                `PDF_PAGE_LIMIT_EXCEEDED: Upload exceeds the maximum limit of ${effectiveMaxPages} pages/images${count ? ` (uploaded ${count} pages)` : ''}.`;
+
+            // --- Fast Pre-Rasterization Credit Balance Gate (10ms fail-fast if balance <= 0) ---
+            if (userId && userId !== 'anonymous') {
+                const preFlightCreditCheck = await checkCredits(userId, 0.020, userPlan);
+                if (!preFlightCreditCheck.canProceed) {
+                    throw new Error(preFlightCreditCheck.warning);
+                }
+            }
 
             // --- Declare variables at proper scope ---
             let standardizedPages: StandardizedPage[] = [];
@@ -1044,34 +1051,43 @@ export class MarkingPipelineService {
             */
 
             // Override 3: 90% Student Work Rule
-            // If >= 90% of the document has student work, treat the remaining questionOnly pages as student work too
+            // If >= 90% of the document has student work, treat the remaining questionOnly pages (that actually contain questions) as student work too
             // (Likely a neat drawing or subtle work the AI missed)
-            const nonMetadataPages = allClassificationResults.filter(r => r.result?.category !== 'metadata' && r.result?.category !== 'frontPage');
+            const hasPageQuestions = (r: any) =>
+                (Array.isArray(r.result?.questions) && r.result.questions.length > 0) ||
+                (Array.isArray((r.result as any)?.mapperHints) && (r.result as any).mapperHints.length > 0);
+
+            const nonMetadataPages = allClassificationResults.filter(r =>
+                r.result?.category !== 'metadata' &&
+                r.result?.category !== 'frontPage' &&
+                (r.result?.category === 'questionAnswer' || hasPageQuestions(r))
+            );
             const studentWorkPages = nonMetadataPages.filter(r => r.result?.category === 'questionAnswer');
 
             if (nonMetadataPages.length > 5 && (studentWorkPages.length / nonMetadataPages.length) >= 0.9) {
-                console.log(`🚀 [OVERRIDE] 90% Rule Triggered: ${studentWorkPages.length}/${nonMetadataPages.length} pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.`);
+                console.log(`🚀 [OVERRIDE] 90% Rule Triggered: ${studentWorkPages.length}/${nonMetadataPages.length} pages have student work. Overriding questionOnly pages with questions to questionAnswer for consistency.`);
                 allClassificationResults.forEach(r => {
                     if (r.result?.category === 'questionOnly') {
-                        r.result.category = 'questionAnswer';
+                        r.result.category = hasPageQuestions(r) ? 'questionAnswer' : 'frontPage';
                     }
                 });
             } else if (nonMetadataPages.length > 2 && (studentWorkPages.length / nonMetadataPages.length) > 0.5) {
                 // NEW: 50% Safety Rule
-                console.log(`🚀 [OVERRIDE] 50% Rule Triggered: ${studentWorkPages.length}/${nonMetadataPages.length} pages have student work. Overriding all questionOnly pages to questionAnswer for consistency.`);
+                console.log(`🚀 [OVERRIDE] 50% Rule Triggered: ${studentWorkPages.length}/${nonMetadataPages.length} pages have student work. Overriding questionOnly pages with questions to questionAnswer for consistency.`);
                 allClassificationResults.forEach(r => {
                     if (r.result?.category === 'questionOnly') {
-                        r.result.category = 'questionAnswer';
+                        r.result.category = hasPageQuestions(r) ? 'questionAnswer' : 'frontPage';
                     }
                 });
             }
 
-            // Override 2: FrontPage → questionOnly when no actual student work exists
+            // Override 2: FrontPage → questionOnly ONLY when the entire upload is frontPage/metadata (0 student work AND 0 questionOnly pages with questions)
             const hasActualStudentWork = allClassificationResults.some(r => r.result?.category === 'questionAnswer');
+            const hasQuestionPagesWithContent = allClassificationResults.some(r => r.result?.category === 'questionOnly' && hasPageQuestions(r));
             const hasFrontPages = allClassificationResults.some(r => r.result?.category === 'frontPage');
 
-            if (!hasActualStudentWork && hasFrontPages) {
-                console.log('📄 [FRONTPAGE OVERRIDE] No student work detected, converting frontPages to questionOnly for text-only response');
+            if (!hasActualStudentWork && !hasQuestionPagesWithContent && hasFrontPages) {
+                console.log('📄 [FRONTPAGE OVERRIDE] Pure cover/frontPage upload detected, converting frontPages to questionOnly for text-only response');
                 allClassificationResults.forEach(r => {
                     if (r.result?.category === 'frontPage') {
                         r.result.category = 'questionOnly';
@@ -1727,7 +1743,8 @@ export class MarkingPipelineService {
             // 🛡️ [MULTI-ANCHOR REUSE]: We check sourceImageIndices (plural) to see if a page belongs to a question.
             // This preserves the existing logic for questions spanning multiple pages (like Q11 on P0/P23).
             const pageSortMap = standardizedPages.map((page, originalIdx) => {
-                const rawResult = allClassificationResults[originalIdx]?.result;
+                const matchedClassification = allClassificationResults.find(r => r.pageIndex === page.pageIndex) || allClassificationResults[originalIdx];
+                const rawResult = matchedClassification?.result;
                 const pageRawResult = rawResult || {
                     category: 'metadata',
                     questions: []
@@ -1788,20 +1805,7 @@ export class MarkingPipelineService {
                     } else if (genericWeights.length > 0) {
                         // Page is GENERIC ONLY (e.g. "11" or "2"). Use Paper Type to decide.
                         const baseWeight = Math.min(...genericWeights.map(pw => pw.w));
-                        if (isALevelPaper) {
-                            // Sparse: Likely an A-Level Continuation. Sort last.
-                            minSortWeight = baseWeight + 0.9;
-                        } else {
-                            // Dense: Continuation page. Sort slightly after the main stem (e.g. 2.0 -> 2.01).
-                            // This ensures continuation pages sort AFTER specific subquestions like 2a (2.1), wait, no.
-                            // If baseWeight is 2, and specific is 2a (2.1), we want the stem to be BEFORE 2a?
-                            // Wait, if it's a generic continuation page, we want it AFTER the stem.
-                            // Let's use baseWeight + 0.05 so it's right after the base but before subquestions?
-                            // Actually, if a page has 2a, its weight is 2.1.
-                            // If a page just has '2', it could be the stem (should be < 2.1) or continuation (should be > last subquestion).
-                            // Let's just use + 0.9 for both, so generic pages always sort at the end of the question group.
-                            minSortWeight = baseWeight + 0.9;
-                        }
+                        minSortWeight = baseWeight + 0.9;
                     }
 
                     // 🔍 DEBUG: Log the decision
@@ -1826,16 +1830,22 @@ export class MarkingPipelineService {
             });
 
             const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
-            if (isPastPaper && isALevelPaper) {
-                // 🛡️ [A-LEVEL ORPHAN RESCUE]: 
-                // A-Level papers often have blank answer boxes/overflows that aren't explicitly labeled.
-                // We rescue them by inheriting the weight of the previous physical page.
+            if (isPastPaper) {
+                // 🛡️ [ORPHAN RESCUE]: 
+                // Both GCSE and A-Level papers can have unnumbered overflow/working pages or blank lined pages.
+                // Rescue them by inheriting the weight of the preceding (or following) physical page.
                 for (let i = 1; i < pageSortMap.length; i++) {
                     const current = pageSortMap[i];
                     const prev = pageSortMap[i - 1];
                     if (!current.isMeta && current.minQ === 999999 && prev.minQ !== 999999) {
-                        // Inherit and offset by tiny amount to maintain sequence
                         current.minQ = prev.minQ + 0.0001;
+                    }
+                }
+                for (let i = pageSortMap.length - 2; i >= 0; i--) {
+                    const current = pageSortMap[i];
+                    const next = pageSortMap[i + 1];
+                    if (!current.isMeta && current.minQ === 999999 && next.minQ !== 999999) {
+                        current.minQ = Math.max(0, next.minQ - 0.0001);
                     }
                 }
             }
@@ -1854,18 +1864,15 @@ export class MarkingPipelineService {
                 console.log('-----------------------------------------------------------------------------------------');
             }
 
-            // 1.5 PAST PAPER MODE: STRICT FAIL-FAST (Bible 1.1)
-            if (isPastPaper) {
-                // Identify "Lone Ghosts" (Pages with no Q-number that weren't backfilled)
-                const fatalErrors = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
-
-                if (fatalErrors.length > 0) {
-                    // HALT ON SILENCE (Bible 1.1)
-                    // We do NOT fall back to upload order. We crash to protect data integrity.
-                    const err = `[DETECTION INTEGRITY FAILURE] Pages ${fatalErrors.map(p => p.originalIdx).join(', ')} could not be identified or backfilled. Halting process to prevent scrambled data.`;
-                    console.error(`❌ ${err}`);
-                    throw new Error(err);
-                }
+            // 1.5 NON-DESTRUCTIVE ORPHAN FALLBACK:
+            // Any page that still has no question number after neighbor backfill (e.g., a trailing blank/lined page)
+            // is safely demoted to metadata so it preserves its physical sequence without crashing the pipeline.
+            const unresolvedPages = pageSortMap.filter(p => !p.isMeta && p.minQ === 999999);
+            if (unresolvedPages.length > 0) {
+                console.warn(`⚠️ [SORT FALLBACK] Pages ${unresolvedPages.map(p => p.originalIdx).join(', ')} have no question anchors after backfill. Demoting to metadata to preserve physical sequence.`);
+                unresolvedPages.forEach(p => {
+                    p.isMeta = true;
+                });
             }
 
             // 2. LOGICAL SORT (The Straightener) - [RESTORED FOR IMAGES ONLY]
@@ -1916,8 +1923,9 @@ export class MarkingPipelineService {
                 const oldIdx = newToOldIndex.get(newIdx)!;
 
                 const page = standardizedPages[oldIdx];
-                const ocr = allPagesOcrData[oldIdx];
-                const cls = allClassificationResults[oldIdx];
+                const prevPageIdx = page.pageIndex;
+                const ocr = allPagesOcrData.find(o => o.pageIndex === prevPageIdx) || allPagesOcrData[oldIdx];
+                const cls = allClassificationResults.find(c => c.pageIndex === prevPageIdx) || allClassificationResults[oldIdx];
 
                 // CRITICAL: Update the ID itself
                 page.pageIndex = newIdx;

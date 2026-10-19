@@ -460,18 +460,25 @@ ${pageHints}
               // Coercing AI results to the Mapper's incomplete list destroys valid data.
             }
 
+            const pageMap = resolvedPageMaps.find(m => m.pageIndex === globalPageIndex) || resolvedPageMaps[globalPageIndex];
+            const mapperHints = pageMap?.questions?.map((q: any) => typeof q === 'string' ? q : q.questionNumber) || [];
+            const rawMapperCategory = pageMap?.category || 'questionAnswer';
+            const effectiveCategory = (processedQuestions.length === 0 && mapperHints.length === 0)
+              ? 'frontPage'
+              : rawMapperCategory;
+
             results.push({
               pageIndex: globalPageIndex,
-              mapperCategory: resolvedPageMaps[globalPageIndex]?.category || 'questionAnswer',  // Add mapper category for mode detection
+              mapperCategory: effectiveCategory,  // Add mapper category for mode detection
               result: {
-                category: resolvedPageMaps[globalPageIndex]?.category || 'questionAnswer', // TRUST MAPPER: Use mapper category as source of truth
+                category: effectiveCategory, // Downgrade to frontPage if both passes confirmed 0 questions/work
                 reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
                 questions: processedQuestions,
                 apiUsed,
                 usageTokens: isFirstPageOfQuestion ? totalUsageTokens : 0,
                 llmInputTokens: isFirstPageOfQuestion ? totalInputTokens : 0,
                 llmOutputTokens: isFirstPageOfQuestion ? totalOutputTokens : 0,
-                mapperHints: resolvedPageMaps[globalPageIndex]?.questions?.map((q: any) => typeof q === 'string' ? q : q.questionNumber) || []
+                mapperHints
               }
             });
           });
@@ -513,18 +520,18 @@ ${pageHints}
           const mapResult = resolvedPageMaps.find(m => m.pageIndex === i);
           const rawCategory = mapResult?.category;
           const category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage" =
-            (rawCategory === "questionOnly" || rawCategory === "questionAnswer" || rawCategory === "frontPage" || rawCategory === "metadata")
+            (rawCategory === "frontPage" || rawCategory === "metadata")
               ? rawCategory
-              : "metadata";
+              : "frontPage";
 
           // Mark as front page or metadata based on Map Pass category
           results.push({
             pageIndex: i,
             mapperCategory: category,  // Add mapper category for mode detection
             result: {
-              category: category,  // FIXED: Keep frontPage as-is, don't convert to metadata
+              category: category,  // FIXED: Keep frontPage as-is, don't leave empty unmapped pages as questionOnly
               reasoning: category === "frontPage"
-                ? "Front page detected by Map Pass - contains exam metadata but no questions"
+                ? "Front page or blank booklet page detected by Map Pass - contains no questions"
                 : "Page not mapped to any question",
               questions: [],
               apiUsed: "Map Pass Detection",

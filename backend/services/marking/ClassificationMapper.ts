@@ -139,16 +139,23 @@ export class ClassificationMapper {
                     }
                 });
 
+                // If Mapper found 0 questions and classified the page as 'questionOnly' (no student work),
+                // normalize it to 'frontPage' (blank/additional lined page or metadata page)
+                // so empty booklet pages are not scheduled as question tasks or forced into OCR.
+                const normalizedCategory = (flatQuestions.length === 0 && p.category === 'questionOnly')
+                    ? 'frontPage'
+                    : p.category;
+
                 const result: PageMap = {
                     pageIndex: img.pageIndex, // ✅ CORRECT: Global Index (e.g., 10)
                     questions: structuredQuestions,
-                    category: p.category,
+                    category: normalizedCategory,
                     flatQuestions: flatQuestions
                 };
                 results.push(result);
 
                 // 🔍 [VERIFICATION LOG] This proves indices are correct
-                const qLog = flatQuestions.length > 0 ? flatQuestions.join(', ') : 'Empty/Meta';
+                const qLog = flatQuestions.length > 0 ? flatQuestions.join(', ') : `Empty/Meta (${normalizedCategory || 'unclassified'})`;
                 console.log(`   ✅ Mapped Local[${localIdx}] -> Global[${img.pageIndex}] | Content: ${qLog}`);
             });
 

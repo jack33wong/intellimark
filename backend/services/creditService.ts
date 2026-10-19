@@ -106,11 +106,12 @@ export async function checkCredits(
         };
     }
 
-    // Safety Cap: Block if the transaction itself is too large (>$0.60 / 60 credits) AND they are relying on an overdraft
-    if (creditsNeeded > 60 && creditsNeeded > remaining) {
+    // Safety Cap: Block if the transaction itself exceeds 50 pages ($1.00 / 100 credits) AND they are relying on an overdraft
+    const MAX_OVERDRAFT_CREDITS = 100;
+    if (creditsNeeded > MAX_OVERDRAFT_CREDITS && creditsNeeded > remaining) {
         return {
             canProceed: false,
-            warning: `❌ Upload too large. Estimated cost (${creditsNeeded} credits) exceeds the 60-credit safety limit for overdrafts.`,
+            warning: `❌ Upload too large. Estimated cost (${creditsNeeded} credits) exceeds the ${MAX_OVERDRAFT_CREDITS}-credit safety limit for overdrafts.`,
             remaining
         };
     }

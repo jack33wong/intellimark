@@ -117,9 +117,13 @@ export class QuestionDetectionService {
   private static instance: QuestionDetectionService;
   private db: any;
 
-  // Singleton Cache for Exam Papers
+  // Singleton Cache for Exam Papers & Marking Schemes
   private static cachedPapers: any[] | null = null;
   private static lastCacheTime: number = 0;
+  private static papersFetchPromise: Promise<any[]> | null = null;
+  private static cachedSchemes: any[] | null = null;
+  private static lastSchemesCacheTime: number = 0;
+  private static schemesFetchPromise: Promise<any[]> | null = null;
   private static readonly CACHE_TTL = 1000 * 60 * 60; // 1 Hour
 
   private constructor() {
@@ -522,7 +526,10 @@ export class QuestionDetectionService {
     const normalizeForSearch = (t: string) => {
       return (t || '').toLowerCase()
         .replace(/\bmathematics\b/g, 'maths')
-        .replace(/\b(june|may|summer)\b/g, 'summer')
+        .replace(/\b(june|may|summer|jun)\b/g, 'summer')
+        .replace(/\bnov\b/g, 'november')
+        .replace(/\bjan\b/g, 'january')
+        .replace(/([a-z]+)(20\d{2})\b/g, '$1 $2') // e.g. "jun2025" -> "jun 2025"
         .replace(/[-,/]/g, ' ')
         .trim();
     };
@@ -531,7 +538,7 @@ export class QuestionDetectionService {
     const rawKeywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
     if (rawKeywords.length === 0) return papers;
 
-    // 1. Score each paper based on how many hint keywords it matches
+    // 1. Score each paper based on weighted keyword matches
     const scoredPapers = papers.map(paper => {
       const metadata = paper.metadata;
       if (!metadata) return { paper, score: 0 };
@@ -542,17 +549,22 @@ export class QuestionDetectionService {
       );
       const pTokens = combined.split(/\s+/);
 
-      let matchCount = 0;
+      let matchScore = 0;
       rawKeywords.forEach(keyword => {
         const isMatch = pTokens.some(pt => {
           if (pt === keyword) return true;
           if (/^\d+$/.test(pt) && /^\d+$/.test(keyword)) return parseInt(pt) === parseInt(keyword);
-          return pt.includes(keyword);
+          // Only allow substring matching for longer words (>= 4 chars) so "1" or "f" doesn't match "2021" or "1ma1"
+          return keyword.length >= 4 && pt.includes(keyword);
         });
-        if (isMatch) matchCount++;
+        if (isMatch) {
+          // Weight exact 4-digit year (e.g. 2025) and specific paper/tier codes (e.g. 1f, 2h, 8300, 1ma1) higher
+          const isHighValueToken = /^20\d{2}$/.test(keyword) || /^\d+[fh]$/.test(keyword) || /\d/.test(keyword);
+          matchScore += isHighValueToken ? 3 : 1;
+        }
       });
 
-      return { paper, score: matchCount };
+      return { paper, score: matchScore };
     });
 
     if (scoredPapers.length === 0) return papers;
@@ -578,17 +590,58 @@ export class QuestionDetectionService {
       return QuestionDetectionService.cachedPapers;
     }
 
-    try {
-      const snapshot = await this.db.collection('fullExamPapers').get();
-      const papers: any[] = [];
-      snapshot.forEach((doc: any) => papers.push({ id: doc.id, ...doc.data() }));
-      QuestionDetectionService.cachedPapers = papers;
-      QuestionDetectionService.lastCacheTime = now;
-      return papers;
-    } catch (e) {
-      console.error('Error fetching papers', e);
-      return [];
+    if (QuestionDetectionService.papersFetchPromise) {
+      return QuestionDetectionService.papersFetchPromise;
     }
+
+    QuestionDetectionService.papersFetchPromise = (async () => {
+      try {
+        const snapshot = await this.db.collection('fullExamPapers').get();
+        const papers: any[] = [];
+        snapshot.forEach((doc: any) => papers.push({ id: doc.id, ...doc.data() }));
+        QuestionDetectionService.cachedPapers = papers;
+        QuestionDetectionService.lastCacheTime = Date.now();
+        return papers;
+      } catch (e) {
+        console.error('Error fetching papers', e);
+        return [];
+      } finally {
+        QuestionDetectionService.papersFetchPromise = null;
+      }
+    })();
+
+    return QuestionDetectionService.papersFetchPromise;
+  }
+
+  private async getAllMarkingSchemes(): Promise<any[]> {
+    if (!this.db) return [];
+
+    const now = Date.now();
+    if (QuestionDetectionService.cachedSchemes && (now - QuestionDetectionService.lastSchemesCacheTime < QuestionDetectionService.CACHE_TTL)) {
+      return QuestionDetectionService.cachedSchemes;
+    }
+
+    if (QuestionDetectionService.schemesFetchPromise) {
+      return QuestionDetectionService.schemesFetchPromise;
+    }
+
+    QuestionDetectionService.schemesFetchPromise = (async () => {
+      try {
+        const snapshot = await this.db.collection('markingSchemes').get();
+        const schemes: any[] = [];
+        snapshot.forEach((doc: any) => schemes.push({ id: doc.id, ...doc.data() }));
+        QuestionDetectionService.cachedSchemes = schemes;
+        QuestionDetectionService.lastSchemesCacheTime = Date.now();
+        return schemes;
+      } catch (e) {
+        console.error('Error fetching marking schemes', e);
+        return [];
+      } finally {
+        QuestionDetectionService.schemesFetchPromise = null;
+      }
+    })();
+
+    return QuestionDetectionService.schemesFetchPromise;
   }
 
   public calculateSimilarity(str1: string, str2: string): number {
@@ -616,9 +669,7 @@ export class QuestionDetectionService {
   public async findCorrespondingMarkingScheme(examPaperMatch: ExamPaperMatch): Promise<MarkingSchemeMatch | null> {
     try {
       if (!this.db) return null;
-      const snapshot = await this.db.collection('markingSchemes').get();
-      const schemes: any[] = [];
-      snapshot.forEach((doc: any) => schemes.push({ id: doc.id, ...doc.data() }));
+      const schemes = await this.getAllMarkingSchemes();
       
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
@@ -635,18 +686,13 @@ export class QuestionDetectionService {
         }
       }
 
-      // 🔍 --- ADDED DEBUG LOGGING HERE --- 🔍
-      if (bestMatch) {
-        console.log('\n==================================================================');
-        console.log(`🚨 [DEBUG-SCHEME] EXAM PAPER MATCH: ${examPaperMatch.paperCode} Q${examPaperMatch.questionNumber}`);
-        console.log(`🚨 [DEBUG-SCHEME] FETCHED FIRESTORE DOC ID: ${bestMatch.id}`);
-        console.log(`🚨 [DEBUG-SCHEME] RAW QUESTION PAYLOAD EXTRACTED:`);
-        console.log(JSON.stringify(bestMatch.questionMarks, null, 2));
-        console.log('==================================================================\n');
-      } else {
-        console.log(`\n🚨 [DEBUG-SCHEME] No marking scheme match found for ${examPaperMatch.paperCode} Q${examPaperMatch.questionNumber}\n`);
+      if (process.env.LOG_QUESTION_DETECTION === 'true') {
+        if (bestMatch) {
+          console.log(`🚨 [DEBUG-SCHEME] EXAM PAPER MATCH: ${examPaperMatch.paperCode} Q${examPaperMatch.questionNumber} -> DOC ID: ${bestMatch.id}`);
+        } else {
+          console.log(`🚨 [DEBUG-SCHEME] No marking scheme match found for ${examPaperMatch.paperCode} Q${examPaperMatch.questionNumber}`);
+        }
       }
-      // ------------------------------------
 
       return bestMatch;
     } catch (error) {
