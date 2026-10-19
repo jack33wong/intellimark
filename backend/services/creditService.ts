@@ -5,6 +5,7 @@
 
 import { getFirestore } from '../config/firebase.js';
 import { CREDIT_CONFIG, costToCredits } from '../config/credit.config.js';
+import { AdminAlertService } from './AdminAlertService.js';
 
 const db = getFirestore();
 
@@ -60,6 +61,7 @@ export async function getUserCredits(userId: string): Promise<UserCredits> {
     // SELF-HEALING: New user signed up but has no Firestore credit record yet.
     // Initialize them immediately on the 'free' plan.
     console.log(`[CREDITS] Initializing missing credit record for new user: ${userId}`);
+    AdminAlertService.startNewUserWatchTimer(userId);
     
     // Set a standard 30-day reset period for the free tier
     const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;

@@ -8,6 +8,7 @@ import CREDIT_CONFIG from '../config/credit.config.js';
 import { getFirestore } from '../config/firebase.js';
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
 import { AI_MODELS, getDefaultModel, MODEL_TIERS } from '../config/aiModels.js';
+import { AdminAlertService } from '../services/AdminAlertService.js';
 
 const router = express.Router();
 
@@ -144,6 +145,7 @@ router.post('/telemetry', express.json({ limit: '50kb' }), (req, res) => {
     console.log(
       `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
     );
+    AdminAlertService.recordTelemetryEvent(anonymousId, userId, event, path, metadata);
   } catch (err) {
     // Ignore malformed telemetry payloads
   }

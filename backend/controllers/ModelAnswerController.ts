@@ -13,6 +13,7 @@ import { MarkingPromptService } from '../services/marking/MarkingPromptService.j
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
 import { ChatContextBuilder } from '../services/marking/ChatContextBuilder.js';
 import { PERMISSIONS, hasPermission } from '../config/permissions.js';
+import { AdminAlertService } from '../services/AdminAlertService.js';
 
 export class ModelAnswerController {
     /**
@@ -58,6 +59,9 @@ export class ModelAnswerController {
             }
             const userId = (req as any).user?.uid || 'anonymous';
             const isAuthenticated = userId !== 'anonymous';
+            if (isAuthenticated) {
+                AdminAlertService.markUserActive(userId);
+            }
             const userIP = req.ip || '0.0.0.0';
 
             // 2. Guest limit check (overall sessions)
@@ -356,6 +360,7 @@ export class ModelAnswerController {
 
         } catch (error: any) {
             console.error('❌ [MODEL-ANSWER] Generation failed:', error);
+            void AdminAlertService.notifyCrash('MODEL_ANSWER', req, error);
             sendSseUpdate(res, {
                 type: 'error',
                 error: error.message || 'Failed to generate model answers.'

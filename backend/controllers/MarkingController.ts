@@ -7,6 +7,7 @@ import { checkCredits, deductCredits } from '../services/creditService.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
 import axios from 'axios';
 import https from 'https';
+import { AdminAlertService } from '../services/AdminAlertService.js';
 
 // Global HTTPS Agent with Keep-Alive enabled
 const keepAliveAgent = new https.Agent({
@@ -135,6 +136,9 @@ export class MarkingController {
             };
 
             const userId = options.userId;
+            if (userId) {
+                AdminAlertService.markUserActive(userId);
+            }
             
             // Populate tracking variables for finally block
             finalUserId = userId || null;
@@ -224,6 +228,7 @@ export class MarkingController {
 
         } catch (error: any) {
             console.error(`❌ [CONTROLLER] Marking request failed: ${error.message}`);
+            void AdminAlertService.notifyCrash('MARKING', req, error);
             
             // Safely extract IDs to tie the response back to the user's UI
             const aiMessageId = req.body?.aiMessageId || `ai-${Date.now()}`;

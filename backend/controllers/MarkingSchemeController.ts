@@ -13,6 +13,7 @@ import { MarkingPromptService } from '../services/marking/MarkingPromptService.j
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
 import { ChatContextBuilder } from '../services/marking/ChatContextBuilder.js';
 import { PERMISSIONS, hasPermission } from '../config/permissions.js';
+import { AdminAlertService } from '../services/AdminAlertService.js';
 
 export class MarkingSchemeController {
     /**
@@ -58,6 +59,9 @@ export class MarkingSchemeController {
             }
             const userId = (req as any).user?.uid || 'anonymous';
             const isAuthenticated = userId !== 'anonymous';
+            if (isAuthenticated) {
+                AdminAlertService.markUserActive(userId);
+            }
             const userIP = req.ip || '0.0.0.0';
 
             // 2. Guest limit check (overall sessions)
@@ -413,6 +417,7 @@ export class MarkingSchemeController {
 
         } catch (error: any) {
             console.error('❌ [MARKING-SCHEME] Generation failed:', error);
+            void AdminAlertService.notifyCrash('MARKING_SCHEME', req, error);
             sendSseUpdate(res, {
                 type: 'error',
                 error: error.message || 'Failed to retrieve marking scheme.'

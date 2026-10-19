@@ -4,6 +4,7 @@
  */
 
 import admin from 'firebase-admin';
+import { getStorage as getFirebaseStorage } from 'firebase-admin/storage';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -126,6 +127,17 @@ export const getFirebaseAuth = (): admin.auth.Auth | null => {
     initializeFirebase();
   }
   return firebaseAuth;
+};
+
+/**
+ * Get Firebase Storage instance
+ */
+export const getStorage = () => {
+  const app = getFirebaseAdmin();
+  if (!app) {
+    throw new Error('Firebase Admin not initialized');
+  }
+  return getFirebaseStorage(app);
 };
 
 /**

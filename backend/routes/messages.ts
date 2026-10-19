@@ -16,6 +16,7 @@ import UsageTracker from '../utils/UsageTracker.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
 import SubscriptionService from '../services/subscriptionService.js';
 import { getFirebaseAuth, getFirestore, getUserRole } from '../config/firebase.js';
+import { AdminAlertService } from '../services/AdminAlertService.js';
 
 const router = express.Router();
 
@@ -112,6 +113,11 @@ export function formatYourWork(
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
+    const chatUserId = req.user?.uid;
+    if (chatUserId) {
+      AdminAlertService.markUserActive(chatUserId);
+    }
+
     const {
       message,
       imageData,
@@ -679,6 +685,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Chat endpoint error:', error);
+    void AdminAlertService.notifyCrash('FOLLOW_UP_CHAT', req, error);
     res.status(500).json({
       success: false,
       error: 'Failed to process chat message',
