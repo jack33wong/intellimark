@@ -1020,6 +1020,62 @@ export class MarkingPipelineService {
 
             logClassificationComplete();
 
+            // --- 🛡️ BLANK CONTINUATION / OVERFLOW PAGE FILTER ---
+            // 1. Collect all base question numbers (e.g. "15" from "15a") that have actual student work
+            const answeredBaseQuestions = new Set<string>();
+            for (const item of allClassificationResults) {
+                if (item.result?.category === 'questionAnswer' && Array.isArray(item.result?.questions)) {
+                    for (const q of item.result.questions) {
+                        const baseNum = String(q.questionNumber || '').replace(/[^0-9]/g, '');
+                        if (baseNum) answeredBaseQuestions.add(baseNum);
+                    }
+                }
+            }
+
+            // Helper to detect if extracted question text is just a "Question X continued" header stub
+            const isContinuationStubText = (text?: string): boolean => {
+                if (!text) return true;
+                const cleaned = text
+                    .replace(/question\s*\d+[a-z0-9().\s]*continued\.?/gi, '')
+                    .replace(/turn\s+over/gi, '')
+                    .replace(/leave\s+blank/gi, '')
+                    .replace(/do\s+not\s+write\s+in\s+this\s+area/gi, '')
+                    .replace(/total\s+for\s+question\s+\d+\s+is\s+\d+\s+marks?/gi, '')
+                    .trim();
+                // If nothing meaningful remains after stripping continuation boilerplate, it's a blank overflow sheet
+                return cleaned.length < 10;
+            };
+
+            // 2. Inspect questionOnly pages and reclassify blank overflow/continuation pages to 'metadata'
+            for (const item of allClassificationResults) {
+                if (item.result?.category === 'questionOnly') {
+                    const questions = Array.isArray(item.result.questions) ? item.result.questions : [];
+
+                    // Filter out individual question stubs that are just "Question X continued" or already answered on an earlier page
+                    const realUnansweredQuestions = questions.filter((q: any) => {
+                        const qText = q.text || q.questionText || '';
+                        const subQuestions = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+                        const hasSubQuestionText = subQuestions.some((sq: any) => !isContinuationStubText(sq.text || sq.questionText));
+                        const baseNum = String(q.questionNumber || '').replace(/[^0-9]/g, '');
+
+                        const isStub = isContinuationStubText(qText) && !hasSubQuestionText;
+                        const isAlreadyAnsweredBaseQ = Boolean(baseNum && answeredBaseQuestions.has(baseNum) && isStub);
+
+                        return !isStub && !isAlreadyAnsweredBaseQ;
+                    });
+
+                    if (realUnansweredQuestions.length === 0) {
+                        console.log(
+                            `🧹 [OVERFLOW-FILTER] Page ${item.pageIndex} classified as questionOnly has only continuation headers/stubs. Reclassifying to 'metadata'.`
+                        );
+                        item.result.category = 'metadata';
+                        item.result.questions = [];
+                    } else if (realUnansweredQuestions.length !== questions.length) {
+                        item.result.questions = realUnansweredQuestions;
+                    }
+                }
+            }
+
             // ========================= CATEGORY OVERRIDE (BEFORE SPLIT) =========================
             // [REMOVED] Override 1: Drawing-only pages → questionOnly
             // User requested to preserve drawing detection even if text is minimal.

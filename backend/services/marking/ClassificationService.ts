@@ -265,9 +265,10 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         const modelConfig = getModelConfig(validatedModel);
         const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
 
-        for (let i = 0; i < pageIndices.length; i += BATCH_SIZE) {
-          const chunkIndices = pageIndices.slice(i, i + BATCH_SIZE);
-          const chunkImages = chunkIndices.map(idx => images[idx]);
+        const safePageIndices = Array.isArray(pageIndices) ? pageIndices : [];
+        for (let i = 0; i < safePageIndices.length; i += BATCH_SIZE) {
+          const chunkIndices = safePageIndices.slice(i, i + BATCH_SIZE);
+          const chunkImages = chunkIndices.map(idx => images[idx]).filter(Boolean);
 
           let taskSystemPrompt = baseSystemPrompt;
           let taskUserPrompt = '';
@@ -276,7 +277,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${chunkIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${chunkIndices[0] + 1}" (representing the page number).`;
             taskUserPrompt = `Extract all text and student work from Page ${chunkIndices[0] + 1}.`;
           } else {
-            const qList = baseQNumbers && baseQNumbers.length > 0 ? baseQNumbers : [questionNumber];
+            const qList = Array.isArray(baseQNumbers) && baseQNumbers.length > 0 ? baseQNumbers : [questionNumber];
             const pageHints = chunkIndices.map(idx => {
               const partsOnThisPage: string[] = [];
               qList.forEach((bq: string) => {
@@ -398,8 +399,8 @@ ${pageHints}
 
           // ALIGNMENT FIX: Zip parsed pages exactly with chunkIndices
           chunkIndices.forEach((globalIdx, localIdxInChunk) => {
-            let aiPage = (parsedChunk.pages && Array.isArray(parsedChunk.pages)) ? parsedChunk.pages[localIdxInChunk] : null;
-            if (!aiPage) {
+            let aiPage = (parsedChunk?.pages && Array.isArray(parsedChunk.pages)) ? parsedChunk.pages[localIdxInChunk] : null;
+            if (!aiPage || typeof aiPage !== 'object') {
                console.warn(`⚠️ [CLASSIFICATION] AI omitted page result for global index ${globalIdx} (Chunk ${i/BATCH_SIZE + 1}). Creating empty placeholder.`);
                aiPage = {
                  category: "questionAnswer",
@@ -418,71 +419,77 @@ ${pageHints}
 
         // Process results
         // The AI returns a "pages" array. We need to map these back to the original page indices.
-        if (parsed.pages && Array.isArray(parsed.pages)) {
-          parsed.pages.forEach((pageResult: any, localIdx: number) => {
-            // Retrieve the strictly bound global index
-            const globalPageIndex = pageResult._globalPageIndex;
+        const parsedPages = Array.isArray(parsed?.pages) ? parsed.pages : [];
+        parsedPages.forEach((pageResult: any, localIdx: number) => {
+          if (!pageResult || typeof pageResult !== 'object') return;
 
-            // Assign usage tokens to the first page of the question to avoid double counting
-            const isFirstPageOfQuestion = localIdx === 0;
+          // Retrieve the strictly bound global index
+          const globalPageIndex = pageResult._globalPageIndex;
 
-            let processedQuestions = this.parseQuestionsFromResponse({ questions: pageResult.questions }, 0.9);
+          // Assign usage tokens to the first page of the question to avoid double counting
+          const isFirstPageOfQuestion = localIdx === 0;
 
-            // NOTE: Text Shield (printed text filtering) removed to prevent stripping of typed model answers.
+          const rawQuestions = Array.isArray(pageResult?.questions) ? pageResult.questions : [];
+          const processedQuestions = this.parseQuestionsFromResponse({ questions: rawQuestions }, 0.9) || [];
 
-            // ✅ CRITICAL FIX: Inject pageIndex into Question, SubQuestions, AND Lines
-            if (processedQuestions && Array.isArray(processedQuestions)) {
-              const injectPageIndex = (node: any) => {
-                // 1. Fix the Node itself (This overrides the AI's relative "0" with the true Global Index)
-                node.pageIndex = globalPageIndex;
-                node.sourceImageIndex = globalPageIndex;
-                node.sourceImageIndices = [globalPageIndex];
+          // NOTE: Text Shield (printed text filtering) removed to prevent stripping of typed model answers.
 
-                // 2. Fix Student Work Lines
-                if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {
-                  node.studentWorkLines.forEach((line: any) => {
-                    line.pageIndex = globalPageIndex;
-                    if (line.position) line.position.pageIndex = globalPageIndex;
-                  });
-                }
+          // ✅ CRITICAL FIX: Inject pageIndex into Question, SubQuestions, AND Lines
+          if (Array.isArray(processedQuestions)) {
+            const injectPageIndex = (node: any) => {
+              if (!node || typeof node !== 'object') return;
 
-                // 3. Recurse into SubQuestions
-                if (node.subQuestions && Array.isArray(node.subQuestions)) {
-                  node.subQuestions.forEach((sq: any) => injectPageIndex(sq));
-                }
-              };
+              // 1. Fix the Node itself (This overrides the AI's relative "0" with the true Global Index)
+              node.pageIndex = globalPageIndex;
+              node.sourceImageIndex = globalPageIndex;
+              node.sourceImageIndices = [globalPageIndex];
 
-              // Apply to all questions
-              processedQuestions.forEach(q => injectPageIndex(q));
+              // 2. Fix Student Work Lines
+              const workLines = Array.isArray(node.studentWorkLines) ? node.studentWorkLines : [];
+              workLines.forEach((line: any) => {
+                if (!line || typeof line !== 'object') return;
+                line.pageIndex = globalPageIndex;
+                if (line.position) line.position.pageIndex = globalPageIndex;
+              });
 
-              // 🛡️ MAPPER SANITIZER HAS BEEN REMOVED TO PREVENT CORRUPTING VALID QUESTIONS
-              // The Mapper is fast but can miss questions (e.g. Q5 on a dense page). 
-              // Coercing AI results to the Mapper's incomplete list destroys valid data.
+              // 3. Recurse into SubQuestions
+              const subQuestions = Array.isArray(node.subQuestions) ? node.subQuestions : [];
+              subQuestions.forEach((sq: any) => injectPageIndex(sq));
+            };
+
+            // Apply to all questions
+            processedQuestions.forEach(q => injectPageIndex(q));
+
+            // 🛡️ MAPPER SANITIZER HAS BEEN REMOVED TO PREVENT CORRUPTING VALID QUESTIONS
+            // The Mapper is fast but can miss questions (e.g. Q5 on a dense page). 
+            // Coercing AI results to the Mapper's incomplete list destroys valid data.
+          }
+
+          const pageMap = resolvedPageMaps?.find(m => m.pageIndex === globalPageIndex) || resolvedPageMaps?.[globalPageIndex];
+          const mapperHints = Array.isArray(pageMap?.questions)
+            ? pageMap.questions.map((q: any) => typeof q === 'string' ? q : q?.questionNumber).filter(Boolean)
+            : [];
+          const rawMapperCategory = pageMap?.category || 'questionAnswer';
+          const safeProcessedQuestions = Array.isArray(processedQuestions) ? processedQuestions : [];
+          const effectiveCategory = (safeProcessedQuestions.length === 0 && mapperHints.length === 0)
+            ? 'frontPage'
+            : rawMapperCategory;
+
+          results.push({
+            pageIndex: globalPageIndex,
+            mapperCategory: effectiveCategory,  // Add mapper category for mode detection
+            result: {
+              category: effectiveCategory, // Downgrade to frontPage if both passes confirmed 0 questions/work
+              reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
+              questions: safeProcessedQuestions,
+              apiUsed,
+              usageTokens: isFirstPageOfQuestion ? totalUsageTokens : 0,
+              llmInputTokens: isFirstPageOfQuestion ? totalInputTokens : 0,
+              llmOutputTokens: isFirstPageOfQuestion ? totalOutputTokens : 0,
+              mapperHints
             }
-
-            const pageMap = resolvedPageMaps.find(m => m.pageIndex === globalPageIndex) || resolvedPageMaps[globalPageIndex];
-            const mapperHints = pageMap?.questions?.map((q: any) => typeof q === 'string' ? q : q.questionNumber) || [];
-            const rawMapperCategory = pageMap?.category || 'questionAnswer';
-            const effectiveCategory = (processedQuestions.length === 0 && mapperHints.length === 0)
-              ? 'frontPage'
-              : rawMapperCategory;
-
-            results.push({
-              pageIndex: globalPageIndex,
-              mapperCategory: effectiveCategory,  // Add mapper category for mode detection
-              result: {
-                category: effectiveCategory, // Downgrade to frontPage if both passes confirmed 0 questions/work
-                reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
-                questions: processedQuestions,
-                apiUsed,
-                usageTokens: isFirstPageOfQuestion ? totalUsageTokens : 0,
-                llmInputTokens: isFirstPageOfQuestion ? totalInputTokens : 0,
-                llmOutputTokens: isFirstPageOfQuestion ? totalOutputTokens : 0,
-                mapperHints
-              }
-            });
           });
-        }
+        });
 
         return;
       };
@@ -994,79 +1001,88 @@ ${pageHints}
   /**
    * Parse hierarchical question structure from AI response
    */
-  private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
+  private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] {
+    if (!parsed || typeof parsed !== 'object') {
+      return [];
+    }
+
     let rawQuestions: any[] = [];
 
     // Handle 'pages' structure
-    if (parsed.pages && Array.isArray(parsed.pages)) {
+    if (Array.isArray(parsed.pages)) {
       parsed.pages.forEach((page: any) => {
-        if (page.questions && Array.isArray(page.questions)) {
+        if (page && Array.isArray(page.questions)) {
           rawQuestions = rawQuestions.concat(page.questions);
         }
       });
     }
     // Handle direct 'questions' structure
-    else if (parsed.questions && Array.isArray(parsed.questions)) {
+    else if (Array.isArray(parsed.questions)) {
       rawQuestions = parsed.questions;
     }
 
     if (rawQuestions.length === 0) {
-      return undefined;
+      return [];
     }
 
     const recursiveParse = (q: any): any => {
+      if (!q || typeof q !== 'object') return null;
+
       // 1. Normalize Coordinates (0-1000 to 0-100) and Translate Minified JSON
-      if (q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
-        q.studentWorkLines.forEach((line: any) => {
-          // Translate minified 't' and 'p' from prompt back to internal 'text' and 'position'
-          if (line.t !== undefined) {
-            line.text = line.t;
-            delete line.t;
-          }
-          if (line.p !== undefined && Array.isArray(line.p) && line.p.length === 4) {
-            line.position = { x: line.p[0], y: line.p[1], width: line.p[2], height: line.p[3] };
-            delete line.p;
-          }
+      const workLines = Array.isArray(q.studentWorkLines) ? q.studentWorkLines : [];
+      workLines.forEach((line: any) => {
+        if (!line || typeof line !== 'object') return;
 
-          let p = line.position;
-          const isLargeScale = p && (
-            (p.x > 120 || p.y > 120) ||
-            (p.width > 200 || p.height > 200) ||
-            (p.x > 100 && p.y > 100)
-          );
+        // Translate minified 't' and 'p' from prompt back to internal 'text' and 'position'
+        if (line.t !== undefined) {
+          line.text = line.t;
+          delete line.t;
+        }
+        if (line.p !== undefined && Array.isArray(line.p) && line.p.length === 4) {
+          line.position = { x: line.p[0], y: line.p[1], width: line.p[2], height: line.p[3] };
+          delete line.p;
+        }
 
-          if (isLargeScale) {
-            line.position = {
-              x: p.x / 10,
-              y: p.y / 10,
-              width: p.width / 10,
-              height: p.height / 10
-            };
-          }
+        let p = line.position;
+        const isLargeScale = p && (
+          (p.x > 120 || p.y > 120) ||
+          (p.width > 200 || p.height > 200) ||
+          (p.x > 100 && p.y > 100)
+        );
 
-          // [DEBUG] Drawing check
-          if ((line.text || '').toLowerCase().includes('[drawing]') && !line.position) {
-            console.error(`❌ [CLASSIFICATION ERROR] Q${q.questionNumber || '?'}: Found [DRAWING] but NO POSITION.`);
-          }
-        });
-      }
+        if (isLargeScale) {
+          line.position = {
+            x: p.x / 10,
+            y: p.y / 10,
+            width: p.width / 10,
+            height: p.height / 10
+          };
+        }
+
+        // [DEBUG] Drawing check
+        if ((line.text || '').toLowerCase().includes('[drawing]') && !line.position) {
+          console.error(`❌ [CLASSIFICATION ERROR] Q${q.questionNumber || '?'}: Found [DRAWING] but NO POSITION.`);
+        }
+      });
+
+      const subQuestions = Array.isArray(q.subQuestions)
+        ? q.subQuestions.map((sq: any) => recursiveParse(sq)).filter(Boolean)
+        : undefined;
 
       // 2. Build Object with recursive subQuestions
       return {
         questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,
         part: q.part,
         text: q.text !== undefined ? (q.text || null) : undefined,
-        studentWorkLines: q.studentWorkLines,
+        studentWorkLines: workLines,
         hasStudentDrawing: q.hasStudentDrawing === true,
         confidence: q.confidence || defaultConfidence,
         pageIndex: q.pageIndex,
-        subQuestions: q.subQuestions && Array.isArray(q.subQuestions)
-          ? q.subQuestions.map((sq: any) => recursiveParse(sq))
-          : undefined
+        subQuestions
       };
     };
 
-    return rawQuestions.map(q => recursiveParse(q));
+    return rawQuestions.map(q => recursiveParse(q)).filter(Boolean);
   }
 
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
