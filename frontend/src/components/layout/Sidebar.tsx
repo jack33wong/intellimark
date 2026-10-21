@@ -61,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const { user, getAuthToken, isAdmin } = useAuth();
   const [chatSessions, setChatSessions] = useState<UnifiedSession[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>(() => (isAdmin() ? 'admin_all' : 'all'));
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -72,6 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const isInitializingRef = useRef(false);
+  const activeRequestIdRef = useRef(0);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -82,6 +83,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
@@ -98,9 +103,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
     
     activeTabRef.current = activeTab;
+    const currentRequestId = ++activeRequestIdRef.current;
 
     const startTime = performance.now();
-    console.log(`[PERF] Sidebar: Starting initializeSessions for user ${user.uid}, tab ${activeTab}`);
+    console.log(`[PERF] Sidebar: Starting initializeSessions for user ${user.uid}, tab ${activeTab} (req #${currentRequestId})`);
     isInitializingRef.current = true;
     setInitialLoading(true);
     setHasMore(true);
@@ -108,8 +114,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       const authToken = await getAuthToken();
       if (!authToken) {
         console.error('Authentication token not available.');
-        setInitialLoading(false);
-        isInitializingRef.current = false;
+        if (currentRequestId === activeRequestIdRef.current) {
+          setInitialLoading(false);
+          isInitializingRef.current = false;
+        }
         return;
       }
 
@@ -129,6 +137,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       const endTime = performance.now();
       console.log(`[PERF] Sidebar: getMarkingHistoryFromSessions took ${(endTime - startTime).toFixed(2)}ms for 50 records`);
 
+      // Guard: Discard stale response if activeTab changed or a newer request was dispatched
+      if (currentRequestId !== activeRequestIdRef.current || activeTabRef.current !== activeTab) {
+        console.log(`[PERF] Sidebar: Dropping stale response for tab ${activeTab} (req #${currentRequestId} vs current #${activeRequestIdRef.current})`);
+        return;
+      }
+
       if (response.success && response.sessions) {
         setChatSessions(response.sessions);
         if (response.sessions.length < 50) {
@@ -141,8 +155,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
     } finally {
-      // Only reset the flag if we haven't started another initialization in the meantime
-      if (activeTabRef.current === activeTab) {
+      // Only reset loading flags if this request is still the active one
+      if (currentRequestId === activeRequestIdRef.current) {
         isInitializingRef.current = false;
         setInitialLoading(false);
       }
@@ -165,19 +179,20 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [user?.uid, activeTab, initializeSessions]);
 
-  const hasInitializedAdminTab = useRef(false);
+  const hasInitializedAdminTab = useRef(isAdmin());
   useEffect(() => {
     if (user && isAdmin() && !hasInitializedAdminTab.current) {
-      setActiveTab('admin_all');
       hasInitializedAdminTab.current = true;
+      setActiveTab('admin_all');
     }
   }, [user, isAdmin]);
 
   const loadMoreSessions = useCallback(async () => {
     if (!user?.uid || isLoadingMore || !hasMore || initialLoading) return;
 
+    const requestTab = activeTab;
     const startTime = performance.now();
-    console.log(`[PERF] Sidebar: Starting loadMoreSessions`);
+    console.log(`[PERF] Sidebar: Starting loadMoreSessions for tab ${requestTab}`);
     setIsLoadingMore(true);
     try {
       const authToken = await getAuthToken();
@@ -201,6 +216,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(targetUserId, 50, authToken, lastUpdatedAt as any, messageType as any) as MarkingHistoryResponse;
       const endTime = performance.now();
       console.log(`[PERF] Sidebar: getMarkingHistoryFromSessions (more) took ${(endTime - startTime).toFixed(2)}ms`);
+
+      // Guard: Discard if tab changed while loading more
+      if (activeTabRef.current !== requestTab) {
+        console.log(`[PERF] Sidebar: Dropping loadMoreSessions response because activeTab changed from ${requestTab} to ${activeTabRef.current}`);
+        return;
+      }
 
       if (response.success && response.sessions) {
         if (response.sessions.length < 50) {
@@ -280,9 +301,26 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         let newSessions;
         if (existingIndex !== -1) {
-          // Update existing
-          newSessions = [...sessionsWithoutTemp];
-          newSessions[existingIndex] = { ...newSessions[existingIndex], ...updatedSession };
+          const prevSession = sessionsWithoutTemp[existingIndex];
+          const preservedMessageType =
+            prevSession.messageType === 'Marking' || prevSession.messageType === 'Question'
+              ? prevSession.messageType
+              : updatedSession.messageType || prevSession.messageType;
+
+          const latestMsgFromArray =
+            Array.isArray(updatedSession.messages) && updatedSession.messages.length > 0
+              ? [...updatedSession.messages].reverse().find((m: any) => m.content && !m.isProcessing)
+              : null;
+
+          const mergedSession: UnifiedSession = {
+            ...prevSession,
+            ...updatedSession,
+            messageType: preservedMessageType,
+            lastMessage: (updatedSession as any).lastMessage || latestMsgFromArray || (prevSession as any).lastMessage
+          };
+
+          const remaining = sessionsWithoutTemp.filter(s => s.id !== updatedSession.id);
+          newSessions = [mergedSession, ...remaining];
         } else {
           // Add new
           newSessions = [updatedSession, ...sessionsWithoutTemp];
@@ -467,10 +505,20 @@ const Sidebar: React.FC<SidebarProps> = ({
     let filtered: UnifiedSession[] = [];
     switch (activeTab) {
       case 'mark':
-        filtered = chatSessions.filter(session => session.messageType === 'Marking');
+        filtered = chatSessions.filter(
+          session =>
+            session.messageType === 'Marking' ||
+            session.messageType === 'Mixed' ||
+            (session as any).usageMode === 'marking'
+        );
         break;
       case 'question':
-        filtered = chatSessions.filter(session => session.messageType === 'Question');
+        filtered = chatSessions.filter(
+          session =>
+            session.messageType === 'Question' ||
+            (session as any).usageMode === 'question' ||
+            (session as any).usageMode === 'model-answer'
+        );
         break;
       case 'favorite':
         filtered = chatSessions.filter(session => session.favorite === true);

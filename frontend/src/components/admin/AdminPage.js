@@ -2186,7 +2186,7 @@ function AdminPage() {
                         <th className="admin-table__header">Total Cost</th>
                         <th className="admin-table__header">API Requests</th>
                         <th className="admin-table__header">Paywall Hits</th>
-                        <th className="admin-table__header">Churn Reason</th>
+                        <th className="admin-table__header">User Status</th>
                       </tr>
                     </thead>
                     <tbody>

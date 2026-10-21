@@ -393,6 +393,15 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
         // Step 1: Remove plain text "Question X" at the start (AI sometimes generates this)
         formattedResponse = formattedResponse.replace(/^Question\s+\d+\s*\n*/i, '');
 
+        // Step 1.5: Convert any [Diagram: ...] hints into <script class="ai-diagram-data"> blocks for SVG rendering
+        const { DiagramBridgeService } = await import('../diagram/DiagramBridgeService.js');
+        formattedResponse = await DiagramBridgeService.processDiagramHints(
+          formattedResponse,
+          actualModel,
+          usageTracker,
+          `QUESTION-MODE-Q${baseNumber}`
+        );
+
         // Step 2: Prepend markdown header with parent marks
         // For generic questions (marks = 0), show "Marks: Not specified" to avoid confusing AI/User
         // FALLBACK: If database parent marks are missing, use sum of sub-question marks

@@ -293,7 +293,12 @@ export default function MarkdownMathRenderer({
   const processedText = injectMarkingTags(parseYourWorkBlocks(preprocessedContent));
 
   // Apply Diagram Post-Processing (SVG Conversion)
-  const finalProcessedText = (processedText.includes('model_answer') || processedText.includes('model_question') || processedText.includes('[Diagram'))
+  const finalProcessedText = (
+    processedText.includes('model_answer') ||
+    processedText.includes('model_question') ||
+    processedText.includes('[Diagram') ||
+    processedText.includes('ai-diagram-data')
+  )
     ? DiagramService.process(processedText)
     : processedText;
 

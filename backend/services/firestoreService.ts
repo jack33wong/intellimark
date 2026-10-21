@@ -176,33 +176,34 @@ export class FirestoreService {
    * Determine the appropriate messageType for a session based on existing and new messages
    * Simple rule: If follow-up message type doesn't match original session type, change to "Mixed"
    */
-  private static determineSessionMessageType(existingMessages: any[], newMessage: any, existingMessageType: string): 'Marking' | 'Question' | 'Chat' | 'Mixed' {
-    // If session is already Mixed, keep it Mixed
+  private static determineSessionMessageType(
+    existingMessages: any[],
+    newMessage: any,
+    existingMessageType: string
+  ): 'Marking' | 'Question' | 'Chat' | 'Mixed' {
+    // Normalize legacy 'Mixed' sessions back to 'Marking' so they appear in the Mark tab
     if (existingMessageType === 'Mixed') {
-      return 'Mixed';
+      return 'Marking';
     }
 
-    // Determine what type the new message represents
-    let newMessageCategory: 'Marking' | 'Question' | 'Chat';
+    // If a session is already established as 'Marking' or 'Question',
+    // follow-up chat messages belong to that session and must NOT change its root type.
+    if (existingMessageType === 'Marking' || existingMessageType === 'Question') {
+      if (newMessage.type === 'marking_original' || newMessage.type === 'marking_annotated') {
+        return 'Marking';
+      }
+      return existingMessageType;
+    }
 
+    // If the session started as 'Chat', upgrade it if the user uploads homework or questions later
     if (newMessage.type === 'marking_original' || newMessage.type === 'marking_annotated') {
-      newMessageCategory = 'Marking';
-    } else if (newMessage.type === 'question_original' || newMessage.type === 'question_response') {
-      newMessageCategory = 'Question';
-    } else if (newMessage.type === 'chat' || newMessage.type === 'follow_up') {
-      newMessageCategory = 'Chat';
-    } else {
-      // Unknown message type, keep existing type
-      return existingMessageType as 'Marking' | 'Question' | 'Chat';
+      return 'Marking';
+    }
+    if (newMessage.type === 'question_original' || newMessage.type === 'question_response') {
+      return 'Question';
     }
 
-    // If the new message category is different from the existing session type, make it Mixed
-    if (newMessageCategory !== existingMessageType) {
-      return 'Mixed';
-    }
-
-    // Otherwise, keep the existing message type
-    return existingMessageType as 'Marking' | 'Question' | 'Chat';
+    return (existingMessageType as 'Marking' | 'Question' | 'Chat') || 'Chat';
   }
 
   /**
@@ -830,7 +831,11 @@ export class FirestoreService {
       }
 
       if (messageType && messageType !== 'all') {
-        sessionsRef = sessionsRef.where('messageType', '==', messageType);
+        if (messageType === 'Marking') {
+          sessionsRef = sessionsRef.where('messageType', 'in', ['Marking', 'Mixed']);
+        } else {
+          sessionsRef = sessionsRef.where('messageType', '==', messageType);
+        }
       }
 
       sessionsRef = sessionsRef.orderBy("updatedAt", "desc");
@@ -1368,6 +1373,11 @@ export class FirestoreService {
       const newLlmCost = (existingStats.costBreakdown?.llmCost || (existingStats.totalCost || 0) - (existingStats.costBreakdown?.mathpixCost || 0)) + deltaLlmCost;
       const newMathpixCost = (existingStats.costBreakdown?.mathpixCost || 0) + deltaMathpixCost;
 
+      const preservedUsageMode =
+        sessionData?.usageMode && sessionData.usageMode !== 'chat'
+          ? sessionData.usageMode
+          : usageMode.toLowerCase();
+
       // Update the session in Firestore
       const updateData = {
         unifiedMessages: updatedMessages,
@@ -1405,7 +1415,7 @@ export class FirestoreService {
               role: msg.role
             }));
           }).slice(0, 5),
-        usageMode: usageMode.toLowerCase() // Ensure session usageMode is always current
+        usageMode: preservedUsageMode
       };
 
       // Denormalize studentScore and detectedQuestion to session level if present in the new message

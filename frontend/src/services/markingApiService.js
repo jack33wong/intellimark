@@ -228,22 +228,24 @@ class SimpleSessionService {
   }
 
   // Architectural Defense: Single Source of Truth for State
-  _commitServerSessionState = (serverId, serverTitle) => {
+  _commitServerSessionState = (serverId, serverTitle, messageType = null) => {
     if (!serverId || !this.state.currentSession) return;
-    
+
     const currentTitle = this.state.currentSession.title;
     const shouldUpdateTitle = !currentTitle || currentTitle === 'Processing...' || currentTitle === 'Chat Session';
-    
+    const resolvedMessageType = messageType || this.state.currentSession.messageType || 'Chat';
+
     const updatedSession = {
-        ...this.state.currentSession,
-        id: serverId,
-        title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : currentTitle,
-        updatedAt: new Date().toISOString()
+      ...this.state.currentSession,
+      id: serverId,
+      title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : currentTitle,
+      messageType: resolvedMessageType,
+      updatedAt: new Date().toISOString()
     };
-    
+
     this.updateCurrentSessionOnly(updatedSession);
     if (!serverId.startsWith('temp-')) {
-        this.updateSidebarSession(updatedSession);
+      this.updateSidebarSession(updatedSession);
     }
   }
 
@@ -276,7 +278,11 @@ class SimpleSessionService {
           }
 
           // Then sync ID and title via the single funnel
-          this._commitServerSessionState(data.unifiedSession.id, data.unifiedSession.title);
+          this._commitServerSessionState(
+            data.unifiedSession.id,
+            data.unifiedSession.title,
+            data.unifiedSession.messageType || 'Marking'
+          );
         }
 
         return this.state.currentSession;
@@ -339,7 +345,7 @@ class SimpleSessionService {
         this.addMessage(aiMessage);
 
         // 🛑 THE FIX: Sync the permanent Session ID and handle the Title!
-        this._commitServerSessionState(data.sessionId, data.sessionTitle);
+        this._commitServerSessionState(data.sessionId, data.sessionTitle, 'Marking');
 
         // Stop spinners
         apiControls.stopAIThinking();
@@ -954,41 +960,48 @@ class SimpleSessionService {
     // Don't add temp sessions to sidebar - they will be replaced by real sessions
     if (session.id && session.id.startsWith('temp-')) return;
 
+    let updatedLightweightSession = null;
 
     this.setState(prevState => {
       const existingIndex = prevState.sidebarSessions.findIndex(s => s.id === session.id);
       const existingSession = existingIndex > -1 ? prevState.sidebarSessions[existingIndex] : {};
 
-      // Merge new data with existing session data to prevent losing fields like 'title'
+      // Merge new data with existing session data to prevent losing fields like 'title' or 'messageType'
       const mergedData = { ...existingSession, ...session };
+      if (existingSession.messageType && (!session.messageType || session.messageType === 'Chat')) {
+        mergedData.messageType = existingSession.messageType;
+      }
 
       const lightweightSession = {
         id: mergedData.id,
         title: mergedData.title,
-        messageType: mergedData.messageType,
-        createdAt: mergedData.createdAt,
+        messageType: mergedData.messageType || 'Marking',
+        usageMode: mergedData.usageMode || existingSession.usageMode || null,
+        createdAt: mergedData.createdAt || new Date().toISOString(),
         updatedAt: mergedData.updatedAt || new Date().toISOString(),
-        favorite: mergedData.favorite,
-        pinned: mergedData.pinned,
-        rating: mergedData.rating,
-        lastMessage: (mergedData.messages && Array.isArray(mergedData.messages))
-          ? (mergedData.messages.slice().reverse().find(m => m.content && !m.isProcessing) || mergedData.lastMessage || null)
-          : (mergedData.lastMessage || null)
+        favorite: mergedData.favorite || false,
+        pinned: mergedData.pinned || false,
+        rating: mergedData.rating || 0,
+        lastMessage: (mergedData.messages && Array.isArray(mergedData.messages) && mergedData.messages.length > 0)
+          ? (mergedData.messages.slice().reverse().find(m => m.content && !m.isProcessing) || mergedData.lastMessage || existingSession.lastMessage || null)
+          : (mergedData.lastMessage || existingSession.lastMessage || null)
       };
 
+      updatedLightweightSession = lightweightSession;
 
-      let newSessions;
-      if (existingIndex > -1) {
-        newSessions = [...prevState.sidebarSessions];
-        newSessions[existingIndex] = lightweightSession;
-      } else {
-        newSessions = [lightweightSession, ...prevState.sidebarSessions];
-      }
+      // Remove old entry (if present) and prepend updated session to index 0
+      const remainingSessions = prevState.sidebarSessions.filter(s => s.id !== session.id);
+      const newSessions = [lightweightSession, ...remainingSessions].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+      });
+
       return { sidebarSessions: newSessions.slice(0, this.MAX_SIDEBAR_SESSIONS) };
     });
 
-    // Trigger event to update Sidebar component
-    this.triggerSessionUpdate(session);
+    // Trigger event to update Sidebar component with the complete merged session
+    this.triggerSessionUpdate(updatedLightweightSession || session);
   }
 
   updateSidebarSessionsBatch = (sessions) => {

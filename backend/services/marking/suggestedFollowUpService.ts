@@ -282,67 +282,8 @@ export class SuggestedFollowUpService {
             console.log("--------------------------------------------------");
           }
 
-          const diagramRegex = /\[(?:Type:\s*Diagram|Diagram):\s*(.*?)\]/gi;
-          let match;
-          let diagramCount = 0;
-
-          // Sequential extraction for each detected diagram
-          while (true) {
-            const currentMatch = diagramRegex.exec(content);
-            if (!currentMatch) break;
-
-            diagramCount++;
-            const fullMatchText = currentMatch[0];
-            const hintDescription = currentMatch[1];
-            
-            if (isLoggingEnabled) {
-              console.log(`\n[DEBUG] Step 2: Found Diagram Hint #${diagramCount}:`);
-              console.log(`[DEBUG] Hint Text: "${hintDescription}"`);
-
-              // Call Prompt 2 (JSON Extractor) with just the hint
-              console.log(`[DEBUG] Step 3: Sending hint to Prompt 2 (JSON Extractor)...`);
-            }
-            const diagramSystemPrompt = getPrompt('diagramExtractor.system');
-            const diagramUserPrompt = getPrompt('diagramExtractor.user', hintDescription);
-
-            try {
-              const diagramAi = await ModelProvider.callText(diagramSystemPrompt, diagramUserPrompt, model as any, false, tracker, 'modelAnswer');
-              const jsonOutput = diagramAi.content.replace(/^```(json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-              
-              if (isLoggingEnabled) {
-                console.log(`[DEBUG] Step 3 Complete. Raw JSON Output from AI:`);
-                console.log(jsonOutput);
-              }
-
-              // Verify the JSON is actually valid before injecting it
-              try {
-                JSON.parse(jsonOutput);
-                if (isLoggingEnabled) console.log(`[DEBUG] JSON Validation: SUCCESS!`);
-              } catch (parseError) {
-                if (isLoggingEnabled) {
-                  console.error(`[DEBUG] JSON Validation: FAILED! The AI generated invalid JSON.`);
-                  console.error(`[DEBUG] Error Details:`, (parseError as any).message);
-                }
-              }
-
-              const scriptTag = `<script type="application/json" class="ai-diagram-data">\n${jsonOutput}\n</script>`;
-              
-              // Replace the hint with the JSON script tag
-              content = content.replace(fullMatchText, scriptTag);
-              if (isLoggingEnabled) console.log(`[DEBUG] Step 4: Successfully replaced hint with <script> tag in HTML.`);
-              
-              // Reset regex index because content length changed
-              diagramRegex.lastIndex = 0; 
-            } catch (err) {
-              console.error(`[PROMPT-BRIDGE] Error extracting diagram for Q${base}:`, err);
-              content = content.replace(fullMatchText, `<!-- Diagram Extraction Error: ${hintDescription} -->`);
-              diagramRegex.lastIndex = 0;
-            }
-          }
-
-          if (diagramCount === 0) {
-            if (isLoggingEnabled) console.log(`\n[DEBUG] No diagram hints were found in the HTML.`);
-          }
+          const { DiagramBridgeService } = await import('../diagram/DiagramBridgeService.js');
+          content = await DiagramBridgeService.processDiagramHints(content, model, tracker, `MODEL-ANSWER-Q${base}`);
 
           if (isLoggingEnabled) {
             console.log("\n[DEBUG] FINAL HTML READY FOR FRONTEND:");

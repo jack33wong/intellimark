@@ -487,6 +487,16 @@ router.post('/chat', optionalAuth, async (req, res) => {
       }
     }
 
+    // --- Two-Prompt Bridge for Diagrams in Follow-Up Chat Mode ---
+    if (finalResponse && !isFollowUpMode(mode)) {
+      const { DiagramBridgeService } = await import('../services/diagram/DiagramBridgeService.js');
+      finalResponse = await DiagramBridgeService.processDiagramHints(
+        finalResponse,
+        resolvedModel,
+        usageTracker,
+        'FOLLOW-UP-CHAT'
+      );
+    }
 
     // Create AI message using factory
     const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, aiResponse, 'chat');

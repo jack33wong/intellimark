@@ -630,6 +630,16 @@ export class DiagramService {
         const xAxisY = (yMin <= 0 && yMax >= 0) ? 0 : (yMin > 0 ? -yMin : -yMax);
         const yAxisX = (xMin <= 0 && xMax >= 0) ? 0 : (xMin > 0 ? xMin : xMax);
 
+        // Scale unit normalized to a 20x20 grid so font sizes and offsets stay visually consistent across any grid range
+        const span = Math.max(width || 10, height || 10);
+        const u = span / 20;
+        const labelFontSize = +(0.48 * u).toFixed(3);
+        const vertexFontSize = +(0.42 * u).toFixed(3);
+        const axisFontSize = +(0.50 * u).toFixed(3);
+        const tickFontSize = +(0.36 * u).toFixed(3);
+        const pointRadius = +(0.18 * u).toFixed(3);
+        const pad = +(0.85 * u).toFixed(3);
+
         let gridHtml = "";
 
         // Define arrowheads for Vectors
@@ -657,16 +667,28 @@ export class DiagramService {
 
         if (data.show_axes !== false) {
             layersHtml += `
-                <line x1="${xMin}" y1="${xAxisY}" x2="${xMax}" y2="${xAxisY}" stroke="var(--diagram-grid)" stroke-width="0.15" vector-effect="non-scaling-stroke" />
-                <line x1="${yAxisX}" y1="${-yMax}" x2="${yAxisX}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.15" vector-effect="non-scaling-stroke" />
-                <text x="${xMax}" y="${xAxisY - 0.5}" font-size="0.6" fill="var(--diagram-grid)" text-anchor="end">x</text>
-                <text x="${yAxisX + 0.5}" y="${-yMax + 0.8}" font-size="0.6" fill="var(--diagram-grid)" text-anchor="start">y</text>
+                <line x1="${xMin}" y1="${xAxisY}" x2="${xMax}" y2="${xAxisY}" stroke="var(--diagram-grid)" stroke-width="0.4" vector-effect="non-scaling-stroke" />
+                <line x1="${yAxisX}" y1="${-yMax}" x2="${yAxisX}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.4" vector-effect="non-scaling-stroke" />
+                <text x="${xMax - 0.15 * u}" y="${xAxisY - 0.35 * u}" font-size="${axisFontSize}" fill="var(--diagram-grid)" text-anchor="end" font-style="italic">x</text>
+                <text x="${yAxisX + 0.35 * u}" y="${-yMax + 0.55 * u}" font-size="${axisFontSize}" fill="var(--diagram-grid)" text-anchor="start" font-style="italic">y</text>
             `;
+
+            // Render axis tick numbers so coordinates are easy to verify on the grid
+            for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
+                if (x === 0 && xMin < 0 && xMax > 0) continue;
+                const tickY = (xAxisY + 0.52 * u <= -yMin + pad * 0.7) ? xAxisY + 0.48 * u : -yMin + 0.48 * u;
+                layersHtml += `<text x="${x}" y="${tickY}" font-size="${tickFontSize}" fill="var(--diagram-grid)" text-anchor="middle">${Math.round(x * 10) / 10}</text>`;
+            }
+            for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
+                if (y === 0 && yMin < 0 && yMax > 0) continue;
+                const tickX = (yAxisX - 0.25 * u >= xMin - pad * 0.7) ? yAxisX - 0.25 * u : xMin - 0.25 * u;
+                layersHtml += `<text x="${tickX}" y="${-y + tickFontSize * 0.35}" font-size="${tickFontSize}" fill="var(--diagram-grid)" text-anchor="end">${Math.round(y * 10) / 10}</text>`;
+            }
         }
 
         if (data.label_origin) {
-            layersHtml += `<circle cx="0" cy="0" r="0.1" fill="var(--diagram-foreground)" />`;
-            layersHtml += `<text x="0.2" y="-0.2" font-size="0.45" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
+            layersHtml += `<circle cx="0" cy="0" r="${pointRadius}" fill="var(--diagram-foreground)" />`;
+            layersHtml += `<text x="${0.25 * u}" y="${-0.25 * u}" font-size="${vertexFontSize}" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
         }
 
         layers = layers.filter((layer: any) => {
@@ -735,26 +757,28 @@ export class DiagramService {
             }
 
             if (rawPoints.length > 0) {
-                const ptsArr = rawPoints.map((p: any) => {
-                    const x = parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0));
-                    const y = parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0));
-                    return `${x},${-y}`;
-                });
+                const parsedPts: [number, number][] = rawPoints.map((p: any) => [
+                    parseFloat(Array.isArray(p) ? p[0] : (p.x ?? 0)),
+                    parseFloat(Array.isArray(p) ? p[1] : (p.y ?? 0))
+                ]);
 
-                if (ptsArr.some((pt: string) => pt.includes('NaN'))) return;
-                const pts = ptsArr.join(' ');
+                if (parsedPts.some(([px, py]) => !Number.isFinite(px) || !Number.isFinite(py))) return;
 
-                const isOpen = layer.is_open || isVector || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line';
-                const tag = isOpen ? 'polyline' : 'polygon';
+                const isSinglePoint = rawPoints.length === 1 || layer.shape_name === 'point' || layer.type === 'point';
+                const isOpen = !isSinglePoint && (layer.is_open || isVector || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line');
 
-                // Vectors are always solid. Others follow reference rules.
-                const dashedStyle = (layer.dashed || (isReference && !isVector)) ? 'stroke-dasharray="3,3"' : '';
-                const baseWidth = isVector ? 0.5 : (isReference ? 0.4 : 0.3);
-                const markerAttr = isVector ? 'marker-end="url(#vector-arrow)"' : '';
+                if (isSinglePoint) {
+                    const [px, py] = parsedPts[0];
+                    layersHtml += `<circle cx="${px}" cy="${-py}" r="${pointRadius}" fill="${strokeColor}" />`;
+                } else {
+                    const pts = parsedPts.map(([px, py]) => `${px},${-py}`).join(' ');
+                    const tag = isOpen ? 'polyline' : 'polygon';
+                    const dashedStyle = (layer.dashed || (isReference && !isVector)) ? 'stroke-dasharray="3,3"' : '';
+                    const baseWidth = isVector ? 0.5 : (isReference ? 0.4 : 0.3);
+                    const markerAttr = isVector ? 'marker-end="url(#vector-arrow)"' : '';
 
-                layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} 
-                                stroke-width="${baseWidth}" ${dashedStyle} ${markerAttr}
-                                vector-effect="non-scaling-stroke" />`;
+                    layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${baseWidth}" ${dashedStyle} ${markerAttr} vector-effect="non-scaling-stroke" />`;
+                }
 
                 let hasLocalVertexLabels = false;
                 rawPoints.forEach((p: any) => {
@@ -766,34 +790,62 @@ export class DiagramService {
                         const coordKey = `${Math.round(vx * 2) / 2},${Math.round(vy * 2) / 2}`;
 
                         if (!DiagramService.renderedGlobalLabels.has(coordKey)) {
-                            layersHtml += `<text x="${vx}" y="${-vy - 0.7}" font-size="0.4" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vLabel}</text>`;
+                            layersHtml += `<text x="${vx}" y="${-vy - 0.45 * u}" font-size="${vertexFontSize}" fill="var(--diagram-foreground)" text-anchor="middle" font-weight="bold">${vLabel}</text>`;
                             DiagramService.renderedGlobalLabels.add(coordKey);
                             hasLocalVertexLabels = true;
                         }
                     }
                 });
 
-                const firstPtRaw = Array.isArray(rawPoints[0]) ? rawPoints[0] : [rawPoints[0].x, rawPoints[0].y];
-                const firstPt = [parseFloat(firstPtRaw[0]), parseFloat(firstPtRaw[1])];
+                if (layer.label && !hasLocalVertexLabels) {
+                    let lx = parsedPts[0][0];
+                    let ly = parsedPts[0][1];
+                    let textAnchor = "middle";
+                    let dominantBaseline = "auto";
 
-                if (Number.isFinite(firstPt[0]) && Number.isFinite(firstPt[1])) {
-                    let lx = firstPt[0];
-                    let ly = firstPt[1];
-
-                    // Move label to midpoint for vectors so it doesn't bunch up at 0,0
-                    if (isVector && rawPoints.length >= 2) {
-                        const p2 = Array.isArray(rawPoints[1]) ? rawPoints[1] : [rawPoints[1].x, rawPoints[1].y];
-                        lx = (lx + parseFloat(p2[0])) / 2;
-                        ly = (ly + parseFloat(p2[1])) / 2;
+                    if (!isSinglePoint && !isOpen && parsedPts.length >= 3) {
+                        // Closed polygon: place label at the polygon centroid
+                        let uniquePts = parsedPts;
+                        if (parsedPts.length > 3 &&
+                            Math.abs(parsedPts[0][0] - parsedPts[parsedPts.length - 1][0]) < 1e-6 &&
+                            Math.abs(parsedPts[0][1] - parsedPts[parsedPts.length - 1][1]) < 1e-6) {
+                            uniquePts = parsedPts.slice(0, -1);
+                        }
+                        lx = uniquePts.reduce((sum, pt) => sum + pt[0], 0) / uniquePts.length;
+                        ly = uniquePts.reduce((sum, pt) => sum + pt[1], 0) / uniquePts.length;
+                        dominantBaseline = "middle";
+                    } else if (isOpen && parsedPts.length >= 2) {
+                        // Line / Vector: place label above the midpoint
+                        lx = (parsedPts[0][0] + parsedPts[1][0]) / 2;
+                        ly = (parsedPts[0][1] + parsedPts[1][1]) / 2 + 0.35 * u;
+                    } else if (isSinglePoint) {
+                        // Point: offset beside the dot so it never overlaps the marker or clips at edges
+                        if (lx - xMin < width * 0.3) {
+                            lx += pointRadius * 1.8;
+                            textAnchor = "start";
+                        } else if (xMax - lx < width * 0.3) {
+                            lx -= pointRadius * 1.8;
+                            textAnchor = "end";
+                        } else {
+                            ly -= 0.45 * u;
+                        }
+                        dominantBaseline = "middle";
                     }
 
-                    const firstPtKey = `${Math.round(lx * 2) / 2},${Math.round(ly * 2) / 2}`;
-                    if (layer.label && !hasLocalVertexLabels && !DiagramService.renderedGlobalLabels.has(firstPtKey)) {
-                        // Offset y slightly based on whether it's a vector or standard shape
-                        const yOffset = isVector ? -ly - 0.4 : -ly - 0.7;
-                        layersHtml += `<text x="${lx}" y="${yOffset}" font-size="0.6" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${layer.label}</text>`;
-                        DiagramService.renderedGlobalLabels.add(firstPtKey);
+                    // Edge-clipping guard for non-point labels near left/right grid boundaries
+                    if (textAnchor === "middle") {
+                        if (lx - xMin < width * 0.18) textAnchor = "start";
+                        else if (xMax - lx < width * 0.18) textAnchor = "end";
                     }
+
+                    let labelKey = `${Math.round(lx * 2) / 2},${Math.round(ly * 2) / 2}`;
+                    if (DiagramService.renderedGlobalLabels.has(labelKey)) {
+                        ly += 0.55 * u;
+                        labelKey = `${Math.round(lx * 2) / 2},${Math.round(ly * 2) / 2}`;
+                    }
+
+                    layersHtml += `<text x="${lx}" y="${-ly}" font-size="${labelFontSize}" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="${textAnchor}" dominant-baseline="${dominantBaseline}">${layer.label}</text>`;
+                    DiagramService.renderedGlobalLabels.add(labelKey);
                 }
                 hasDrawnSomething = true;
             }
@@ -803,7 +855,7 @@ export class DiagramService {
             return this.renderFallbackBox(data.details || data.description || "Grid/Axis Reference (No shapes provided)");
         }
 
-        return this.wrapSVG(xMin, -yMax, width, height, layersHtml);
+        return this.wrapSVG(xMin - pad, -yMax - pad, width + pad * 2, height + pad * 2, layersHtml);
     }
 
     /**
@@ -1132,11 +1184,7 @@ export class DiagramService {
         if (renderedComponents.length === 0) return this.renderFallbackBox(data.description || "Composite 2D (Render Error)");
 
         // Wrap them in a flex container for side-by-side or stacked display
-        return `
-        <div class="model_diagram_composite" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
-            ${renderedComponents.join('')}
-        </div>
-        `;
+        return `<div class="model_diagram_composite" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">${renderedComponents.join('')}</div>`;
     }
 
     private static wrapSVG(x: number, y: number, w: number, h: number, body: string): string {
@@ -1145,23 +1193,15 @@ export class DiagramService {
             return `<div class="diagram-error">Diagram render error: NaN in viewBox</div>`;
         }
 
+        // Compact internal indentation & blank lines so CommonMark/ReactMarkdown does not treat 4+ space indented lines as <pre><code> blocks
+        const compactBody = body.replace(/^\s+/gm, '').replace(/\n+/g, ' ').trim();
+
         // [v9.53] Internal viewBox is tight to graph again. Layout handled by CSS.
-        return `
-        <div class="model_diagram">
-            <div class="diagram-accuracy-label">Not drawn accurately</div>
-            <svg viewBox="${x} ${y} ${w} ${h}" preserveAspectRatio="xMidYMid meet" class="ai-diagram-svg">
-                ${body}
-            </svg>
-        </div>
-        `;
+        return `<div class="model_diagram"><div class="diagram-accuracy-label">Not drawn accurately</div><svg viewBox="${x} ${y} ${w} ${h}" preserveAspectRatio="xMidYMid meet" class="ai-diagram-svg">${compactBody}</svg></div>`;
     }
 
     private static renderFallbackBox(description: string): string {
-        return `
-        <div class="diagram-fallback-wrapper">
-            <strong>📐 Diagram Reference:</strong>
-            ${description}
-        </div>`;
+        return `<div class="diagram-fallback-wrapper"><strong>📐 Diagram Reference:</strong> ${description}</div>`;
     }
 
     /**
@@ -1200,15 +1240,7 @@ export class DiagramService {
 
             if (!rowsHtml) return `[Table: ${content}]`; // Return original if parsing failed
 
-            return `
-            <table class="model_table" style="margin: 10px 0;">
-                <thead>
-                    <tr><th>Class / Interval</th><th>Frequency</th></tr>
-                </thead>
-                <tbody>
-                    ${rowsHtml}
-                </tbody>
-            </table>`;
+            return `<table class="model_table" style="margin: 10px 0;"><thead><tr><th>Class / Interval</th><th>Frequency</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
         } catch (e) {
             return `[Table Error: ${content}]`;
         }
@@ -1233,10 +1265,7 @@ export class DiagramService {
                 return `<div class="diagram-list-item">${item}</div>`;
             }).join('');
 
-            return `
-            <div class="diagram-list-wrapper">
-                ${itemsHtml}
-            </div>`;
+            return `<div class="diagram-list-wrapper">${itemsHtml}</div>`;
         } catch (e) {
             return `[List Error: ${content}]`;
         }
