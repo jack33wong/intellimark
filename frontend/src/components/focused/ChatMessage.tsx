@@ -22,6 +22,7 @@ import {
 import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
+import PerformanceSummaryPanel from '../marking/PerformanceSummaryPanel';
 import ImageModeModal from '../common/ImageModeModal';
 import SimpleImageGallery from '../common/SimpleImageGallery';
 import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUtils';
@@ -500,19 +501,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             return (
               <div ref={handleContentRef}>
                 {(message as any).performanceSummary && (
-                  <div className="ai-performance-summary">
-                    <div className="ai-performance-summary-content">
-                      <MarkdownMathRenderer
-                        content={(message as any).performanceSummary}
-                        className="chat-message-renderer"
-                        options={{
-                          throwOnError: false,
-                          errorColor: '#cc0000',
-                        }}
-                      />
-                    </div>
-                    <hr className="summary-separator" />
-                  </div>
+                  <PerformanceSummaryPanel
+                    rawSummary={(message as any).performanceSummary}
+                    MarkdownMathRenderer={MarkdownMathRenderer}
+                    onQuestionClick={(qNum) => onNavigate?.(qNum, -1, 'ribbon')}
+                  />
                 )}
                 {hasYourWork ? (
                   <div className="has-your-work-outer-container">

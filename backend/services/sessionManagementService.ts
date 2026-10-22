@@ -1073,8 +1073,8 @@ export class SessionManagementService {
    * Generates a cohesive master performance summary based on distilled results of all questions.
    */
   private static async generateMasterPerformanceSummary(
-    allQuestionResults: any[], 
-    model: string, 
+    allQuestionResults: any[],
+    model: string,
     tracker?: any,
     grade?: string | null,
     predictedGrade?: string | null,
@@ -1084,41 +1084,26 @@ export class SessionManagementService {
   ): Promise<string | undefined> {
     if (!allQuestionResults || allQuestionResults.length === 0) return undefined;
 
-    // Distill the data for the AI pass
     const distilledData = allQuestionResults.map(qr => {
-      const qNum = qr.questionNumber || 'Unknown';
-
-      // Distill topic/text (prioritize database text, then question text)
+      const qNum = String(qr.questionNumber || 'Unknown');
       let topic = qr.databaseQuestionText || qr.questionText || 'Topic unknown';
       if (topic.length > 120) {
         topic = topic.substring(0, 117) + '...';
       }
-
-      const score = qr.studentScore?.scoreText || (qr.score ? `${qr.score.awardedMarks || 0}/${qr.score.totalMarks || 0}` : 'Unknown Score');
-
-      // Distill reasonings into a concise list of missing points or key accomplishments
+      const awarded = qr.score?.awardedMarks ?? qr.marks ?? 0;
+      const total = qr.score?.totalMarks ?? qr.totalMarks ?? 0;
       const feedback = qr.annotations
         ?.filter((a: any) => a.reasoning && a.reasoning.trim() !== '')
         .map((a: any) => `${a.text}: ${a.reasoning}`)
-        .slice(0, 5) // Map max 5 annotations for brevity
-        .join(', ') || 'No specific feedback available';
+        .slice(0, 4)
+        .join(', ') || 'No specific feedback';
 
-      return `Q${qNum} (${topic}): Score ${score}. Key Points: ${feedback}`;
+      return `Q${qNum} (${topic}): Score ${awarded}/${total}. Key Points: ${feedback}`;
     }).join('\n');
 
     let promptData = `DISTILLED QUESTION RESULTS:\n${distilledData}\n\n`;
-
     if (examInfo) {
-      promptData += `EXAM INFO:\n- Board: ${examInfo.examBoard || 'N/A'}\n- Series: ${examInfo.examSeries || 'N/A'}\n- Subject: ${examInfo.subject || 'N/A'}\n- Paper Code: ${examInfo.examCode || 'N/A'}\n- Tier: ${examInfo.tier || 'N/A'}\n\n`;
-    }
-
-    if (studentScore) {
-      const percentage = studentScore.totalMarks > 0 ? Math.round((studentScore.awardedMarks / studentScore.totalMarks) * 100) : 0;
-      promptData += `STUDENT SCORE:\n- Awarded Marks: ${studentScore.awardedMarks}\n- Total Marks: ${studentScore.totalMarks}\n- Percentage: ${percentage}%\n\n`;
-    }
-
-    if (gradeBoundaries) {
-      promptData += `GRADE BOUNDARIES & RESULTS:\n- Grade Achieved: ${grade || 'N/A'}\n- Predicted Grade: ${predictedGrade || 'N/A'}\n- Grade Boundaries Breakdown: ${JSON.stringify(gradeBoundaries)}\n\n`;
+      promptData += `EXAM INFO: ${examInfo.examBoard || ''} | ${examInfo.subject || ''} | ${examInfo.examCode || ''} | ${examInfo.examSeries || ''} | ${examInfo.tier || ''}\n\n`;
     }
 
     try {
@@ -1128,29 +1113,115 @@ export class SessionManagementService {
       const systemPrompt = getPrompt('masterSummary.system');
       const userPrompt = getPrompt('masterSummary.user', promptData);
 
-      // Call AI for final synthesis
-      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, 'performanceSummary');
+      const response = await ModelProvider.callText(systemPrompt, userPrompt, model as any, true, tracker, 'performanceSummary');
+      const rawContent = (response.content || '').trim();
 
-      let finalContent = response.content;
-
-      // Safeguard: If AI mistakenly returns JSON, extract the text
-      if (finalContent && (finalContent.startsWith('{') || finalContent.includes('"master_summary"'))) {
-        try {
-          // Find potential JSON block
-          const jsonMatch = finalContent.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            finalContent = parsed.master_summary || parsed.summary || parsed.content || Object.values(parsed)[0] || finalContent;
-          }
-        } catch (e) {
-          console.warn('[MASTER SUMMARY] Failed to parse accidental JSON:', e);
+      let aiParsed: any = null;
+      try {
+        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          aiParsed = JSON.parse(jsonMatch[0]);
         }
-      }
-      if (allQuestionResults.some((qr: any) => qr.isError && qr.errorMessage === 'Too Dense')) {
-        finalContent = `> [!WARNING]\n> **MANUAL REVIEW REQUIRED:** Some questions were too dense for auto-marking and were skipped. Please review the paper manually.\n\n` + finalContent;
+      } catch (e) {
+        console.warn('[MASTER SUMMARY] Failed to parse structured JSON, falling back to raw text:', e);
       }
 
-      return finalContent;
+      // If AI didn't return structured JSON, return raw text for legacy fallback
+      if (!aiParsed || (!aiParsed.questionTopics && !aiParsed.mastered)) {
+        return rawContent;
+      }
+
+      // Determine Radar Axes dynamically from AI's paper-aware selection (or fallback)
+      const isALevel = aiParsed.level === 'ALEVEL' || (examInfo?.examCode && /^9|^8MA|^735|^H2/i.test(examInfo.examCode));
+      const defaultAxes = isALevel
+        ? ['Algebra & Functions', 'Coordinate Geometry', 'Sequences & Series', 'Trigonometry', 'Exponentials & Logs', 'Differentiation', 'Integration', 'Proof & Vectors']
+        : ['Number', 'Algebra', 'Ratio & Proportion', 'Geometry', 'Probability', 'Statistics'];
+
+      const axesList: string[] =
+        Array.isArray(aiParsed.radarAxes) && aiParsed.radarAxes.length >= 4
+          ? aiParsed.radarAxes.slice(0, 8).map((a: any) => String(a).trim())
+          : defaultAxes;
+
+      // Map question numbers to scores
+      const qScoreMap = new Map<string, { awarded: number; total: number }>();
+      let fullMarksCount = 0;
+      let attemptedCount = 0;
+
+      allQuestionResults.forEach(qr => {
+        const qNum = String(qr.questionNumber || '').replace(/^Q/i, '').trim();
+        const awarded = Number(qr.score?.awardedMarks ?? qr.marks ?? 0);
+        const total = Number(qr.score?.totalMarks ?? qr.totalMarks ?? 0);
+        qScoreMap.set(qNum, { awarded, total });
+        if (total > 0 && awarded >= total) fullMarksCount++;
+        if (awarded > 0 || (qr.studentWork && String(qr.studentWork).trim().length > 0) || (qr.annotations && qr.annotations.length > 0)) {
+          attemptedCount++;
+        }
+      });
+
+      // Aggregate marks per Radar Axis
+      const axisTotals = new Map<string, { awarded: number; total: number; count: number }>();
+      axesList.forEach(axis => axisTotals.set(axis, { awarded: 0, total: 0, count: 0 }));
+
+      const topicMappings = Array.isArray(aiParsed.questionTopics) ? aiParsed.questionTopics : [];
+      topicMappings.forEach((item: any) => {
+        const qKey = String(item.q || '').replace(/^Q/i, '').trim();
+        const matchedAxis = axesList.find(a => a.toLowerCase() === String(item.axis || '').toLowerCase()) || axesList[0];
+        const qScore = qScoreMap.get(qKey);
+        if (qScore && qScore.total > 0) {
+          const prev = axisTotals.get(matchedAxis)!;
+          prev.awarded += qScore.awarded;
+          prev.total += qScore.total;
+          prev.count += 1;
+        }
+      });
+
+      const awardedMarks = studentScore?.awardedMarks ?? allQuestionResults.reduce((s, q) => s + Number(q.score?.awardedMarks ?? 0), 0);
+      const totalMarks = studentScore?.totalMarks ?? allQuestionResults.reduce((s, q) => s + Number(q.score?.totalMarks ?? 0), 0);
+      const overallPct = totalMarks > 0 ? Math.round((awardedMarks / totalMarks) * 100) : 0;
+      // Provisional baseline for unassessed topics (clamped 40-75% so radar polygon looks balanced like TMUA)
+      const provisionalPct = Math.min(75, Math.max(40, overallPct || 50));
+
+      const radarData = axesList.map(axis => {
+        const stat = axisTotals.get(axis)!;
+        const assessed = stat.total > 0;
+        const scorePct = assessed ? Math.round((stat.awarded / stat.total) * 100) : provisionalPct;
+        return {
+          axis,
+          score: scorePct,
+          awarded: stat.awarded,
+          total: stat.total,
+          assessed
+        };
+      });
+
+      const hasTooDenseWarning = allQuestionResults.some((qr: any) => qr.isError && qr.errorMessage === 'Too Dense');
+      const hasBoundaries = Boolean(gradeBoundaries && typeof gradeBoundaries === 'object' && Object.keys(gradeBoundaries).length > 0);
+
+      const summaryPayload = {
+        _type: 'AI_SUMMARY_V2',
+        level: isALevel ? 'ALEVEL' : 'GCSE',
+        headline: aiParsed.headline || '',
+        tooDenseWarning: hasTooDenseWarning,
+        examInfo: examInfo || null,
+        score: {
+          awardedMarks,
+          totalMarks,
+          percentage: overallPct,
+          questionsTotal: allQuestionResults.length,
+          questionsFullMarks: fullMarksCount,
+          questionsAttempted: attemptedCount
+        },
+        grading: hasBoundaries ? {
+          grade: grade && String(grade).trim() !== '' ? String(grade) : 'N/A',
+          predictedGrade: predictedGrade && String(predictedGrade).trim() !== '' ? String(predictedGrade) : 'N/A',
+          boundaries: gradeBoundaries
+        } : null,
+        radar: radarData,
+        mastered: Array.isArray(aiParsed.mastered) ? aiParsed.mastered.slice(0, 3) : [],
+        focusNext: Array.isArray(aiParsed.focusNext) ? aiParsed.focusNext.slice(0, 3) : []
+      };
+
+      return JSON.stringify(summaryPayload);
     } catch (error) {
       console.error('[MASTER SUMMARY] Error generating summary:', error);
       return undefined;
