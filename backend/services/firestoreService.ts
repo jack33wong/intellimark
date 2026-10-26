@@ -1883,4 +1883,105 @@ export class FirestoreService {
       throw error;
     }
   }
+
+  /**
+   * Persist user reading/viewing engagement metrics for a session
+   * Merges cumulatively if the user views the same session across multiple visits.
+   */
+  static async saveSessionEngagement(
+    sessionId: string,
+    payload: {
+      userId?: string;
+      totalActiveSec: number;
+      totalPages: number;
+      uniquePagesViewed: number;
+      coveragePct: number;
+      viewedAllPages: boolean;
+      openedSplitMode: boolean;
+      questionNavClicks: number;
+      summaryChipClicks: number;
+      pageDwellSec: Record<string, number>;
+      flushReason?: string;
+    }
+  ): Promise<void> {
+    try {
+      if (!db || !sessionId || sessionId.startsWith('temp-')) return;
+
+      const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+      if (!sessionDoc.exists) return;
+
+      const sessionData = sessionDoc.data() || {};
+      const sessionOwnerId = sessionData.userId;
+
+      // Guard: Only record engagement if the viewer is the owner of the session
+      // (Prevents Admin or third-party viewers from polluting student reading metrics)
+      if (
+        sessionOwnerId &&
+        sessionOwnerId !== 'guest' &&
+        sessionOwnerId !== 'anonymous' &&
+        payload.userId !== sessionOwnerId
+      ) {
+        return;
+      }
+
+      const prevEngagement = sessionData?.sessionStats?.engagement || {};
+
+      // Merge per-page dwell times (take max per page if cumulative, or sum if new visit)
+      const prevDwell: Record<string, number> = prevEngagement.pageDwellSec || {};
+      const incomingDwell: Record<string, number> = payload.pageDwellSec || {};
+      const mergedDwell: Record<string, number> = { ...prevDwell };
+
+      for (const [pageKey, sec] of Object.entries(incomingDwell)) {
+        mergedDwell[pageKey] = Math.round(Math.max(mergedDwell[pageKey] || 0, Number(sec) || 0) * 10) / 10;
+      }
+
+      const totalPages = Math.max(Number(payload.totalPages) || 1, Number(prevEngagement.totalPages) || 1);
+      const meaningfulPages = Object.entries(mergedDwell).filter(([k, sec]) => sec >= 1.0 || k === 'p1').length;
+      const uniquePagesViewed = Math.min(
+        totalPages,
+        Math.max(meaningfulPages, Number(payload.uniquePagesViewed) || 0, Number(prevEngagement.uniquePagesViewed) || 0)
+      );
+      const coveragePct = Math.min(100, Math.round((uniquePagesViewed / totalPages) * 100));
+      const totalActiveSec = Math.round(
+        Math.max(Number(payload.totalActiveSec) || 0, Number(prevEngagement.totalActiveSec) || 0) * 10
+      ) / 10;
+
+      const engagementRecord = {
+        totalActiveSec,
+        totalPages,
+        uniquePagesViewed,
+        coveragePct,
+        viewedAllPages: uniquePagesViewed >= totalPages,
+        openedSplitMode: Boolean(prevEngagement.openedSplitMode || payload.openedSplitMode),
+        questionNavClicks: Math.max(Number(prevEngagement.questionNavClicks) || 0, Number(payload.questionNavClicks) || 0),
+        summaryChipClicks: Math.max(Number(prevEngagement.summaryChipClicks) || 0, Number(payload.summaryChipClicks) || 0),
+        pageDwellSec: mergedDwell,
+        lastViewedAt: new Date().toISOString()
+      };
+
+      // 1. Save inside unifiedSessions/{sessionId}.sessionStats.engagement
+      // Note: Do NOT overwrite session.updatedAt so viewing an old session doesn't reorder sidebar history
+      await sessionRef.update({
+        'sessionStats.engagement': engagementRecord
+      });
+
+      // 2. Also attach to the initial_session usageTransactions doc (if the Admin Usage tab queries usageTransactions)
+      const txSnap = await db
+        .collection(COLLECTIONS.USAGE_TRANSACTIONS)
+        .where('sessionId', '==', sessionId)
+        .limit(5)
+        .get();
+
+      if (!txSnap.empty) {
+        const batch = db.batch();
+        txSnap.docs.forEach(doc => {
+          batch.update(doc.ref, { engagement: engagementRecord });
+        });
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn(`⚠️ [ENGAGEMENT] Failed to persist engagement for session ${sessionId}:`, err);
+    }
+  }
 }

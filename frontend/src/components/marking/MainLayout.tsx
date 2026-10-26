@@ -22,6 +22,7 @@ import QuestionNavigator from './QuestionNavigator';
 import SEO from '../common/SEO';
 import ImageViewer from '../common/ImageViewer';
 import { analyticsService } from '../../services/AnalyticsService';
+import { engagementTracker } from '../../utils/engagementTracker';
 
 const productSchema = {
   "@context": "https://schema.org/",
@@ -199,6 +200,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
     // 2. Update States
     setActiveQuestionId(qNum);
+    if (source === 'ribbon') {
+      engagementTracker.recordQuestionNavigation(targetImgIdx);
+    } else {
+      engagementTracker.recordPageView(targetImgIdx);
+    }
 
     // If not in split mode, we only AUTO-ENTER it if the user explicitly clicked (Ribbon/Image)
     // Scrolling through the chat should NOT suddenly pop the user into split mode.

@@ -836,6 +836,7 @@ router.get('/usage', async (req: Request, res: Response) => {
           mathpixCost: 0,
           apiRequests: 0,
           sessionIds: new Set(),
+          sessionEngagements: new Map<string, any>(),
           lastActive: txDateIso,
           paywallHits: 0,
           churnReason: 'None'
@@ -847,7 +848,12 @@ router.get('/usage', async (req: Request, res: Response) => {
       userStats.modelCost += interactionModelCost;
       userStats.mathpixCost += interactionMathpixCost;
       userStats.apiRequests += 1;
-      if (tx.sessionId) userStats.sessionIds.add(tx.sessionId);
+      if (tx.sessionId) {
+        userStats.sessionIds.add(tx.sessionId);
+        if (tx.engagement && !userStats.sessionEngagements.has(tx.sessionId)) {
+          userStats.sessionEngagements.set(tx.sessionId, tx.engagement);
+        }
+      }
 
       if (new Date(txDateIso) > new Date(userStats.lastActive)) {
           userStats.lastActive = txDateIso;
@@ -930,18 +936,46 @@ router.get('/usage', async (req: Request, res: Response) => {
         }
     }
 
+    // Backfill any missing session engagements from unifiedSessions
+    try {
+      const missingSessionToUser = new Map<string, string>();
+      usersMap.forEach((u) => {
+        u.sessionIds.forEach((sid: string) => {
+          if (sid && !u.sessionEngagements.has(sid)) {
+            missingSessionToUser.set(sid, u.userId);
+          }
+        });
+      });
+
+      const missingIds = Array.from(missingSessionToUser.keys());
+      for (let i = 0; i < missingIds.length; i += 30) {
+        const chunk = missingIds.slice(i, i + 30);
+        const refs = chunk.map(sid => db.collection('unifiedSessions').doc(sid));
+        const docs = await db.getAll(...refs);
+        docs.forEach(d => {
+          if (d.exists) {
+            const eng = d.data()?.sessionStats?.engagement;
+            const uid = missingSessionToUser.get(d.id);
+            if (eng && uid && usersMap.has(uid)) {
+              usersMap.get(uid)!.sessionEngagements.set(d.id, eng);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to backfill session engagement from unifiedSessions:', e);
+    }
+
     const usageData = Array.from(usersMap.values()).map(u => {
         let avgRating = 0;
         let feedbackReasons: string[] = [];
         
         if (u.feedback && u.feedback.length > 0) {
-            console.log(`[DEBUG] Calculating rating for user ${u.userId}. Feedback array:`, JSON.stringify(u.feedback));
             avgRating = u.feedback.reduce((sum: number, f: any) => sum + (f.stars || 0), 0) / u.feedback.length;
             
             // Extract and count all tags across all feedback
             const tagsMap = new Map<string, number>();
             u.feedback.forEach((f: any) => {
-                console.log(`[DEBUG] Inspecting feedback object:`, f);
                 if (f.tags && Array.isArray(f.tags)) {
                     f.tags.forEach((tag: string) => {
                         tagsMap.set(tag, (tagsMap.get(tag) || 0) + 1);
@@ -951,14 +985,62 @@ router.get('/usage', async (req: Request, res: Response) => {
             
             // Format as "2x Accuracy issues, 1x Math errors"
             feedbackReasons = Array.from(tagsMap.entries()).map(([tag, count]) => `${count}x ${tag}`);
-            console.log(`[DEBUG] Final feedback reasons string:`, feedbackReasons);
         }
+
+        // Aggregate engagement across this user's sessions
+        const engEntries: Array<[string, any]> = Array.from(u.sessionEngagements?.entries() || []);
+        let engagement: any = null;
+        if (engEntries.length > 0) {
+          let totalActiveSec = 0;
+          let uniquePagesViewed = 0;
+          let totalPages = 0;
+          let openedSplitMode = false;
+          let questionNavClicks = 0;
+          let summaryChipClicks = 0;
+          const mergedDwell: Record<string, number> = {};
+
+          engEntries.forEach(([, eng], idx) => {
+            totalActiveSec += Number(eng.totalActiveSec) || 0;
+            uniquePagesViewed += Number(eng.uniquePagesViewed) || 0;
+            totalPages += Number(eng.totalPages) || 0;
+            if (eng.openedSplitMode) openedSplitMode = true;
+            questionNavClicks += Number(eng.questionNavClicks) || 0;
+            summaryChipClicks += Number(eng.summaryChipClicks) || 0;
+            if (eng.pageDwellSec && typeof eng.pageDwellSec === 'object') {
+              Object.entries(eng.pageDwellSec).forEach(([k, v]) => {
+                const key = engEntries.length > 1 ? `S${idx + 1}.${k}` : k;
+                mergedDwell[key] = Math.round((Number(v) || 0) * 10) / 10;
+              });
+            }
+          });
+
+          totalActiveSec = Math.round(totalActiveSec * 10) / 10;
+          totalPages = Math.max(1, totalPages);
+          uniquePagesViewed = Math.min(totalPages, uniquePagesViewed);
+          const coveragePct = Math.min(100, Math.round((uniquePagesViewed / totalPages) * 100));
+
+          engagement = {
+            totalActiveSec,
+            uniquePagesViewed,
+            totalPages,
+            coveragePct,
+            viewedAllPages: uniquePagesViewed >= totalPages,
+            openedSplitMode,
+            questionNavClicks,
+            summaryChipClicks,
+            pageDwellSec: mergedDwell,
+            sessionsTracked: engEntries.length
+          };
+        }
+
+        const { sessionEngagements, ...restUser } = u;
         return {
-            ...u,
+            ...restUser,
             avgRating,
             feedbackReasons: feedbackReasons.length > 0 ? feedbackReasons.join(' | ') : '',
             sessionCount: u.sessionIds.size,
-            sessionIds: Array.from(u.sessionIds) // Set cannot be JSON serialized directly
+            sessionIds: Array.from(u.sessionIds), // Set cannot be JSON serialized directly
+            engagement
         };
     });
 

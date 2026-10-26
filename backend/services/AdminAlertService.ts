@@ -90,8 +90,16 @@ export class AdminAlertService {
       }
 
       // If user initiates an upload on the client, mark them active immediately
+      // Note: Do NOT cancel the 3-minute inactivity timer on subscription=success or plan upgrades;
+      // only cancel when the user performs an actual core action.
       if (userId && event === 'upload_initiated') {
         this.markUserActive(userId);
+      }
+
+      if (event === 'marking_engagement_summary' && metadata) {
+        console.log(
+          `📖 [ENGAGEMENT] user=${userId || anonymousId || 'guest'} | session=${metadata.sessionId} | activeTime=${metadata.totalActiveSec}s | pagesViewed=${metadata.uniquePagesViewed}/${metadata.totalPages} (${metadata.coveragePct}%) | splitMode=${metadata.openedSplitMode} | navClicks=${metadata.questionNavClicks} | dwell=${JSON.stringify(metadata.pageDwellSec || {})}`
+        );
       }
 
       const keysToUpdate = [anonymousId, userId].filter(

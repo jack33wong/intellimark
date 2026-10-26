@@ -2,6 +2,7 @@
 import ReactDOM from 'react-dom';
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { SessionImage } from '../../utils/imageCollectionUtils';
+import { engagementTracker } from '../../utils/engagementTracker';
 import ImageViewer from './ImageViewer';
 import './ImageModeModal.css';
 
@@ -25,11 +26,12 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
     if (isOpen) {
       scrollPositionRef.current = window.scrollY;
       document.body.style.overflow = 'hidden'; // Prevent background scroll
+      engagementTracker.recordPageView(initialImageIndex);
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, initialImageIndex]);
 
   const handleClose = useCallback(() => {
     window.scrollTo(0, scrollPositionRef.current);

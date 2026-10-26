@@ -132,11 +132,15 @@ router.get('/me', async (req: Request, res: Response) => {
                     apiRequests: 0,
                     mode: tx.mode,
                     creditsSpent: 0,
+                    engagement: tx.engagement || null,
                     modeHistory: []
                 });
             }
 
             const session = sessionsMap.get(sessionId);
+            if (tx.engagement && !session.engagement) {
+                session.engagement = tx.engagement;
+            }
             session.totalCost += interactionCost;
             session.modelCost += interactionModelCost;
             session.mathpixCost += interactionMathpixCost;

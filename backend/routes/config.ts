@@ -146,6 +146,17 @@ router.post('/telemetry', express.json({ limit: '50kb' }), (req, res) => {
       `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
     );
     AdminAlertService.recordTelemetryEvent(anonymousId, userId, event, path, metadata);
+
+    if (event === 'marking_engagement_summary' && metadata?.sessionId) {
+      import('../services/firestoreService.js')
+        .then(({ FirestoreService }) => {
+          void FirestoreService.saveSessionEngagement(metadata.sessionId, {
+            userId,
+            ...metadata
+          });
+        })
+        .catch(() => {});
+    }
   } catch (err) {
     // Ignore malformed telemetry payloads
   }

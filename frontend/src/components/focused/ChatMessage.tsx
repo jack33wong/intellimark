@@ -26,6 +26,7 @@ import PerformanceSummaryPanel from '../marking/PerformanceSummaryPanel';
 import ImageModeModal from '../common/ImageModeModal';
 import SimpleImageGallery from '../common/SimpleImageGallery';
 import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUtils';
+import { engagementTracker } from '../../utils/engagementTracker';
 import './ChatMessage.css';
 import '../common/SimpleImageGallery.css';
 import type { UnifiedMessage } from '../../types';
@@ -140,6 +141,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   }, []);
 
   const handleMultiImageClick = useCallback((index: number) => {
+    engagementTracker.recordSplitModeOpen(index);
     const imageDataArray = getMultiImageData();
     if ((message as any)?.originalFileType === 'pdf' && (message as any)?.pdfContexts?.length > 0) {
       const pdfContext = (message as any).pdfContexts[index];
@@ -184,6 +186,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const handleImageClick = useCallback(() => {
     if ((hasImage(message) || (message as any)?.imageDataArray?.length > 0) && !imageError) {
+      engagementTracker.recordSplitModeOpen(0);
       if ((message as any)?.imageDataArray?.length > 0) {
         handleMultiImageClick(0);
       } else {
@@ -217,6 +220,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   }, [message, imageError, handleMultiImageClick, onEnterSplitMode, session]);
 
   const handleSmartNavigation = useCallback((questionNumber: string, sourceImageIndex: number) => {
+    engagementTracker.recordQuestionNavigation(sourceImageIndex);
     if (onNavigate) {
       onNavigate(questionNumber, sourceImageIndex, 'ribbon'); // Treat as explicit jump
       return;
@@ -369,6 +373,20 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
+  useEffect(() => {
+    if (message.role === 'assistant' && !message.isProcessing) {
+      const images = getMultiImageData();
+      if (images.length > 0 && session?.id && !String(session.id).startsWith('temp-')) {
+        engagementTracker.startSession(
+          session.id,
+          user?.uid || null,
+          images.length,
+          session?.userId || null
+        );
+      }
+    }
+  }, [message.role, message.isProcessing, session?.id, session?.userId, user?.uid, getMultiImageData]);
+
   const hasYourWork = (typeof content === 'string' && (content.includes(':::your-work') || content.includes('model-answer-block') || content.includes('step-title'))) ||
     message.type === 'question_response' ||
     !!(message as any).contextQuestionId;
@@ -504,7 +522,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   <PerformanceSummaryPanel
                     rawSummary={(message as any).performanceSummary}
                     MarkdownMathRenderer={MarkdownMathRenderer}
-                    onQuestionClick={(qNum) => onNavigate?.(qNum, -1, 'ribbon')}
+                    onQuestionClick={(qNum) => {
+                      engagementTracker.recordSummaryChipClick();
+                      engagementTracker.recordQuestionNavigation();
+                      onNavigate?.(qNum, -1, 'ribbon');
+                    }}
                   />
                 )}
                 {hasYourWork ? (

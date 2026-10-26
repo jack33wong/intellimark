@@ -444,6 +444,36 @@
   border: 1px solid var(--function-warning);
 }
 
+/* Engagement Reading & Pages Viewed Badges */
+.engagement-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.engagement-badge--full {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.engagement-badge--medium {
+  background: rgba(99, 102, 241, 0.14);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.engagement-badge--low {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
 /* ==========================================================================
    13. EXAM PAPER LINKS
    ========================================================================== */

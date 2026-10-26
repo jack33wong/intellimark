@@ -9,6 +9,7 @@ import React, { useCallback, useRef, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Download, RotateCw } from 'lucide-react';
 import type { SessionImage } from '../../utils/imageCollectionUtils';
 import { useImageMode } from '../../hooks/useImageMode';
+import { engagementTracker } from '../../utils/engagementTracker';
 import './ImageModeModal.css'; // Reusing existing styles for now
 
 interface ImageViewerProps {
@@ -36,6 +37,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         if (initialImageIndex !== lastPropIndexRef.current) {
             setCurrentImageIndex(initialImageIndex);
             lastPropIndexRef.current = initialImageIndex;
+            engagementTracker.recordPageView(initialImageIndex);
         }
     }, [initialImageIndex]);
 
@@ -88,6 +90,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     // Navigation Handlers - these trigger the callback to parent
     const performNavigation = useCallback((newIndex: number) => {
         setCurrentImageIndex(newIndex);
+        engagementTracker.recordPageView(newIndex);
         if (onImageChange) {
             onImageChange(newIndex);
         }

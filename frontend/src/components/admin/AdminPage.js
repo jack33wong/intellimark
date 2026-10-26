@@ -82,6 +82,27 @@ const formatMode = (mode) => {
   return mode.charAt(0).toUpperCase() + mode.slice(1).replace(/-/g, ' ');
 };
 
+const formatActiveReadingTime = (seconds) => {
+  const sec = Math.max(0, Math.round(Number(seconds) || 0));
+  if (sec < 60) return `${sec}s`;
+  const mins = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return rem > 0 ? `${mins}m ${rem}s` : `${mins}m`;
+};
+
+const buildEngagementTooltip = (eng) => {
+  if (!eng) return '';
+  const dwellEntries = Object.entries(eng.pageDwellSec || {})
+    .map(([k, v]) => `${k}: ${v}s`)
+    .join(', ');
+  return [
+    `Active Reading Time: ${eng.totalActiveSec || 0}s`,
+    `Pages Viewed: ${eng.uniquePagesViewed || 0} / ${eng.totalPages || 1} (${eng.coveragePct || 0}%)`,
+    `Split Mode Used: ${eng.openedSplitMode ? 'Yes' : 'No'} | Question Nav Clicks: ${eng.questionNavClicks || 0}`,
+    dwellEntries ? `Per-Page Dwell: ${dwellEntries}` : ''
+  ].filter(Boolean).join('\n');
+};
+
 /**
  * Normalize exam board name for comparison
  */
@@ -2182,6 +2203,7 @@ function AdminPage() {
                         <th className="admin-table__header">User Email</th>
                         <th className="admin-table__header">Last Active</th>
                         <th className="admin-table__header">Sessions</th>
+                        <th className="admin-table__header">Reading / Pages Viewed</th>
                         <th className="admin-table__header">Avg Rating</th>
                         <th className="admin-table__header">Total Cost</th>
                         <th className="admin-table__header">API Requests</th>
@@ -2190,11 +2212,30 @@ function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {usageData.map((userStats) => (
+                      {usageData.map((userStats) => {
+                        const eng = userStats.engagement;
+                        const coveragePct = eng?.coveragePct ?? 0;
+                        const badgeMod = coveragePct === 100
+                          ? 'engagement-badge--full'
+                          : coveragePct >= 50
+                            ? 'engagement-badge--medium'
+                            : 'engagement-badge--low';
+
+                        return (
                         <tr key={userStats.userId} className="admin-table__row">
                           <td className="admin-table__cell" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={userStats.email}>{userStats.email}</td>
                           <td className="admin-table__cell">{formatDate(userStats.lastActive)}</td>
                           <td className="admin-table__cell">{userStats.sessionCount}</td>
+                          <td className="admin-table__cell">
+                            {eng ? (
+                              <span
+                                className={`engagement-badge ${badgeMod}`}
+                                title={buildEngagementTooltip(eng)}
+                              >
+                                {formatActiveReadingTime(eng.totalActiveSec)} · {eng.uniquePagesViewed}/{eng.totalPages} pages ({coveragePct}%)
+                              </span>
+                            ) : '—'}
+                          </td>
                           <td className="admin-table__cell">
                             {userStats.avgRating > 0 ? (
                                 <span 
@@ -2220,7 +2261,8 @@ function AdminPage() {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

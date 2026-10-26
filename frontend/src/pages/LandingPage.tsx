@@ -284,7 +284,7 @@ const LandingPage: React.FC = () => {
             {/* Final CTA Section */}
             <section className="landing-section final-cta-section">
                 <div className="final-cta-container">
-                    <h2 className="final-cta-title">Ready to master your GCSE Maths?</h2>
+                    <h2 className="final-cta-title">Ready to master your GCSE & A-Level Maths?</h2>
                     <p className="final-cta-subtitle">Join 15,000+ students using AI Marking to perfect their exam technique.</p>
 
                     <div className="hero-cta-group">

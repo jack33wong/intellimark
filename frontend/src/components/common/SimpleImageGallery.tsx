@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Grid, List } from 'lucide-react';
+import { engagementTracker } from '../../utils/engagementTracker';
 import './SimpleImageGallery.css';
 
 interface SimpleImageGalleryProps {
@@ -69,12 +70,16 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
             <div
               key={`${imageSrc}-${index}`}
               className="thumbnail-item"
-              onClick={() => onImageClick?.(index)}
+              onClick={() => {
+                engagementTracker.recordPageView(index);
+                onImageClick?.(index);
+              }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
+                  engagementTracker.recordPageView(index);
                   onImageClick?.(index);
                 }
               }}
