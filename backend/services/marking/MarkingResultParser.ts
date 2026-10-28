@@ -206,10 +206,42 @@ export class MarkingResultParser {
         }
 
         // =====================================================================
-        // 🔧 FIX 2: ATOMIC MATH SCORING
-        // PREVENTS "968/4" BUG by treating Math as atomic "1 mark".
+        // 🔧 FIX 2: ATOMIC MATH SCORING & LEVEL-OF-RESPONSE GUARD
+        // PREVENTS "968/4" BUG by treating Math as atomic "1 mark",
+        // while preserving Level-of-Response (LoR) rubric scores for English.
         // =====================================================================
-        if (parsedResponse.studentScore) {
+        const isLoR =
+            parsedResponse.rubricEvaluation &&
+            parsedResponse.rubricEvaluation.scoringType !== 'POINT_BASED';
+
+        if (isLoR) {
+            const systemMax = normalizedScheme?.totalMarks || parsedResponse.rubricEvaluation?.maxMarks || 0;
+            const authoritativeTotal = this.resolveBudget(parsedResponse.meta, systemMax, inputQuestionNumber) || systemMax;
+            let rubricAwarded = Number(parsedResponse.rubricEvaluation.awardedMarks ?? parsedResponse.studentScore?.awardedMarks ?? 0);
+
+            if (Array.isArray(parsedResponse.rubricEvaluation.aoBreakdown) && parsedResponse.rubricEvaluation.aoBreakdown.length > 0) {
+                const sumAo = parsedResponse.rubricEvaluation.aoBreakdown.reduce(
+                    (s: number, b: any) => s + (Number(b.awardedMarks) || 0),
+                    0
+                );
+                if (parsedResponse.rubricEvaluation.aoBreakdown.length > 1 || sumAo > 0) {
+                    rubricAwarded = sumAo;
+                }
+            }
+
+            if (authoritativeTotal > 0) {
+                rubricAwarded = Math.max(0, Math.min(rubricAwarded, authoritativeTotal));
+            }
+            parsedResponse.rubricEvaluation.awardedMarks = rubricAwarded;
+            if (authoritativeTotal > 0) {
+                parsedResponse.rubricEvaluation.maxMarks = authoritativeTotal;
+            }
+            parsedResponse.studentScore = {
+                awardedMarks: rubricAwarded,
+                totalMarks: authoritativeTotal,
+                scoreText: `${rubricAwarded}/${authoritativeTotal}`
+            };
+        } else if (parsedResponse.studentScore) {
             let awarded = 0;
             parsedResponse.annotations.forEach((anno: any) => {
                 const text = (anno.text || '').trim();

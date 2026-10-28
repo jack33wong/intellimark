@@ -152,7 +152,8 @@ export class ChatContextBuilder {
                 earnedMarks: qr.score?.awardedMarks || 0,
                 hasScheme: !!scheme,
                 pageIndex: qr.pageIndex,
-                parts: parts
+                parts: parts,
+                rubricEvaluation: (qr as any).rubricEvaluation || undefined
             };
         });
 
@@ -166,7 +167,7 @@ export class ChatContextBuilder {
 
             examInfo = {
                 examBoard: m.board || 'Unknown',
-                subject: 'Mathematics', // Default
+                subject: m.subject || 'Mathematics', // Default
                 examCode: m.paperCode || 'Unknown',
                 examSeries: m.year || 'Unknown',
                 tier: m.tier || 'Unknown',
@@ -357,6 +358,25 @@ export class ChatContextBuilder {
                         prompt += `  - [${m.icon}] ${m.code} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
                     });
                 });
+
+                // Show Level-of-Response Rubric Evaluation & 3-Part Coaching Block if present
+                if (q.rubricEvaluation) {
+                    const r = q.rubricEvaluation;
+                    prompt += `\n** Level-of-Response Rubric Evaluation **:\n`;
+                    if (r.rubricStamp) prompt += `- Rubric Stamp: ${r.rubricStamp}\n`;
+                    if (Array.isArray(r.aoBreakdown) && r.aoBreakdown.length > 0) {
+                        for (const ao of r.aoBreakdown) {
+                            prompt += `- ${ao.ao} (${ao.skill || ''}): Level ${ao.level} (${ao.levelLabel || ''}) — ${ao.awardedMarks}/${ao.maxMarks} marks\n`;
+                        }
+                    }
+                    if (r.coaching) {
+                        if (r.coaching.rationale) prompt += `- Why This Level Was Awarded: ${r.coaching.rationale}\n`;
+                        if (r.coaching.nextLevelGap) prompt += `- How to Reach the Next Level: ${r.coaching.nextLevelGap}\n`;
+                        if (r.coaching.upgradeRewrite?.originalQuote && r.coaching.upgradeRewrite?.upgradedVersion) {
+                            prompt += `- Concrete Upgrade Rewrite:\n  * Student Original: "${r.coaching.upgradeRewrite.originalQuote}"\n  * Upgraded Version: "${r.coaching.upgradeRewrite.upgradedVersion}"\n`;
+                        }
+                    }
+                }
 
                 // Show marking scheme
                 if (q.scheme) {

@@ -408,13 +408,33 @@ export async function executeMarkingForQuestion(
 
     // --- 9. SCORING ---
     const parsedScore = ScoreAuditor.parseScore(markingResult.studentScore);
-    const strictResult = ScoreAuditor.enforceStrictBudget(enrichedAnnotations, task.markingScheme);
+    const rawRubricEval = (markingResult as any).rubricEvaluation;
+    const isLoRQuestion = Boolean(rawRubricEval && rawRubricEval.scoringType !== 'POINT_BASED');
 
-    if (parsedScore.totalMarks === 0 && task.markingScheme?.totalMarks) {
-      parsedScore.totalMarks = Number(task.markingScheme.totalMarks);
+    let finalAnnotationsForSorting = enrichedAnnotations;
+    let reconciledRubricEval = rawRubricEval;
+
+    if (isLoRQuestion) {
+      const lorReconciled = ScoreAuditor.reconcileLevelOfResponseScore(
+        rawRubricEval,
+        markingResult.studentScore,
+        task.markingScheme,
+        enrichedAnnotations,
+        questionId
+      );
+      parsedScore.awardedMarks = lorReconciled.awardedMarks;
+      parsedScore.totalMarks = lorReconciled.totalMarks;
+      parsedScore.scoreText = lorReconciled.scoreText;
+      reconciledRubricEval = lorReconciled.rubricEvaluation;
+    } else {
+      const strictResult = ScoreAuditor.enforceStrictBudget(enrichedAnnotations, task.markingScheme);
+      if (parsedScore.totalMarks === 0 && task.markingScheme?.totalMarks) {
+        parsedScore.totalMarks = Number(task.markingScheme.totalMarks);
+      }
+      parsedScore.awardedMarks = strictResult.awardedMarks;
+      parsedScore.scoreText = `${strictResult.awardedMarks}/${parsedScore.totalMarks}`;
+      finalAnnotationsForSorting = strictResult.annotations;
     }
-    parsedScore.awardedMarks = strictResult.awardedMarks;
-    parsedScore.scoreText = `${strictResult.awardedMarks}/${parsedScore.totalMarks}`;
 
     const cleanMarkingScheme: Record<string, any> = {};
     if (task.markingScheme) {
@@ -423,7 +443,9 @@ export async function executeMarkingForQuestion(
         'marksWithAnswers', 'subQuestionNumbers', 'subQuestionMarks',
         'subQuestionMaxScores', 'subQuestionAnswersMap', 'subQuestionTexts',
         'hasAlternatives', 'alternativeMethod', 'parentQuestionMarks',
-        'isGeneric', 'guidance', 'subQuestionMetadata'
+        'isGeneric', 'guidance', 'subQuestionMetadata',
+        'scoringType', 'levels', 'indicativeStandard', 'aoContentBullets',
+        'dualAoBreakdown', 'sourceExtracts', 'examinerReport', 'assessmentObjectives'
       ];
 
       allowedKeys.forEach(key => {
@@ -435,9 +457,9 @@ export async function executeMarkingForQuestion(
     }
 
     // 🛑 THE LIVE SORT FIX
-    const sortedAnnotations = Array.isArray(strictResult.annotations)
-      ? [...strictResult.annotations].sort((a, b) => getQuestionSortValue(a.subQuestion) - getQuestionSortValue(b.subQuestion))
-      : strictResult.annotations;
+    const sortedAnnotations = Array.isArray(finalAnnotationsForSorting)
+      ? [...finalAnnotationsForSorting].sort((a, b) => getQuestionSortValue(a.subQuestion) - getQuestionSortValue(b.subQuestion))
+      : finalAnnotationsForSorting;
 
     const result = {
       questionNumber: questionId,
@@ -461,6 +483,7 @@ export async function executeMarkingForQuestion(
       overallPerformanceSummary: (markingResult as any).overallPerformanceSummary,
       rawAnnotations: rawAnnotationsFromAI,
       semanticZones: semanticZones,
+      rubricEvaluation: reconciledRubricEval,
       isError: (markingResult as any).isError,
       hasDensityError: (markingResult as any).hasDensityError,
       errorMessage: (markingResult as any).errorMessage

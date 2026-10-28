@@ -1975,10 +1975,17 @@ export class FirestoreService {
 
       if (!txSnap.empty) {
         const batch = db.batch();
+        let hasUpdates = false;
         txSnap.docs.forEach(doc => {
-          batch.update(doc.ref, { engagement: engagementRecord });
+          const txUserId = doc.data()?.userId;
+          if (!txUserId || txUserId === 'guest' || txUserId === 'anonymous' || txUserId === payload.userId) {
+            batch.update(doc.ref, { engagement: engagementRecord });
+            hasUpdates = true;
+          }
         });
-        await batch.commit();
+        if (hasUpdates) {
+          await batch.commit();
+        }
       }
     } catch (err) {
       console.warn(`⚠️ [ENGAGEMENT] Failed to persist engagement for session ${sessionId}:`, err);

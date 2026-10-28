@@ -112,10 +112,13 @@ class SimpleSessionService {
       return;
     }
 
-    let mergedSession = { ...localSession, ...newSessionData };
-    mergedSession.title = newSessionData.title || localSession?.title || 'Chat Session';
+    // Only merge localSession properties if staying within the SAME session ID
+    // (Prevents stale userId or sessionStats from Session A leaking into Session B)
+    const isSameSession = Boolean(localSession && newSessionData && localSession.id === newSessionData.id);
+    let mergedSession = isSameSession ? { ...localSession, ...newSessionData } : { ...newSessionData };
+    mergedSession.title = newSessionData.title || (isSameSession ? localSession?.title : null) || 'Chat Session';
 
-    const localMeta = localSession?.sessionStats || {};
+    const localMeta = isSameSession ? (localSession?.sessionStats || {}) : {};
     const serverMeta = newSessionData.sessionStats || {};
     mergedSession.sessionStats = {
       ...localMeta,
@@ -228,7 +231,7 @@ class SimpleSessionService {
   }
 
   // Architectural Defense: Single Source of Truth for State
-  _commitServerSessionState = (serverId, serverTitle, messageType = null) => {
+  _commitServerSessionState = (serverId, serverTitle, messageType = null, userId = null) => {
     if (!serverId || !this.state.currentSession) return;
 
     const currentTitle = this.state.currentSession.title;
@@ -240,6 +243,7 @@ class SimpleSessionService {
       id: serverId,
       title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : currentTitle,
       messageType: resolvedMessageType,
+      ...(userId ? { userId } : {}),
       updatedAt: new Date().toISOString()
     };
 
@@ -269,11 +273,12 @@ class SimpleSessionService {
 
         // Update session title and sidebar
         if (data.unifiedSession.title && this.state.currentSession) {
-          // First update the session stats
-          if (data.unifiedSession.sessionStats) {
+          // First update the session stats and owner userId
+          if (data.unifiedSession.sessionStats || data.unifiedSession.userId) {
             this.updateCurrentSessionOnly({
               ...this.state.currentSession,
-              sessionStats: data.unifiedSession.sessionStats
+              ...(data.unifiedSession.userId ? { userId: data.unifiedSession.userId } : {}),
+              ...(data.unifiedSession.sessionStats ? { sessionStats: data.unifiedSession.sessionStats } : {})
             });
           }
 
@@ -281,7 +286,8 @@ class SimpleSessionService {
           this._commitServerSessionState(
             data.unifiedSession.id,
             data.unifiedSession.title,
-            data.unifiedSession.messageType || 'Marking'
+            data.unifiedSession.messageType || 'Marking',
+            data.unifiedSession.userId || null
           );
         }
 
@@ -975,6 +981,8 @@ class SimpleSessionService {
       const lightweightSession = {
         id: mergedData.id,
         title: mergedData.title,
+        userId: mergedData.userId || existingSession.userId,
+        userEmail: mergedData.userEmail || existingSession.userEmail,
         messageType: mergedData.messageType || 'Marking',
         usageMode: mergedData.usageMode || existingSession.usageMode || null,
         createdAt: mergedData.createdAt || new Date().toISOString(),
@@ -1020,6 +1028,8 @@ class SimpleSessionService {
         const lightweightSession = {
           id: mergedData.id,
           title: mergedData.title,
+          userId: mergedData.userId || existingSession.userId,
+          userEmail: mergedData.userEmail || existingSession.userEmail,
           messageType: mergedData.messageType,
           createdAt: mergedData.createdAt,
           updatedAt: mergedData.updatedAt || new Date().toISOString(),

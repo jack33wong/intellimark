@@ -384,6 +384,7 @@ export interface MarkingContextQuestionResult {
   hasScheme: boolean;        // Whether marking scheme was found
   pageIndex?: number;        // Page index for navigation
   parts: QuestionPart[];     // Nested parts (main + sub-questions)
+  rubricEvaluation?: any;    // Level-of-Response rubric evaluation & 3-part coaching block
 }
 
 

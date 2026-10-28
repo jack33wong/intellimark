@@ -49,6 +49,12 @@ import { QuestionModeHandlerService } from './QuestionModeHandlerService.js';
 import { ModeSplitService } from './ModeSplitService.js';
 import { SessionManagementService } from '../sessionManagementService.js';
 import { createUserMessage, createAIMessage } from '../../utils/messageUtils.js';
+import {
+    resolveSubjectProfile,
+    isLevelOfResponseQuestion,
+    type SubjectProfile,
+    SUBJECT_PROFILES
+} from '../../config/subjectProfiles.js';
 
 // Define the steps for multi-image processing
 const MULTI_IMAGE_STEPS = [
@@ -733,6 +739,16 @@ export class MarkingPipelineService {
 
             let lastRejectionReason = 'Image is blurry, blank, unreadable, or not mathematics content.';
 
+            // 🛡️ [SPREAD CONSISTENCY SWEEP]:
+            // If >= 50% of images in a multi-image upload (at least 3 images) are 2-page booklet spreads,
+            // any remaining landscape image (width > height * 1.1, e.g. Page 0 with Cover + Page 2)
+            // that missed spread detection due to lacking a dark center crease is also a 2-page spread.
+            const isPageLandscape = (p?: StandardizedPage) =>
+                Boolean(p?.width && p?.height && p.width > p.height * 1.1);
+
+            const spreadCount = geometryResults.filter((g, idx) => g?.is_two_page_spread && isPageLandscape(standardizedPages[idx])).length;
+            const isMajoritySpreadBatch = standardizedPages.length >= 3 && (spreadCount / standardizedPages.length) >= 0.5;
+
             for (let i = 0; i < standardizedPages.length; i++) {
                 const stdPage = standardizedPages[i];
                 const lightPage = lightweightPages[i];
@@ -765,17 +781,29 @@ export class MarkingPipelineService {
                     continue; // Skip pushing
                 }
 
+                const isLandscapeAspect = isPageLandscape(stdPage);
+                if (geo.is_two_page_spread && !isLandscapeAspect) {
+                    console.log(
+                        `🛡️ [GEOMETRY GUARD] Ignoring false-positive 2-page spread on Portrait Page ${stdPage.pageIndex} (${stdPage.width}x${stdPage.height}).`
+                    );
+                }
+                const shouldSplitSpread = Boolean(isLandscapeAspect && (geo.is_two_page_spread || isMajoritySpreadBatch));
+
                 // Handle 2-page spread splitting
-                if (geo.is_two_page_spread) {
-                    console.log(`✂️ [GEOMETRY] Splitting 2-page spread for Page ${stdPage.pageIndex}.`);
+                if (shouldSplitSpread) {
+                    console.log(`✂️ [GEOMETRY] Splitting 2-page spread for Page ${stdPage.pageIndex}${!geo.is_two_page_spread ? ' (Batch Landscape Spread Sweep)' : ''}.`);
                     const splitStdImages = await ImageUtils.splitImageVertically(stdPage.imageData);
-                    const splitLightImages = await ImageUtils.splitImageVertically(lightPage.imageData);
+                    // Generate full 800px lightweight copies from each split half-page (instead of cutting an 800px image into two tiny 400px halves!)
+                    const splitLightImages = await Promise.all([
+                        ImageUtils.createLightweightCopy(splitStdImages[0], 800),
+                        ImageUtils.createLightweightCopy(splitStdImages[1], 800)
+                    ]);
                     
-                    newStandardizedPages.push({ ...stdPage, imageData: splitStdImages[0] }); // Left (Canonical)
-                    newStandardizedPages.push({ ...stdPage, imageData: splitStdImages[1] }); // Right (Canonical)
+                    newStandardizedPages.push({ ...stdPage, imageData: splitStdImages[0], width: Math.round((stdPage.width || 0) / 2) }); // Left (Canonical)
+                    newStandardizedPages.push({ ...stdPage, imageData: splitStdImages[1], width: Math.round((stdPage.width || 0) / 2) }); // Right (Canonical)
                     
-                    newLightweightPages.push({ ...lightPage, imageData: splitLightImages[0] }); // Left (Lightweight)
-                    newLightweightPages.push({ ...lightPage, imageData: splitLightImages[1] }); // Right (Lightweight)
+                    newLightweightPages.push({ ...lightPage, imageData: splitLightImages[0], width: Math.round((lightPage.width || 0) / 2) }); // Left (Lightweight 800px)
+                    newLightweightPages.push({ ...lightPage, imageData: splitLightImages[1], width: Math.round((lightPage.width || 0) / 2) }); // Right (Lightweight 800px)
                 } else {
                     newStandardizedPages.push(stdPage);
                     newLightweightPages.push(lightPage);
@@ -1003,6 +1031,23 @@ export class MarkingPipelineService {
             }
             logSchemeParserComplete();
 
+            // --- 🧭 EARLY SUBJECT ROUTING (BEFORE CLASSIFICATION & STAGE 3 OCR) ---
+            const geoSubjectVote = geometryResults
+                .map(g => g?.detected_subject)
+                .find(s => s === 'ENGLISH_LANGUAGE' || s === 'ENGLISH_LITERATURE');
+            const geoPaperCodeHint = geometryResults
+                .map(g => g?.paper_code_hint)
+                .filter(Boolean)
+                .join(' ');
+            const uploadedFileNames = Array.isArray(files) ? files.map(f => f?.originalname || '') : [];
+
+            let subjectProfile: SubjectProfile = resolveSubjectProfile({
+                detectedSubject: geoSubjectVote,
+                paperCode: geoPaperCodeHint,
+                customText: options.customText,
+                fileNames: uploadedFileNames
+            });
+
             progressCallback(createProgressData(3, `Running Classification on ${lightweightPages.length} pages...`, MULTI_IMAGE_STEPS));
 
             // --- Perform Classification on ALL Images (Question & Student Work) ---
@@ -1015,10 +1060,33 @@ export class MarkingPipelineService {
                 lightweightPages,
                 actualModel as ModelType,  // Cast to ModelType
                 debugClassification,  // debug (controlled by ENV)
-                usageTracker  // Pass tracker for auto-recording
+                usageTracker,  // Pass tracker for auto-recording
+                subjectProfile.ocrStrategy === 'VISION_VERBATIM'
             );
 
             logClassificationComplete();
+
+            // Refine subjectProfile using extracted classification question text BEFORE Stage 3 OCR runs
+            if (subjectProfile.key === 'MATHS') {
+                const classTextSample = allClassificationResults
+                    .flatMap(r => r.result?.questions || [])
+                    .map((q: any) => `${q.text || ''} ${q.questionText || ''}`)
+                    .join(' ')
+                    .substring(0, 2000);
+                if (classTextSample.trim()) {
+                    subjectProfile = resolveSubjectProfile({
+                        detectedSubject: geoSubjectVote,
+                        paperCode: geoPaperCodeHint,
+                        customText: options.customText,
+                        fileNames: uploadedFileNames,
+                        rawTextHint: classTextSample
+                    });
+                }
+            }
+
+            console.log(
+                `🧭 [SUBJECT-ROUTER] Paper="${geoPaperCodeHint || uploadedFileNames[0] || 'Upload'}" -> Profile="${subjectProfile.key}" | Paradigm="${subjectProfile.paradigm}" | OCR="${subjectProfile.ocrStrategy}"`
+            );
 
             // --- 🛡️ BLANK CONTINUATION / OVERFLOW PAGE FILTER ---
             // 1. Collect all base question numbers (e.g. "15" from "15a") that have actual student work
@@ -1032,16 +1100,20 @@ export class MarkingPipelineService {
                 }
             }
 
-            // Helper to detect if extracted question text is just a "Question X continued" header stub
+            // Helper to detect if extracted question text is just a "Question X continued" or English booklet "Extra space" stub
             const isContinuationStubText = (text?: string): boolean => {
                 if (!text) return true;
-                const cleaned = text
+                let cleaned = text
                     .replace(/question\s*\d+[a-z0-9().\s]*continued\.?/gi, '')
                     .replace(/turn\s+over/gi, '')
                     .replace(/leave\s+blank/gi, '')
-                    .replace(/do\s+not\s+write\s+in\s+this\s+area/gi, '')
-                    .replace(/total\s+for\s+question\s+\d+\s+is\s+\d+\s+marks?/gi, '')
-                    .trim();
+                    .replace(/do\s+not\s+write\s+(in\s+|outside\s+)?this\s+(area|box)/gi, '')
+                    .replace(/total\s+for\s+question\s+\d+\s+is\s+\d+\s+marks?/gi, '');
+
+                for (const pattern of subjectProfile.overflowBoilerplatePatterns) {
+                    cleaned = cleaned.replace(new RegExp(pattern.source, 'gi'), '');
+                }
+                cleaned = cleaned.trim();
                 // If nothing meaningful remains after stripping continuation boilerplate, it's a blank overflow sheet
                 return cleaned.length < 10;
             };
@@ -1667,7 +1739,10 @@ export class MarkingPipelineService {
                         }
 
                         const ocrResult = await OCRService.processImage(
-                            page.imageData, { pageIndex: page.pageIndex }, false, 'auto',
+                            page.imageData,
+                            { pageIndex: page.pageIndex, ocrStrategy: subjectProfile.ocrStrategy },
+                            false,
+                            'auto',
                             {}, // Empty hint
                             usageTracker
                         );
@@ -1745,6 +1820,34 @@ export class MarkingPipelineService {
             const detectionStats = orchestrationResult.detectionStats;
             classificationResult = orchestrationResult.updatedClassificationResult;
             // ^^^ This object now holds the DB-verified Question Numbers
+
+            // Refine subjectProfile if DB Question Detection matched an exam paper
+            const firstMatch = detectionResults.find((dr: any) => dr?.detectionResult?.found && dr?.detectionResult?.match)?.detectionResult?.match;
+            if (firstMatch) {
+                const dbResolvedProfile = resolveSubjectProfile({
+                    subject: firstMatch.subject || firstMatch.qualification,
+                    paperCode: firstMatch.paperCode || firstMatch.examCode,
+                    paperTitle: firstMatch.paperTitle
+                });
+                if (dbResolvedProfile.key !== subjectProfile.key) {
+                    subjectProfile = dbResolvedProfile;
+                    console.log(
+                        `🧭 [SUBJECT-ROUTER] Refined from DB Match "${firstMatch.paperCode || firstMatch.paperTitle}" -> Profile="${subjectProfile.key}" | Paradigm="${subjectProfile.paradigm}"`
+                    );
+                }
+            }
+
+            // Attach resolved subjectProfile onto each scheme in markingSchemesMap so MarkingInstructionService & MarkingExecutor have direct access
+            if (markingSchemesMap && markingSchemesMap.size > 0) {
+                for (const schemeEntry of markingSchemesMap.values()) {
+                    if (schemeEntry && typeof schemeEntry === 'object') {
+                        schemeEntry.subjectProfile = subjectProfile;
+                        if (schemeEntry.questionMarks && typeof schemeEntry.questionMarks === 'object') {
+                            schemeEntry.questionMarks.subjectProfile = subjectProfile;
+                        }
+                    }
+                }
+            }
 
             // 📊 [LOGGING] Print Detection Statistics BEFORE re-indexing starts
             MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
@@ -1886,17 +1989,20 @@ export class MarkingPipelineService {
             });
 
             const isPastPaper = Array.from(markingSchemesMap.values()).some(m => !m.isGeneric);
-            if (isPastPaper) {
-                // 🛡️ [ORPHAN RESCUE]: 
-                // Both GCSE and A-Level papers can have unnumbered overflow/working pages or blank lined pages.
-                // Rescue them by inheriting the weight of the preceding (or following) physical page.
-                for (let i = 1; i < pageSortMap.length; i++) {
-                    const current = pageSortMap[i];
-                    const prev = pageSortMap[i - 1];
-                    if (!current.isMeta && current.minQ === 999999 && prev.minQ !== 999999) {
-                        current.minQ = prev.minQ + 0.0001;
-                    }
+            // 🛡️ [ORPHAN & INTERIOR BOOKLET PAGE RESCUE]: 
+            // Both GCSE and A-Level papers have unnumbered overflow/working pages, blank lined pages, or
+            // "There are no questions printed on this page" filler pages in the middle/end of the booklet.
+            // Rescue any page (including interior/trailing isMeta booklet pages) that follows a known question page
+            // by inheriting `prev.minQ + 0.0001` so it stays in its physical booklet position instead of jumping to Page 0!
+            // Leading cover pages (before any question appears, where prev.minQ === 999999) keep minQ = 999999 and stay at Page 0.
+            for (let i = 1; i < pageSortMap.length; i++) {
+                const current = pageSortMap[i];
+                const prev = pageSortMap[i - 1];
+                if (current.minQ === 999999 && prev.minQ !== 999999) {
+                    current.minQ = prev.minQ + 0.0001;
                 }
+            }
+            if (isPastPaper) {
                 for (let i = pageSortMap.length - 2; i >= 0; i--) {
                     const current = pageSortMap[i];
                     const next = pageSortMap[i + 1];
@@ -1937,9 +2043,13 @@ export class MarkingPipelineService {
             // Scrambling a PDF because of an OCR misread destroys the visual flow of the document.
             if (!isPdf && !isMultiplePdfs) {
                 pageSortMap.sort((a, b) => {
-                    // Rule 1: Metadata First
-                    if (a.isMeta && !b.isMeta) return -1;
-                    if (!a.isMeta && b.isMeta) return 1;
+                    // Rule 1: Leading Metadata (Cover pages before any question has started) go first.
+                    // Interior/trailing blank booklet pages have inherited minQ < 999999 from their preceding question
+                    // so they remain in their true physical booklet sequence!
+                    const aIsLeadingCover = a.isMeta && a.minQ === 999999;
+                    const bIsLeadingCover = b.isMeta && b.minQ === 999999;
+                    if (aIsLeadingCover && !bIsLeadingCover) return -1;
+                    if (!aIsLeadingCover && bIsLeadingCover) return 1;
                     
                     // Rule 2: Logical Question Order
                     if (Math.abs(a.minQ - b.minQ) > 0.00001) {
@@ -1970,27 +2080,31 @@ export class MarkingPipelineService {
                 newToOldIndex.set(newIdx, item.originalIdx);
             });
 
-            // 4. Re-build Arrays
+            // 4. Re-build Arrays (Use immutable shallow clones to avoid in-loop index collision)
             const reindexedStandardPages: StandardizedPage[] = [];
             const reindexedOcrData: any[] = [];
             const reindexedClassificationResults: any[] = [];
+
+            const snapshotOcrByPageIdx = new Map<number, any>();
+            allPagesOcrData.forEach(o => snapshotOcrByPageIdx.set(o.pageIndex, o));
+            const snapshotClsByPageIdx = new Map<number, any>();
+            allClassificationResults.forEach(c => snapshotClsByPageIdx.set(c.pageIndex, c));
 
             for (let newIdx = 0; newIdx < pageSortMap.length; newIdx++) {
                 const oldIdx = newToOldIndex.get(newIdx)!;
 
                 const page = standardizedPages[oldIdx];
                 const prevPageIdx = page.pageIndex;
-                const ocr = allPagesOcrData.find(o => o.pageIndex === prevPageIdx) || allPagesOcrData[oldIdx];
-                const cls = allClassificationResults.find(c => c.pageIndex === prevPageIdx) || allClassificationResults[oldIdx];
+                const ocr = snapshotOcrByPageIdx.get(prevPageIdx) || allPagesOcrData[oldIdx];
+                const cls = snapshotClsByPageIdx.get(prevPageIdx) || allClassificationResults[oldIdx];
 
-                // CRITICAL: Update the ID itself
-                page.pageIndex = newIdx;
-                if (ocr) ocr.pageIndex = newIdx;
-                if (cls) cls.pageIndex = newIdx;
+                const updatedPage = { ...page, pageIndex: newIdx };
+                const updatedOcr = ocr ? { ...ocr, pageIndex: newIdx } : undefined;
+                const updatedCls = cls ? { ...cls, pageIndex: newIdx } : undefined;
 
-                reindexedStandardPages.push(page);
-                if (ocr) reindexedOcrData.push(ocr);
-                if (cls) reindexedClassificationResults.push(cls);
+                reindexedStandardPages.push(updatedPage);
+                if (updatedOcr) reindexedOcrData.push(updatedOcr);
+                if (updatedCls) reindexedClassificationResults.push(updatedCls);
             }
 
             // 5. UPDATE GLOBAL REFERENCES
@@ -2014,65 +2128,72 @@ export class MarkingPipelineService {
                 originalToNewIndexMap.set(p.originalIdx, newIdx);
             });
 
-            if (classificationResult && classificationResult.questions) {
-                const updateNodeIndices = (node: any) => {
-                    // Update Page Index if present
-                    if (node.pageIndex !== undefined) {
-                        node.pageIndex = originalToNewIndexMap.get(node.pageIndex) ?? node.pageIndex;
-                    }
+            const updateNodeIndices = (node: any) => {
+                if (!node || typeof node !== 'object' || node._reindexed) return;
+                node._reindexed = true;
 
-                    // Update Source Image Index (Legacy)
-                    if (node.sourceImageIndex !== undefined) {
-                        node.sourceImageIndex = originalToNewIndexMap.get(node.sourceImageIndex) ?? node.sourceImageIndex;
-                    }
+                // Update Page Index if present
+                if (node.pageIndex !== undefined) {
+                    node.pageIndex = originalToNewIndexMap.get(node.pageIndex) ?? node.pageIndex;
+                }
 
-                    // Update Array of Indices
-                    if (node.sourceImageIndices && Array.isArray(node.sourceImageIndices)) {
-                        node.sourceImageIndices = node.sourceImageIndices
-                            .map((idx: number) => originalToNewIndexMap.get(idx) ?? idx)
-                            .sort((a, b) => a - b);
-                    }
+                // Update Source Image Index (Legacy)
+                if (node.sourceImageIndex !== undefined) {
+                    node.sourceImageIndex = originalToNewIndexMap.get(node.sourceImageIndex) ?? node.sourceImageIndex;
+                }
 
-                    // CRITICAL: Update Student Work Lines
-                    if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {
-                        node.studentWorkLines.forEach((line: any) => {
-                            if (line.pageIndex !== undefined) {
-                                const newPageIdx = originalToNewIndexMap.get(line.pageIndex) ?? line.pageIndex;
-                                line.pageIndex = newPageIdx;
+                // Update Array of Indices
+                if (node.sourceImageIndices && Array.isArray(node.sourceImageIndices)) {
+                    node.sourceImageIndices = node.sourceImageIndices
+                        .map((idx: number) => originalToNewIndexMap.get(idx) ?? idx)
+                        .sort((a, b) => a - b);
+                }
 
-                                // 2. REWRITE THE ID STRING
-                                // We must change "p3_q1_line_1" to "p5_q1_line_1"
-                                // Otherwise, the detector parses "p3" and discards it.
-                                if (line.id && typeof line.id === 'string') {
-                                    // Regex to replace p{Number}_ with p{NewNumber}_
-                                    const oldId = line.id;
-                                    line.id = line.id.replace(/^p\d+_/, `p${newPageIdx}_`);
+                // CRITICAL: Update Student Work Lines
+                if (node.studentWorkLines && Array.isArray(node.studentWorkLines)) {
+                    node.studentWorkLines.forEach((line: any) => {
+                        if (!line || typeof line !== 'object' || line._reindexed) return;
+                        line._reindexed = true;
 
-                                    // 🔍 DEBUG: Log the rewrite for the first few lines to prove it works
-                                    if (line.id !== oldId && Math.random() < 0.05) {
-                                        console.log(`   🔧 [ID-REWRITE] ${oldId} -> ${line.id}`);
-                                    }
-                                }
-                                if (line.globalBlockId) {
-                                    line.globalBlockId = line.globalBlockId.replace(/^p\d+_/, `p${newPageIdx}_`);
+                        if (line.pageIndex !== undefined) {
+                            const newPageIdx = originalToNewIndexMap.get(line.pageIndex) ?? line.pageIndex;
+                            line.pageIndex = newPageIdx;
+                            if (line.position && typeof line.position === 'object') {
+                                line.position.pageIndex = newPageIdx;
+                            }
+
+                            // 2. REWRITE THE ID STRING
+                            // We must change "p3_q1_line_1" to "p5_q1_line_1"
+                            // Otherwise, the detector parses "p3" and discards it.
+                            if (line.id && typeof line.id === 'string') {
+                                const oldId = line.id;
+                                line.id = line.id.replace(/^p\d+_/, `p${newPageIdx}_`);
+
+                                if (line.id !== oldId && Math.random() < 0.05) {
+                                    console.log(`   🔧 [ID-REWRITE] ${oldId} -> ${line.id}`);
                                 }
                             }
-                        });
-                    }
+                            if (line.globalBlockId) {
+                                line.globalBlockId = line.globalBlockId.replace(/^p\d+_/, `p${newPageIdx}_`);
+                            }
+                        }
+                    });
+                }
 
-                    // Recurse into SubQuestions
-                    if (node.subQuestions && Array.isArray(node.subQuestions)) {
-                        node.subQuestions.forEach(updateNodeIndices);
-                    }
-                };
+                // Recurse into SubQuestions
+                if (node.subQuestions && Array.isArray(node.subQuestions)) {
+                    node.subQuestions.forEach(updateNodeIndices);
+                }
+            };
 
+            if (classificationResult && classificationResult.questions) {
                 classificationResult.questions.forEach(updateNodeIndices);
             }
 
-            // Also update allClassificationResults for consistency
+            // Update nested question nodes in allClassificationResults (Note: r.pageIndex itself was ALREADY set to newIdx in Step 4!)
             allClassificationResults.forEach(r => {
-                if (r.pageIndex !== undefined) {
-                    r.pageIndex = originalToNewIndexMap.get(r.pageIndex) ?? r.pageIndex;
+                if (r.result?.questions && Array.isArray(r.result.questions)) {
+                    r.result.questions.forEach(updateNodeIndices);
                 }
             });
             if (process.env.LOG_REINDEX_DEBUG === 'true') {
@@ -2522,9 +2643,15 @@ export class MarkingPipelineService {
                                             const resultTotal = (result.score && result.score.totalMarks);
                                             // console.log(`[GUILLOTINE CHECK] Q${task.questionNumber}: isGeneric=${scheme?.isGeneric}, hasAnnotations=${!!result.annotations}, hasScore=${!!result.score}, SchemeTotal=${scheme?.totalMarks}, ResultTotal=${resultTotal}`);
 
-                                            // [GUILLOTINE] Hard-Coded Post-Processing for All Questions
+                                            // [GUILLOTINE] Hard-Coded Post-Processing for Point-Based Questions
                                             // Ensure we strictly respect the budget, especially per sub-question.
-                                            if (task.markingScheme && result.annotations && result.score) {
+                                            // Bypassed for Level-of-Response (LoR) questions where ScoreAuditor.reconcileLevelOfResponseScore is authoritative.
+                                            const isLoRResult = isLevelOfResponseQuestion(
+                                                task.markingScheme,
+                                                subjectProfile,
+                                                (result as any).rubricEvaluation
+                                            );
+                                            if (!isLoRResult && task.markingScheme && result.annotations && result.score) {
                                                 const anyAnnotations = result.annotations as any[];
                                                 const subQuestionBudgets = task.markingScheme.subQuestionMaxScores || {};
                                                 const totalBudget = result.score.totalMarks || task.markingScheme.totalMarks || 0;

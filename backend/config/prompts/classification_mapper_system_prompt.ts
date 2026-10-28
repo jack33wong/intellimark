@@ -25,7 +25,10 @@ RULES:
        - "Question 1 continues on next page"
        - "End of Paper"
        - "BLANK PAGE"
-     * **CRITICAL**: Only list a question number if the current page contains actual **Question Text**, an **Answer Box**, or a **Specific Sub-label (e.g., (b))**.
+       - "There are no questions printed on this page"
+       - "Additional page, if required" (when the page has NO student handwriting)
+     * **CRITICAL**: Only list a question number if the current page contains actual **Question Text**, an **Answer Box**, a **Specific Sub-label (e.g., (b))**, OR **Handwritten Student Continuation Work** (including back-of-booklet "Extra space" / "Additional page" sheets where the student handwrote the question number such as "04", "Q4", or "5" in the margin box).
+     * **READING INSERT / SOURCE EXTRACT PAGES**: If a page is a pure Reading Insert (e.g., "Source A", "Source B") with no question prompts and no student writing, categorize it as **"metadata"** with \`"questions": []\`.
 
 3. **STEP 3: IS THERE STUDENT WORK?**
    - **CRITICAL**: Distinguish between BLANK vs FILLED answer spaces.

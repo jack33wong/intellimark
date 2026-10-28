@@ -770,6 +770,7 @@ export class MarkingSchemeOrchestrationService {
 
       markingSchemesMap.set(uniqueKey, {
         questionMarks: {
+          ...(typeof parentScheme === 'object' && !Array.isArray(parentScheme) ? parentScheme : {}),
           marks: parentScheme?.marks || parentScheme,
           subQuestionMarks: subQuestionMarksMap,
           subQuestionAnswersMap: subQuestionAnswersMap
@@ -779,7 +780,15 @@ export class MarkingSchemeOrchestrationService {
         questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
         subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,
         subQuestionMaxScores: finalSubQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,
-        isGeneric: false, generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex
+        isGeneric: false, generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex,
+        scoringType: parentScheme?.scoringType,
+        levels: parentScheme?.levels || parentScheme?.levelDescriptors,
+        indicativeStandard: parentScheme?.indicativeStandard,
+        aoContentBullets: parentScheme?.aoContentBullets,
+        dualAoBreakdown: parentScheme?.dualAoBreakdown,
+        sourceExtracts: parentScheme?.sourceExtracts,
+        examinerReport: parentScheme?.examinerReport,
+        assessmentObjectives: parentScheme?.assessmentObjectives
       });
     }
 

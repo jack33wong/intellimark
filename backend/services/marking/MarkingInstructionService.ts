@@ -7,6 +7,12 @@ import { MarkingPromptService } from './MarkingPromptService.js';
 import { MarkingResultParser } from './MarkingResultParser.js';
 import { MarkingZoneService } from './MarkingZoneService.js';
 import { MarkingPromptAdapter } from './core/MarkingPromptAdapter.js';
+import {
+  resolveSubjectProfile,
+  isLevelOfResponseQuestion,
+  type SubjectProfile,
+  type RubricEvaluation
+} from '../../config/subjectProfiles.js';
 
 // ========================= NEW: IMMUTABLE PAGE INDEX ARCHITECTURE =========================
 import {
@@ -115,7 +121,7 @@ export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | nu
       throw new Error(`[CRITICAL] Missing subQuestionMaxScores for questions: ${Object.keys(subQuestionMarks).join(', ')}. System refuses to guess.`);
     }
 
-    const normalized = {
+    const normalized: any = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
       questionNumber: input.questionNumber || '1',
@@ -129,8 +135,21 @@ export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | nu
       alternativeMethod: alternativeMethod,
       hasAlternatives: hasAlternatives,
       parentQuestionMarks: input.parentQuestionMarks,
-      isGeneric: input.isGeneric === true
+      isGeneric: input.isGeneric === true,
+      scoringType: input.scoringType || questionMarksData?.scoringType,
+      levels: input.levels || questionMarksData?.levels || questionMarksData?.levelDescriptors,
+      indicativeStandard: input.indicativeStandard || questionMarksData?.indicativeStandard,
+      aoContentBullets: input.aoContentBullets || questionMarksData?.aoContentBullets,
+      dualAoBreakdown: input.dualAoBreakdown || questionMarksData?.dualAoBreakdown,
+      sourceExtracts: input.sourceExtracts || questionMarksData?.sourceExtracts,
+      examinerReport: input.examinerReport || questionMarksData?.examinerReport,
+      assessmentObjectives: input.assessmentObjectives || questionMarksData?.assessmentObjectives,
+      subjectProfile: input.subjectProfile || questionMarksData?.subjectProfile
     };
+
+    if (normalized.levels || normalized.scoringType === 'SINGLE_AO_LOR' || normalized.scoringType === 'DUAL_AO_LOR') {
+      return normalized;
+    }
 
     return expandMarkingScheme(normalized);
   }
@@ -468,9 +487,54 @@ export class MarkingInstructionService {
     return formatted;
   }
 
-  // Local helper to format scheme using the original prompt service
+  // Local helper to format scheme using the original prompt service (with Level-of-Response rubric support)
   private static formatMarkingSchemeForPrompt(scheme: NormalizedMarkingScheme): string {
-    return MarkingPromptService.formatMarkingSchemeForPrompt(scheme);
+    const anyScheme = scheme as any;
+    let baseText = MarkingPromptService.formatMarkingSchemeForPrompt(scheme);
+
+    if (anyScheme?.levels || anyScheme?.indicativeStandard || anyScheme?.aoContentBullets || anyScheme?.dualAoBreakdown) {
+      let lorSection = `\n### LEVEL-OF-RESPONSE RUBRIC (Total Marks: ${scheme.totalMarks || 0})\n`;
+      if (anyScheme.scoringType) {
+        lorSection += `- **Scoring Mode**: ${anyScheme.scoringType}\n`;
+      }
+      if (anyScheme.assessmentObjectives) {
+        const aoStr = Array.isArray(anyScheme.assessmentObjectives)
+          ? anyScheme.assessmentObjectives.join(', ')
+          : JSON.stringify(anyScheme.assessmentObjectives);
+        lorSection += `- **Assessment Objectives**: ${aoStr}\n`;
+      }
+      if (anyScheme.dualAoBreakdown) {
+        lorSection += `- **Dual-AO Sub-Score Allocation**: ${JSON.stringify(anyScheme.dualAoBreakdown)}\n`;
+      }
+      if (Array.isArray(anyScheme.levels) && anyScheme.levels.length > 0) {
+        lorSection += `\n#### Level Descriptors:\n`;
+        anyScheme.levels.forEach((lvl: any) => {
+          const range = Array.isArray(lvl.markRange) ? `${lvl.markRange[0]}-${lvl.markRange[1]} marks` : (lvl.marks || '');
+          lorSection += `- **Level ${lvl.level} (${lvl.label || ''}) [${range}]**:\n`;
+          if (Array.isArray(lvl.skillsDescriptors)) {
+            lvl.skillsDescriptors.forEach((d: string) => (lorSection += `  * ${d}\n`));
+          } else if (lvl.descriptor) {
+            lorSection += `  * ${lvl.descriptor}\n`;
+          }
+          if (Array.isArray(lvl.indicativeStandard) && lvl.indicativeStandard.length > 0) {
+            lorSection += `  * *Indicative Standard*: ${lvl.indicativeStandard.join(' | ')}\n`;
+          }
+        });
+      }
+      if (Array.isArray(anyScheme.indicativeStandard) && anyScheme.indicativeStandard.length > 0) {
+        lorSection += `\n#### Indicative Standard / Content Guidance:\n`;
+        anyScheme.indicativeStandard.forEach((item: string) => (lorSection += `- ${item}\n`));
+      } else if (typeof anyScheme.indicativeStandard === 'string') {
+        lorSection += `\n#### Indicative Standard / Content Guidance:\n${anyScheme.indicativeStandard}\n`;
+      }
+      if (Array.isArray(anyScheme.aoContentBullets) && anyScheme.aoContentBullets.length > 0) {
+        lorSection += `\n#### Indicative Content Bullets:\n`;
+        anyScheme.aoContentBullets.forEach((b: string) => (lorSection += `- ${b}\n`));
+      }
+      baseText = `${ baseText ? baseText + '\n' : '' }${lorSection}`;
+    }
+
+    return baseText;
   }
 
   /**
@@ -611,8 +675,9 @@ export class MarkingInstructionService {
             llmOutputTokens: annotationData.usage?.llmOutputTokens || 0
           },
           cleanedOcrText: cleanedOcrText,
-          studentScore: annotationData.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' }
-        };
+          studentScore: annotationData.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' },
+          rubricEvaluation: (annotationData as any).rubricEvaluation
+        } as any;
       }
 
       const correctedAnnotations = annotationData.annotations;
@@ -680,8 +745,9 @@ export class MarkingInstructionService {
         promptMarkingScheme: annotationData.promptMarkingScheme, // [FIX] Clean pass-through
         globalOffsetX: offsetX,
         globalOffsetY: offsetY,
-        taggedOcrBlocks: annotationData.taggedOcrBlocks // [FIX] Propagate tagged blocks to Executor
-      };
+        taggedOcrBlocks: annotationData.taggedOcrBlocks, // [FIX] Propagate tagged blocks to Executor
+        rubricEvaluation: (annotationData as any).rubricEvaluation
+      } as any;
     } catch (error) {
       console.error('❌ Marking flow failed:', error);
       throw new Error(`Marking flow failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -746,9 +812,26 @@ export class MarkingInstructionService {
 
     const sanitizedBlocks = this.sanitizeOcrBlocks(rawOcrBlocks || [], questionText || '', baseQNum);
 
+    const anyScheme = normalizedScheme as any;
+    const resolvedProfile: SubjectProfile = anyScheme?.subjectProfile || resolveSubjectProfile({
+      detectedSubject: examInfo?.detectedSubject,
+      subject: examInfo?.subject || examInfo?.qualification,
+      paperCode: examInfo?.paperCode || examInfo?.examCode,
+      paperTitle: examInfo?.paperTitle,
+      rawTextHint: `${questionText || ''} ${anyScheme?.questionLevelAnswer || ''}`
+    });
+
+    const isEnglishLoRMode =
+      resolvedProfile.paradigm === 'LEVEL_OF_RESPONSE' ||
+      isLevelOfResponseQuestion(normalizedScheme, resolvedProfile);
+
     const hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
-      (normalizedScheme.marks.length > 0 || (normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0));
+      (normalizedScheme.marks.length > 0 ||
+        (normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0) ||
+        Boolean(anyScheme?.levels) ||
+        Boolean(anyScheme?.indicativeStandard) ||
+        isEnglishLoRMode);
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -771,7 +854,51 @@ export class MarkingInstructionService {
       processedImage: { rawOcrBlocks: sanitizedBlocks, classificationStudentWork } as any
     });
 
-    if (hasMarkingScheme && normalizedScheme) {
+    if (isEnglishLoRMode) {
+      const englishPrompt = AI_PROMPTS.markingInstructions.englishLoR;
+      const subjectKey = resolvedProfile.key === 'ENGLISH_LITERATURE' ? 'ENGLISH_LITERATURE' : 'ENGLISH_LANGUAGE';
+      systemPrompt = englishPrompt.system(subjectKey);
+
+      schemeText = normalizedScheme ? this.formatMarkingSchemeForPrompt(normalizedScheme) : '';
+      liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
+
+      if (questionText) {
+        structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
+      }
+      if (normalizedScheme?.subQuestionTexts) {
+        Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
+          const text = normalizedScheme.subQuestionTexts![key];
+          if (text) {
+            const displayKey = key.includes(baseQNum) ? key : `${baseQNum}${key}`;
+            structuredQuestionText += `**[${displayKey}]**: ${text}\n\n`;
+          }
+        });
+      }
+
+      const rawExtracts = anyScheme?.sourceExtracts || examInfo?.sourceExtracts;
+      const sourceExtractsText = Array.isArray(rawExtracts)
+        ? rawExtracts.map((ex: any) => `### ${ex.id || 'Extract'}: ${ex.title || ''}\n${ex.fullText || ex.text || ''}`).join('\n\n')
+        : (typeof rawExtracts === 'string' ? rawExtracts : '');
+
+      const rawExaminerReport = anyScheme?.examinerReport || examInfo?.examinerReport;
+      const examinerReportText = typeof rawExaminerReport === 'string'
+        ? rawExaminerReport
+        : rawExaminerReport
+          ? JSON.stringify(rawExaminerReport, null, 2)
+          : '';
+
+      userPrompt = englishPrompt.user({
+        qNum: currentQNum,
+        questionText: structuredQuestionText.trim() || questionText || liveQuestion || 'See attached question page(s)',
+        schemeText: schemeText || '',
+        sourceExtractsText,
+        examinerReportText,
+        studentWork: promptStudentWork || classificationStudentWork || formattedOcrText || 'No student work text extracted',
+        ocrBlocks: promptBlocks,
+        pageMap: filteredSubQuestionPageMap,
+        generalGuidance: formattedGeneralGuidance
+      });
+    } else if (hasMarkingScheme && normalizedScheme) {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;
 
@@ -942,7 +1069,8 @@ export class MarkingInstructionService {
       studentScore: parsedResponse.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' },
       visualObservation: parsedResponse.visualObservation,
       promptQuestionText: finalPromptText,
-      taggedOcrBlocks: sanitizedBlocks // [FIX] Propagate tagged blocks upstream
+      taggedOcrBlocks: sanitizedBlocks, // [FIX] Propagate tagged blocks upstream
+      rubricEvaluation: parsedResponse.rubricEvaluation
     };
 
     if ((res as any).isTruncated) {

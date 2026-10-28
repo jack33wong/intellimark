@@ -428,6 +428,7 @@ function AdminPage() {
   const [activeTab, setActiveTab] = useState('json');
   const [examBoardFilter, setExamBoardFilter] = useState('Pearson Edexcel');
   const [qualificationFilter, setQualificationFilter] = useState('All');
+  const [subjectFilter, setSubjectFilter] = useState('All');
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
 
@@ -452,6 +453,19 @@ function AdminPage() {
     gradeBoundaryData: ''
   });
   const [isDeletingAllGradeBoundaries, setIsDeletingAllGradeBoundaries] = useState(false);
+
+  // Examiner reports state
+  const [loadingExaminerReports, setLoadingExaminerReports] = useState(false);
+  const [examinerReportEntries, setExaminerReportEntries] = useState([]);
+  const [expandedExaminerReportId, setExpandedExaminerReportId] = useState(null);
+  const [examinerReportForm, setExaminerReportForm] = useState({
+    examinerReportData: ''
+  });
+  const [isExaminerReportEditing, setIsExaminerReportEditing] = useState(false);
+  const [editingExaminerReportId, setEditingExaminerReportId] = useState(null);
+  const [isExaminerReportRawEditMode, setIsExaminerReportRawEditMode] = useState(false);
+  const [examinerReportRawJsonBuffer, setExaminerReportRawJsonBuffer] = useState('');
+  const [editedExaminerReportData, setEditedExaminerReportData] = useState(null);
 
   // Query tab state
   const [isClearingSessions, setIsClearingSessions] = useState(false);
@@ -540,6 +554,10 @@ function AdminPage() {
     return gradeBoundaryForm.gradeBoundaryData.trim().length > 0;
   }, [gradeBoundaryForm.gradeBoundaryData]);
 
+  const isExaminerReportFormValid = useCallback(() => {
+    return examinerReportForm.examinerReportData.trim().length > 0;
+  }, [examinerReportForm.examinerReportData]);
+
   // Reset forms to initial state
   const resetJsonForm = useCallback(() => {
     setJsonForm({
@@ -556,6 +574,12 @@ function AdminPage() {
   const resetGradeBoundaryForm = useCallback(() => {
     setGradeBoundaryForm({
       gradeBoundaryData: ''
+    });
+  }, []);
+
+  const resetExaminerReportForm = useCallback(() => {
+    setExaminerReportForm({
+      examinerReportData: ''
     });
   }, []);
 
@@ -787,6 +811,50 @@ function AdminPage() {
     }
   }, [getAuthToken]);
 
+  // Load examiner report entries
+  const loadExaminerReportEntries = useCallback(async (listOnly = true, silent = false) => {
+    try {
+      if (!silent) setLoadingExaminerReports(true);
+      await getAuthToken();
+      const { data } = await ApiClient.get(`/api/admin/json/collections/examinerReports?listOnly=${listOnly}`);
+      const entries = data.entries || [];
+      setExaminerReportEntries(entries);
+      setLoadingExaminerReports(false);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading examiner report entries:', error);
+      setExaminerReportEntries([]);
+      setLoadingExaminerReports(false);
+      setLoading(false);
+    }
+  }, [getAuthToken]);
+
+  const fetchExaminerReportDetails = useCallback(async (entryId) => {
+    setExaminerReportEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: true } : e));
+    try {
+      const { data } = await ApiClient.get(`/api/admin/json/collections/examinerReports/${entryId}`);
+      const fullEntry = data.entry || data;
+      setExaminerReportEntries(prev => prev.map(entry =>
+        entry.id === entryId ? {
+          ...entry,
+          ...fullEntry,
+          isFullyLoaded: true,
+          isLoadingDetails: false
+        } : entry
+      ));
+      return fullEntry;
+    } catch (e) {
+      console.error('Error fetching examiner report details:', e);
+      setError(`Failed to load examiner report details: ${e.message}`);
+      setExaminerReportEntries(prev => prev.map(e => e.id === entryId ? { ...e, isLoadingDetails: false } : e));
+      return null;
+    }
+  }, []);
+
+  const hasExaminerReport = useCallback((examPaper) => {
+    return examinerReportEntries.some(rep => isPaperMatch(examPaper, rep));
+  }, [examinerReportEntries]);
+
   // User filters state
   const [userFilters, setUserFilters] = useState({
     userId: '',
@@ -917,6 +985,42 @@ function AdminPage() {
       }
     }
   }, [isMarkingSchemeRawEditMode, editedMarkingSchemeData, markingSchemeRawJsonBuffer]);
+
+  // Examiner Report Edit Helpers
+  const enableExaminerReportEditMode = useCallback((entry) => {
+    const reportData = entry.examinerReportData || entry;
+    const cloned = JSON.parse(JSON.stringify(reportData));
+    setEditedExaminerReportData(cloned);
+    setExaminerReportRawJsonBuffer(JSON.stringify(cloned, null, 2));
+    setEditingExaminerReportId(entry.id);
+    setIsExaminerReportEditing(true);
+    setIsExaminerReportRawEditMode(true);
+    setExpandedExaminerReportId(entry.id);
+  }, []);
+
+  const cancelExaminerReportEditMode = useCallback(() => {
+    setIsExaminerReportEditing(false);
+    setEditedExaminerReportData(null);
+    setEditingExaminerReportId(null);
+    setIsExaminerReportRawEditMode(false);
+    setExaminerReportRawJsonBuffer('');
+  }, []);
+
+  const toggleExaminerReportRawEditMode = useCallback(() => {
+    if (!isExaminerReportRawEditMode) {
+      setExaminerReportRawJsonBuffer(JSON.stringify(editedExaminerReportData, null, 2));
+      setIsExaminerReportRawEditMode(true);
+    } else {
+      try {
+        const parsed = JSON.parse(examinerReportRawJsonBuffer);
+        setEditedExaminerReportData(parsed);
+        setIsExaminerReportRawEditMode(false);
+      } catch (e) {
+        setError(`Invalid JSON: ${e.message}`);
+        setTimeout(() => setError(null), 3000);
+      }
+    }
+  }, [isExaminerReportRawEditMode, editedExaminerReportData, examinerReportRawJsonBuffer]);
 
   const toggleRawEditMode = useCallback(() => {
     if (!isRawEditMode) {
@@ -1241,6 +1345,49 @@ function AdminPage() {
     }
   }, [editedMarkingSchemeData, editingMarkingSchemeId, getAuthToken, isMarkingSchemeRawEditMode, markingSchemeRawJsonBuffer]);
 
+  const saveExaminerReportChanges = useCallback(async () => {
+    if (!editingExaminerReportId) return;
+
+    let finalData = editedExaminerReportData;
+    if (isExaminerReportRawEditMode) {
+      try {
+        finalData = JSON.parse(examinerReportRawJsonBuffer);
+      } catch (e) {
+        setError(`Cannot save: Invalid JSON structure. ${e.message}`);
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+    }
+
+    if (!finalData) return;
+
+    setIsSaving(true);
+    try {
+      await getAuthToken();
+      await ApiClient.patch(`/api/admin/json/collections/examinerReports/${editingExaminerReportId}`, finalData);
+
+      setExaminerReportEntries(prev => prev.map(entry => {
+        if (entry.id === editingExaminerReportId) {
+          return { ...entry, ...finalData, isFullyLoaded: true };
+        }
+        return entry;
+      }));
+
+      setError('✅ Examiner report saved successfully');
+      setIsExaminerReportEditing(false);
+      setEditedExaminerReportData(null);
+      setEditingExaminerReportId(null);
+      setIsExaminerReportRawEditMode(false);
+      setExaminerReportRawJsonBuffer('');
+      setTimeout(() => setError(null), 3000);
+    } catch (error) {
+      console.error('Error saving examiner report:', error);
+      setError(`Failed to save examiner report: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editedExaminerReportData, editingExaminerReportId, getAuthToken, isExaminerReportRawEditMode, examinerReportRawJsonBuffer]);
+
   /**
    * Status Invalidation: Resets relationshipStatus for papers when dependencies change.
    * This ensures that "YES" doesn't stay stale if a marking scheme or boundary is modified.
@@ -1549,16 +1696,85 @@ function AdminPage() {
       // Invalidate relationship status for matching papers
       await invalidateStatusForMatches('gradeBoundary', parsedData);
 
-      setGradeBoundaryEntries(prev => [result.entry, ...prev]);
+      setGradeBoundaryEntries(prev => {
+        const index = prev.findIndex(e => e.id === result.entry.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = result.entry;
+          return updated;
+        }
+        return [result.entry, ...prev];
+      });
       resetGradeBoundaryForm();
-      setError(`✅ Grade boundary uploaded successfully.`);
+      const successMsg = result.message || (result.action === 'appended'
+        ? `✅ Grade boundary appended to existing record successfully.`
+        : `✅ Grade boundary uploaded successfully.`);
+      setError(successMsg);
       setTimeout(() => setError(null), 5000);
+
+      // Refresh list to keep everything fully synced
+      loadGradeBoundaryEntries();
     } catch (error) {
       console.error('Error uploading grade boundary:', error);
       setError(`Error uploading grade boundary: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [gradeBoundaryForm, getAuthToken, resetGradeBoundaryForm, isGradeBoundaryFormValid]);
+  }, [gradeBoundaryForm, getAuthToken, resetGradeBoundaryForm, isGradeBoundaryFormValid, loadGradeBoundaryEntries]);
+
+  // Upload examiner report data
+  const uploadExaminerReportData = useCallback(async () => {
+    if (!isExaminerReportFormValid()) {
+      setError('Please enter valid examiner report JSON data');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    try {
+      let parsedData;
+      try {
+        const rawData = examinerReportForm.examinerReportData.replace(/\[cite[^\]]*\]/g, '');
+        parsedData = JSON.parse(rawData);
+      } catch (e) {
+        setError('Invalid JSON format. Please check your syntax.');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
+      await getAuthToken();
+      await ApiClient.post('/api/admin/json/collections/examinerReports', {
+        examinerReportData: parsedData
+      });
+
+      setError(null);
+      resetExaminerReportForm();
+      loadExaminerReportEntries(true);
+      setError('✅ Examiner report uploaded successfully');
+      setTimeout(() => setError(null), 5000);
+    } catch (error) {
+      console.error('Error uploading examiner report:', error);
+      setError(`Error uploading examiner report: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    }
+  }, [examinerReportForm, getAuthToken, resetExaminerReportForm, isExaminerReportFormValid, loadExaminerReportEntries]);
+
+  // Delete individual examiner report entry
+  const deleteExaminerReportEntry = useCallback(async (entryId) => {
+    if (!window.confirm('Are you sure you want to delete this examiner report? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await getAuthToken();
+      await ApiClient.delete(`/api/admin/json/collections/examinerReports/${entryId}`);
+      setExaminerReportEntries(prev => prev.filter(entry => entry.id !== entryId));
+      setError('✅ Examiner report deleted successfully.');
+      setTimeout(() => setError(null), 3000);
+    } catch (error) {
+      console.error('Error deleting examiner report:', error);
+      setError(`Error deleting examiner report: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    }
+  }, [getAuthToken]);
 
   // Clear all sessions data
   const clearAllSessions = useCallback(async () => {
@@ -1816,6 +2032,11 @@ function AdminPage() {
     setGradeBoundaryForm(prev => ({ ...prev, [field]: value }));
   }, []);
 
+  // Handle examiner report form input changes
+  const handleExaminerReportInputChange = useCallback((field, value) => {
+    setExaminerReportForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
   // Load data on component mount - removed combined effect
 
   // Load Exam Papers when tab is active
@@ -1825,13 +2046,14 @@ function AdminPage() {
     }
   }, [activeTab, loadJsonEntries]);
 
-  // Load Marking Schemes and Grade Boundaries in the background (metadata only)
-  // This powers the "Has Marking Scheme" and "Has Grade Boundary" indicators
+  // Load Marking Schemes, Grade Boundaries, and Examiner Reports in the background (metadata only)
+  // This powers the "Has Marking Scheme", "Has Grade Boundary", and "Has Examiner Report" indicators
   // in the JSON list view before those tabs are explicitly opened.
   useEffect(() => {
     loadMarkingSchemeEntries(true); // listOnly = true
     loadGradeBoundaryEntries();
-  }, [loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
+    loadExaminerReportEntries(true);
+  }, [loadMarkingSchemeEntries, loadGradeBoundaryEntries, loadExaminerReportEntries]);
 
   // Load usage data when tab is active or filter changes
   useEffect(() => {
@@ -1891,6 +2113,52 @@ function AdminPage() {
       ))}
     </div>
   );
+
+  const isEnglishRecord = (str) => {
+    const lower = (str || '').toLowerCase();
+    return (
+      lower.includes('english') ||
+      lower.includes('8700') ||
+      lower.includes('8702') ||
+      lower.includes('1en0') ||
+      lower.includes('1et0') ||
+      lower.includes('j351') ||
+      lower.includes('j352') ||
+      lower.includes('c700') ||
+      lower.includes('c720') ||
+      lower.includes('eng ')
+    );
+  };
+
+  const renderSubjectFilterTabs = () => (
+    <div className="admin-filter-tabs" style={{ marginTop: '8px' }}>
+      {['All', 'MATHS', 'ENG'].map(subj => (
+        <button
+          key={subj}
+          className={`admin-filter-tab ${subjectFilter === subj ? 'admin-filter-tab--active' : ''}`}
+          onClick={() => {
+            setSubjectFilter(subj);
+            if (subj === 'ENG' && examBoardFilter === 'Pearson Edexcel') {
+              setExamBoardFilter('All');
+            }
+          }}
+        >
+          {subj}
+        </button>
+      ))}
+    </div>
+  );
+
+  const filterBySubject = (entries, getSubjectStrFn) => {
+    if (subjectFilter === 'All') return entries;
+    return entries.filter(entry => {
+      const info = getSubjectStrFn(entry);
+      const isEng = isEnglishRecord(info);
+      if (subjectFilter === 'ENG') return isEng;
+      if (subjectFilter === 'MATHS') return !isEng;
+      return true;
+    });
+  };
 
   const filterByBoard = (entries, getBoardFn) => {
     if (examBoardFilter === 'All') return entries;
@@ -1960,18 +2228,25 @@ function AdminPage() {
   };
 
   const filteredJsonEntries = sortEntriesByDateAndCode(
-    filterByQualification(
-      filterByBoard(jsonEntries, (entry) => {
-        const examData = entry.data || entry;
-        const examMeta = examData.exam || examData.metadata || {};
-        return examMeta.board || examMeta.exam_board || JSON.stringify(entry);
-      }),
+    filterBySubject(
+      filterByQualification(
+        filterByBoard(jsonEntries, (entry) => {
+          const examData = entry.data || entry;
+          const examMeta = examData.exam || examData.metadata || {};
+          return examMeta.board || examMeta.exam_board || JSON.stringify(entry);
+        }),
+        (entry) => {
+          const examData = entry.data || entry;
+          const examMeta = examData.exam || examData.metadata || {};
+          return examMeta.qualification || examMeta.subject || '';
+        }
+      ),
       (entry) => {
         const examData = entry.data || entry;
         const examMeta = examData.exam || examData.metadata || {};
-        return examMeta.qualification || examMeta.subject || '';
+        return `${examMeta.subject || ''} ${examMeta.code || examMeta.exam_code || ''} ${examMeta.paper_title || ''}`;
       }
-      ),
+    ),
     (entry) => {
       const examData = entry.data || entry;
       const examMeta = examData.exam || examData.metadata || {};
@@ -1995,14 +2270,20 @@ function AdminPage() {
   );
 
   const filteredMarkingSchemeEntries = sortEntriesByDateAndCode(
-    filterByQualification(
-      filterByBoard(markingSchemeEntries, (entry) => {
-        const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
-        return examDetails.board || examDetails.exam_board || '';
-      }),
+    filterBySubject(
+      filterByQualification(
+        filterByBoard(markingSchemeEntries, (entry) => {
+          const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+          return examDetails.board || examDetails.exam_board || '';
+        }),
+        (entry) => {
+          const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
+          return examDetails.qualification || examDetails.subject || '';
+        }
+      ),
       (entry) => {
         const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
-        return examDetails.qualification || examDetails.subject || '';
+        return `${examDetails.subject || ''} ${examDetails.paperCode || examDetails.exam_code || examDetails.code || ''} ${examDetails.paper || ''}`;
       }
     ),
     (entry) => entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || '',
@@ -2020,16 +2301,46 @@ function AdminPage() {
   );
 
   const filteredGradeBoundaries = sortEntriesByDateAndCode(
-    filterByQualification(
-      filterByBoard(gradeBoundaryEntries, (entry) =>
-        entry.exam_board || entry.examBoard || ''
+    filterBySubject(
+      filterByQualification(
+        filterByBoard(gradeBoundaryEntries, (entry) =>
+          entry.exam_board || entry.examBoard || ''
+        ),
+        (entry) => entry.qualification || ''
       ),
-      (entry) => entry.qualification || ''
+      (entry) => {
+        const subjectsStr = (entry.subjects || []).map(s => `${s.name || ''} ${s.code || ''}`).join(' ');
+        return `${entry.subject || ''} ${subjectsStr}`;
+      }
     ),
     (entry) => entry.exam_series || entry.examSeries || '',
     (entry) => {
       // Sort by qualification/subject as fallback for code
       return (entry.qualification || '') + (entry.subjects?.[0]?.name || '');
+    }
+  );
+
+  const filteredExaminerReportEntries = sortEntriesByDateAndCode(
+    filterBySubject(
+      filterByQualification(
+        filterByBoard(examinerReportEntries, (entry) => {
+          const examDetails = entry.examDetails || entry.metadata || {};
+          return examDetails.board || examDetails.exam_board || '';
+        }),
+        (entry) => {
+          const examDetails = entry.examDetails || entry.metadata || {};
+          return examDetails.qualification || examDetails.subject || '';
+        }
+      ),
+      (entry) => {
+        const examDetails = entry.examDetails || entry.metadata || {};
+        return `${examDetails.subject || ''} ${examDetails.paperCode || examDetails.exam_code || ''} ${examDetails.paper || ''}`;
+      }
+    ),
+    (entry) => entry.examDetails?.exam_series || entry.metadata?.exam_series || '',
+    (entry) => {
+      const details = entry.examDetails || entry.metadata || {};
+      return details.paperCode || details.exam_code || '';
     }
   );
 
@@ -2079,6 +2390,13 @@ function AdminPage() {
           >
             <Award size={16} />
             Grade Boundaries
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'examiner-report' ? 'admin-tab--active' : ''}`}
+            onClick={() => setActiveTab('examiner-report')}
+          >
+            <FileText size={16} />
+            Examiner Report
           </button>
           <button
             className={`admin-tab ${activeTab === 'query' ? 'admin-tab--active' : ''}`}
@@ -2317,6 +2635,7 @@ function AdminPage() {
             <div className="admin-data-section">
               {renderFilterTabs()}
               {renderQualificationFilterTabs()}
+              {renderSubjectFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Full Exam Papers ({filteredJsonEntries.length})</h3>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -2815,6 +3134,36 @@ function AdminPage() {
                                                   {/* Detailed Structure Mismatch Alert ... */}
                                                   {/* [KEEP EXISTING MISMATCH ALERT LOGIC] */}
 
+                                                  {Array.isArray(displayData.sourceExtracts) && displayData.sourceExtracts.length > 0 && (
+                                                    <div style={{
+                                                      backgroundColor: '#f8fafc',
+                                                      border: '1px solid #cbd5e1',
+                                                      borderRadius: '8px',
+                                                      padding: '14px',
+                                                      marginBottom: '16px'
+                                                    }}>
+                                                      <h6 className="admin-questions-summary__title" style={{ marginBottom: '10px', color: '#1e293b' }}>
+                                                        📖 Reading Insert / Source Extracts ({displayData.sourceExtracts.length})
+                                                      </h6>
+                                                      {displayData.sourceExtracts.map((ext, extIdx) => (
+                                                        <div key={extIdx} style={{
+                                                          backgroundColor: '#ffffff',
+                                                          border: '1px solid #e2e8f0',
+                                                          borderRadius: '6px',
+                                                          padding: '10px 12px',
+                                                          marginBottom: extIdx < displayData.sourceExtracts.length - 1 ? '10px' : 0
+                                                        }}>
+                                                          <div style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', marginBottom: '6px' }}>
+                                                            {ext.label || `Source Extract ${extIdx + 1}`}
+                                                          </div>
+                                                          <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.82rem', color: '#334155', lineHeight: '1.5' }}>
+                                                            {ext.text}
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
+
                                                   <div className="admin-questions-list">
                                                     {displayData.questions.map((question, qIndex) => (
                                                       <div key={qIndex} className="admin-question-item">
@@ -3021,6 +3370,7 @@ function AdminPage() {
             <div className="admin-data-section">
               {renderFilterTabs()}
               {renderQualificationFilterTabs()}
+              {renderSubjectFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Marking Schemes ({filteredMarkingSchemeEntries.length})</h3>
                  <div className="admin-data-section__actions" style={{ display: 'flex', gap: '8px' }}>
@@ -3323,17 +3673,71 @@ function AdminPage() {
                                                   <h6 className="admin-questions-summary__title">Summary Statistics</h6>
                                                   <div className="admin-questions-summary">
                                                     <span className="admin-summary-item">
-                                                      <strong>Total Questions:</strong> {displayData.questions ? robustEnsureArray(displayData.questions).length : 'N/A'}
+                                                      <strong>Total Questions:</strong> {displayData.questions ? robustEnsureArray(displayData.questions).length : (displayData.totalQuestions || 'N/A')}
                                                     </span>
                                                     <span className="admin-summary-item">
-                                                      <strong>Total Marks:</strong> {displayData.questions ?
+                                                      <strong>Total Marks:</strong> {displayData.totalMarks || (displayData.questions ?
                                                         robustEnsureArray(displayData.questions).reduce((total, question) => {
+                                                          const explicitMark = Number(question.totalMarks || question.maxMarks || (typeof question.marks === 'number' ? question.marks : 0));
+                                                          if (explicitMark > 0) return total + explicitMark;
                                                           const marks = robustEnsureArray(question.marks);
                                                           return total + marks.length;
-                                                        }, 0) : 'N/A'}
+                                                        }, 0) : 'N/A')}
                                                     </span>
                                                   </div>
                                                 </div>
+
+                                                {/* General Marking Guidance (Level-of-Response Instructions) */}
+                                                {displayData.generalMarkingGuidance && (
+                                                  <div className="admin-questions-content">
+                                                    <h6 className="admin-questions-summary__title">General Marking Guidance</h6>
+                                                    <div style={{
+                                                      backgroundColor: '#f8fafc',
+                                                      border: '1px solid #e2e8f0',
+                                                      borderRadius: '8px',
+                                                      padding: '12px 14px',
+                                                      fontSize: '0.85rem',
+                                                      color: '#334155'
+                                                    }}>
+                                                      {displayData.generalMarkingGuidance.overview && (
+                                                        <p style={{ margin: '0 0 8px 0', lineHeight: '1.5' }}>
+                                                          {displayData.generalMarkingGuidance.overview}
+                                                        </p>
+                                                      )}
+                                                      {Array.isArray(displayData.generalMarkingGuidance.levelOfResponseInstructions) && (
+                                                        <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.5' }}>
+                                                          {displayData.generalMarkingGuidance.levelOfResponseInstructions.map((inst, idx) => (
+                                                            <li key={idx} style={{ marginBottom: '4px' }}>{inst}</li>
+                                                          ))}
+                                                        </ul>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Source Extracts (Reading Insert) */}
+                                                {Array.isArray(displayData.sourceExtracts) && displayData.sourceExtracts.length > 0 && (
+                                                  <div className="admin-questions-content">
+                                                    <h6 className="admin-questions-summary__title">Reading Insert / Source Extracts ({displayData.sourceExtracts.length})</h6>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                      {displayData.sourceExtracts.map((ext, extIdx) => (
+                                                        <div key={extIdx} style={{
+                                                          backgroundColor: '#f8fafc',
+                                                          border: '1px solid #cbd5e1',
+                                                          borderRadius: '8px',
+                                                          padding: '12px'
+                                                        }}>
+                                                          <div style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', marginBottom: '6px' }}>
+                                                            📖 {ext.label || `Source Extract ${extIdx + 1}`}
+                                                          </div>
+                                                          <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.82rem', color: '#334155', lineHeight: '1.5' }}>
+                                                            {ext.text}
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
 
                                                 {/* Questions List */}
                                                 {(() => {
@@ -3362,12 +3766,73 @@ function AdminPage() {
                                                             }
                                                             return a.number.localeCompare(b.number);
                                                           })
-                                                          .map((q) => (
+                                                          .map((q) => {
+                                                            const qTotalMarks = Number(q.totalMarks || q.maxMarks || (typeof q.marks === 'number' ? q.marks : 0)) || robustEnsureArray(q.marks).length;
+                                                            const aos = Array.isArray(q.assessmentObjectives) ? q.assessmentObjectives : [];
+                                                            const fallbackSummary = q.scoringType === 'DUAL_AO_LOR'
+                                                              ? `Dual-AO Level-of-Response Rubric (${aos.join(' + ') || 'AO5 + AO6'}, ${qTotalMarks} marks)`
+                                                              : q.scoringType === 'SINGLE_AO_LOR' || Array.isArray(q.levels)
+                                                                ? `Level-of-Response Rubric (${aos.join(', ') || 'Levels 1–4'}, ${qTotalMarks} marks)`
+                                                                : q.scoringType === 'POINT_BASED'
+                                                                  ? `Point-Based Retrieval (${aos.join(', ') || 'AO1'}, ${qTotalMarks} marks)`
+                                                                  : 'No answer provided';
+
+                                                            return (
                                                             <div key={q.number} className="admin-question-item">
-                                                              <div className="admin-question-main">
-                                                                <span className="admin-question-number">{q.number}</span>
-                                                                <span className="admin-question-text">{q.answer ? `Answer: ${q.answer}` : 'No answer provided'}</span>
+                                                              <div className="admin-question-main" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                                                                  <span className="admin-question-number">{q.number}</span>
+                                                                  <span className="admin-question-text">
+                                                                    {q.answer ? `Answer: ${q.answer}` : fallbackSummary}
+                                                                  </span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                                  {q.scoringType && (
+                                                                    <span style={{
+                                                                      padding: '2px 8px',
+                                                                      borderRadius: '4px',
+                                                                      backgroundColor: '#eff6ff',
+                                                                      color: '#1d4ed8',
+                                                                      border: '1px solid #bfdbfe',
+                                                                      fontSize: '0.72rem',
+                                                                      fontWeight: '600'
+                                                                    }}>
+                                                                      {q.scoringType}
+                                                                    </span>
+                                                                  )}
+                                                                  {aos.map((ao, aoIdx) => (
+                                                                    <span key={aoIdx} style={{
+                                                                      padding: '2px 8px',
+                                                                      borderRadius: '4px',
+                                                                      backgroundColor: '#f0fdf4',
+                                                                      color: '#15803d',
+                                                                      border: '1px solid #bbf7d0',
+                                                                      fontSize: '0.72rem',
+                                                                      fontWeight: '600'
+                                                                    }}>
+                                                                      {ao}
+                                                                    </span>
+                                                                  ))}
+                                                                  {qTotalMarks > 0 && (
+                                                                    <span className="admin-question-marks">[{qTotalMarks} marks]</span>
+                                                                  )}
+                                                                </div>
                                                               </div>
+
+                                                              {/* Rubric Infringement Note */}
+                                                              {q.rubricInfringementNote && (
+                                                                <div style={{
+                                                                  marginTop: '10px',
+                                                                  padding: '10px 12px',
+                                                                  backgroundColor: '#fffbeb',
+                                                                  border: '1px solid #fde68a',
+                                                                  borderRadius: '6px',
+                                                                  color: '#92400e',
+                                                                  fontSize: '0.82rem'
+                                                                }}>
+                                                                  <strong>⚠️ Rubric Infringement Rule:</strong> {q.rubricInfringementNote}
+                                                                </div>
+                                                              )}
 
                                                               {(() => {
                                                                 const mArr = robustEnsureArray(q.marks);
@@ -3391,7 +3856,27 @@ function AdminPage() {
                                                                 );
                                                               })()}
 
+                                                              {/* Guidance (supports both string guidance and array of scenario/outcome objects) */}
                                                               {(() => {
+                                                                if (!q.guidance) return null;
+                                                                if (typeof q.guidance === 'string') {
+                                                                  return (
+                                                                    <div className="admin-sub-questions" style={{ marginTop: '10px' }}>
+                                                                      <h6 className="admin-questions-summary__title">Examiner Guidance</h6>
+                                                                      <div style={{
+                                                                        padding: '10px 12px',
+                                                                        backgroundColor: '#f8fafc',
+                                                                        border: '1px solid #e2e8f0',
+                                                                        borderRadius: '6px',
+                                                                        fontSize: '0.84rem',
+                                                                        color: '#334155',
+                                                                        lineHeight: '1.5'
+                                                                      }}>
+                                                                        {q.guidance}
+                                                                      </div>
+                                                                    </div>
+                                                                  );
+                                                                }
                                                                 const gArr = robustEnsureArray(q.guidance);
                                                                 if (gArr.length === 0) return null;
                                                                 return (
@@ -3402,8 +3887,12 @@ function AdminPage() {
                                                                         <div className="admin-sub-question-content">
                                                                           <span className="admin-sub-question-number">{gi + 1}</span>
                                                                           <span className="admin-sub-question-text">
-                                                                            <strong>Scenario:</strong> {g.scenario}
-                                                                            {g.outcome && ` | <strong>Outcome:</strong> ${g.outcome}`}
+                                                                            {typeof g === 'string' ? g : (
+                                                                              <>
+                                                                                <strong>Scenario:</strong> {g.scenario}
+                                                                                {g.outcome && ` | Outcome: ${g.outcome}`}
+                                                                              </>
+                                                                            )}
                                                                           </span>
                                                                         </div>
                                                                       </div>
@@ -3411,8 +3900,191 @@ function AdminPage() {
                                                                   </div>
                                                                 );
                                                               })()}
+
+                                                              {/* Single-AO Level-of-Response Ladder (q.levels) */}
+                                                              {Array.isArray(q.levels) && q.levels.length > 0 && (
+                                                                <div className="admin-sub-questions" style={{ marginTop: '12px' }}>
+                                                                  <h6 className="admin-questions-summary__title">Level-of-Response Descriptors ({q.levels.length} Levels)</h6>
+                                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                    {q.levels.map((lvl, lIdx) => (
+                                                                      <div key={lIdx} style={{
+                                                                        backgroundColor: '#ffffff',
+                                                                        border: '1px solid #e2e8f0',
+                                                                        borderRadius: '6px',
+                                                                        padding: '10px 12px'
+                                                                      }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                                          <strong style={{ color: '#0f172a', fontSize: '0.86rem' }}>
+                                                                            Level {lvl.level}: {lvl.label || ''}
+                                                                          </strong>
+                                                                          <span style={{
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: '4px',
+                                                                            backgroundColor: '#f1f5f9',
+                                                                            color: '#334155',
+                                                                            fontSize: '0.75rem',
+                                                                            fontWeight: '600'
+                                                                          }}>
+                                                                            {lvl.minMarks === lvl.maxMarks ? `${lvl.maxMarks} marks` : `${lvl.minMarks}–${lvl.maxMarks} marks`}
+                                                                          </span>
+                                                                        </div>
+                                                                        {Array.isArray(lvl.descriptors) && lvl.descriptors.length > 0 && (
+                                                                          <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: '#475569', lineHeight: '1.45' }}>
+                                                                            {lvl.descriptors.map((desc, dIdx) => (
+                                                                              <li key={dIdx}>{desc}</li>
+                                                                            ))}
+                                                                          </ul>
+                                                                        )}
+                                                                      </div>
+                                                                    ))}
+                                                                  </div>
+                                                                </div>
+                                                              )}
+
+                                                              {/* Dual-AO Level-of-Response Breakdown (q.dualAoBreakdown, e.g. Q5 AO5 + AO6) */}
+                                                              {q.dualAoBreakdown && typeof q.dualAoBreakdown === 'object' && (
+                                                                <div className="admin-sub-questions" style={{ marginTop: '12px' }}>
+                                                                  <h6 className="admin-questions-summary__title">Dual-AO Level-of-Response Grids</h6>
+                                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                                                    {Object.entries(q.dualAoBreakdown).map(([aoKey, aoData]) => {
+                                                                      if (!aoData || typeof aoData !== 'object') return null;
+                                                                      return (
+                                                                        <div key={aoKey} style={{
+                                                                          backgroundColor: '#f8fafc',
+                                                                          border: '1px solid #cbd5e1',
+                                                                          borderRadius: '8px',
+                                                                          padding: '12px'
+                                                                        }}>
+                                                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                                            <strong style={{ color: '#1e293b', fontSize: '0.9rem' }}>
+                                                                              {aoData.ao || aoKey.toUpperCase()} — {aoData.skill || ''}
+                                                                            </strong>
+                                                                            <span className="admin-question-marks">[{aoData.maxMarks || 0} marks]</span>
+                                                                          </div>
+                                                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                            {Array.isArray(aoData.levels) && aoData.levels.map((lvl, lIdx) => (
+                                                                              <div key={lIdx} style={{
+                                                                                backgroundColor: '#ffffff',
+                                                                                border: '1px solid #e2e8f0',
+                                                                                borderRadius: '6px',
+                                                                                padding: '8px 12px'
+                                                                              }}>
+                                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                                                                  <strong style={{ fontSize: '0.84rem', color: '#0f172a' }}>
+                                                                                    {lvl.subBand ? `${lvl.subBand} — ` : `Level ${lvl.level}: `}{lvl.label || ''}
+                                                                                  </strong>
+                                                                                  <span style={{
+                                                                                    padding: '2px 8px',
+                                                                                    borderRadius: '4px',
+                                                                                    backgroundColor: '#f1f5f9',
+                                                                                    color: '#334155',
+                                                                                    fontSize: '0.74rem',
+                                                                                    fontWeight: '600'
+                                                                                  }}>
+                                                                                    {lvl.minMarks === lvl.maxMarks ? `${lvl.maxMarks} marks` : `${lvl.minMarks}–${lvl.maxMarks} marks`}
+                                                                                  </span>
+                                                                                </div>
+                                                                                {Array.isArray(lvl.descriptors) && (
+                                                                                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8rem', color: '#475569', lineHeight: '1.45' }}>
+                                                                                    {lvl.descriptors.map((d, dIdx) => (
+                                                                                      <li key={dIdx}>{d}</li>
+                                                                                    ))}
+                                                                                  </ul>
+                                                                                )}
+                                                                              </div>
+                                                                            ))}
+                                                                          </div>
+                                                                        </div>
+                                                                      );
+                                                                    })}
+                                                                  </div>
+                                                                </div>
+                                                              )}
+
+                                                              {/* Indicative Standard Exemplars (q.indicativeStandard) */}
+                                                              {q.indicativeStandard && typeof q.indicativeStandard === 'object' && Object.keys(q.indicativeStandard).length > 0 && (
+                                                                <div className="admin-sub-questions" style={{ marginTop: '12px' }}>
+                                                                  <h6 className="admin-questions-summary__title">Indicative Standard Exemplars</h6>
+                                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                    {Object.entries(q.indicativeStandard).map(([bandLabel, exemplarText]) => (
+                                                                      <div key={bandLabel} style={{
+                                                                        backgroundColor: '#f0fdf4',
+                                                                        border: '1px solid #bbf7d0',
+                                                                        borderRadius: '6px',
+                                                                        padding: '10px 12px'
+                                                                      }}>
+                                                                        <div style={{ fontWeight: '600', fontSize: '0.83rem', color: '#166534', marginBottom: '4px' }}>
+                                                                          {bandLabel}
+                                                                        </div>
+                                                                        <div style={{ fontSize: '0.82rem', color: '#1e293b', lineHeight: '1.5' }}>
+                                                                          {exemplarText}
+                                                                        </div>
+                                                                      </div>
+                                                                    ))}
+                                                                  </div>
+                                                                </div>
+                                                              )}
+
+                                                              {/* AO Content Bullets (q.aoContentBullets) */}
+                                                              {Array.isArray(q.aoContentBullets) && q.aoContentBullets.length > 0 && (
+                                                                <div className="admin-sub-questions" style={{ marginTop: '12px' }}>
+                                                                  <h6 className="admin-questions-summary__title">Indicative AO Content Points ({q.aoContentBullets.length})</h6>
+                                                                  <ul style={{
+                                                                    margin: 0,
+                                                                    padding: '10px 12px 10px 28px',
+                                                                    backgroundColor: '#f8fafc',
+                                                                    border: '1px solid #e2e8f0',
+                                                                    borderRadius: '6px',
+                                                                    fontSize: '0.82rem',
+                                                                    color: '#334155',
+                                                                    lineHeight: '1.5'
+                                                                  }}>
+                                                                    {q.aoContentBullets.map((bullet, bIdx) => (
+                                                                      <li key={bIdx} style={{ marginBottom: '4px' }}>{bullet}</li>
+                                                                    ))}
+                                                                  </ul>
+                                                                </div>
+                                                              )}
+
+                                                              {/* Embedded Chief Examiner Report Commentary (q.examinerReport) */}
+                                                              {q.examinerReport && typeof q.examinerReport === 'object' && (
+                                                                <div className="admin-sub-questions" style={{ marginTop: '12px' }}>
+                                                                  <h6 className="admin-questions-summary__title">Chief Examiner Report Insights (Q{q.number})</h6>
+                                                                  <div style={{
+                                                                    backgroundColor: '#eff6ff',
+                                                                    border: '1px solid #bfdbfe',
+                                                                    borderRadius: '6px',
+                                                                    padding: '10px 12px',
+                                                                    fontSize: '0.82rem',
+                                                                    color: '#1e3a8a',
+                                                                    lineHeight: '1.5'
+                                                                  }}>
+                                                                    {q.examinerReport.whatWorkedWell && (
+                                                                      <div style={{ marginBottom: '6px' }}>
+                                                                        <strong>✅ What Worked Well:</strong> {q.examinerReport.whatWorkedWell}
+                                                                      </div>
+                                                                    )}
+                                                                    {Array.isArray(q.examinerReport.commonPitfalls) && q.examinerReport.commonPitfalls.length > 0 && (
+                                                                      <div style={{ marginBottom: '6px' }}>
+                                                                        <strong>⚠️ Common Pitfalls to Avoid:</strong>
+                                                                        <ul style={{ margin: '4px 0 0 0', paddingLeft: '18px' }}>
+                                                                          {q.examinerReport.commonPitfalls.map((pit, pIdx) => (
+                                                                            <li key={pIdx}>{pit}</li>
+                                                                          ))}
+                                                                        </ul>
+                                                                      </div>
+                                                                    )}
+                                                                    {q.examinerReport.level3To4Separators && (
+                                                                      <div>
+                                                                        <strong>🚀 Level 3 → Level 4 Separator:</strong> {q.examinerReport.level3To4Separators}
+                                                                      </div>
+                                                                    )}
+                                                                  </div>
+                                                                </div>
+                                                              )}
                                                             </div>
-                                                          ))}
+                                                            );
+                                                          })}
                                                       </div>
                                                     </div>
                                                   );
@@ -3503,6 +4175,7 @@ function AdminPage() {
             <div className="admin-data-section">
               {renderFilterTabs()}
               {renderQualificationFilterTabs()}
+              {renderSubjectFilterTabs()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Grade Boundaries ({filteredGradeBoundaries.length})</h3>
                 {/* Delete All button removed per request */}
@@ -3669,21 +4342,29 @@ function AdminPage() {
                                                   {tiers.length > 0 && (
                                                     <div className="admin-sub-questions">
                                                       {tiers.map((tier, tIndex) => {
-                                                        const tierLevel = tier.tier_level || 'Unknown';
-                                                        const paperCodes = tier.paper_codes || [];
-                                                        const boundaries = tier.papers_combined_boundaries?.total_raw_mark_required || {};
+                                                        const rawTierLevel = tier.tier_level ? String(tier.tier_level).trim() : '';
+                                                        const tierLevel = (!rawTierLevel || rawTierLevel.toLowerCase() === 'unknown')
+                                                          ? 'Untiered'
+                                                          : rawTierLevel;
+                                                        const paperCodes = tier.paper_codes || (Array.isArray(tier.papers) ? tier.papers.map(p => p.code).filter(Boolean) : []);
+                                                        const boundaries =
+                                                          tier.overall_total_boundaries ||
+                                                          tier.papers_combined_boundaries?.total_raw_mark_required ||
+                                                          tier.boundaries ||
+                                                          {};
+                                                        const paperBoundariesList = Array.isArray(tier.papers) ? tier.papers : [];
 
                                                         return (
                                                           <div key={tIndex} className="admin-sub-question-item">
                                                             <div className="admin-sub-question-content">
                                                               <span className="admin-sub-question-number">{tierLevel}</span>
                                                               <span className="admin-sub-question-text">
-                                                                Papers: {paperCodes.join(', ')}
+                                                                Papers: {paperCodes.join(', ') || 'All'}
                                                               </span>
                                                             </div>
                                                             {Object.keys(boundaries).length > 0 && (
                                                               <div className="grade-boundaries-list">
-                                                                <strong>Grade Boundaries:</strong>
+                                                                <strong>Overall Grade Boundaries:</strong>
                                                                 <div className="grade-boundaries-grid">
                                                                   {Object.entries(boundaries)
                                                                     .sort(([a], [b]) => {
@@ -3703,6 +4384,32 @@ function AdminPage() {
                                                                 </div>
                                                               </div>
                                                             )}
+                                                            {paperBoundariesList.length > 0 && paperBoundariesList.map((paperItem, pIdx) => {
+                                                              const pBounds = paperItem.boundaries || paperItem.raw_mark_boundaries || {};
+                                                              if (Object.keys(pBounds).length === 0) return null;
+                                                              return (
+                                                                <div key={pIdx} className="grade-boundaries-list" style={{ marginTop: '8px' }}>
+                                                                  <strong>Paper {paperItem.code}{paperItem.max_mark ? ` (Max: ${paperItem.max_mark})` : ''}:</strong>
+                                                                  <div className="grade-boundaries-grid">
+                                                                    {Object.entries(pBounds)
+                                                                      .sort(([a], [b]) => {
+                                                                        const numA = parseInt(a);
+                                                                        const numB = parseInt(b);
+                                                                        if (!isNaN(numA) && !isNaN(numB)) {
+                                                                          return numB - numA;
+                                                                        }
+                                                                        return b.localeCompare(a);
+                                                                      })
+                                                                      .map(([grade, mark]) => (
+                                                                        <div key={grade} className="grade-boundary-item">
+                                                                          <span className="grade-label">Grade {grade}:</span>
+                                                                          <span className="grade-mark">{mark} marks</span>
+                                                                        </div>
+                                                                      ))}
+                                                                  </div>
+                                                                </div>
+                                                              );
+                                                            })}
                                                           </div>
                                                         );
                                                       })}
@@ -3737,6 +4444,486 @@ function AdminPage() {
                             </React.Fragment>
                           );
                         })
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Examiner Report Tab */}
+        {activeTab === 'examiner-report' && (
+          <div className="admin-tab-content">
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Examiner Reports</h2>
+              <p>Manage Chief Examiner Report commentary, student pitfalls, and Level 3→4 coaching insights</p>
+            </div>
+
+            {/* Examiner Report Upload Form */}
+            <div className="admin-upload-section">
+              <div className="upload-form">
+                <div className="admin-form-group">
+                  <textarea
+                    id="examinerReportData"
+                    value={examinerReportForm.examinerReportData}
+                    onChange={(e) => handleExaminerReportInputChange('examinerReportData', e.target.value)}
+                    placeholder="Paste your Examiner Report JSON data here..."
+                    rows={8}
+                    className="admin-form-control"
+                  />
+                </div>
+                <div className="admin-form-actions">
+                  <button
+                    type="button"
+                    onClick={uploadExaminerReportData}
+                    disabled={loadingExaminerReports || !isExaminerReportFormValid()}
+                    className="admin-btn admin-btn--primary"
+                  >
+                    <FileText size={16} />
+                    {loadingExaminerReports ? 'Uploading...' : 'Upload Examiner Report'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetExaminerReportForm}
+                    className="admin-btn admin-btn--secondary"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Examiner Report List */}
+            <div className="admin-data-section">
+              {renderFilterTabs()}
+              {renderQualificationFilterTabs()}
+              {renderSubjectFilterTabs()}
+              <div className="admin-data-section__header">
+                <h3 className="admin-data-section__title">Examiner Reports ({filteredExaminerReportEntries.length})</h3>
+              </div>
+
+              {loadingExaminerReports ? (
+                <div className="admin-loading-spinner-container">
+                  <div className="admin-spinner"></div>
+                  <p>Loading examiner reports...</p>
+                </div>
+              ) : examinerReportEntries.length === 0 ? (
+                <div className="no-data">
+                  <p>No examiner reports uploaded yet.</p>
+                </div>
+              ) : (
+                <div className="admin-table-container">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th className="admin-table__header">Examiner Report</th>
+                        <th className="admin-table__header">Qualification</th>
+                        <th className="admin-table__header">Subject</th>
+                        <th className="admin-table__header">Exam Series</th>
+                        <th className="admin-table__header">Questions</th>
+                        <th className="admin-table__header">Uploaded</th>
+                        <th className="admin-table__header">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        let lastSeries = null;
+                        let isOdd = false;
+
+                        return filteredExaminerReportEntries.map(entry => {
+                          const examDetails = entry.examDetails || entry.metadata || entry.exam || {};
+                          const board = examDetails.board || examDetails.exam_board || 'N/A';
+                          const qualification = examDetails.qualification || 'N/A';
+                          const subject = examDetails.subject || 'N/A';
+                          const paperCode = examDetails.paperCode || examDetails.exam_code || 'N/A';
+                          const examSeries = examDetails.exam_series || examDetails.date || 'N/A';
+                          const questionCount = entry.totalQuestions || (entry.questions ? Object.keys(entry.questions).length : 0);
+
+                          const currentGroupSeries = entry.normalizedSeries || examSeries;
+                          if (currentGroupSeries !== lastSeries) {
+                            isOdd = !isOdd;
+                            lastSeries = currentGroupSeries;
+                          }
+
+                          return (
+                            <React.Fragment key={entry.id}>
+                              <tr className={`admin-table__row ${isOdd ? 'admin-row-odd' : 'admin-row-even'}`}>
+                                <td className="admin-table__cell exam-paper-link">
+                                  <div
+                                    className="clickable-exam-paper"
+                                    onClick={() => {
+                                      const newExpandedId = expandedExaminerReportId === entry.id ? null : entry.id;
+                                      setExpandedExaminerReportId(newExpandedId);
+                                      if (newExpandedId) {
+                                        if (!entry.questions || !entry.isFullyLoaded) {
+                                          fetchExaminerReportDetails(entry.id);
+                                        }
+                                      }
+                                    }}
+                                    title="Click to view examiner report content"
+                                  >
+                                    <span className="exam-paper-name">
+                                      {board !== 'N/A'
+                                        ? `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim()
+                                        : `Examiner Report ${entry.id}`}
+                                    </span>
+                                    <span className="expand-indicator">
+                                      {entry.isLoadingDetails ? (
+                                        <div className="mini-spinner"></div>
+                                      ) : (
+                                        expandedExaminerReportId === entry.id ? '▼' : '▶'
+                                      )}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="admin-table__cell">{qualification}</td>
+                                <td className="admin-table__cell">{subject}</td>
+                                <td className="admin-table__cell">{examSeries}</td>
+                                <td className="admin-table__cell">{questionCount}</td>
+                                <td className="admin-table__cell">{formatDate(entry.createdAt || entry.uploadedAt)}</td>
+                                <td className="admin-table__cell actions-cell">
+                                  <button
+                                    className="admin-btn admin-btn--icon"
+                                    onClick={() => {
+                                      const newId = expandedExaminerReportId === entry.id ? null : entry.id;
+                                      setExpandedExaminerReportId(newId);
+                                      if (newId && (!entry.questions || !entry.isFullyLoaded)) {
+                                        fetchExaminerReportDetails(entry.id);
+                                      }
+                                    }}
+                                    title="View"
+                                  >
+                                    <ClipboardList size={16} />
+                                  </button>
+                                  <button
+                                    className="admin-btn admin-btn--icon"
+                                    onClick={() => {
+                                      if (!entry.questions || !entry.isFullyLoaded) {
+                                        fetchExaminerReportDetails(entry.id).then(full => {
+                                          if (full) enableExaminerReportEditMode(full);
+                                        });
+                                      } else {
+                                        enableExaminerReportEditMode(entry);
+                                      }
+                                    }}
+                                    title="Edit Raw JSON"
+                                  >
+                                    <FileText size={16} />
+                                  </button>
+                                  <button
+                                    className="admin-btn admin-btn--icon btn-danger"
+                                    onClick={() => deleteExaminerReportEntry(entry.id)}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </tr>
+
+                              {expandedExaminerReportId === entry.id && (
+                                <tr className="admin-expansion-row">
+                                  <td colSpan={7}>
+                                    <div className="admin-expansion-content">
+                                      {entry.isLoadingDetails ? (
+                                        <div className="row-loading-state">
+                                          <div className="admin-spinner"></div>
+                                          <p>Loading examiner report details...</p>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="admin-content-header">
+                                            <h4 className="admin-content-header__title">
+                                              {isExaminerReportEditing && editingExaminerReportId === entry.id ? 'Editing: ' : 'Examiner Report Details: '}
+                                              {board !== 'N/A'
+                                                ? `${board} ${qualification} - ${paperCode} (${examSeries})`
+                                                : `Examiner Report ${entry.id}`}
+                                            </h4>
+                                            <div className="admin-content-info">
+                                              {isExaminerReportEditing && editingExaminerReportId === entry.id ? (
+                                                <div className="admin-edit-actions">
+                                                  <button
+                                                    className="admin-btn admin-btn--primary"
+                                                    onClick={saveExaminerReportChanges}
+                                                    disabled={isSaving}
+                                                  >
+                                                    {isSaving ? 'Saving...' : 'Save Changes'}
+                                                  </button>
+                                                  <button
+                                                    className="admin-btn admin-btn--secondary"
+                                                    onClick={toggleExaminerReportRawEditMode}
+                                                    disabled={isSaving}
+                                                  >
+                                                    {isExaminerReportRawEditMode ? '📟 Back to View' : '🛠️ Raw JSON'}
+                                                  </button>
+                                                  <button
+                                                    className="admin-btn admin-btn--secondary"
+                                                    onClick={cancelExaminerReportEditMode}
+                                                    disabled={isSaving}
+                                                  >
+                                                    Cancel
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <>
+                                                  <button
+                                                    className="admin-btn admin-btn--secondary"
+                                                    onClick={() => enableExaminerReportEditMode(entry)}
+                                                    style={{ marginRight: '10px' }}
+                                                  >
+                                                    Edit JSON
+                                                  </button>
+                                                  <button
+                                                    className="admin-close-btn"
+                                                    onClick={() => setExpandedExaminerReportId(null)}
+                                                    title="Close"
+                                                  >
+                                                    ×
+                                                  </button>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {(() => {
+                                            const displayData = (isExaminerReportEditing && editingExaminerReportId === entry.id)
+                                              ? editedExaminerReportData
+                                              : entry;
+
+                                            if (isExaminerReportEditing && editingExaminerReportId === entry.id && isExaminerReportRawEditMode) {
+                                              return (
+                                                <div className="admin-raw-edit-container">
+                                                  <textarea
+                                                    className="admin-form-control raw-json-textarea"
+                                                    value={examinerReportRawJsonBuffer}
+                                                    onChange={(e) => setExaminerReportRawJsonBuffer(e.target.value)}
+                                                    rows={30}
+                                                    style={{ height: '70vh', marginTop: '16px', fontFamily: 'monospace' }}
+                                                  />
+                                                </div>
+                                              );
+                                            }
+
+                                            const questionsList = robustEnsureArray(displayData.questions).map((q, idx) => ({
+                                              number: String(q.number || q.questionNumber || q.question_number || (idx + 1)),
+                                              ...q
+                                            }));
+
+                                            return (
+                                              <>
+                                                {/* Exam Information */}
+                                                <div className="admin-questions-content">
+                                                  <h6 className="admin-questions-summary__title">Exam Information</h6>
+                                                  <div className="admin-questions-summary">
+                                                    <span className="admin-summary-item">
+                                                      <strong>Board:</strong> {displayData.examDetails?.board || 'Unknown'}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Qualification:</strong> {displayData.examDetails?.qualification || 'Unknown'}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Subject:</strong> {displayData.examDetails?.subject || 'Unknown'}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Paper Code:</strong> {displayData.examDetails?.paperCode || 'Unknown'}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Paper:</strong> {displayData.examDetails?.paper || 'Unknown'}
+                                                    </span>
+                                                    <span className="admin-summary-item">
+                                                      <strong>Exam Series:</strong> {displayData.examDetails?.exam_series || 'Unknown'}
+                                                    </span>
+                                                  </div>
+                                                </div>
+
+                                                {/* Overall Summary */}
+                                                {displayData.summary && (
+                                                  <div className="admin-questions-content">
+                                                    <h6 className="admin-questions-summary__title">Overall Examiner Summary</h6>
+                                                    <div style={{
+                                                      backgroundColor: '#f8fafc',
+                                                      border: '1px solid #cbd5e1',
+                                                      borderRadius: '8px',
+                                                      padding: '14px',
+                                                      fontSize: '0.84rem',
+                                                      color: '#1e293b',
+                                                      lineHeight: '1.55'
+                                                    }}>
+                                                      {displayData.summary.overallPerformance && (
+                                                        <p style={{ margin: '0 0 12px 0' }}>
+                                                          <strong>Overview:</strong> {displayData.summary.overallPerformance}
+                                                        </p>
+                                                      )}
+                                                      {Array.isArray(displayData.summary.areasWhereStudentsExcelled) && displayData.summary.areasWhereStudentsExcelled.length > 0 && (
+                                                        <div style={{ marginBottom: '10px' }}>
+                                                          <strong style={{ color: '#15803d' }}>✅ Areas Where Students Excelled:</strong>
+                                                          <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
+                                                            {displayData.summary.areasWhereStudentsExcelled.map((item, idx) => (
+                                                              <li key={idx} style={{ marginBottom: '3px' }}>{item}</li>
+                                                            ))}
+                                                          </ul>
+                                                        </div>
+                                                      )}
+                                                      {Array.isArray(displayData.summary.areasWhereStudentsStruggled) && displayData.summary.areasWhereStudentsStruggled.length > 0 && (
+                                                        <div>
+                                                          <strong style={{ color: '#b91c1c' }}>⚠️ Common Student Pitfalls & Areas of Difficulty:</strong>
+                                                          <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
+                                                            {displayData.summary.areasWhereStudentsStruggled.map((item, idx) => (
+                                                              <li key={idx} style={{ marginBottom: '3px' }}>{item}</li>
+                                                            ))}
+                                                          </ul>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Assessment Objectives Commentary */}
+                                                {Array.isArray(displayData.assessmentObjectives) && displayData.assessmentObjectives.length > 0 && (
+                                                  <div className="admin-questions-content">
+                                                    <h6 className="admin-questions-summary__title">Assessment Objectives Commentary ({displayData.assessmentObjectives.length})</h6>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                      {displayData.assessmentObjectives.map((aoItem, idx) => (
+                                                        <div key={idx} style={{
+                                                          backgroundColor: '#ffffff',
+                                                          border: '1px solid #e2e8f0',
+                                                          borderRadius: '6px',
+                                                          padding: '10px 12px'
+                                                        }}>
+                                                          <div style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', marginBottom: '4px' }}>
+                                                            {aoItem.ao}: {aoItem.title || ''}
+                                                          </div>
+                                                          {Array.isArray(aoItem.commonErrors) && aoItem.commonErrors.length > 0 && (
+                                                            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: '#475569', lineHeight: '1.45' }}>
+                                                              {aoItem.commonErrors.map((err, eIdx) => (
+                                                                <li key={eIdx}>{err}</li>
+                                                              ))}
+                                                            </ul>
+                                                          )}
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Individual Question Reports */}
+                                                {questionsList.length > 0 && (
+                                                  <div className="admin-questions-content">
+                                                    <h6 className="admin-questions-summary__title">Question-by-Question Examiner Insights ({questionsList.length})</h6>
+                                                    <div className="admin-questions-list">
+                                                      {questionsList.map((q) => (
+                                                        <div key={q.number} className="admin-question-item">
+                                                          <div className="admin-question-main" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                              <span className="admin-question-number">Q{q.number}</span>
+                                                              <span className="admin-question-text" style={{ fontWeight: '600' }}>
+                                                                Question {q.number} Examiner Commentary
+                                                              </span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                              {Array.isArray(q.assessmentObjectives) && q.assessmentObjectives.map((ao, aoIdx) => (
+                                                                <span key={aoIdx} style={{
+                                                                  padding: '2px 8px',
+                                                                  borderRadius: '4px',
+                                                                  backgroundColor: '#f0fdf4',
+                                                                  color: '#15803d',
+                                                                  border: '1px solid #bbf7d0',
+                                                                  fontSize: '0.72rem',
+                                                                  fontWeight: '600'
+                                                                }}>
+                                                                  {ao}
+                                                                </span>
+                                                              ))}
+                                                              {q.maxMarks && (
+                                                                <span className="admin-question-marks">[{q.maxMarks} marks]</span>
+                                                              )}
+                                                            </div>
+                                                          </div>
+
+                                                          <div style={{
+                                                            marginTop: '10px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '8px',
+                                                            fontSize: '0.83rem',
+                                                            lineHeight: '1.5'
+                                                          }}>
+                                                            {q.whatWorkedWell && (
+                                                              <div style={{
+                                                                padding: '8px 12px',
+                                                                backgroundColor: '#f0fdf4',
+                                                                border: '1px solid #bbf7d0',
+                                                                borderRadius: '6px',
+                                                                color: '#14532d'
+                                                              }}>
+                                                                <strong>✅ What Worked Well:</strong> {q.whatWorkedWell}
+                                                              </div>
+                                                            )}
+                                                            {Array.isArray(q.commonPitfalls) && q.commonPitfalls.length > 0 && (
+                                                              <div style={{
+                                                                padding: '8px 12px',
+                                                                backgroundColor: '#fef2f2',
+                                                                border: '1px solid #fecaca',
+                                                                borderRadius: '6px',
+                                                                color: '#7f1d1d'
+                                                              }}>
+                                                                <strong>⚠️ Common Pitfalls & Misunderstandings:</strong>
+                                                                <ul style={{ margin: '4px 0 0 0', paddingLeft: '18px' }}>
+                                                                  {q.commonPitfalls.map((pit, pIdx) => (
+                                                                    <li key={pIdx}>{pit}</li>
+                                                                  ))}
+                                                                </ul>
+                                                              </div>
+                                                            )}
+                                                            {q.level3To4Separators && (
+                                                              <div style={{
+                                                                padding: '8px 12px',
+                                                                backgroundColor: '#eff6ff',
+                                                                border: '1px solid #bfdbfe',
+                                                                borderRadius: '6px',
+                                                                color: '#1e3a8a'
+                                                              }}>
+                                                                <strong>🚀 What Separated Level 4 from Level 3:</strong> {q.level3To4Separators}
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Metadata */}
+                                                <div className="admin-metadata-section">
+                                                  <h6>Metadata</h6>
+                                                  <div className="metadata-info">
+                                                    <p><strong>ID:</strong> {entry.id}</p>
+                                                    <p><strong>Uploaded:</strong> {formatDate(entry.createdAt || entry.uploadedAt)}</p>
+                                                    {entry.updatedAt && (
+                                                      <p><strong>Last Updated:</strong> {formatDate(entry.updatedAt)}</p>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </>
+                                            );
+                                          })()}
+
+                                          <details style={{ marginTop: '16px' }}>
+                                            <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Examiner Report Data</summary>
+                                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
+                                              {JSON.stringify(entry, null, 2)}
+                                            </pre>
+                                          </details>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        });
                       })()}
                     </tbody>
                   </table>

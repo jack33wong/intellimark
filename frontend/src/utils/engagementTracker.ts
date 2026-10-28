@@ -13,11 +13,18 @@ interface SessionEngagementState {
   questionNavClicks: number;
   summaryChipClicks: number;
   lastFlushedActiveMs: number;
+  lastFlushedPagesCount: number;
+  lastInteractionAt: number;
 }
+
+const IDLE_TIMEOUT_MS = 60000; // Pause timer if no scroll/click/key/touch for 60s
 
 class EngagementTracker {
   private state: SessionEngagementState | null = null;
   private listenersBound = false;
+  private checkpointTimer: ReturnType<typeof setTimeout> | null = null;
+  private idleCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private lastActivityEventAt = 0;
 
   private bindGlobalListeners() {
     if (this.listenersBound || typeof window === 'undefined') return;
@@ -29,7 +36,14 @@ class EngagementTracker {
         this.pauseTimers();
         this.flush('tab_hidden');
       } else {
-        this.resumeTimers();
+        // Only resume if still on /app
+        if (window.location.pathname.startsWith('/app')) {
+          this.state.lastInteractionAt = Date.now();
+          this.resumeTimers();
+          this.scheduleMilestoneCheck();
+        } else {
+          this.stopSession('unmount');
+        }
       }
     });
 
@@ -39,11 +53,103 @@ class EngagementTracker {
         this.flush('page_unload');
       }
     });
+
+    const onUserActivity = () => {
+      if (!this.state) return;
+      const now = Date.now();
+      if (now - this.lastActivityEventAt < 2000) return;
+      this.lastActivityEventAt = now;
+      this.state.lastInteractionAt = now;
+
+      if (
+        document.visibilityState === 'visible' &&
+        window.location.pathname.startsWith('/app') &&
+        this.state.lastActiveResumeAt === null
+      ) {
+        this.resumeTimers();
+        this.scheduleMilestoneCheck();
+      }
+    };
+
+    window.addEventListener('pointerdown', onUserActivity, { passive: true });
+    window.addEventListener('keydown', onUserActivity, { passive: true });
+    window.addEventListener('touchstart', onUserActivity, { passive: true });
+    window.addEventListener('scroll', onUserActivity, { passive: true, capture: true });
+  }
+
+  private clearTimers() {
+    if (this.checkpointTimer) {
+      clearTimeout(this.checkpointTimer);
+      this.checkpointTimer = null;
+    }
+    if (this.idleCheckTimer) {
+      clearInterval(this.idleCheckTimer);
+      this.idleCheckTimer = null;
+    }
+  }
+
+  private scheduleMilestoneCheck() {
+    if (this.checkpointTimer) {
+      clearTimeout(this.checkpointTimer);
+      this.checkpointTimer = null;
+    }
+    if (!this.state) return;
+
+    // First milestone at 4s so newly marked sessions appear immediately in Admin Usage;
+    // subsequent active checkpoints every 20s while actively reading.
+    const delayMs = this.state.lastFlushedActiveMs === 0 ? 4000 : 20000;
+    this.checkpointTimer = setTimeout(() => {
+      if (!this.state) return;
+      if (!window.location.pathname.startsWith('/app')) {
+        this.stopSession('unmount');
+        return;
+      }
+      if (document.visibilityState === 'visible') {
+        this.flush('checkpoint');
+        this.resumeTimers();
+        this.scheduleMilestoneCheck();
+      }
+    }, delayMs);
+  }
+
+  private startIdleMonitor() {
+    if (this.idleCheckTimer) clearInterval(this.idleCheckTimer);
+    this.idleCheckTimer = setInterval(() => {
+      if (!this.state) {
+        this.clearTimers();
+        return;
+      }
+      if (!window.location.pathname.startsWith('/app')) {
+        this.stopSession('unmount');
+        return;
+      }
+      const now = Date.now();
+      if (
+        this.state.lastActiveResumeAt !== null &&
+        now - this.state.lastInteractionAt > IDLE_TIMEOUT_MS
+      ) {
+        // User has been idle for >60s: pause active timer and flush progress so far
+        this.pauseTimers();
+        this.flush('checkpoint');
+      }
+    }, 10000);
   }
 
   /**
-   * Start tracking engagement when a marked session with annotated images is rendered.
-   * Only tracks if the viewer is the session owner (ignores Admin / other users viewing shared or user history).
+   * Stop tracking the current session completely (e.g., when navigating to /admin,
+   * starting a new upload, or switching to another user's session as Admin).
+   */
+  public stopSession(reason: 'session_switch' | 'unmount' = 'unmount') {
+    if (!this.state) return;
+    this.pauseTimers();
+    this.flush(reason);
+    this.clearTimers();
+    this.state = null;
+  }
+
+  /**
+   * Start tracking engagement when a marked session is rendered.
+   * Strictly tracks ONLY if the viewer is the session owner.
    */
   public startSession(
     sessionId: string,
@@ -51,28 +157,30 @@ class EngagementTracker {
     totalPages: number,
     sessionOwnerId?: string | null
   ) {
-    // If a known sessionOwnerId exists and does not match the current viewer, stop tracking
+    // Do not track outside /app
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/app')) {
+      this.stopSession('unmount');
+      return;
+    }
+
+    // Strict owner check: if sessionOwnerId is known and does not match the current viewer,
+    // immediately stop any previous session timer and do NOT start tracking this session.
     if (
       sessionOwnerId &&
       sessionOwnerId !== 'guest' &&
       sessionOwnerId !== 'anonymous' &&
       userId !== sessionOwnerId
     ) {
-      if (this.state) {
-        this.pauseTimers();
-        this.flush('session_switch');
-        this.state = null;
-      }
+      this.stopSession('session_switch');
       return;
     }
 
     if (!sessionId || sessionId.startsWith('temp-') || totalPages <= 0) return;
     this.bindGlobalListeners();
 
-    // If switching from a different session, flush the previous one first
+    // If switching from a different session, flush and stop the previous one first
     if (this.state && this.state.sessionId !== sessionId) {
-      this.pauseTimers();
-      this.flush('session_switch');
+      this.stopSession('session_switch');
     }
 
     // If already tracking this exact session, update totalPages/userId and ensure timers are running
@@ -100,8 +208,13 @@ class EngagementTracker {
       openedSplitMode: false,
       questionNavClicks: 0,
       summaryChipClicks: 0,
-      lastFlushedActiveMs: 0
+      lastFlushedActiveMs: 0,
+      lastFlushedPagesCount: 0,
+      lastInteractionAt: now
     };
+
+    this.scheduleMilestoneCheck();
+    this.startIdleMonitor();
   }
 
   /**
@@ -110,6 +223,7 @@ class EngagementTracker {
   public recordPageView(pageIndex: number) {
     if (!this.state || pageIndex < 0) return;
     const now = Date.now();
+    this.state.lastInteractionAt = now;
 
     if (this.state.lastPageEnteredAt !== null) {
       const elapsed = Math.max(0, now - this.state.lastPageEnteredAt);
@@ -117,11 +231,21 @@ class EngagementTracker {
       this.state.pageDwellMs.set(this.state.currentPageIndex, prevDwell + elapsed);
     }
 
+    const isNewPage = !this.state.pageDwellMs.has(pageIndex);
     this.state.currentPageIndex = pageIndex;
-    if (!this.state.pageDwellMs.has(pageIndex)) {
+    if (isNewPage) {
       this.state.pageDwellMs.set(pageIndex, 0);
     }
     this.state.lastPageEnteredAt = document.visibilityState === 'visible' ? now : null;
+
+    // If the user just navigated to a new page and at least 3s have passed since last flush, flush checkpoint
+    if (isNewPage && this.state.pageDwellMs.size > this.state.lastFlushedPagesCount) {
+      this.pauseTimers();
+      this.flush('checkpoint');
+      if (document.visibilityState === 'visible') {
+        this.resumeTimers();
+      }
+    }
   }
 
   public recordSplitModeOpen(initialPageIndex: number = 0) {
@@ -148,14 +272,18 @@ class EngagementTracker {
     const now = Date.now();
 
     if (this.state.lastActiveResumeAt !== null) {
-      this.state.activeAccumulatedMs += Math.max(0, now - this.state.lastActiveResumeAt);
+      // Cap single uninterrupted slice to IDLE_TIMEOUT_MS so background sleep/wake never inflates time
+      const rawDelta = Math.max(0, now - this.state.lastActiveResumeAt);
+      const cappedDelta = Math.min(rawDelta, IDLE_TIMEOUT_MS + 15000);
+      this.state.activeAccumulatedMs += cappedDelta;
       this.state.lastActiveResumeAt = null;
     }
 
     if (this.state.lastPageEnteredAt !== null) {
-      const elapsed = Math.max(0, now - this.state.lastPageEnteredAt);
+      const rawElapsed = Math.max(0, now - this.state.lastPageEnteredAt);
+      const cappedElapsed = Math.min(rawElapsed, IDLE_TIMEOUT_MS + 15000);
       const prevDwell = this.state.pageDwellMs.get(this.state.currentPageIndex) || 0;
-      this.state.pageDwellMs.set(this.state.currentPageIndex, prevDwell + elapsed);
+      this.state.pageDwellMs.set(this.state.currentPageIndex, prevDwell + cappedElapsed);
       this.state.lastPageEnteredAt = null;
     }
   }
@@ -174,19 +302,33 @@ class EngagementTracker {
   /**
    * Flush cumulative engagement summary to backend
    */
-  public flush(reason: 'tab_hidden' | 'page_unload' | 'session_switch' | 'unmount' = 'unmount') {
+  public flush(
+    reason: 'tab_hidden' | 'page_unload' | 'session_switch' | 'unmount' | 'checkpoint' = 'unmount'
+  ) {
     if (!this.state) return;
     this.pauseTimers();
 
-    // Only flush if sufficient new active time has accumulated since last flush
-    // (10s debounce for tab_hidden to prevent rapid Alt+Tab Firestore writes; 2s for unload/session_switch)
-    const minDeltaMs = reason === 'tab_hidden' ? 10000 : 2000;
-    if (this.state.activeAccumulatedMs - this.state.lastFlushedActiveMs < minDeltaMs) {
+    const isFirstFlush = this.state.lastFlushedActiveMs === 0;
+    const hasNewPages = this.state.pageDwellMs.size > this.state.lastFlushedPagesCount;
+
+    // For the very first flush of a session, flush after >= 1s so short visits on Safari are captured.
+    // For subsequent tab_hidden events, require 10s delta to debounce rapid Alt+Tab switching.
+    const minDeltaMs = isFirstFlush
+      ? 1000
+      : hasNewPages
+      ? 2000
+      : reason === 'tab_hidden' || reason === 'checkpoint'
+      ? 10000
+      : 2000;
+
+    if (this.state.activeAccumulatedMs - this.state.lastFlushedActiveMs < minDeltaMs && !hasNewPages) {
       return;
     }
 
     this.state.lastFlushedActiveMs = this.state.activeAccumulatedMs;
+    this.state.lastFlushedPagesCount = this.state.pageDwellMs.size;
     const totalActiveSec = Math.round((this.state.activeAccumulatedMs / 1000) * 10) / 10;
+    if (totalActiveSec <= 0) return;
 
     const pageDwellSec: Record<string, number> = {};
     let pagesWithMeaningfulView = 0;
@@ -233,13 +375,15 @@ class EngagementTracker {
     const bodyStr = JSON.stringify(payload);
 
     try {
-      if (navigator.sendBeacon) {
-        const blob = new Blob([bodyStr], { type: 'application/json' });
+      // Use text/plain for sendBeacon so cross-origin requests in Safari/WebKit
+      // are CORS-safelisted simple requests (no OPTIONS preflight drop on unload/hide).
+      if (navigator.sendBeacon && (reason === 'page_unload' || reason === 'tab_hidden')) {
+        const blob = new Blob([bodyStr], { type: 'text/plain;charset=UTF-8' });
         navigator.sendBeacon(url, blob);
       } else {
         fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
           body: bodyStr,
           keepalive: true
         }).catch(() => {});

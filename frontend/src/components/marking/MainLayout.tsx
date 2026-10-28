@@ -100,8 +100,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
           EventManager.dispatch(EVENT_TYPES.REFRESH_CREDITS);
         });
       }, 1000);
+    } else {
+      // Stop engagement tracker when session is cleared or reset to a new upload
+      engagementTracker.stopSession('session_switch');
     }
   }, [currentSession?.id]);
+
+  // Stop engagement tracker when navigating away from MainLayout (e.g., to /admin)
+  useEffect(() => {
+    return () => {
+      engagementTracker.stopSession('unmount');
+    };
+  }, []);
 
   const location = useLocation();
   const navigate = useNavigate();

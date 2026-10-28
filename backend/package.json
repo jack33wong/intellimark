@@ -25,7 +25,9 @@
     "test-image-upload": "tsx scripts/test-image-upload.ts",
     "test-google-vision": "tsx scripts/test-google-vision.ts",
     "test:ai-response": "tsx scripts/test-ai-response-generation.ts",
-    "list-prompts": "tsx scripts/list-prompts.ts"
+    "list-prompts": "tsx scripts/list-prompts.ts",
+    "ingest:paper": "tsx scripts/ingest_past_paper.ts",
+    "backup:firestore": "tsx scripts/backup_firestore.ts"
   },
   "jest": {
     "testMatch": [

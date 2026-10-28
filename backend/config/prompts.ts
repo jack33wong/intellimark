@@ -14,6 +14,7 @@ import classification_mapper_system_prompt from './prompts/classification_mapper
 import classification_system_prompt from './prompts/classification_system_prompt.js';
 import worksheet_fallback_prompt from './prompts/worksheet_fallback_prompt.js';
 import marking_fallback_system_prompt from './prompts/marking_fallback_system_prompt.js';
+import { englishLoRSystemPrompt, englishLoRUserPrompt } from './prompts/english_lor_marking_prompt.js';
 import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
 
 /**
@@ -97,6 +98,10 @@ ${guidance}`;
       user: (ocrText: string, classificationStudentWork: string) => {
         return `OCR TEXT:\n${ocrText}\n\nCLASSIFICATION STUDENT WORK:\n${classificationStudentWork}`;
       }
+    },
+    englishLoR: {
+      system: (subjectKey: 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE' = 'ENGLISH_LANGUAGE') => englishLoRSystemPrompt(subjectKey),
+      user: englishLoRUserPrompt
     }
   },
 

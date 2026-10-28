@@ -204,10 +204,39 @@ export class ClassificationMapper {
                 });
             });
 
-            const duration = (Date.now() - startTime) / 1000;
-            console.log(`✅ [MAPPER] Map Pass complete in ${duration.toFixed(2)}s. Mapped ${results.length} pages.`);
+            const sortedResults = results.sort((a, b) => a.pageIndex - b.pageIndex);
 
-            return results.sort((a, b) => a.pageIndex - b.pageIndex);
+            // 🛡️ CONTINUATION PAGE INHERITANCE (Multi-Page Booklet Answers):
+            // In GCSE/A-Level answer booklets (especially English Language/Literature), a question starts on Page N
+            // with a printed question number (e.g. "3" or "4"), followed by 1–3 lined continuation pages (Page N+1, N+2)
+            // that contain student handwriting (category === 'questionAnswer') but NO printed question number header.
+            // If we leave `questions: []` on those lined pages, Pass 2 treats them as standalone unnumbered full-page
+            // tasks and labels them by their 1-based page index (e.g. Page 6 -> "Q6", Page 9 -> "Q9")!
+            for (let i = 1; i < sortedResults.length; i++) {
+                const current = sortedResults[i];
+                const prev = sortedResults[i - 1];
+                if (
+                    current.category === 'questionAnswer' &&
+                    (!current.questions || current.questions.length === 0) &&
+                    prev.questions &&
+                    prev.questions.length > 0
+                ) {
+                    const lastPrevQ = prev.questions[prev.questions.length - 1];
+                    const inheritedBaseQ = String(lastPrevQ.questionNumber || '').replace(/[^0-9]/g, '') || lastPrevQ.questionNumber;
+                    if (inheritedBaseQ) {
+                        current.questions = [{ questionNumber: inheritedBaseQ }];
+                        current.flatQuestions = [inheritedBaseQ];
+                        console.log(
+                            `   🔗 [MAPPER CONTINUATION] Global[${current.pageIndex}] (unnumbered questionAnswer page) inherited Q${inheritedBaseQ} from Global[${prev.pageIndex}]`
+                        );
+                    }
+                }
+            }
+
+            const duration = (Date.now() - startTime) / 1000;
+            console.log(`✅ [MAPPER] Map Pass complete in ${duration.toFixed(2)}s. Mapped ${sortedResults.length} pages.`);
+
+            return sortedResults;
         } catch (error) {
             console.error('❌ [MAPPER] Map Pass failed:', error);
             return [];

@@ -178,7 +178,10 @@ export class MarkingPersistenceService {
             // Calculate grade based on grade boundaries (if exam data is available)
             let detectedQuestionForGrade: any = undefined;
             if (markingSchemesMap && markingSchemesMap.size > 0) {
-                const firstSchemeEntry = Array.from(markingSchemesMap.values())[0];
+                const allSchemes = Array.from(markingSchemesMap.values());
+                const firstSchemeEntry =
+                    allSchemes.find((s: any) => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match) ||
+                    allSchemes[0];
                 detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
             }
 

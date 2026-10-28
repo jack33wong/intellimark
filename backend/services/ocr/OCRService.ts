@@ -49,6 +49,7 @@ export interface OCROptions {
   dbscanEpsPx?: number;
   dbscanMinPts?: number;
   pageIndex?: number;
+  ocrStrategy?: 'MATHPIX_LATEX' | 'VISION_VERBATIM';
 }
 
 export class OCRService {
@@ -60,7 +61,8 @@ export class OCRService {
     maxMathBlockSize: 2000,
     dbscanEpsPx: 60, // Increased from 40 to 60
     dbscanMinPts: 2,
-    pageIndex: 0
+    pageIndex: 0,
+    ocrStrategy: 'MATHPIX_LATEX'
   };
 
   /**
@@ -369,6 +371,87 @@ export class OCRService {
     return { mathBlocks, mathpixCalls, detectedBlocks, preClusterBlocks };
   }
 
+  /**
+   * VISION_VERBATIM OCR Strategy (GCSE English Language & Literature)
+   * Bypasses Mathpix completely (mathpixCalls = 0) and uses Google Cloud Vision
+   * DOCUMENT_TEXT_DETECTION directly, converting detected lines and boundingPoly.vertices
+   * into the exact normalized MathBlock / ocrBlocks schema expected by MarkingExecutor
+   * and svgOverlayService.ts.
+   */
+  private static async processVisionVerbatimStrategy(
+    imageBuffer: Buffer,
+    dimensions: { width: number; height: number },
+    opts: Required<Omit<OCROptions, 'enablePreprocessing'>>
+  ): Promise<{ mathBlocks: MathBlock[]; detectedBlocks: DetectedBlock[] }> {
+    const pageIndex = opts.pageIndex ?? 0;
+    let detectedBlocks: DetectedBlock[] = [];
+
+    try {
+      const result = await GoogleVisionService.detectText(imageBuffer, 'DOCUMENT_TEXT_DETECTION');
+      detectedBlocks = GoogleVisionService.processTextAnnotation(
+        result?.fullTextAnnotation,
+        'vision_verbatim',
+        1
+      );
+    } catch (error) {
+      console.error(`❌ [VISION-VERBATIM] Google Vision DOCUMENT_TEXT_DETECTION failed on Page ${pageIndex}:`, error);
+      return { mathBlocks: [], detectedBlocks: [] };
+    }
+
+    const knownMetadataPatterns = [
+      /total\s+for\s+question/i,
+      /^turn\s+over$/i,
+      /do\s+not\s+write\s+(in\s+|outside\s+)?this\s+(area|box)/i,
+      /^bar\s*code$/i,
+      /^page\s+\d+$/i,
+      /^_+\s*$/
+    ];
+
+    const mathBlocks: MathBlock[] = [];
+    detectedBlocks.forEach((block, idx) => {
+      // Preserve student prose strictly verbatim (no spelling/punctuation auto-correction)
+      const verbatimText = (block.text || '').replace(/\r?\n/g, ' ').trim();
+      if (!verbatimText) return;
+
+      for (const pattern of knownMetadataPatterns) {
+        if (pattern.test(verbatimText)) {
+          return;
+        }
+      }
+
+      const geom = block.geometry;
+      if (!geom || geom.width <= 0 || geom.height <= 0 || isNaN(geom.minX) || isNaN(geom.minY)) {
+        return;
+      }
+
+      const coords = {
+        x: geom.minX,
+        y: geom.minY,
+        width: geom.width,
+        height: geom.height
+      };
+
+      mathBlocks.push({
+        googleVisionText: verbatimText,
+        mathpixLatex: verbatimText,
+        confidence: block.confidence || 0.95,
+        mathpixConfidence: block.confidence || 0.95,
+        mathLikenessScore: 0.0,
+        coordinates: coords,
+        bbox: [coords.x, coords.y, coords.width, coords.height],
+        hasLineData: true,
+        isSplitBlock: false,
+        isHandwritten: true,
+        globalBlockId: `block_${pageIndex}_${idx}_${Math.floor(Math.random() * 1000)}`,
+        pageIndex,
+        isPrinted: false,
+        ocrSource: 'vision_verbatim' as any
+      } as unknown as MathBlock);
+    });
+
+    return { mathBlocks, detectedBlocks };
+  }
+
 
   /**
    * Process image through complete OCR pipeline
@@ -403,53 +486,60 @@ export class OCRService {
     let usedFallback = false;
     let rawLineData: Array<any> | null = null;
 
-    // --- PRIMARY STRATEGY: Mathpix First (v3/text) ---
-    if (MathpixService.isAvailable()) {
-      try {
-        const mathpixOptions = {
-          formats: ["text", "latex_styled"],
-          include_line_data: true,
-          disable_array_detection: true
-        };
-        // Pass tracker to MathpixService.processImage
-        const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, tracker);
-        mathpixCalls += 1;
-
-        if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {
-          rawLineData = mathpixResult.line_data;
-        } else {
-          rawLineData = null; // Ensure fallback is triggered
-        }
-      } catch (error) {
-        console.error('❌ [OCR] Error during Mathpix First strategy (v3/text):', error);
-        rawLineData = null; // Ensure fallback on error
-      }
-    }
-    // --- End of Primary Strategy ---
-
-
-    // --- FALLBACK AND POST-PROCESSING ---
-
-    // ========================= START OF MODIFICATION =========================
-    // MODIFIED: Trigger fallback ONLY if the initial Mathpix call failed completely.
-    if (!rawLineData || rawLineData.length === 0) {
-      console.warn(`⚠️ [OCR STRATEGY] No valid line data from initial Mathpix call. Triggering robust fallback.`);
-      usedFallback = true;
-      try {
-        // Pass tracker to fallbackHybridStrategy
-        const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug, tracker);
-        mathBlocks = fallbackResult.mathBlocks; // Fallback directly sets mathBlocks
-        mathpixCalls += fallbackResult.mathpixCalls;
-        // Also capture detectedBlocks and preClusterBlocks if needed for rawResponse
-        detectedBlocks = fallbackResult.detectedBlocks;
-        preClusterBlocks = fallbackResult.preClusterBlocks;
-      } catch (error) {
-        console.error('❌ [OCR] Robust fallback strategy failed:', error);
-        mathBlocks = []; // Ensure mathBlocks is empty on complete failure
-      }
-      // ========================== END OF MODIFICATION ==========================
-
+    if (opts.ocrStrategy === 'VISION_VERBATIM') {
+      // --- ENGLISH / VERBATIM STRATEGY: Google Cloud Vision Direct (Mathpix Bypassed) ---
+      const verbatimResult = await this.processVisionVerbatimStrategy(imageBuffer, dimensions, opts);
+      mathBlocks = verbatimResult.mathBlocks;
+      detectedBlocks = verbatimResult.detectedBlocks;
+      mathpixCalls = 0;
     } else {
+      // --- PRIMARY STRATEGY: Mathpix First (v3/text) ---
+      if (MathpixService.isAvailable()) {
+        try {
+          const mathpixOptions = {
+            formats: ["text", "latex_styled"],
+            include_line_data: true,
+            disable_array_detection: true
+          };
+          // Pass tracker to MathpixService.processImage
+          const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, tracker);
+          mathpixCalls += 1;
+
+          if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {
+            rawLineData = mathpixResult.line_data;
+          } else {
+            rawLineData = null; // Ensure fallback is triggered
+          }
+        } catch (error) {
+          console.error('❌ [OCR] Error during Mathpix First strategy (v3/text):', error);
+          rawLineData = null; // Ensure fallback on error
+        }
+      }
+      // --- End of Primary Strategy ---
+
+
+      // --- FALLBACK AND POST-PROCESSING ---
+
+      // ========================= START OF MODIFICATION =========================
+      // MODIFIED: Trigger fallback ONLY if the initial Mathpix call failed completely.
+      if (!rawLineData || rawLineData.length === 0) {
+        console.warn(`⚠️ [OCR STRATEGY] No valid line data from initial Mathpix call. Triggering robust fallback.`);
+        usedFallback = true;
+        try {
+          // Pass tracker to fallbackHybridStrategy
+          const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug, tracker);
+          mathBlocks = fallbackResult.mathBlocks; // Fallback directly sets mathBlocks
+          mathpixCalls += fallbackResult.mathpixCalls;
+          // Also capture detectedBlocks and preClusterBlocks if needed for rawResponse
+          detectedBlocks = fallbackResult.detectedBlocks;
+          preClusterBlocks = fallbackResult.preClusterBlocks;
+        } catch (error) {
+          console.error('❌ [OCR] Robust fallback strategy failed:', error);
+          mathBlocks = []; // Ensure mathBlocks is empty on complete failure
+        }
+        // ========================== END OF MODIFICATION ==========================
+
+      } else {
       // PRIMARY PATH: Mathpix succeeded, now process the result.
       // NOTE: Minimal metadata filtering only - all heuristic filtering removed
       // Question text filtering and accurate filtering happen in segmentation stage where we have question context
@@ -726,6 +816,7 @@ export class OCRService {
           ocrSource: 'mathpix' // Assuming this is from Mathpix processing
         } as MathBlock;
       });
+      }
     }
 
 

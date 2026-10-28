@@ -91,7 +91,7 @@ const ImageMagnifier = ({
 
 /* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "Instantly Mark Your Maths Paper" },
+    { text: "Instantly Mark Your Maths & Eng Lang Paper" },
     { text: "GCSE & A-Level", className: "hero-highlight-blue" }
 ];
 
@@ -128,7 +128,7 @@ const LandingPage: React.FC = () => {
 
                     {/* BLOCK 1: Subtitle (Immediate start after typing) */}
                     <p className="hero-main-subtitle anim-item delay-1">
-                        Stop waiting for teachers or staring at confusing mark schemes. Scan your handwritten 2020-2024 past papers and let our AI find your lost method marks in seconds.
+                        Stop waiting for teachers or staring at confusing mark schemes. Scan your handwritten 2019-2025 past papers and let our AI find your lost method marks in seconds.
                     </p>
 
                     <div className="hero-cta-group">
@@ -284,7 +284,7 @@ const LandingPage: React.FC = () => {
             {/* Final CTA Section */}
             <section className="landing-section final-cta-section">
                 <div className="final-cta-container">
-                    <h2 className="final-cta-title">Ready to master your GCSE & A-Level Maths?</h2>
+                    <h2 className="final-cta-title">Ready to master your GCSE & A-Level Maths & Eng Lang?</h2>
                     <p className="final-cta-subtitle">Join 15,000+ students using AI Marking to perfect their exam technique.</p>
 
                     <div className="hero-cta-group">

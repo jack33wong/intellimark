@@ -376,16 +376,18 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   useEffect(() => {
     if (message.role === 'assistant' && !message.isProcessing) {
       const images = getMultiImageData();
-      if (images.length > 0 && session?.id && !String(session.id).startsWith('temp-')) {
+      const sessionImagesCount = session ? getSessionImages(session).length : 0;
+      const totalPages = Math.max(images.length, sessionImagesCount, 1);
+      if (session?.id && !String(session.id).startsWith('temp-')) {
         engagementTracker.startSession(
           session.id,
           user?.uid || null,
-          images.length,
+          totalPages,
           session?.userId || null
         );
       }
     }
-  }, [message.role, message.isProcessing, session?.id, session?.userId, user?.uid, getMultiImageData]);
+  }, [message.role, message.isProcessing, session, session?.id, session?.userId, user?.uid, getMultiImageData]);
 
   const hasYourWork = (typeof content === 'string' && (content.includes(':::your-work') || content.includes('model-answer-block') || content.includes('step-title'))) ||
     message.type === 'question_response' ||

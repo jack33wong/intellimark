@@ -90,4 +90,97 @@ export class ScoreAuditor {
 
         return { annotations: survivorList, awardedMarks: grandTotal };
     }
+
+    /**
+     * Level-of-Response (LoR) Score Integrity Guard (GCSE English Language & Literature).
+     * Never sums integers from margin annotations (which are qualitative evidence badges like [AO2 L4]).
+     * Instead, validates and reconciles the single-AO or dual-AO rubricEvaluation and emits
+     * the 📊 [RUBRIC-AUDIT] structured log.
+     */
+    static reconcileLevelOfResponseScore(
+        rubricEvaluation: any,
+        studentScore: any,
+        scheme: any,
+        annotations: any[],
+        questionId: string | number = '?'
+    ): {
+        awardedMarks: number;
+        totalMarks: number;
+        scoreText: string;
+        rubricEvaluation: any;
+    } {
+        const parsedFallback = this.parseScore(studentScore);
+        const schemeMax = Number(scheme?.totalMarks || scheme?.marks || 0);
+        const evalMax = Number(rubricEvaluation?.maxMarks || 0);
+        let totalMarks = schemeMax > 0 ? schemeMax : (evalMax > 0 ? evalMax : parsedFallback.totalMarks);
+
+        const aoBreakdown: any[] = Array.isArray(rubricEvaluation?.aoBreakdown)
+            ? rubricEvaluation.aoBreakdown
+            : [];
+
+        let awardedMarks = Number(rubricEvaluation?.awardedMarks ?? parsedFallback.awardedMarks ?? 0);
+        const scoringType = rubricEvaluation?.scoringType || (aoBreakdown.length > 1 ? 'DUAL_AO_LOR' : 'SINGLE_AO_LOR');
+
+        if (aoBreakdown.length > 0) {
+            let sumAwarded = 0;
+            let sumMax = 0;
+            aoBreakdown.forEach(item => {
+                const itemMax = Math.max(0, Number(item.maxMarks || 0));
+                const itemAwarded = Math.max(0, Math.min(Number(item.awardedMarks || 0), itemMax > 0 ? itemMax : 99));
+                item.awardedMarks = itemAwarded;
+                item.maxMarks = itemMax;
+                sumAwarded += itemAwarded;
+                sumMax += itemMax;
+            });
+            if (sumMax > 0 && totalMarks === 0) {
+                totalMarks = sumMax;
+            }
+            if (aoBreakdown.length > 1 || sumAwarded > 0) {
+                awardedMarks = sumAwarded;
+            }
+        }
+
+        if (totalMarks > 0) {
+            awardedMarks = Math.max(0, Math.min(awardedMarks, totalMarks));
+        } else {
+            awardedMarks = Math.max(0, awardedMarks);
+        }
+
+        const updatedEval: any = {
+            ...(rubricEvaluation || {}),
+            scoringType,
+            awardedMarks,
+            maxMarks: totalMarks,
+            aoBreakdown
+        };
+
+        // Ensure a clean, deterministic rubricStamp exists
+        if (!updatedEval.rubricStamp || typeof updatedEval.rubricStamp !== 'string') {
+            if (aoBreakdown.length > 1) {
+                const parts = aoBreakdown.map(b => {
+                    const lvl = b.level ? ` (L${b.level})` : '';
+                    return `${b.ao || 'AO'}: ${b.awardedMarks}/${b.maxMarks}${lvl}`;
+                });
+                updatedEval.rubricStamp = `[${parts.join(' + ')} = ${awardedMarks}/${totalMarks}]`;
+            } else {
+                const lvlLabel = updatedEval.levelLabel || (updatedEval.awardedLevel ? `Level ${updatedEval.awardedLevel}` : 'Rubric');
+                updatedEval.rubricStamp = `[${lvlLabel} | ${awardedMarks}/${totalMarks} marks]`;
+            }
+        }
+
+        const breakdownLog = aoBreakdown.length > 0
+            ? aoBreakdown.map(b => `${b.ao || 'AO'}=${b.awardedMarks}/${b.maxMarks}${b.level ? ` (L${b.level})` : ''}`).join(' + ')
+            : `${updatedEval.levelLabel || 'LoR'}=${awardedMarks}/${totalMarks}`;
+
+        console.log(
+            `📊 [RUBRIC-AUDIT] Q${questionId} (${scoringType}): ${breakdownLog} => Total=${awardedMarks}/${totalMarks} | Annotations=${annotations?.length || 0} (non-additive)`
+        );
+
+        return {
+            awardedMarks,
+            totalMarks,
+            scoreText: `${awardedMarks}/${totalMarks}`,
+            rubricEvaluation: updatedEval
+        };
+    }
 }

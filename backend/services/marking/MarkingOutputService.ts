@@ -99,6 +99,31 @@ export class MarkingOutputService {
             });
             const hasDensityError = pageQuestions.some((q: any) => (q.isError && q.errorMessage === 'Too Dense') || q.hasDensityError);
 
+            // Build End-of-Question Rubric Stamps for Level-of-Response questions whose final page is this pageIndex
+            const rubricStampsForThisPage = pageQuestions
+                .filter((q: any) => {
+                    const stamp = q.rubricEvaluation?.rubricStamp;
+                    if (!stamp) return false;
+                    const qPages: number[] = Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
+                        ? q.sourceImageIndices
+                        : [q.pageIndex];
+                    const lastPage = Math.max(...qPages);
+                    return lastPage === pageIndex;
+                })
+                .map((q: any) => {
+                    const qAnnotsOnPage = (q.annotations || []).filter((a: any) => a.pageIndex === pageIndex);
+                    let maxBottomY: number | undefined;
+                    qAnnotsOnPage.forEach((a: any) => {
+                        const [, ay, , ah] = a.snappedBbox || a.bbox || [0, 0, 0, 0];
+                        if (ay + ah > (maxBottomY || 0)) maxBottomY = ay + ah;
+                    });
+                    return {
+                        questionNumber: String(q.questionNumber || ''),
+                        stampText: String(q.rubricEvaluation.rubricStamp),
+                        targetY: maxBottomY
+                    };
+                });
+
             try {
                 const zonesForThisPageArray = Array.from(uniqueZonesMap.values());
                 const annotatedImageData = await SVGOverlayService.burnSVGOverlayServerSide(
@@ -109,7 +134,8 @@ export class MarkingOutputService {
                     totalScoreToDraw,
                     hasMetaPage,
                     zonesForThisPageArray,
-                    hasDensityError
+                    hasDensityError,
+                    rubricStampsForThisPage
                 );
                 return annotatedImageData;
             } catch (drawError) {

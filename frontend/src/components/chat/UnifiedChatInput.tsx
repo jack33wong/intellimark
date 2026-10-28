@@ -907,10 +907,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
           </div>
           <p className="chat-title-greeting">
-            AI Marking for Handwritten {selectedTags.includes('A-Level') ? 'A-Level' : 'GCSE'} Maths
+            AI Marking for {selectedTags.includes('A-Level') ? 'A-Level' : 'GCSE'} Maths & Eng Lang
           </p>
           <p className="chat-title-description">
-            Get instant grades and method marks (M1) for your AQA, Edexcel, or OCR past papers.
+            Get instant grades for your AQA, Edexcel, or OCR past papers.
           </p>
         </div>
       )}

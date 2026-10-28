@@ -139,9 +139,11 @@ router.get('/exam-metadata', async (req, res) => {
 });
 
 // POST /api/config/telemetry - Lightweight client funnel & drop-off logger
-router.post('/telemetry', express.json({ limit: '50kb' }), (req, res) => {
+// Accepts both application/json and text/plain (used by sendBeacon to avoid cross-origin OPTIONS preflight on Safari)
+router.post('/telemetry', express.json({ type: ['application/json', 'text/plain'], limit: '50kb' }), (req, res) => {
   try {
-    const { event, userId, anonymousId, path, origin, timestamp, ...metadata } = req.body || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const { event, userId, anonymousId, path, origin, timestamp, ...metadata } = body;
     console.log(
       `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
     );

@@ -814,47 +814,37 @@ export class AnalysisService {
       }
 
       const normalizedTier = this.normalizeTier(tier);
-      const matchingTier = matchingSubject.tiers?.find((t: any) =>
+      const targetTier = matchingSubject.tiers?.find((t: any) =>
         this.normalizeTier(t.tier_level) === normalizedTier
-      );
+      ) || matchingSubject.tiers?.[0];
 
-      if (!matchingTier) {
-        // Try to get first tier if tier doesn't match
-        const firstTier = matchingSubject.tiers?.[0];
-        if (firstTier) {
-          // Get boundaries based on type
-          if (firstTier.boundaries_type === 'Paper-Specific' && firstTier.papers) {
-            // Find matching paper
-            const matchingPaper = firstTier.papers.find((p: any) => p.code === examCode);
-            if (matchingPaper && matchingPaper.boundaries) {
-              return {
-                boundaries: matchingPaper.boundaries,
-                boundaryType: 'Paper-Specific'
-              };
-            }
-          } else if (firstTier.boundaries_type === 'Overall-Total' && firstTier.overall_total_boundaries) {
-            return {
-              boundaries: firstTier.overall_total_boundaries,
-              boundaryType: 'Overall-Total'
-            };
-          }
-        }
+      if (!targetTier) {
         return null;
       }
 
-      // Get boundaries based on type
-      if (matchingTier.boundaries_type === 'Paper-Specific' && matchingTier.papers) {
-        // Find matching paper
-        const matchingPaper = matchingTier.papers.find((p: any) => p.code === examCode);
-        if (matchingPaper && matchingPaper.boundaries) {
+      const shortCode = this.extractPaperCode(examCode);
+      if (targetTier.papers && Array.isArray(targetTier.papers)) {
+        const matchingPaper = targetTier.papers.find((p: any) =>
+          p.code === examCode ||
+          (shortCode && p.code === shortCode) ||
+          (shortCode && this.extractPaperCode(p.code) === shortCode)
+        );
+        const pBounds = matchingPaper?.boundaries || (matchingPaper as any)?.raw_mark_boundaries;
+        if (pBounds) {
           return {
-            boundaries: matchingPaper.boundaries,
+            boundaries: pBounds,
             boundaryType: 'Paper-Specific'
           };
         }
-      } else if (matchingTier.boundaries_type === 'Overall-Total' && matchingTier.overall_total_boundaries) {
+      }
+
+      const overallBounds =
+        targetTier.overall_total_boundaries ||
+        (targetTier as any).papers_combined_boundaries?.total_raw_mark_required ||
+        (targetTier as any).boundaries;
+      if (overallBounds) {
         return {
-          boundaries: matchingTier.overall_total_boundaries,
+          boundaries: overallBounds,
           boundaryType: 'Overall-Total'
         };
       }

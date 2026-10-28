@@ -124,6 +124,9 @@ export class QuestionDetectionService {
   private static cachedSchemes: any[] | null = null;
   private static lastSchemesCacheTime: number = 0;
   private static schemesFetchPromise: Promise<any[]> | null = null;
+  private static cachedExaminerReports: any[] | null = null;
+  private static lastExaminerReportsCacheTime: number = 0;
+  private static examinerReportsFetchPromise: Promise<any[]> | null = null;
   private static readonly CACHE_TTL = 1000 * 60 * 60; // 1 Hour
 
   private constructor() {
@@ -346,12 +349,12 @@ export class QuestionDetectionService {
     let structureScore = 0.5; // Neutral default
     
     // 🛡️ THE FIX: Define safeguard for hallucinated "1"s and track explicit conflicts
-    const hintBase = hint ? hint.match(/^\d+/)?.[0] : null;
+    const hintBase = hint ? hint.match(/^\d+/)?.[0]?.replace(/^0+(?=\d)/, '') : null;
     const isLikelyCroppedDefault = hintBase === "1";
     let explicitNumberConflict = false; 
 
     if (hint) {
-      const dbBase = dbQNum.match(/^\d+/)?.[0];
+      const dbBase = dbQNum.match(/^\d+/)?.[0]?.replace(/^0+(?=\d)/, '');
       
       if (hintBase === dbBase) {
         structureScore = 1.0;
@@ -482,6 +485,7 @@ export class QuestionDetectionService {
     }
     
     if (clean === 'l') clean = '1';
+    clean = clean.replace(/^0+(?=\d)/, '');
     
     // 🛡️ CROPPED IMAGE SAFEGUARD: 
     // If the upstream mapper replaces null with a placeholder like "General" or "?",
@@ -644,6 +648,37 @@ export class QuestionDetectionService {
     return QuestionDetectionService.schemesFetchPromise;
   }
 
+  private async getAllExaminerReports(): Promise<any[]> {
+    if (!this.db) return [];
+
+    const now = Date.now();
+    if (QuestionDetectionService.cachedExaminerReports && (now - QuestionDetectionService.lastExaminerReportsCacheTime < QuestionDetectionService.CACHE_TTL)) {
+      return QuestionDetectionService.cachedExaminerReports;
+    }
+
+    if (QuestionDetectionService.examinerReportsFetchPromise) {
+      return QuestionDetectionService.examinerReportsFetchPromise;
+    }
+
+    QuestionDetectionService.examinerReportsFetchPromise = (async () => {
+      try {
+        const snapshot = await this.db.collection('examinerReports').get();
+        const reports: any[] = [];
+        snapshot.forEach((doc: any) => reports.push({ id: doc.id, ...doc.data() }));
+        QuestionDetectionService.cachedExaminerReports = reports;
+        QuestionDetectionService.lastExaminerReportsCacheTime = Date.now();
+        return reports;
+      } catch (e) {
+        console.error('Error fetching examiner reports', e);
+        return [];
+      } finally {
+        QuestionDetectionService.examinerReportsFetchPromise = null;
+      }
+    })();
+
+    return QuestionDetectionService.examinerReportsFetchPromise;
+  }
+
   public calculateSimilarity(str1: string, str2: string): number {
     return SimilarityService.calculateSimilarity(str1, str2);
   }
@@ -669,13 +704,16 @@ export class QuestionDetectionService {
   public async findCorrespondingMarkingScheme(examPaperMatch: ExamPaperMatch): Promise<MarkingSchemeMatch | null> {
     try {
       if (!this.db) return null;
-      const schemes = await this.getAllMarkingSchemes();
+      const [schemes, examinerReports] = await Promise.all([
+        this.getAllMarkingSchemes(),
+        this.getAllExaminerReports()
+      ]);
       
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
       
       for (const scheme of schemes) {
-        const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, scheme);
+        const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, scheme, examinerReports);
         if (match) {
           const isExactPaper = examPaperMatch.paperCode === match.examDetails.paperCode;
           const score = isExactPaper ? match.confidence + 0.1 : match.confidence;
@@ -701,7 +739,7 @@ export class QuestionDetectionService {
     }
   }
 
-  private matchMarkingSchemeWithExamPaper(examPaperMatch: ExamPaperMatch, markingScheme: any): MarkingSchemeMatch | null {
+  private matchMarkingSchemeWithExamPaper(examPaperMatch: ExamPaperMatch, markingScheme: any, examinerReports: any[] = []): MarkingSchemeMatch | null {
     try {
       const examDetails = markingScheme.examDetails;
       if (!examDetails) return null;
@@ -743,8 +781,27 @@ export class QuestionDetectionService {
         const questions = markingScheme.questions;
         const mainQ = questions[qNum] || questions[baseNum];
 
-        if (mainQ && (mainQ.sub_questions || mainQ.subQuestions || mainQ.parts)) {
-          questionMarks = mainQ;
+        // Find matching external Examiner Report document if available
+        const matchingExternalReport = examinerReports.find((rep: any) => {
+          const repDetails = rep.examDetails || rep.metadata || {};
+          const repCode = String(repDetails.paperCode || repDetails.exam_code || '').trim();
+          if (repCode !== examDetails.paperCode) return false;
+          const repSeries = String(repDetails.exam_series || repDetails.date || '').toLowerCase();
+          const repYear = repSeries.match(/\d{4}/)?.[0];
+          return !year2 || !repYear || year2 === repYear;
+        });
+        const externalQReport = matchingExternalReport?.questions?.[qNum] || matchingExternalReport?.questions?.[baseNum];
+
+        const enrichedMainQ = mainQ && typeof mainQ === 'object' && !Array.isArray(mainQ)
+          ? {
+              ...mainQ,
+              sourceExtracts: mainQ.sourceExtracts || markingScheme.sourceExtracts,
+              examinerReport: mainQ.examinerReport || externalQReport || markingScheme.examinerReport?.[qNum] || markingScheme.examinerReport
+            }
+          : mainQ;
+
+        if (enrichedMainQ && (enrichedMainQ.sub_questions || enrichedMainQ.subQuestions || enrichedMainQ.parts)) {
+          questionMarks = enrichedMainQ;
         } else {
           const subKeys = Object.keys(questions).filter(k => {
             const m = k.match(/^(\d+)\(?([a-z]+)\)?$/i);
@@ -761,10 +818,10 @@ export class QuestionDetectionService {
                 )
               };
             } else {
-              questionMarks = mainQ || questions[subKeys[0]];
+              questionMarks = enrichedMainQ || questions[subKeys[0]];
             }
-          } else if (mainQ) {
-            questionMarks = mainQ;
+          } else if (enrichedMainQ) {
+            questionMarks = enrichedMainQ;
           } else {
             return null;
           }

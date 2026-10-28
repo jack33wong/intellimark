@@ -66,9 +66,13 @@ export class ClassificationService {
     model: ModelType = 'auto',
     debug: boolean = false,
     tracker?: UsageTracker,  // UsageTracker (optional)
-    pageMaps?: Array<{ pageIndex: number; questions: string[]; category?: "frontPage" | "questionAnswer" | "questionOnly" }>  // Pre-computed mapper results (optional)
+    pageMapsOrVerbatim?: Array<{ pageIndex: number; questions: string[]; category?: "frontPage" | "questionAnswer" | "questionOnly" }> | boolean,
+    isVerbatimProseArg?: boolean
   ): Promise<Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }>> {
     if (images.length === 0) return [];
+
+    const pageMaps = Array.isArray(pageMapsOrVerbatim) ? pageMapsOrVerbatim : undefined;
+    const isVerbatimProse = typeof pageMapsOrVerbatim === 'boolean' ? pageMapsOrVerbatim : Boolean(isVerbatimProseArg);
 
     // Use heavy classification by default (positions required for marking)
     const systemPrompt = getPrompt('classification.heavy.system');
@@ -296,6 +300,20 @@ ${pageHints}
             taskUserPrompt = `Extract Question(s) ${qList.join(', ')} and their parts from these pages following the provided mapping.`;
           }
 
+          if (isVerbatimProse) {
+            taskSystemPrompt += `\n\n**STRICT VERBATIM PROSE TRANSCRIPTION (GCSE ENGLISH — MANDATORY FOR AO6/SPaG)**:
+- Do NOT auto-correct student spelling mistakes, missing apostrophes, comma splices, or grammar errors in \`studentWorkLines\`.
+- Transcribe every word and punctuation mark in \`t\` EXACTLY as the student wrote it on the page.
+- **PRONOUN "I" IN SANS-SERIF FONTS & HANDWRITING**: In sans-serif fonts (like Arial/Calibri) and standard handwriting, uppercase "I" is a plain vertical stroke (\`|\`) without top/bottom bars, which looks similar in height to lowercase \`l\` (e.g. in \`"until I finally"\`). Always transcribe a standalone vertical stroke for the pronoun as uppercase \`"I"\` unless it clearly has a short stem with a distinct floating dot above it (\`"i"\`).
+- Do NOT wrap English prose in LaTeX math delimiters.
+- If a page is an "Extra space" or "Additional page" overflow sheet where the student handwrote a question number (e.g. "04", "Q4", "05") in the margin box, assign all lines on that page to that questionNumber.
+- **SHADED OVAL / CHECKBOX QUESTIONS (e.g. Question 1 Statements A–H)**:
+  * The 8 answer boxes on the far right form a strict vertical column of 8 boxes corresponding in exact top-to-bottom order to: Box 1 (top) = A, Box 2 = B, Box 3 = C, Box 4 = D, Box 5 = E, Box 6 = F, Box 7 = G, Box 8 (bottom) = H.
+  * CRITICAL: Do NOT try to visually trace horizontally across the wide blank space from a shaded box on the right to the text on the left (page curvature or 2-line statements like D and F will cause you to misalign row 2 B or row 5 E).
+  * Instead, count the 8 boxes in the right-hand vertical column strictly from top (1) to bottom (8): inspect Box 1, Box 2, Box 3, Box 4, Box 5, Box 6, Box 7, Box 8 one by one.
+  * For each box that has its inner oval shaded/filled in dark ink (and NOT crossed out with an X), map its 1-based index directly to its letter (1→A, 2→B, 3→C, 4→D, 5→E, 6→F, 7→G, 8→H) and output a separate entry in \`studentWorkLines\` with \`t: "[shaded <Letter>] - <Statement Text>"\` and \`p\` pointing directly to that shaded box on the right.`;
+          }
+
           let parsedChunk: any;
           const isOpenAI = (validatedModel as string).startsWith('openai-');
           let content: string;
@@ -459,6 +477,21 @@ ${pageHints}
 
             // Apply to all questions
             processedQuestions.forEach(q => injectPageIndex(q));
+
+            // 🛡️ CONTINUATION PAGE QUESTION NUMBER BINDING:
+            // When a task targets a single base question (e.g. Q3 across pages [4, 5]), a lined continuation page
+            // has no printed question number header. Ensure extracted questions on continuation pages retain that base question number.
+            if (!(task as any).isFullPage && Array.isArray(baseQNumbers) && baseQNumbers.length === 1) {
+              const targetBaseQ = baseQNumbers[0];
+              processedQuestions.forEach((q: any) => {
+                if (!q || typeof q !== 'object') return;
+                const currentQNum = String(q.questionNumber || '').trim();
+                const currentBaseQ = currentQNum.match(/^(\d+)/)?.[1] || '';
+                if (!currentQNum || currentQNum === 'null' || currentQNum === 'undefined' || (isVerbatimProse && currentBaseQ !== targetBaseQ)) {
+                  q.questionNumber = targetBaseQ;
+                }
+              });
+            }
 
             // 🛡️ MAPPER SANITIZER HAS BEEN REMOVED TO PREVENT CORRUPTING VALID QUESTIONS
             // The Mapper is fast but can miss questions (e.g. Q5 on a dense page). 

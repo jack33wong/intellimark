@@ -89,19 +89,41 @@ export class GradeBoundaryService {
 
 
 
-      // Find matching tier
+      // Find matching tier (with fallback for untiered subjects like GCSE English 8700/8702 or A-Level)
+      const isUntieredValue = (val?: string | null): boolean => {
+        if (!val) return true;
+        const n = this.normalizeTier(val);
+        return (
+          n === '' ||
+          n === 'n/a' ||
+          n === 'na' ||
+          n === 'none' ||
+          n === 'unknown' ||
+          n === 'single' ||
+          n === 'untiered' ||
+          n === 'all' ||
+          n === 'not applicable'
+        );
+      };
+
       const normalizedTier = this.normalizeTier(tier);
-      const availableTiers = matchingSubject.tiers.map(t => t.tier_level);
-      const normalizedAvailableTiers = matchingSubject.tiers.map(t => this.normalizeTier(t.tier_level));
+      const availableTiers = matchingSubject.tiers.map(t => t.tier_level || 'Untiered');
 
-
-
-      const matchingTier = matchingSubject.tiers.find(t =>
+      let matchingTier = matchingSubject.tiers.find(t =>
         this.normalizeTier(t.tier_level) === normalizedTier
       );
 
-      if (!matchingTier) {
+      // Fallback 1: Both requested tier and DB tier represent untiered (e.g., paper has "N/A" and DB has "" / undefined / "Unknown")
+      if (!matchingTier && isUntieredValue(tier)) {
+        matchingTier = matchingSubject.tiers.find(t => isUntieredValue(t.tier_level));
+      }
 
+      // Fallback 2: Subject only has 1 tier entry in the database (untiered qualification)
+      if (!matchingTier && matchingSubject.tiers.length === 1) {
+        matchingTier = matchingSubject.tiers[0];
+      }
+
+      if (!matchingTier) {
         return {
           grade: null,
           boundaryType: null,
@@ -110,54 +132,56 @@ export class GradeBoundaryService {
         };
       }
 
-
+      // Resolve overall total boundaries across schema variants
+      const overallTotalBoundaries: { [grade: string]: number } | undefined =
+        matchingTier.overall_total_boundaries ||
+        (matchingTier as any).papers_combined_boundaries?.total_raw_mark_required ||
+        (matchingTier as any).boundaries;
 
       // Smart boundary type selection:
-      // - Use Paper-Specific for single paper scores (< 100 total marks)
-      // - Use Overall-Total for combined scores (>= 100 total marks)
-      // - Prefer Paper-Specific if both are available and score < 100
-      const hasPaperSpecific = matchingTier.papers && matchingTier.papers.length > 0;
-      const hasOverallTotal = !!matchingTier.overall_total_boundaries;
-      const isSinglePaper = totalMarks < 100;
+      // - Prefer Paper-Specific if available for single paper scores (< 100 total marks)
+      // - Fall back to Overall-Total (scaled to single paper max marks if totalMarks < subject.max_mark)
+      const hasPaperSpecific = Boolean(matchingTier.papers && matchingTier.papers.length > 0);
+      const hasOverallTotal = Boolean(overallTotalBoundaries && Object.keys(overallTotalBoundaries).length > 0);
+      const isSinglePaper = totalMarks <= 100;
 
-      // Determine boundary type and calculate grade
-      if (matchingTier.boundaries_type === 'Paper-Specific' || (hasPaperSpecific && isSinglePaper)) {
-
-        const result = this.calculatePaperSpecificGrade(
+      if (hasPaperSpecific && (matchingTier.boundaries_type === 'Paper-Specific' || isSinglePaper || !hasOverallTotal)) {
+        const paperSpecificResult = this.calculatePaperSpecificGrade(
           matchingTier,
           examCode,
           studentScore,
           totalMarks,
           boundaryEntry
         );
-        if (result.error) {
-        } else if (result.grade) {
+        if (paperSpecificResult.boundaries && Object.keys(paperSpecificResult.boundaries).length > 0) {
+          return paperSpecificResult;
         }
-        return result;
-      } else if (matchingTier.boundaries_type === 'Overall-Total' || (hasOverallTotal && !isSinglePaper)) {
+        // If Paper-Specific lookup failed (e.g. paper array lacks boundaries) and Overall-Total is available, fall through to Overall-Total
+        if (!hasOverallTotal) {
+          return paperSpecificResult;
+        }
+      }
 
-        // Check if this looks like a single paper score (totalMarks < 100 suggests single paper)
-        // Overall-total boundaries are typically for much higher totals (e.g., 240 marks for 3 papers)
-        // But if we have Paper-Specific available, try that first for single papers
-        if (totalMarks < 100 && hasPaperSpecific) {
-          // Fall back to Paper-Specific if available
-          const result = this.calculatePaperSpecificGrade(
-            matchingTier,
-            examCode,
-            studentScore,
-            totalMarks,
-            boundaryEntry
-          );
-          if (result.error) {
-          } else if (result.grade) {
+      if (hasOverallTotal && overallTotalBoundaries) {
+        // Normalize onto matchingTier so calculateOverallTotalGrade has direct access
+        matchingTier.overall_total_boundaries = overallTotalBoundaries;
+
+        // If this is a single paper upload (e.g. 80 marks out of 160 total for English 8700, or 80 out of 240 for Maths)
+        // and only combined Overall-Total boundaries exist in DB, proportionally scale the boundaries to this paper's max mark
+        const subjectMaxMark = Number(matchingSubject.max_mark) || 0;
+        if (totalMarks > 0 && subjectMaxMark > 0 && totalMarks < subjectMaxMark * 0.9) {
+          const scaleRatio = totalMarks / subjectMaxMark;
+          const scaledBoundaries: { [grade: string]: number } = {};
+          for (const [g, mark] of Object.entries(overallTotalBoundaries)) {
+            scaledBoundaries[g] = Math.round(Number(mark) * scaleRatio);
           }
-          return result;
-        } else if (totalMarks < 100) {
+          const grade = this.findGradeFromBoundaries(studentScore, scaledBoundaries);
           return {
-            grade: null,
-            boundaryType: 'Overall-Total',
+            grade,
+            predictedGrade: grade,
+            boundaryType: 'Paper-Specific',
             matchedBoundary: boundaryEntry,
-            error: 'Overall-Total boundaries require combined scores from all papers. Single paper scores should use Paper-Specific boundaries.'
+            boundaries: scaledBoundaries
           };
         }
 
@@ -168,18 +192,15 @@ export class GradeBoundaryService {
           totalMarks,
           boundaryEntry
         );
-        if (result.error) {
-        } else if (result.grade) {
-        }
         return result;
-      } else {
-        return {
-          grade: null,
-          boundaryType: null,
-          matchedBoundary: boundaryEntry,
-          error: 'Unknown boundary type'
-        };
       }
+
+      return {
+        grade: null,
+        boundaryType: null,
+        matchedBoundary: boundaryEntry,
+        error: 'Unknown boundary type'
+      };
     } catch (error) {
       return {
         grade: null,
@@ -267,32 +288,46 @@ export class GradeBoundaryService {
       };
     }
 
-    // Extract paper code from examCode (e.g., "1MA1/2H" -> "2H")
+    // Extract paper code from examCode (e.g., "1MA1/2H" -> "2H", "8700/2" -> "2")
     const paperCode = this.extractPaperCodeFromExamCode(examCode);
-    if (!paperCode) {
-      return {
-        grade: null,
-        boundaryType: 'Paper-Specific',
-        matchedBoundary: boundaryEntry,
-        error: 'Could not extract paper code from examCode'
-      };
-    }
+    const fullExamCodeNorm = String(examCode || '').trim().toLowerCase();
+    const shortPaperCodeNorm = String(paperCode || '').trim().toLowerCase();
 
-    // Find matching paper
-    const availablePaperCodes = tier.papers?.map(p => p.code) || [];
-    const matchingPaper = tier.papers?.find(p => p.code === paperCode);
+    // Find matching paper (supports both short code like "2H" / "2" AND full code like "8700/2")
+    const matchingPaper = tier.papers?.find(p => {
+      const pCodeNorm = String(p.code || '').trim().toLowerCase();
+      const pShortNorm = String(this.extractPaperCodeFromExamCode(p.code) || '').trim().toLowerCase();
+      return (
+        (shortPaperCodeNorm && pCodeNorm === shortPaperCodeNorm) ||
+        (fullExamCodeNorm && pCodeNorm === fullExamCodeNorm) ||
+        (shortPaperCodeNorm && pShortNorm && pShortNorm === shortPaperCodeNorm)
+      );
+    });
     if (!matchingPaper) {
       return {
         grade: null,
         boundaryType: 'Paper-Specific',
         matchedBoundary: boundaryEntry,
-        error: `Paper code ${paperCode} not found in boundaries`
+        error: `Paper code ${paperCode || examCode} not found in boundaries`
       };
     }
 
+    const paperBoundaries =
+      matchingPaper.boundaries ||
+      (matchingPaper as any).raw_mark_boundaries ||
+      (matchingPaper as any).grade_boundaries;
+
+    if (!paperBoundaries || Object.keys(paperBoundaries).length === 0) {
+      return {
+        grade: null,
+        boundaryType: 'Paper-Specific',
+        matchedBoundary: boundaryEntry,
+        error: `No boundaries defined for paper ${matchingPaper.code}`
+      };
+    }
 
     // Calculate grade from boundaries
-    const grade = this.findGradeFromBoundaries(studentScore, matchingPaper.boundaries);
+    const grade = this.findGradeFromBoundaries(studentScore, paperBoundaries);
 
     let predictedGrade = grade;
 
@@ -301,7 +336,7 @@ export class GradeBoundaryService {
       predictedGrade,
       boundaryType: 'Paper-Specific',
       matchedBoundary: boundaryEntry,
-      boundaries: matchingPaper.boundaries // Store boundaries for persistence
+      boundaries: paperBoundaries // Store boundaries for persistence
     };
   }
 
@@ -429,11 +464,15 @@ export class GradeBoundaryService {
   }
 
   /**
-   * Infer subject from exam code (e.g., "1MA1" -> "MATHEMATICS")
+   * Infer subject from exam code (e.g., "1MA1" -> "MATHEMATICS", "8700" -> "ENGLISH LANGUAGE")
    */
   static inferSubjectFromExamCode(examCode: string): string {
-    if (examCode.includes('1MA1') || examCode.includes('MA1')) {
+    if (examCode.includes('1MA1') || examCode.includes('MA1') || examCode.includes('8300') || examCode.includes('J560')) {
       return 'MATHEMATICS';
+    } else if (examCode.includes('8700') || examCode.includes('1EN0')) {
+      return 'ENGLISH LANGUAGE';
+    } else if (examCode.includes('8702') || examCode.includes('1ET0')) {
+      return 'ENGLISH LITERATURE';
     } else if (examCode.includes('1PH0') || examCode.includes('PH0')) {
       return 'PHYSICS';
     } else if (examCode.includes('1CH0') || examCode.includes('CH0')) {
@@ -452,21 +491,26 @@ export class GradeBoundaryService {
       return null;
     }
 
-    const firstScheme = Array.from(markingSchemesMap.values())[0];
+    const allSchemes = Array.from(markingSchemesMap.values());
+    const firstScheme =
+      allSchemes.find(s => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match) ||
+      allSchemes[0];
     const firstDetection = firstScheme?.questionDetection;
 
     if (firstDetection && firstDetection.found && firstDetection.match) {
       const match = firstDetection.match;
-      // Get subject from marking scheme if available, otherwise try to infer from exam code
+      // Get subject from match or marking scheme if available, otherwise infer from exam code
       let subject = '';
-      if (firstDetection.markingScheme?.examDetails?.subject) {
+      if (match.subject && match.subject !== 'General') {
+        subject = match.subject;
+      } else if (match.markingScheme?.examDetails?.subject) {
+        subject = match.markingScheme.examDetails.subject;
+      } else if (firstDetection.markingScheme?.examDetails?.subject) {
         subject = firstDetection.markingScheme.examDetails.subject;
       } else {
-        // Infer subject from exam code (e.g., "1MA1" -> "MATHEMATICS")
         const examCode = match.paperCode || '';
         subject = this.inferSubjectFromExamCode(examCode);
         if (!subject) {
-          // Fallback: use qualification (but this is wrong, should be subject)
           subject = match.qualification || '';
         }
       }

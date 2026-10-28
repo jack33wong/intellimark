@@ -7,6 +7,8 @@ build/
 dist/
 */build/
 */dist/
+backups/
+*/backups/
 
 # Environment variables
 .env

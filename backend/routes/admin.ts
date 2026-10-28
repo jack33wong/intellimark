@@ -73,6 +73,7 @@ const mockData: { [key: string]: any[] } = {
   fullExamPapers: [],
   questionBanks: [],
   markingSchemes: [],
+  examinerReports: [],
   otherCollections: []
 };
 
@@ -146,8 +147,25 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
               }
               delete data.questions;
             } else if (collectionName === 'markingSchemes') {
+              if (!data.totalMarks && data.questions && typeof data.questions === 'object') {
+                const qList = Array.isArray(data.questions) ? data.questions : Object.values(data.questions);
+                data.totalQuestions = data.totalQuestions || qList.length;
+                data.totalMarks = qList.reduce((sum: number, q: any) => {
+                  if (!q) return sum;
+                  const explicitMark = Number(q.totalMarks || q.maxMarks || (typeof q.marks === 'number' ? q.marks : 0));
+                  if (explicitMark > 0) return sum + explicitMark;
+                  if (Array.isArray(q.marks)) return sum + q.marks.length;
+                  return sum;
+                }, 0);
+              }
               delete data.questions; // markingSchemes has questions as an object or array depending on version
               delete data.markingSchemeData; // Also potentially large
+            } else if (collectionName === 'examinerReports') {
+              if (!data.totalQuestions && data.questions && typeof data.questions === 'object') {
+                const qList = Array.isArray(data.questions) ? data.questions : Object.keys(data.questions);
+                data.totalQuestions = qList.length;
+              }
+              delete data.questions;
             }
           }
 
@@ -289,8 +307,18 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
       return a.localeCompare(b);
     });
     const totalQuestions = questionNumbers.length;
-    const totalMarks = questionNumbers.reduce((total, qNum) => {
+    const totalMarks = parsedData.totalMarks || questionNumbers.reduce((total, qNum) => {
       const question = questions[qNum];
+      if (!question) return total;
+      if (typeof question.totalMarks === 'number' && question.totalMarks > 0) {
+        return total + question.totalMarks;
+      }
+      if (typeof question.maxMarks === 'number' && question.maxMarks > 0) {
+        return total + question.maxMarks;
+      }
+      if (typeof question.marks === 'number' && question.marks > 0) {
+        return total + question.marks;
+      }
       if (question.marks && Array.isArray(question.marks)) {
         // Count actual mark points, not just array length
         return total + question.marks.length;
@@ -343,6 +371,334 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
   } catch (error) {
     console.error('Marking scheme upload error:', error);
     res.status(500).json({ error: `Failed to upload marking scheme: ${error.message}` });
+  }
+});
+
+/**
+ * POST /api/admin/json/collections/examinerReports
+ * Upload examiner report data (specific endpoint for examiner reports)
+ */
+router.post('/json/collections/examinerReports', async (req: Request, res: Response) => {
+  try {
+    const rawInput = req.body.examinerReportData || req.body.data || req.body;
+
+    if (!rawInput) {
+      return res.status(400).json({ error: 'Examiner report data is required' });
+    }
+
+    let parsedData;
+    try {
+      parsedData = typeof rawInput === 'string' ? JSON.parse(rawInput) : rawInput;
+    } catch (parseError) {
+      return res.status(400).json({ error: 'Invalid JSON format in examiner report data' });
+    }
+
+    // Support uploading wrapper object with top-level examinerReport key
+    if (parsedData.examinerReport && typeof parsedData.examinerReport === 'object' && parsedData.examinerReport.examDetails) {
+      parsedData = parsedData.examinerReport;
+    }
+
+    const examDetails = parsedData.examDetails || parsedData.metadata || {};
+    const questions = parsedData.questions || {};
+    const questionKeys = Array.isArray(questions) ? questions.map((_, idx) => String(idx + 1)) : Object.keys(questions);
+    const totalQuestions = parsedData.totalQuestions || questionKeys.length;
+
+    const newEntry = {
+      id: parsedData.id || uuidv4(),
+      ...parsedData,
+      examDetails: {
+        board: examDetails.board || examDetails.exam_board || 'Unknown',
+        qualification: examDetails.qualification || 'GCSE',
+        subject: examDetails.subject || 'English Language',
+        paperCode: examDetails.paperCode || examDetails.exam_code || 'Unknown',
+        tier: examDetails.tier || 'N/A',
+        paper: examDetails.paper || examDetails.paper_title || 'Unknown',
+        exam_series: examDetails.exam_series || examDetails.date || 'Unknown'
+      },
+      totalQuestions,
+      uploadedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    const db = getFirestore();
+    if (db) {
+      try {
+        await db.collection('examinerReports').doc(newEntry.id).set(newEntry);
+      } catch (firestoreError) {
+        console.error('Firestore save error (examinerReports):', firestoreError);
+      }
+    }
+
+    if (!mockData['examinerReports']) {
+      mockData['examinerReports'] = [];
+    }
+    mockData['examinerReports'].push(newEntry);
+
+    res.status(201).json({
+      message: 'Examiner report uploaded successfully',
+      collectionName: 'examinerReports',
+      entry: newEntry
+    });
+  } catch (error) {
+    console.error('Examiner report upload error:', error);
+    res.status(500).json({ error: `Failed to upload examiner report: ${error.message}` });
+  }
+});
+
+/**
+ * POST /api/admin/json/collections/gradeBoundaries
+ * Add or append to grade boundary data
+ * If a record with the same year, same exam board, and same qualification exists, append/merge subjects into it.
+ */
+router.post('/json/collections/gradeBoundaries', async (req: Request, res: Response) => {
+  try {
+    const rawData = req.body;
+    if (!rawData) {
+      return res.status(400).json({ error: 'Grade boundary data is required' });
+    }
+
+    let parsedData: any;
+    try {
+      parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+    } catch (parseError: any) {
+      return res.status(400).json({ error: `Invalid JSON format: ${parseError.message}` });
+    }
+
+    // Helper: normalize qualification for comparison
+    const normalizeQual = (qual: string): string => {
+      const q = (qual || '').trim().toLowerCase().replace(/[\s\-_]/g, '');
+      if (q.includes('igcse') || q.includes('internationalgcse')) return 'igcse';
+      if (q.includes('gcse')) return 'gcse';
+      if (q.includes('alevel') || q.includes('gce')) return 'alevel';
+      return q;
+    };
+
+    // Helper: extract 4-digit year
+    const extractYear = (data: any): string | null => {
+      if (data.year) {
+        const match = String(data.year).match(/\b(20\d{2}|19\d{2})\b/);
+        if (match) return match[1];
+      }
+      const series = data.exam_series || data.series || data.examSeries || data.date || '';
+      const match = String(series).match(/\b(20\d{2}|19\d{2})\b/);
+      if (match) return match[1];
+      return null;
+    };
+
+    // Extract incoming key fields
+    const incomingBoardRaw = parsedData.exam_board || parsedData.board || parsedData.examBoard || '';
+    const incomingBoard = NormalizationService.normalizeExamBoard(incomingBoardRaw);
+    const incomingQualRaw = parsedData.qualification || parsedData.level || parsedData.qual || '';
+    const incomingQual = normalizeQual(incomingQualRaw);
+    const incomingYear = extractYear(parsedData);
+    const incomingSeriesRaw = parsedData.exam_series || parsedData.series || parsedData.examSeries || '';
+    const incomingSeriesNorm = incomingSeriesRaw ? NormalizationService.normalizeExamSeries(incomingSeriesRaw, incomingBoard) : '';
+
+    // Extract incoming subjects
+    let incomingSubjects: any[] = [];
+    if (Array.isArray(parsedData.subjects)) {
+      incomingSubjects = parsedData.subjects;
+    } else if (parsedData.subjects && typeof parsedData.subjects === 'object') {
+      incomingSubjects = [parsedData.subjects];
+    } else if (parsedData.name && (parsedData.tiers || parsedData.max_mark)) {
+      incomingSubjects = [parsedData];
+    }
+
+    const db = getFirestore();
+    let existingMatchDoc: any = null;
+    let existingMatchRef: any = null;
+
+    if (db && incomingBoard && incomingQual && incomingYear) {
+      try {
+        const snapshot = await db.collection('gradeBoundaries').get();
+        let bestMatch: any = null;
+        let bestScore = 0;
+
+        snapshot.forEach(doc => {
+          const docData = doc.data();
+          const docBoard = NormalizationService.normalizeExamBoard(docData.exam_board || docData.board || docData.examBoard || '');
+          const docQual = normalizeQual(docData.qualification || docData.level || docData.qual || '');
+          const docYear = extractYear(docData);
+
+          // 1. Board Match
+          const boardMatch = docBoard && incomingBoard && (
+            docBoard.toLowerCase() === incomingBoard.toLowerCase() ||
+            docBoard.toLowerCase().includes(incomingBoard.toLowerCase()) ||
+            incomingBoard.toLowerCase().includes(docBoard.toLowerCase())
+          );
+          if (!boardMatch) return;
+
+          // 2. Qualification Match
+          const qualMatch = docQual && incomingQual && (docQual === incomingQual);
+          if (!qualMatch) return;
+
+          // 3. Year Match
+          const yearMatch = docYear && incomingYear && (docYear === incomingYear);
+          if (!yearMatch) return;
+
+          // Compute matching score: prioritize same series (e.g. Summer/June vs November)
+          let score = 5;
+          const docSeriesRaw = docData.exam_series || docData.series || docData.examSeries || '';
+          const docSeriesNorm = docSeriesRaw ? NormalizationService.normalizeExamSeries(docSeriesRaw, docBoard) : '';
+          if (incomingSeriesNorm && docSeriesNorm && incomingSeriesNorm.toLowerCase() === docSeriesNorm.toLowerCase()) {
+            score = 10;
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = { id: doc.id, ref: doc.ref, data: docData };
+          }
+        });
+
+        if (bestMatch) {
+          existingMatchDoc = bestMatch.data;
+          existingMatchDoc.id = bestMatch.id;
+          existingMatchRef = bestMatch.ref;
+        }
+      } catch (queryError) {
+        console.error('Error finding existing grade boundary in Firestore:', queryError);
+      }
+    }
+
+    // Also check mockData if no Firestore match
+    if (!existingMatchDoc && mockData['gradeBoundaries'] && incomingBoard && incomingQual && incomingYear) {
+      const match = mockData['gradeBoundaries'].find((entry: any) => {
+        const docBoard = NormalizationService.normalizeExamBoard(entry.exam_board || entry.board || entry.examBoard || '');
+        const docQual = normalizeQual(entry.qualification || entry.level || entry.qual || '');
+        const docYear = extractYear(entry);
+        const boardMatch = docBoard && incomingBoard && (
+          docBoard.toLowerCase() === incomingBoard.toLowerCase() ||
+          docBoard.toLowerCase().includes(incomingBoard.toLowerCase()) ||
+          incomingBoard.toLowerCase().includes(docBoard.toLowerCase())
+        );
+        const qualMatch = docQual && incomingQual && (docQual === incomingQual);
+        const yearMatch = docYear && incomingYear && (docYear === incomingYear);
+        return boardMatch && qualMatch && yearMatch;
+      });
+      if (match) {
+        existingMatchDoc = match;
+      }
+    }
+
+    if (existingMatchDoc) {
+      // System should APPEND to the existing record
+      const existingSubjects: any[] = Array.isArray(existingMatchDoc.subjects) ? [...existingMatchDoc.subjects] : [];
+
+      incomingSubjects.forEach((inSubj: any) => {
+        const inCode = inSubj.code ? String(inSubj.code).trim().toLowerCase() : '';
+        const inName = inSubj.name ? String(inSubj.name).trim().toLowerCase() : '';
+
+        const subjIdx = existingSubjects.findIndex((s: any) => {
+          const sCode = s.code ? String(s.code).trim().toLowerCase() : '';
+          const sName = s.name ? String(s.name).trim().toLowerCase() : '';
+          if (inCode && sCode && inCode === sCode) return true;
+          if (inName && sName && inName === sName) return true;
+          return false;
+        });
+
+        if (subjIdx >= 0) {
+          // Subject exists: merge tiers or update subject definition
+          const existingSubj = existingSubjects[subjIdx];
+          const existingTiers = Array.isArray(existingSubj.tiers) ? [...existingSubj.tiers] : [];
+          const inTiers = Array.isArray(inSubj.tiers) ? inSubj.tiers : [];
+
+          inTiers.forEach((inTier: any) => {
+            const inTierLevel = String(inTier.tier_level || '').trim().toLowerCase();
+            const tierIdx = existingTiers.findIndex((t: any) =>
+              String(t.tier_level || '').trim().toLowerCase() === inTierLevel
+            );
+            if (tierIdx >= 0) {
+              existingTiers[tierIdx] = { ...existingTiers[tierIdx], ...inTier };
+            } else {
+              existingTiers.push(inTier);
+            }
+          });
+
+          existingSubjects[subjIdx] = {
+            ...existingSubj,
+            ...inSubj,
+            tiers: existingTiers.length > 0 ? existingTiers : (inSubj.tiers || existingSubj.tiers)
+          };
+        } else {
+          // New subject: APPEND to subjects array!
+          existingSubjects.push(inSubj);
+        }
+      });
+
+      const updatedEntry = {
+        ...existingMatchDoc,
+        subjects: existingSubjects,
+        updatedAt: new Date().toISOString(),
+        lastAppendedAt: new Date().toISOString()
+      };
+
+      if (existingMatchRef) {
+        await existingMatchRef.set(updatedEntry, { merge: true });
+      }
+
+      // Update mockData if present
+      if (mockData['gradeBoundaries']) {
+        const mockIdx = mockData['gradeBoundaries'].findIndex((e: any) => e.id === existingMatchDoc.id);
+        if (mockIdx >= 0) {
+          mockData['gradeBoundaries'][mockIdx] = updatedEntry;
+        }
+      }
+
+      console.log(`✅ [GRADE BOUNDARY] Appended ${incomingSubjects.length} subject(s) to existing document ${existingMatchDoc.id} (${updatedEntry.exam_board} ${updatedEntry.qualification} ${updatedEntry.exam_series})`);
+
+      return res.status(200).json({
+        message: `Grade boundary appended successfully to existing record (${updatedEntry.exam_board} ${updatedEntry.qualification} ${updatedEntry.exam_series || ''})`,
+        collectionName: 'gradeBoundaries',
+        action: 'appended',
+        entry: {
+          ...updatedEntry,
+          normalizedSeries: NormalizationService.normalizeExamSeries(
+            updatedEntry.exam_series || '',
+            updatedEntry.exam_board || ''
+          )
+        }
+      });
+    }
+
+    // No existing matching record found -> CREATE NEW RECORD
+    const newEntry = {
+      id: uuidv4(),
+      ...parsedData,
+      subjects: incomingSubjects,
+      uploadedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    if (db) {
+      try {
+        await db.collection('gradeBoundaries').doc(newEntry.id).set(newEntry);
+      } catch (firestoreError) {
+        console.error('Firestore save error:', firestoreError);
+      }
+    }
+
+    if (!mockData['gradeBoundaries']) {
+      mockData['gradeBoundaries'] = [];
+    }
+    mockData['gradeBoundaries'].push(newEntry);
+
+    console.log(`✅ [GRADE BOUNDARY] Created new document ${newEntry.id} (${newEntry.exam_board} ${newEntry.qualification} ${newEntry.exam_series})`);
+
+    return res.status(201).json({
+      message: 'Grade boundary uploaded successfully',
+      collectionName: 'gradeBoundaries',
+      action: 'created',
+      entry: {
+        ...newEntry,
+        normalizedSeries: NormalizationService.normalizeExamSeries(
+          newEntry.exam_series || '',
+          newEntry.exam_board || ''
+        )
+      }
+    });
+  } catch (error: any) {
+    console.error('Grade boundary upload error:', error);
+    res.status(500).json({ error: `Failed to upload grade boundary: ${error.message}` });
   }
 });
 
@@ -1059,6 +1415,7 @@ router.get('/usage', async (req: Request, res: Response) => {
     // Get unique user count
     const uniqueUsers = new Set(usageData.map(session => session.userId));
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json({
       success: true,
       filter,

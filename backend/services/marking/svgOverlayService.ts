@@ -63,6 +63,13 @@ interface DeferredReasoningItem {
   studentRect: Rect2D;
   reasoningText: string;
   subQuestion?: string;
+  color?: string;
+}
+
+export interface RubricStampItem {
+  questionNumber: string;
+  stampText: string;
+  targetY?: number;
 }
 
 export class SVGOverlayService {
@@ -130,11 +137,13 @@ export class SVGOverlayService {
     totalScoreText?: string,
     hasMetaPage?: boolean,
     semanticZones?: any[],
-    hasDensityError?: boolean
+    hasDensityError?: boolean,
+    rubricStamps?: RubricStampItem[]
   ): Promise<string> {
     try {
       const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
-      if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && !hasDensityError) {
+      const hasStamps = Array.isArray(rubricStamps) && rubricStamps.length > 0;
+      if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && !hasDensityError && !hasStamps) {
         return originalImageData;
       }
 
@@ -156,7 +165,7 @@ export class SVGOverlayService {
         console.warn('[SVGOverlayService] Could not build ink integral map, falling back to bbox-only placement:', inkErr);
       }
 
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones, hasDensityError, inkMap);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones, hasDensityError, inkMap, rubricStamps);
       const svgBuffer = Buffer.from(svgOverlay);
 
       const burnedImageBuffer = await sharp(uprightImageBuffer)
@@ -175,9 +184,10 @@ export class SVGOverlayService {
   // SVG GENERATION LOGIC
   // =========================================================================
 
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[], hasDensityError?: boolean, inkMap?: InkDensityMap): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[], hasDensityError?: boolean, inkMap?: InkDensityMap, rubricStamps?: RubricStampItem[]): string {
     const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
-    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && (!semanticZones || semanticZones.length === 0) && !hasDensityError) {
+    const hasStamps = Array.isArray(rubricStamps) && rubricStamps.length > 0;
+    if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && (!semanticZones || semanticZones.length === 0) && !hasDensityError && !hasStamps) {
       return '';
     }
 
@@ -332,6 +342,11 @@ export class SVGOverlayService {
       svg += this.createStudentScoreCircles(scoresArray, actualWidth, actualHeight);
     }
 
+    // --- END-OF-QUESTION RUBRIC STAMPS (LEVEL OF RESPONSE) ---
+    if (hasStamps && rubricStamps) {
+      svg += this.createRubricStampsSVG(rubricStamps, actualWidth, actualHeight, occupiedRects, studentWorkRects);
+    }
+
     return svg + '</svg>';
   }
 
@@ -434,6 +449,24 @@ export class SVGOverlayService {
       );
     } else if (action === 'circle') {
       svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+      const reasoning = (annotation as any).reasoning;
+      if ((text && text.trim()) || (reasoning && reasoning.trim())) {
+        svg += this.createSymbolAnnotation(
+          annotation,
+          scaledX,
+          scaledY,
+          scaledWidth,
+          scaledHeight,
+          '⭕',
+          text,
+          reasoning,
+          actualWidth,
+          actualHeight,
+          classificationText,
+          occupiedRects,
+          deferredReasonings
+        );
+      }
     } else if (action === 'underline') {
       svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
     }
@@ -540,7 +573,9 @@ export class SVGOverlayService {
     occupiedRects.push({ ...symRect });
 
     // Queue reasoning text for Pass 2 (Teacher-Style Empty-Space Placement)
-    if (symbol === '✗' && reasoning && reasoning.trim()) {
+    // Supports: ✗ (Math/English errors), ⭕ (English SPaG circles), and ✓ with English AO/Level tags (e.g. [AO2 L4])
+    const isEnglishPositiveAoComment = symbol === '✓' && /\[?AO\d|L[1-4]\]?/i.test(cleanCodeText);
+    if ((symbol === '✗' || symbol === '⭕' || isEnglishPositiveAoComment) && reasoning && reasoning.trim()) {
       const cleanReasoning = reasoning
         .replace(/\|/g, '. ')
         .replace(/\.\s*\./g, '.')
@@ -552,14 +587,15 @@ export class SVGOverlayService {
           symbolRect: { ...symRect },
           studentRect: { x, y, w: Math.max(20, width), h: Math.max(20, height) },
           reasoningText: cleanReasoning,
-          subQuestion: annotation.subQuestion
+          subQuestion: annotation.subQuestion,
+          color: symbol === '✓' ? '#008000' : (symbol === '⭕' ? '#d97706' : '#e60000')
         });
       }
     }
 
     // --- RENDER SYMBOL LINE (WITH SUBTLE HALO INSTEAD OF OPAQUE BOX) ---
     let mainSVG = '';
-    const mainColor = symbol === '✓' ? '#008000' : '#ff0000';
+    const mainColor = symbol === '✓' ? '#008000' : (symbol === '⭕' ? '#d97706' : '#ff0000');
     const haloStrokeWidth = Math.max(2.5, Math.round(3.5 * fontScaleFactor));
     const haloStyle = `paint-order="stroke fill" stroke="rgba(255, 255, 255, 0.88)" stroke-width="${haloStrokeWidth}px" stroke-linecap="round" stroke-linejoin="round"`;
 
@@ -744,24 +780,25 @@ export class SVGOverlayService {
     };
     occupiedRects.push(chosenRect);
 
-    // Render red teacher handwriting directly on the empty paper (with subtle white halo for legibility)
+    // Render teacher handwriting directly on the empty paper (with subtle white halo for legibility)
     let outSvg = '';
+    const textColor = item.color || '#e60000';
     const haloStrokeWidth = Math.max(2.5, Math.round(3.5 * fontScaleFactor));
     const haloStyle = `paint-order="stroke fill" stroke="rgba(255, 255, 255, 0.88)" stroke-width="${haloStrokeWidth}px" stroke-linecap="round" stroke-linejoin="round"`;
 
-    // Only draw a subtle teacher pointer line if the reasoning block had to move noticeably away from ✗
+    // Only draw a subtle teacher pointer line if the reasoning block had to move noticeably away from symbol
     const gapBetween = this.rectDistance(symbolRect, chosenRect);
     if (gapBetween > 75 * fontScaleFactor) {
       const [sx, sy, tx, ty] = this.getClosestConnectorPoints(symbolRect, chosenRect);
       const strokeW = Math.max(1.5, Math.round(2 * fontScaleFactor));
       const dash = `${Math.round(5 * fontScaleFactor)},${Math.round(4 * fontScaleFactor)}`;
-      outSvg += `<line x1="${Math.round(sx)}" y1="${Math.round(sy)}" x2="${Math.round(tx)}" y2="${Math.round(ty)}" stroke="#e60000" stroke-width="${strokeW}" stroke-dasharray="${dash}" opacity="0.55" stroke-linecap="round" />`;
+      outSvg += `<line x1="${Math.round(sx)}" y1="${Math.round(sy)}" x2="${Math.round(tx)}" y2="${Math.round(ty)}" stroke="${textColor}" stroke-width="${strokeW}" stroke-dasharray="${dash}" opacity="0.55" stroke-linecap="round" />`;
     }
 
     const firstBaselineY = bestCandidate.y + reasoningSize;
     bestCandidate.lines.forEach((line, i) => {
       const lineY = firstBaselineY + i * lineHeight;
-      outSvg += `<text x="${bestCandidate!.x}" y="${lineY}" text-anchor="start" fill="#e60000" ${haloStyle} font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
+      outSvg += `<text x="${bestCandidate!.x}" y="${lineY}" text-anchor="start" fill="${textColor}" ${haloStyle} font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="bold">${this.escapeXml(line)}</text>`;
     });
 
     return outSvg;
@@ -1014,6 +1051,71 @@ export class SVGOverlayService {
     const underline2 = `<line x1="${underlineStartX}" y1="${underlineY2}" x2="${underlineEndX}" y2="${underlineY2}" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
 
     return text + underline1 + underline2;
+  }
+
+  private static createRubricStampsSVG(
+    rubricStamps: RubricStampItem[],
+    imageWidth: number,
+    imageHeight: number,
+    occupiedRects: Rect2D[],
+    studentWorkRects: Rect2D[]
+  ): string {
+    if (!rubricStamps || rubricStamps.length === 0) return '';
+    const scaleFactor = imageHeight / this.CONFIG.baseReferenceHeight;
+    const fontSize = Math.max(18, Math.round(28 * scaleFactor));
+    const padX = Math.max(16, Math.round(24 * scaleFactor));
+    const padY = Math.max(12, Math.round(18 * scaleFactor));
+    const lineHeight = Math.round(fontSize * 1.35);
+    const margin = Math.max(24, Math.round(40 * scaleFactor));
+
+    let maxWorkBottomY = 0;
+    studentWorkRects.forEach(r => {
+      if (r.y + r.h > maxWorkBottomY) maxWorkBottomY = r.y + r.h;
+    });
+
+    let svg = '';
+    rubricStamps.forEach((stamp, idx) => {
+      const fullLabel = stamp.questionNumber
+        ? `Q${stamp.questionNumber}: ${stamp.stampText}`
+        : stamp.stampText;
+      const lines = fullLabel.split(/\n+/).flatMap(l => this.breakTextIntoMultiLines(l.trim(), 52));
+      const maxLineWidth = Math.max(...lines.map(l => this.estimateTextWidth(l, fontSize)), 220 * scaleFactor);
+      const boxW = Math.min(imageWidth - margin * 2, maxLineWidth + padX * 2);
+      const boxH = lines.length * lineHeight + padY * 2;
+
+      const boxX = Math.max(margin, imageWidth - boxW - margin);
+      const preferredY = stamp.targetY
+        ? Math.min(imageHeight - boxH - margin, stamp.targetY + Math.round(28 * scaleFactor))
+        : (maxWorkBottomY > 0
+            ? Math.min(imageHeight - boxH - margin, maxWorkBottomY + Math.round(32 * scaleFactor) + idx * (boxH + 16 * scaleFactor))
+            : imageHeight - boxH - margin - idx * (boxH + 16 * scaleFactor));
+
+      let boxY = Math.max(margin, preferredY);
+      const candidateRect: Rect2D = { x: boxX, y: boxY, w: boxW, h: boxH };
+
+      let attempts = 0;
+      const stepY = Math.max(18, Math.round(24 * scaleFactor));
+      while (attempts < 10 && occupiedRects.some(r => this.rectsOverlap(candidateRect, r, 6 * scaleFactor))) {
+        if (candidateRect.y + stepY + boxH <= imageHeight - margin) {
+          candidateRect.y += stepY;
+        } else {
+          candidateRect.y = Math.max(margin, candidateRect.y - stepY);
+        }
+        attempts++;
+      }
+      boxY = candidateRect.y;
+      occupiedRects.push({ ...candidateRect });
+
+      const rx = Math.max(8, Math.round(12 * scaleFactor));
+      const strokeW = Math.max(2, Math.round(3.5 * scaleFactor));
+      svg += `<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="${rx}" fill="rgba(255, 250, 240, 0.94)" stroke="#b91c1c" stroke-width="${strokeW}" />`;
+      lines.forEach((line, lIdx) => {
+        const textY = boxY + padY + fontSize * 0.85 + lIdx * lineHeight;
+        svg += `<text x="${boxX + padX}" y="${textY}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#991b1b">${this.escapeXml(line)}</text>`;
+      });
+    });
+
+    return svg;
   }
 
   private static mergeOverlappingAnnotations(annotations: Annotation[], width: number, height: number): Annotation[] {

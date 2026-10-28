@@ -1092,13 +1092,17 @@ export class SessionManagementService {
       }
       const awarded = qr.score?.awardedMarks ?? qr.marks ?? 0;
       const total = qr.score?.totalMarks ?? qr.totalMarks ?? 0;
+      const rubric = (qr as any).rubricEvaluation;
+      const rubricInfo = rubric
+        ? ` [Rubric: ${rubric.rubricStamp || `L${rubric.awardedLevel || 0}`}; Rationale: ${rubric.coaching?.rationale || ''}; Gap: ${rubric.coaching?.nextLevelGap || ''}]`
+        : '';
       const feedback = qr.annotations
         ?.filter((a: any) => a.reasoning && a.reasoning.trim() !== '')
         .map((a: any) => `${a.text}: ${a.reasoning}`)
         .slice(0, 4)
         .join(', ') || 'No specific feedback';
 
-      return `Q${qNum} (${topic}): Score ${awarded}/${total}. Key Points: ${feedback}`;
+      return `Q${qNum} (${topic}): Score ${awarded}/${total}.${rubricInfo} Key Points: ${feedback}`;
     }).join('\n');
 
     let promptData = `DISTILLED QUESTION RESULTS:\n${distilledData}\n\n`;
@@ -1109,6 +1113,14 @@ export class SessionManagementService {
     try {
       const { ModelProvider } = await import('../utils/ModelProvider.js');
       const { getPrompt } = await import('../config/prompts.js');
+      const { resolveSubjectProfile, mapAoToRadarAxis } = await import('../config/subjectProfiles.js');
+
+      const hasRubricQuestions = allQuestionResults.some((qr: any) => Boolean(qr.rubricEvaluation));
+      const subjectProfile = resolveSubjectProfile({
+        subject: examInfo?.subject || (hasRubricQuestions ? 'English Language' : undefined),
+        paperCode: examInfo?.examCode || examInfo?.paperCode
+      });
+      const isLoRSubject = subjectProfile.paradigm === 'LEVEL_OF_RESPONSE' || hasRubricQuestions;
 
       const systemPrompt = getPrompt('masterSummary.system');
       const userPrompt = getPrompt('masterSummary.user', promptData);
@@ -1131,16 +1143,19 @@ export class SessionManagementService {
         return rawContent;
       }
 
-      // Determine Radar Axes dynamically from AI's paper-aware selection (or fallback)
-      const isALevel = aiParsed.level === 'ALEVEL' || (examInfo?.examCode && /^9|^8MA|^735|^H2/i.test(examInfo.examCode));
-      const defaultAxes = isALevel
-        ? ['Algebra & Functions', 'Coordinate Geometry', 'Sequences & Series', 'Trigonometry', 'Exponentials & Logs', 'Differentiation', 'Integration', 'Proof & Vectors']
-        : ['Number', 'Algebra', 'Ratio & Proportion', 'Geometry', 'Probability', 'Statistics'];
+      // Determine Radar Axes dynamically from SubjectProfile (for English LoR) or AI's paper-aware selection (for Maths)
+      const isALevel = !isLoRSubject && (aiParsed.level === 'ALEVEL' || (examInfo?.examCode && /^9|^8MA|^735|^H2/i.test(examInfo.examCode)));
+      const defaultAxes = isLoRSubject
+        ? subjectProfile.radarAxes
+        : (isALevel
+            ? ['Algebra & Functions', 'Coordinate Geometry', 'Sequences & Series', 'Trigonometry', 'Exponentials & Logs', 'Differentiation', 'Integration', 'Proof & Vectors']
+            : ['Number', 'Algebra', 'Ratio & Proportion', 'Geometry', 'Probability', 'Statistics']);
 
-      const axesList: string[] =
-        Array.isArray(aiParsed.radarAxes) && aiParsed.radarAxes.length >= 4
-          ? aiParsed.radarAxes.slice(0, 8).map((a: any) => String(a).trim())
-          : defaultAxes;
+      const axesList: string[] = isLoRSubject
+        ? subjectProfile.radarAxes
+        : (Array.isArray(aiParsed.radarAxes) && aiParsed.radarAxes.length >= 4
+            ? aiParsed.radarAxes.slice(0, 8).map((a: any) => String(a).trim())
+            : defaultAxes);
 
       // Map question numbers to scores
       const qScoreMap = new Map<string, { awarded: number; total: number }>();
@@ -1162,9 +1177,47 @@ export class SessionManagementService {
       const axisTotals = new Map<string, { awarded: number; total: number; count: number }>();
       axesList.forEach(axis => axisTotals.set(axis, { awarded: 0, total: 0, count: 0 }));
 
+      // Refinement 3: For Level-of-Response / Dual-AO questions, populate radar axes directly from aoBreakdown sub-scores
+      const questionsMappedViaAo = new Set<string>();
+      if (isLoRSubject) {
+        allQuestionResults.forEach((qr: any) => {
+          const qNum = String(qr.questionNumber || '').replace(/^Q/i, '').trim();
+          const rubric = qr.rubricEvaluation;
+          if (rubric && Array.isArray(rubric.aoBreakdown) && rubric.aoBreakdown.length > 0) {
+            rubric.aoBreakdown.forEach((aoItem: any) => {
+              const maxM = Number(aoItem.maxMarks || 0);
+              const awdM = Number(aoItem.awardedMarks || 0);
+              if (maxM <= 0) return;
+              const resolvedAxis =
+                (aoItem.radarAxis && axesList.find(a => a.toLowerCase() === String(aoItem.radarAxis).toLowerCase())) ||
+                mapAoToRadarAxis(String(aoItem.ao || ''), subjectProfile, qNum, String(aoItem.skill || ''));
+              const targetAxis = axesList.includes(resolvedAxis) ? resolvedAxis : axesList[0];
+              const prev = axisTotals.get(targetAxis);
+              if (prev) {
+                prev.awarded += awdM;
+                prev.total += maxM;
+                prev.count += 1;
+                questionsMappedViaAo.add(qNum);
+              }
+            });
+          } else if (qNum === '1' && Number(qr.score?.totalMarks ?? qr.totalMarks ?? 0) === 4) {
+            // Point-based Q1 Retrieval (AO1) on English Language paper
+            const resolvedAxis = mapAoToRadarAxis('AO1', subjectProfile, qNum, 'Retrieval');
+            const prev = axisTotals.get(resolvedAxis);
+            if (prev) {
+              prev.awarded += Number(qr.score?.awardedMarks ?? qr.marks ?? 0);
+              prev.total += Number(qr.score?.totalMarks ?? qr.totalMarks ?? 0);
+              prev.count += 1;
+              questionsMappedViaAo.add(qNum);
+            }
+          }
+        });
+      }
+
       const topicMappings = Array.isArray(aiParsed.questionTopics) ? aiParsed.questionTopics : [];
       topicMappings.forEach((item: any) => {
         const qKey = String(item.q || '').replace(/^Q/i, '').trim();
+        if (questionsMappedViaAo.has(qKey)) return; // Already mapped via authoritative AO breakdown
         const matchedAxis = axesList.find(a => a.toLowerCase() === String(item.axis || '').toLowerCase()) || axesList[0];
         const qScore = qScoreMap.get(qKey);
         if (qScore && qScore.total > 0) {
@@ -1197,9 +1250,31 @@ export class SessionManagementService {
       const hasTooDenseWarning = allQuestionResults.some((qr: any) => qr.isError && qr.errorMessage === 'Too Dense');
       const hasBoundaries = Boolean(gradeBoundaries && typeof gradeBoundaries === 'object' && Object.keys(gradeBoundaries).length > 0);
 
+      // Refinement 4: Surface the 3-Part Coaching Block (Why Awarded, Next-Level Gap, and Concrete Upgrade Rewrite)
+      const questionCoaching = allQuestionResults
+        .filter((qr: any) => qr.rubricEvaluation && qr.rubricEvaluation.coaching)
+        .map((qr: any) => {
+          const r = qr.rubricEvaluation;
+          return {
+            q: String(qr.questionNumber || '').replace(/^Q/i, '').trim(),
+            rubricStamp: r.rubricStamp || `Level ${r.awardedLevel || 0} (${r.awardedMarks}/${r.maxMarks})`,
+            awardedLevel: r.awardedLevel || 0,
+            levelLabel: r.levelLabel || '',
+            awardedMarks: Number(qr.score?.awardedMarks ?? r.awardedMarks ?? 0),
+            maxMarks: Number(qr.score?.totalMarks ?? r.maxMarks ?? 0),
+            aoBreakdown: Array.isArray(r.aoBreakdown) ? r.aoBreakdown : [],
+            coaching: {
+              rationale: r.coaching?.rationale || '',
+              nextLevelGap: r.coaching?.nextLevelGap || '',
+              upgradeRewrite: r.coaching?.upgradeRewrite || null
+            }
+          };
+        });
+
       const summaryPayload = {
         _type: 'AI_SUMMARY_V2',
         level: isALevel ? 'ALEVEL' : 'GCSE',
+        subjectKey: subjectProfile.key,
         headline: aiParsed.headline || '',
         tooDenseWarning: hasTooDenseWarning,
         examInfo: examInfo || null,
@@ -1218,7 +1293,8 @@ export class SessionManagementService {
         } : null,
         radar: radarData,
         mastered: Array.isArray(aiParsed.mastered) ? aiParsed.mastered.slice(0, 3) : [],
-        focusNext: Array.isArray(aiParsed.focusNext) ? aiParsed.focusNext.slice(0, 3) : []
+        focusNext: Array.isArray(aiParsed.focusNext) ? aiParsed.focusNext.slice(0, 3) : [],
+        questionCoaching: questionCoaching.length > 0 ? questionCoaching : undefined
       };
 
       return JSON.stringify(summaryPayload);

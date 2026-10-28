@@ -31,12 +31,12 @@ export const trackFunnelEvent = (eventName, metadata = {}, userId = null) => {
     const endpoint = `${baseUrl}/api/config/telemetry`;
 
     if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: 'application/json' });
+      const blob = new Blob([payload], { type: 'text/plain;charset=UTF-8' });
       navigator.sendBeacon(endpoint, blob);
     } else {
       fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body: payload,
         keepalive: true
       }).catch(() => {});

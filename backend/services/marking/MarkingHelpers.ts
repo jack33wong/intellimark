@@ -46,6 +46,7 @@ export function getShortSubjectName(qualification: string): string {
     'CHEMISTRY': 'Chemistry',
     'BIOLOGY': 'Biology',
     'ENGLISH': 'English',
+    'ENGLISH LANGUAGE': 'Eng Lang',
     'ENGLISH LITERATURE': 'Eng Lit',
     'HISTORY': 'History',
     'GEOGRAPHY': 'Geography',

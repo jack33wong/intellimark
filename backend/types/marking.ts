@@ -107,4 +107,5 @@ export interface QuestionResult {
     rawAnnotations?: any[];
     semanticZones?: any;
     debugSearchWindow?: any;
+    rubricEvaluation?: any;
 }
