@@ -2,7 +2,7 @@ import React from 'react';
 import { Target, Search, MessageCircle } from 'lucide-react';
 import './BenefitBlocks.css';
 
-const BenefitBlocks: React.FC = () => {
+export const BenefitBlocks: React.FC = () => {
     const benefits = [
         {
             icon: <Target className="benefit-icon" />,

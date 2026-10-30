@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import './HeroAnimation.css';
 
-const HeroAnimation: React.FC = () => {
+export const HeroAnimation: React.FC = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {

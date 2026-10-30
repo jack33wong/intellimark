@@ -103,12 +103,17 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
 
             seenImageSrcs.add(src);
 
-            const finalFileName = originalFileName ||
+            let finalFileName = originalFileName ||
               (message as any)?.originalFileName ||
               `image-${message.id}-${index}`;
 
+            if (finalFileName.toLowerCase().endsWith('.pdf')) {
+              const baseDocName = finalFileName.replace(/\.pdf$/i, '');
+              finalFileName = `${baseDocName}_page_${index + 1}.jpg`;
+            }
+
             // Only prefix 'annotated-' if it's an assistant result
-            const filename = isAnnotated ? `annotated-${finalFileName}` : finalFileName;
+            const filename = isAnnotated ? (finalFileName.startsWith('annotated-') ? finalFileName : `annotated-${finalFileName}`) : finalFileName;
 
             const imgObj: SessionImage = {
               id: `img-${message.id}-${index}`,
@@ -140,8 +145,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
           
           if (typeof src === 'string' && !seenImageSrcs.has(src) && !isPdfUrl) {
             seenImageSrcs.add(src);
-            const originalFileName = (message as any)?.originalFileName || `image-${message.id}`;
-            const filename = isAnnotated ? `annotated-${originalFileName}` : originalFileName;
+            let originalFileName = (message as any)?.originalFileName || `image-${message.id}`;
+            if (originalFileName.toLowerCase().endsWith('.pdf')) {
+              originalFileName = originalFileName.replace(/\.pdf$/i, '.jpg');
+            }
+            const filename = isAnnotated ? (originalFileName.startsWith('annotated-') ? originalFileName : `annotated-${originalFileName}`) : originalFileName;
 
             const imgObj: SessionImage = {
               id: `img-${message.id}`,

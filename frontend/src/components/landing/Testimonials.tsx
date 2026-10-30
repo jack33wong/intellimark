@@ -2,7 +2,7 @@ import React from 'react';
 import { Star } from 'lucide-react';
 import './Testimonials.css';
 
-const Testimonials: React.FC = () => {
+export const Testimonials: React.FC = () => {
     const testimonials = [
         {
             quote: "AI Marking has completely transformed how I review student past papers. The speed and accuracy are unmatched.",

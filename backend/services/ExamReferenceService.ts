@@ -6,7 +6,12 @@ export class ExamReferenceService {
     // [HELPER] Generate simplified fallbacks for Summer/June/May equivalence AND slug parsing
     public static generateFallbacks(input: string): string[] {
         // Normalize input for base generation
-        const lowerInput = input.toLowerCase().replace(/\bmathematics\b/g, 'maths');
+        const lowerInput = input.toLowerCase()
+            .replace(/\bmathematics\b/g, 'maths')
+            .replace(/\benglish language\b/g, 'englang')
+            .replace(/\beng lang\b/g, 'englang')
+            .replace(/\benglish literature\b/g, 'englit')
+            .replace(/\beng lit\b/g, 'englit');
         let variations = [input, lowerInput];
 
         // 1. Handle Slugs (replace - and _ with spaces or slashes)
@@ -16,8 +21,8 @@ export class ExamReferenceService {
             variations.push(spaceVariation, slashVariation);
         }
 
-        // 2. Aggressively Handle MonthYear concatenation (e.g. "nov2024" -> "nov 2024", "november2020" -> "november 2020")
-        const monthYearRegex = /([a-z]{3,})(\d{4})/i;
+        // 2. Aggressively Handle MonthYear concatenation (e.g. "nov2024" -> "nov 2024", "november2020" -> "november 2020", "jun25" -> "jun 2025")
+        const monthYearRegex = /([a-z]{3,})(\d{2,4})/i;
         const expandedVariations = [...variations];
 
         variations.forEach(v => {
@@ -27,7 +32,10 @@ export class ExamReferenceService {
             const newChunks = chunks.map(c => {
                 if (monthYearRegex.test(c)) {
                     hasConcat = true;
-                    return c.replace(monthYearRegex, '$1 $2');
+                    return c.replace(monthYearRegex, (_, month, yr) => {
+                        const fullYear = yr.length === 2 ? `20${yr}` : yr;
+                        return `${month} ${fullYear}`;
+                    });
                 }
                 return c;
             });
@@ -65,7 +73,7 @@ export class ExamReferenceService {
         variations.push(...mappedVariations);
 
         // 4. Handle Summer/June/May equivalence (Existing Logic)
-        const yearMatch = input.match(/\d{4}/);
+        const yearMatch = input.match(/(?:19|20)\d{2}/);
         const yearStr = yearMatch ? yearMatch[0] : '';
         const suffix = yearStr ? ` ${yearStr}` : '';
 
@@ -117,7 +125,15 @@ export class ExamReferenceService {
 
         // Common "fluff" words that users type but aren't strictly in the database metadata
         const stopWords = new Set(['gcse', 'igcse', 'alevel', 'a-level', 'tier', 'paper', 'exam', 'the', 'for']);
-        const normalize = (t: string) => t.toLowerCase().replace(/\bmathematics\b/g, 'maths').replace(/[-,/]/g, ' ').replace(/\s+/g, ' ').trim();
+        const normalize = (t: string) => t.toLowerCase()
+            .replace(/\bmathematics\b/g, 'maths')
+            .replace(/\benglish language\b/g, 'englang')
+            .replace(/\beng lang\b/g, 'englang')
+            .replace(/\benglish literature\b/g, 'englit')
+            .replace(/\beng lit\b/g, 'englit')
+            .replace(/[-,/]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
 
         let bestPaper: any = null;
         let bestScore = 0;
@@ -126,12 +142,16 @@ export class ExamReferenceService {
             const meta = p.metadata;
             if (!meta || !meta.exam_code || !meta.exam_series) return;
 
-            const pCode = normalize(meta.exam_board || '') + ' ' + normalize(meta.exam_code || '') + ' ' + normalize(meta.exam_series || '') + (meta.tier ? ' ' + normalize(meta.tier) : '');
+            const pCode = normalize(meta.exam_board || '') + ' ' +
+                normalize(meta.subject || meta.qualification || '') + ' ' +
+                normalize(meta.exam_code || '') + ' ' +
+                normalize(meta.exam_series || '') +
+                (meta.tier ? ' ' + normalize(meta.tier) : '');
             const pTokens = pCode.split(/\s+/);
 
             // Clean exam code for exact substring matching (e.g., "8300/1f" -> "83001f")
             const exactCode = (meta.exam_code || '').toLowerCase().replace(/[\s\-\/]/g, '');
-            const exactYearMatch = (meta.exam_series || '').match(/\d{4}/);
+            const exactYearMatch = (meta.exam_series || '').match(/(?:19|20)\d{2}/);
             const exactYear = exactYearMatch ? exactYearMatch[0] : null;
 
             let paperBestScore = 0;
@@ -174,7 +194,7 @@ export class ExamReferenceService {
                 }
 
                 // 4. Heavy Penalty for Year Contradiction (Prevents grabbing 2024 when asking for 2025)
-                const inputYearMatch = v.match(/\d{4}/);
+                const inputYearMatch = v.match(/(?:19|20)\d{2}/);
                 if (inputYearMatch && exactYear && inputYearMatch[0] !== exactYear) {
                     matchScore -= 20;
                 }

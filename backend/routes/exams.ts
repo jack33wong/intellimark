@@ -88,7 +88,8 @@ router.get('/public-list', async (req: Request, res: Response) => {
                     series: series,
                     tier: formattedTier,
                     tierCode: tierCode,
-                    type: paperType
+                    type: paperType,
+                    subject: meta.subject || ''
                 });
             }
         });

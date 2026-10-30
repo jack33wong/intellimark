@@ -164,14 +164,12 @@ export class AnnotationLinker {
                     }
 
                     let isVetoed = false;
-                    for (const vetoItem of vetoList) {
-                        if (vetoItem.length < 3) continue;
-                        if (vetoItem.includes(blockTextNorm) || blockTextNorm.includes(vetoItem)) {
-                            // 🛡️ [VETO-PRECISION]: Only veto if the match is significant (length > 2)
-                            // or if it's an identical match. This prevents single-character 
-                            // student answers (H, F, J) from being detached just because they 
-                            // exist in the printed question text.
-                            if (blockTextNorm.length > 2 || vetoItem === blockTextNorm) {
+                    // 🛡️ [VETO-PROTECTION]: Only check printed blocks against vetoList. Never veto student handwriting!
+                    if (block.isHandwritten !== true && !isInstructionTag) {
+                        for (const vetoItem of vetoList) {
+                            if (vetoItem.length < 3) continue;
+                            // Only veto if the match is significant (phrase > 5 chars) or an exact match
+                            if (blockTextNorm === vetoItem || (blockTextNorm.length > 5 && (vetoItem.includes(blockTextNorm) || blockTextNorm.includes(vetoItem)))) {
                                 isVetoed = true;
                                 break;
                             }

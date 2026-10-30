@@ -1,0 +1,13 @@
+# AI Marking (aimarking.ai)
+An AI-powered tool specifically designed for marking GCSE Mathematics past papers.
+
+## Key Features
+- Supports Edexcel, AQA, and OCR GCSE Maths.
+- Handwriting recognition: Marks scanned or photographed student work.
+- Instant Feedback: Provides step-by-step guidance on where marks were lost.
+- Accuracy: Matches human examiner marking logic with 98% similarity.
+
+## Target Audience
+- GCSE Students (Year 10/11)
+- Private Maths Tutors
+- Secondary School Teachers

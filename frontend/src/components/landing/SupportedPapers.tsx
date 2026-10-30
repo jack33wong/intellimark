@@ -2,11 +2,27 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, ShieldCheck, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { trackPaperInteraction } from '../../utils/analytics';
-import LevelToggle from './LevelToggle';
 import '../../pages/PastPaperShared.css';
 import './SupportedPapers.css';
 
-const SupportedPapers: React.FC = () => {
+type PaperTab = 'gcse-maths' | 'gcse-english' | 'alevel-maths';
+
+const isEnglishPaper = (codeOrTitle: string = '') =>
+    /\b(8700|8702|1EN0|1ET0|J351|J352|C700|C720)\b|english/i.test(codeOrTitle);
+
+const getPaperTypeLabel = (paper: any, isEnglish: boolean) => {
+    if (!isEnglish) return paper.type || '';
+    const code = (paper.code || paper.name || '').toUpperCase();
+    if (code.includes('8700/1') || code.includes('8700-1')) return 'PAPER 1 • CREATIVE';
+    if (code.includes('8700/2') || code.includes('8700-2')) return 'PAPER 2 • VIEWPOINTS';
+    if (code.includes('1EN0/01') || code.includes('1EN0-01') || code.includes('1EN0/1') || code.includes('1EN0-1')) return 'PAPER 1 • FICTION';
+    if (code.includes('1EN0/02') || code.includes('1EN0-02') || code.includes('1EN0/2') || code.includes('1EN0-2')) return 'PAPER 2 • NON-FICTION';
+    if (code.includes('J351/01') || code.includes('J351-01') || code.includes('J351/1') || code.includes('J351-1')) return 'PAPER 1 • NON-FICTION';
+    if (code.includes('J351/02') || code.includes('J351-02') || code.includes('J351/2') || code.includes('J351-2')) return 'PAPER 2 • LITERARY';
+    return paper.type || '';
+};
+
+export const SupportedPapers: React.FC = () => {
     const navigate = useNavigate();
     const scrollRefs = React.useRef<(HTMLDivElement | null)[]>([]);
 
@@ -20,9 +36,12 @@ const SupportedPapers: React.FC = () => {
             });
         }
     };
-    const [level, setLevel] = React.useState<'GCSE' | 'A-Level'>('GCSE');
+    const [activeTab, setActiveTab] = React.useState<PaperTab>('gcse-maths');
     const [examData, setExamData] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
+
+    const isEnglish = activeTab === 'gcse-english';
+    const isAlevel = activeTab === 'alevel-maths';
 
     React.useEffect(() => {
         const fetchData = async () => {
@@ -45,30 +64,40 @@ const SupportedPapers: React.FC = () => {
         {
             name: "Pearson Edexcel",
             displayName: "Edexcel",
-            code: level === 'GCSE' ? "1MA1" : "9MA0",
+            code: isEnglish ? "1EN0" : (isAlevel ? "9MA0" : "1MA1"),
+            subjectTitle: isEnglish ? "GCSE Eng Lang" : (isAlevel ? "A-Level Mathematics" : "GCSE Mathematics"),
+            toolUrl: isEnglish
+                ? `/mark-edexcel-gcse-english-language-past-papers`
+                : `/mark-edexcel-${isAlevel ? 'a-level' : 'gcse'}-maths-past-papers`,
             color: "#003057",
             data: examData["Pearson Edexcel"] || {}
         },
         {
             name: "AQA",
             displayName: "AQA",
-            code: level === 'GCSE' ? "8300" : "7357",
+            code: isEnglish ? "8700" : (isAlevel ? "7357" : "8300"),
+            subjectTitle: isEnglish ? "GCSE Eng Lang" : (isAlevel ? "A-Level Mathematics" : "GCSE Mathematics"),
+            toolUrl: isEnglish
+                ? `/mark-aqa-gcse-english-language-past-papers`
+                : `/mark-aqa-${isAlevel ? 'a-level' : 'gcse'}-maths-past-papers`,
             color: "#004B98",
             data: examData["AQA"] || {}
         },
         {
             name: "OCR",
             displayName: "OCR",
-            code: level === 'GCSE' ? "J560" : "H240",
+            code: isEnglish ? "J351" : (isAlevel ? "H240" : "J560"),
+            subjectTitle: isEnglish ? "GCSE Eng Lang" : (isAlevel ? "A-Level Mathematics" : "GCSE Mathematics"),
+            toolUrl: isEnglish
+                ? `/mark-ocr-gcse-english-language-past-papers`
+                : `/mark-ocr-${isAlevel ? 'a-level' : 'gcse'}-maths-past-papers`,
             color: "#002D3A",
             data: examData["OCR"] || {}
         }
     ] : [];
 
     const getSeriesForBoard = (boardData: any) => {
-        if (level === 'GCSE') {
-            return boardData.gcse || [];
-        } else {
+        if (isAlevel) {
             // Flatten Pure and Stats/Mech for horizontal scroll
             const pure = (boardData.alevel?.pure || []).map((s: any) => ({ ...s, category: 'Pure Mathematics' }));
             const stats = (boardData.alevel?.stats_mech || []).map((s: any) => ({ ...s, category: 'Stats & Mechanics' }));
@@ -92,6 +121,22 @@ const SupportedPapers: React.FC = () => {
                 return parseDate(b.series).getTime() - parseDate(a.series).getTime();
             });
         }
+
+        // For GCSE Maths vs GCSE English
+        const rawSeries = boardData.gcse || [];
+        return rawSeries
+            .map((s: any) => {
+                const filteredPapers = (s.papers || []).filter((p: any) => {
+                    const targetStr = `${p.code || ''} ${p.name || ''} ${p.subject || ''}`;
+                    const english = isEnglishPaper(targetStr);
+                    return isEnglish ? english : !english;
+                });
+                return {
+                    ...s,
+                    papers: filteredPapers
+                };
+            })
+            .filter((s: any) => s.papers.length > 0);
     };
 
     return (
@@ -103,10 +148,42 @@ const SupportedPapers: React.FC = () => {
                 <h2>Extensive Past Paper Support</h2>
                 <div className="status-freshness">
                     <span className="live-dot"></span>
-                    <span className="status-text">Mark Schemes Updated: June 2026</span>
+                    <span className="status-text">Mark Schemes Updated: October 2026</span>
                 </div>
 
-                <LevelToggle level={level} onChange={setLevel} />
+                <div className="supported-papers-tabs" role="tablist">
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === 'gcse-maths'}
+                        className={`supported-papers-tab-btn ${activeTab === 'gcse-maths' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('gcse-maths')}
+                    >
+                        <span className="tab-icon">📐</span>
+                        <span className="tab-text">GCSE Maths (9-1)</span>
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === 'gcse-english'}
+                        className={`supported-papers-tab-btn ${activeTab === 'gcse-english' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('gcse-english')}
+                    >
+                        <span className="tab-icon">✍️</span>
+                        <span className="tab-text">GCSE English Language</span>
+                        <span className="tab-badge-new">NEW</span>
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === 'alevel-maths'}
+                        className={`supported-papers-tab-btn ${activeTab === 'alevel-maths' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('alevel-maths')}
+                    >
+                        <span className="tab-icon">🎓</span>
+                        <span className="tab-text">A-Level Maths</span>
+                    </button>
+                </div>
 
                 <div className="papers-display">
                     {loading ? (
@@ -127,7 +204,7 @@ const SupportedPapers: React.FC = () => {
                                         </div>
                                         <div className="header-bottom">
                                             <a
-                                                href={`/mark-${board.displayName.toLowerCase()}-${level.toLowerCase()}-maths-past-papers`}
+                                                href={board.toolUrl}
                                                 className="board-tool-link"
                                             >
                                                 Try the {board.displayName} {board.code} AI Marking Tool →
@@ -152,7 +229,7 @@ const SupportedPapers: React.FC = () => {
                                                 <div key={si} className="series-group">
                                                     <div className="series-header">
                                                         <h4>
-                                                            {level} Mathematics ({board.code}) {s.series}
+                                                            {board.subjectTitle} ({board.code}) {s.series}
                                                         </h4>
                                                         {s.category && (
                                                             <span className="series-category-tag">
@@ -164,14 +241,15 @@ const SupportedPapers: React.FC = () => {
                                                         {s.papers
                                                             .sort((a: any, b: any) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }))
                                                             .map((paper: any, pi: number) => {
+                                                                const typeLabel = getPaperTypeLabel(paper, isEnglish);
                                                                 return (
                                                                 <div key={pi} className="paper-row">
                                                                     <div className="paper-info">
                                                                         <span className="paper-count">{paper.name}:</span>
                                                                         <span className="paper-code-tag">{paper.code}</span>
-                                                                        {paper.type && (
+                                                                        {typeLabel && (
                                                                             <span className="paper-type-label">
-                                                                                {paper.type}
+                                                                                {typeLabel}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -210,7 +288,7 @@ const SupportedPapers: React.FC = () => {
                                                 </div>
                                             )) : (
                                                 <div className="no-papers-found">
-                                                    <p>No {level} papers found for {board.name}.</p>
+                                                    <p>No {board.subjectTitle} papers found for {board.name}.</p>
                                                 </div>
                                             )}
                                         </div>

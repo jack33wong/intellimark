@@ -143,7 +143,7 @@ const AQA_PROFILE: BoardProfile = {
     const lower = filename.toLowerCase();
     if (lower.includes('ins') || lower.includes('insert') || lower.includes('source')) return 'ins';
     if (lower.includes('ms') || lower.includes('mark') || lower.includes('scheme')) return 'ms';
-    if (lower.includes('wre') || lower.includes('er') || lower.includes('examiner') || lower.includes('report')) return 'er';
+    if (lower.includes('wre') || lower.includes('-er') || lower.includes('_er') || /\ber\b/.test(lower) || lower.includes('examiner') || lower.includes('report')) return 'er';
     if (lower.includes('qp') || lower.includes('question') || lower.includes('paper')) return 'qp';
     return null;
   },
@@ -692,36 +692,419 @@ Return ONLY raw JSON following this exact schema:
 
 const OCR_PROFILE: BoardProfile = {
   board: 'OCR',
-  displayName: 'OCR (Oxford Cambridge and RSA)',
+  displayName: 'OCR (Oxford Cambridge and RSA - GCSE English Language J351)',
   detect(context: string) {
-    return /ocr|j351/i.test(context);
+    return /ocr|j351|j352|communicating[-_ ]information|exploring[-_ ]effects/i.test(context);
   },
   parsePaperCode(filename: string) {
     const lower = filename.toLowerCase();
-    const match = lower.match(/(j35[12])[-_ ]?([0-9]{2}|[0-9])/);
+
+    // Check component titles & specific OCR document numbers
+    // Component 02: Exploring effects and impact (753303 QP, 753304 Insert, 753401 MS, 753224 ER)
+    if (
+      lower.includes('exploring') ||
+      lower.includes('effects') ||
+      lower.includes('impact') ||
+      /75330[34]|753401|753224/.test(lower)
+    ) {
+      return { key: 'J351/02', paperCode: 'J351/02' };
+    }
+
+    // Component 01: Communicating information and ideas (753301 QP, 753302 Insert, 753400 MS, 753225 ER)
+    if (
+      lower.includes('communicating') ||
+      lower.includes('information') ||
+      lower.includes('ideas') ||
+      /75330[12]|753400|753225/.test(lower)
+    ) {
+      return { key: 'J351/01', paperCode: 'J351/01' };
+    }
+
+    // Match J351-01, J351-02, J351/01, J351/02, J351_01, J351 01
+    const match = lower.match(/(j35[12])[-_/ ]?([0-9]{2}|[0-9])/);
     if (match) {
       const subj = match[1].toUpperCase();
       const num = match[2].length === 1 ? `0${match[2]}` : match[2];
       return { key: `${subj}/${num}`, paperCode: `${subj}/${num}` };
     }
+
+    // Match paper 1 / paper 2 / component 1 / component 2
+    const pMatch = lower.match(/(?:paper|p|component|comp)[-_ /]?([12])/);
+    if (pMatch) {
+      const num = `0${pMatch[1]}`;
+      return { key: `J351/${num}`, paperCode: `J351/${num}` };
+    }
+
     return { key: 'J351/01', paperCode: 'J351/01' };
   },
   parseFileRole(filename: string) {
     const lower = filename.toLowerCase();
-    if (lower.includes('ms') || lower.includes('mark')) return 'ms';
-    if (lower.includes('er') || lower.includes('examiner') || lower.includes('report')) return 'er';
-    if (lower.includes('ins') || lower.includes('insert')) return 'ins';
-    if (lower.includes('qp') || lower.includes('question')) return 'qp';
+    // 1. Check insert FIRST (many OCR insert files contain "question-paper-...-insert.pdf")
+    if (lower.includes('insert') || lower.includes('-ins') || lower.includes('_ins') || /\bins\b/.test(lower)) {
+      return 'ins';
+    }
+    // 2. Check mark scheme
+    if (lower.includes('mark') || lower.includes('scheme') || lower.includes('-ms') || lower.includes('_ms') || /\bms\b/.test(lower) || lower.includes('rms')) {
+      return 'ms';
+    }
+    // 3. Check examiner report (must not match bare "er" inside "paper" or "exploring")
+    if (lower.includes('examiner') || lower.includes('report') || lower.includes('-er') || lower.includes('_er') || /\ber\b/.test(lower) || lower.includes('pef') || lower.includes('wre')) {
+      return 'er';
+    }
+    // 4. Check question paper
+    if (lower.includes('question') || lower.includes('-qp') || lower.includes('_qp') || /\bqp\b/.test(lower) || lower.includes('que') || lower.includes('paper')) {
+      return 'qp';
+    }
     return null;
   },
   buildQpPrompt(paperCode: string, series: string, hasSeparateInsert: boolean) {
-    return AQA_PROFILE.buildQpPrompt(paperCode, series, hasSeparateInsert).replace(/"AQA"/g, '"OCR"');
+    const isPaper1 = paperCode.includes('01') || paperCode.endsWith('1');
+    const paperTitle = isPaper1 
+      ? 'Component 01: Communicating information and ideas'
+      : 'Component 02: Exploring effects and impact';
+
+    return `Convert the attached OCR GCSE English Language (${paperCode}) Question Paper PDF (${hasSeparateInsert ? 'and Reading Insert' : 'with internal reading extracts'}) into a single valid JSON object for the fullExamPapers collection.
+NOTE: For OCR GCSE English Language:
+- Time allowed is 2 hours. Total marks is 80.
+- Section A is Reading (40 marks). Extract both Text 1 and Text 2 verbatim into "sourceExtracts".
+- Section A questions:
+  ${isPaper1 ? `* Question 1 (4 marks, AO1) has sub-questions 1(a) [1 mark], 1(b) [1 mark], and 1(c) [2 marks]. Use the "sub_questions" array format for Question 1.
+  * Question 2 (6 marks, AO1) requires candidates to synthesise similarities between the texts (SINGLE_AO_LOR).
+  * Question 3 (12 marks, AO2) requires candidates to explore language and structure in Text 2 (SINGLE_AO_LOR).
+  * Question 4 (18 marks, assessing AO4 [12m] and AO3 [6m]) requires candidates to evaluate and compare both texts based on a statement (SINGLE_AO_LOR).` : `* Question 1 (4 marks, AO1) has sub-questions 1(a) [3 marks] and 1(b) [1 mark]. Use the "sub_questions" array format for Question 1.
+  * Question 2 (6 marks, AO2) requires candidates to explore language and structure in Text 1 (SINGLE_AO_LOR).
+  * Question 3 (12 marks, AO2) requires candidates to explore language and structure in Text 2 (SINGLE_AO_LOR).
+  * Question 4 (18 marks, assessing AO4 [12m] and AO3 [6m]) requires candidates to evaluate and compare both texts based on a statement (SINGLE_AO_LOR).`}
+- Section B is Writing (40 marks, assessed for AO5 [24 marks] and AO6 [16 marks], DUAL_AO_LOR).
+  Candidates choose EITHER Question 5 OR Question 6. Extract BOTH Question 5 and Question 6 into the "questions" array.
+- Total questions to extract: 6 (Q1, Q2, Q3, Q4, Q5, Q6).
+
+Return ONLY raw JSON following this exact schema:
+
+{
+  "metadata": {
+    "exam_board": "OCR",
+    "qualification": "GCSE",
+    "subject": "English Language",
+    "exam_code": "${paperCode}",
+    "paper_title": "${paperTitle}",
+    "tier": "N/A",
+    "exam_series": "${series}",
+    "time_allowed": "2 hours",
+    "total_questions": 6,
+    "total_marks": 80
+  },
+  "sourceExtracts": [
+    {
+      "label": "Text 1 — [Author and Title]",
+      "text": "Full verbatim text of Text 1"
+    },
+    {
+      "label": "Text 2 — [Author and Title]",
+      "text": "Full verbatim text of Text 2"
+    }
+  ],
+  "questions": [
+    {
+      "question_number": "1",
+      "question_text": "Full verbatim stem for Question 1",
+      "marks": 4,
+      "scoring_type": "POINT_BASED",
+      "assessment_objectives": ["AO1"],
+      "sub_questions": [
+        ${isPaper1 ? `{
+          "question_part": "a",
+          "question_text": "Verbatim text for 1(a)",
+          "marks": 1,
+          "scoring_type": "POINT_BASED",
+          "assessment_objectives": ["AO1"]
+        },
+        {
+          "question_part": "b",
+          "question_text": "Verbatim text for 1(b)",
+          "marks": 1,
+          "scoring_type": "POINT_BASED",
+          "assessment_objectives": ["AO1"]
+        },
+        {
+          "question_part": "c",
+          "question_text": "Verbatim text for 1(c)",
+          "marks": 2,
+          "scoring_type": "POINT_BASED",
+          "assessment_objectives": ["AO1"]
+        }` : `{
+          "question_part": "a",
+          "question_text": "Verbatim text for 1(a)",
+          "marks": 3,
+          "scoring_type": "POINT_BASED",
+          "assessment_objectives": ["AO1"]
+        },
+        {
+          "question_part": "b",
+          "question_text": "Verbatim text for 1(b)",
+          "marks": 1,
+          "scoring_type": "POINT_BASED",
+          "assessment_objectives": ["AO1"]
+        }`}
+      ]
+    },
+    {
+      "question_number": "2",
+      "question_text": "Verbatim question text for Question 2",
+      "marks": 6,
+      "scoring_type": "SINGLE_AO_LOR",
+      "assessment_objectives": ["${isPaper1 ? 'AO1' : 'AO2'}"],
+      "sub_questions": []
+    },
+    {
+      "question_number": "3",
+      "question_text": "Verbatim question text for Question 3 including bullet points",
+      "marks": 12,
+      "scoring_type": "SINGLE_AO_LOR",
+      "assessment_objectives": ["AO2"],
+      "sub_questions": []
+    },
+    {
+      "question_number": "4",
+      "question_text": "Verbatim question text for Question 4 including statement and bullet points",
+      "marks": 18,
+      "scoring_type": "SINGLE_AO_LOR",
+      "assessment_objectives": ["AO4", "AO3"],
+      "sub_questions": []
+    },
+    {
+      "question_number": "5",
+      "question_text": "Verbatim prompt for Section B Question 5 including bullet points",
+      "marks": 40,
+      "scoring_type": "DUAL_AO_LOR",
+      "assessment_objectives": ["AO5", "AO6"],
+      "sub_questions": []
+    },
+    {
+      "question_number": "6",
+      "question_text": "Verbatim prompt for Section B Question 6 including bullet points",
+      "marks": 40,
+      "scoring_type": "DUAL_AO_LOR",
+      "assessment_objectives": ["AO5", "AO6"],
+      "sub_questions": []
+    }
+  ],
+  "totalMarks": 80
+}`;
   },
   buildMsPrompt(paperCode: string, series: string) {
-    return AQA_PROFILE.buildMsPrompt(paperCode, series).replace(/"AQA"/g, '"OCR"');
+    const isPaper1 = paperCode.includes('01') || paperCode.endsWith('1');
+    const paperTitle = isPaper1 
+      ? 'Component 01: Communicating information and ideas'
+      : 'Component 02: Exploring effects and impact';
+
+    return `Convert the attached OCR GCSE English Language (${paperCode}) Mark Scheme PDF into a single valid JSON object for the markingSchemes collection.
+CRITICAL: For every level in "levels", you MUST provide integer "level", "minMarks", and "maxMarks" (do NOT use a single "markRange" string).
+CRITICAL: For Section B Writing (Questions 5 and 6), use "dualAoBreakdown" with keys "ao5" (maxMarks: 24, Levels 1–6) and "ao6" (maxMarks: 16, Levels 1–4), each containing "levels" with integer "level", "minMarks", "maxMarks".
+
+Return ONLY raw JSON following this exact schema:
+
+{
+  "examDetails": {
+    "board": "OCR",
+    "qualification": "GCSE",
+    "subject": "English Language",
+    "paperCode": "${paperCode}",
+    "tier": "N/A",
+    "paper": "${paperTitle}",
+    "date": "${series}",
+    "exam_series": "${series}"
+  },
+  "totalQuestions": 6,
+  "totalMarks": 80,
+  "generalMarkingGuidance": {
+    "overview": "Summary of OCR general marking guidance including RM Assessor and best-fit principles",
+    "levelOfResponseInstructions": [
+      "Level of response marking instructions..."
+    ]
+  },
+  "questions": {
+    "1": {
+      "questionNumber": "1",
+      "scoringType": "POINT_BASED",
+      "totalMarks": 4,
+      "assessmentObjectives": ["AO1"],
+      "answer": "Accepted answers/points for Question 1",
+      "guidance": "Instructions on awarding marks and exclusions",
+      "marks": [
+        { "mark": "1", "answer": "Valid point", "comments": "AO1" }
+      ]
+    },
+    "2": {
+      "questionNumber": "2",
+      "scoringType": "SINGLE_AO_LOR",
+      "totalMarks": 6,
+      "assessmentObjectives": ["${isPaper1 ? 'AO1' : 'AO2'}"],
+      "answer": "${isPaper1 ? 'Synthesis of similarities' : 'Language and structure analysis'}",
+      "levels": [
+        { "level": 3, "label": "Level 3", "minMarks": 5, "maxMarks": 6, "descriptors": ["..."] },
+        { "level": 2, "label": "Level 2", "minMarks": 3, "maxMarks": 4, "descriptors": ["..."] },
+        { "level": 1, "label": "Level 1", "minMarks": 1, "maxMarks": 2, "descriptors": ["..."] },
+        { "level": 0, "label": "Level 0: No response or no rewardable material", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+      ],
+      "indicativeContent": "Indicative content points from mark scheme..."
+    },
+    "3": {
+      "questionNumber": "3",
+      "scoringType": "SINGLE_AO_LOR",
+      "totalMarks": 12,
+      "assessmentObjectives": ["AO2"],
+      "answer": "Language and structure analysis of Text 2",
+      "levels": [
+        { "level": 6, "label": "Level 6", "minMarks": 11, "maxMarks": 12, "descriptors": ["..."] },
+        { "level": 5, "label": "Level 5", "minMarks": 9, "maxMarks": 10, "descriptors": ["..."] },
+        { "level": 4, "label": "Level 4", "minMarks": 7, "maxMarks": 8, "descriptors": ["..."] },
+        { "level": 3, "label": "Level 3", "minMarks": 5, "maxMarks": 6, "descriptors": ["..."] },
+        { "level": 2, "label": "Level 2", "minMarks": 3, "maxMarks": 4, "descriptors": ["..."] },
+        { "level": 1, "label": "Level 1", "minMarks": 1, "maxMarks": 2, "descriptors": ["..."] },
+        { "level": 0, "label": "Level 0", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+      ],
+      "indicativeContent": "Indicative content points from mark scheme..."
+    },
+    "4": {
+      "questionNumber": "4",
+      "scoringType": "SINGLE_AO_LOR",
+      "totalMarks": 18,
+      "assessmentObjectives": ["AO4", "AO3"],
+      "answer": "Evaluation and comparison across both texts",
+      "levels": [
+        { "level": 6, "label": "Level 6", "minMarks": 16, "maxMarks": 18, "descriptors": ["..."] },
+        { "level": 5, "label": "Level 5", "minMarks": 13, "maxMarks": 15, "descriptors": ["..."] },
+        { "level": 4, "label": "Level 4", "minMarks": 10, "maxMarks": 12, "descriptors": ["..."] },
+        { "level": 3, "label": "Level 3", "minMarks": 7, "maxMarks": 9, "descriptors": ["..."] },
+        { "level": 2, "label": "Level 2", "minMarks": 4, "maxMarks": 6, "descriptors": ["..."] },
+        { "level": 1, "label": "Level 1", "minMarks": 1, "maxMarks": 3, "descriptors": ["..."] },
+        { "level": 0, "label": "Level 0", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+      ],
+      "indicativeContent": "Indicative content points from mark scheme..."
+    },
+    "5": {
+      "questionNumber": "5",
+      "scoringType": "DUAL_AO_LOR",
+      "totalMarks": 40,
+      "assessmentObjectives": ["AO5", "AO6"],
+      "answer": "Section B Writing Task 1 (40 marks = AO5 [24m] + AO6 [16m])",
+      "indicativeContent": "Guidance on purpose, audience, and form...",
+      "dualAoBreakdown": {
+        "ao5": {
+          "ao": "AO5",
+          "skill": "Content and Organisation",
+          "maxMarks": 24,
+          "radarAxis": "AO5 Content & Org",
+          "levels": [
+            { "level": 6, "subBand": "Level 6", "label": "Level 6", "minMarks": 21, "maxMarks": 24, "descriptors": ["..."] },
+            { "level": 5, "subBand": "Level 5", "label": "Level 5", "minMarks": 17, "maxMarks": 20, "descriptors": ["..."] },
+            { "level": 4, "subBand": "Level 4", "label": "Level 4", "minMarks": 13, "maxMarks": 16, "descriptors": ["..."] },
+            { "level": 3, "subBand": "Level 3", "label": "Level 3", "minMarks": 9, "maxMarks": 12, "descriptors": ["..."] },
+            { "level": 2, "subBand": "Level 2", "label": "Level 2", "minMarks": 5, "maxMarks": 8, "descriptors": ["..."] },
+            { "level": 1, "subBand": "Level 1", "label": "Level 1", "minMarks": 1, "maxMarks": 4, "descriptors": ["..."] },
+            { "level": 0, "subBand": "Level 0", "label": "Level 0", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+          ]
+        },
+        "ao6": {
+          "ao": "AO6",
+          "skill": "Technical Accuracy (SPaG)",
+          "maxMarks": 16,
+          "radarAxis": "AO6 Technical SPaG",
+          "levels": [
+            { "level": 4, "label": "Level 4", "minMarks": 13, "maxMarks": 16, "descriptors": ["..."] },
+            { "level": 3, "label": "Level 3", "minMarks": 9, "maxMarks": 12, "descriptors": ["..."] },
+            { "level": 2, "label": "Level 2", "minMarks": 5, "maxMarks": 8, "descriptors": ["..."] },
+            { "level": 1, "label": "Level 1", "minMarks": 1, "maxMarks": 4, "descriptors": ["..."] },
+            { "level": 0, "label": "Level 0", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+          ]
+        }
+      }
+    },
+    "6": {
+      "questionNumber": "6",
+      "scoringType": "DUAL_AO_LOR",
+      "totalMarks": 40,
+      "assessmentObjectives": ["AO5", "AO6"],
+      "answer": "Section B Writing Task 2 (40 marks = AO5 [24m] + AO6 [16m])",
+      "indicativeContent": "Guidance on purpose, audience, and form...",
+      "dualAoBreakdown": {
+        "ao5": {
+          "ao": "AO5",
+          "skill": "Content and Organisation",
+          "maxMarks": 24,
+          "radarAxis": "AO5 Content & Org",
+          "levels": [
+            { "level": 6, "subBand": "Level 6", "label": "Level 6", "minMarks": 21, "maxMarks": 24, "descriptors": ["..."] },
+            { "level": 5, "subBand": "Level 5", "label": "Level 5", "minMarks": 17, "maxMarks": 20, "descriptors": ["..."] },
+            { "level": 4, "subBand": "Level 4", "label": "Level 4", "minMarks": 13, "maxMarks": 16, "descriptors": ["..."] },
+            { "level": 3, "subBand": "Level 3", "label": "Level 3", "minMarks": 9, "maxMarks": 12, "descriptors": ["..."] },
+            { "level": 2, "subBand": "Level 2", "label": "Level 2", "minMarks": 5, "maxMarks": 8, "descriptors": ["..."] },
+            { "level": 1, "subBand": "Level 1", "label": "Level 1", "minMarks": 1, "maxMarks": 4, "descriptors": ["..."] },
+            { "level": 0, "subBand": "Level 0", "label": "Level 0", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+          ]
+        },
+        "ao6": {
+          "ao": "AO6",
+          "skill": "Technical Accuracy (SPaG)",
+          "maxMarks": 16,
+          "radarAxis": "AO6 Technical SPaG",
+          "levels": [
+            { "level": 4, "label": "Level 4", "minMarks": 13, "maxMarks": 16, "descriptors": ["..."] },
+            { "level": 3, "label": "Level 3", "minMarks": 9, "maxMarks": 12, "descriptors": ["..."] },
+            { "level": 2, "label": "Level 2", "minMarks": 5, "maxMarks": 8, "descriptors": ["..."] },
+            { "level": 1, "label": "Level 1", "minMarks": 1, "maxMarks": 4, "descriptors": ["..."] },
+            { "level": 0, "label": "Level 0", "minMarks": 0, "maxMarks": 0, "descriptors": ["No rewardable material"] }
+          ]
+        }
+      }
+    }
+  }
+}`;
   },
   buildErPrompt(paperCode: string, series: string) {
-    return AQA_PROFILE.buildErPrompt(paperCode, series).replace(/"AQA"/g, '"OCR"');
+    const isPaper1 = paperCode.includes('01') || paperCode.endsWith('1');
+    const paperTitle = isPaper1 
+      ? 'Component 01: Communicating information and ideas'
+      : 'Component 02: Exploring effects and impact';
+
+    return `Convert the attached OCR GCSE English Language (${paperCode}) Examiners’ Report PDF into a single valid JSON object for the examinerReports collection.
+Return ONLY raw JSON following this exact schema:
+
+{
+  "examDetails": {
+    "board": "OCR",
+    "qualification": "GCSE",
+    "subject": "English Language",
+    "paperCode": "${paperCode}",
+    "tier": "N/A",
+    "paper": "${paperTitle}",
+    "date": "${series}",
+    "exam_series": "${series}"
+  },
+  "totalQuestions": 6,
+  "summary": {
+    "overallPerformance": "Summary paragraph of overall candidate performance on this component",
+    "areasWhereStudentsExcelled": ["Key strength 1...", "Key strength 2..."],
+    "areasWhereStudentsStruggled": ["Key pitfall 1...", "Key pitfall 2..."]
+  },
+  "assessmentObjectives": [
+    { "ao": "AO1", "title": "Identify and interpret explicit and implicit information and ideas", "commonErrors": ["..."] },
+    { "ao": "AO2", "title": "Explain, comment on and analyse how writers use language and structure", "commonErrors": ["..."] },
+    { "ao": "AO3", "title": "Compare writers’ ideas and perspectives", "commonErrors": ["..."] },
+    { "ao": "AO4", "title": "Evaluate texts critically and support with appropriate textual references", "commonErrors": ["..."] },
+    { "ao": "AO5", "title": "Communicate clearly, effectively and imaginatively", "commonErrors": ["..."] },
+    { "ao": "AO6", "title": "Technical Accuracy (Vocabulary and Sentence Structures)", "commonErrors": ["..."] }
+  ],
+  "questions": {
+    "1": { "questionNumber": "1", "maxMarks": 4, "assessmentObjectives": ["AO1"], "whatWorkedWell": "...", "commonPitfalls": ["..."] },
+    "2": { "questionNumber": "2", "maxMarks": 6, "assessmentObjectives": ["${isPaper1 ? 'AO1' : 'AO2'}"], "whatWorkedWell": "...", "commonPitfalls": ["..."] },
+    "3": { "questionNumber": "3", "maxMarks": 12, "assessmentObjectives": ["AO2"], "whatWorkedWell": "...", "commonPitfalls": ["..."], "levelSeparators": "..." },
+    "4": { "questionNumber": "4", "maxMarks": 18, "assessmentObjectives": ["AO4", "AO3"], "whatWorkedWell": "...", "commonPitfalls": ["..."], "levelSeparators": "..." },
+    "5": { "questionNumber": "5", "maxMarks": 40, "assessmentObjectives": ["AO5", "AO6"], "whatWorkedWell": "...", "commonPitfalls": ["..."] },
+    "6": { "questionNumber": "6", "maxMarks": 40, "assessmentObjectives": ["AO5", "AO6"], "whatWorkedWell": "...", "commonPitfalls": ["..."] }
+  }
+}`;
   }
 };
 
@@ -1256,8 +1639,9 @@ Options:
     jobs = findPaperJobsInDir(args.dir, profile);
   } else if (args.qp && args.ms) {
     const inferred = profile.parsePaperCode(path.basename(args.qp));
+    const defaultPrefix = profile.board === 'EDEXCEL' ? '1EN0/' : (profile.board === 'OCR' ? 'J351/' : '8700/');
     jobs = [{
-      paperCode: args.paper ? `${profile.board === 'EDEXCEL' ? '1EN0/' : '8700/'}${args.paper.padStart(2, '0')}` : (inferred?.paperCode || 'Paper 1'),
+      paperCode: args.paper ? `${defaultPrefix}${args.paper.padStart(2, '0')}` : (inferred?.paperCode || 'Paper 1'),
       board: profile.board,
       qp: args.qp,
       ins: args.ins,

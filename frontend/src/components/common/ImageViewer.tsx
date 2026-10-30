@@ -6,7 +6,7 @@
  */
 
 import React, { useCallback, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, Download, RotateCw } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, Download, RotateCw, Archive } from 'lucide-react';
 import type { SessionImage } from '../../utils/imageCollectionUtils';
 import { useImageMode } from '../../hooks/useImageMode';
 import { engagementTracker } from '../../utils/engagementTracker';
@@ -61,6 +61,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         imageError,
         isLoading,
         isDownloading,
+        isZipping,
+        zipProgress,
         zoomIn,
         zoomOut,
         rotate,
@@ -73,6 +75,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         handleImageLoad,
         handleImageError,
         handleDownload,
+        handleDownloadAllZip,
         calculateTransform,
         canZoomIn,
         canZoomOut
@@ -118,6 +121,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         if (!currentImage) return;
         await handleDownload(currentImage);
     }, [currentImage, handleDownload]);
+
+    const onDownloadAll = useCallback(async () => {
+        if (!images || images.length <= 1) return;
+        const rawName = currentImage?.filename || 'annotated_homework';
+        const cleanBase = rawName.replace(/_page_\d+.*|\.pdf$|\.jpe?g$|\.png$/i, '') || 'annotated_homework';
+        await handleDownloadAllZip(images, cleanBase);
+    }, [images, currentImage, handleDownloadAllZip]);
 
     // Handle keyboard navigation
     useEffect(() => {
@@ -232,7 +242,23 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                     <div className="control-separator" />
                     <button type="button" className="rotate-btn" onClick={rotate} aria-label="Rotate image"><RotateCw size={20} /></button>
                     <div className="control-separator" />
-                    <button type="button" className="download-btn" onClick={onDownload} disabled={isDownloading} aria-label="Download image"><Download size={20} /><span>{isDownloading ? 'Downloading...' : 'Download'}</span></button>
+                    <button type="button" className="download-btn" onClick={onDownload} disabled={isDownloading || isZipping} aria-label="Download image" title="Download current page"><Download size={20} /><span>{isDownloading ? 'Downloading...' : (images.length > 1 ? 'Page' : 'Download')}</span></button>
+                    {images.length > 1 && (
+                        <>
+                            <div className="control-separator" />
+                            <button
+                                type="button"
+                                className="download-all-btn"
+                                onClick={onDownloadAll}
+                                disabled={isZipping || isDownloading}
+                                aria-label="Download all pages as ZIP archive"
+                                title="Download all pages in a .zip archive"
+                            >
+                                <Archive size={20} />
+                                <span>{isZipping ? `Zipping ${zipProgress}` : 'All (.zip)'}</span>
+                            </button>
+                        </>
+                    )}
                 </div>
                 <button type="button" className="close-btn" onClick={onClose} aria-label="Close image viewer"><X size={20} /></button>
             </div>

@@ -838,7 +838,11 @@ export class SessionManagementService {
     const structuredAiImageDataArray = finalAnnotatedOutput.map((annotatedImage, index) => {
       // FIX: Use actual standardized page metadata if available, fallback to indexed files
       const page = standardizedPages?.[index];
-      const fileName = page?.originalFileName || files[index]?.originalname || `annotated-image-${index + 1}.png`;
+      let fileName = page?.originalFileName || files[index]?.originalname || `annotated-image-${index + 1}.png`;
+      if (fileName.toLowerCase().endsWith('.pdf')) {
+        const baseName = fileName.replace(/\.pdf$/i, '');
+        fileName = `${baseName}_page_${index + 1}.jpg`;
+      }
       const size = page?.fileSize || annotatedImage.length;
 
       return {
@@ -1113,12 +1117,19 @@ export class SessionManagementService {
     try {
       const { ModelProvider } = await import('../utils/ModelProvider.js');
       const { getPrompt } = await import('../config/prompts.js');
-      const { resolveSubjectProfile, mapAoToRadarAxis } = await import('../config/subjectProfiles.js');
+      const {
+        resolveSubjectProfile,
+        mapAoToRadarAxis,
+        isPaper2EnglishLanguage,
+        ENGLISH_LANGUAGE_P1_RADAR_AXES,
+        ENGLISH_LANGUAGE_P2_RADAR_AXES
+      } = await import('../config/subjectProfiles.js');
 
       const hasRubricQuestions = allQuestionResults.some((qr: any) => Boolean(qr.rubricEvaluation));
       const subjectProfile = resolveSubjectProfile({
         subject: examInfo?.subject || (hasRubricQuestions ? 'English Language' : undefined),
-        paperCode: examInfo?.examCode || examInfo?.paperCode
+        paperCode: examInfo?.examCode || examInfo?.paperCode,
+        paperTitle: examInfo?.paperTitle
       });
       const isLoRSubject = subjectProfile.paradigm === 'LEVEL_OF_RESPONSE' || hasRubricQuestions;
 
@@ -1144,15 +1155,30 @@ export class SessionManagementService {
       }
 
       // Determine Radar Axes dynamically from SubjectProfile (for English LoR) or AI's paper-aware selection (for Maths)
+      const isEnglishLanguage = subjectProfile.key === 'ENGLISH_LANGUAGE';
+      const isEnglishP2 = isEnglishLanguage && (
+        isPaper2EnglishLanguage({
+          examCode: examInfo?.examCode,
+          paperCode: examInfo?.paperCode,
+          paperTitle: examInfo?.paperTitle,
+          questions: allQuestionResults
+        }) ||
+        allQuestionResults.some((qr: any) => {
+          const rubric = qr.rubricEvaluation;
+          return rubric?.aoBreakdown?.some((a: any) => /AO3/i.test(String(a.ao || '')) || /comparison/i.test(String(a.radarAxis || '')));
+        })
+      );
+      const englishRadarAxes = isEnglishP2 ? ENGLISH_LANGUAGE_P2_RADAR_AXES : ENGLISH_LANGUAGE_P1_RADAR_AXES;
+
       const isALevel = !isLoRSubject && (aiParsed.level === 'ALEVEL' || (examInfo?.examCode && /^9|^8MA|^735|^H2/i.test(examInfo.examCode)));
       const defaultAxes = isLoRSubject
-        ? subjectProfile.radarAxes
+        ? (isEnglishLanguage ? englishRadarAxes : subjectProfile.radarAxes)
         : (isALevel
             ? ['Algebra & Functions', 'Coordinate Geometry', 'Sequences & Series', 'Trigonometry', 'Exponentials & Logs', 'Differentiation', 'Integration', 'Proof & Vectors']
             : ['Number', 'Algebra', 'Ratio & Proportion', 'Geometry', 'Probability', 'Statistics']);
 
       const axesList: string[] = isLoRSubject
-        ? subjectProfile.radarAxes
+        ? (isEnglishLanguage ? englishRadarAxes : subjectProfile.radarAxes)
         : (Array.isArray(aiParsed.radarAxes) && aiParsed.radarAxes.length >= 4
             ? aiParsed.radarAxes.slice(0, 8).map((a: any) => String(a).trim())
             : defaultAxes);
@@ -1188,9 +1214,13 @@ export class SessionManagementService {
               const maxM = Number(aoItem.maxMarks || 0);
               const awdM = Number(aoItem.awardedMarks || 0);
               if (maxM <= 0) return;
+              const directAxisMatch = aoItem.radarAxis
+                ? axesList.find(a => a.toLowerCase() === String(aoItem.radarAxis).toLowerCase())
+                : undefined;
               const resolvedAxis =
-                (aoItem.radarAxis && axesList.find(a => a.toLowerCase() === String(aoItem.radarAxis).toLowerCase())) ||
-                mapAoToRadarAxis(String(aoItem.ao || ''), subjectProfile, qNum, String(aoItem.skill || ''));
+                (directAxisMatch && !(isEnglishP2 && qNum === '2' && directAxisMatch === 'AO1 Retrieval'))
+                  ? directAxisMatch
+                  : mapAoToRadarAxis(String(aoItem.ao || ''), subjectProfile, qNum, String(aoItem.skill || ''), { radarAxes: axesList, isPaper2: isEnglishP2 });
               const targetAxis = axesList.includes(resolvedAxis) ? resolvedAxis : axesList[0];
               const prev = axisTotals.get(targetAxis);
               if (prev) {
@@ -1202,7 +1232,7 @@ export class SessionManagementService {
             });
           } else if (qNum === '1' && Number(qr.score?.totalMarks ?? qr.totalMarks ?? 0) === 4) {
             // Point-based Q1 Retrieval (AO1) on English Language paper
-            const resolvedAxis = mapAoToRadarAxis('AO1', subjectProfile, qNum, 'Retrieval');
+            const resolvedAxis = mapAoToRadarAxis('AO1', subjectProfile, qNum, 'Retrieval', { radarAxes: axesList, isPaper2: isEnglishP2 });
             const prev = axisTotals.get(resolvedAxis);
             if (prev) {
               prev.awarded += Number(qr.score?.awardedMarks ?? qr.marks ?? 0);

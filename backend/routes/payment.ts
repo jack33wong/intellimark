@@ -203,10 +203,36 @@ router.get('/list-subscriptions', async (req, res) => {
       .offset(skip)
       .get();
 
-    const subscriptions = paginatedSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Batch fetch userCredits for these subscriptions
+    const userIds = Array.from(new Set(paginatedSnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
+    const creditMap = new Map<string, any>();
+    if (userIds.length > 0) {
+      try {
+        const creditRefs = userIds.map(uid => db.collection('userCredits').doc(uid as string));
+        const creditDocs = await db.getAll(...creditRefs);
+        creditDocs.forEach(cd => {
+          if (cd.exists) {
+            creditMap.set(cd.id, cd.data());
+          }
+        });
+      } catch (err) {
+        console.error('Error batch fetching user credits for subscriptions:', err);
+      }
+    }
+
+    const subscriptions = paginatedSnapshot.docs.map(doc => {
+      const data = doc.data();
+      const credits = data.userId ? creditMap.get(data.userId) : null;
+      return {
+        id: doc.id,
+        ...data,
+        credits: credits ? {
+          remainingCredits: credits.remainingCredits ?? 0,
+          totalCredits: credits.totalCredits ?? 0,
+          usedCredits: credits.usedCredits ?? 0
+        } : null
+      };
+    });
 
     res.json({
       subscriptions,

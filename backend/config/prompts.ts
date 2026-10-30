@@ -15,6 +15,7 @@ import classification_system_prompt from './prompts/classification_system_prompt
 import worksheet_fallback_prompt from './prompts/worksheet_fallback_prompt.js';
 import marking_fallback_system_prompt from './prompts/marking_fallback_system_prompt.js';
 import { englishLoRSystemPrompt, englishLoRUserPrompt } from './prompts/english_lor_marking_prompt.js';
+import { english_model_answer_html_system_prompt, english_marking_scheme_explanation_system_prompt } from './prompts/english_followup_prompts.js';
 import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
 
 /**
@@ -140,9 +141,9 @@ ${guidance}`;
   // ============================================================================
   markingScheme: {
     system: marking_scheme_explanation_system_prompt,
-    user: (questionText: string, schemeText: string, questionNumber: string, totalMarks?: number) => {
+    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
       return `# TASK DATA
-QUESTION NUMBER: ${questionNumber}
+QUESTION NUMBER: ${questionNumber || 'Unknown'}
 MAX MARKS: ${totalMarks || 0}
 
 ## QUESTION TEXT
@@ -152,6 +153,38 @@ ${questionText}
 ${schemeText}
 
 Please provide a clear, pedagogical explanation of the marking scheme for a student. Group sub-questions under the main question header.`;
+    }
+  },
+
+  englishModelAnswerHtml: {
+    system: english_model_answer_html_system_prompt,
+    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string, sourceExtractsText?: string, examinerReportText?: string) => {
+      let p = `# TASK DATA\nQUESTION NUMBER: ${questionNumber || 'Unknown'}\nMAX MARKS: ${totalMarks || 0}\n\n## QUESTION TEXT\n${questionText}\n`;
+      if (sourceExtractsText && sourceExtractsText.trim()) {
+        p += `\n## READING INSERT / SOURCE EXTRACT(S)\n${sourceExtractsText.trim()}\n`;
+      }
+      p += `\n## OFFICIAL MARK SCHEME (LEVELS, INDICATIVE STANDARD & CONTENT BULLETS)\n${schemeText}\n`;
+      if (examinerReportText && examinerReportText.trim()) {
+        p += `\n## CHIEF EXAMINER REPORT INSIGHTS\n${examinerReportText.trim()}\n`;
+      }
+      p += `\nGenerate a realistic, full-mark (Level 4 / Grade 9) annotated HTML model answer following all formatting rules.`;
+      return p;
+    }
+  },
+
+  englishMarkingScheme: {
+    system: english_marking_scheme_explanation_system_prompt,
+    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string, sourceExtractsText?: string, examinerReportText?: string) => {
+      let p = `# TASK DATA\nQUESTION NUMBER: ${questionNumber || 'Unknown'}\nMAX MARKS: ${totalMarks || 0}\n\n## QUESTION TEXT\n${questionText}\n`;
+      if (sourceExtractsText && sourceExtractsText.trim()) {
+        p += `\n## READING INSERT / SOURCE EXTRACT(S)\n${sourceExtractsText.trim()}\n`;
+      }
+      p += `\n## OFFICIAL MARK SCHEME\n${schemeText}\n`;
+      if (examinerReportText && examinerReportText.trim()) {
+        p += `\n## CHIEF EXAMINER REPORT INSIGHTS\n${examinerReportText.trim()}\n`;
+      }
+      p += `\nProvide a clear, student-friendly HTML breakdown of how to achieve Level 4 on this question.`;
+      return p;
     }
   },
 

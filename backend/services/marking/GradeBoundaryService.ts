@@ -469,9 +469,9 @@ export class GradeBoundaryService {
   static inferSubjectFromExamCode(examCode: string): string {
     if (examCode.includes('1MA1') || examCode.includes('MA1') || examCode.includes('8300') || examCode.includes('J560')) {
       return 'MATHEMATICS';
-    } else if (examCode.includes('8700') || examCode.includes('1EN0')) {
+    } else if (examCode.includes('8700') || examCode.includes('1EN0') || examCode.includes('J351')) {
       return 'ENGLISH LANGUAGE';
-    } else if (examCode.includes('8702') || examCode.includes('1ET0')) {
+    } else if (examCode.includes('8702') || examCode.includes('1ET0') || examCode.includes('J352')) {
       return 'ENGLISH LITERATURE';
     } else if (examCode.includes('1PH0') || examCode.includes('PH0')) {
       return 'PHYSICS';

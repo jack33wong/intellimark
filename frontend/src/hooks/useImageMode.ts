@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import JSZip from 'jszip';
 import type { SessionImage } from '../utils/imageCollectionUtils';
 
 const ZOOM_LEVELS = [25, 50, 75, 100, 125, 150, 175, 200];
@@ -24,6 +25,8 @@ interface UseImageModeReturn {
   imageError: boolean;
   isLoading: boolean;
   isDownloading: boolean;
+  isZipping: boolean;
+  zipProgress: string;
 
   // Actions
   zoomIn: () => void;
@@ -45,6 +48,7 @@ interface UseImageModeReturn {
   handleImageLoad: () => void;
   handleImageError: () => void;
   handleDownload: (image: SessionImage) => Promise<void>;
+  handleDownloadAllZip: (images: SessionImage[], zipBaseName?: string) => Promise<void>;
 
   // Utils
   calculateTransform: () => string;
@@ -65,6 +69,8 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState('');
 
   // Reset all state
   const resetAll = useCallback(() => {
@@ -219,6 +225,16 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
     setIsDownloading(true);
 
     try {
+      let downloadFilename = image.filename || 'annotated-image';
+      // Ensure image downloads never have a .pdf extension
+      if (downloadFilename.toLowerCase().endsWith('.pdf')) {
+        const pageSuffix = image.pageIndex !== undefined ? `_page_${image.pageIndex + 1}` : '';
+        downloadFilename = downloadFilename.replace(/\.pdf$/i, `${pageSuffix}.jpg`);
+      }
+      if (!/\.(jpe?g|png|webp|gif|svg)$/i.test(downloadFilename)) {
+        downloadFilename += '.jpg';
+      }
+
       if (image.src.startsWith('data:')) {
         // Base64 data URL
         const response = await fetch(image.src);
@@ -226,7 +242,7 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = image.filename || 'image';
+        link.download = downloadFilename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -234,11 +250,11 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
       } else {
         // External URL - use backend proxy
         const backendUrl = process.env.REACT_APP_API_BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5001');
-        const downloadUrl = `${backendUrl}/api/marking/download-image?url=${encodeURIComponent(image.src)}&filename=${encodeURIComponent(image.filename || 'image')}`;
+        const downloadUrl = `${backendUrl}/api/marking/download-image?url=${encodeURIComponent(image.src)}&filename=${encodeURIComponent(downloadFilename)}`;
 
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = image.filename || 'image';
+        link.download = downloadFilename;
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
@@ -260,6 +276,75 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
     }
   }, [isDownloading]);
 
+  // Download all images in a zip archive (supports desktop and mobile)
+  const handleDownloadAllZip = useCallback(async (images: SessionImage[], zipBaseName: string = 'annotated_homework') => {
+    if (!images || images.length === 0 || isZipping) return;
+
+    setIsZipping(true);
+    setZipProgress(`(0/${images.length})`);
+
+    try {
+      const zip = new JSZip();
+      const backendUrl = process.env.REACT_APP_API_BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5001');
+
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        setZipProgress(`(${i + 1}/${images.length})`);
+
+        let blob: Blob | null = null;
+        if (img.src.startsWith('data:')) {
+          const response = await fetch(img.src);
+          blob = await response.blob();
+        } else {
+          try {
+            const response = await fetch(img.src);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            blob = await response.blob();
+          } catch (fetchErr) {
+            // Fallback: proxy via backend if CORS blocks reading the image
+            const proxyUrl = `${backendUrl}/api/marking/download-image?url=${encodeURIComponent(img.src)}`;
+            const response = await fetch(proxyUrl);
+            blob = await response.blob();
+          }
+        }
+
+        if (blob) {
+          let filename = img.filename || `image_page_${i + 1}.jpg`;
+          if (filename.toLowerCase().endsWith('.pdf')) {
+            filename = filename.replace(/\.pdf$/i, `_page_${i + 1}.jpg`);
+          }
+          if (!/\.(jpe?g|png|webp|gif|svg)$/i.test(filename)) {
+            filename += '.jpg';
+          }
+          // Ensure page number uniqueness if filenames are identical
+          if (!filename.includes(`page_${i + 1}`) && !filename.includes(`p${i + 1}`)) {
+            const dotIdx = filename.lastIndexOf('.');
+            const base = dotIdx > 0 ? filename.substring(0, dotIdx) : filename;
+            const ext = dotIdx > 0 ? filename.substring(dotIdx) : '.jpg';
+            filename = `${base}_page_${i + 1}${ext}`;
+          }
+          zip.file(filename, blob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanZipName = zipBaseName.replace(/\.zip$/i, '');
+      link.download = `${cleanZipName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to generate zip file:', err);
+    } finally {
+      setIsZipping(false);
+      setZipProgress('');
+    }
+  }, [isZipping]);
+
   // Utils
   const calculateTransform = useCallback(() => {
     return `translate(${translateX}px, ${translateY}px) scale(${zoomLevel / 100}) rotate(${rotation}deg)`;
@@ -278,6 +363,8 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
     imageError,
     isLoading,
     isDownloading,
+    isZipping,
+    zipProgress,
 
     // Actions
     zoomIn,
@@ -299,6 +386,7 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
     handleImageLoad,
     handleImageError,
     handleDownload,
+    handleDownloadAllZip,
 
     // Utils
     calculateTransform,

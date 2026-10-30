@@ -896,7 +896,9 @@ export class MarkingInstructionService {
         studentWork: promptStudentWork || classificationStudentWork || formattedOcrText || 'No student work text extracted',
         ocrBlocks: promptBlocks,
         pageMap: filteredSubQuestionPageMap,
-        generalGuidance: formattedGeneralGuidance
+        generalGuidance: formattedGeneralGuidance,
+        subjectKey,
+        totalMarks: normalizedScheme?.totalMarks
       });
     } else if (hasMarkingScheme && normalizedScheme) {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;

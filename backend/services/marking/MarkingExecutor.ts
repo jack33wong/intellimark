@@ -40,7 +40,7 @@ export async function executeMarkingForQuestion(
         let bbox: [number, number, number, number] = [0, 0, 0, 0];
 
         // BBox Recovery
-        const rawSource = (result as any).bbox || (result as any).position || (result as any).lineData?.coordinates || (result as any).lineData?.box || (result as any).lineData?.region;
+        const rawSource = (result as any).bbox || (result as any).position || (result as any).p || (result as any).lineData?.coordinates || (result as any).lineData?.box || (result as any).lineData?.region;
         if (rawSource) {
           if (Array.isArray(rawSource) && rawSource.length === 4) {
             bbox = rawSource as [number, number, number, number];

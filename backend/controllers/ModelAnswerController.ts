@@ -149,8 +149,10 @@ export class ModelAnswerController {
                             examCode: meta.exam_code,
                             examSeries: meta.exam_series,
                             tier: meta.tier,
-                            subject: meta.subject || 'Mathematics',
+                            subject: meta.subject || (meta.exam_code && /\b(8700|8702|1EN0|1ET0|J351|J352|C700|C720)\b/i.test(meta.exam_code) ? 'English Language' : 'Mathematics'),
                             paperTitle: `${meta.exam_board} ${meta.exam_code}`,
+                            sourceExtracts: paperDoc.sourceExtracts || schemeData?.sourceExtracts || null,
+                            examinerReport: paperDoc.examinerReport || schemeData?.examinerReport || (schemeResult as any)?.examinerReport || null,
                             questions: questionsToProcess.map((q: any) => {
                                 // [FIX] Robust property handling for Paper Document (handle both sub_questions and subQuestions, number and question_number)
                                 const subQuestions = q.sub_questions || q.subQuestions || [];
@@ -205,11 +207,11 @@ export class ModelAnswerController {
                                     console.warn(`[MODEL-ANSWER] Scheme not found for Q${qNum} in ${meta.exam_board} ${meta.exam_code}`);
                                 }
 
-                                // [FEATURE] Normalize & Process Scheme (CAO expansion)
+                                // [FEATURE] Normalize & Process Scheme (CAO expansion) while preserving LoR fields
                                 if (scheme) {
                                     const normalized = normalizeMarkingScheme(scheme);
                                     if (normalized) {
-                                        scheme = normalized; // Pass the processed object
+                                        scheme = { ...scheme, ...normalized };
                                     }
                                 }
 
@@ -239,7 +241,9 @@ export class ModelAnswerController {
                                     questionText: questionText,
                                     originalText: q.question_text || q.text || '', // Root parent text
                                     marks: questionMarks,
-                                    markingScheme: scheme
+                                    markingScheme: scheme,
+                                    sourceExtracts: q.sourceExtracts || paperDoc.sourceExtracts || schemeData?.sourceExtracts || null,
+                                    examinerReport: q.examinerReport || schemeData?.examinerReport || (schemeResult as any)?.examinerReport || null
                                 };
                             })
                         }]

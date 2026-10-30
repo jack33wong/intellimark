@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import './LandingFooter.css';
 
-const LandingFooter: React.FC = () => {
+export const LandingFooter: React.FC = () => {
     return (
         <footer className="landing-footer-main">
             <div className="footer-container horizontal">

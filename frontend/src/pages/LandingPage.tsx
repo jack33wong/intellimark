@@ -91,17 +91,30 @@ const ImageMagnifier = ({
 
 /* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "Instantly Mark Your Maths & Eng Lang Paper" },
+    { text: "Instantly Mark Your Maths & English Past Papers" },
     { text: "GCSE & A-Level", className: "hero-highlight-blue" }
 ];
 
 
+// Safe fallbacks to prevent runtime crashes if a component is undefined during HMR / bundling
+const SafeSeoHeader = SeoHeader || (() => null);
+const SafeLandingPageHeader = LandingPageHeader || (() => null);
+const SafeAntigravityTypewriter = AntigravityTypewriter || (() => null);
+const SafeHeroAnimation = HeroAnimation || (() => null);
+const SafeBenefitBlocks = BenefitBlocks || (() => null);
+const SafeUserSegmentation = UserSegmentation || (() => null);
+const SafeTestimonials = Testimonials || (() => null);
+const SafeSupportedPapers = SupportedPapers || (() => null);
+const SafeLandingFooter = LandingFooter || (() => null);
+const SafeLock = Lock || (() => null);
+
 /* --- Main Page Component --- */
-const LandingPage: React.FC = () => {
+export const LandingPage: React.FC = () => {
     const navigate = useNavigate();
 
     // Controls the staggered entrance of subtitle/CTA
     const [startAnimations, setStartAnimations] = useState(false);
+    const [showcaseSubject, setShowcaseSubject] = useState<'maths' | 'english'>('maths');
 
     const handleCtaClick = () => {
         navigate('/app');
@@ -109,8 +122,8 @@ const LandingPage: React.FC = () => {
 
     return (
         <div className="light-mode-forced">
-            <SeoHeader isHome={true} />
-            <LandingPageHeader />
+            <SafeSeoHeader isHome={true} />
+            <SafeLandingPageHeader />
 
             <section className="landing-section landing-section-hero">
                 {/* [ANIMATION TRIGGER]
@@ -118,7 +131,13 @@ const LandingPage: React.FC = () => {
                 */}
                 <div className={`landing-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
 
-                    <AntigravityTypewriter
+                    <div className="hero-new-feature-pill" onClick={() => navigate('/app')}>
+                        <span className="pill-badge">NEW</span>
+                        <span className="pill-text">GCSE English Language (AQA, Edexcel &amp; OCR) AI Marking &amp; Model Answers</span>
+                        <span className="pill-arrow">→</span>
+                    </div>
+
+                    <SafeAntigravityTypewriter
                         className="hero-main-title"
                         segments={HERO_SEGMENTS}
                         // Added cursorOffset to keep it tight to text
@@ -128,7 +147,7 @@ const LandingPage: React.FC = () => {
 
                     {/* BLOCK 1: Subtitle (Immediate start after typing) */}
                     <p className="hero-main-subtitle anim-item delay-1">
-                        Stop waiting for teachers or staring at confusing mark schemes. Scan your handwritten 2019-2025 past papers and let our AI find your lost method marks in seconds.
+                        Upload your handwritten Mathematics workings or typed/handwritten English Language essays. Receive instant, question-by-question marks aligned with official AQA, Edexcel & OCR mark schemes and Senior Examiner reports.
                     </p>
 
                     <div className="hero-cta-group">
@@ -156,36 +175,58 @@ const LandingPage: React.FC = () => {
                 </div>
 
                 <div className="landing-intro-image-container">
-                    <HeroAnimation />
+                    <SafeHeroAnimation />
                 </div>
             </section>
 
             <section className="landing-section spatial-intelligence-section">
                 <div className="spatial-container">
                     <div className="spatial-text">
-                        <span className="spatial-badge">Handwriting-First Marking</span>
-                        <h2 className="spatial-title">The AI that reads your handwriting, not just your answers.</h2>
+                        <span className="spatial-badge">Dual-Engine Spatial & Text Understanding</span>
+                        <h2 className="spatial-title">From Complex Geometry to Multi-Page Essays</h2>
                         <p className="spatial-description">
-                            Unlike generic AI that gets confused by messy steps, our system tracks every stroke of your pen. We map your full journey through a math problem to award you the method marks you deserve—even if your final answer is wrong.
+                            AI Marking pairs vision-based spatial geometry for intricate handwritten equations, angles, and graphs with advanced multi-page LoR (Levels of Response) rubrics to grade English Language analysis, synthesis, and creative writing.
                             <br /><br />
                             <strong>Beyond marking: Use Question Mode for examiner-perfect model answers and Context Chat for personalized feedback on every step.</strong>
                         </p>
                     </div>
                     <div className="spatial-visual">
+                        <div className="spatial-subject-toggle-wrapper">
+                            <div className="spatial-subject-toggle">
+                                <button
+                                    type="button"
+                                    className={`spatial-toggle-pill ${showcaseSubject === 'maths' ? 'active' : ''}`}
+                                    onClick={() => setShowcaseSubject('maths')}
+                                >
+                                    📐 Maths Step-by-Step Marking
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`spatial-toggle-pill ${showcaseSubject === 'english' ? 'active' : ''}`}
+                                    onClick={() => setShowcaseSubject('english')}
+                                >
+                                    ✍️ English Essay LoR Marking
+                                </button>
+                            </div>
+                        </div>
                         <div className="mapping-demo-container">
                             <div className="mapping-demo-zoom-wrapper">
                                 <ImageMagnifier
-                                    src="/images/spatial_mapping_v3.png"
+                                    src={showcaseSubject === 'english' ? '/images/english_spatial_marking_q2.jpg' : '/images/spatial_mapping_v3.png'}
                                     width="100%"
                                 />
                             </div>
-                            <p className="mapping-caption">Actual AI marking sample: Identifying Method Marks (M1) and identifying specific prime factorisation errors.</p>
+                            <p className="mapping-caption">
+                                {showcaseSubject === 'english'
+                                    ? "Actual AI English marking: Accurate Levels-of-Response (LoR) grading with margin badges and teacher commentary."
+                                    : "Actual AI marking sample: Identifying Method Marks (M1) and specific prime factorisation errors."}
+                            </p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <BenefitBlocks />
+            <SafeBenefitBlocks />
 
             {/* Dual-Action Entry Section */}
             <section className="dual-action-section">
@@ -218,11 +259,11 @@ const LandingPage: React.FC = () => {
                         <div className="card-badges">
                             <div className="badge-item">
                                 <span className="dot green"></span>
-                                2026 Mark Schemes Loaded
+                                2026 Maths & English Schemes Loaded
                             </div>
                             <div className="badge-item">
                                 <span className="dot blue"></span>
-                                Mathpix Spatial OCR
+                                Spatial OCR & AO Level Rubrics
                             </div>
                             <div className="board-list">
                                 <span className="label-tiny">SUPPORTED:</span>
@@ -233,7 +274,7 @@ const LandingPage: React.FC = () => {
                         </div>
 
                         <div className="privacy-anchor">
-                            <Lock size={12} className="lock-icon" />
+                            <SafeLock size={12} className="lock-icon" />
                             <span>GDPR Compliant | Files are processed privately and not used for training.</span>
                         </div>
                     </div>
@@ -243,7 +284,7 @@ const LandingPage: React.FC = () => {
 
             <section className="universal-tutor-section" id="chat">
                 {/* Centered Section Header */}
-                <h2 className="section-title center">Interactive AI Maths Tutor</h2>
+                <h2 className="section-title center">Interactive AI Maths & English Tutor</h2>
 
                 <div className="tutor-feature-card">
                     <div className="tutor-grid">
@@ -253,8 +294,14 @@ const LandingPage: React.FC = () => {
                             <div className="chat-mockup">
                                 <div className="chat-bubble user">Why did I lose marks for my working out?</div>
                                 <div className="chat-bubble ai">
-                                    You skipped the **intermediate step** where you isolate the variable.
+                                    You skipped the <strong>intermediate step</strong> where you isolate the variable.
                                     All major boards require this to award the full method mark.
+                                </div>
+                                <div className="chat-bubble user" style={{ marginTop: '12px' }}>
+                                    How can I upgrade my Question 4 response from Level 3 to Level 4 on AQA 8700/1?
+                                </div>
+                                <div className="chat-bubble ai">
+                                    To reach <strong>Level 4 (Perceptive &amp; Detailed)</strong>, go beyond explaining single quotes in isolation. Zoom in on the writer&apos;s word connotations and evaluate how the shift in tone shapes the reader&apos;s reaction.
                                 </div>
                             </div>
                         </div>
@@ -275,16 +322,16 @@ const LandingPage: React.FC = () => {
                 </div>
             </section>
 
-            <UserSegmentation />
-            <Testimonials />
+            <SafeUserSegmentation />
+            <SafeTestimonials />
             <div id="boards">
-                <SupportedPapers />
+                <SafeSupportedPapers />
             </div>
 
             {/* Final CTA Section */}
             <section className="landing-section final-cta-section">
                 <div className="final-cta-container">
-                    <h2 className="final-cta-title">Ready to master your GCSE & A-Level Maths & Eng Lang?</h2>
+                    <h2 className="final-cta-title">Ready to master your GCSE & A-Level Maths & English?</h2>
                     <p className="final-cta-subtitle">Join 15,000+ students using AI Marking to perfect their exam technique.</p>
 
                     <div className="hero-cta-group">
@@ -295,7 +342,7 @@ const LandingPage: React.FC = () => {
                 </div>
             </section>
 
-            <LandingFooter />
+            <SafeLandingFooter />
         </div>
     );
 };

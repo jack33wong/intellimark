@@ -3,7 +3,7 @@ import './UserSegmentation.css';
 
 import { Timer } from 'lucide-react';
 
-const UserSegmentation: React.FC = () => {
+export const UserSegmentation: React.FC = () => {
     return (
         <section className="segmentation-section">
             <div className="segmentation-container">

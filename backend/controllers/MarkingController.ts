@@ -22,7 +22,12 @@ export class MarkingController {
      */
     public static async downloadImage(req: Request, res: Response): Promise<void> {
         const imageUrl = req.query.url as string;
-        const filename = req.query.filename as string || 'download-image.jpg';
+        let filename = req.query.filename as string || 'download-image.jpg';
+
+        // Never proxy an image with a .pdf extension
+        if (filename.toLowerCase().endsWith('.pdf')) {
+            filename = filename.replace(/\.pdf$/i, '.jpg');
+        }
 
         if (!imageUrl) {
             res.status(400).send('Missing image URL');

@@ -26,6 +26,10 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: transparent;
   min-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .level-toggle__btn:hover {
@@ -34,4 +38,34 @@
 
 .level-toggle__btn--active {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.level-toggle--3way {
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.level-toggle__icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.level-toggle__badge-new {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #10b981;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+
+.level-toggle__btn--active .level-toggle__badge-new {
+  background: #ffffff;
+  color: #10b981;
 }

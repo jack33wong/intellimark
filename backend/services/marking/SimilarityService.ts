@@ -127,6 +127,10 @@ export class SimilarityService {
             numericScore = uniqueIntersection.length / setDb.size;
         } else if (dbNums.length === 0 && inputNums.length === 0) {
             numericScore = 0.5;
+        } else if (dbNums.length === 0) {
+            // When the reference question has no arithmetic numbers (e.g., English essay / literature prompts),
+            // do not penalize the match with 0. Numbers are not a distinguishing feature of the question.
+            numericScore = textScore;
         }
 
         let total = (textScore * 0.7) + (numericScore * 0.3);

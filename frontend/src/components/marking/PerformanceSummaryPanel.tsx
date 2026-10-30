@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { CheckCircle2, Target, Sparkles, AlertTriangle } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { CheckCircle2, Target, Sparkles, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface RadarPoint {
   axis: string;
@@ -30,6 +30,7 @@ interface QuestionCoachingItem {
     upgradeRewrite?: {
       originalQuote: string;
       upgradedVersion: string;
+      explanation?: string;
     } | null;
   };
 }
@@ -256,6 +257,37 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
       .sort((a, b) => b.mark - a.mark);
   }, [parsedV2]);
 
+  // Card collapse/expand state (Default: questions with lost marks expanded, or first 2 if 100%)
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    const qcList = parsedV2?.questionCoaching || [];
+    const anyLostMarks = qcList.some(qc => (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks);
+    qcList.forEach((qc, idx) => {
+      const key = qc.q || String(idx);
+      if (anyLostMarks) {
+        initial[key] = (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks;
+      } else {
+        initial[key] = idx < 2;
+      }
+    });
+    return initial;
+  });
+
+  useEffect(() => {
+    const nextState: Record<string, boolean> = {};
+    const qcList = parsedV2?.questionCoaching || [];
+    const anyLostMarks = qcList.some(qc => (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks);
+    qcList.forEach((qc, idx) => {
+      const key = qc.q || String(idx);
+      if (anyLostMarks) {
+        nextState[key] = (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks;
+      } else {
+        nextState[key] = idx < 2;
+      }
+    });
+    setExpandedCards(nextState);
+  }, [parsedV2]);
+
   // Fallback for legacy markdown sessions
   if (!parsedV2) {
     return (
@@ -273,6 +305,13 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
   }
 
   const { examInfo, score, grading, radar, mastered, focusNext, headline, tooDenseWarning, questionCoaching } = parsedV2;
+
+  const toggleCard = (key: string) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   const isPastPaperWithBoundaries = sortedBoundariesDesc.length > 0;
   const gradeAchieved = grading?.grade || 'N/A';
@@ -493,99 +532,142 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
           <div className="tmua-section-label" style={{ marginBottom: '2px' }}>
             EXAMINER LEVEL &amp; GRADE-BOOSTING COACHING
           </div>
-          {questionCoaching.map((qc, idx) => (
-            <div
-              key={idx}
-              style={{
-                borderRadius: '10px',
-                border: '1px solid rgba(148, 163, 184, 0.24)',
-                background: 'rgba(15, 23, 42, 0.03)',
-                padding: '12px 14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}
-            >
+          {questionCoaching.map((qc, idx) => {
+            const cardKey = qc.q || String(idx);
+            const isCardExpanded = expandedCards[cardKey] ?? false;
+            const ratio = qc.maxMarks > 0 ? (qc.awardedMarks ?? 0) / qc.maxMarks : 0;
+            const badgeStyle = ratio >= 0.75
+              ? { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }
+              : ratio >= 0.55
+                ? { background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.35)' }
+                : { background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.35)' };
+
+            return (
               <div
+                key={idx}
                 style={{
+                  borderRadius: '10px',
+                  border: '1px solid rgba(148, 163, 184, 0.24)',
+                  background: 'rgba(15, 23, 42, 0.03)',
+                  padding: '12px 14px',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
+                  flexDirection: 'column',
                   gap: '8px'
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => qc.q && onQuestionClick?.(String(qc.q).replace(/^Q/i, ''))}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: onQuestionClick ? 'pointer' : 'default',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    color: 'inherit'
-                  }}
-                >
-                  Question {qc.q}
-                </button>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    padding: '3px 9px',
-                    borderRadius: '999px',
-                    background: 'rgba(185, 28, 28, 0.1)',
-                    color: '#b91c1c',
-                    border: '1px solid rgba(185, 28, 28, 0.25)'
-                  }}
-                >
-                  {qc.rubricStamp}
-                </span>
-              </div>
-
-              {qc.coaching?.rationale && (
-                <div style={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
-                  <strong style={{ color: '#059669' }}>Why This Level Was Awarded: </strong>
-                  <span>{qc.coaching.rationale}</span>
-                </div>
-              )}
-
-              {qc.coaching?.nextLevelGap && (
-                <div style={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
-                  <strong style={{ color: '#d97706' }}>How to Reach the Next Level: </strong>
-                  <span>{qc.coaching.nextLevelGap}</span>
-                </div>
-              )}
-
-              {qc.coaching?.upgradeRewrite?.originalQuote && qc.coaching?.upgradeRewrite?.upgradedVersion && (
                 <div
+                  onClick={() => toggleCard(cardKey)}
                   style={{
-                    marginTop: '4px',
-                    padding: '9px 11px',
-                    borderRadius: '8px',
-                    background: 'rgba(59, 130, 246, 0.06)',
-                    borderLeft: '3px solid #3b82f6',
-                    fontSize: '0.82rem',
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px'
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    userSelect: 'none'
                   }}
                 >
-                  <div style={{ fontWeight: 700, color: '#2563eb' }}>Concrete Upgrade Rewrite</div>
-                  <div>
-                    <span style={{ opacity: 0.75, fontWeight: 600 }}>Your Sentence: </span>
-                    <em>&ldquo;{qc.coaching.upgradeRewrite.originalQuote}&rdquo;</em>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {isCardExpanded ? (
+                      <ChevronUp size={16} style={{ color: 'var(--text-muted, #94a3b8)' }} />
+                    ) : (
+                      <ChevronDown size={16} style={{ color: 'var(--text-muted, #94a3b8)' }} />
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (qc.q && onQuestionClick) {
+                          onQuestionClick(String(qc.q).replace(/^Q/i, ''));
+                        } else {
+                          toggleCard(cardKey);
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: onQuestionClick ? 'pointer' : 'default',
+                        fontWeight: 700,
+                        fontSize: '0.92rem',
+                        color: 'inherit'
+                      }}
+                    >
+                      Question {qc.q}
+                    </button>
+                    {!isCardExpanded && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: 500 }}>
+                        — Click to view feedback
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <span style={{ color: '#059669', fontWeight: 600 }}>Top-Band Upgrade: </span>
-                    <span>&ldquo;{qc.coaching.upgradeRewrite.upgradedVersion}&rdquo;</span>
-                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      padding: '3px 9px',
+                      borderRadius: '999px',
+                      ...badgeStyle
+                    }}
+                  >
+                    {qc.rubricStamp}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {isCardExpanded && (
+                  <>
+                    {qc.coaching?.rationale && (
+                      <div style={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
+                        <strong style={{ color: '#059669' }}>Why This Level Was Awarded: </strong>
+                        <span>{qc.coaching.rationale}</span>
+                      </div>
+                    )}
+
+                    {qc.coaching?.nextLevelGap && (
+                      <div style={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
+                        <strong style={{ color: '#d97706' }}>How to Reach the Next Level: </strong>
+                        <span>{qc.coaching.nextLevelGap}</span>
+                      </div>
+                    )}
+
+                    {qc.coaching?.upgradeRewrite?.originalQuote &&
+                      qc.coaching?.upgradeRewrite?.upgradedVersion &&
+                      (qc.maxMarks ? qc.maxMarks > 4 : true) && (
+                        <div
+                          style={{
+                            marginTop: '4px',
+                            padding: '9px 11px',
+                            borderRadius: '8px',
+                            background: 'rgba(59, 130, 246, 0.06)',
+                            borderLeft: '3px solid #3b82f6',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px'
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, color: '#2563eb' }}>Concrete Upgrade Rewrite</div>
+                          <div>
+                            <span style={{ opacity: 0.75, fontWeight: 600 }}>Your Sentence: </span>
+                            <em>&ldquo;{qc.coaching.upgradeRewrite.originalQuote}&rdquo;</em>
+                          </div>
+                          <div>
+                            <span style={{ color: '#059669', fontWeight: 600 }}>Top-Band Upgrade: </span>
+                            <span>&ldquo;{qc.coaching.upgradeRewrite.upgradedVersion}&rdquo;</span>
+                          </div>
+                          {qc.coaching.upgradeRewrite.explanation && (
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
+                              💡 <strong>Why this scores higher: </strong>
+                              <span>{qc.coaching.upgradeRewrite.explanation}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -19,10 +19,8 @@ import AnalyticsTracker from './components/common/AnalyticsTracker';
 import AccuracyPage from './pages/AccuracyPage';
 import ProgrammaticLandingPage from './pages/ProgrammaticLandingPage';
 import SearchPage from './pages/SearchPage';
-import SeoHeader from './components/common/SeoHeader';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
 import useTheme from './hooks/useTheme';
-import HeroAnimation from './components/layout/HeroAnimation';
 import LandingPage from './pages/LandingPage';
 import { HelmetProvider } from 'react-helmet-async';
 import ScrollToTop from './components/common/ScrollToTop';
@@ -293,6 +291,11 @@ function AppContent() {
         <Route path="/mark-aqa-gcse-maths-past-papers" element={<AqaLandingPage />} />
         <Route path="/mark-edexcel-gcse-maths-past-papers" element={<EdexcelLandingPage />} />
         <Route path="/mark-ocr-gcse-maths-past-papers" element={<OcrLandingPage />} />
+
+        {/* Dedicated English Language Route Aliases (Pointing to the same components) */}
+        <Route path="/mark-aqa-gcse-english-language-past-papers" element={<AqaLandingPage />} />
+        <Route path="/mark-edexcel-gcse-english-language-past-papers" element={<EdexcelLandingPage />} />
+        <Route path="/mark-ocr-gcse-english-language-past-papers" element={<OcrLandingPage />} />
 
         <Route path="/mark-:examBoard-gcse-maths-past-papers" element={<ProgrammaticLandingPage />} />
         <Route path="/mark-:examBoard-gcse-maths-past-papers/:year" element={<ProgrammaticLandingPage />} />

@@ -133,62 +133,141 @@ export class SuggestedFollowUpService {
     if (!scheme) return '';
     if (typeof scheme === 'string') return scheme;
 
+    let lorOutput = '';
+
+    // Check for Level-of-Response (LoR) fields
+    if (typeof scheme === 'object') {
+      const parts: string[] = [];
+
+      // 1. Levels / Descriptors
+      const levels = scheme.levels || scheme.levelDescriptors || scheme.rubric?.levels;
+      if (Array.isArray(levels) && levels.length > 0) {
+        parts.push('### MARK SCHEME LEVELS & DESCRIPTORS:');
+        levels.forEach((lvl: any) => {
+          const lNum = lvl.level || lvl.levelNumber || '';
+          const lMarks = lvl.marks || lvl.markRange || '';
+          const lDesc = lvl.descriptor || lvl.description || lvl.skills || '';
+          parts.push(`- Level ${lNum} (${lMarks}): ${lDesc}`);
+        });
+      } else if (typeof levels === 'string') {
+        parts.push(`### MARK SCHEME LEVELS:\n${levels}`);
+      }
+
+      // 2. Indicative Standard / Content Exemplars
+      const indicative = scheme.indicativeStandard || scheme.indicativeContent || scheme.exemplars;
+      if (indicative) {
+        if (Array.isArray(indicative)) {
+          parts.push('### INDICATIVE STANDARD & CONTENT:');
+          indicative.forEach((item: any) => parts.push(`- ${typeof item === 'string' ? item : JSON.stringify(item)}`));
+        } else if (typeof indicative === 'string') {
+          parts.push(`### INDICATIVE STANDARD:\n${indicative}`);
+        } else if (typeof indicative === 'object') {
+          parts.push(`### INDICATIVE STANDARD:\n${JSON.stringify(indicative, null, 2)}`);
+        }
+      }
+
+      // 3. AO Content Bullets
+      const aoBullets = scheme.aoContentBullets || scheme.contentBullets;
+      if (aoBullets) {
+        if (Array.isArray(aoBullets)) {
+          parts.push('### AO CONTENT POINTS:');
+          aoBullets.forEach((item: any) => parts.push(`- ${typeof item === 'string' ? item : JSON.stringify(item)}`));
+        } else if (typeof aoBullets === 'string') {
+          parts.push(`### AO CONTENT POINTS:\n${aoBullets}`);
+        }
+      }
+
+      // 4. General / Specific Marking Guidance
+      const guidance = scheme.guidance || scheme.generalMarkingGuidance;
+      if (guidance) {
+        if (Array.isArray(guidance)) {
+          parts.push('### MARKING GUIDANCE:');
+          guidance.forEach((g: any) => parts.push(`- ${typeof g === 'string' ? g : JSON.stringify(g)}`));
+        } else if (typeof guidance === 'string') {
+          parts.push(`### MARKING GUIDANCE:\n${guidance}`);
+        }
+      }
+
+      // 5. Examiner Report Insights if present on scheme
+      const report = scheme.examinerReport;
+      if (report) {
+        if (typeof report === 'string') {
+          parts.push(`### EXAMINER REPORT:\n${report}`);
+        } else if (typeof report === 'object') {
+          parts.push(`### EXAMINER REPORT:\n${JSON.stringify(report, null, 2)}`);
+        }
+      }
+
+      // 6. Raw text / schemeText fallback
+      if (parts.length === 0 && (scheme.rawText || scheme.schemeText || scheme.text)) {
+        parts.push(scheme.rawText || scheme.schemeText || scheme.text);
+      }
+
+      lorOutput = parts.join('\n\n').trim();
+    }
+
     // Handle Object Wrapper (Sanitized Scheme) - extract the marks array
     let marksArray = scheme;
     if (!Array.isArray(scheme) && scheme.marks && Array.isArray(scheme.marks)) {
       marksArray = scheme.marks;
     }
 
-    if (!Array.isArray(marksArray)) {
-      return JSON.stringify(scheme, null, 2);
-    }
+    let marksOutput = '';
+    if (Array.isArray(marksArray)) {
+      // Grouping Logic: Check if marks have sub-question identifiers
+      const groups: Record<string, any[]> = {};
+      const ungrouped: any[] = [];
 
-    // Grouping Logic: Check if marks have sub-question identifiers
-    const groups: Record<string, any[]> = {};
-    const ungrouped: any[] = [];
-
-    marksArray.forEach((m: any) => {
-      // Handle various sub-question identifiers (question_part from ModelAnswerController, subQuestion from others)
-      const part = m.question_part || m.subQuestion;
-      if (part) {
-        if (!groups[part]) groups[part] = [];
-        groups[part].push(m);
-      } else {
-        ungrouped.push(m);
-      }
-    });
-
-    const formatMark = (s: any) => {
-      let comment = s.comments ? `(${s.comments})` : '';
-      if (s.comments === 'Auto-balanced' || s.comments === '(Auto-balanced)') {
-        comment = '';
-      }
-      return `- ${s.mark || 'Mark'}: ${s.answer || s.text || ''} ${comment}`.trim();
-    };
-
-    const sortedParts = Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-    if (sortedParts.length > 0) {
-      let output = '';
-      sortedParts.forEach(part => {
-        output += `[Part ${part}]\n`;
-        groups[part].forEach(m => {
-          output += `${formatMark(m)}\n`;
-        });
-        output += '\n';
+      marksArray.forEach((m: any) => {
+        // Handle various sub-question identifiers (question_part from ModelAnswerController, subQuestion from others)
+        const part = m.question_part || m.subQuestion;
+        if (part) {
+          if (!groups[part]) groups[part] = [];
+          groups[part].push(m);
+        } else {
+          ungrouped.push(m);
+        }
       });
 
-      if (ungrouped.length > 0) {
-        output += `[General]\n`;
-        ungrouped.forEach(m => {
-          output += `${formatMark(m)}\n`;
+      const formatMark = (s: any) => {
+        let comment = s.comments ? `(${s.comments})` : '';
+        if (s.comments === 'Auto-balanced' || s.comments === '(Auto-balanced)') {
+          comment = '';
+        }
+        return `- ${s.mark || 'Mark'}: ${s.answer || s.text || ''} ${comment}`.trim();
+      };
+
+      const sortedParts = Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+      if (sortedParts.length > 0) {
+        let output = '';
+        sortedParts.forEach(part => {
+          output += `[Part ${part}]\n`;
+          groups[part].forEach(m => {
+            output += `${formatMark(m)}\n`;
+          });
+          output += '\n';
         });
+
+        if (ungrouped.length > 0) {
+          output += `[General]\n`;
+          ungrouped.forEach(m => {
+            output += `${formatMark(m)}\n`;
+          });
+        }
+        marksOutput = output.trim();
+      } else {
+        marksOutput = marksArray.map(formatMark).join('\n');
       }
-      return output.trim();
     }
 
-    // Case 1: Standard Array (Flattened)
-    return marksArray.map(formatMark).join('\n');
+    if (marksOutput && lorOutput) {
+      return `${marksOutput}\n\n${lorOutput}`;
+    }
+    if (marksOutput) return marksOutput;
+    if (lorOutput) return lorOutput;
+
+    return JSON.stringify(scheme, null, 2);
   }
 
   /**
@@ -212,14 +291,26 @@ export class SuggestedFollowUpService {
 
     const { getPrompt } = await import('../../config/prompts.js');
     const { ModelProvider } = await import('../../utils/ModelProvider.js');
+    const { resolveSubjectProfile } = await import('../../config/subjectProfiles.js');
     const isModelAnswer = mode === 'model-answer';
-    const systemPrompt = getPrompt(`${config.promptKey}.system`);
 
     const detectedQuestion = targetMessage.detectedQuestion;
     if (!detectedQuestion?.examPapers || !Array.isArray(detectedQuestion.examPapers)) {
       progressTracker.finish();
       return { response: "(No paper data available)", apiUsed: model, progressData: null, usageTokens: 0 };
     }
+
+    const firstEp = detectedQuestion.examPapers[0];
+    const subjectProfile = resolveSubjectProfile({
+      subject: firstEp?.subject,
+      paperCode: firstEp?.examCode,
+      paperTitle: firstEp?.paperTitle
+    });
+    const isEnglishLoR = subjectProfile.paradigm === 'LEVEL_OF_RESPONSE';
+
+    const systemPrompt = isEnglishLoR
+      ? (isModelAnswer ? getPrompt('englishModelAnswerHtml.system') : getPrompt('englishMarkingScheme.system'))
+      : getPrompt(`${config.promptKey}.system`);
 
     // 2. Process Questions directly (Handle both examPapers and root questions)
     let questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
@@ -252,27 +343,56 @@ export class SuggestedFollowUpService {
 
     // 3. Parallel Execution
     const results = await Promise.all(questions.map(async (q) => {
-      const { base, questionText: qText, markingScheme: qScheme, marks: qMarks, originalText: parentText } = q;
+      const {
+        base,
+        questionText: qText,
+        markingScheme: qScheme,
+        marks: qMarks,
+        originalText: parentText,
+        sourceExtracts: qExtracts,
+        examinerReport: qReport
+      } = q;
 
+      const extractText = typeof qExtracts === 'string'
+        ? qExtracts
+        : (Array.isArray(qExtracts) ? qExtracts.join('\n\n') : (firstEp?.sourceExtracts || ''));
+      const reportText = typeof qReport === 'string'
+        ? qReport
+        : (typeof qReport === 'object' ? JSON.stringify(qReport, null, 2) : (firstEp?.examinerReport || ''));
+
+      let userPrompt: string;
+      if (isEnglishLoR) {
+        const promptKey = isModelAnswer ? 'englishModelAnswerHtml' : 'englishMarkingScheme';
+        userPrompt = getPrompt(
+          `${promptKey}.user`,
+          qText,
+          this.stringifyMarkingScheme(qScheme),
+          qMarks,
+          base,
+          extractText,
+          reportText
+        );
+      } else {
         const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
-        const userPrompt = getPrompt(`${currentPromptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base);
+        userPrompt = getPrompt(`${currentPromptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base);
+      }
 
-        // [FEATURE] Restore Debug Logging from environment variables
-        const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
-                               (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
+      // [FEATURE] Restore Debug Logging from environment variables
+      const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
+                             (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
 
-        if (isLoggingEnabled) {
-          console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
-          console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
-          console.log(`--- USER ---\n${userPrompt}\n`);
-        }
+      if (isLoggingEnabled) {
+        console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
+        console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+        console.log(`--- USER ---\n${userPrompt}\n`);
+      }
 
       try {
         const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
         let content = ai.content.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
-        // [TWO-PROMPT BRIDGE] Interceptor Logic for Model Answers
-        if (isModelAnswer) {
+        // [TWO-PROMPT BRIDGE] Interceptor Logic for Model Answers (Only for Maths)
+        if (isModelAnswer && !isEnglishLoR) {
           if (isLoggingEnabled) {
             console.log("\n==================================================");
             console.log(`[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...`);

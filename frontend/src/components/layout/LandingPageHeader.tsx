@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import './LandingPageHeader.css';
 
-const LandingPageHeader: React.FC = () => {
+export const LandingPageHeader: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const isPricingPage = location.pathname === '/pricing';
@@ -32,6 +32,9 @@ const LandingPageHeader: React.FC = () => {
                                 <Link to="/mark-aqa-gcse-maths-past-papers" onClick={() => setIsMenuOpen(false)}>AQA Maths Marking</Link>
                                 <Link to="/mark-edexcel-gcse-maths-past-papers" onClick={() => setIsMenuOpen(false)}>Edexcel Maths Marking</Link>
                                 <Link to="/mark-ocr-gcse-maths-past-papers" onClick={() => setIsMenuOpen(false)}>OCR Maths Marking</Link>
+                                <Link to="/mark-aqa-gcse-english-language-past-papers" onClick={() => setIsMenuOpen(false)}>AQA English Marking</Link>
+                                <Link to="/mark-edexcel-gcse-english-language-past-papers" onClick={() => setIsMenuOpen(false)}>Edexcel English Marking</Link>
+                                <Link to="/mark-ocr-gcse-english-language-past-papers" onClick={() => setIsMenuOpen(false)}>OCR English Marking</Link>
                             </div>
                         </div>
                     )}

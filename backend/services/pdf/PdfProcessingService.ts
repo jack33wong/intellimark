@@ -59,15 +59,21 @@ export class PdfProcessingService {
     // Configuration for pdf2pic
     // Define target density (DPI) and calculate dimensions based on 72 DPI PDF space
     const TARGET_DENSITY = 300; // Bump to 300 for crisp math text
-    let targetWidth = 3720; // Default A4 width at 300 DPI
-    let targetHeight = 5262; // Default A4 height at 300 DPI
+    let targetWidth = 2480; // Standard A4 width at 300 DPI (210mm)
+    let targetHeight = 3507; // Standard A4 height at 300 DPI (297mm)
 
     // 1. SINGLE-PASS PRE-FLIGHT & LAUNDROMAT:
-    // Load into pdf-lib ONCE to check page count (in ~10ms), read dimensions, and clean structural metadata.
+    // Strip leading junk/whitespace/BOM before %PDF- header if present
     let finalPdfBytes: Uint8Array | Buffer = pdfBuffer;
+    const headerOffset = pdfBuffer.indexOf('%PDF-');
+    if (headerOffset > 0 && headerOffset < 4096) {
+      console.log(`🧼 [PDF-REPAIR] Stripped ${headerOffset} leading bytes before %PDF- header.`);
+      finalPdfBytes = pdfBuffer.subarray(headerOffset);
+    }
+
     try {
       console.log("🧼 [PDF-REPAIR] Loading document into pdf-lib to check page count & clean structural metadata...");
-      const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+      const pdfDoc = await PDFDocument.load(finalPdfBytes, { ignoreEncryption: true });
       const pageCount = pdfDoc.getPageCount();
 
       // ⚡ INSTANT PAGE GATING (0.05s instead of 45s rasterization)

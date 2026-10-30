@@ -128,8 +128,9 @@ export class MarkingTaskFactory {
                     node.studentWorkLines.forEach((l: any) => {
                         const pIdx = l.pageIndex ?? node.pageIndex ?? currentQPageIndex;
                         const globalId = `p${pIdx}_q${baseQNum}_line_${group.lineCounter++}`;
+                        const lineText = (l.text !== undefined ? l.text : (l.t !== undefined ? l.t : '')) || '';
 
-                        if (l.text === '[DRAWING]') {
+                        if (lineText === '[DRAWING]') {
                             const drawingId = `p${pIdx}_visual_drawing_${baseQNum}_${group.lineCounter}`;
                             group.aiSegmentationResults.push({
                                 line_id: drawingId,
@@ -139,10 +140,10 @@ export class MarkingTaskFactory {
                                 subQuestionLabel: node.part || 'main',
                                 pageIndex: pIdx,
                                 bbox: [
-                                    l.position?.x ?? l.box?.x ?? nodeBox?.x ?? 0,
-                                    l.position?.y ?? l.box?.y ?? nodeBox?.y ?? 0,
-                                    l.position?.width ?? l.box?.width ?? nodeBox?.width ?? 100,
-                                    l.position?.height ?? l.box?.height ?? nodeBox?.height ?? 50
+                                    l.position?.x ?? l.box?.x ?? (Array.isArray(l.p) ? l.p[0] : (nodeBox?.x ?? 0)),
+                                    l.position?.y ?? l.box?.y ?? (Array.isArray(l.p) ? l.p[1] : (nodeBox?.y ?? 0)),
+                                    l.position?.width ?? l.box?.width ?? (Array.isArray(l.p) ? l.p[2] : (nodeBox?.width ?? 100)),
+                                    l.position?.height ?? l.box?.height ?? (Array.isArray(l.p) ? l.p[3] : (nodeBox?.height ?? 50))
                                 ],
                                 unit: 'percentage'
                             });
@@ -150,18 +151,23 @@ export class MarkingTaskFactory {
                             return;
                         }
 
-                        let rawBox = l.position || l.box || l.region || l.rect || l.coordinates;
-                        if (!rawBox || (rawBox.x === 0 && rawBox.y === 0 && rawBox.width === 0)) {
+                        let rawBox = l.position || l.box || l.region || l.rect || l.coordinates || l.p;
+                        let positionData: any;
+                        if (Array.isArray(rawBox) && rawBox.length === 4) {
+                            positionData = { x: rawBox[0], y: rawBox[1], width: rawBox[2], height: rawBox[3] };
+                        } else if (rawBox && typeof rawBox.x === 'number') {
+                            positionData = rawBox;
+                        } else {
                             rawBox = node.position || nodeBox;
+                            positionData = (rawBox && typeof rawBox.x === 'number') ? rawBox : { x: 0, y: 0, width: 0, height: 0 };
                         }
 
-                        const positionData = rawBox || { x: 0, y: 0, width: 0, height: 0 };
                         const forcedUnit = (l.ocrSource === 'classification' || !l.ocrSource) ? 'percentage' : 'pixels';
                         // console.log(`🛡️ [UNIT-SYNC] Q${baseQNum} Source: ${l.ocrSource} | Raw Y: ${l.position?.y} | Forced Unit: ${forcedUnit}`);
 
                         group.aiSegmentationResults.push({
                             line_id: globalId,
-                            content: l.text,
+                            content: lineText,
                             source: 'classification',
                             blockId: globalId,
                             subQuestionLabel: node.part || 'main',

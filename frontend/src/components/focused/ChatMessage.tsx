@@ -155,7 +155,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const isUserUpload = message.role === 'user';
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
         const src = typeof item === 'string' ? item : item?.url;
-        const originalFileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
+        let originalFileName = typeof item === 'string' ? `File ${idx + 1}.jpg` : item?.originalFileName || `File ${idx + 1}.jpg`;
+        if (originalFileName.toLowerCase().endsWith('.pdf')) {
+          originalFileName = originalFileName.replace(/\.pdf$/i, `_page_${idx + 1}.jpg`);
+        }
 
         // Remove 'annotated-' prefix for user uploads
         const prefix = isUserUpload ? '' : 'annotated-';

@@ -163,6 +163,34 @@ export class MarkingPipelineService {
             }
             logValidation();
 
+            // Sanitize and detect actual file types from binary magic bytes (protects against misnamed uploads / canvas exports)
+            files.forEach(file => {
+                if (file.buffer && file.buffer.length >= 4) {
+                    const buf = file.buffer;
+                    const pdfIdx = buf.indexOf('%PDF-');
+                    const isRealPdf = pdfIdx >= 0 && pdfIdx < 2048;
+                    const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
+                    const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+                    const isWebp = buf.length >= 12 && buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP';
+
+                    if (isRealPdf && file.mimetype !== 'application/pdf') {
+                        console.log(`🧼 [MIME-REPAIR] Corrected "${file.originalname}" to application/pdf based on %PDF- header.`);
+                        file.mimetype = 'application/pdf';
+                    } else if (file.mimetype === 'application/pdf' && !isRealPdf) {
+                        if (isJpeg) {
+                            console.warn(`🧼 [MIME-REPAIR] File "${file.originalname}" declared as PDF but buffer is JPEG. Correcting to image/jpeg.`);
+                            file.mimetype = 'image/jpeg';
+                        } else if (isPng) {
+                            console.warn(`🧼 [MIME-REPAIR] File "${file.originalname}" declared as PDF but buffer is PNG. Correcting to image/png.`);
+                            file.mimetype = 'image/png';
+                        } else if (isWebp) {
+                            console.warn(`🧼 [MIME-REPAIR] File "${file.originalname}" declared as PDF but buffer is WebP. Correcting to image/webp.`);
+                            file.mimetype = 'image/webp';
+                        }
+                    }
+                }
+            });
+
             // Determine Input Type
             const firstMime = files[0].mimetype;
             const isPdf = files.length === 1 && firstMime === 'application/pdf';

@@ -14,7 +14,7 @@ interface AntigravityTypewriterProps {
     cursorOffset?: number;
 }
 
-const AntigravityTypewriter: React.FC<AntigravityTypewriterProps> = ({
+export const AntigravityTypewriter: React.FC<AntigravityTypewriterProps> = ({
     segments,
     onComplete,
     className = '',

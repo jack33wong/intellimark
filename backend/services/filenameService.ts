@@ -21,7 +21,10 @@ export class FilenameService {
     // Extract base name and extension
     const lastDotIndex = originalFileName.lastIndexOf('.');
     const baseName = lastDotIndex > 0 ? originalFileName.substring(0, lastDotIndex) : originalFileName;
-    const extension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '';
+    let extension = lastDotIndex > 0 ? originalFileName.substring(lastDotIndex) : '.jpg';
+    if (extension.toLowerCase() === '.pdf') {
+      extension = '.jpg';
+    }
     
     return `annotated-${baseName}-${ts}-${random}${extension}`;
   }

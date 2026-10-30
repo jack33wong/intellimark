@@ -5026,9 +5026,17 @@ function AdminPage() {
                   onClick={async () => {
                     setLoadingList(true);
                     try {
-                      const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
-                      if (response.ok) {
-                        const data = await response.json();
+                      let data;
+                      try {
+                        const res = await ApiClient.get(`/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
+                        data = res.data;
+                      } catch (err) {
+                        const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
+                        if (response.ok) {
+                          data = await response.json();
+                        }
+                      }
+                      if (data) {
                         setSubscriptionsList(data.subscriptions);
                         setSubscriptionsPagination(data.pagination);
                       }
@@ -5059,6 +5067,7 @@ function AdminPage() {
                           <th className="admin-table__header">Plan</th>
                           <th className="admin-table__header">Status</th>
                           <th className="admin-table__header">Amount</th>
+                          <th className="admin-table__header">Token Balance</th>
                           <th className="admin-table__header">Period End</th>
                           <th className="admin-table__header">Actions</th>
                         </tr>
@@ -5075,6 +5084,18 @@ function AdminPage() {
                             </td>
                             <td className="admin-table__cell">
                               {(sub.amount / 100).toFixed(2)} {sub.currency?.toUpperCase()}
+                            </td>
+                            <td className="admin-table__cell">
+                              {sub.credits ? (
+                                <span style={{
+                                  fontWeight: 600,
+                                  color: sub.credits.remainingCredits < 10 ? '#EF4444' : '#10B981'
+                                }}>
+                                  {sub.credits.remainingCredits} / {sub.credits.totalCredits}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#9CA3AF' }}>—</span>
+                              )}
                             </td>
                             <td className="admin-table__cell">
                               {new Date(sub.currentPeriodEnd * 1000).toLocaleDateString()}

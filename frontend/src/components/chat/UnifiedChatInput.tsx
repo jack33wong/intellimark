@@ -84,6 +84,44 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [canSelectModel, setCanSelectModel] = useState<boolean>(true); // Initialize with true, we'll check permission later
   const [chatInput, setChatInput] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<'maths' | 'english' | null>(null);
+
+  const isEnglishPaper = useCallback((paperStr: string) => {
+    return /\b(8700|8702|1EN0|1ET0|J351|J352|C700|C720)\b|english/i.test(paperStr);
+  }, []);
+
+  const formatPaperDisplayLabel = useCallback((paperStr: string) => {
+    // If the paper string already contains "Maths", "Mathematics", or "English", return as-is
+    if (/math|english/i.test(paperStr)) return paperStr;
+
+    const isEng = isEnglishPaper(paperStr);
+    const subjectLabel = isEng ? 'English Language' : 'Maths';
+
+    // Insert subject right after Qualification (e.g. "GCSE AQA - 8700/1..." -> "GCSE English Language • AQA - 8700/1...")
+    if (paperStr.startsWith('GCSE ')) {
+      return `GCSE ${subjectLabel} • ${paperStr.slice(5)}`;
+    }
+    if (paperStr.startsWith('A-Level ')) {
+      return `A-Level ${subjectLabel} • ${paperStr.slice(8)}`;
+    }
+    return `${subjectLabel} • ${paperStr}`;
+  }, [isEnglishPaper]);
+
+  const handleSubjectSelect = (subject: 'maths' | 'english') => {
+    if (selectedSubject === subject) {
+      setSelectedSubject(null);
+    } else {
+      setSelectedSubject(subject);
+      // When switching to English, remove incompatible A-Level or Tier tags so suggestions don't go blank
+      if (subject === 'english') {
+        setSelectedTags(prev =>
+          prev.filter(t => !/a-level|foundation|higher/i.test(t))
+        );
+      }
+      setShowAutocomplete(true);
+      setHighlightedIndex(-1);
+    }
+  };
   const lastModeRef = useRef(mode);
 
   // [FIX] Reset context modes when entering fresh first-time mode
@@ -133,12 +171,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const filteredResults = useMemo(() => {
     if (mode !== 'first-time') return [];
 
-    // If no text typed and no chip selected, show empty suggestions list
-    if (chatInput.trim().length === 0 && selectedTags.length === 0) {
+    // If no text typed, no chip selected, and no subject pill active, show empty suggestions list
+    if (chatInput.trim().length === 0 && selectedTags.length === 0 && !selectedSubject) {
       return [];
     }
 
     let filtered = metadata.papers;
+
+    if (selectedSubject === 'english') {
+      filtered = filtered.filter(p => isEnglishPaper(p));
+    } else if (selectedSubject === 'maths') {
+      filtered = filtered.filter(p => !isEnglishPaper(p));
+    }
 
     // 1. Filter by ALL selected tags (Facet logic)
     if (selectedTags.length > 0) {
@@ -152,6 +196,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       const input = chatInput.trim();
       const normalize = (t: string) => t.toLowerCase()
         .replace(/\bmathematics\b/g, 'maths')
+        .replace(/\benglish language\b/g, 'englang')
+        .replace(/\beng lang\b/g, 'englang')
+        .replace(/\benglish\b/g, 'englang')
         .replace(/\b(june|may|summer)\b/g, 'summer')
         .replace(/\ba level\b/g, 'alevel')
         .replace(/[-,/]/g, ' ')
@@ -211,7 +258,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       if (dateA.month !== dateB.month) return dateB.month - dateA.month;
       return a.localeCompare(b);
     }).slice(0, 10);
-  }, [metadata.papers, selectedTags, chatInput, mode]);
+  }, [metadata.papers, selectedTags, selectedSubject, isEnglishPaper, chatInput, mode]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -301,6 +348,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
     const normalize = (t: string) => t.toLowerCase()
       .replace(/\bmathematics\b/g, 'maths')
+      .replace(/\benglish language\b/g, 'englang')
+      .replace(/\beng lang\b/g, 'englang')
+      .replace(/\benglish\b/g, 'englang')
       .replace(/\b(june|may|summer)\b/g, 'summer')
       .replace(/\ba level\b/g, 'alevel')
       .replace(/[-,/]/g, ' ')
@@ -320,7 +370,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
     if (inputTokens.length === 0) return [];
 
-    return metadata.papers.filter((p: string) => {
+    let candidatePapers = metadata.papers;
+    if (selectedSubject === 'english') {
+      candidatePapers = candidatePapers.filter(p => isEnglishPaper(p));
+    } else if (selectedSubject === 'maths') {
+      candidatePapers = candidatePapers.filter(p => !isEnglishPaper(p));
+    }
+
+    return candidatePapers.filter((p: string) => {
       const paperTokens = normalize(p).split(' ').filter(token => token.length > 0);
 
       // Strict match on non-noisy keywords
@@ -359,7 +416,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // Secondary sort by paper code/name if dates are identical
       return a.localeCompare(b);
     });
-  }, [metadata.papers]);
+  }, [metadata.papers, selectedSubject, isEnglishPaper]);
 
   const canSend = useMemo(() => {
     if (isProcessing) return false;
@@ -373,7 +430,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       // Check for trusted links or pending redirects (exact match guaranteed)
       const params = new URLSearchParams(location.search);
-      const isFromTrustedLink = (params.get('mode') === 'model' || params.get('mode') === 'marking-scheme') && params.get('code');
+      const paramMode = params.get('mode');
+      const isFromTrustedLink = (paramMode === 'model' || paramMode === 'marking-scheme' || paramMode === 'markingscheme') && params.get('code');
       const isFromPendingRedirect = pendingModelAnswerPaper && trimmedInput === pendingModelAnswerPaper;
       if ((isFromTrustedLink && trimmedInput === params.get('code')) || isFromPendingRedirect) return true;
 
@@ -907,11 +965,27 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
           </div>
           <p className="chat-title-greeting">
-            AI Marking for {selectedTags.includes('A-Level') ? 'A-Level' : 'GCSE'} Maths & Eng Lang
+            AI Marking for {selectedTags.includes('A-Level') ? 'A-Level' : 'GCSE'} Maths & English Language
           </p>
           <p className="chat-title-description">
-            Get instant grades for your AQA, Edexcel, or OCR past papers.
+            Upload your handwritten past paper or essay for instant AQA, Edexcel & OCR grading and Grade 9 coaching.
           </p>
+          <div className="subject-quick-pills">
+            <button
+              type="button"
+              className={`subject-pill ${selectedSubject === 'maths' ? 'active' : ''}`}
+              onClick={() => handleSubjectSelect('maths')}
+            >
+              📐 GCSE &amp; A-Level Maths
+            </button>
+            <button
+              type="button"
+              className={`subject-pill ${selectedSubject === 'english' ? 'active' : ''}`}
+              onClick={() => handleSubjectSelect('english')}
+            >
+              ✍️ GCSE English Language <span className="pill-tag-new">NEW</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -1037,10 +1111,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       : mode === 'follow-up'
                         ? "Ask a follow-up question about your marks..."
                         : isModelAnswerMode
-                          ? "Search for an exam paper..."
+                          ? (selectedSubject === 'english'
+                              ? "Search for an English paper (e.g. AQA 8700/1, Edexcel 1EN0/01, OCR J351/01)..."
+                              : "Search for an exam paper...")
                           : isMarkingSchemeMode
-                            ? "Search for an exam paper to explain marking scheme..."
-                            : "Enter your exam code (e.g. AQA 8300 June 2024) to start marking..."
+                            ? (selectedSubject === 'english'
+                                ? "Search for an English paper to explain marking scheme..."
+                                : "Search for an exam paper to explain marking scheme...")
+                            : selectedSubject === 'english'
+                              ? "Upload your English paper/essay or enter an exam code (e.g. AQA 8700/1, Edexcel 1EN0, OCR J351)..."
+                              : selectedSubject === 'maths'
+                                ? "Upload your Maths paper or enter an exam code (e.g. Edexcel 1MA1/2H, AQA 8300, OCR J560)..."
+                                : "Upload your paper or enter an exam code (e.g. Edexcel 1MA1/2H or AQA 8700/1)..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"
@@ -1061,7 +1143,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                           case 'ambiguous_series':
                             return 'Multiple papers found. Please specify the year/series (e.g., June 2022).';
                           case 'ambiguous_both':
-                            return 'Multiple papers found. Please be more specific (e.g., Higher June 2022).';
+                            return 'Multiple papers found. Please select a specific paper from the suggestions below.';
                           case 'not_found':
                           default:
                             return 'Please select a valid exam paper to continue';
@@ -1162,16 +1244,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               <div className="autocomplete-chips-section">
                 <div className="autocomplete-chips-label">Quick Filters:</div>
                 <div className="autocomplete-chips-container">
-                  {/* Qualification Chips (New) */}
-                  {metadata.qualifications.map((qual: string) => (
-                    <button
-                      key={qual}
-                      className={`filter-chip qualification ${selectedTags.includes(qual) ? 'active' : ''}`}
-                      onClick={() => toggleFilterTag(qual, metadata.qualifications)}
-                    >
-                      {qual}
-                    </button>
-                  ))}
+                  {/* Qualification Chips (Hide A-Level when GCSE English Language pill is active) */}
+                  {metadata.qualifications
+                    .filter((qual: string) => !(selectedSubject === 'english' && /a-level/i.test(qual)))
+                    .map((qual: string) => (
+                      <button
+                        key={qual}
+                        className={`filter-chip qualification ${selectedTags.includes(qual) ? 'active' : ''}`}
+                        onClick={() => toggleFilterTag(qual, metadata.qualifications)}
+                      >
+                        {qual}
+                      </button>
+                    ))}
                   
                   {/* Exam Board Chips */}
                   {metadata.boards.map((board: string) => (
@@ -1184,8 +1268,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     </button>
                   ))}
 
-                  {/* Tier Chips (Only for GCSE) */}
-                  {!selectedTags.includes('A-Level') && metadata.tiers.map((tier: string) => (
+                  {/* Tier Chips (Only for GCSE Maths — English Language is untiered) */}
+                  {!selectedTags.includes('A-Level') && selectedSubject !== 'english' && metadata.tiers.map((tier: string) => (
                     <button
                       key={tier}
                       className={`filter-chip tier ${selectedTags.includes(tier) ? 'active' : ''}`}
@@ -1199,7 +1283,13 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
               {filteredResults.length > 0 && (
                 <div className="autocomplete-results-list">
-                  <div className="autocomplete-results-label">Suggestions:</div>
+                  <div className="autocomplete-results-label">
+                    {selectedSubject === 'english'
+                      ? 'English Language Past Papers:'
+                      : selectedSubject === 'maths'
+                        ? 'Mathematics Past Papers:'
+                        : 'Suggestions:'}
+                  </div>
                   {filteredResults.map((result: string, index: number) => (
                     <div
                       key={result}
@@ -1207,7 +1297,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       onClick={() => handleSuggestionClick(result)}
                     >
                       <Brain size={12} className="suggestion-icon" />
-                      <span className="suggestion-text">{result}</span>
+                      <span className="suggestion-text">{formatPaperDisplayLabel(result)}</span>
                       {chatInput.toLowerCase().includes(result.toLowerCase()) && <Check size={12} className="check-icon" />}
                     </div>
                   ))}
