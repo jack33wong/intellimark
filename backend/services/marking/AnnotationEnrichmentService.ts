@@ -315,20 +315,50 @@ export const enrichAnnotationsWithPositions = (
         authorityBox[1] = finalY;
 
         const linkedOcrBlock = activePointer ? findInData(activePointer) : null;
-        if ((status === 'MATCHED' || (anno as any).ocr_match_status === 'SPLIT') && linkedOcrBlock?.bbox) {
+        const isDrawingPointer = Boolean(activePointer && String(activePointer).includes('visual_drawing'));
+
+        if ((status === 'MATCHED' || (anno as any).ocr_match_status === 'SPLIT' || isDrawingPointer) && linkedOcrBlock?.bbox) {
             const b = linkedOcrBlock.bbox;
             const rawOcrBox: [number, number, number, number] = Array.isArray(b) ? [b[0], b[1], b[2], b[3]] : [b.x, b.y, b.width, b.height];
 
             // Ensure OCR percentages are normalized to the same pixel scale
+            let blockPixelBox: [number, number, number, number];
             if (linkedOcrBlock.unit === 'percentage') {
-                authorityBox = [
+                blockPixelBox = [
                     (rawOcrBox[0] / 100) * pageWidth,
                     (rawOcrBox[1] / 100) * pageHeight,
                     (rawOcrBox[2] / 100) * pageWidth,
                     (rawOcrBox[3] / 100) * pageHeight
                 ];
             } else {
-                authorityBox = rawOcrBox;
+                blockPixelBox = rawOcrBox;
+            }
+
+            if (isDrawingPointer && (rawOcrBox[0] > 0 || rawOcrBox[1] > 0 || (rawOcrBox[2] > 1 && rawOcrBox[3] > 1))) {
+                // Sub-Element Pointer Preservation on Large Diagrams:
+                const vp = (anno as any).visual_position || (anno as any).aiPosition;
+                let useSpecificVp = false;
+                if (vp && anno.action === 'cross') {
+                    const vpX = typeof vp.x === 'number' ? vp.x : Array.isArray(vp) ? vp[0] : 0;
+                    const vpY = typeof vp.y === 'number' ? vp.y : Array.isArray(vp) ? vp[1] : 0;
+                    const vpPctX = vpX > 1 ? vpX : vpX * 100;
+                    const vpPctY = vpY > 1 ? vpY : vpY * 100;
+                    const boxPctX = linkedOcrBlock.unit === 'percentage' ? rawOcrBox[0] : (rawOcrBox[0] / pageWidth) * 100;
+                    const boxPctY = linkedOcrBlock.unit === 'percentage' ? rawOcrBox[1] : (rawOcrBox[1] / pageHeight) * 100;
+                    const boxPctW = linkedOcrBlock.unit === 'percentage' ? rawOcrBox[2] : (rawOcrBox[2] / pageWidth) * 100;
+                    const boxPctH = linkedOcrBlock.unit === 'percentage' ? rawOcrBox[3] : (rawOcrBox[3] / pageHeight) * 100;
+
+                    if (vpPctX >= boxPctX && vpPctX <= boxPctX + boxPctW &&
+                        vpPctY >= boxPctY && vpPctY <= boxPctY + boxPctH) {
+                        useSpecificVp = true;
+                    }
+                }
+
+                if (!useSpecificVp) {
+                    authorityBox = blockPixelBox;
+                }
+            } else if (!isDrawingPointer) {
+                authorityBox = blockPixelBox;
             }
         }
 

@@ -777,17 +777,45 @@ export class MarkingPipelineService {
             const spreadCount = geometryResults.filter((g, idx) => g?.is_two_page_spread && isPageLandscape(standardizedPages[idx])).length;
             const isMajoritySpreadBatch = standardizedPages.length >= 3 && (spreadCount / standardizedPages.length) >= 0.5;
 
+            // 🛡️ [DOCUMENT-LEVEL SUBJECT CONSENSUS]:
+            // In a multi-page upload (e.g. 5-page PDF or exam booklet), isolated calculation or arithmetic pages
+            // (e.g. "Calculate 240 children...") can get a false-positive MATHS vote while the surrounding pages
+            // are clearly an unsupported subject (e.g. Biology, Chemistry, Physics, or English Literature).
+            // If >= 40% (or >= 2 pages) of a multi-page upload is identified as unsupported,
+            // declare the ENTIRE document as unsupported so we don't drop 4 pages and grade 1 calculation question out of context.
+            const isMultiPageUpload = standardizedPages.length >= 2;
+            const unsupportedPageResults = geometryResults.filter(
+                g => g && g.is_supported_doc === false && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')
+            );
+            const unsupportedRatio = standardizedPages.length > 0 ? (unsupportedPageResults.length / standardizedPages.length) : 0;
+
+            if (isMultiPageUpload && (unsupportedPageResults.length >= 2 || unsupportedRatio >= 0.4)) {
+                const primaryUnsupported = unsupportedPageResults.find(g => g.rejection_reason && g.rejection_reason.trim()) || unsupportedPageResults[0];
+                const consensusRejectionReason = primaryUnsupported?.rejection_reason ||
+                    'The uploaded document belongs to an unsupported subject (e.g. Sciences, Humanities, or English Literature). AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language with official mark schemes and grade boundaries.';
+
+                console.log(
+                    `🛡️ [SUBJECT CONSENSUS] Multi-page document consensus triggered (${unsupportedPageResults.length}/${standardizedPages.length} pages flagged as unsupported). Marking entire upload as unsupported: "${consensusRejectionReason}"`
+                );
+
+                geometryResults.forEach(g => {
+                    if (g) {
+                        g.is_supported_doc = false;
+                        g.rejection_reason = consensusRejectionReason;
+                    }
+                });
+                lastRejectionReason = consensusRejectionReason;
+            }
+
             for (let i = 0; i < standardizedPages.length; i++) {
                 const stdPage = standardizedPages[i];
                 const lightPage = lightweightPages[i];
                 const geo = geometryResults[i];
 
-                if (!geo.is_acceptable_quality || geo.is_math_content === false) {
-                    if (geo.is_math_content === false) {
+                if (!geo.is_acceptable_quality || geo.is_supported_doc === false) {
+                    if (geo.is_supported_doc === false) {
                         const rawReason = (geo.rejection_reason || '').trim();
-                        lastRejectionReason = rawReason.toLowerCase().includes('not math')
-                            ? rawReason
-                            : (rawReason ? `Not maths related image: ${rawReason}` : 'Not maths related image. Please upload a mathematics question or student homework image.');
+                        lastRejectionReason = rawReason || 'The uploaded document belongs to an unsupported subject or does not contain supported exam content. AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language.';
                     } else {
                         lastRejectionReason = geo.rejection_reason || lastRejectionReason;
                     }
@@ -2383,6 +2411,43 @@ export class MarkingPipelineService {
             try {
                 // PATCH: Ensure [DRAWING] token exists in classificationResult if hasStudentDrawing is true
                 if (classificationResult && classificationResult.questions && Array.isArray(classificationResult.questions)) {
+                    const computeLinesUnion = (lines: any[], targetPage: number): { x: number; y: number; width: number; height: number } | undefined => {
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        let found = false;
+                        for (const l of lines) {
+                            if (!l || l.text === '[DRAWING]') continue;
+                            if (l.pageIndex !== undefined && l.pageIndex !== targetPage) continue;
+                            const x = l.position?.x ?? (Array.isArray(l.p) ? l.p[0] : undefined);
+                            const y = l.position?.y ?? (Array.isArray(l.p) ? l.p[1] : undefined);
+                            const w = l.position?.width ?? (Array.isArray(l.p) ? l.p[2] : undefined);
+                            const h = l.position?.height ?? (Array.isArray(l.p) ? l.p[3] : undefined);
+                            if (typeof x === 'number' && typeof y === 'number' && typeof w === 'number' && typeof h === 'number') {
+                                minX = Math.min(minX, x);
+                                minY = Math.min(minY, y);
+                                maxX = Math.max(maxX, x + w);
+                                maxY = Math.max(maxY, y + h);
+                                found = true;
+                            }
+                        }
+                        if (found && maxX > minX && maxY > minY) {
+                            return {
+                                x: Math.round(minX * 10) / 10,
+                                y: Math.round(minY * 10) / 10,
+                                width: Math.round((maxX - minX) * 10) / 10,
+                                height: Math.round((maxY - minY) * 10) / 10
+                            };
+                        }
+                        return undefined;
+                    };
+
+                    const resolveDrawingBox = (targetNode: any, parentNode?: any, lines?: any[], targetPage: number = 0) => {
+                        let box = targetNode?.studentDrawingPosition || parentNode?.studentDrawingPosition;
+                        if (!box && lines && lines.length > 0) {
+                            box = computeLinesUnion(lines, targetPage);
+                        }
+                        return box;
+                    };
+
                     classificationResult.questions.forEach((q: any) => {
                         // Check main question
                         if (q.hasStudentDrawing) {
@@ -2394,14 +2459,32 @@ export class MarkingPipelineService {
                                 q.studentWork = '[DRAWING]';
                             }
 
+                            const targetPage = q.sourceImageIndex ?? 0;
+                            const drawingBox = resolveDrawingBox(q, undefined, q.studentWorkLines, targetPage);
+
                             // Ensure studentWorkLines has a line with [DRAWING]
                             if (!q.studentWorkLines || q.studentWorkLines.length === 0) {
-                                q.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0, pageIndex: q.sourceImageIndex }];
+                                q.studentWorkLines = [{
+                                    text: '[DRAWING]',
+                                    confidence: 1.0,
+                                    pageIndex: targetPage,
+                                    position: drawingBox ? { x: drawingBox.x, y: drawingBox.y, width: drawingBox.width, height: drawingBox.height } : undefined,
+                                    p: drawingBox ? [drawingBox.x, drawingBox.y, drawingBox.width, drawingBox.height] : undefined
+                                }];
                             } else {
                                 // Check if any line has [DRAWING]
-                                const hasDrawingLine = q.studentWorkLines.some((l: any) => l.text && l.text.includes('[DRAWING]'));
-                                if (!hasDrawingLine) {
-                                    q.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0, pageIndex: q.sourceImageIndex });
+                                const existingDrawing = q.studentWorkLines.find((l: any) => l.text && l.text.includes('[DRAWING]'));
+                                if (!existingDrawing) {
+                                    q.studentWorkLines.push({
+                                        text: '[DRAWING]',
+                                        confidence: 1.0,
+                                        pageIndex: targetPage,
+                                        position: drawingBox ? { x: drawingBox.x, y: drawingBox.y, width: drawingBox.width, height: drawingBox.height } : undefined,
+                                        p: drawingBox ? [drawingBox.x, drawingBox.y, drawingBox.width, drawingBox.height] : undefined
+                                    });
+                                } else if (!existingDrawing.position && drawingBox) {
+                                    existingDrawing.position = { x: drawingBox.x, y: drawingBox.y, width: drawingBox.width, height: drawingBox.height };
+                                    existingDrawing.p = [drawingBox.x, drawingBox.y, drawingBox.width, drawingBox.height];
                                 }
                             }
                         }
@@ -2418,13 +2501,31 @@ export class MarkingPipelineService {
                                         sq.studentWork = '[DRAWING]';
                                     }
 
+                                    const targetPage = sq.pageIndex || q.sourceImageIndex || 0;
+                                    const drawingBox = resolveDrawingBox(sq, q, sq.studentWorkLines, targetPage);
+
                                     // Update lines for sub-question too
                                     if (!sq.studentWorkLines || sq.studentWorkLines.length === 0) {
-                                        sq.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0, pageIndex: sq.pageIndex || q.sourceImageIndex }];
+                                        sq.studentWorkLines = [{
+                                            text: '[DRAWING]',
+                                            confidence: 1.0,
+                                            pageIndex: targetPage,
+                                            position: drawingBox ? { x: drawingBox.x, y: drawingBox.y, width: drawingBox.width, height: drawingBox.height } : undefined,
+                                            p: drawingBox ? [drawingBox.x, drawingBox.y, drawingBox.width, drawingBox.height] : undefined
+                                        }];
                                     } else {
-                                        const hasDrawingLine = sq.studentWorkLines.some((l: any) => l.text && l.text.includes('[DRAWING]'));
-                                        if (!hasDrawingLine) {
-                                            sq.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0, pageIndex: sq.pageIndex || q.sourceImageIndex });
+                                        const existingDrawing = sq.studentWorkLines.find((l: any) => l.text && l.text.includes('[DRAWING]'));
+                                        if (!existingDrawing) {
+                                            sq.studentWorkLines.push({
+                                                text: '[DRAWING]',
+                                                confidence: 1.0,
+                                                pageIndex: targetPage,
+                                                position: drawingBox ? { x: drawingBox.x, y: drawingBox.y, width: drawingBox.width, height: drawingBox.height } : undefined,
+                                                p: drawingBox ? [drawingBox.x, drawingBox.y, drawingBox.width, drawingBox.height] : undefined
+                                            });
+                                        } else if (!existingDrawing.position && drawingBox) {
+                                            existingDrawing.position = { x: drawingBox.x, y: drawingBox.y, width: drawingBox.width, height: drawingBox.height };
+                                            existingDrawing.p = [drawingBox.x, drawingBox.y, drawingBox.width, drawingBox.height];
                                         }
                                     }
                                 }

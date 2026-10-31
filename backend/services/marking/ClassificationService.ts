@@ -16,11 +16,13 @@ export interface ClassificationResult {
     text: string | null; // Main question text, or null if no main text (only sub-questions)
     studentWorkLines?: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }>; // Line-by-line student work with positions
     hasStudentDrawing?: boolean; // Indicator if main question has student drawing work
+    studentDrawingPosition?: { x: number; y: number; width: number; height: number };
     subQuestions?: Array<{
       part: string; // Sub-question part (e.g., "a", "b", "i", "ii")
       text: string; // Complete sub-question text
       studentWorkLines?: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }>; // Line-by-line student work with positions
       hasStudentDrawing?: boolean; // Indicator if sub-question has student drawing work
+      studentDrawingPosition?: { x: number; y: number; width: number; height: number };
       confidence?: number;
       pageIndex?: number; // Page index where this sub-question was found
     }>;
@@ -1098,8 +1100,42 @@ ${pageHints}
         }
       });
 
+      const validateDrawingPosition = (pos: any): { x: number; y: number; width: number; height: number } | undefined => {
+        if (!pos || typeof pos !== 'object') return undefined;
+        let x = typeof pos.x === 'number' ? pos.x : parseFloat(pos.x);
+        let y = typeof pos.y === 'number' ? pos.y : parseFloat(pos.y);
+        let width = typeof pos.width === 'number' ? pos.width : parseFloat(pos.width);
+        let height = typeof pos.height === 'number' ? pos.height : parseFloat(pos.height);
+
+        // Normalize if on 0-1000 scale
+        if (x > 100 || y > 100 || width > 100 || height > 100) {
+          x /= 10;
+          y /= 10;
+          width /= 10;
+          height /= 10;
+        }
+
+        if (!isNaN(x) && !isNaN(y) && !isNaN(width) && !isNaN(height) && width > 1 && height > 1) {
+          return {
+            x: Math.max(0, Math.min(100, Math.round(x * 10) / 10)),
+            y: Math.max(0, Math.min(100, Math.round(y * 10) / 10)),
+            width: Math.max(0, Math.min(100, Math.round(width * 10) / 10)),
+            height: Math.max(0, Math.min(100, Math.round(height * 10) / 10))
+          };
+        }
+        return undefined;
+      };
+
+      const rawDrawingPos = q.studentDrawingPosition || (q.hasStudentDrawing && q.position ? q.position : undefined);
+      const studentDrawingPosition = validateDrawingPosition(rawDrawingPos);
+
       const subQuestions = Array.isArray(q.subQuestions)
-        ? q.subQuestions.map((sq: any) => recursiveParse(sq)).filter(Boolean)
+        ? q.subQuestions.map((sq: any) => {
+            if (sq && typeof sq === 'object' && !sq.studentDrawingPosition && studentDrawingPosition) {
+              sq.studentDrawingPosition = studentDrawingPosition;
+            }
+            return recursiveParse(sq);
+          }).filter(Boolean)
         : undefined;
 
       // 2. Build Object with recursive subQuestions
@@ -1109,6 +1145,7 @@ ${pageHints}
         text: q.text !== undefined ? (q.text || null) : undefined,
         studentWorkLines: workLines,
         hasStudentDrawing: q.hasStudentDrawing === true,
+        studentDrawingPosition,
         confidence: q.confidence || defaultConfidence,
         pageIndex: q.pageIndex,
         subQuestions

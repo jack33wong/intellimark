@@ -525,17 +525,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const compressedFilesPromises = newFiles.map(async (file) => {
       // Skip PDFs and files already processed by your OpenCV scanner
       if (file.type === 'application/pdf' || file.name.startsWith('mobile-scan-')) {
-        return file; 
+        return file;
       }
-  
+
       const options = {
         maxSizeMB: 1.5,
-        maxWidthOrHeight: 2500, 
+        maxWidthOrHeight: 2500,
         useWebWorker: true,
         initialQuality: 0.85,
         alwaysKeepResolution: true // Prevents shrinking small images
       };
-  
+
       try {
         const compressedBlob = await imageCompression(file, options);
         return new File([compressedBlob], file.name, { type: 'image/jpeg' });
@@ -544,7 +544,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         return file;
       }
     });
-  
+
     const processedNewFiles = await Promise.all(compressedFilesPromises);
 
     // If we already have files and user selects more, add to existing
@@ -956,6 +956,30 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     console.error("Component Error:", error);
   };
 
+  const getGreetingTitle = () => {
+    if (selectedSubject === 'english') {
+      return 'AI Marking for GCSE English Language';
+    }
+    if (selectedSubject === 'maths') {
+      return selectedTags.includes('A-Level')
+        ? 'AI Marking for A-Level Mathematics'
+        : 'AI Marking for GCSE & A-Level Mathematics';
+    }
+    return 'AI Examiner for Maths & English Language';
+  };
+
+  const getGreetingDescription = () => {
+    if (selectedSubject === 'english') {
+      return 'Upload your handwritten essay or extract response for instant LoR mark scheme grading and Grade 9 coaching (AQA 8700, Edexcel 1EN0 & OCR J351).';
+    }
+    if (selectedSubject === 'maths') {
+      return selectedTags.includes('A-Level')
+        ? 'Upload your handwritten working for instant A-Level method mark (M/A/B) grading and step-by-step feedback.'
+        : 'Upload your handwritten Maths past paper or homework for instant method mark (M1/A1) grading and feedback.';
+    }
+    return 'Supporting GCSE & A-Level Maths and GCSE Eng Lang (AQA, Edexcel & OCR) with official mark schemes and grade boundaries. Other subjects coming soon.';
+  };
+
   return (
     <>
       {mode === 'first-time' && (
@@ -965,10 +989,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
             <span>Hi {user?.displayName?.split(' ')[0] || 'there'}</span>
           </div>
           <p className="chat-title-greeting">
-            AI Marking for {selectedTags.includes('A-Level') ? 'A-Level' : 'GCSE'} Maths & English Language
+            {getGreetingTitle()}
           </p>
           <p className="chat-title-description">
-            Upload your handwritten past paper or essay for instant AQA, Edexcel & OCR grading and Grade 9 coaching.
+            {getGreetingDescription()}
           </p>
           <div className="subject-quick-pills">
             <button
@@ -1112,17 +1136,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                         ? "Ask a follow-up question about your marks..."
                         : isModelAnswerMode
                           ? (selectedSubject === 'english'
-                              ? "Search for an English paper (e.g. AQA 8700/1, Edexcel 1EN0/01, OCR J351/01)..."
-                              : "Search for an exam paper...")
+                              ? "Search for an Eng Lang paper (e.g. AQA 8700/1, Edexcel 1EN0/01, OCR J351/01)..."
+                              : "Search for a Maths or Eng Lang paper (e.g. Edexcel 1MA1/2H or AQA 8700/1)...")
                           : isMarkingSchemeMode
                             ? (selectedSubject === 'english'
-                                ? "Search for an English paper to explain marking scheme..."
-                                : "Search for an exam paper to explain marking scheme...")
+                                ? "Search for an Eng Lang paper to explain marking scheme..."
+                                : "Search for a Maths or Eng Lang paper to explain marking scheme...")
                             : selectedSubject === 'english'
-                              ? "Upload your English paper/essay or enter an exam code (e.g. AQA 8700/1, Edexcel 1EN0, OCR J351)..."
+                              ? "Upload your GCSE Eng Lang paper/essay or enter a code (e.g. AQA 8700/1, Edexcel 1EN0, OCR J351)..."
                               : selectedSubject === 'maths'
                                 ? "Upload your Maths paper or enter an exam code (e.g. Edexcel 1MA1/2H, AQA 8300, OCR J560)..."
-                                : "Upload your paper or enter an exam code (e.g. Edexcel 1MA1/2H or AQA 8700/1)..."
+                                : "Upload your Maths or GCSE Eng Lang paper, or enter a code (e.g. Edexcel 1MA1/2H or AQA 8700/1)..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"
@@ -1256,7 +1280,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                         {qual}
                       </button>
                     ))}
-                  
+
                   {/* Exam Board Chips */}
                   {metadata.boards.map((board: string) => (
                     <button

@@ -132,6 +132,12 @@ export class MarkingTaskFactory {
 
                         if (lineText === '[DRAWING]') {
                             const drawingId = `p${pIdx}_visual_drawing_${baseQNum}_${group.lineCounter}`;
+                            const drawingPos = l.position || (Array.isArray(l.p) ? { x: l.p[0], y: l.p[1], width: l.p[2], height: l.p[3] } : undefined) || (node as any).studentDrawingPosition;
+                            const dX = drawingPos?.x ?? l.box?.x ?? (nodeBox?.x ?? 0);
+                            const dY = drawingPos?.y ?? l.box?.y ?? (nodeBox?.y ?? 0);
+                            const dW = drawingPos?.width ?? l.box?.width ?? (nodeBox?.width ?? 100);
+                            const dH = drawingPos?.height ?? l.box?.height ?? (nodeBox?.height ?? 50);
+
                             group.aiSegmentationResults.push({
                                 line_id: drawingId,
                                 content: '[DRAWING]',
@@ -139,12 +145,8 @@ export class MarkingTaskFactory {
                                 blockId: drawingId,
                                 subQuestionLabel: node.part || 'main',
                                 pageIndex: pIdx,
-                                bbox: [
-                                    l.position?.x ?? l.box?.x ?? (Array.isArray(l.p) ? l.p[0] : (nodeBox?.x ?? 0)),
-                                    l.position?.y ?? l.box?.y ?? (Array.isArray(l.p) ? l.p[1] : (nodeBox?.y ?? 0)),
-                                    l.position?.width ?? l.box?.width ?? (Array.isArray(l.p) ? l.p[2] : (nodeBox?.width ?? 100)),
-                                    l.position?.height ?? l.box?.height ?? (Array.isArray(l.p) ? l.p[3] : (nodeBox?.height ?? 50))
-                                ],
+                                bbox: [dX, dY, dW, dH],
+                                position: { x: dX, y: dY, width: dW, height: dH },
                                 unit: 'percentage'
                             });
                             hasContent = true;

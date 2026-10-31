@@ -542,6 +542,13 @@ export class SVGOverlayService {
     const padding = Math.round(15 * fontScaleFactor);
     const maxBottomY = actualHeight - Math.round(90 * fontScaleFactor);
 
+    const isDrawingBox = Boolean(
+      (annotation as any).isDrawing ||
+      ((annotation as any).line_id && String((annotation as any).line_id).includes('visual_drawing')) ||
+      ((annotation as any).linked_ocr_id && String((annotation as any).linked_ocr_id).includes('visual_drawing')) ||
+      height > 180 * fontScaleFactor
+    );
+
     let effectiveHeight = height;
     if (y + effectiveHeight > maxBottomY) {
       effectiveHeight = Math.max(40 * fontScaleFactor, maxBottomY - y);
@@ -549,6 +556,9 @@ export class SVGOverlayService {
 
     const baseYOffsetPixels = (effectiveHeight * this.CONFIG.yPositions.baseYOffset) / 100;
     let symbolY = y + effectiveHeight + baseYOffsetPixels;
+    if (isDrawingBox && effectiveHeight > 180 * fontScaleFactor) {
+      symbolY = y + Math.min(Math.round(90 * fontScaleFactor), Math.round(effectiveHeight * 0.30));
+    }
     symbolY = Math.max(edgeMargin + line1Height, Math.min(symbolY, maxBottomY));
 
     // --- PLACE THE SYMBOL LINE (LINE 1) ON THE RIGHT-HAND SIDE ---
@@ -632,6 +642,11 @@ export class SVGOverlayService {
       const pillRx = Math.round(8 * fontScaleFactor);
       const borderColor = symbol === '✓' ? 'rgba(22, 163, 74, 0.45)' : 'rgba(217, 119, 6, 0.45)';
       mainSVG += `<rect x="${symRect.x - pillPadX}" y="${symRect.y - pillPadY}" width="${symRect.w + pillPadX * 2}" height="${symRect.h + pillPadY * 2}" rx="${pillRx}" fill="rgba(255, 255, 255, 0.92)" stroke="${borderColor}" stroke-width="${Math.max(1.5, Math.round(2 * fontScaleFactor))}" />`;
+    } else if (isDrawingBox) {
+      const pillPadX = Math.round(6 * fontScaleFactor);
+      const pillPadY = Math.round(3 * fontScaleFactor);
+      const pillRx = Math.round(6 * fontScaleFactor);
+      mainSVG += `<rect x="${symRect.x - pillPadX}" y="${symRect.y - pillPadY}" width="${symRect.w + pillPadX * 2}" height="${symRect.h + pillPadY * 2}" rx="${pillRx}" fill="rgba(255, 255, 255, 0.88)" />`;
     }
 
     let currentX = symbolAnchorX;
