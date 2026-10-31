@@ -98,6 +98,8 @@ export class ModelProvider {
         }
       }
 
+      const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: userPrompt,
@@ -105,6 +107,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
+          ...(isLowTempPhase ? { temperature: 0.1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -203,6 +206,8 @@ export class ModelProvider {
         }
       }
 
+      const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: [
@@ -213,6 +218,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens, // ⬅️ MATCH callGeminiText BEHAVIOR
           ...(forceJsonResponse && { responseMimeType: "application/json" }), // ⬅️ FORCE JSON SCHEMA
           systemInstruction: systemPrompt,
+          ...(isLowTempPhase ? { temperature: 0.1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -359,9 +365,10 @@ export class ModelProvider {
       body.response_format = { type: 'json_object' };
     }
 
-    // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
-    if (this.supportsTemperatureZero(model)) {
-      body.temperature = 0;
+    // Set temperature 0.1 for deterministic marking/summary or when JSON is forced
+    if (this.supportsTemperatureZero(model) || forceJsonResponse || phase === 'marking' || phase === 'performanceSummary') {
+      body.temperature = 0.1;
+      body.seed = 42;
     }
 
     const response = await fetch(endpoint, {
@@ -452,9 +459,9 @@ export class ModelProvider {
       max_tokens: 8192
     };
 
-    // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
     if (this.supportsTemperatureZero(model)) {
-      body.temperature = 0;
+      body.temperature = 0.1;
+      body.seed = 42;
     }
 
     const response = await fetch(endpoint, {
@@ -509,9 +516,10 @@ export class ModelProvider {
       max_tokens: 8192
     };
 
-    // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
-    if (this.supportsTemperatureZero(modelName)) {
-      body.temperature = 0;
+    // Set temperature 0.1 for deterministic marking/summary or when JSON is forced
+    if (this.supportsTemperatureZero(modelName) || forceJsonResponse || phase === 'marking' || phase === 'performanceSummary') {
+      body.temperature = 0.1;
+      body.seed = 42;
     }
 
     // Add JSON response format if requested

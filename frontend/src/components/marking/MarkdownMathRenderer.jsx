@@ -241,13 +241,42 @@ export default function MarkdownMathRenderer({
 
   const injectMarkingTags = (text) => {
     if (!text || typeof text !== 'string') return text;
-    // Surgically wrap [M1], [A1] etc in marking-code spans for right-alignment
-    // This matches the design used in the explicit Model Answer templates
-    return text.replace(/\[([A-Z]\d+[^\]]*)\]/g, (match, code) => {
-      // Avoid double-wrapping if the AI already provided the span
-      if (text.includes(`class="marking-code">[${code}]</span>`)) return match;
-      return `<span class="marking-code">[${code}]</span>`;
+
+    // 1. Normalize mid-sentence parentheses around mark codes: ([B1]) -> (B1)
+    let processed = text.replace(/\(\s*\[([A-Z]{1,2}\d+[a-zA-Z]*)\]\s*\)/g, '($1)');
+
+    // 2. Ensure mark codes in step titles are wrapped in <span class="marking-code">[CODE]</span>
+    processed = processed.replace(/(<div class=["']step-title["']>)([\s\S]*?)(<\/div>)/gi, (match, openTag, titleContent, closeTag) => {
+      if (titleContent.includes('marking-code')) return match;
+      const updatedContent = titleContent.replace(/\[([A-Z]{1,2}\d+[^\]]*)\]/g, '<span class="marking-code">[$1]</span>');
+      return `${openTag}${updatedContent}${closeTag}`;
     });
+
+    // 3. STRICT SINGLE-BADGE: If a step-title has a mark badge [CODE], deduplicate any trailing [CODE] from step-explanation
+    processed = processed.replace(/(<div class=["']step-title["']>[\s\S]*?\[([A-Z]{1,2}\d+[a-zA-Z]*)\][\s\S]*?<\/div>)\s*(<div class=["']step-explanation["']>)([\s\S]*?)(<\/div>)/gi,
+      (match, titleBlock, code, expOpen, expContent, expClose) => {
+        const duplicateRegex = new RegExp(`\\s*(?:<span class=["\']marking-code["\']>)?\\s*\\[${code}\\]\\s*(?:<\\/span>)?\\s*[.]?\\s*$`, 'gi');
+        const cleanedExp = expContent.replace(duplicateRegex, '').trim();
+        const finalExp = /[.!?]$/.test(cleanedExp) ? cleanedExp : `${cleanedExp}.`;
+        return `${titleBlock}\n${expOpen}${finalExp}${expClose}`;
+      }
+    );
+
+    // 4. For standalone paragraphs/notes without a step-title badge, wrap terminal mark codes [B1], [SC1] in marking-code
+    processed = processed.replace(/(?<!<span class=["']marking-code["']>)\[([A-Z]{1,2}\d+[^\]]*)\](?!<\/span>)/g, (match, code, offset, fullStr) => {
+      const after = fullStr.slice(offset + match.length);
+      // Only wrap if it is at the very end of a line, paragraph, or right before </div> or </li>
+      if (/^\s*(?:<\/div>|<\/li>|<\/p>|\n|$)/.test(after)) {
+        return `<span class="marking-code">[${code}]</span>`;
+      }
+      return match;
+    });
+
+    // 5. Clean up any empty parens () resulting from upstream or model artifacts
+    processed = processed.replace(/\s*\(\s*\)\s*([,.;:!?])/g, '$1');
+    processed = processed.replace(/\s*\(\s*\)/g, ' ');
+
+    return processed;
   };
 
   if (!content || typeof content !== 'string') {

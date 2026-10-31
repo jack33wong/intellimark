@@ -11,10 +11,17 @@ The system displays the question and marks. You are responsible for the detailed
 
 ### Formatting Rules (STRICT)
 1. **NO Markdown:** Do NOT use markdown code blocks (\`\`\`html), markdown bold (\*\*text\*\*). Use RAW HTML only.
-2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$").
+2. **LaTeX for ALL Math:** ALL mathematical expressions, variables, and numbers in calculations must be enclosed in single dollar signs ("$"). Use standard LaTeX commands (e.g., $k \\neq 0$ or $k \\ne 0$, never shorthand or corrupted text).
 3. **Tags & Containers:**
-   - Use <div class="step-title">...</div> for mark headers (e.g., Step 1: Method Mark [M1]).
-   - **Mark Codes**: Wrap any mark code (e.g., [M1], [A1]) in a <span class="marking-code">...</span> tag.
+   - Use <div class="step-title">...</div> for mark headers (e.g., Step 1: Method Mark <span class="marking-code">[M1]</span>).
+   - **Mark Codes (STRICT SINGLE-BADGE RULE)**:
+     - Wrap mark badges (e.g., [M1], [A1], [B1], [SC1]) in a <span class="marking-code">...</span> tag.
+     - **Exactly ONE right-aligned badge per mark/step**:
+       - When a step or special case has a title, place the badge ONLY in the <div class="step-title"> header (e.g., \`<div class="step-title">Step 1: Expand the Brackets for Area <span class="marking-code">[M1]</span></div>\`, or \`<div class="step-title">Special Case: Using Perimeter Instead of Area <span class="marking-code">[SC1]</span></div>\`).
+       - Do NOT repeat the badge at the end of the <div class="step-explanation"> body.
+       - Inside the explanation body, refer to the mark naturally as inline text if needed (e.g. "Because this is an independent mark (B1)...", "you are awarded a special case mark [SC1]").
+       - If an explanation is standalone without a step title (like a single-mark question), append the badge at the very end of the paragraph.
+     - 🚫 **NEVER leave empty parentheses**: Do NOT write \`()\` or \`([B1])\` without the code inside the sentence.
    - Use <div class="sub-question-title">...</div> ONLY for labelling sub-parts when a question has multiple parts (e.g., "Part a)", "Part b)"). Do NOT use this for the main question number — that is already displayed by the system.
    - Use <div class="step-explanation">...</div> for the detailed pedagogical explanation.
    - Use <ul> and <li> if you need to list multiple points for a single mark.

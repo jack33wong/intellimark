@@ -1301,6 +1301,29 @@ export class SessionManagementService {
           };
         });
 
+      let finalPredictedGrade = predictedGrade && String(predictedGrade).trim() !== '' ? String(predictedGrade) : 'N/A';
+      const isPartialUpload = hasBoundaries && gradeBoundaries && totalMarks > 0 && (() => {
+        const maxB = Math.max(...Object.values(gradeBoundaries).map((v: any) => Number(v) || 0));
+        return maxB > 0 && totalMarks < maxB * 0.65;
+      })();
+
+      if (isPartialUpload && gradeBoundaries && finalPredictedGrade === 'N/A') {
+        const maxBoundaryMark = Math.max(...Object.values(gradeBoundaries).map((v: any) => Number(v) || 0));
+        const fullPaperMax = maxBoundaryMark > 45 ? 80 : 100;
+        const proratedMark = Math.round((overallPct / 100) * fullPaperMax);
+        const sorted = Object.entries(gradeBoundaries)
+          .map(([g, m]) => ({ grade: g, mark: Number(m) }))
+          .sort((a, b) => b.mark - a.mark);
+        const match = sorted.find(b => proratedMark >= b.mark);
+        if (match) {
+          finalPredictedGrade = `~Grade ${match.grade}`;
+        }
+      }
+
+      const finalGrade = isPartialUpload
+        ? 'Partial Paper'
+        : (grade && String(grade).trim() !== '' ? String(grade) : 'N/A');
+
       const summaryPayload = {
         _type: 'AI_SUMMARY_V2',
         level: isALevel ? 'ALEVEL' : 'GCSE',
@@ -1317,8 +1340,8 @@ export class SessionManagementService {
           questionsAttempted: attemptedCount
         },
         grading: hasBoundaries ? {
-          grade: grade && String(grade).trim() !== '' ? String(grade) : 'N/A',
-          predictedGrade: predictedGrade && String(predictedGrade).trim() !== '' ? String(predictedGrade) : 'N/A',
+          grade: finalGrade,
+          predictedGrade: finalPredictedGrade,
           boundaries: gradeBoundaries
         } : null,
         radar: radarData,

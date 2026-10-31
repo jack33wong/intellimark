@@ -314,9 +314,31 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
   };
 
   const isPastPaperWithBoundaries = sortedBoundariesDesc.length > 0;
-  const gradeAchieved = grading?.grade || 'N/A';
-  const predictedGrade = grading?.predictedGrade || 'N/A';
-  const hasAchievedGrade = gradeAchieved !== 'N/A';
+  const maxBoundaryMark = sortedBoundariesDesc[0]?.mark || 0;
+  const isPartialPaper = isPastPaperWithBoundaries && score.totalMarks > 0 && score.totalMarks < maxBoundaryMark * 0.65;
+
+  let proratedGradeStr: string | null = null;
+  if (isPartialPaper) {
+    const fullPaperMax = maxBoundaryMark > 45 ? 80 : 100;
+    const proratedMark = Math.round((score.percentage / 100) * fullPaperMax);
+    const matchedBoundary = sortedBoundariesDesc.find(b => proratedMark >= b.mark);
+    if (matchedBoundary) {
+      proratedGradeStr = `Grade ${matchedBoundary.grade}`;
+    }
+  }
+
+  const rawGradeAchieved = grading?.grade || 'N/A';
+  const rawPredictedGrade = grading?.predictedGrade || 'N/A';
+
+  const gradeAchieved = isPartialPaper
+    ? 'Partial Paper'
+    : (rawGradeAchieved || 'N/A');
+
+  const predictedGrade = isPartialPaper
+    ? (proratedGradeStr ? `~${proratedGradeStr}` : (rawPredictedGrade && rawPredictedGrade !== 'N/A' && rawPredictedGrade.startsWith('~') ? rawPredictedGrade : 'N/A'))
+    : (rawPredictedGrade || 'N/A');
+
+  const hasAchievedGrade = gradeAchieved !== 'N/A' && gradeAchieved !== 'Partial Paper';
 
   return (
     <div className="tmua-summary-card">
@@ -359,7 +381,7 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
               </div>
               {isPastPaperWithBoundaries && (
                 <div className={`tmua-grade-badge ${!hasAchievedGrade ? 'na' : ''}`}>
-                  Grade Achieved: {gradeAchieved}
+                  {gradeAchieved === 'Partial Paper' ? 'Partial Paper' : `Grade Achieved: ${gradeAchieved}`}
                 </div>
               )}
             </div>
@@ -536,9 +558,11 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
             const cardKey = qc.q || String(idx);
             const isCardExpanded = expandedCards[cardKey] ?? false;
             const ratio = qc.maxMarks > 0 ? (qc.awardedMarks ?? 0) / qc.maxMarks : 0;
-            const badgeStyle = ratio >= 0.75
+            const isLevel4 = (qc.awardedLevel ?? 0) >= 4 || ((qc.awardedLevel ?? 0) === 0 && ratio >= 0.80);
+            const isLevel3 = (qc.awardedLevel ?? 0) === 3 || ((qc.awardedLevel ?? 0) === 0 && ratio >= 0.55 && ratio < 0.80);
+            const badgeStyle = isLevel4
               ? { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }
-              : ratio >= 0.55
+              : isLevel3
                 ? { background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.35)' }
                 : { background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.35)' };
 

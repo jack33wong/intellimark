@@ -326,6 +326,23 @@ export class GradeBoundaryService {
       };
     }
 
+    const highestBoundary = Math.max(...Object.values(paperBoundaries).map(v => Number(v) || 0));
+    const fullPaperMaxMark = Number(matchingPaper.max_mark) || (highestBoundary > 45 ? 80 : 100);
+    const isPartialPaperUpload = currentPossibleScore > 0 && currentPossibleScore < fullPaperMaxMark * 0.65;
+
+    if (isPartialPaperUpload) {
+      const proratedScore = Math.round((studentScore / currentPossibleScore) * fullPaperMaxMark);
+      const proratedGrade = this.findGradeFromBoundaries(proratedScore, paperBoundaries);
+      const predictedGrade = proratedGrade ? `~Grade ${proratedGrade}` : null;
+      return {
+        grade: null,
+        predictedGrade,
+        boundaryType: 'Paper-Specific',
+        matchedBoundary: boundaryEntry,
+        boundaries: paperBoundaries
+      };
+    }
+
     // Calculate grade from boundaries
     const grade = this.findGradeFromBoundaries(studentScore, paperBoundaries);
 
@@ -356,6 +373,23 @@ export class GradeBoundaryService {
         boundaryType: 'Overall-Total',
         matchedBoundary: boundaryEntry,
         error: 'No overall-total boundaries found'
+      };
+    }
+
+    const highestBoundary = Math.max(...Object.values(tier.overall_total_boundaries).map(v => Number(v) || 0));
+    const fullMaxMark = Number(subject.max_mark) || (highestBoundary > 100 ? 160 : (highestBoundary > 45 ? 80 : 100));
+    const isPartialUpload = currentPossibleScore > 0 && currentPossibleScore < fullMaxMark * 0.65;
+
+    if (isPartialUpload) {
+      const proratedScore = Math.round((studentScore / currentPossibleScore) * fullMaxMark);
+      const proratedGrade = this.findGradeFromBoundaries(proratedScore, tier.overall_total_boundaries);
+      const predictedGrade = proratedGrade ? `~Grade ${proratedGrade}` : null;
+      return {
+        grade: null,
+        predictedGrade,
+        boundaryType: 'Overall-Total',
+        matchedBoundary: boundaryEntry,
+        boundaries: tier.overall_total_boundaries
       };
     }
 

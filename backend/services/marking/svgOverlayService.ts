@@ -592,11 +592,22 @@ export class SVGOverlayService {
     // Supports: ✗ (Math/English errors), ⭕ (English SPaG circles), and ✓ with English AO/Level tags (e.g. [AO2 L4])
     const isEnglishPositiveAoComment = symbol === '✓' && isEnglishAoBadge;
     if ((symbol === '✗' || symbol === '⭕' || isEnglishPositiveAoComment) && reasoning && reasoning.trim()) {
-      const cleanReasoning = reasoning
+      let cleanReasoning = reasoning
         .replace(/\|/g, '. ')
         .replace(/\.\s*\./g, '.')
         .replace(/[.\s]+$/, '')
         .trim();
+      // Cap English margin commentary to 7 words / 62 chars and avoid dangling prepositions
+      if (isEnglishAoBadge && cleanReasoning.length > 62) {
+        const words = cleanReasoning.split(/\s+/);
+        if (words.length > 7) {
+          let sliced = words.slice(0, 7);
+          while (sliced.length > 4 && /^(of|the|a|an|in|on|to|for|from|with|and|or|by|at|as|regarding)$/i.test(sliced[sliced.length - 1])) {
+            sliced.pop();
+          }
+          cleanReasoning = sliced.join(' ');
+        }
+      }
       if (cleanReasoning.length > 0) {
         deferredReasonings.push({
           annotation,
@@ -693,12 +704,15 @@ export class SVGOverlayService {
       }
     }
 
-    // Search window around the symbol, respecting zone bounds when reasonable
-    const searchMinY = Math.max(edgeMargin, Math.min(zoneMinY, symbolRect.y - 160 * fontScaleFactor));
-    const searchMaxY = Math.min(maxBottomY, Math.max(zoneMaxY, symbolRect.y + 340 * fontScaleFactor));
+    const isEnglishPositiveAoComment = item.color === '#008000';
 
-    // Evaluate two wrap profiles: standard (34 chars) and compact margin (24 chars)
-    const charLimits = [34, 24];
+    // Search window around the symbol, respecting zone bounds when reasonable
+    // (Allow search down to lower page space so comments can step into open margins with leader line)
+    const searchMinY = Math.max(edgeMargin, symbolRect.y - 30 * fontScaleFactor);
+    const searchMaxY = Math.min(maxBottomY, Math.max(zoneMaxY, symbolRect.y + 320 * fontScaleFactor));
+
+    // Evaluate wrap profiles: 24 (clean natural margin phrasing) and 20 (compact)
+    const charLimits = isEnglishPositiveAoComment ? [24, 20] : [34, 24];
     let bestCandidate: {
       x: number;
       y: number;
@@ -773,18 +787,27 @@ export class SVGOverlayService {
 
         // Penalty for placing above the symbol vs beside/below
         const abovePenalty = (cy + boxH < symbolRect.y) ? 80 : 0;
-        // Slight preference for 34-char wrap unless 24-char wrap fits the right margin much cleaner
-        const wrapPenalty = charLimit === 24 ? 14 : 0;
-        // Heavy penalty if overlapping another placed annotation (used only if all candidates collide)
-        const placedCollisionPenalty = overlapsPlaced ? 5000 : 0;
+        // Wrap penalty only for standard mode, not English compact margin
+        const wrapPenalty = (charLimit === 24) && !isEnglishPositiveAoComment ? 14 : 0;
+        // Strict penalty if overlapping another placed symbol or reasoning block (NEVER allow smothering a badge)
+        const placedCollisionPenalty = overlapsPlaced ? 100000 : 0;
 
         const isEnglishAoOrSpag = item.color === '#008000' || item.color === '#d97706';
-        const inkDensityWeight = isEnglishAoOrSpag ? 1800 : 850;
+
+        // Strict handwriting preservation for English: heavy penalty if candidate overlaps student handwriting
+        const studentOverlapPenalty = isEnglishAoOrSpag
+          ? (studentOverlapRatio > 0.04 ? 8000 : studentOverlapRatio * 2000)
+          : studentOverlapRatio * 500;
+
+        // Faint margin lines should not incur an excessive penalty that forces commentary onto badges or handwriting
+        const inkPenalty = isEnglishAoOrSpag
+          ? (inkDensity > 0.12 ? 2500 + inkDensity * 2000 : inkDensity * 800)
+          : inkDensity * 850;
 
         const totalCost =
           placedCollisionPenalty +
-          inkDensity * inkDensityWeight +
-          studentOverlapRatio * 500 +
+          inkPenalty +
+          studentOverlapPenalty +
           dxNorm * 1.35 +
           dyNorm * 0.55 +
           abovePenalty +
@@ -813,19 +836,19 @@ export class SVGOverlayService {
     const haloStrokeWidth = Math.max(2.5, Math.round(3.5 * fontScaleFactor));
     const haloStyle = `paint-order="stroke fill" stroke="rgba(255, 255, 255, 0.88)" stroke-width="${haloStrokeWidth}px" stroke-linecap="round" stroke-linejoin="round"`;
 
-    // Only draw a subtle teacher pointer line if the reasoning block had to move noticeably away from symbol
+    // Draw a subtle teacher dotted pointer line if the reasoning block had to move noticeably away from symbol
     const gapBetween = this.rectDistance(symbolRect, chosenRect);
-    if (gapBetween > 75 * fontScaleFactor) {
+    if (gapBetween > 60 * fontScaleFactor) {
       const [sx, sy, tx, ty] = this.getClosestConnectorPoints(symbolRect, chosenRect);
       const strokeW = Math.max(1.5, Math.round(2 * fontScaleFactor));
       const dash = `${Math.round(5 * fontScaleFactor)},${Math.round(4 * fontScaleFactor)}`;
-      outSvg += `<line x1="${Math.round(sx)}" y1="${Math.round(sy)}" x2="${Math.round(tx)}" y2="${Math.round(ty)}" stroke="${textColor}" stroke-width="${strokeW}" stroke-dasharray="${dash}" opacity="0.55" stroke-linecap="round" />`;
+      outSvg += `<line x1="${Math.round(sx)}" y1="${Math.round(sy)}" x2="${Math.round(tx)}" y2="${Math.round(ty)}" stroke="${textColor}" stroke-width="${strokeW}" stroke-dasharray="${dash}" opacity="0.70" stroke-linecap="round" />`;
     }
 
     if (item.color === '#008000' || item.color === '#d97706') {
-      const bgPadX = Math.round(6 * fontScaleFactor);
-      const bgPadY = Math.round(3 * fontScaleFactor);
-      outSvg += `<rect x="${chosenRect.x - bgPadX}" y="${chosenRect.y - bgPadY}" width="${chosenRect.w + bgPadX * 2}" height="${chosenRect.h + bgPadY * 2}" rx="6" fill="rgba(255, 255, 255, 0.88)" />`;
+      const bgPadX = Math.round((isEnglishPositiveAoComment ? 3 : 6) * fontScaleFactor);
+      const bgPadY = Math.round(2 * fontScaleFactor);
+      outSvg += `<rect x="${chosenRect.x - bgPadX}" y="${chosenRect.y - bgPadY}" width="${chosenRect.w + bgPadX * 2}" height="${chosenRect.h + bgPadY * 2}" rx="6" fill="rgba(255, 255, 255, 0.90)" />`;
     }
 
     const firstBaselineY = bestCandidate.y + reasoningSize;
@@ -972,26 +995,23 @@ export class SVGOverlayService {
   // =========================================================================
 
   private static breakTextIntoMultiLines(text: string, maxCharsPerLine: number = 25): string[] {
-    if (text.length <= maxCharsPerLine) return [text];
+    if (!text || text.trim().length <= maxCharsPerLine) return [text ? text.trim() : ''];
     const lines: string[] = [];
-    let remaining = text.trim();
-    while (remaining.length > maxCharsPerLine) {
-      let breakPoint = maxCharsPerLine;
-      for (let i = maxCharsPerLine; i >= Math.floor(maxCharsPerLine * 0.7); i--) {
-        if ([' ', ',', '.', ';'].includes(remaining[i])) {
-          breakPoint = i;
-          break;
-        }
-      }
-      lines.push(remaining.substring(0, breakPoint).trim());
-      remaining = remaining.substring(breakPoint).replace(/^[.,;:\s]+/, '').trim();
-    }
-    if (remaining.length > 0) {
-      if (lines.length > 0 && remaining.length <= 2) {
-        lines[lines.length - 1] = `${lines[lines.length - 1]}${remaining}`;
+    const words = text.trim().split(/\s+/);
+    let currentLine = '';
+
+    for (const word of words) {
+      if (!currentLine) {
+        currentLine = word;
+      } else if ((currentLine + ' ' + word).length <= maxCharsPerLine) {
+        currentLine += ' ' + word;
       } else {
-        lines.push(remaining);
+        lines.push(currentLine);
+        currentLine = word;
       }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
     }
     return lines;
   }
