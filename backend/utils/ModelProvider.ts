@@ -204,6 +204,8 @@ export class ModelProvider {
           thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
           maxTokens = 8192; // ⬅️ BUMPED to 8192 to prevent JSON truncation on dense math matrices
         }
+      } else if (phase === 'preFlight' && modelName.includes('2.5-flash')) {
+        thinkingConfig = { thinkingBudget: 1024 };
       }
 
       const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';

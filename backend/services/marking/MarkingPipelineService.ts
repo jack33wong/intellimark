@@ -24,6 +24,7 @@ import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
 import { resolveModelTier } from '../../config/aiModels.js';
 import { checkCredits } from '../creditService.js';
+import { AdminAlertService } from '../AdminAlertService.js';
 
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
@@ -935,27 +936,36 @@ export class MarkingPipelineService {
             if (standardizedPages.length === 0) {
                 console.log(`⚠️ [PIPELINE] All pages rejected by Geometry check. Short-circuiting gracefully.`);
                 progressCallback(createProgressData(2, 'Content rejected by quality inspector.', MULTI_IMAGE_STEPS));
+                void AdminAlertService.notifyCrash('MARKING', req, new Error(lastRejectionReason));
                 
                 // Persist the rejected session so it shows in Library and chat history
                 try {
-                    const earlyExitPdfContexts = pdfContext?.pdfContexts
-                        ? pdfContext.pdfContexts.map((c: any) => ({
-                            url: c.originalPdfLink || c.originalPdfDataUrl,
-                            originalFileName: c.originalFileName,
-                            fileSize: c.fileSize
-                        }))
-                        : (pdfContext?.originalPdfLink || pdfContext?.originalPdfDataUrl)
-                            ? [{
-                                url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl,
-                                originalFileName: pdfContext.originalFileName,
-                                fileSize: pdfContext.fileSize
-                            }]
-                            : undefined;
-
-                    const userMessage = createUserMessage({
-                        content: 'Uploaded document for analysis',
-                        ...(earlyExitPdfContexts && { pdfContexts: earlyExitPdfContexts })
-                    });
+                    const uploadResult = await SessionManagementService.uploadOriginalFiles(
+                        files,
+                        userId || 'anonymous',
+                        submissionId,
+                        !!userId
+                    );
+                    const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
+                        files,
+                        isPdf,
+                        isMultiplePdfs || isMixedUpload,
+                        pdfContext
+                    );
+                    const userMessage = SessionManagementService.createUserMessageForDatabase(
+                        {
+                            content: options.customText || 'Uploaded document for analysis',
+                            files,
+                            isPdf,
+                            isMultiplePdfs: isMultiplePdfs || isMixedUpload,
+                            sessionId: options.sessionId || submissionId,
+                            model: actualModel,
+                            pdfContext
+                        },
+                        structuredImageDataArray,
+                        structuredPdfContexts,
+                        uploadResult.originalImageLinks
+                    );
                     
                     const aiMessage = createAIMessage({
                         content: lastRejectionReason || 'The uploaded image could not be processed because it is blurry, unreadable, or does not contain educational content.',
@@ -1636,24 +1646,32 @@ export class MarkingPipelineService {
                     console.log(`📄 [${isCoverPage ? 'COVER PAGE ONLY' : 'NO MATHS QUESTIONS'}] No questions found. Bypassing solver to return warning.`);
 
                     // 1. Create the proactive AI chat message
-                    const earlyExitPdfContexts = pdfContext?.pdfContexts
-                        ? pdfContext.pdfContexts.map((c: any) => ({
-                            url: c.originalPdfLink || c.originalPdfDataUrl,
-                            originalFileName: c.originalFileName,
-                            fileSize: c.fileSize
-                        }))
-                        : (pdfContext?.originalPdfLink || pdfContext?.originalPdfDataUrl)
-                            ? [{
-                                url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl,
-                                originalFileName: pdfContext.originalFileName,
-                                fileSize: pdfContext.fileSize
-                            }]
-                            : undefined;
-
-                    const userMessage = createUserMessage({
-                        content: 'Uploaded document for analysis',
-                        ...(earlyExitPdfContexts && { pdfContexts: earlyExitPdfContexts })
-                    });
+                    const uploadResult = await SessionManagementService.uploadOriginalFiles(
+                        files,
+                        userId || 'anonymous',
+                        submissionId,
+                        !!userId
+                    );
+                    const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
+                        files,
+                        isPdf,
+                        isMultiplePdfs || isMixedUpload,
+                        pdfContext
+                    );
+                    const userMessage = SessionManagementService.createUserMessageForDatabase(
+                        {
+                            content: options.customText || 'Uploaded document for analysis',
+                            files,
+                            isPdf,
+                            isMultiplePdfs: isMultiplePdfs || isMixedUpload,
+                            sessionId: options.sessionId || submissionId,
+                            model: actualModel,
+                            pdfContext
+                        },
+                        structuredImageDataArray,
+                        structuredPdfContexts,
+                        uploadResult.originalImageLinks
+                    );
 
                     const earlyExitText = isCoverPage
                         ? "I see you've uploaded an exam cover page. To generate a grade, please upload the pages containing the student's handwritten answers. If you want to see how to solve a problem, just upload the question page!"
@@ -2612,24 +2630,32 @@ export class MarkingPipelineService {
 
                     // Persist an empty marking session so it shows in Library
                     try {
-                        const earlyExitPdfContexts = pdfContext?.pdfContexts
-                            ? pdfContext.pdfContexts.map((c: any) => ({
-                                url: c.originalPdfLink || c.originalPdfDataUrl,
-                                originalFileName: c.originalFileName,
-                                fileSize: c.fileSize
-                            }))
-                            : (pdfContext?.originalPdfLink || pdfContext?.originalPdfDataUrl)
-                                ? [{
-                                    url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl,
-                                    originalFileName: pdfContext.originalFileName,
-                                    fileSize: pdfContext.fileSize
-                                }]
-                                : undefined;
-
-                        const userMessage = createUserMessage({
-                            content: 'Uploaded document for marking',
-                            ...(earlyExitPdfContexts && { pdfContexts: earlyExitPdfContexts })
-                        });
+                        const uploadResult = await SessionManagementService.uploadOriginalFiles(
+                            files,
+                            userId || 'anonymous',
+                            submissionId,
+                            !!userId
+                        );
+                        const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
+                            files,
+                            isPdf,
+                            isMultiplePdfs || isMixedUpload,
+                            pdfContext
+                        );
+                        const userMessage = SessionManagementService.createUserMessageForDatabase(
+                            {
+                                content: options.customText || 'Uploaded document for marking',
+                                files,
+                                isPdf,
+                                isMultiplePdfs: isMultiplePdfs || isMixedUpload,
+                                sessionId: options.sessionId || submissionId,
+                                model: actualModel,
+                                pdfContext
+                            },
+                            structuredImageDataArray,
+                            structuredPdfContexts,
+                            uploadResult.originalImageLinks
+                        );
                         const aiMessage = createAIMessage({
                             content: hasDetectedQuestions
                                 ? 'No student work was detected on the uploaded pages.'

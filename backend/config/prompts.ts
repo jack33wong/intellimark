@@ -224,7 +224,10 @@ Please generate a perfect model answer following the scheme.`;
 
   diagramExtractor: {
     system: diagram_extractor_system_prompt,
-    user: (hint: string) => `Generate JSON for this hint: ${hint}`
+    user: (hint: string, answerContext?: string) =>
+      answerContext
+        ? `Generate JSON for this hint: ${hint}\n\n## SOLVED QUESTION & MODEL ANSWER CONTEXT (Include solved numbers/shapes in the diagram where applicable):\n${answerContext}`
+        : `Generate JSON for this hint: ${hint}`
   },
 
   similarquestions: {

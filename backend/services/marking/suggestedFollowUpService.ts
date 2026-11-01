@@ -342,14 +342,17 @@ export class SuggestedFollowUpService {
       }
     }
 
-    // 3. Parallel Execution
-    const results = await Promise.all(questions.map(async (q) => {
+    // [FEATURE] Restore Debug Logging from environment variables
+    const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
+                           (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
+
+    // Helper to build user prompt for a single question
+    const buildSingleQuestionUserPrompt = (q: any): string => {
       const {
         base,
         questionText: qText,
         markingScheme: qScheme,
         marks: qMarks,
-        originalText: parentText,
         sourceExtracts: qExtracts,
         examinerReport: qReport
       } = q;
@@ -361,10 +364,9 @@ export class SuggestedFollowUpService {
         ? qReport
         : (typeof qReport === 'object' ? JSON.stringify(qReport, null, 2) : (firstEp?.examinerReport || ''));
 
-      let userPrompt: string;
       if (isEnglishLoR) {
         const promptKey = isModelAnswer ? 'englishModelAnswerHtml' : 'englishMarkingScheme';
-        userPrompt = getPrompt(
+        return getPrompt(
           `${promptKey}.user`,
           qText,
           this.stringifyMarkingScheme(qScheme),
@@ -373,84 +375,38 @@ export class SuggestedFollowUpService {
           extractText,
           reportText
         );
-      } else {
-        const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
-        userPrompt = getPrompt(`${currentPromptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base);
+      }
+      const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
+      return getPrompt(`${currentPromptKey}.user`, qText, this.stringifyMarkingScheme(qScheme), qMarks, base);
+    };
+
+    // Helper to wrap raw AI HTML for a single question into a .model-answer-block card
+    const formatQuestionCard = (q: any, rawContent: string, qIndex: number): string => {
+      const { base, questionText: qText, marks: qMarks, originalText: parentText } = q;
+      let content = rawContent.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+      // Strip headers that duplicate the question number we inject ourselves
+      content = content.replace(/<div class="model-question-number">.*?<\/div>/sig, '').trim();
+      content = content.replace(/<div[^>]*>\s*(?:Question\s+)?\d+[a-z]*\s*<\/div>/sig, '').trim();
+
+      const escapedBase = String(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const redundantPrefixRegex = new RegExp(`(<span class=["']model_question["']>\\s*)${escapedBase}\\s*[.)]\\s+`, 'i');
+      content = content.replace(redundantPrefixRegex, '$1');
+
+      const mark_str = `[${qMarks} mark${qMarks > 1 ? 's' : ''}]`;
+      const header = `<div class="model-question-number">Question ${base} <span class="question-max-mark">${mark_str}</span></div>`;
+
+      let finalContent = content;
+      if (isModelAnswer && !content.includes('class="model_question"')) {
+        if (isLoggingEnabled) console.log(`[FOLLOW-UP] Q${base}: Prepending verified question text (Safe Fallback)`);
+        const safeText = qText || parentText || "";
+        finalContent = `<span class="model_question">${safeText}</span>\n${content}`;
       }
 
-      // [FEATURE] Restore Debug Logging from environment variables
-      const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
-                             (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
+      const isGuest = detectedQuestion?.isGuest === true;
+      const blurClass = (isGuest && qIndex >= 4) ? ' paywall-blur' : '';
 
-      if (isLoggingEnabled) {
-        console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${base}):`);
-        console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
-        console.log(`--- USER ---\n${userPrompt}\n`);
-      }
-
-      try {
-        const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
-        let content = ai.content.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
-
-        // [TWO-PROMPT BRIDGE] Interceptor Logic for Model Answers (Only for Maths)
-        if (isModelAnswer && !isEnglishLoR) {
-          if (isLoggingEnabled) {
-            console.log("\n==================================================");
-            console.log(`[DEBUG] Step 1: Sending question to Prompt 1 (HTML Formatter)...`);
-            console.log(`[DEBUG] Step 1 Complete. Raw HTML Output from AI:`);
-            console.log("--------------------------------------------------");
-            console.log(content);
-            console.log("--------------------------------------------------");
-          }
-
-          const { DiagramBridgeService } = await import('../diagram/DiagramBridgeService.js');
-          content = await DiagramBridgeService.processDiagramHints(content, model, tracker, `MODEL-ANSWER-Q${base}`);
-
-          if (isLoggingEnabled) {
-            console.log("\n[DEBUG] FINAL HTML READY FOR FRONTEND:");
-            console.log(content);
-            console.log("==================================================\n");
-          }
-        }
-
-        if (isLoggingEnabled) {
-          console.log(`✅ [DEBUG] ${mode.toUpperCase()} RESPONSE (Group ${base}):`);
-          console.log(`${content}\n`);
-        }
-
-        // [FIX] Global Regex and Strict Filtering
-        // Strip only headers that duplicate the question number we inject ourselves
-        content = content.replace(/<div class="model-question-number">.*?<\/div>/sig, '').trim();
-        // [FIX] Strip any AI-generated div (with or without class) whose sole content is "Question N" or just "N"
-        // This catches: <div class="sub-question-title">Question 16</div>
-        // And:          <div>Question 22</div>  (bare div with no class — AI hallucination)
-        content = content.replace(/<div[^>]*>\s*(?:Question\s+)?\d+[a-z]*\s*<\/div>/sig, '').trim();
-
-        const escapedBase = String(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const redundantPrefixRegex = new RegExp(`(<span class=["']model_question["']>\\s*)${escapedBase}\\s*[.)]\\s+`, 'i');
-        content = content.replace(redundantPrefixRegex, '$1');
-
-        // [FIX] Bible Compliance: Use marking-code class instead of inline styles
-        const mark_str = `[${qMarks} mark${qMarks > 1 ? 's' : ''}]`;
-        const header = `<div class="model-question-number">Question ${base} <span class="question-max-mark">${mark_str}</span></div>`;
-
-        // [FIX] Layout Duplication: Prepend aggregated question text ONLY if the AI hasn't already provided it 
-        // Interleaved layout: AI provides sub-questions and answers mixed.
-        // We prepend the verified parent text (parentText) if it exists.
-
-        // [SAFETY FIX] Ensure model_question tag exists. If not, prepend verified qText.
-        let finalContent = content;
-        if (isModelAnswer && !content.includes('class="model_question"')) {
-          if (isLoggingEnabled) console.log(`[FOLLOW-UP] Q${base}: Prepending verified question text (Safe Fallback)`);
-          const safeText = qText || parentText || "";
-          finalContent = `<span class="model_question">${safeText}</span>\n${content}`;
-        }
-
-        const isGuest = detectedQuestion?.isGuest === true;
-        const qIndex = questions.indexOf(q);
-        const blurClass = (isGuest && qIndex >= 4) ? ' paywall-blur' : '';
-
-        const html = `
+      const html = `
 <div class="model-answer-block${blurClass}">
     ${header}
     <div class="model-question-content">
@@ -458,15 +414,102 @@ export class SuggestedFollowUpService {
     </div>
 </div>`.trim();
 
-        // [FIX] Force model_table class on all tables
-        const finalHtmlWithTableClass = html.replace(/<table(?:\s+[^>]*)?>/gi, '<table class="model_table">');
+      return html.replace(/<table(?:\s+[^>]*)?>/gi, '<table class="model_table">');
+    };
 
-        return { html: finalHtmlWithTableClass, tokens: ai.usageTokens || 0 };
-      } catch (err) {
-        console.error(`[FOLLOW-UP] Error Q${base}:`, err);
-        return { html: `<div class="error">Error generating ${mode} for Q${base}</div>`, tokens: 0 };
+    // 3. Batched Parallel Execution (Groups of 5 questions for multi-question Maths Model Answers & Marking Schemes)
+    const isBatchableMode = (isModelAnswer || mode === 'marking-scheme') && !isEnglishLoR && questions.length > 1;
+    const BATCH_SIZE = isBatchableMode ? 5 : 1;
+    const questionBatches: any[][] = [];
+    for (let i = 0; i < questions.length; i += BATCH_SIZE) {
+      questionBatches.push(questions.slice(i, i + BATCH_SIZE));
+    }
+
+    const rawAnswersByBase = new Map<string, string>();
+    let totalTokens = 0;
+
+    await Promise.all(questionBatches.map(async (batch) => {
+      if (batch.length === 1) {
+        const q = batch[0];
+        const userPrompt = buildSingleQuestionUserPrompt(q);
+        if (isLoggingEnabled) {
+          console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${q.base}):`);
+          console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+          console.log(`--- USER ---\n${userPrompt}\n`);
+        }
+        try {
+          const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+          totalTokens += ai.usageTokens || 0;
+          rawAnswersByBase.set(String(q.base), ai.content);
+        } catch (err) {
+          console.error(`[FOLLOW-UP] Error Q${q.base}:`, err);
+          rawAnswersByBase.set(String(q.base), `<div class="error">Error generating ${mode} for Q${q.base}</div>`);
+        }
+        return;
+      }
+
+      // Multi-question batch prompt (5 questions in 1 LLM call)
+      const taskLabel = isModelAnswer ? 'model answers' : 'marking scheme explanations';
+      const batchUserPrompt = `You are generating ${taskLabel} for a batch of ${batch.length} questions (${batch.map(q => `Question ${q.base}`).join(', ')}).\n` +
+        `CRITICAL BATCH RULE: Output the response for each question preceded by the exact delimiter line:\n` +
+        `=== QUESTION_START: <NUMBER> ===\n` +
+        `Do NOT skip any question in the batch.\n\n` +
+        batch.map(q => `=== QUESTION_START: ${q.base} ===\n${buildSingleQuestionUserPrompt(q)}`).join('\n\n');
+
+      if (isLoggingEnabled) {
+        console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} BATCH PROMPT (Questions ${batch.map(q => q.base).join(', ')}):`);
+        console.log(`--- USER ---\n${batchUserPrompt}\n`);
+      }
+
+      try {
+        const ai = await ModelProvider.callText(systemPrompt, batchUserPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+        totalTokens += ai.usageTokens || 0;
+        const batchOutput = ai.content.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+        const delimiterRegex = /===\s*QUESTION_START:\s*(?:Question\s*)?([0-9a-zA-Z]+)\s*===/gi;
+        const splitMatches = Array.from(batchOutput.matchAll(delimiterRegex));
+
+        for (let i = 0; i < splitMatches.length; i++) {
+          const qNum = String(splitMatches[i][1]).trim();
+          const startIdx = (splitMatches[i].index || 0) + splitMatches[i][0].length;
+          const endIdx = i + 1 < splitMatches.length ? (splitMatches[i + 1].index || batchOutput.length) : batchOutput.length;
+          const segment = batchOutput.slice(startIdx, endIdx).trim();
+          if (segment) {
+            rawAnswersByBase.set(qNum, segment);
+          }
+        }
+      } catch (batchErr) {
+        console.warn(`[FOLLOW-UP] Batch error for Questions ${batch.map(q => q.base).join(', ')}, falling back to single calls:`, batchErr);
+      }
+
+      // Safety Fallback: Any question in the batch not populated is fetched individually
+      const missingQuestions = batch.filter(q => !rawAnswersByBase.has(String(q.base)));
+      if (missingQuestions.length > 0) {
+        await Promise.all(missingQuestions.map(async (q) => {
+          try {
+            const singlePrompt = buildSingleQuestionUserPrompt(q);
+            const ai = await ModelProvider.callText(systemPrompt, singlePrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+            totalTokens += ai.usageTokens || 0;
+            rawAnswersByBase.set(String(q.base), ai.content);
+          } catch (err) {
+            console.error(`[FOLLOW-UP] Fallback Error Q${q.base}:`, err);
+            rawAnswersByBase.set(String(q.base), `<div class="error">Error generating ${mode} for Q${q.base}</div>`);
+          }
+        }));
       }
     }));
+
+    // Assemble ordered question cards
+    let combinedResponse = questions.map((q, idx) => {
+      const raw = rawAnswersByBase.get(String(q.base)) || `<div class="error">Error generating ${mode} for Q${q.base}</div>`;
+      return formatQuestionCard(q, raw, idx);
+    }).join('\n\n');
+
+    // [TWO-PROMPT BRIDGE] Single Batched Interceptor Pass for all Diagram Hints across the paper
+    if (isModelAnswer && !isEnglishLoR) {
+      const { DiagramBridgeService } = await import('../diagram/DiagramBridgeService.js');
+      combinedResponse = await DiagramBridgeService.processDiagramHints(combinedResponse, model, tracker, 'MODEL-ANSWER-BATCH');
+    }
 
     // 4. Cleanup and Return
     progressTracker.completeCurrentStep();
@@ -475,10 +518,10 @@ export class SuggestedFollowUpService {
     const getRealApiName = (m: string) => m.includes('gemini') ? 'Google Gemini API' : m.includes('gpt') ? 'OpenAI API' : 'AI API';
 
     return {
-      response: results.map(r => r.html).join('\n\n'),
+      response: combinedResponse,
       apiUsed: `${getRealApiName(model)} (${model})`,
       progressData: null,
-      usageTokens: results.reduce((s, r) => s + r.tokens, 0)
+      usageTokens: totalTokens
     };
   }
 }

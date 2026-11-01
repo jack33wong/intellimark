@@ -66,7 +66,7 @@ export class MessageFactory {
    * @param firebaseUrl - Firebase storage URL
    * @returns Base64 data URL
    */
-  private static async convertFirebaseUrlToBase64(firebaseUrl: string): Promise<string> {
+  private static convertFirebaseUrlToBase64(firebaseUrl: string): string {
     try {
       // For now, return Firebase URL as-is to prevent breaking
       // TODO: Implement actual Firebase URL to Base64 conversion

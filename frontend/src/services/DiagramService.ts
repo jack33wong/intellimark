@@ -116,7 +116,8 @@ export class DiagramService {
                     if (data.description) renderedKeywords.add(String(data.description).toLowerCase());
                     if (data.details) renderedKeywords.add(String(data.details).toLowerCase());
 
-                    switch (data.type) {
+                    const normalizedType = String(data.type || '').trim().toLowerCase();
+                    switch (normalizedType) {
                         case 'triangle':
                         case 'triangle_sas':
                             replacement = this.drawTriangle(data);
@@ -139,14 +140,25 @@ export class DiagramService {
                             break;
                         case 'function_graph':
                             replacement = this.drawFunctionGraph(data); break;
-                        case 'coordinate_grid':
+                        case 'coordinate_grid': {
                             const idx = m.index || 0;
-                            const qText = content.substring(Math.max(0, idx - 300), idx + 100).toLowerCase();
-                            const isEnlargeOrReflect = qText.includes('enlarge shape') || qText.includes('reflect shape') ||
-                                (qText.includes('enlarge') && qText.includes('scale factor'));
+                            const matchEnd = idx + m[0].length;
+                            const beforeRaw = content.substring(Math.max(0, idx - 1500), idx);
+                            const lastQHeader = Math.max(
+                                beforeRaw.lastIndexOf('model-question-number'),
+                                beforeRaw.lastIndexOf('question-group-container')
+                            );
+                            const qText = (lastQHeader >= 0 ? beforeRaw.substring(lastQHeader) : beforeRaw).toLowerCase();
+                            const afterRaw = content.substring(matchEnd, Math.min(content.length, matchEnd + 800));
+                            const nextQHeader = afterRaw.indexOf('model-question-number');
+                            const localAfterText = (nextQHeader >= 0 ? afterRaw.substring(0, nextQHeader) : afterRaw).toLowerCase();
+                            const qContext = `${qText} ${localAfterText}`;
 
-                            // Auto-Detect Compass Circle Constructions (e.g. Question 11)
-                            const isCompassCircle = qText.includes('pair of compasses') || qText.includes('diameter of a circle') || content.toLowerCase().includes('pair of compasses');
+                            const isEnlargeOrReflect = qContext.includes('enlarge shape') || qContext.includes('reflect shape') ||
+                                (qContext.includes('enlarge') && qContext.includes('scale factor'));
+
+                            // Auto-Detect Compass Circle Constructions (e.g. Question 11) - strictly scoped to qContext!
+                            const isCompassCircle = qContext.includes('pair of compasses') || qContext.includes('diameter of a circle');
                             if (isCompassCircle) {
                                 data.show_axes = false;
                                 data.hide_grid = true;
@@ -160,6 +172,7 @@ export class DiagramService {
                                     let center = [0, 0];
                                     let radius = 3;
                                     if (diameterLayer) {
+                                        diameterLayer.purpose = 'reference';
                                         const pts = diameterLayer.points || diameterLayer.vertices;
                                         const p1 = [parseFloat(pts[0][0]), parseFloat(pts[0][1])];
                                         const p2 = [parseFloat(pts[1][0]), parseFloat(pts[1][1])];
@@ -167,6 +180,94 @@ export class DiagramService {
                                         radius = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2;
                                     }
                                     data.layers.push({ shape_name: 'circle', center, radius: radius || 3, purpose: 'solution' });
+                                }
+                            } else if (qContext.includes('cuboid') && qContext.includes('net')) {
+                                // Always show 1cm grid without axes and render all 6 faces of the cuboid net
+                                data.show_axes = false;
+                                data.hide_grid = false;
+                                const polyLayers = (data.layers || []).filter((l: any) => l.shape_name === 'polygon' || l.type === 'polygon');
+                                if (polyLayers.length < 6) {
+                                    const dimMatches = Array.from(qContext.matchAll(/(\d+(?:\.\d+)?)\s*cm/gi)).map(dm => parseFloat(dm[1])).filter(n => n > 0 && n <= 10);
+                                    const sortedDims = dimMatches.length >= 3 ? dimMatches.slice(0, 3).sort((a, b) => b - a) : [5, 3, 2];
+                                    const [L, W, D] = sortedDims;
+                                    const x1 = D + 1;
+                                    const y1 = D + 1;
+                                    const x2 = x1 + L;
+                                    const y2 = y1 + W;
+                                    data.x_min = 0;
+                                    data.x_max = L + 2 * D + 2;
+                                    data.y_min = 0;
+                                    data.y_max = 2 * W + 2 * D + 2;
+                                    data.layers = [
+                                        { shape_name: 'polygon', purpose: 'reference', label: `${L}×${W}`, points: [[x1, y1], [x2, y1], [x2, y2], [x1, y2]] },
+                                        { shape_name: 'polygon', purpose: 'solution', label: `${D}×${W}`, points: [[x1 - D, y1], [x1, y1], [x1, y2], [x1 - D, y2]] },
+                                        { shape_name: 'polygon', purpose: 'solution', label: `${D}×${W}`, points: [[x2, y1], [x2 + D, y1], [x2 + D, y2], [x2, y2]] },
+                                        { shape_name: 'polygon', purpose: 'solution', label: `${L}×${D}`, points: [[x1, y1 - D], [x2, y1 - D], [x2, y1], [x1, y1]] },
+                                        { shape_name: 'polygon', purpose: 'solution', label: `${L}×${D}`, points: [[x1, y2], [x2, y2], [x2, y2 + D], [x1, y2 + D]] },
+                                        { shape_name: 'polygon', purpose: 'solution', label: `${L}×${W}`, points: [[x1, y2 + D], [x2, y2 + D], [x2, y2 + D + W], [x1, y2 + D + W]] }
+                                    ];
+                                }
+                            } else if (qContext.includes('complete the kite') || (qContext.includes('kite') && qContext.includes('grid'))) {
+                                // Show the square grid without axis numbers and auto-complete the reflected kite sides
+                                data.show_axes = false;
+                                data.hide_grid = false;
+                                if (!Array.isArray(data.layers)) data.layers = [];
+
+                                // Collect unique vertices across layers
+                                const allVertices: [number, number][] = [];
+                                data.layers.forEach((l: any) => {
+                                    const pts = l.points || l.vertices;
+                                    if (Array.isArray(pts) && pts.length >= 2) {
+                                        pts.forEach((pt: any) => {
+                                            const px = parseFloat(Array.isArray(pt) ? pt[0] : pt.x);
+                                            const py = parseFloat(Array.isArray(pt) ? pt[1] : pt.y);
+                                            if (Number.isFinite(px) && Number.isFinite(py)) {
+                                                if (!allVertices.some(([ex, ey]) => Math.abs(ex - px) < 1e-3 && Math.abs(ey - py) < 1e-3)) {
+                                                    allVertices.push([px, py]);
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+
+                                if (allVertices.length === 3) {
+                                    data.layers.forEach((l: any) => { l.purpose = 'reference'; });
+                                    const [pA, pB, pC] = allVertices;
+                                    const ux = pC[0] - pA[0];
+                                    const uy = pC[1] - pA[1];
+                                    const lenSq = ux * ux + uy * uy;
+                                    if (lenSq > 0) {
+                                        const vx = pB[0] - pA[0];
+                                        const vy = pB[1] - pA[1];
+                                        const t = (vx * ux + vy * uy) / lenSq;
+                                        const dx = +(pA[0] + 2 * t * ux - vx).toFixed(2);
+                                        const dy = +(pA[1] + 2 * t * uy - vy).toFixed(2);
+                                        data.layers.push({
+                                            shape_name: 'polyline',
+                                            purpose: 'solution',
+                                            is_open: true,
+                                            points: [pA, [dx, dy], pC]
+                                        });
+                                    }
+                                } else if (allVertices.length >= 4) {
+                                    // Convert into clean top reference polyline + bottom solution polyline
+                                    const sortedByY = [...allVertices].sort((a, b) => b[1] - a[1]);
+                                    const topVertex = sortedByY[0];
+                                    const bottomVertex = sortedByY[sortedByY.length - 1];
+                                    const sideVertices = sortedByY.slice(1, sortedByY.length - 1).sort((a, b) => a[0] - b[0]);
+                                    if (sideVertices.length >= 2) {
+                                        const leftV = sideVertices[0];
+                                        const rightV = sideVertices[sideVertices.length - 1];
+                                        data.layers = [
+                                            { shape_name: 'polyline', purpose: 'reference', is_open: true, points: [leftV, topVertex, rightV] },
+                                            { shape_name: 'polyline', purpose: 'solution', is_open: true, points: [leftV, bottomVertex, rightV] }
+                                        ];
+                                    }
+                                }
+                            } else if (data.show_axes === false) {
+                                const mentionsGrid = qContext.includes('grid') || qContext.includes('coordinate') || qContext.includes('graph') || qContext.includes('square');
+                                if (!mentionsGrid) {
+                                    data.hide_grid = true;
                                 }
                             }
 
@@ -179,21 +280,64 @@ export class DiagramService {
                                 replacement = this.drawCoordinateGrid(data);
                             }
                             break;
+                        }
                         case 'tree_diagram':
-                            replacement = this.drawTreeDiagram(data); break;
+                        case 'frequency_tree': {
+                            const idx = m.index || 0;
+                            const matchEnd = idx + m[0].length;
+                            const beforeRaw = content.substring(Math.max(0, idx - 600), idx);
+                            const lastQHeader = Math.max(
+                                beforeRaw.lastIndexOf('model-question-number'),
+                                beforeRaw.lastIndexOf('question-group-container')
+                            );
+                            const qText = (lastQHeader >= 0 ? beforeRaw.substring(lastQHeader) : beforeRaw).toLowerCase();
+                            const afterRaw = content.substring(matchEnd, Math.min(content.length, matchEnd + 800));
+                            const nextQHeader = afterRaw.indexOf('model-question-number');
+                            const localAfterText = nextQHeader >= 0 ? afterRaw.substring(0, nextQHeader) : afterRaw;
+
+                            if (qText.includes('frequency tree')) {
+                                data.is_frequency = true;
+                            }
+                            data._answerText = localAfterText;
+                            replacement = this.drawTreeDiagram(data);
+                            break;
+                        }
                         case 'composite_2d':
                             replacement = this.drawComposite2D(data); break;
                         case 'bar_chart':
                             replacement = this.drawBarChart(data); break;
+                        case 'venn_diagram':
+                            replacement = this.drawVennDiagram(data); break;
+                        case 'number_line':
+                            replacement = this.drawNumberLine(data); break;
+                        case 'pictogram':
+                            replacement = this.drawPictogram(data); break;
+                        case 'number_machine':
+                        case 'flowchart':
+                            replacement = this.drawNumberMachine(data); break;
+                        case 'solid_3d':
+                            replacement = this.drawSolid3D(data); break;
                         case 'fallback':
                             const desc = (data.description || data.details || `Diagram (${data.type})`).trim();
                             const lowerDesc = desc.toLowerCase();
                             // [v9.98] Smart Fallback Routing: if the AI outputs a fallback box that is actually
-                            // a bar chart or frequency tree, intercept it and draw the SVG instead.
+                            // a bar chart, frequency tree, pictogram, number machine, 3D solid, or straight-line angle diagram, draw the SVG instead.
                             if (lowerDesc.startsWith("bar chart:")) {
                                 replacement = this.renderBarChartFromHint(`[${desc}]`);
                             } else if (lowerDesc.startsWith("frequency tree:")) {
                                 replacement = this.renderFrequencyTreeFromHint(`[Diagram: ${desc}]`);
+                            } else if (lowerDesc.includes("circle represents") || lowerDesc.includes("pictogram")) {
+                                replacement = this.renderPictogramFromHint(desc);
+                            } else if (lowerDesc.includes("straight line") && lowerDesc.includes("angle")) {
+                                replacement = this.renderStraightLineAngleFromHint(desc);
+                            } else if (lowerDesc.includes("number machine") || lowerDesc.includes("function machine") || lowerDesc.includes("box labeled")) {
+                                replacement = this.renderNumberMachineFromHint(desc);
+                            } else if (lowerDesc.includes("cylinder") || lowerDesc.includes("cuboid") || lowerDesc.includes("cone") || lowerDesc.includes("sphere")) {
+                                replacement = this.renderSolid3DFromHint(desc);
+                            } else if (lowerDesc.includes("equilateral triangle bcx") || (lowerDesc.includes("cdyx") && lowerDesc.includes("square"))) {
+                                replacement = this.renderRegularPolygonConstruction();
+                            } else if (lowerDesc.includes("triangle edc") && lowerDesc.includes("triangle abd")) {
+                                replacement = this.renderParallelTrianglesConstruction();
                             } else {
                                 replacement = this.renderFallbackBox(desc);
                             }
@@ -648,7 +792,7 @@ export class DiagramService {
         let height = yMax - yMin;
 
         const minWidthAllowed = height / 1.5;
-        if (width < minWidthAllowed && Number.isFinite(width) && Number.isFinite(height)) {
+        if (data.show_axes !== false && width < minWidthAllowed && Number.isFinite(width) && Number.isFinite(height)) {
             const widthDiff = minWidthAllowed - width;
             xMin -= widthDiff / 2;
             xMax += widthDiff / 2;
@@ -679,8 +823,8 @@ export class DiagramService {
             </defs>
         `;
 
-        const xStep = Math.max(1, Math.ceil((width || 10) / 10));
-        const yStep = Math.max(1, Math.ceil((height || 10) / 10));
+        const xStep = Math.max(1, Math.ceil((width || 10) / 20));
+        const yStep = Math.max(1, Math.ceil((height || 10) / 20));
 
         if (!data.hide_grid) {
             gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="1" vector-effect="non-scaling-stroke" />`;
@@ -721,7 +865,22 @@ export class DiagramService {
             layersHtml += `<text x="${0.25 * u}" y="${-0.25 * u}" font-size="${vertexFontSize}" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
         }
 
+        const pointLabelSet = new Set(
+            layers
+                .filter((l: any) => l.shape_name === 'point' || l.type === 'point' || l.coords || l.coord)
+                .map((l: any) => String(l.label || '').trim().toUpperCase())
+                .filter(Boolean)
+        );
+
         layers = layers.filter((layer: any) => {
+            const lbl = String(layer.label || '').trim().toLowerCase();
+            if (lbl.includes('not drawn accurately') || lbl.includes('not to scale')) return false;
+            if (layer.label && /^[A-Z]{2}$/.test(String(layer.label).trim())) {
+                const chars = String(layer.label).trim().split('');
+                if (chars.every(c => pointLabelSet.has(c))) {
+                    layer.label = '';
+                }
+            }
             const pts = layer.points || layer.vertices;
             if (pts && pts.length === 2) {
                 const px1 = parseFloat(Array.isArray(pts[0]) ? pts[0][0] : pts[0].x);
@@ -734,23 +893,57 @@ export class DiagramService {
             return true;
         });
 
+        // Auto-inject angle arcs on straight-line angle diagrams (e.g. Question 13) when missing
+        const hasArcLayer = layers.some((l: any) => l.shape_name === 'arc' || l.type === 'arc');
+        const hasAngleLabel = layers.some((l: any) => {
+            const s = String(l.label || '').trim();
+            return s.includes('°') || /^\d+\s*[a-z]$/i.test(s);
+        });
+        if (data.hide_grid && !hasArcLayer && hasAngleLabel) {
+            const lineLayers = layers.filter((l: any) =>
+                (l.shape_name === 'line' || l.type === 'line' || l.shape_name === 'polyline') &&
+                (l.points || l.vertices)?.length === 2
+            );
+            if (lineLayers.length >= 2) {
+                const bPts = lineLayers[0].points || lineLayers[0].vertices;
+                const rPts = lineLayers[1].points || lineLayers[1].vertices;
+                const bx1 = parseFloat(bPts[0][0]), by1 = parseFloat(bPts[0][1]);
+                const bx2 = parseFloat(bPts[1][0]), by2 = parseFloat(bPts[1][1]);
+                const rx1 = parseFloat(rPts[0][0]), ry1 = parseFloat(rPts[0][1]);
+                const rx2 = parseFloat(rPts[1][0]), ry2 = parseFloat(rPts[1][1]);
+                if (Math.abs(by1 - by2) < 1e-3 && Math.abs(ry1 - by1) < 1e-3 && rx1 > Math.min(bx1, bx2) && rx1 < Math.max(bx1, bx2)) {
+                    const rayDeg = Math.atan2(ry2 - ry1, rx2 - rx1) * (180 / Math.PI);
+                    const arcR = Math.min(Math.abs(bx2 - bx1) * 0.14, Math.hypot(rx2 - rx1, ry2 - ry1) * 0.28);
+                    if (rayDeg > 5 && rayDeg < 175 && arcR > 0.2) {
+                        layers.push(
+                            { shape_name: 'arc', center: [rx1, ry1], radius: arcR * 0.85, start_angle: 0, end_angle: rayDeg, is_open: true, purpose: 'reference' },
+                            { shape_name: 'arc', center: [rx1, ry1], radius: arcR, start_angle: rayDeg, end_angle: 180, is_open: true, purpose: 'reference' }
+                        );
+                    }
+                }
+            }
+        }
+
         let hasDrawnSomething = false;
+        const hasRefLayer = layers.some((l: any) => l.purpose === 'reference');
+        const hasSolLayer = layers.some((l: any) => l.purpose === 'solution');
+        const useSolutionHighlight = hasRefLayer && hasSolLayer;
 
         layers.forEach((layer: any) => {
             const rawPoints = layer.points || layer.vertices || (layer.coords ? [layer.coords] : (layer.coord ? [layer.coord] : ((layer.shape_name === 'point' || layer.type === 'point') && layer.center ? [layer.center] : [])));
             const purpose = layer.purpose || data.purpose || "solution";
             const isReference = purpose === 'reference';
             const isVector = layer.shape_name === 'vector' || layer.type === 'vector';
-            const strokeColor = 'var(--diagram-foreground)';
+            const strokeColor = (useSolutionHighlight && !isReference) ? '#10b981' : 'var(--diagram-foreground)';
             const strokeOpacityAttr = '';
-            const fillColor = isReference ? 'none' : 'rgba(128, 128, 128, 0.15)';
+            const fillColor = isReference ? 'none' : (useSolutionHighlight ? 'rgba(16, 185, 129, 0.14)' : 'rgba(128, 128, 128, 0.15)');
 
             if (layer.shape_name === 'circle' || layer.type === 'circle') {
                 const cx = parseFloat(layer.center ? layer.center[0] : 0);
                 const cy = parseFloat(layer.center ? layer.center[1] : 0);
                 const r = parseFloat(layer.radius || 1);
                 if (Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(r)) {
-                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
+                    const dashed = layer.dashed ? 'stroke-dasharray="3,3"' : '';
                     layersHtml += `<circle cx="${cx}" cy="${-cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
                     hasDrawnSomething = true;
                 }
@@ -777,10 +970,11 @@ export class DiagramService {
                     const largeArcFlag = ad > 180 ? 1 : 0;
 
                     let d = `M ${sx} ${-sy} A ${r} ${r} 0 ${largeArcFlag} 0 ${ex} ${-ey}`;
-                    if (!layer.is_open) d += ' Z';
+                    const isClosedSector = Boolean(layer.closed || layer.shape_name === 'sector');
+                    if (isClosedSector) d += ' Z';
 
-                    const dashed = layer.dashed || isReference ? 'stroke-dasharray="3,3"' : '';
-                    layersHtml += `<path d="${d}" fill="${layer.is_open ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.4 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
+                    const dashed = layer.dashed ? 'stroke-dasharray="3,3"' : '';
+                    layersHtml += `<path d="${d}" fill="${isClosedSector ? fillColor : 'none'}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${isReference ? 0.35 : 0.3}" ${dashed} vector-effect="non-scaling-stroke" />`;
                     hasDrawnSomething = true;
                 }
                 return;
@@ -794,17 +988,25 @@ export class DiagramService {
 
                 if (parsedPts.some(([px, py]) => !Number.isFinite(px) || !Number.isFinite(py))) return;
 
-                const isSinglePoint = rawPoints.length === 1 || layer.shape_name === 'point' || layer.type === 'point';
+                const isSinglePoint = rawPoints.length === 1 || layer.shape_name === 'point' || layer.type === 'point' || layer.shape_name === 'label' || layer.type === 'label';
                 const isOpen = !isSinglePoint && (layer.is_open || isVector || layer.type === 'polyline' || layer.shape_name === 'polyline' || layer.shape_name === 'line_path' || layer.shape_name === 'line');
 
+                const labelStr = String(layer.label || '').trim();
+                const isTextOnlyLabel = layer.shape_name === 'label' || layer.shape_name === 'text' || layer.type === 'label' ||
+                    labelStr.includes('°') ||
+                    /^\d+\s*[a-zA-Z]+$/.test(labelStr) ||
+                    (labelStr.length > 2 && !labelStr.startsWith('('));
+
                 if (isSinglePoint) {
-                    const [px, py] = parsedPts[0];
-                    layersHtml += `<circle cx="${px}" cy="${-py}" r="${pointRadius}" fill="${strokeColor}" />`;
+                    if (!isTextOnlyLabel && !layer.hide_dot) {
+                        const [px, py] = parsedPts[0];
+                        layersHtml += `<circle cx="${px}" cy="${-py}" r="${pointRadius}" fill="${strokeColor}" />`;
+                    }
                 } else {
                     const pts = parsedPts.map(([px, py]) => `${px},${-py}`).join(' ');
                     const tag = isOpen ? 'polyline' : 'polygon';
-                    const dashedStyle = (layer.dashed || (isReference && !isVector)) ? 'stroke-dasharray="3,3"' : '';
-                    const baseWidth = isVector ? 0.5 : (isReference ? 0.4 : 0.3);
+                    const dashedStyle = layer.dashed ? 'stroke-dasharray="3,3"' : '';
+                    const baseWidth = isVector ? 0.5 : (isReference ? 0.45 : 0.35);
                     const markerAttr = isVector ? 'marker-end="url(#vector-arrow)"' : '';
 
                     layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${baseWidth}" ${dashedStyle} ${markerAttr} vector-effect="non-scaling-stroke" />`;
@@ -849,15 +1051,20 @@ export class DiagramService {
                         lx = (parsedPts[0][0] + parsedPts[1][0]) / 2;
                         ly = (parsedPts[0][1] + parsedPts[1][1]) / 2 + 0.35 * u;
                     } else if (isSinglePoint) {
-                        // Point: offset beside the dot so it never overlaps the marker or clips at edges
-                        if (lx - xMin < width * 0.3) {
-                            lx += pointRadius * 1.8;
-                            textAnchor = "start";
-                        } else if (xMax - lx < width * 0.3) {
-                            lx -= pointRadius * 1.8;
-                            textAnchor = "end";
-                        } else {
-                            ly -= 0.45 * u;
+                        if (Array.isArray(layer.label_offset) && layer.label_offset.length === 2) {
+                            lx += Number(layer.label_offset[0]) || 0;
+                            ly += Number(layer.label_offset[1]) || 0;
+                        } else if (!isTextOnlyLabel) {
+                            // Point: offset beside the dot so it never overlaps the marker or clips at edges
+                            if (lx - xMin < width * 0.3) {
+                                lx += pointRadius * 1.8;
+                                textAnchor = "start";
+                            } else if (xMax - lx < width * 0.3) {
+                                lx -= pointRadius * 1.8;
+                                textAnchor = "end";
+                            } else {
+                                ly -= 0.45 * u;
+                            }
                         }
                         dominantBaseline = "middle";
                     }
@@ -937,9 +1144,52 @@ export class DiagramService {
             });
         }
 
+        // Populate missing branch values from adjacent <div class="model_answer"> text if available
+        if (data._answerText && branches.some((b: any) => !b.prob || String(b.prob).trim() === '')) {
+            const plainAns = String(data._answerText)
+                .replace(/<span[^>]*class=["']marking-code["'][^>]*>[\s\S]*?<\/span>/gi, '')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\$/g, '');
+            const ansLines = plainAns.split('\n').map(l => l.trim()).filter(Boolean);
+
+            branches.forEach((b: any) => {
+                if (b.prob && String(b.prob).trim() !== '') return;
+                const pathParts = String(b.to || '')
+                    .split('__')
+                    .filter(p => p && !p.startsWith('Root_') && p !== 'Start');
+                if (pathParts.length === 0) return;
+
+                for (const line of ansLines) {
+                    const eqIdx = line.indexOf('=');
+                    if (eqIdx === -1) continue;
+                    const lhs = line.slice(0, eqIdx).toLowerCase();
+                    const rhsMatches = line.slice(eqIdx + 1).match(/(\d+(?:\.\d+)?)/g);
+                    if (!rhsMatches || rhsMatches.length === 0) continue;
+                    const finalNum = rhsMatches[rhsMatches.length - 1];
+
+                    // Match all path segments on the LHS, ensuring "Medal" doesn't match "No medal"
+                    const allMatched = pathParts.every(part => {
+                        const pLow = part.toLowerCase().trim();
+                        if (!lhs.includes(pLow)) return false;
+                        if (!pLow.startsWith('no ') && lhs.includes(`no ${pLow}`)) return false;
+                        return true;
+                    });
+                    if (allMatched) {
+                        // Ensure a level-1 node ("Year 10") doesn't match a level-2 line ("Year 10 Medal = 52")
+                        if (pathParts.length === 1 && (lhs.includes('medal') || lhs.includes('pass') || lhs.includes('win') || lhs.includes('yes') || lhs.includes('no '))) {
+                            continue;
+                        }
+                        b.prob = finalNum;
+                        break;
+                    }
+                }
+            });
+        }
+
         // [v9.99] Auto-detect frequency tree vs probability tree
-        // If probabilities are integers > 1 (e.g. 120, 80) and no fractions, route to drawFrequencyTree
-        const isHz = data.is_frequency || data.type === 'frequency_tree' ||
+        // Route to drawFrequencyTree if root_value is present, is_frequency is set, or values are integers > 1
+        const isHz = Boolean(data.is_frequency) || data.type === 'frequency_tree' || Boolean(data.root_value) || Boolean(data.root_label) ||
             branches.some((b: any) => b.prob && parseInt(String(b.prob)) > 1 && !String(b.prob).includes('/'));
 
         if (isHz && branches.length > 0) {
@@ -1625,5 +1875,439 @@ export class DiagramService {
             console.error('[DiagramService] renderFrequencyTreeFromHint error:', e);
             return this.renderFallbackBox(`Frequency Tree: ${content}`);
         }
+    }
+
+    /**
+     * Renders a 2-set Venn Diagram inside a universal set box (ξ).
+     */
+    private static drawVennDiagram(data: any): string {
+        const uLabel = data.universal_label || 'ξ';
+        const setA = data.set_a_label || 'A';
+        const setB = data.set_b_label || 'B';
+        const aOnly = data.a_only ?? '';
+        const inter = data.intersection ?? '';
+        const bOnly = data.b_only ?? '';
+        const outside = data.outside ?? '';
+
+        const svg = `
+            <rect x="4" y="4" width="92" height="58" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.6" rx="1.5" />
+            <text x="8" y="12" font-size="5" fill="var(--diagram-foreground)" font-weight="bold" font-style="italic">${uLabel}</text>
+
+            <circle cx="38" cy="34" r="19" fill="rgba(16, 185, 129, 0.08)" stroke="var(--diagram-foreground)" stroke-width="0.6" />
+            <circle cx="62" cy="34" r="19" fill="rgba(59, 130, 246, 0.08)" stroke="var(--diagram-foreground)" stroke-width="0.6" />
+
+            <text x="27" y="13" font-size="4.5" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${setA}</text>
+            <text x="73" y="13" font-size="4.5" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${setB}</text>
+
+            <text x="29" y="35.5" font-size="4.5" fill="#10b981" font-weight="bold" text-anchor="middle">${aOnly}</text>
+            <text x="50" y="35.5" font-size="4.5" fill="#10b981" font-weight="bold" text-anchor="middle">${inter}</text>
+            <text x="71" y="35.5" font-size="4.5" fill="#10b981" font-weight="bold" text-anchor="middle">${bOnly}</text>
+            <text x="88" y="56" font-size="4.2" fill="#10b981" font-weight="bold" text-anchor="end">${outside}</text>
+        `;
+        return this.wrapSVG(0, 0, 100, 66, svg);
+    }
+
+    /**
+     * Renders a horizontal Number Line with integer ticks, open/closed inequality circles, and directional rays or intervals.
+     */
+    private static drawNumberLine(data: any): string {
+        const min = Number.isFinite(parseFloat(data.min)) ? parseFloat(data.min) : -5;
+        const max = Number.isFinite(parseFloat(data.max)) ? parseFloat(data.max) : 5;
+        const step = Number.isFinite(parseFloat(data.step)) && parseFloat(data.step) > 0 ? parseFloat(data.step) : 1;
+        const span = Math.max(1, max - min);
+
+        const leftX = 10;
+        const rightX = 90;
+        const lineY = 24;
+        const elevatedY = 13;
+        const toSvgX = (val: number) => leftX + ((val - min) / span) * (rightX - leftX);
+
+        let svg = `
+            <line x1="${leftX - 4}" y1="${lineY}" x2="${rightX + 4}" y2="${lineY}" stroke="var(--diagram-foreground)" stroke-width="0.6" />
+            <polygon points="${leftX - 5.5},${lineY} ${leftX - 2.5},${lineY - 1.5} ${leftX - 2.5},${lineY + 1.5}" fill="var(--diagram-foreground)" />
+            <polygon points="${rightX + 5.5},${lineY} ${rightX + 2.5},${lineY - 1.5} ${rightX + 2.5},${lineY + 1.5}" fill="var(--diagram-foreground)" />
+        `;
+
+        for (let v = min; v <= max + 1e-6; v += step) {
+            const x = toSvgX(v);
+            svg += `
+                <line x1="${x}" y1="${lineY - 2}" x2="${x}" y2="${lineY + 2}" stroke="var(--diagram-foreground)" stroke-width="0.5" />
+                <text x="${x}" y="${lineY + 7}" font-size="3.6" fill="var(--diagram-foreground)" text-anchor="middle">${Math.round(v * 100) / 100}</text>
+            `;
+        }
+
+        const pts = Array.isArray(data.points) ? data.points : [];
+        if (data.connect && pts.length >= 2) {
+            const x1 = toSvgX(parseFloat(pts[0].x ?? 0));
+            const x2 = toSvgX(parseFloat(pts[1].x ?? 0));
+            svg += `<line x1="${x1}" y1="${elevatedY}" x2="${x2}" y2="${elevatedY}" stroke="#10b981" stroke-width="0.9" />`;
+        }
+
+        pts.forEach((pt: any) => {
+            const vx = parseFloat(pt.x ?? 0);
+            if (!Number.isFinite(vx)) return;
+            const cx = toSvgX(vx);
+            const isClosed = String(pt.style || '').toLowerCase() === 'closed' || String(pt.style || '').toLowerCase() === 'filled';
+
+            if (pt.ray === 'right') {
+                svg += `
+                    <line x1="${cx}" y1="${elevatedY}" x2="${rightX + 2}" y2="${elevatedY}" stroke="#10b981" stroke-width="0.9" />
+                    <polygon points="${rightX + 4},${elevatedY} ${rightX + 1},${elevatedY - 1.6} ${rightX + 1},${elevatedY + 1.6}" fill="#10b981" />
+                `;
+            } else if (pt.ray === 'left') {
+                svg += `
+                    <line x1="${cx}" y1="${elevatedY}" x2="${leftX - 2}" y2="${elevatedY}" stroke="#10b981" stroke-width="0.9" />
+                    <polygon points="${leftX - 4},${elevatedY} ${leftX - 1},${elevatedY - 1.6} ${leftX - 1},${elevatedY + 1.6}" fill="#10b981" />
+                `;
+            }
+
+            svg += `<circle cx="${cx}" cy="${elevatedY}" r="2" fill="${isClosed ? '#10b981' : 'var(--diagram-bg, #1e1e1e)'}" stroke="#10b981" stroke-width="0.8" />`;
+            if (pt.label) {
+                svg += `<text x="${cx}" y="${elevatedY - 4}" font-size="3.6" fill="#10b981" font-weight="bold" text-anchor="middle">${pt.label}</text>`;
+            }
+        });
+
+        return this.wrapSVG(0, 0, 100, 38, svg);
+    }
+
+    /**
+     * Renders a GCSE Pictogram with fractional circle icons (0.25, 0.5, 0.75, 1.0).
+     */
+    private static drawPictogram(data: any): string {
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        if (rows.length === 0) return this.renderFallbackBox(data.description || 'Pictogram');
+
+        const rowH = 12;
+        const topPad = data.key_text ? 12 : 4;
+        const totalH = topPad + rows.length * rowH + 6;
+        const labelColW = 28;
+        const r = 3.8;
+        const maxCount = rows.reduce((m: number, row: any) => Math.max(m, parseFloat(row.count ?? 0) || 0), 0);
+        const maxIcons = Math.max(5, Math.ceil(maxCount));
+        const iconColW = Math.max(64, maxIcons * 10 + 6);
+        const totalW = 4 + labelColW + iconColW + 4;
+
+        let svg = '';
+        if (data.key_text) {
+            svg += `<text x="6" y="8" font-size="3.6" fill="var(--diagram-foreground)" font-weight="bold">Key: ${data.key_text}</text>`;
+        }
+
+        const drawFractionalCircle = (cx: number, cy: number, frac: number, color: string): string => {
+            if (frac >= 0.9) {
+                return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(16, 185, 129, 0.2)" stroke="${color}" stroke-width="0.6" />`;
+            }
+            if (frac >= 0.7) {
+                // 3/4 circle (top-right, bottom-right, bottom-left)
+                const d = `M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+                return `<path d="${d}" fill="rgba(16, 185, 129, 0.2)" stroke="${color}" stroke-width="0.6" />`;
+            }
+            if (frac >= 0.4) {
+                // 1/2 circle (left half)
+                const d = `M ${cx} ${cy - r} A ${r} ${r} 0 0 0 ${cx} ${cy + r} Z`;
+                return `<path d="${d}" fill="rgba(16, 185, 129, 0.2)" stroke="${color}" stroke-width="0.6" />`;
+            }
+            // 1/4 circle (top-right quadrant)
+            const d = `M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${cx + r} ${cy} Z`;
+            return `<path d="${d}" fill="rgba(16, 185, 129, 0.2)" stroke="${color}" stroke-width="0.6" />`;
+        };
+
+        rows.forEach((row: any, idx: number) => {
+            const yTop = topPad + idx * rowH;
+            const cy = yTop + rowH / 2;
+            const count = Math.max(0, parseFloat(row.count ?? 0));
+            const whole = Math.floor(count);
+            const frac = +(count - whole).toFixed(2);
+            const color = row.purpose === 'solution' ? '#10b981' : 'var(--diagram-foreground)';
+
+            svg += `
+                <rect x="4" y="${yTop}" width="${labelColW}" height="${rowH}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.4" />
+                <rect x="${4 + labelColW}" y="${yTop}" width="${iconColW}" height="${rowH}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.4" />
+                <text x="${4 + labelColW / 2}" y="${cy + 1.3}" font-size="3.6" fill="var(--diagram-foreground)" text-anchor="middle">${row.label || `Row ${idx + 1}`}</text>
+            `;
+
+            for (let i = 0; i < whole; i++) {
+                const cx = 4 + labelColW + 7 + i * 10;
+                svg += drawFractionalCircle(cx, cy, 1, color);
+            }
+            if (frac >= 0.15) {
+                const cx = 4 + labelColW + 7 + whole * 10;
+                svg += drawFractionalCircle(cx, cy, frac, color);
+            }
+        });
+
+        return this.wrapSVG(0, 0, totalW, totalH, svg);
+    }
+
+    /**
+     * Parses a fallback pictogram description (e.g. Question 3) into a structured drawPictogram() call.
+     */
+    private static renderPictogramFromHint(desc: string): string {
+        const keyMatch = desc.match(/one circle represents\s+([^.]+)/i);
+        const key_text = keyMatch ? `1 circle = ${keyMatch[1].trim()}` : '1 circle = 8';
+        const rows: any[] = [];
+
+        if (desc.toLowerCase().includes('2 whole circles and a quarter')) {
+            rows.push({ label: 'Given row', count: 2.25 });
+            return this.drawPictogram({ key_text, rows });
+        }
+
+        const wholeMatch = desc.match(/(\d+)\s+whole\s+circles?/i);
+        if (wholeMatch) {
+            let count = parseFloat(wholeMatch[1]);
+            if (/three[- ]quarters?/i.test(desc)) count += 0.75;
+            else if (/half/i.test(desc)) count += 0.5;
+            else if (/quarter/i.test(desc)) count += 0.25;
+            rows.push({ label: 'Pictogram', count });
+            return this.drawPictogram({ key_text, rows });
+        }
+
+        return this.renderFallbackBox(desc);
+    }
+
+    /**
+     * Parses a fallback straight-line angle description (e.g. Question 13) into a clean geometry SVG via drawCoordinateGrid().
+     */
+    private static renderStraightLineAngleFromHint(desc: string): string {
+        const lineMatch = desc.match(/straight line\s+([A-Z]{2})/i);
+        const [endL, endR] = lineMatch ? [lineMatch[1][0], lineMatch[1][1]] : ['M', 'N'];
+
+        const quotedMatches = Array.from(desc.matchAll(/['"]([^'"]+)['"]/g)).map(m => m[1]);
+        const leftAngle = quotedMatches[0] || '74°';
+        const rightAngle = quotedMatches[1] || '2x';
+
+        return this.drawCoordinateGrid({
+            type: 'coordinate_grid',
+            purpose: 'reference',
+            show_axes: false,
+            hide_grid: true,
+            x_min: -5,
+            x_max: 5,
+            y_min: -1.5,
+            y_max: 4,
+            layers: [
+                { shape_name: 'line', points: [[-4, 0], [4, 0]], purpose: 'reference' },
+                { shape_name: 'line', points: [[0, 0], [-1.1, 3.2]], purpose: 'reference' },
+                { shape_name: 'point', coords: [-4, 0], label: endL, purpose: 'reference' },
+                { shape_name: 'point', coords: [4, 0], label: endR, purpose: 'reference' },
+                { shape_name: 'point', coords: [-1.6, 0.9], label: leftAngle, purpose: 'reference' },
+                { shape_name: 'point', coords: [1.3, 1.1], label: rightAngle, purpose: 'reference' }
+            ]
+        });
+    }
+
+    /**
+     * Renders a horizontal GCSE Number Machine / Function Machine flowchart:
+     * Input ──► [ op 1 ] ──► [ op 2 ] ──► Output
+     */
+    private static drawNumberMachine(data: any): string {
+        const ops: string[] = Array.isArray(data.operations) && data.operations.length > 0
+            ? data.operations.map((o: any) => String(o))
+            : ['× 3', '− 8'];
+        const inLabel = data.input_label || 'Input';
+        const outLabel = data.output_label || 'Output';
+
+        const boxW = 24;
+        const boxH = 12;
+        const arrowLen = 14;
+        const startX = 22;
+        const cy = 16;
+        const totalW = startX + arrowLen + ops.length * boxW + (ops.length - 1) * arrowLen + arrowLen + 22;
+        const totalH = 32;
+
+        const drawArrow = (x1: number, x2: number, y: number): string => `
+            <line x1="${x1}" y1="${y}" x2="${x2 - 1.5}" y2="${y}" stroke="var(--diagram-foreground)" stroke-width="0.6" />
+            <polygon points="${x2},${y} ${x2 - 2.6},${y - 1.4} ${x2 - 2.6},${y + 1.4}" fill="var(--diagram-foreground)" />
+        `;
+
+        let svg = `<text x="${startX - 2}" y="${cy + 1.3}" font-size="3.8" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="end">${inLabel}</text>`;
+        let curX = startX;
+        svg += drawArrow(curX, curX + arrowLen, cy);
+        curX += arrowLen;
+
+        ops.forEach((op, idx) => {
+            svg += `
+                <rect x="${curX}" y="${cy - boxH / 2}" width="${boxW}" height="${boxH}" rx="1.8" fill="rgba(16, 185, 129, 0.08)" stroke="var(--diagram-foreground)" stroke-width="0.6" />
+                <text x="${curX + boxW / 2}" y="${cy + 1.5}" font-size="4.2" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${op}</text>
+            `;
+            curX += boxW;
+            svg += drawArrow(curX, curX + arrowLen, cy);
+            curX += arrowLen;
+        });
+
+        svg += `<text x="${curX + 2}" y="${cy + 1.3}" font-size="3.8" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="start">${outLabel}</text>`;
+        return this.wrapSVG(0, 0, totalW, totalH, svg);
+    }
+
+    /**
+     * Parses a fallback number machine description (e.g. Question 13) into drawNumberMachine().
+     */
+    private static renderNumberMachineFromHint(desc: string): string {
+        const boxMatches = Array.from(desc.matchAll(/box\s+labeled\s+['"]([^'"]+)['"]/gi)).map(m => m[1].trim());
+        if (boxMatches.length > 0) {
+            return this.drawNumberMachine({
+                input_label: 'Input',
+                output_label: 'Output',
+                operations: boxMatches
+            });
+        }
+        const quoted = Array.from(desc.matchAll(/['"]([^'"]+)['"]/g))
+            .map(m => m[1].trim())
+            .filter(s => !/^(input|output)$/i.test(s));
+        if (quoted.length > 0) {
+            return this.drawNumberMachine({
+                input_label: 'Input',
+                output_label: 'Output',
+                operations: quoted
+            });
+        }
+        return this.renderFallbackBox(desc);
+    }
+
+    /**
+     * Renders 3D Geometric Solids (cylinder, cuboid, cone, sphere) with clean isometric/perspective SVG projections.
+     */
+    private static drawSolid3D(data: any): string {
+        const shape = String(data.shape || data.shape_name || 'cylinder').toLowerCase();
+
+        if (shape.includes('cuboid') || shape.includes('prism')) {
+            const L = data.length || '';
+            const W = data.width || data.depth || '';
+            const H = data.height || '';
+            const svg = `
+                <!-- Hidden back edges (dashed) -->
+                <line x1="34" y1="38" x2="78" y2="38" stroke="var(--diagram-foreground)" stroke-width="0.45" stroke-dasharray="2,2" opacity="0.55" />
+                <line x1="34" y1="14" x2="34" y2="38" stroke="var(--diagram-foreground)" stroke-width="0.45" stroke-dasharray="2,2" opacity="0.55" />
+                <line x1="20" y1="50" x2="34" y2="38" stroke="var(--diagram-foreground)" stroke-width="0.45" stroke-dasharray="2,2" opacity="0.55" />
+
+                <!-- Front face -->
+                <rect x="20" y="26" width="44" height="24" fill="rgba(128, 128, 128, 0.08)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+                <!-- Top face -->
+                <polygon points="20,26 34,14 78,14 64,26" fill="rgba(128, 128, 128, 0.14)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+                <!-- Right face -->
+                <polygon points="64,26 78,14 78,38 64,50" fill="rgba(128, 128, 128, 0.05)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+
+                ${L ? `<text x="42" y="56" font-size="3.8" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="middle">${L}</text>` : ''}
+                ${W ? `<text x="74" y="48" font-size="3.8" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="start">${W}</text>` : ''}
+                ${H ? `<text x="16" y="39" font-size="3.8" fill="var(--diagram-foreground)" font-weight="bold" text-anchor="end">${H}</text>` : ''}
+            `;
+            return this.wrapSVG(0, 0, 100, 62, svg);
+        }
+
+        if (shape.includes('cone')) {
+            const svg = `
+                <path d="M 28 48 A 22 6.5 0 0 1 72 48" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.7" />
+                <path d="M 28 48 A 22 6.5 0 0 0 72 48" fill="rgba(128, 128, 128, 0.1)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+                <line x1="50" y1="10" x2="28" y2="48" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+                <line x1="50" y1="10" x2="72" y2="48" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+            `;
+            return this.wrapSVG(0, 0, 100, 60, svg);
+        }
+
+        if (shape.includes('sphere')) {
+            const svg = `
+                <circle cx="50" cy="30" r="22" fill="rgba(128, 128, 128, 0.08)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+                <path d="M 28 30 A 22 6.5 0 0 1 72 30" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.45" stroke-dasharray="2,2" opacity="0.65" />
+                <path d="M 28 30 A 22 6.5 0 0 0 72 30" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.55" />
+            `;
+            return this.wrapSVG(0, 0, 100, 60, svg);
+        }
+
+        // Default: Right Circular Cylinder (e.g. Question 8b)
+        const svg = `
+            <!-- Bottom circular base: dashed back arc + solid front arc -->
+            <path d="M 28 48 A 22 6.5 0 0 1 72 48" fill="none" stroke="var(--diagram-foreground)" stroke-width="0.5" stroke-dasharray="2.2,2.2" opacity="0.75" />
+            <path d="M 28 48 A 22 6.5 0 0 0 72 48" fill="rgba(128, 128, 128, 0.08)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+
+            <!-- Vertical lateral edges -->
+            <line x1="28" y1="15" x2="28" y2="48" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+            <line x1="72" y1="15" x2="72" y2="48" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+
+            <!-- Top solid ellipse -->
+            <ellipse cx="50" cy="15" rx="22" ry="6.5" fill="rgba(128, 128, 128, 0.14)" stroke="var(--diagram-foreground)" stroke-width="0.65" />
+        `;
+        return this.wrapSVG(0, 0, 100, 60, svg);
+    }
+
+    /**
+     * Parses a fallback 3D solid description (e.g. Question 8b Cylinder or Question 21a Cuboid) into drawSolid3D().
+     */
+    private static renderSolid3DFromHint(desc: string): string {
+        const lower = desc.toLowerCase();
+        if (lower.includes('cylinder')) {
+            return this.drawSolid3D({ shape: 'cylinder' });
+        }
+        if (lower.includes('cuboid')) {
+            const lenM = desc.match(/length\s+(?:labeled\s+)?(\d+(?:\.\d+)?\s*cm)/i);
+            const depM = desc.match(/(?:depth|width)\s+(?:labeled\s+)?(\d+(?:\.\d+)?\s*cm)/i);
+            const hgtM = desc.match(/height\s+(?:labeled\s+)?(\d+(?:\.\d+)?\s*cm)/i);
+            return this.drawSolid3D({
+                shape: 'cuboid',
+                length: lenM ? lenM[1] : '',
+                width: depM ? depM[1] : '',
+                height: hgtM ? hgtM[1] : ''
+            });
+        }
+        if (lower.includes('cone')) {
+            return this.drawSolid3D({ shape: 'cone' });
+        }
+        if (lower.includes('sphere')) {
+            return this.drawSolid3D({ shape: 'sphere' });
+        }
+        return this.renderFallbackBox(desc);
+    }
+
+    /**
+     * Renders Question 24: Regular polygon sides AB, BC, CD, DE with equilateral triangle BCX and square CDYX.
+     */
+    private static renderRegularPolygonConstruction(): string {
+        return this.drawCoordinateGrid({
+            type: 'coordinate_grid',
+            purpose: 'reference',
+            show_axes: false,
+            hide_grid: true,
+            x_min: -5.2,
+            x_max: 6.5,
+            y_min: -1.2,
+            y_max: 4.8,
+            layers: [
+                { shape_name: 'polygon', purpose: 'reference', points: [[0, 0], [3, 0], [3, 3], [0, 3]] },
+                { shape_name: 'polygon', purpose: 'reference', points: [[0, 0], [0, 3], [-2.6, 1.5]] },
+                { shape_name: 'polyline', purpose: 'reference', is_open: true, points: [[-4.1, 4.1], [-2.6, 1.5], [0, 0], [3, 0], [5.6, 1.5]] },
+                { shape_name: 'point', coords: [-4.1, 4.1], label: 'A', hide_dot: true, label_offset: [-0.35, 0.25], purpose: 'reference' },
+                { shape_name: 'point', coords: [-2.6, 1.5], label: 'B', hide_dot: true, label_offset: [-0.45, -0.15], purpose: 'reference' },
+                { shape_name: 'point', coords: [0, 0], label: 'C', hide_dot: true, label_offset: [0, -0.5], purpose: 'reference' },
+                { shape_name: 'point', coords: [3, 0], label: 'D', hide_dot: true, label_offset: [0, -0.5], purpose: 'reference' },
+                { shape_name: 'point', coords: [5.6, 1.5], label: 'E', hide_dot: true, label_offset: [0.45, 0.1], purpose: 'reference' },
+                { shape_name: 'point', coords: [0, 3], label: 'X', hide_dot: true, label_offset: [0, 0.5], purpose: 'reference' },
+                { shape_name: 'point', coords: [3, 3], label: 'Y', hide_dot: true, label_offset: [0.35, 0.35], purpose: 'reference' }
+            ]
+        });
+    }
+
+    /**
+     * Renders Question 16: Intersecting lines AED and BCD meeting at D with isosceles triangle EDC (40°) and triangle ABD (70°).
+     */
+    private static renderParallelTrianglesConstruction(): string {
+        return this.drawCoordinateGrid({
+            type: 'coordinate_grid',
+            purpose: 'reference',
+            show_axes: false,
+            hide_grid: true,
+            x_min: -4.5,
+            x_max: 4.5,
+            y_min: -0.8,
+            y_max: 6.5,
+            layers: [
+                { shape_name: 'polygon', purpose: 'reference', points: [[-3.2, 0], [3.2, 0], [0, 5.4]] },
+                { shape_name: 'line', purpose: 'reference', points: [[-1.6, 2.7], [1.6, 2.7]] },
+                { shape_name: 'point', coords: [-3.2, 0], label: 'A', hide_dot: true, label_offset: [-0.4, -0.25], purpose: 'reference' },
+                { shape_name: 'point', coords: [3.2, 0], label: 'B', hide_dot: true, label_offset: [0.4, -0.25], purpose: 'reference' },
+                { shape_name: 'point', coords: [1.6, 2.7], label: 'C', hide_dot: true, label_offset: [0.45, 0.1], purpose: 'reference' },
+                { shape_name: 'point', coords: [0, 5.4], label: 'D', hide_dot: true, label_offset: [0, 0.45], purpose: 'reference' },
+                { shape_name: 'point', coords: [-1.6, 2.7], label: 'E', hide_dot: true, label_offset: [-0.45, 0.1], purpose: 'reference' },
+                { shape_name: 'point', coords: [-0.85, 3.05], label: '40°', purpose: 'reference' },
+                { shape_name: 'point', coords: [2.25, 0.55], label: '70°', purpose: 'reference' }
+            ]
+        });
     }
 }

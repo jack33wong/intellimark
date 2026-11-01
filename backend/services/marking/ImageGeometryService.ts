@@ -34,7 +34,7 @@ export class ImageGeometryService {
 Your job is to analyze the provided image of student homework or exam booklet and return a strict JSON response containing quality, subject, and layout metadata.
 
 # Requirements
-1. visual_observations (string): A brief Chain-of-Thought scratchpad. Describe the general clarity of the text, the academic subject (Mathematics, GCSE English Language, etc.), and whether you see a physical spine or line dividing exactly two distinct pages side-by-side.
+1. visual_observations (string): A brief Chain-of-Thought scratchpad (maximum 40 words). Describe the general clarity of the text, the academic subject (Mathematics, GCSE English Language, etc.), and whether you see a physical spine or line dividing two distinct pages side-by-side. Do NOT transcribe the entire page.
 
 2. is_acceptable_quality (boolean): Must be false if the image is extremely blurry, completely unreadable, photographed at an extreme skewed angle, or contains more than 2 pages squeezed into a single photo. Otherwise true.
 3. is_two_page_spread (boolean): Must be true ONLY if the image is a wide/landscape capture showing two FULL, complete pages side-by-side (roughly 50% left page and 50% right page separated by a central spine/fold) where BOTH pages are meant to be read and graded. CRITICAL: If the photo is a single portrait page where the booklet spine or a partial edge/corner of the adjacent page is merely peeking into the left or right margin, you MUST return false.

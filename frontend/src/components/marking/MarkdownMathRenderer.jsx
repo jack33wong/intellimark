@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import renderMathInElement from 'katex/dist/contrib/auto-render';
 import './MarkdownMathRenderer.css';
+// Trigger React Fast Refresh for DiagramService v10.03
 import { DiagramService } from '../../services/DiagramService';
 
 /**
@@ -27,6 +28,11 @@ const preprocessLatexDelimiters = (content) => {
     .replace(/\^\(([^)]+)\)/g, '^{$1}')
     .replace(/&dollar;/g, '$')
     .replace(/&#36;/g, '$')
+    // Strip unsupported @{...} column specifiers inside \begin{array}{...} that cause KaTeX parse errors
+    .replace(/\\begin\{array\}\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g, (_, cols) => {
+      const cleanCols = cols.replace(/@\{[^}]*\}/g, '').replace(/[^lcr|]/g, '') || 'r';
+      return `\\begin{array}{${cleanCols}}`;
+    })
     .replace(/\\n\\n/g, '\n\n')
     .replace(/\\n/g, '\n');
 };

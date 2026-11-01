@@ -39,7 +39,71 @@ export class DiagramBridgeService {
 
     const diagramSystemPrompt = getPrompt('diagramExtractor.system');
 
-    // 3. Process all diagram hints in parallel for minimal latency
+    // Helper to extract local question + model answer context around a specific match index
+    const getLocalContext = (matchIndex: number, matchLen: number): string => {
+      const before = processedContent.slice(Math.max(0, matchIndex - 500), matchIndex);
+      const qStart = Math.max(before.lastIndexOf('model-question-number'), before.lastIndexOf('model-answer-block'));
+      const localBefore = qStart >= 0 ? before.slice(qStart) : before;
+
+      const after = processedContent.slice(matchIndex + matchLen, Math.min(processedContent.length, matchIndex + matchLen + 800));
+      const qEnd = after.indexOf('model-question-number');
+      const localAfter = qEnd >= 0 ? after.slice(0, qEnd) : after;
+
+      return `${localBefore} ${localAfter}`
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 1000);
+    };
+
+    // 3A. Fast Single-Call Batch Extraction when multiple diagram hints are present
+    if (matches.length > 1) {
+      const validItems = matches.map((match, idx) => ({
+        idx,
+        fullMatchText: match[0],
+        hintDescription: (match[1] || '').trim(),
+        localContext: getLocalContext(match.index || 0, match[0].length)
+      })).filter(item => item.hintDescription.length > 0);
+
+      if (validItems.length > 1) {
+        const batchUserPrompt = `Extract a JSON array of ${validItems.length} diagram objects in the exact order listed below. Output ONLY a valid JSON array [ {...}, {...}, ... ].\n\n` +
+          validItems.map((item, i) => `### HINT #${i + 1}:\nHint: ${item.hintDescription}\nSolved Question & Answer Context: ${item.localContext}`).join('\n\n');
+
+        try {
+          if (isLoggingEnabled) {
+            console.log(`\n[DEBUG] [${logPrefix}] Batch-extracting ${validItems.length} diagram hints in 1 LLM call...`);
+          }
+          const batchAi = await ModelProvider.callText(
+            diagramSystemPrompt,
+            batchUserPrompt,
+            model as any,
+            false,
+            tracker,
+            'modelAnswer'
+          );
+
+          const rawArrayText = batchAi.content
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+          const parsedArray = JSON.parse(rawArrayText);
+          if (Array.isArray(parsedArray) && parsedArray.length === validItems.length) {
+            for (let i = 0; i < validItems.length; i++) {
+              const jsonStr = JSON.stringify(parsedArray[i]);
+              const scriptTag = `\n<script type="application/json" class="ai-diagram-data">\n${jsonStr}\n</script>\n`;
+              processedContent = processedContent.replace(validItems[i].fullMatchText, scriptTag);
+            }
+            return processedContent;
+          }
+        } catch (batchErr) {
+          console.warn(`[${logPrefix}] Batch diagram extraction fallback to individual calls:`, batchErr);
+        }
+      }
+    }
+
+    // 3B. Individual Extraction (for single hint or fallback)
     const replacements = await Promise.all(
       matches.map(async (match, idx) => {
         const fullMatchText = match[0];
@@ -54,7 +118,8 @@ export class DiagramBridgeService {
           console.log(`\n[DEBUG] [${logPrefix}] Found Diagram Hint #${diagramNum}: "${hintDescription}"`);
         }
 
-        const diagramUserPrompt = getPrompt('diagramExtractor.user', hintDescription);
+        const plainContext = getLocalContext(match.index || 0, fullMatchText.length);
+        const diagramUserPrompt = getPrompt('diagramExtractor.user', hintDescription, plainContext);
 
         try {
           const diagramAi = await ModelProvider.callText(
