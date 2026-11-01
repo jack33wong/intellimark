@@ -145,6 +145,31 @@ export class DiagramService {
                             const isEnlargeOrReflect = qText.includes('enlarge shape') || qText.includes('reflect shape') ||
                                 (qText.includes('enlarge') && qText.includes('scale factor'));
 
+                            // Auto-Detect Compass Circle Constructions (e.g. Question 11)
+                            const isCompassCircle = qText.includes('pair of compasses') || qText.includes('diameter of a circle') || content.toLowerCase().includes('pair of compasses');
+                            if (isCompassCircle) {
+                                data.show_axes = false;
+                                data.hide_grid = true;
+                                if (!data.layers) data.layers = [];
+                                const hasCircle = data.layers.some((l: any) => l.shape_name === 'circle' || l.type === 'circle');
+                                if (!hasCircle) {
+                                    const diameterLayer = data.layers.find((l: any) =>
+                                        (l.shape_name === 'line' || l.type === 'line' || l.shape_name === 'polyline') &&
+                                        (l.points || l.vertices)?.length === 2
+                                    );
+                                    let center = [0, 0];
+                                    let radius = 3;
+                                    if (diameterLayer) {
+                                        const pts = diameterLayer.points || diameterLayer.vertices;
+                                        const p1 = [parseFloat(pts[0][0]), parseFloat(pts[0][1])];
+                                        const p2 = [parseFloat(pts[1][0]), parseFloat(pts[1][1])];
+                                        center = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+                                        radius = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2;
+                                    }
+                                    data.layers.push({ shape_name: 'circle', center, radius: radius || 3, purpose: 'solution' });
+                                }
+                            }
+
                             // If the text asks to enlarge/reflect, but DOES NOT mention specific coordinates like (1,2)
                             // or "vertex at", the AI is likely hallucinating a shape from the printed paper.
                             if (isEnlargeOrReflect && !qText.match(/\(\s*-?\d+\s*,\s*-?\d+\s*\)/) && !qText.includes('vertex')) {
@@ -572,6 +597,9 @@ export class DiagramService {
             }
             if (item.points) pts.push(...item.points);
             if (item.vertices) pts.push(...item.vertices);
+            if (item.coords) pts.push(item.coords);
+            else if (item.coord) pts.push(item.coord);
+            else if ((item.shape_name === 'point' || item.type === 'point') && item.center) pts.push(item.center);
             if (item.shapes) item.shapes.forEach((s: any) => pts.push(...getRawPoints(s)));
             if (item.layers) item.layers.forEach((l: any) => pts.push(...getRawPoints(l)));
             return pts;
@@ -654,13 +682,15 @@ export class DiagramService {
         const xStep = Math.max(1, Math.ceil((width || 10) / 10));
         const yStep = Math.max(1, Math.ceil((height || 10) / 10));
 
-        gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="1" vector-effect="non-scaling-stroke" />`;
+        if (!data.hide_grid) {
+            gridHtml += `<rect x="${xMin}" y="${-yMax}" width="${width}" height="${height}" fill="none" stroke="var(--diagram-grid)" stroke-width="0.3" opacity="1" vector-effect="non-scaling-stroke" />`;
 
-        for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
-            gridHtml += `<line x1="${x}" y1="${-yMax}" x2="${x}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.15" opacity="1" vector-effect="non-scaling-stroke" />`;
-        }
-        for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
-            gridHtml += `<line x1="${xMin}" y1="${-y}" x2="${xMax}" y2="${-y}" stroke="var(--diagram-grid)" stroke-width="0.15" opacity="1" vector-effect="non-scaling-stroke" />`;
+            for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
+                gridHtml += `<line x1="${x}" y1="${-yMax}" x2="${x}" y2="${-yMin}" stroke="var(--diagram-grid)" stroke-width="0.15" opacity="1" vector-effect="non-scaling-stroke" />`;
+            }
+            for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
+                gridHtml += `<line x1="${xMin}" y1="${-y}" x2="${xMax}" y2="${-y}" stroke="var(--diagram-grid)" stroke-width="0.15" opacity="1" vector-effect="non-scaling-stroke" />`;
+            }
         }
 
         let layersHtml = gridHtml;
@@ -707,7 +737,7 @@ export class DiagramService {
         let hasDrawnSomething = false;
 
         layers.forEach((layer: any) => {
-            const rawPoints = layer.points || layer.vertices || [];
+            const rawPoints = layer.points || layer.vertices || (layer.coords ? [layer.coords] : (layer.coord ? [layer.coord] : ((layer.shape_name === 'point' || layer.type === 'point') && layer.center ? [layer.center] : [])));
             const purpose = layer.purpose || data.purpose || "solution";
             const isReference = purpose === 'reference';
             const isVector = layer.shape_name === 'vector' || layer.type === 'vector';
@@ -865,30 +895,46 @@ export class DiagramService {
         let html = '';
         let initialBranches = data.branches || data.children || [];
 
-        // [v9.54] Support for nested tree structure (Frequency Trees)
-        const flattenTree = (node: any, fromLabel: string = "Start"): any[] => {
+        // Determine root value (either explicit data.root_value / data.root_label, or sum of top-level branch values for frequency trees)
+        let rootDisplayVal = data.root_value ?? data.root_label ?? '';
+        if (!rootDisplayVal && Array.isArray(initialBranches) && initialBranches.length > 1) {
+            const topVals = initialBranches.map((b: any) => Number(b.value ?? b.prob)).filter(v => Number.isFinite(v) && v > 1);
+            if (topVals.length === initialBranches.length) {
+                rootDisplayVal = String(topVals.reduce((a, b) => a + b, 0));
+            }
+        }
+        const rootNodeId = rootDisplayVal ? `Root_${rootDisplayVal}` : 'Start';
+
+        const flattenTree = (node: any, fromId: string = rootNodeId): any[] => {
             const children = node.children || node.branches || [];
             if (!Array.isArray(children) || children.length === 0) return [];
-            return children.flatMap((child: any) => {
+            return children.flatMap((child: any, idx: number) => {
+                const rawLabel = child.label || child.text || child.split || `Node_${idx}`;
+                // Make node ID unique per parent path so "Year 10 -> Medal" and "Year 11 -> Medal" never collide!
+                const uniqueToId = `${fromId}__${rawLabel}`;
                 const flatBranch = {
-                    from: fromLabel,
-                    to: child.label || child.text || child.split || "End",
-                    prob: child.prob || child.value || ""
+                    from: fromId,
+                    to: uniqueToId,
+                    displayLabel: rawLabel,
+                    prob: child.prob ?? child.value ?? ''
                 };
-                return [flatBranch, ...flattenTree(child, flatBranch.to)];
+                return [flatBranch, ...flattenTree(child, uniqueToId)];
             });
         };
 
-        // If the first branch looks like a root node (has children/branches), flatten it
         let branches = initialBranches;
         if (branches.length === 1 && (branches[0].children || branches[0].branches)) {
-            branches = flattenTree(branches[0], branches[0].label || "Start");
+            const singleRootId = String(branches[0].label || branches[0].value || rootNodeId);
+            branches = flattenTree(branches[0], singleRootId);
         } else if (branches.length > 0 && (branches[0].children || branches[0].branches)) {
-            // Root-less list of branches with nested children
-            branches = branches.flatMap((b: any) => [
-                { from: "Start", to: b.split || b.label || "End", prob: b.value || b.prob || "" },
-                ...flattenTree(b, b.split || b.label || "End")
-            ]);
+            branches = branches.flatMap((b: any, idx: number) => {
+                const rawLabel = b.split || b.label || `Branch_${idx}`;
+                const uniqueToId = `${rootNodeId}__${rawLabel}`;
+                return [
+                    { from: rootNodeId, to: uniqueToId, displayLabel: rawLabel, prob: b.value ?? b.prob ?? '' },
+                    ...flattenTree(b, uniqueToId)
+                ];
+            });
         }
 
         // [v9.99] Auto-detect frequency tree vs probability tree
@@ -897,7 +943,7 @@ export class DiagramService {
             branches.some((b: any) => b.prob && parseInt(String(b.prob)) > 1 && !String(b.prob).includes('/'));
 
         if (isHz && branches.length > 0) {
-            return this.drawFrequencyTree(branches);
+            return this.drawFrequencyTree({ branches, headers: data.headers });
         }
 
         const xStep = 30;
@@ -925,9 +971,10 @@ export class DiagramService {
             }
             const p1 = positions[from];
             const p2 = positions[to];
+            const displayLabel = b.displayLabel || to.split('__').pop() || to;
             html += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
             html += `<text x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 2}" font-size="1.8" text-anchor="middle" fill="var(--diagram-foreground)">${b.prob}</text>`;
-            html += `<text x="${p2.x + 2}" y="${p2.y + 1}" font-size="1.8" fill="var(--diagram-foreground)">${to}</text>`;
+            html += `<text x="${p2.x + 2}" y="${p2.y + 1}" font-size="1.8" fill="var(--diagram-foreground)">${displayLabel}</text>`;
         });
 
         // If no branches rendered, fallback
@@ -945,19 +992,20 @@ export class DiagramService {
             const headers: string[] = data.headers || [];
 
             // 1. Build Node Graph
-            const nodes: Record<string, { id: string, label: string, val: string, level: number, children: string[], parent: string | null }> = {};
+            const nodes: Record<string, { id: string, label: string, displayLabel?: string, val: string, level: number, children: string[], parent: string | null }> = {};
 
             // Find root(s)
             const toSet = new Set(branches.map(b => b.to));
             const rootId = branches[0].from || "Start";
 
-            nodes[rootId] = { id: rootId, label: rootId, val: "", level: 0, children: [], parent: null };
+            nodes[rootId] = { id: rootId, label: rootId, displayLabel: rootId.replace(/^Root_/, ''), val: "", level: 0, children: [], parent: null };
 
             branches.forEach(b => {
                 const p = b.from || rootId;
                 const c = b.to;
-                if (!nodes[p]) nodes[p] = { id: p, label: p, val: "", level: 0, children: [], parent: null };
-                if (!nodes[c]) nodes[c] = { id: c, label: c, val: String(b.prob || ""), level: nodes[p].level + 1, children: [], parent: p };
+                const dispLabel = b.displayLabel || b.to.split('__').pop() || b.to;
+                if (!nodes[p]) nodes[p] = { id: p, label: p, displayLabel: p.replace(/^Root_/, ''), val: "", level: 0, children: [], parent: null };
+                if (!nodes[c]) nodes[c] = { id: c, label: c, displayLabel: dispLabel, val: String(b.prob || ""), level: nodes[p].level + 1, children: [], parent: p };
                 if (!nodes[p].children.includes(c)) nodes[p].children.push(c);
             });
 
@@ -976,18 +1024,18 @@ export class DiagramService {
             const positions: Record<string, { x: number, y: number }> = {};
 
             // Assign Y to leaves first, then center parents
-            const leaves = Object.values(nodes).filter(n => n.children.length === 0).sort((a, b) => a.id.localeCompare(b.id)); // simple sort
-
+            // Note: assignLeafY visits children in their exact top-to-bottom branch order
             let currentY = 0;
             const assignLeafY = (id: string) => {
                 const node = nodes[id];
+                if (!node) return;
                 if (node.children.length === 0) {
                     positions[id] = { x: node.level * xStep, y: currentY };
                     currentY += yStep;
                 } else {
                     node.children.forEach(cid => assignLeafY(cid));
                     // Parent Y is average of children Y
-                    const childrenY = node.children.map(cid => positions[cid].y);
+                    const childrenY = node.children.map(cid => positions[cid]?.y ?? 0);
                     const avgY = childrenY.reduce((a, b) => a + b, 0) / childrenY.length;
                     positions[id] = { x: node.level * xStep, y: avgY };
                 }
@@ -1012,19 +1060,30 @@ export class DiagramService {
                 const mx = (p1.x + rx + p2.x - rx) / 2;
                 const my = (p1.y + p2.y) / 2;
                 // Parse out disambiguation e.g. "Left (C)" -> "Left"
-                const cleanLabel = b.to.replace(/\s*\([^)]*\)$/, '');
+                const cleanLabel = (b.displayLabel || b.to.split('__').pop() || '').replace(/\s*\([^)]*\)$/, '');
                 html += `<text x="${mx}" y="${my - 2}" font-size="2.6" fill="var(--diagram-foreground)" text-anchor="middle">${cleanLabel}</text>`;
             });
 
             // Draw Ovals & Values
             Object.values(nodes).forEach(node => {
                 const p = positions[node.id];
+                if (!p) return;
                 html += `<ellipse cx="${p.x}" cy="${p.y}" rx="${rx}" ry="${ry}" fill="transparent" stroke="var(--diagram-foreground)" stroke-width="0.5" />`;
-                // If the root node label is just a number (like "120" or "People 120"), put the number inside
+
                 let displayVal = node.val;
-                if (node.id === rootId) {
-                    const match = node.label.match(/\d+/);
-                    displayVal = match ? match[0] : "";
+                if (node.id === rootId && !displayVal) {
+                    const match = String(node.label).match(/\d+/);
+                    if (match) {
+                        displayVal = match[0];
+                    } else {
+                        // Sum level-1 children values if numeric
+                        const childSum = node.children
+                            .map(cid => Number(nodes[cid]?.val))
+                            .filter(v => Number.isFinite(v) && v > 0);
+                        if (childSum.length > 0 && childSum.length === node.children.length) {
+                            displayVal = String(childSum.reduce((a, b) => a + b, 0));
+                        }
+                    }
                 }
                 if (displayVal) {
                     html += `<text x="${p.x}" y="${p.y + 1.2}" font-size="3.5" fill="var(--diagram-foreground)" text-anchor="middle">${displayVal}</text>`;
@@ -1086,8 +1145,20 @@ export class DiagramService {
 
         // 2. Grid Generation (Major Ticks)
         let gridHtml = '';
-        const xStep = parseFloat(data.x_step || (xMaxData - xMinData) / 5);
-        const yStep = parseFloat(data.y_step || (yMaxData - yMinData) / 5);
+        const getNiceStep = (span: number): number => {
+            if (span <= 0 || !Number.isFinite(span)) return 1;
+            if (span <= 5) return 1;
+            if (span <= 12) return span % 2 === 0 ? 2 : 1;
+            if (span <= 25) return 5;
+            if (span <= 60) return 10;
+            if (span <= 120) return 20;
+            const raw = span / 5;
+            const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+            const norm = raw / mag;
+            return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+        };
+        const xStep = parseFloat(data.x_step) || getNiceStep(xMaxData - xMinData);
+        const yStep = parseFloat(data.y_step) || getNiceStep(yMaxData - yMinData);
 
         // Vertical lines & X-axis labels
         for (let x = xMinData; x <= xMaxData + 0.001; x += xStep) {
@@ -1138,8 +1209,19 @@ export class DiagramService {
         const curvesHtml = mainEqn ? `<path d="${generatePath(mainEqn)}" fill="none" stroke="var(--diagram-foreground)" stroke-width="2" vector-effect="non-scaling-stroke" />` : '';
 
         // 4. Labels & Wraparound
-        const xTitle = data.x_axis_label || "x";
-        const yTitle = data.y_axis_label || "y";
+        const xTitle = data.x_axis_label || data.x_label || "x";
+        const yTitle = data.y_axis_label || data.y_label || "y";
+
+        const isLongTitle = xTitle.length > 3 || yTitle.length > 3;
+        const axisLabelsHtml = isLongTitle
+            ? `<text x="${VIEW_W / 2}" y="${VIEW_H + 28}" font-size="10" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${xTitle}</text>
+               <text x="-26" y="${VIEW_H / 2}" font-size="10" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle" transform="rotate(-90 -26 ${VIEW_H / 2})">${yTitle}</text>`
+            : `<text x="${VIEW_W + 20}" y="${VIEW_H + 5}" font-size="10" font-weight="bold" fill="var(--diagram-foreground)">${xTitle}</text>
+               <text x="0" y="-25" font-size="10" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${yTitle}</text>`;
+
+        const equationHtml = (data.show_equation !== false && xTitle === 'x' && yTitle === 'y' && mainEqn)
+            ? `<text x="${VIEW_W - 6}" y="-6" font-size="9" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${String(mainEqn).replace(/\*/g, '')}</text>`
+            : '';
 
         return this.wrapSVG(-MARGIN, -MARGIN/2, VIEW_W + MARGIN*2, VIEW_H + MARGIN*1.5, `
             <defs>
@@ -1157,10 +1239,9 @@ export class DiagramService {
             ${curvesHtml}
 
             <!-- Axis Labels -->
-            <text x="${VIEW_W + 20}" y="${VIEW_H + 5}" font-size="10" font-weight="bold" fill="var(--diagram-foreground)">${xTitle}</text>
-            <text x="0" y="-25" font-size="10" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${yTitle}</text>
+            ${axisLabelsHtml}
 
-            ${mainEqn ? `<text x="${VIEW_W}" y="15" font-size="9" fill="var(--diagram-foreground)" font-style="italic" text-anchor="end">y = ${mainEqn}</text>` : ''}
+            ${equationHtml}
         `);
     }
 

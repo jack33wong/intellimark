@@ -98,15 +98,15 @@ const FeaturesPage: React.FC = () => {
     const faqData = [
         {
             q: "How is this different from other AI tools?",
-            a: "Unlike general AI, AI Marking is specifically trained on GCSE/A-Level mathematical marking schemes and messy human handwriting. It doesn't just 'read' text—it understands mathematical steps and extracts marks exactly like an official examiner."
+            a: "Unlike general AI, AI Marking is specifically trained on GCSE/A-Level mathematical , GCSE Eng Lang marking schemes and messy human handwriting. It doesn't just 'read' text—it understands mathematical steps and extracts marks exactly like an official examiner."
         },
         {
             q: "What exam boards do you support?",
             a: "We currently offer comprehensive support for Edexcel, AQA, and OCR past papers (2022-2024 series). We are constantly expanding our database to include all major international boards."
         },
         {
-            q: "Can I use it for other subjects besides Maths?",
-            a: "While our core strength is mathematical sciences, we are currently beta testing support for Physics, Chemistry, and Biology where step-by-step marking is critical."
+            q: "Can I use it for other subjects besides Maths and Eng Lang?",
+            a: "While our core strength is mathematical sciences and English, we are currently beta testing support for Physics, Chemistry, and Biology where step-by-step marking is critical."
         },
         {
             q: "How accurate is the handwriting recognition?",

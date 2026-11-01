@@ -308,9 +308,10 @@ export class SuggestedFollowUpService {
     });
     const isEnglishLoR = subjectProfile.paradigm === 'LEVEL_OF_RESPONSE';
 
+    const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
     const systemPrompt = isEnglishLoR
       ? (isModelAnswer ? getPrompt('englishModelAnswerHtml.system') : getPrompt('englishMarkingScheme.system'))
-      : getPrompt(`${config.promptKey}.system`);
+      : getPrompt(`${currentPromptKey}.system`);
 
     // 2. Process Questions directly (Handle both examPapers and root questions)
     let questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
@@ -424,6 +425,10 @@ export class SuggestedFollowUpService {
         // This catches: <div class="sub-question-title">Question 16</div>
         // And:          <div>Question 22</div>  (bare div with no class — AI hallucination)
         content = content.replace(/<div[^>]*>\s*(?:Question\s+)?\d+[a-z]*\s*<\/div>/sig, '').trim();
+
+        const escapedBase = String(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const redundantPrefixRegex = new RegExp(`(<span class=["']model_question["']>\\s*)${escapedBase}\\s*[.)]\\s+`, 'i');
+        content = content.replace(redundantPrefixRegex, '$1');
 
         // [FIX] Bible Compliance: Use marking-code class instead of inline styles
         const mark_str = `[${qMarks} mark${qMarks > 1 ? 's' : ''}]`;
