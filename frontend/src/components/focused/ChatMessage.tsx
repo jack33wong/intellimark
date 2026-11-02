@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './ChatMessage.css';
 import YourWorkSection from './YourWorkSection';
-import { Brain, ChevronDown, ChevronUp, Lock, Star } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Lock, Paperclip, Star } from 'lucide-react';
 import MarkingFeedbackModal from '../modals/MarkingFeedbackModal';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
@@ -66,8 +66,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
-  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal } = useMarkingPage();
+  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal, attachMarkingSchemeAndRetry } = useMarkingPage();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const attachSchemeInputRef = useRef<HTMLInputElement | null>(null);
 
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
@@ -629,6 +630,52 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <SuggestedFollowUpButtons suggestions={message.suggestedFollowUps as string[]} onSuggestionClick={handleFollowUpClick} disabled={isAnyMessageProcessing} />
           )}
+
+          {/* Two-Step Guided Recovery: Attach Marking Scheme Button for Unsupported Subjects */}
+          {!isUser &&
+            !message.isProcessing &&
+            ((message as any).requiresMarkingScheme === true ||
+              (typeof content === 'string' && /Attach Marking Scheme|Unsupported subject/i.test(content))) && (
+              <div className="attach-marking-scheme-recovery" style={{ marginTop: '14px', paddingLeft: '25px' }}>
+                <input
+                  ref={attachSchemeInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,application/pdf,.pdf"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0 && attachMarkingSchemeAndRetry) {
+                      attachMarkingSchemeAndRetry(e.target.files);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={isAnyMessageProcessing}
+                  onClick={() => attachSchemeInputRef.current?.click()}
+                  style={{
+                    width: 'fit-content',
+                    padding: '9px 16px',
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: isAnyMessageProcessing ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+                    opacity: isAnyMessageProcessing ? 0.6 : 1
+                  }}
+                >
+                  <Paperclip size={16} />
+                  <span>Attach Marking Scheme (Free Quota)</span>
+                </button>
+              </div>
+            )}
 
           {/* Provide Feedback Button (Only on final AI response containing follow-ups or results) */}
           {!isUser && session && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (

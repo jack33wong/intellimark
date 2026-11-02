@@ -131,6 +131,7 @@ export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | nu
       subQuestionMarks: subQuestionMarks,
       subQuestionMaxScores: subQuestionMaxScores,
       subQuestionAnswersMap: subQuestionAnswersMap,
+      subQuestionMetadata: input.subQuestionMetadata || questionMarksData?.subQuestionMetadata,
       subQuestionTexts: subQuestionTexts,
       alternativeMethod: alternativeMethod,
       hasAlternatives: hasAlternatives,
@@ -138,6 +139,7 @@ export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | nu
       isGeneric: input.isGeneric === true,
       scoringType: input.scoringType || questionMarksData?.scoringType,
       levels: input.levels || questionMarksData?.levels || questionMarksData?.levelDescriptors,
+      indicativeContent: input.indicativeContent || questionMarksData?.indicativeContent,
       indicativeStandard: input.indicativeStandard || questionMarksData?.indicativeStandard,
       aoContentBullets: input.aoContentBullets || questionMarksData?.aoContentBullets,
       dualAoBreakdown: input.dualAoBreakdown || questionMarksData?.dualAoBreakdown,
@@ -821,9 +823,10 @@ export class MarkingInstructionService {
       rawTextHint: `${questionText || ''} ${anyScheme?.questionLevelAnswer || ''}`
     });
 
-    const isEnglishLoRMode =
-      resolvedProfile.paradigm === 'LEVEL_OF_RESPONSE' ||
-      isLevelOfResponseQuestion(normalizedScheme, resolvedProfile);
+    const isEnglishLoRMode = resolvedProfile.key === 'ENGLISH_LANGUAGE';
+    const isUniversalByomsMode =
+      resolvedProfile.key === 'UNIVERSAL_BYOMS' ||
+      resolvedProfile.key === 'ENGLISH_LITERATURE';
 
     const hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
@@ -856,7 +859,7 @@ export class MarkingInstructionService {
 
     if (isEnglishLoRMode) {
       const englishPrompt = AI_PROMPTS.markingInstructions.englishLoR;
-      const subjectKey = resolvedProfile.key === 'ENGLISH_LITERATURE' ? 'ENGLISH_LITERATURE' : 'ENGLISH_LANGUAGE';
+      const subjectKey = 'ENGLISH_LANGUAGE';
       systemPrompt = englishPrompt.system(subjectKey);
 
       schemeText = normalizedScheme ? this.formatMarkingSchemeForPrompt(normalizedScheme) : '';
@@ -900,6 +903,41 @@ export class MarkingInstructionService {
         subjectKey,
         totalMarks: normalizedScheme?.totalMarks
       });
+    } else if (hasMarkingScheme && normalizedScheme && isUniversalByomsMode) {
+      const universalPrompt = AI_PROMPTS.markingInstructions.universalByoms;
+      const effectiveSubjectName =
+        examInfo?.subject ||
+        resolvedProfile.displayName ||
+        'General Subject';
+      systemPrompt = universalPrompt.system(effectiveSubjectName);
+
+      schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
+      liveQuestion = this.extractLiveQuestion(sanitizedBlocks, baseQNum);
+
+      if (questionText) {
+        structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
+      }
+
+      if (normalizedScheme.subQuestionTexts) {
+        Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
+          const text = normalizedScheme.subQuestionTexts![key];
+          if (text) {
+            const displayKey = key.includes(baseQNum) ? key : `${baseQNum}${key}`;
+            structuredQuestionText += `**[${displayKey}]**: ${text}\n\n`;
+          }
+        });
+      }
+
+      userPrompt = universalPrompt.user(
+        currentQNum,
+        schemeText,
+        promptStudentWork || 'No student work provided',
+        promptBlocks,
+        structuredQuestionText.trim() || questionText || liveQuestion || classificationStudentWork || 'No question text provided',
+        filteredSubQuestionPageMap as any,
+        formattedGeneralGuidance,
+        effectiveSubjectName
+      );
     } else if (hasMarkingScheme && normalizedScheme) {
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = typeof prompt.system === 'function' ? prompt.system(normalizedScheme.isGeneric === true) : prompt.system;

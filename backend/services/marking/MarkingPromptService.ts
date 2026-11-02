@@ -54,7 +54,38 @@ ${genericHeader}
         }
 
         let output = '';
+        const anyScheme = normalizedScheme as any;
+        const subMetaMap = anyScheme.subQuestionMetadata || {};
         const hasSubQuestions = normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0;
+
+        const formatMarkLine = (m: any): string => {
+            const notes = [m.comments, m.guidance]
+                .filter((c: any) => typeof c === 'string' && c.trim() !== '' && c.trim() !== 'Auto-balanced')
+                .join(' | ');
+            return notes
+                ? `- ${m.mark}: ${m.answer} [Examiner Notes: ${notes}]\n`
+                : `- ${m.mark}: ${m.answer}\n`;
+        };
+
+        const formatLevelsAndIndicative = (levels?: any[], indicativeContent?: any[]): string => {
+            let block = '';
+            if (Array.isArray(levels) && levels.length > 0) {
+                block += `  [LEVEL DESCRIPTORS]\n`;
+                levels.forEach((lvl: any) => {
+                    const label = lvl.level !== undefined ? `Level ${lvl.level}` : (lvl.label || 'Band');
+                    const range = lvl.markRange || lvl.marks || '';
+                    const desc = lvl.descriptor || lvl.description || '';
+                    block += `  * ${label}${range ? ` (${range} marks)` : ''}: ${desc}\n`;
+                });
+            }
+            if (Array.isArray(indicativeContent) && indicativeContent.length > 0) {
+                block += `  [INDICATIVE CONTENT]\n`;
+                indicativeContent.forEach((pt: any) => {
+                    block += `  * ${typeof pt === 'string' ? pt : JSON.stringify(pt)}\n`;
+                });
+            }
+            return block;
+        };
 
         if (hasSubQuestions) {
             const subQuestions = Object.keys(normalizedScheme.subQuestionMarks!).sort();
@@ -71,9 +102,16 @@ ${genericHeader}
                         normalizedScheme.subQuestionMaxScores[normalizedSubLabel]) : undefined)
                     || normalizedScheme.totalMarks || normalizedScheme.parentQuestionMarks;
 
+                const subMeta = subMetaMap[subQ] || subMetaMap[subLabel] || {};
+
                 output += `[${subQ}]`;
                 if (maxScore) output += ` [MAX SCORE: ${maxScore}]`;
+                if (subMeta.paradigm) output += ` [PARADIGM: ${subMeta.paradigm}]`;
                 output += '\n';
+
+                if (subMeta.levels || subMeta.indicativeContent) {
+                    output += formatLevelsAndIndicative(subMeta.levels, subMeta.indicativeContent);
+                }
 
                 if (Array.isArray(marks)) {
                     // V28 FIX: "Virtual Scheme Update" - Inject B3 for Q10a to solve the 2+2=6 overflow bug
@@ -83,7 +121,7 @@ ${genericHeader}
                     }
 
                     marks.forEach((m: any) => {
-                        output += `- ${m.mark}: ${m.answer}\n`;
+                        output += formatMarkLine(m);
                     });
                 }
                 output += '\n';
@@ -93,8 +131,12 @@ ${genericHeader}
             if (normalizedScheme.totalMarks) output += ` [MAX SCORE: ${normalizedScheme.totalMarks}]`;
             output += '\n';
 
+            if (anyScheme.levels || anyScheme.indicativeContent) {
+                output += formatLevelsAndIndicative(anyScheme.levels, anyScheme.indicativeContent);
+            }
+
             normalizedScheme.marks.forEach((m: any) => {
-                output += `- ${m.mark}: ${m.answer}\n`;
+                output += formatMarkLine(m);
             });
         }
 

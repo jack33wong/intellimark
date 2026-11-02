@@ -292,7 +292,8 @@ export class MarkingSchemeOrchestrationService {
         let parentTotalMarks = 0;
         const subScores = inputMarkingScheme.subQuestionMaxScores || {};
         for (const [key, val] of Object.entries(subScores)) {
-          if (key.replace(/\D/g, '') === baseNum) {
+          const keyBase = getBaseQuestionNumber(key) || key.match(/^0*(\d+)/)?.[1] || key.replace(/\D/g, '');
+          if (keyBase === baseNum) {
             parentTotalMarks += Number(val);
           }
         }
@@ -705,21 +706,31 @@ export class MarkingSchemeOrchestrationService {
 
 
       const subQuestionMarksMap: any = {};
+      const subQuestionMetadataMap: Record<string, any> = {};
       const subQuestionNumbers: string[] = [];
       const subQuestionAnswers: string[] = [];
       const subQuestionAnswersMap: Record<string, string> = {};
 
-      const baseNumRegex = new RegExp(`^${baseQuestionNumber}([^0-9]|$)`, 'i');
+      const baseNumRegex = new RegExp(`^0*${baseQuestionNumber}([^0-9]|$)`, 'i');
 
       // Prepare Final Max Scores Map (Start with existing or empty)
       const finalSubQuestionMaxScores = masterMatch.subQuestionMaxScores ? { ...masterMatch.subQuestionMaxScores } : {};
 
       Object.keys(allPaperQuestions).forEach(key => {
         if (baseNumRegex.test(key)) {
-          const partMarks = allPaperQuestions[key].marks || allPaperQuestions[key];
+          const qObj = allPaperQuestions[key];
+          const partMarks = qObj?.marks || qObj;
           subQuestionMarksMap[key] = partMarks;
+          if (qObj && typeof qObj === 'object' && !Array.isArray(qObj)) {
+            subQuestionMetadataMap[key] = {
+              paradigm: qObj.paradigm,
+              levels: qObj.levels || qObj.levelDescriptors,
+              indicativeContent: qObj.indicativeContent,
+              answer: qObj.answer
+            };
+          }
           subQuestionNumbers.push(key);
-          const ans = allPaperQuestions[key].answer;
+          const ans = qObj?.answer;
           if (ans) {
             subQuestionAnswers.push(`(${key}) ${ans}`);
             subQuestionAnswersMap[key] = ans;
@@ -773,7 +784,8 @@ export class MarkingSchemeOrchestrationService {
           ...(typeof parentScheme === 'object' && !Array.isArray(parentScheme) ? parentScheme : {}),
           marks: parentScheme?.marks || parentScheme,
           subQuestionMarks: subQuestionMarksMap,
-          subQuestionAnswersMap: subQuestionAnswersMap
+          subQuestionAnswersMap: subQuestionAnswersMap,
+          subQuestionMetadata: subQuestionMetadataMap
         },
         totalMarks: masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0,
         parentQuestionMarks: masterMatch.parentQuestionMarks || masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0,

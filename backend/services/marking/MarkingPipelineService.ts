@@ -778,19 +778,21 @@ export class MarkingPipelineService {
             const spreadCount = geometryResults.filter((g, idx) => g?.is_two_page_spread && isPageLandscape(standardizedPages[idx])).length;
             const isMajoritySpreadBatch = standardizedPages.length >= 3 && (spreadCount / standardizedPages.length) >= 0.5;
 
-            // 🛡️ [DOCUMENT-LEVEL SUBJECT CONSENSUS]:
-            // In a multi-page upload (e.g. 5-page PDF or exam booklet), isolated calculation or arithmetic pages
-            // (e.g. "Calculate 240 children...") can get a false-positive MATHS vote while the surrounding pages
-            // are clearly an unsupported subject (e.g. Biology, Chemistry, Physics, or English Literature).
-            // If >= 40% (or >= 2 pages) of a multi-page upload is identified as unsupported,
-            // declare the ENTIRE document as unsupported so we don't drop 4 pages and grade 1 calculation question out of context.
+            // 🛡️ [BYOMS DETECTION & DOCUMENT-LEVEL SUBJECT CONSENSUS]:
+            // Check if any uploaded page in the batch is a Marking Scheme (or if a custom marking scheme was provided).
+            // When a Marking Scheme is present, Universal BYOMS mode is enabled for any academic subject!
+            const hasUploadedMarkingScheme =
+                geometryResults.some(g => g?.is_marking_scheme === true) ||
+                Boolean(options.markingScheme);
+
             const isMultiPageUpload = standardizedPages.length >= 2;
             const unsupportedPageResults = geometryResults.filter(
-                g => g && g.is_supported_doc === false && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')
+                g => g && g.is_supported_doc === false && !g.is_marking_scheme && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')
             );
-            const unsupportedRatio = standardizedPages.length > 0 ? (unsupportedPageResults.length / standardizedPages.length) : 0;
+            const nonSchemePageCount = Math.max(1, geometryResults.filter(g => !g?.is_marking_scheme).length);
+            const unsupportedRatio = unsupportedPageResults.length / nonSchemePageCount;
 
-            if (isMultiPageUpload && (unsupportedPageResults.length >= 2 || unsupportedRatio >= 0.4)) {
+            if (!hasUploadedMarkingScheme && isMultiPageUpload && (unsupportedPageResults.length >= 2 || unsupportedRatio >= 0.4)) {
                 const primaryUnsupported = unsupportedPageResults.find(g => g.rejection_reason && g.rejection_reason.trim()) || unsupportedPageResults[0];
                 const consensusRejectionReason = primaryUnsupported?.rejection_reason ||
                     'The uploaded document belongs to an unsupported subject (e.g. Sciences, Humanities, or English Literature). AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language with official mark schemes and grade boundaries.';
@@ -800,12 +802,16 @@ export class MarkingPipelineService {
                 );
 
                 geometryResults.forEach(g => {
-                    if (g) {
+                    if (g && !g.is_marking_scheme) {
                         g.is_supported_doc = false;
                         g.rejection_reason = consensusRejectionReason;
                     }
                 });
                 lastRejectionReason = consensusRejectionReason;
+            } else if (hasUploadedMarkingScheme && unsupportedPageResults.length > 0) {
+                console.log(
+                    `🛡️ [BYOMS MODE] Uploaded Marking Scheme detected alongside ${unsupportedPageResults.length} non-Maths/English page(s). Enabling Universal Subject Marking!`
+                );
             }
 
             for (let i = 0; i < standardizedPages.length; i++) {
@@ -813,13 +819,28 @@ export class MarkingPipelineService {
                 const lightPage = lightweightPages[i];
                 const geo = geometryResults[i];
 
-                if (!geo.is_acceptable_quality || geo.is_supported_doc === false) {
-                    if (geo.is_supported_doc === false) {
-                        const rawReason = (geo.rejection_reason || '').trim();
-                        lastRejectionReason = rawReason || 'The uploaded document belongs to an unsupported subject or does not contain supported exam content. AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language.';
-                    } else {
-                        lastRejectionReason = geo.rejection_reason || lastRejectionReason;
+                // 1. Always drop unreadable / non-educational junk pages
+                if (!geo.is_acceptable_quality) {
+                    lastRejectionReason = geo.rejection_reason || lastRejectionReason;
+                    const evidence = geo.evidence_text_snippet ? `\n   📄 Evidence: "${geo.evidence_text_snippet}"` : "";
+                    if (process.env.DEBUG_SEMANTIC_GEOMETRY === 'true') {
+                        console.warn(`⚠️ [GEOMETRY] Dropping Page ${stdPage.pageIndex + 1} (quality check): ${lastRejectionReason}${evidence}`);
                     }
+                    continue;
+                }
+
+                // 2. 🛡️ THE INTERCEPTOR: Always eject marking scheme pages BEFORE subject rejection
+                if (geo.is_marking_scheme) {
+                    console.log(`📄 [INTERCEPTOR] Page ${stdPage.pageIndex} is a Marking Scheme`);
+                    pagesEjected = true;
+                    interceptedSchemeImages.push(stdPage.imageData);
+                    continue; // Skip pushing to student pages (exempt from student page quota)
+                }
+
+                // 3. Reject unsupported subjects ONLY when NO marking scheme was uploaded
+                if (geo.is_supported_doc === false && !hasUploadedMarkingScheme) {
+                    const rawReason = (geo.rejection_reason || '').trim();
+                    lastRejectionReason = rawReason || 'The uploaded document belongs to an unsupported subject or does not contain supported exam content. AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language.';
                     
                     const reason = lastRejectionReason;
                     const evidence = geo.evidence_text_snippet ? `\n   📄 Evidence: "${geo.evidence_text_snippet}"` : "";
@@ -827,15 +848,7 @@ export class MarkingPipelineService {
                         console.warn(`⚠️ [GEOMETRY] Dropping Page ${stdPage.pageIndex + 1} from grading pipeline: ${reason}${evidence}`);
                     }
                     
-                    continue; // Gracefully filter out the junk page
-                }
-
-                // 🛡️ THE INTERCEPTOR: Eject marking scheme pages
-                if (geo.is_marking_scheme) {
-                    console.log(`📄 [INTERCEPTOR] Page ${stdPage.pageIndex} is a Marking Scheme`);
-                    pagesEjected = true;
-                    interceptedSchemeImages.push(stdPage.imageData);
-                    continue; // Skip pushing
+                    continue; // Gracefully filter out the unsupported page
                 }
 
                 const isLandscapeAspect = isPageLandscape(stdPage);
@@ -936,8 +949,23 @@ export class MarkingPipelineService {
             if (standardizedPages.length === 0) {
                 console.log(`⚠️ [PIPELINE] All pages rejected by Geometry check. Short-circuiting gracefully.`);
                 progressCallback(createProgressData(2, 'Content rejected by quality inspector.', MULTI_IMAGE_STEPS));
-                void AdminAlertService.notifyCrash('MARKING', req, new Error(lastRejectionReason));
-                
+
+                const isUnsupportedWithoutScheme =
+                    interceptedSchemeImages.length === 0 &&
+                    geometryResults.some(
+                        g => g && g.is_supported_doc === false && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')
+                    );
+
+                // Only trigger Admin Alert email when NO marking scheme was uploaded
+                if (interceptedSchemeImages.length === 0) {
+                    void AdminAlertService.notifyCrash('MARKING', req, new Error(lastRejectionReason));
+                }
+
+                // If rejected due to an unsupported subject without a marking scheme, guide the user to attach their mark scheme
+                const guidedRejectionReason = isUnsupportedWithoutScheme
+                    ? `${lastRejectionReason}\n\n💡 **Want me to mark this paper right now?** Click **Attach Marking Scheme** below to upload the official or teacher marking scheme alongside your pages (marking scheme pages do not count toward your page limit!).`
+                    : lastRejectionReason;
+
                 // Persist the rejected session so it shows in Library and chat history
                 try {
                     const uploadResult = await SessionManagementService.uploadOriginalFiles(
@@ -967,10 +995,13 @@ export class MarkingPipelineService {
                         uploadResult.originalImageLinks
                     );
                     
-                    const aiMessage = createAIMessage({
-                        content: lastRejectionReason || 'The uploaded image could not be processed because it is blurry, unreadable, or does not contain educational content.',
+                    const aiMessage: any = createAIMessage({
+                        content: guidedRejectionReason || 'The uploaded image could not be processed because it is blurry, unreadable, or does not contain educational content.',
                         messageId: req.body?.aiMessageId
                     });
+                    if (isUnsupportedWithoutScheme) {
+                        aiMessage.requiresMarkingScheme = true;
+                    }
 
                     const markingContext: MarkingSessionContext = {
                         req,
@@ -1002,6 +1033,7 @@ export class MarkingPipelineService {
                         sessionTitle: sessionResult.sessionTitle,
                         unifiedSession: sessionResult.unifiedSession,
                         aiMessage,
+                        requiresMarkingScheme: isUnsupportedWithoutScheme,
                         annotatedOutput: [],
                         results: [],
                         warning: "CONTENT_REJECTED",
@@ -1099,8 +1131,10 @@ export class MarkingPipelineService {
 
             // --- 🧭 EARLY SUBJECT ROUTING (BEFORE CLASSIFICATION & STAGE 3 OCR) ---
             const geoSubjectVote = geometryResults
+                .filter(g => !g?.is_marking_scheme)
                 .map(g => g?.detected_subject)
-                .find(s => s === 'ENGLISH_LANGUAGE' || s === 'ENGLISH_LITERATURE');
+                .find(s => s === 'ENGLISH_LANGUAGE' || s === 'ENGLISH_LITERATURE' || s === 'UNSUPPORTED_SUBJECT');
+            const customSchemeSubject = (inputMarkingScheme as any)?.examDetails?.subject;
             const geoPaperCodeHint = geometryResults
                 .map(g => g?.paper_code_hint)
                 .filter(Boolean)
@@ -1109,7 +1143,8 @@ export class MarkingPipelineService {
 
             let subjectProfile: SubjectProfile = resolveSubjectProfile({
                 detectedSubject: geoSubjectVote,
-                paperCode: geoPaperCodeHint,
+                subject: customSchemeSubject,
+                paperCode: geoPaperCodeHint || (inputMarkingScheme as any)?.examDetails?.paperCode,
                 customText: options.customText,
                 fileNames: uploadedFileNames
             });
@@ -1899,6 +1934,7 @@ export class MarkingPipelineService {
             const firstMatch = detectionResults.find((dr: any) => dr?.detectionResult?.found && dr?.detectionResult?.match)?.detectionResult?.match;
             if (firstMatch) {
                 const dbResolvedProfile = resolveSubjectProfile({
+                    detectedSubject: geoSubjectVote,
                     subject: firstMatch.subject || firstMatch.qualification,
                     paperCode: firstMatch.paperCode || firstMatch.examCode,
                     paperTitle: firstMatch.paperTitle

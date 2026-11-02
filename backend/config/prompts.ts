@@ -15,6 +15,7 @@ import classification_system_prompt from './prompts/classification_system_prompt
 import worksheet_fallback_prompt from './prompts/worksheet_fallback_prompt.js';
 import marking_fallback_system_prompt from './prompts/marking_fallback_system_prompt.js';
 import { englishLoRSystemPrompt, englishLoRUserPrompt } from './prompts/english_lor_marking_prompt.js';
+import { UNIVERSAL_BYOMS_MARKING_SYSTEM_PROMPT, UNIVERSAL_BYOMS_MARKING_USER_PROMPT } from './prompts/universal_byoms_marking_prompt.js';
 import { english_model_answer_html_system_prompt, english_marking_scheme_explanation_system_prompt } from './prompts/english_followup_prompts.js';
 import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
 
@@ -103,6 +104,10 @@ ${guidance}`;
     englishLoR: {
       system: (subjectKey: 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE' = 'ENGLISH_LANGUAGE') => englishLoRSystemPrompt(subjectKey),
       user: englishLoRUserPrompt
+    },
+    universalByoms: {
+      system: (subjectName: string = 'General Subject') => UNIVERSAL_BYOMS_MARKING_SYSTEM_PROMPT(subjectName),
+      user: UNIVERSAL_BYOMS_MARKING_USER_PROMPT
     }
   },
 

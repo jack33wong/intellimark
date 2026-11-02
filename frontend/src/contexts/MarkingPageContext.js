@@ -217,6 +217,7 @@ export const MarkingPageProvider = ({
   const lastSyncedSessionId = useRef(null);
   const lastSyncedModeSessionId = useRef(null);
   const userClosedSplitSessionIdRef = useRef(null);
+  const lastUploadedStudentFilesRef = useRef([]);
 
   // Load session when selectedMarkingResult prop changes (e.g., from Sidebar history click)
   useEffect(() => {
@@ -933,6 +934,7 @@ export const MarkingPageProvider = ({
   const handleImageAnalysis = useCallback(async (file = null, customText = null) => {
     const targetFile = file || selectedFile;
     if (!targetFile) return;
+    lastUploadedStudentFilesRef.current = [targetFile];
 
     trackFunnelEvent('upload_initiated', {
       mode: 'single',
@@ -1069,6 +1071,7 @@ export const MarkingPageProvider = ({
 
   const handleMultiImageAnalysis = useCallback(async (files = [], customText = null) => {
     if (!files || files.length === 0) return;
+    lastUploadedStudentFilesRef.current = Array.from(files);
 
     trackFunnelEvent('upload_initiated', {
       mode: 'multi',
@@ -1350,6 +1353,47 @@ export const MarkingPageProvider = ({
     dispatch({ type: 'SET_CONTEXT_FILTER_ACTIVE', payload: isActive });
   }, []);
 
+  const attachMarkingSchemeAndRetry = useCallback(async (schemeFileList) => {
+    const schemeFiles = Array.from(schemeFileList || []);
+    if (schemeFiles.length === 0) return false;
+
+    let studentFiles = lastUploadedStudentFilesRef.current || [];
+
+    // Fallback: if page was refreshed and in-memory File[] is empty, reconstruct from last user message base64 data
+    if (studentFiles.length === 0 && Array.isArray(chatMessages)) {
+      const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user');
+      const dataUrlToFile = (dataUrl, name) => {
+        try {
+          if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+          const [header, b64] = dataUrl.split(',');
+          const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+          const bin = atob(b64);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          return new File([arr], name, { type: mime });
+        } catch {
+          return null;
+        }
+      };
+      if (lastUserMsg) {
+        if (Array.isArray(lastUserMsg.imageDataArray) && lastUserMsg.imageDataArray.length > 0) {
+          studentFiles = lastUserMsg.imageDataArray
+            .map((item, idx) => dataUrlToFile(typeof item === 'string' ? item : item?.url, `student-page-${idx + 1}.jpg`))
+            .filter(Boolean);
+        } else if (lastUserMsg.imageData) {
+          const singleReconstructed = dataUrlToFile(lastUserMsg.imageData, lastUserMsg.fileName || 'student-page-1.jpg');
+          if (singleReconstructed) studentFiles = [singleReconstructed];
+        }
+      }
+    }
+
+    const mergedFiles = [...studentFiles, ...schemeFiles];
+    return handleMultiImageAnalysis(
+      mergedFiles,
+      `Attached Marking Scheme (${schemeFiles.map(f => f.name).join(', ')}) for grading.`
+    );
+  }, [chatMessages, handleMultiImageAnalysis]);
+
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
@@ -1373,6 +1417,7 @@ export const MarkingPageProvider = ({
     onFollowUpImage: handleImageAnalysis,
     onAnalyzeMultiImage: handleMultiImageAnalysis,
     onFollowUpMultiImage: handleMultiImageAnalysis,
+    attachMarkingSchemeAndRetry,
     getImageSrc,
     startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
@@ -1401,7 +1446,7 @@ export const MarkingPageProvider = ({
     onSendMessage, addMessage, chatContainerRef,
     isHistoryLoading,
     scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage,
-    handleMultiImageAnalysis, progressProps, getImageSrc, startAIThinking,
+    handleMultiImageAnalysis, attachMarkingSchemeAndRetry, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,

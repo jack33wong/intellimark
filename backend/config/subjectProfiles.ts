@@ -5,7 +5,7 @@
  * with zero regressions on existing Maths workflows.
  */
 
-export type SubjectKey = 'MATHS' | 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE';
+export type SubjectKey = 'MATHS' | 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE' | 'UNIVERSAL_BYOMS';
 
 export type GradingParadigm = 'POINT_BASED' | 'LEVEL_OF_RESPONSE';
 
@@ -158,6 +158,23 @@ export const SUBJECT_PROFILES: Record<SubjectKey, SubjectProfile> = {
       'AO4 SPaG'
     ],
     overflowBoilerplatePatterns: COMMON_ENGLISH_OVERFLOW_PATTERNS
+  },
+
+  UNIVERSAL_BYOMS: {
+    key: 'UNIVERSAL_BYOMS',
+    displayName: 'Universal Subject (Custom Mark Scheme)',
+    paradigm: 'POINT_BASED',
+    ocrStrategy: 'VISION_VERBATIM',
+    assessmentObjectives: ['AO1', 'AO2', 'AO3'],
+    radarAxes: [
+      'AO1 Knowledge & Recall',
+      'AO2 Application & Calculation',
+      'AO3 Analysis & Evaluation',
+      'Scientific / Subject Terminology',
+      'Data, Tables & Diagrams',
+      'Extended Response'
+    ],
+    overflowBoilerplatePatterns: COMMON_ENGLISH_OVERFLOW_PATTERNS
   }
 };
 
@@ -175,13 +192,22 @@ export interface SubjectResolutionHints {
 /**
  * Deterministically resolves the SubjectProfile as early as possible in the pipeline
  * (before Stage 3 OCR runs, and refined after Question Detection).
- * Always defaults safely to SUBJECT_PROFILES.MATHS if no English signal is present.
+ * Always defaults safely to SUBJECT_PROFILES.MATHS if no English or Universal BYOMS signal is present.
  */
 export function resolveSubjectProfile(hints: SubjectResolutionHints = {}): SubjectProfile {
   const explicitKey = (hints.detectedSubject || '').trim().toUpperCase();
   if (explicitKey === 'ENGLISH_LANGUAGE') return SUBJECT_PROFILES.ENGLISH_LANGUAGE;
   if (explicitKey === 'ENGLISH_LITERATURE') return SUBJECT_PROFILES.ENGLISH_LITERATURE;
   if (explicitKey === 'MATHS' || explicitKey === 'MATHEMATICS') return SUBJECT_PROFILES.MATHS;
+  if (explicitKey === 'UNIVERSAL_BYOMS' || explicitKey === 'UNSUPPORTED_SUBJECT') {
+    const customLabel = (hints.subject || '').trim();
+    const isValidCustomLabel =
+      customLabel &&
+      !/^(mathematics|maths|general|unknown|custom)$/i.test(customLabel);
+    return isValidCustomLabel
+      ? { ...SUBJECT_PROFILES.UNIVERSAL_BYOMS, displayName: customLabel }
+      : SUBJECT_PROFILES.UNIVERSAL_BYOMS;
+  }
 
   const combined = [
     hints.paperCode || '',
@@ -222,6 +248,21 @@ export function resolveSubjectProfile(hints: SubjectResolutionHints = {}): Subje
     /\b(ao1|ao2|ao3|ao4|ao5|ao6)\b[\s\S]{0,80}\b(level\s+[1-4]|perceptive|spag|technical\s+accuracy)\b/i.test(combined)
   ) {
     return SUBJECT_PROFILES.ENGLISH_LANGUAGE;
+  }
+
+  // 3. Check explicit non-Maths, non-English-Language subjects (Sciences, Humanities, Computer Science, Social Sciences, Business)
+  const subjectText = `${hints.subject || ''} ${hints.paperTitle || ''} ${hints.paperCode || ''}`.toLowerCase();
+  if (
+    !/\b(math|mathematics|further\s+maths|statistics)\b/i.test(subjectText) &&
+    /\b(biology|chemistry|physics|combined\s+science|trilogy|synergy|geography|history|computer\s+science|business|economics|religious\s+studies|psychology|sociology|citizenship|media\s+studies|physical\s+education|design\s+and\s+technology|food\s+preparation|engineering|accounting)\b/i.test(combined)
+  ) {
+    const customLabel = (hints.subject || '').trim();
+    const isValidCustomLabel =
+      customLabel &&
+      !/^(mathematics|maths|general|unknown|custom)$/i.test(customLabel);
+    return isValidCustomLabel
+      ? { ...SUBJECT_PROFILES.UNIVERSAL_BYOMS, displayName: customLabel }
+      : SUBJECT_PROFILES.UNIVERSAL_BYOMS;
   }
 
   return SUBJECT_PROFILES.MATHS;
