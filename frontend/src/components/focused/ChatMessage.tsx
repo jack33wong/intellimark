@@ -98,13 +98,24 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     const imageDataArray = (message as any)?.imageDataArray;
     if (imageDataArray && Array.isArray(imageDataArray) && imageDataArray.length > 0) {
       // Fix for legacy data: if single item has no URL but message has imageLink, use it
-      if (imageDataArray.length === 1 && !imageDataArray[0]?.url && (message as any)?.imageLink) {
+      if (imageDataArray.length === 1 && !imageDataArray[0]?.url && (message as any)?.imageLink && !((message as any)?.pdfContexts?.length > 0)) {
         return [{
           ...imageDataArray[0],
           url: (message as any).imageLink
         }];
       }
+      // If pdfContexts are present (e.g. mixed upload), filter out any PDF entries from image gallery
+      if ((message as any)?.pdfContexts?.length > 0) {
+        return imageDataArray.filter((item: any) => {
+          const name = typeof item === 'object' ? (item?.originalFileName || '') : '';
+          return !name.toLowerCase().endsWith('.pdf');
+        });
+      }
       return imageDataArray;
+    }
+    // If this message already has pdfContexts, do not fall back to single imageLink/imageData
+    if ((message as any)?.pdfContexts?.length > 0) {
+      return [];
     }
     // Fallback for legacy/single image messages
     if ((message as any)?.imageLink) {
@@ -144,7 +155,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const handleMultiImageClick = useCallback((index: number) => {
     engagementTracker.recordSplitModeOpen(index);
     const imageDataArray = getMultiImageData();
-    if ((message as any)?.originalFileType === 'pdf' && (message as any)?.pdfContexts?.length > 0) {
+    if ((message as any)?.originalFileType === 'pdf' && (message as any)?.pdfContexts?.length > 0 && imageDataArray.length === 0) {
       const pdfContext = (message as any).pdfContexts[index];
       if (pdfContext?.url) {
         window.open(pdfContext.url, '_blank');
@@ -362,6 +373,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const isMultiFileMessage = () => {
     if ((message as any)?.isMultiImage === true && (message as any)?.fileCount > 1) return true;
+    if (message.role === 'user' && ((message as any)?.pdfContexts?.length || 0) + ((message as any)?.imageDataArray?.length || 0) > 1) return true;
     if (message.role === 'user' && (message as any)?.imageDataArray?.length > 1) return true;
     if (message.role === 'user' && (message as any)?.pdfContexts?.length > 1) return true;
     if (message.role === 'assistant' && (message as any)?.imageDataArray?.length > 0) {
@@ -705,8 +717,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         {/* User uploads (Images/PDFs) */}
         {isUser && hasImage(message) && !imageError && (
           <div className="chat-message-image">
-            {isPdfMessage() ? (
-              <div className="pdf-files-container">
+            {isPdfMessage() && (
+              <div className="pdf-files-container" style={getMultiImageData().length > 0 ? { marginBottom: '8px', justifyContent: 'flex-end' } : undefined}>
                 {((message as any).pdfContexts && (message as any).pdfContexts.length > 0) ? (
                   // MARKING MODE PDF RENDERING (Rasterized Pages)
                   (message as any).pdfContexts.map((pdf: any, idx: number) => (
@@ -744,7 +756,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   </div>
                 )}
               </div>
-            ) : (
+            )}
+            {(!isPdfMessage() || getMultiImageData().length > 0) && (
               <SimpleImageGallery key={`${session?.id}-${message.id}-user`} images={getMultiImageData()} onImageClick={handleMultiImageClick} onImageLoad={onImageLoad} />
             )}
           </div>

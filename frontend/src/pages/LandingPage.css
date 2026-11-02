@@ -149,7 +149,8 @@
     }
 }
 
-.hero-highlight-blue {
+.hero-highlight-blue,
+.hero-highlight {
     color: var(--text-brand)
 }
 

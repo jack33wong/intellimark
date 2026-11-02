@@ -1038,15 +1038,20 @@ export function calculateOverallScore(
     if (!questionToTotalMarks.has(fullQNum)) {
       // Use detected total marks from marking scheme instead of parent marks
       // EXCEPTION: In Generic Mode with the 20/40 mark fallback, trust the AI's discovered total (qr.score) if available!
-      const isGeneric = qr.markingScheme?.isGeneric;
-      const schemeTotal = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || 0;
-      const resultTotal = qr.score?.totalMarks || 0;
+      let parsedSchemeObj: any = null;
+      if (typeof qr.markingScheme === 'string' && qr.markingScheme.trim().startsWith('{')) {
+        try { parsedSchemeObj = JSON.parse(qr.markingScheme); } catch (e) {}
+      }
+      const schemeObj = (typeof qr.markingScheme === 'object' && qr.markingScheme !== null) ? qr.markingScheme : parsedSchemeObj;
+      const isGeneric = schemeObj?.isGeneric;
+      const schemeTotal = schemeObj?.totalMarks || schemeObj?.parentQuestionMarks || 0;
+      const resultTotal = qr.totalMarks || qr.score?.totalMarks || 0;
 
       // Identify if the System Scheme is just a placeholder (20, 40, etc.)
       const isDefaultScheme = [20, 40, 100].includes(schemeTotal);
 
       // If Generic and Default, prioritize the Result (AI) Total.
-      // Otherwise fallback to Scheme Total.
+      // Otherwise fallback to Scheme Total or Result Total.
       const qTotalMarks = (isGeneric && isDefaultScheme && resultTotal > 0)
         ? resultTotal
         : (schemeTotal || resultTotal || 0);
@@ -1105,9 +1110,14 @@ export function calculateQuestionFirstPageScores(
 
     if (!baseQData.has(baseQNum)) {
       // 🟢 [STAMP FIX] Apply "Total Trap" logic here too!
-      const isGeneric = qr.markingScheme?.isGeneric;
-      const schemeTotal = qr.markingScheme?.totalMarks || qr.markingScheme?.parentQuestionMarks || 0;
-      const resultTotal = qr.score?.totalMarks || 0;
+      let parsedSchemeObj: any = null;
+      if (typeof qr.markingScheme === 'string' && qr.markingScheme.trim().startsWith('{')) {
+        try { parsedSchemeObj = JSON.parse(qr.markingScheme); } catch (e) {}
+      }
+      const schemeObj = (typeof qr.markingScheme === 'object' && qr.markingScheme !== null) ? qr.markingScheme : parsedSchemeObj;
+      const isGeneric = schemeObj?.isGeneric;
+      const schemeTotal = schemeObj?.totalMarks || schemeObj?.parentQuestionMarks || 0;
+      const resultTotal = qr.totalMarks || qr.score?.totalMarks || 0;
 
       // Identify if the System Scheme is just a placeholder (20, 40, etc.)
       const isDefaultScheme = [20, 40, 100].includes(schemeTotal);

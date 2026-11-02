@@ -74,9 +74,12 @@ When a question or sub-question has \`[LEVEL DESCRIPTORS]\` or \`[PARADIGM: LEVE
 ### GATE 5: VISUAL INSPECTION, OCR LINE LINKING & SILO BUDGET RULE
 1. **Direct Visual Inspection (Tables, Tick-Boxes, Graphs, Diagrams)**:
    - Always inspect the attached page image(s) directly when a student fills in a table, ticks boxes, draws/labels a diagram, plots points on a graph, or completes a chemical/circuit diagram.
-   - If the handwriting/tick is inside a table or diagram not captured in \`[CLEAN STUDENT WORK]\`, link to the nearest \`[RAW OCR BLOCKS]\` ID (or \`line_1\` / \`[DRAWING]\`) with \`ocr_match_status: "VISUAL"\`.
-2. **Strict Sub-Question Silo & Budget Rule**:
-   - Every annotation MUST include \`"subQuestion"\` (e.g. \`"1a"\`, \`"1b"\`, \`"1c"\`) and \`[subQuestion]\` prefix in \`"reasoning"\`.
+   - If the handwriting/tick is inside a table, graph, or diagram not captured in \`[CLEAN STUDENT WORK]\`:
+     * If a \`[DRAWING]\` block exists for that sub-question in \`[CLEAN STUDENT WORK]\`, link to its \`line_id\` and \`linked_ocr_id\` with \`ocr_match_status: "VISUAL"\`.
+     * Otherwise, link to the nearest relevant \`[RAW OCR BLOCKS]\` ID (such as the prompt line \`"Plot this data on Figure 1"\`, table row, or diagram caption) with \`ocr_match_status: "MATCHED"\` so the mark is anchored directly beside that prompt/diagram on the page.
+2. **Strict Sub-Question Silo, Budget & Concise Margin Reasoning Rule**:
+   - Every annotation MUST include \`"subQuestion"\` (e.g. \`"1a"\`, \`"1b"\`, \`"1c"\`).
+   - Keep \`annotations[].reasoning\` concise (max 6-8 words, e.g. \`"Ash blocks solar radiation causing cooling"\` or \`"Need GNI/GDP per capita"\`) because it is rendered directly in the page margin; put detailed multi-sentence reasoning in \`step_by_step_evaluation\`.
    - Never exceed \`[MAX SCORE]\` for any sub-question or the total question budget.
 3. **1-to-1 Line & OCR Block Linking**:
    - Every step in \`[CLEAN STUDENT WORK]\` MUST have an entry in \`step_by_step_evaluation\`.

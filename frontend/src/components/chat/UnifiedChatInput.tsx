@@ -84,7 +84,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [canSelectModel, setCanSelectModel] = useState<boolean>(true); // Initialize with true, we'll check permission later
   const [chatInput, setChatInput] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<'maths' | 'english' | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<'maths' | 'english' | 'custom' | null>(null);
 
   const isEnglishPaper = useCallback((paperStr: string) => {
     return /\b(8700|8702|1EN0|1ET0|J351|J352|C700|C720)\b|english/i.test(paperStr);
@@ -107,7 +107,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     return `${subjectLabel} • ${paperStr}`;
   }, [isEnglishPaper]);
 
-  const handleSubjectSelect = (subject: 'maths' | 'english') => {
+  const handleSubjectSelect = (subject: 'maths' | 'english' | 'custom') => {
     if (selectedSubject === subject) {
       setSelectedSubject(null);
     } else {
@@ -118,7 +118,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
           prev.filter(t => !/a-level|foundation|higher/i.test(t))
         );
       }
-      setShowAutocomplete(true);
+      if (subject === 'custom') {
+        setSelectedTags([]);
+        setIsModelAnswerMode(false);
+        setIsMarkingSchemeMode(false);
+        setShowAutocomplete(false);
+      } else {
+        setShowAutocomplete(true);
+      }
       setHighlightedIndex(-1);
     }
   };
@@ -965,7 +972,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         ? 'AI Marking for A-Level Mathematics'
         : 'AI Marking for GCSE & A-Level Mathematics';
     }
-    return 'AI Examiner for Maths & English Language';
+    if (selectedSubject === 'custom') {
+      return 'AI Marking for Any Subject (With Mark Scheme)';
+    }
+    return 'AI Examiner for GCSE & A-Level';
   };
 
   const getGreetingDescription = () => {
@@ -977,7 +987,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         ? 'Upload your handwritten working for instant A-Level method mark (M/A/B) grading and step-by-step feedback.'
         : 'Upload your handwritten Maths past paper or homework for instant method mark (M1/A1) grading and feedback.';
     }
-    return 'Supporting GCSE & A-Level Maths and GCSE Eng Lang (AQA, Edexcel & OCR) with official mark schemes and grade boundaries. Other subjects coming soon.';
+    if (selectedSubject === 'custom') {
+      return 'Upload your question & answer pages together with the marking scheme (Science, English Lit, History, etc.). Marking scheme pages are free and do not count toward your page limit.';
+    }
+    return 'Built-in mark schemes & grade boundaries for GCSE/A-Level Maths and GCSE English Language—or upload any subject with its mark scheme (mark scheme pages are free of page limits).';
   };
 
   return (
@@ -1007,7 +1020,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               className={`subject-pill ${selectedSubject === 'english' ? 'active' : ''}`}
               onClick={() => handleSubjectSelect('english')}
             >
-              ✍️ GCSE English Language <span className="pill-tag-new">NEW</span>
+              ✍️ GCSE English Language
+            </button>
+            <button
+              type="button"
+              className={`subject-pill ${selectedSubject === 'custom' ? 'active' : ''}`}
+              onClick={() => handleSubjectSelect('custom')}
+            >
+              📄 Any Subject + Mark Scheme <span className="pill-tag-new">NEW</span>
             </button>
           </div>
         </div>
@@ -1136,22 +1156,24 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                         ? "Ask a follow-up question about your marks..."
                         : isModelAnswerMode
                           ? (selectedSubject === 'english'
-                              ? "Search for an Eng Lang paper (e.g. AQA 8700/1, Edexcel 1EN0/01, OCR J351/01)..."
-                              : "Search for a Maths or Eng Lang paper (e.g. Edexcel 1MA1/2H or AQA 8700/1)...")
+                              ? "Search for an English Language paper (e.g. AQA 8700/1, Edexcel 1EN0/01, OCR J351/01)..."
+                              : "Search for a Maths or English Language paper (e.g. Edexcel 1MA1/2H or AQA 8700/1)...")
                           : isMarkingSchemeMode
                             ? (selectedSubject === 'english'
-                                ? "Search for an Eng Lang paper to explain marking scheme..."
-                                : "Search for a Maths or Eng Lang paper to explain marking scheme...")
+                                ? "Search for an English Language paper to explain marking scheme..."
+                                : "Search for a Maths or English Language paper to explain marking scheme...")
                             : selectedSubject === 'english'
-                              ? "Upload your GCSE Eng Lang paper/essay or enter a code (e.g. AQA 8700/1, Edexcel 1EN0, OCR J351)..."
+                              ? "Upload your GCSE English Language paper/essay or enter a code (e.g. AQA 8700/1, Edexcel 1EN0, OCR J351)..."
                               : selectedSubject === 'maths'
                                 ? "Upload your Maths paper or enter an exam code (e.g. Edexcel 1MA1/2H, AQA 8300, OCR J560)..."
-                                : "Upload your Maths or GCSE Eng Lang paper, or enter a code (e.g. Edexcel 1MA1/2H or AQA 8700/1)..."
+                                : selectedSubject === 'custom'
+                                  ? "Upload your question, student answer, and marking scheme together (mark scheme pages don't count toward page limits)..."
+                                  : "Upload Maths/English paper, enter a code (1MA1/2H, 8700/1), or upload any subject + its mark scheme..."
                   }
                   disabled={isProcessing}
                   className="followup-text-input"
                   onFocus={() => {
-                    if (mode === 'first-time') {
+                    if (mode === 'first-time' && selectedSubject !== 'custom') {
                       setShowAutocomplete(true);
                     }
                   }}
@@ -1187,7 +1209,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     </button>
                   )}
 
-                  {!isMarkingSchemeMode && (
+                  {!isMarkingSchemeMode && selectedSubject !== 'custom' && (
                     <button
                       className={`followup-upload-button mode-toggle-btn model-answer-btn ${isModelAnswerMode ? 'active' : ''}`}
                       onClick={() => {
@@ -1203,7 +1225,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     </button>
                   )}
 
-                  {!isModelAnswerMode && (
+                  {!isModelAnswerMode && selectedSubject !== 'custom' && (
                     <button
                       className={`followup-upload-button mode-toggle-btn marking-scheme-btn ${isMarkingSchemeMode ? 'active' : ''}`}
                       onClick={() => {
@@ -1263,7 +1285,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
             </div>
           </div>
-          {showAutocomplete && mode === 'first-time' && (
+          {showAutocomplete && mode === 'first-time' && selectedSubject !== 'custom' && (
             <div className="autocomplete-dropdown inline-style" ref={dropdownRef}>
               <div className="autocomplete-chips-section">
                 <div className="autocomplete-chips-label">Quick Filters:</div>

@@ -716,29 +716,51 @@ export class MarkingPipelineService {
             
             const { GoogleVisionService } = await import('../ocr/GoogleVisionService.js');
 
-            for (let i = 0; i < standardizedPages.length; i++) {
-                const page = standardizedPages[i];
-                // Convert base64 to buffer for Vision API
-                const base64Data = page.imageData.replace(/^data:image\/\w+;base64,/, '');
-                const imageBuffer = Buffer.from(base64Data, 'base64');
-                
-                const rotationNeeded = await GoogleVisionService.detectOrientation(imageBuffer);
-                
-                if (rotationNeeded > 0) {
-                    console.log(`🔄 [VISION ORIENTATION] Page ${page.pageIndex} needs ${rotationNeeded} degrees. Rotating...`);
-                    const rotatedBuffer = await ImageUtils.rotateImage(page.imageData, rotationNeeded);
-                    const mimeType = page.imageData.startsWith('data:') ? page.imageData.split(';')[0] : 'data:image/jpeg';
-                    page.imageData = `${mimeType};base64,${rotatedBuffer.toString('base64')}`;
-                    
-                    // Refresh dimensions after physical rotation
-                    if (rotationNeeded === 90 || rotationNeeded === 270) {
-                        const temp = page.width;
-                        page.width = page.height;
-                        page.height = temp;
-                    }
-                } else {
-                    // console.log(`✅ [VISION ORIENTATION] Page ${page.pageIndex} is upright (0 degrees).`);
+            // ⚡ Skip orientation for pages from digital official Mark Scheme PDFs (identified by filename, >= 5 pages).
+            // These are rendered from the PDF vector source and are always 0° upright.
+            const MARK_SCHEME_FILENAME_REGEX = /(^|[-_\s.])(rms|ms|mark[-_\s]?scheme|marking[-_\s]?scheme)([-_\s.]|$)/i;
+            const pdfPageCountByName = new Map<string, number>();
+            standardizedPages.forEach(p => {
+                const name = p.originalFileName || '';
+                if ((p as any)._sourceIndex !== undefined && /\.pdf$/i.test(name)) {
+                    pdfPageCountByName.set(name, (pdfPageCountByName.get(name) || 0) + 1);
                 }
+            });
+            const isUprightMarkSchemePdfPage = (p: StandardizedPage) => {
+                const name = p.originalFileName || '';
+                return (pdfPageCountByName.get(name) || 0) >= 5 && MARK_SCHEME_FILENAME_REGEX.test(name.replace(/\.pdf$/i, ''));
+            };
+
+            const orientationTargets = standardizedPages.filter(p => !isUprightMarkSchemePdfPage(p));
+            const skippedOrientationCount = standardizedPages.length - orientationTargets.length;
+            if (skippedOrientationCount > 0) {
+                console.log(`⏭️  [VISION ORIENTATION] Skipped ${skippedOrientationCount} upright digital Mark Scheme PDF page(s).`);
+            }
+
+            const ORIENTATION_BATCH_SIZE = 8;
+            for (let b = 0; b < orientationTargets.length; b += ORIENTATION_BATCH_SIZE) {
+                const batch = orientationTargets.slice(b, b + ORIENTATION_BATCH_SIZE);
+                await Promise.all(batch.map(async (page) => {
+                    // Convert base64 to buffer for Vision API
+                    const base64Data = page.imageData.replace(/^data:image\/\w+;base64,/, '');
+                    const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                    const rotationNeeded = await GoogleVisionService.detectOrientation(imageBuffer);
+
+                    if (rotationNeeded > 0) {
+                        console.log(`🔄 [VISION ORIENTATION] Page ${page.pageIndex} needs ${rotationNeeded} degrees. Rotating...`);
+                        const rotatedBuffer = await ImageUtils.rotateImage(page.imageData, rotationNeeded);
+                        const mimeType = page.imageData.startsWith('data:') ? page.imageData.split(';')[0] : 'data:image/jpeg';
+                        page.imageData = `${mimeType};base64,${rotatedBuffer.toString('base64')}`;
+
+                        // Refresh dimensions after physical rotation
+                        if (rotationNeeded === 90 || rotationNeeded === 270) {
+                            const temp = page.width;
+                            page.width = page.height;
+                            page.height = temp;
+                        }
+                    }
+                }));
             }
             logOrientationComplete();
 
@@ -769,14 +791,21 @@ export class MarkingPipelineService {
             let lastRejectionReason = 'Image is blurry, blank, unreadable, or not mathematics content.';
 
             // 🛡️ [SPREAD CONSISTENCY SWEEP]:
-            // If >= 50% of images in a multi-image upload (at least 3 images) are 2-page booklet spreads,
-            // any remaining landscape image (width > height * 1.1, e.g. Page 0 with Cover + Page 2)
+            // If >= 50% of student images in a multi-image upload (at least 3 student images) are 2-page booklet spreads,
+            // any remaining landscape student image (width > height * 1.1, e.g. Page 0 with Cover + Page 2)
             // that missed spread detection due to lacking a dark center crease is also a 2-page spread.
+            // Note: Exclude Marking Scheme pages so a 29-page portrait Mark Scheme PDF does not dilute the student spread ratio!
             const isPageLandscape = (p?: StandardizedPage) =>
                 Boolean(p?.width && p?.height && p.width > p.height * 1.1);
 
-            const spreadCount = geometryResults.filter((g, idx) => g?.is_two_page_spread && isPageLandscape(standardizedPages[idx])).length;
-            const isMajoritySpreadBatch = standardizedPages.length >= 3 && (spreadCount / standardizedPages.length) >= 0.5;
+            const nonSchemeIndices = standardizedPages
+                .map((_, idx) => idx)
+                .filter(idx => !geometryResults[idx]?.is_marking_scheme);
+            const spreadCount = nonSchemeIndices.filter(
+                idx => geometryResults[idx]?.is_two_page_spread && isPageLandscape(standardizedPages[idx])
+            ).length;
+            const isMajoritySpreadBatch =
+                nonSchemeIndices.length >= 3 && (spreadCount / nonSchemeIndices.length) >= 0.5;
 
             // 🛡️ [BYOMS DETECTION & DOCUMENT-LEVEL SUBJECT CONSENSUS]:
             // Check if any uploaded page in the batch is a Marking Scheme (or if a custom marking scheme was provided).
@@ -1101,33 +1130,36 @@ export class MarkingPipelineService {
             // ========================= START: IMPLEMENT STAGE 2 =========================
             // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
             
-            // 🧠 [DYNAMIC PARSER]: Parse intercepted scheme pages BEFORE Classification
-            const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-3.7-flash');
-            
-            if (pagesEjected && interceptedSchemeImages.length > 0) {
+            // 🧠 [DYNAMIC PARSER]: Parse intercepted scheme pages CONCURRENTLY with Classification & OCR.
+            // Neither Classification nor OCR consume inputMarkingScheme — only the scheme orchestration step does —
+            // so we start the parser now and await it right before MarkingSchemeOrchestrationService.
+            const schemeParserPromise: Promise<any | null> = (async () => {
+                if (!pagesEjected || interceptedSchemeImages.length === 0) return null;
+                const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-3.7-flash');
                 try {
                     const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
                     const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
-                    
+                    logSchemeParserComplete();
+
                     // Ensure the object actually contains parsed questions before overriding
                     if (parsedObj && Object.keys(parsedObj).length > 0) {
-                        inputMarkingScheme = parsedObj;
                         console.log(`✅ [SCHEME PARSER] Successfully extracted marking scheme via gemini-3.7-flash.`);
-                        
                         if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
                             console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
-                            console.log(JSON.stringify(inputMarkingScheme, null, 2));
+                            console.log(JSON.stringify(parsedObj, null, 2));
                             console.log(`----------------------------------------------------\n`);
                         }
-                    } else {
-                        console.warn(`⚠️ [SCHEME PARSER] Parser returned empty object. Falling back to generic marking scheme.`);
+                        return parsedObj;
                     }
+                    console.warn(`⚠️ [SCHEME PARSER] Parser returned empty object. Falling back to generic marking scheme.`);
+                    return null;
                 } catch (err) {
-                    console.error(`⚠️ [SCHEME PARSER] Exception during custom marking scheme parsing. Proceeding with generic fallback. Error:`, err instanceof Error ? err.message : String(err));
+                    logSchemeParserComplete();
                     // Leaves inputMarkingScheme untouched (as undefined/null), allowing the rest of the pipeline to default to the generic prompt.
+                    console.error(`⚠️ [SCHEME PARSER] Exception during custom marking scheme parsing. Proceeding with generic fallback. Error:`, err instanceof Error ? err.message : String(err));
+                    return null;
                 }
-            }
-            logSchemeParserComplete();
+            })();
 
             // --- 🧭 EARLY SUBJECT ROUTING (BEFORE CLASSIFICATION & STAGE 3 OCR) ---
             const geoSubjectVote = geometryResults
@@ -1916,6 +1948,29 @@ export class MarkingPipelineService {
             // Collect full OCR text for reliable metadata extraction (e.g. Total Marks)
             const extractedOcrText = allPagesOcrData.map((p: any) => p.ocrData.text).join('\n\n');
 
+            // ⏳ Resolve the concurrently-running custom scheme parser (started before Classification)
+            const parsedCustomScheme = await schemeParserPromise;
+            if (parsedCustomScheme) {
+                inputMarkingScheme = parsedCustomScheme;
+                const parsedSchemeSubject = (parsedCustomScheme as any)?.examDetails?.subject;
+                const parsedSchemePaperCode = (parsedCustomScheme as any)?.examDetails?.paperCode;
+                if (parsedSchemeSubject || parsedSchemePaperCode) {
+                    const schemeResolvedProfile = resolveSubjectProfile({
+                        detectedSubject: geoSubjectVote,
+                        subject: parsedSchemeSubject,
+                        paperCode: geoPaperCodeHint || parsedSchemePaperCode,
+                        customText: options.customText,
+                        fileNames: uploadedFileNames
+                    });
+                    if (schemeResolvedProfile.key !== subjectProfile.key || schemeResolvedProfile.displayName !== subjectProfile.displayName) {
+                        console.log(
+                            `🧭 [SUBJECT-ROUTER] Refined from Uploaded Scheme (subject="${parsedSchemeSubject || 'N/A'}") -> Profile="${schemeResolvedProfile.key}" | Display="${schemeResolvedProfile.displayName}"`
+                        );
+                        subjectProfile = schemeResolvedProfile;
+                    }
+                }
+            }
+
             // Orchestrate marking scheme lookup (detection, grouping, merging)
             const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
@@ -2088,12 +2143,20 @@ export class MarkingPipelineService {
                 // can find top-of-page anchors. Physical sorting is handled by the 'isMeta' flag alone.
                 const isMeta = pageRawResult?.category === 'metadata' || pageRawResult?.category === 'frontPage';
 
+                // Detect true Exam Front Cover so out-of-order loose image uploads never treat it as an interior blank page
+                const pageOcrBlocks = (allPagesOcrData.find(o => o.pageIndex === page.pageIndex) || allPagesOcrData[originalIdx])?.ocrData?.mathBlocks || [];
+                const pageOcrText = pageOcrBlocks.map((b: any) => b.googleVisionText || b.mathpixLatex || b.text || '').join(' ');
+                const hasCoverLandmarks = /candidate\s*surname|centre\s*number|instructions\s*to\s*candidates|paper\s*reference|total\s*mark\s*for\s*this\s*paper|you\s*must\s*have/i.test(pageOcrText)
+                    && !/no\s*questions\s*printed|blank\s*page/i.test(pageOcrText);
+                const isFrontCover = pageRawResult?.category === 'frontPage' || (isMeta && hasCoverLandmarks);
+
                 return {
                     originalIdx,
                     originalPageIndex: page.originalPageIndex,
                     filename: page.originalFileName,
                     minQ: minSortWeight === Infinity ? 999999 : minSortWeight,
                     isMeta,
+                    isFrontCover,
                     debugQ: [...new Set(debugQList)].join(', ')
                 };
             });
@@ -2105,10 +2168,30 @@ export class MarkingPipelineService {
             // Rescue any page (including interior/trailing isMeta booklet pages) that follows a known question page
             // by inheriting `prev.minQ + 0.0001` so it stays in its physical booklet position instead of jumping to Page 0!
             // Leading cover pages (before any question appears, where prev.minQ === 999999) keep minQ = 999999 and stay at Page 0.
+            // CRITICAL: Never backfill a true Front Cover (or a loose image meta page from a different file, or the left-half of a Q1 spread).
             for (let i = 1; i < pageSortMap.length; i++) {
                 const current = pageSortMap[i];
                 const prev = pageSortMap[i - 1];
-                if (current.minQ === 999999 && prev.minQ !== 999999) {
+                const next = pageSortMap[i + 1];
+                const isSpreadCoverBeforeQ1 = Boolean(
+                    current.isMeta &&
+                    next &&
+                    next.filename === current.filename &&
+                    next.minQ < 2
+                );
+                const isDifferentLooseFileMeta = Boolean(
+                    current.isMeta &&
+                    !isPdf &&
+                    !isMultiplePdfs &&
+                    current.filename !== prev.filename
+                );
+                if (
+                    current.minQ === 999999 &&
+                    prev.minQ !== 999999 &&
+                    !current.isFrontCover &&
+                    !isSpreadCoverBeforeQ1 &&
+                    !isDifferentLooseFileMeta
+                ) {
                     current.minQ = prev.minQ + 0.0001;
                 }
             }
@@ -2555,7 +2638,7 @@ export class MarkingPipelineService {
                                         sq.studentWork = '[DRAWING]';
                                     }
 
-                                    const targetPage = sq.pageIndex || q.sourceImageIndex || 0;
+                                    const targetPage = sq.pageIndex ?? sq.sourceImageIndex ?? q.sourceImageIndex ?? 0;
                                     const drawingBox = resolveDrawingBox(sq, q, sq.studentWorkLines, targetPage);
 
                                     // Update lines for sub-question too

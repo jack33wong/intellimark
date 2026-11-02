@@ -91,8 +91,8 @@ const ImageMagnifier = ({
 
 /* --- Data --- */
 const HERO_SEGMENTS = [
-    { text: "Instantly Mark Your Maths & English Past Papers" },
-    { text: "GCSE & A-Level", className: "hero-highlight-blue" }
+    { text: "Instantly Mark Your Exam Past Papers" },
+    { text: "GCSE & A-Level", className: "hero-highlight" }
 ];
 
 
@@ -133,7 +133,7 @@ export const LandingPage: React.FC = () => {
 
                     <div className="hero-new-feature-pill" onClick={() => navigate('/app')}>
                         <span className="pill-badge">NEW</span>
-                        <span className="pill-text">GCSE English Language (AQA, Edexcel &amp; OCR) AI Marking &amp; Model Answers</span>
+                        <span className="pill-text">Mark Maths &amp; English Instantly — Or Upload Any Subject + Your Mark Scheme</span>
                         <span className="pill-arrow">→</span>
                     </div>
 
@@ -147,7 +147,7 @@ export const LandingPage: React.FC = () => {
 
                     {/* BLOCK 1: Subtitle (Immediate start after typing) */}
                     <p className="hero-main-subtitle anim-item delay-1">
-                        Upload your handwritten Mathematics workings or typed/handwritten English Language essays. Receive instant, question-by-question marks aligned with official AQA, Edexcel & OCR mark schemes and Senior Examiner reports.
+                        Built-in official AQA, Edexcel &amp; OCR mark schemes and grade boundaries for <strong>GCSE &amp; A-Level Maths</strong> and <strong>GCSE English Language</strong>—or upload <strong>any subject</strong> together with its mark scheme (mark scheme pages never count toward your page limit).
                     </p>
 
                     <div className="hero-cta-group">
@@ -259,17 +259,18 @@ export const LandingPage: React.FC = () => {
                         <div className="card-badges">
                             <div className="badge-item">
                                 <span className="dot green"></span>
-                                2026 Maths & English Schemes Loaded
+                                ✓ 2,500+ Maths &amp; English Schemes Built-In
                             </div>
                             <div className="badge-item">
                                 <span className="dot blue"></span>
-                                Spatial OCR & AO Level Rubrics
+                                ✓ Any Subject Supported with Mark Scheme (Free Page Quota)
                             </div>
                             <div className="board-list">
                                 <span className="label-tiny">SUPPORTED:</span>
                                 <span className="board-tag">AQA</span>
                                 <span className="board-tag">EDEXCEL</span>
                                 <span className="board-tag">OCR</span>
+                                <span className="board-tag">CIE</span>
                             </div>
                         </div>
 
@@ -284,7 +285,7 @@ export const LandingPage: React.FC = () => {
 
             <section className="universal-tutor-section" id="chat">
                 {/* Centered Section Header */}
-                <h2 className="section-title center">Interactive AI Maths & English Tutor</h2>
+                <h2 className="section-title center">Interactive 24/7 AI Examiner &amp; Tutor</h2>
 
                 <div className="tutor-feature-card">
                     <div className="tutor-grid">

@@ -317,6 +317,14 @@ export const enrichAnnotationsWithPositions = (
         const linkedOcrBlock = activePointer ? findInData(activePointer) : null;
         const isDrawingPointer = Boolean(activePointer && String(activePointer).includes('visual_drawing'));
 
+        // 🛡️ [VISUAL-TO-OCR ANCHOR FALLBACK]:
+        // When the AI marks a graph/table/diagram by linking to a nearby text OCR block (e.g. "Figure 1" or "Plot this data on Figure 1")
+        // with ocr_match_status: "VISUAL" and no explicit visual_position/aiPosition, promote status to "MATCHED"
+        // so it anchors cleanly to that OCR block's coordinates instead of defaulting to [0, 0] at the top-left of the page.
+        if (status === 'VISUAL' && !rawVisualPos && !isDrawingPointer && linkedOcrBlock?.bbox) {
+            status = 'MATCHED';
+        }
+
         if ((status === 'MATCHED' || (anno as any).ocr_match_status === 'SPLIT' || isDrawingPointer) && linkedOcrBlock?.bbox) {
             const b = linkedOcrBlock.bbox;
             const rawOcrBox: [number, number, number, number] = Array.isArray(b) ? [b[0], b[1], b[2], b[3]] : [b.x, b.y, b.width, b.height];
@@ -396,7 +404,7 @@ export const enrichAnnotationsWithPositions = (
             if (status === "UNMATCHED") status = "VISUAL";
         }
 
-        if (status === "MATCHED") classText = "";
+        if (status === "MATCHED" || status === "SPLIT" || Boolean(linkedOcrBlock?.bbox)) classText = "";
 
         // 🛡️ [FINAL SIZE SANITY]: Ensure no annotation ever exits with zero width/height.
         // We enforce a 15px floor for both dimensions.

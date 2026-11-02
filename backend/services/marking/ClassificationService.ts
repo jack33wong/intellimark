@@ -272,8 +272,20 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
 
         const safePageIndices = Array.isArray(pageIndices) ? pageIndices : [];
+
+        // ⚡ PARALLEL CHUNKS: The Mapper pass has already assigned sub-question parts to each page (pageHints),
+        // so every 2-page chunk of a long question can be classified independently and concurrently.
+        const chunkDescriptors: Array<{ chunkIndex: number; chunkIndices: number[] }> = [];
         for (let i = 0; i < safePageIndices.length; i += BATCH_SIZE) {
-          const chunkIndices = safePageIndices.slice(i, i + BATCH_SIZE);
+          chunkDescriptors.push({ chunkIndex: i / BATCH_SIZE, chunkIndices: safePageIndices.slice(i, i + BATCH_SIZE) });
+        }
+        const CHUNK_CONCURRENCY = Math.max(1, parseInt(process.env.CLASSIFICATION_CHUNK_CONCURRENCY || '4', 10));
+
+        const runChunk = async (chunkIndex: number, chunkIndices: number[]): Promise<{
+          chunkIndex: number; pages: any[]; apiUsed: string; usageTokens: number; inputTokens: number; outputTokens: number;
+        }> => {
+          const chunkPages: any[] = [];
+          const i = chunkIndex * BATCH_SIZE; // Preserves original log labels (Chunk ${i/BATCH_SIZE + 1})
           const chunkImages = chunkIndices.map(idx => images[idx]).filter(Boolean);
 
           let taskSystemPrompt = baseSystemPrompt;
@@ -371,10 +383,12 @@ ${pageHints}
                 }))
               };
               
-              if (parsedChunk.pages && Array.isArray(parsedChunk.pages)) {
-                finalParsedPages.push(...parsedChunk.pages);
-              }
-              continue; // Move to the next chunk safely
+              // Bind absolute global indices so downstream page mapping stays correct
+              (parsedChunk.pages || []).forEach((p: any, localIdx: number) => {
+                if (p && typeof p === 'object') p._globalPageIndex = chunkIndices[localIdx];
+              });
+              chunkPages.push(...(parsedChunk.pages || []));
+              return { chunkIndex, pages: chunkPages, apiUsed: '', usageTokens: 0, inputTokens: 0, outputTokens: 0 }; // Move to the next chunk safely
             } else {
               throw error; // Rethrow if it's not a MAX_TOKENS error
             }
@@ -385,11 +399,6 @@ ${pageHints}
           inputTokens = aiResponse.inputTokens || 0;
           outputTokens = aiResponse.outputTokens || 0;
 
-          totalUsageTokens += usageTokens;
-          totalInputTokens += inputTokens;
-          totalOutputTokens += outputTokens;
-
-          finalApiUsed = apiUsed;
           const cleanContent = this.cleanGeminiResponse(content);
           
           if (debug || process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true') {
@@ -430,9 +439,27 @@ ${pageHints}
             }
             // Bind the absolute global index to the page object
             aiPage._globalPageIndex = globalIdx;
-            finalParsedPages.push(aiPage);
+            chunkPages.push(aiPage);
           });
+
+          return { chunkIndex, pages: chunkPages, apiUsed, usageTokens, inputTokens, outputTokens };
+        };
+
+        // Run chunks concurrently (bounded per task) and re-assemble in original page order
+        const chunkResults: Array<Awaited<ReturnType<typeof runChunk>>> = [];
+        for (let c = 0; c < chunkDescriptors.length; c += CHUNK_CONCURRENCY) {
+          const wave = chunkDescriptors.slice(c, c + CHUNK_CONCURRENCY);
+          const waveResults = await Promise.all(wave.map(d => runChunk(d.chunkIndex, d.chunkIndices)));
+          chunkResults.push(...waveResults);
         }
+        chunkResults.sort((a, b) => a.chunkIndex - b.chunkIndex);
+        chunkResults.forEach(r => {
+          totalUsageTokens += r.usageTokens;
+          totalInputTokens += r.inputTokens;
+          totalOutputTokens += r.outputTokens;
+          if (r.apiUsed) finalApiUsed = r.apiUsed;
+          finalParsedPages.push(...r.pages);
+        });
 
         let parsed = { pages: finalParsedPages };
         let apiUsed = finalApiUsed;

@@ -331,9 +331,10 @@ export function enrichWithOCRBbox(
         return annotation; // No lineId, can't match to OCR
     }
 
-    // CRITICAL FIX: Skip OCR bbox enrichment for VISUAL annotations (drawings)
-    // Visual annotations should ONLY use aiPosition, never OCR block coordinates
-    if (annotation.aiMatchStatus === 'VISUAL') {
+    // CRITICAL FIX: Skip OCR bbox enrichment for VISUAL annotations (drawings) ONLY when aiPosition exists.
+    // If the AI flagged ocr_match_status: 'VISUAL' while linking to a text OCR block without aiPosition,
+    // we must still resolve the linked OCR block's bounding box so it does not default to [0, 0, 0, 0].
+    if (annotation.aiMatchStatus === 'VISUAL' && annotation.aiPosition) {
         return annotation; // Preserve visual_position, don't override with OCR bbox
     }
 

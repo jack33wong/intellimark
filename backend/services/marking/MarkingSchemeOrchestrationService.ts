@@ -764,6 +764,70 @@ export class MarkingSchemeOrchestrationService {
         }
       });
 
+      // ✂️ [PARTIAL-UPLOAD TRIM]: If the student only uploaded some parts of a multi-part question
+      // (e.g. 2a–2c out of 2a–2h), restrict the scheme to the contiguous range of uploaded parts so the
+      // question is graded out of the uploaded parts' max (3/5) instead of the full question total (3/30).
+      // Parts sitting BETWEEN detected parts are kept (guards against a classifier missing a middle part).
+      let trimmedTotalMarks: number | null = null;
+      if (subQuestionNumbers.length > 1) {
+        const partOf = (k: string) => normalizeSubQuestionPart(String(k).replace(/^0*\d+/, '')).toLowerCase();
+        // Extract specific sub-question parts (e.g. "a", "b", "c"), ignoring bare parent number ("2" -> "")
+        const specificParts = Array.from(new Set(
+          group
+            .map(item => String(item.question.questionNumber || ''))
+            .filter(q => getBaseQuestionNumber(q) === baseQuestionNumber)
+            .map(partOf)
+            .filter(p => p !== '')
+        ));
+
+        if (specificParts.length > 0) {
+          const schemeOrder = [...subQuestionNumbers];
+          const matchesDetected = (key: string) => {
+            const sp = partOf(key);
+            return !!sp && specificParts.some(dp => sp === dp || sp.startsWith(dp) || dp.startsWith(sp));
+          };
+          const matchedIdx = schemeOrder.map((k, idx) => (matchesDetected(k) ? idx : -1)).filter(idx => idx >= 0);
+          if (matchedIdx.length > 0) {
+            const first = Math.min(...matchedIdx);
+            const last = Math.max(...matchedIdx);
+            const keep = new Set(schemeOrder.slice(first, last + 1));
+            const dropped = schemeOrder.filter(k => !keep.has(k));
+            if (dropped.length > 0) {
+              const keptSum = Array.from(keep).reduce((s, k) => s + (Number(finalSubQuestionMaxScores[k]) || 0), 0);
+              if (keptSum > 0) {
+                dropped.forEach(k => {
+                  delete subQuestionMarksMap[k];
+                  delete subQuestionMetadataMap[k];
+                  delete subQuestionAnswersMap[k];
+                  delete finalSubQuestionMaxScores[k];
+                });
+                const keptNumbers = schemeOrder.filter(k => keep.has(k));
+                subQuestionNumbers.length = 0;
+                subQuestionNumbers.push(...keptNumbers);
+                const keptAnswers = subQuestionAnswers.filter(a => keptNumbers.some(k => a.startsWith(`(${k}) `)));
+                subQuestionAnswers.length = 0;
+                subQuestionAnswers.push(...keptAnswers);
+                trimmedTotalMarks = keptSum;
+                console.log(`✂️  [PARTIAL-UPLOAD TRIM] Q${baseQuestionNumber}: graded on uploaded parts [${keptNumbers.join(', ')}] = ${keptSum} marks (dropped ${dropped.length} un-uploaded part(s): ${dropped.join(', ')}).`);
+              }
+            }
+          }
+        }
+      }
+
+      if (trimmedTotalMarks !== null) {
+        if (masterMatch) {
+          masterMatch.marks = trimmedTotalMarks;
+          masterMatch.parentQuestionMarks = trimmedTotalMarks;
+        }
+        group.forEach(item => {
+          if (item.detectionResult?.match) {
+            item.detectionResult.match.marks = trimmedTotalMarks;
+            item.detectionResult.match.parentQuestionMarks = trimmedTotalMarks;
+          }
+        });
+      }
+
       if (Object.keys(subQuestionMarksMap).length === 0) {
         subQuestionMarksMap[masterMatch.questionNumber] = parentScheme.marks || parentScheme;
         subQuestionNumbers.push(masterMatch.questionNumber);
@@ -787,8 +851,8 @@ export class MarkingSchemeOrchestrationService {
           subQuestionAnswersMap: subQuestionAnswersMap,
           subQuestionMetadata: subQuestionMetadataMap
         },
-        totalMarks: masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0,
-        parentQuestionMarks: masterMatch.parentQuestionMarks || masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0,
+        totalMarks: trimmedTotalMarks !== null ? trimmedTotalMarks : (masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0),
+        parentQuestionMarks: trimmedTotalMarks !== null ? trimmedTotalMarks : (masterMatch.parentQuestionMarks || masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0),
         questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
         subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,
         subQuestionMaxScores: finalSubQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,

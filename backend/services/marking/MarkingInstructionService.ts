@@ -1076,9 +1076,8 @@ export class MarkingInstructionService {
       parsedResponse.annotations.pop();
     }
 
-    parsedResponse = MarkingResultParser.postProcessMarkingResponse(parsedResponse, normalizedScheme, subQuestionPageMap || {}, inputQuestionNumber || '');
-
-    // [RELATIVE-ADAPTER]: Map relative response indices back to physical truth.
+    // [RELATIVE-ADAPTER]: Map relative response indices back to physical truth FIRST,
+    // so postProcessMarkingResponse compares physical anno.pageIndex against physical subQuestionPageMap.
     if (parsedResponse?.annotations && sourceImageIndices) {
       MarkingPromptAdapter.restorePhysicalTruth(parsedResponse.annotations, sourceImageIndices);
       const isQ23 = String(inputQuestionNumber).includes('23');
@@ -1086,6 +1085,8 @@ export class MarkingInstructionService {
         console.log(`🕵️ [ADAPTER-TRACE] Restored IDs for Q${inputQuestionNumber}:`, parsedResponse.annotations.map((a: any) => ({ line_id: a.line_id, ocr: a.linked_ocr_id, p: a.pageIndex })));
       }
     }
+
+    parsedResponse = MarkingResultParser.postProcessMarkingResponse(parsedResponse, normalizedScheme, subQuestionPageMap || {}, inputQuestionNumber || '');
 
     if (!parsedResponse || !parsedResponse.annotations) {
       console.error(`🚨 [ANNOTATIONS MISSING] The AI returned this object instead:\n`, JSON.stringify(parsedResponse, null, 2));

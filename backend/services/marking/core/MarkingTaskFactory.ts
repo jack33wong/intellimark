@@ -254,14 +254,14 @@ export class MarkingTaskFactory {
         // 🏰 [UPSTREAM-SORT]: Enforce strict physical order (Page -> Y)
         // This is critical for the Sequential Zone Detector's "Stop if next question seen" logic.
         allOcrBlocksGlobal.sort((a, b) => {
-            const pageDiff = (a.pageIndex || 0) - (b.pageIndex || 0);
+            const pageDiff = (a.pageIndex ?? 0) - (b.pageIndex ?? 0);
             if (pageDiff !== 0) return pageDiff;
             const yA = a.coordinates?.y ?? 0;
             const yB = b.coordinates?.y ?? 0;
             return yA - yB;
         });
 
-        const distinctPages = [...new Set(allOcrBlocksGlobal.map(b => b.pageIndex || 0))].sort((a, b) => a - b);
+        const distinctPages = [...new Set(allOcrBlocksGlobal.map(b => b.pageIndex ?? 0))].sort((a, b) => a - b);
         // console.log(`[UPSTREAM-SORT] 🏆 Fed ${allOcrBlocksGlobal.length} blocks in order: ${distinctPages.join(' -> ')}`);
 
         const globalExpectedQuestions: Array<{ label: string; text: string; targetPages?: number[] }> = [];
@@ -280,14 +280,14 @@ export class MarkingTaskFactory {
                 }
                 if (!globalExpectedQuestions.some(eq => eq.label === partLabel)) {
                     // 🛡️ [SUB-SPECIFIC]: Prefer node's specific page indices over parent's multi-page array.
-                    // However, for Drawing questions, we must allow the full parent context (bridge questions).
+                    // However, for Drawing questions without an already-detected drawing box on their page, allow a 2-page bridge context.
                     const parentPages = q.sourceImageIndices && q.sourceImageIndices.length > 0 ? q.sourceImageIndices : [q.sourceImageIndex ?? 0];
                     let targetPages = (node.sourceImageIndices && node.sourceImageIndices.length > 0)
                         ? node.sourceImageIndices
                         : (node.pageIndex !== undefined ? [node.pageIndex] : (node.sourceImageIndex !== undefined ? [node.sourceImageIndex] : parentPages));
 
-                    // 🗺️ [BRIDGE-EXPANSION]: If it's a drawing question, it likely needs the full context (e.g. grid opposite).
-                    if (node.hasStudentDrawing && parentPages.length > 1) {
+                    // 🗺️ [BRIDGE-EXPANSION]: Only expand if the drawing box wasn't already located on node's page AND parent spans a 2-page bridge.
+                    if (node.hasStudentDrawing && !(node as any).studentDrawingPosition && parentPages.length === 2) {
                         targetPages = parentPages;
                     }
 

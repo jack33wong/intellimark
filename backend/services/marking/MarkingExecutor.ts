@@ -257,14 +257,18 @@ export async function executeMarkingForQuestion(
           if (typeof probeId === 'string' && probeId.match(/^p(\d+)_/)) {
             const match = probeId.match(/^p(\d+)_/);
             if (match) {
-              const localPageIndex = parseInt(match[1], 10);
-              
-              // 🛑 TRANSLATE LOCAL INDEX BACK TO GLOBAL PHYSICAL PAGE
-              anno.pageIndex = (task.sourcePages && task.sourcePages[localPageIndex] !== undefined) 
-                               ? Number(task.sourcePages[localPageIndex]) 
-                               : localPageIndex;
-                               
-              anno.isPhysicalPage = true;
+              const extractedPageIndex = parseInt(match[1], 10);
+
+              // 🛑 DO NOT DOUBLE-TRANSLATE: If restorePhysicalTruth already converted IDs to physical page numbers
+              // (anno.isPhysicalPage === true), extractedPageIndex IS ALREADY the physical page index!
+              if (anno.isPhysicalPage) {
+                anno.pageIndex = extractedPageIndex;
+              } else {
+                anno.pageIndex = (task.sourcePages && task.sourcePages[extractedPageIndex] !== undefined)
+                                 ? Number(task.sourcePages[extractedPageIndex])
+                                 : extractedPageIndex;
+                anno.isPhysicalPage = true;
+              }
               break;
             }
           }
@@ -428,7 +432,7 @@ export async function executeMarkingForQuestion(
       reconciledRubricEval = lorReconciled.rubricEvaluation;
     } else {
       const strictResult = ScoreAuditor.enforceStrictBudget(enrichedAnnotations, task.markingScheme);
-      if (parsedScore.totalMarks === 0 && task.markingScheme?.totalMarks) {
+      if (task.markingScheme?.totalMarks !== undefined && Number(task.markingScheme.totalMarks) > 0) {
         parsedScore.totalMarks = Number(task.markingScheme.totalMarks);
       }
       parsedScore.awardedMarks = strictResult.awardedMarks;

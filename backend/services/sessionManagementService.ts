@@ -699,6 +699,21 @@ export class SessionManagementService {
         throw new Error('PDF context missing: PDF upload may have failed');
       }
 
+      // MIXED UPLOAD SUPPORT: If the batch also includes non-PDF images alongside PDFs,
+      // populate structuredImageDataArray for those image files as well.
+      const nonPdfEntries = files
+        .map((file, fileIndex) => ({ file, fileIndex }))
+        .filter(entry => entry.file.mimetype !== 'application/pdf');
+      if (nonPdfEntries.length > 0) {
+        structuredImageDataArray = nonPdfEntries.map((entry, idx) => ({
+          url: null, // Will be updated to Firebase URL for authenticated users
+          originalFileName: entry.file.originalname,
+          fileSize: entry.file.size,
+          pageIndex: idx,
+          _fileIndex: entry.fileIndex
+        }));
+      }
+
     } else {
       // For images, use imageDataArray for all users
       if (files.length === 1) {
@@ -730,17 +745,22 @@ export class SessionManagementService {
     originalImageLinks: string[]
   ): void {
     if (structuredPdfContexts) {
-      // For PDFs, update the URLs in pdfContexts
+      // For PDFs, update the URLs in pdfContexts (preserve existing ctx.url if already uploaded as PDF)
       structuredPdfContexts.forEach((ctx, index) => {
-        if (originalImageLinks[index]) {
+        if (!ctx.url && originalImageLinks[index]) {
           ctx.url = originalImageLinks[index];
         }
       });
-    } else if (structuredImageDataArray) {
-      // For images, update the URLs in imageDataArray
+    }
+    if (structuredImageDataArray) {
+      // For images (including images in mixed PDF + image uploads), update the URLs in imageDataArray
       structuredImageDataArray.forEach((item, index) => {
-        if (originalImageLinks[index]) {
-          item.url = originalImageLinks[index];
+        const linkIdx = typeof item._fileIndex === 'number' ? item._fileIndex : index;
+        if (originalImageLinks[linkIdx]) {
+          item.url = originalImageLinks[linkIdx];
+        }
+        if ('_fileIndex' in item) {
+          delete item._fileIndex;
         }
       });
     }

@@ -180,7 +180,9 @@ export class AnnotationLinker {
                         console.log(` 🚫 [SEMANTIC-VETO] Q${anno.subQuestion}: Detaching from "${block.text}" (ID ${physicalId})`);
                         physicalId = null;
                         anno.linked_ocr_id = null;
-                        anno.ocr_match_status = "UNMATCHED";
+                        anno.ocr_match_status = (anno.ocr_match_status === "VISUAL" || (lineId && String(lineId).includes('visual_drawing')))
+                            ? "VISUAL"
+                            : "UNMATCHED";
                     } else if (markY !== null) {
                         // --- IRON DOME VETOES ---
                         const inZone = ZoneUtils.isPointInZone(markY, zoneData, 0);
