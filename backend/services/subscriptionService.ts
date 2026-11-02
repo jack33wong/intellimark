@@ -359,24 +359,27 @@ export class SubscriptionService {
       return null;
     }
 
-    // 2. If scheduled downgrade to free has reached its effective date:
-    if (subscription.scheduledPlanId === 'free' && subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate) {
-      console.log(`[JIT SYNC] Scheduled downgrade to free for user ${subscription.userId} reached effective date. Finalizing cancel.`);
-      await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, {
-        status: 'canceled',
-        scheduledPlanId: null,
-        scheduleId: null,
-        scheduleEffectiveDate: null,
-        updatedAt: now,
-      });
-      const { updateCreditsOnPlanChange } = await import('./creditService.js');
-      await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, 'free', now + 30 * 24 * 3600 * 1000);
-      subscription.status = 'canceled';
-      return null;
-    }
+    // 2. If Stripe confirms active or trialing:
+    if (stripeSub && (stripeSub.status === 'active' || stripeSub.status === 'trialing')) {
+      // If Stripe has cancel_at_period_end enabled and the period end has officially passed:
+      if (stripeSub.cancel_at_period_end && now >= (stripeSub.current_period_end * 1000)) {
+        console.log(`[JIT SYNC] Stripe subscription ${subscription.stripeSubscriptionId} reached period end with cancel_at_period_end=true. Finalizing cancel.`);
+        await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, {
+          status: 'canceled',
+          scheduledPlanId: null,
+          scheduleId: null,
+          scheduleEffectiveDate: null,
+          updatedAt: now,
+        });
+        const { updateCreditsOnPlanChange } = await import('./creditService.js');
+        await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, 'free', now + 30 * 24 * 3600 * 1000);
+        subscription.status = 'canceled';
+        return null;
+      }
 
-    // 3. If Stripe confirms active: sync period dates and check for renewal/plan changes
-    if (stripeSub && stripeSub.status === 'active') {
+      // If user had scheduled a cancellation locally but Stripe cancel_at_period_end is false (user un-canceled in Stripe):
+      const shouldClearScheduledCancel = subscription.scheduledPlanId === 'free' && !stripeSub.cancel_at_period_end;
+
       const newPeriodStart = stripeSub.current_period_start;
       const newPeriodEnd = stripeSub.current_period_end;
       let targetPlanId: 'free' | 'pro' | 'ultra' | 'admin_test' = (subscription.planId as any) || 'free';
@@ -391,7 +394,7 @@ export class SubscriptionService {
         updatedAt: now,
       };
 
-      if (subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate) {
+      if (shouldClearScheduledCancel || (subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate)) {
         updates.planId = targetPlanId;
         updates.scheduledPlanId = null;
         updates.scheduleId = null;
@@ -409,6 +412,22 @@ export class SubscriptionService {
 
       Object.assign(subscription, updates);
       return subscription;
+    }
+
+    // 3. Fallback (Only if Stripe was unreachable or offline):
+    if (subscription.scheduledPlanId === 'free' && subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate) {
+      console.log(`[JIT SYNC] Scheduled downgrade to free for user ${subscription.userId} reached effective date (offline fallback). Finalizing cancel.`);
+      await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, {
+        status: 'canceled',
+        scheduledPlanId: null,
+        scheduleId: null,
+        scheduleEffectiveDate: null,
+        updatedAt: now,
+      });
+      const { updateCreditsOnPlanChange } = await import('./creditService.js');
+      await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, 'free', now + 30 * 24 * 3600 * 1000);
+      subscription.status = 'canceled';
+      return null;
     }
 
     return subscription;
