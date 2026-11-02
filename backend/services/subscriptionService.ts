@@ -122,6 +122,30 @@ export class SubscriptionService {
           // We'll keep this for safety but exclude the new test plan
           activeSubscription.amount = Math.round(activeSubscription.amount * 100);
         }
+
+        // =========================================================================
+        // JIT (Just-In-Time) Lazy Reconciliation
+        // Only triggers when the billing period or scheduled date has actually passed.
+        // For active, in-period subscriptions (99.9% of requests), returns instantly (0ms).
+        // =========================================================================
+        const now = Date.now();
+        const periodEndMs = (activeSubscription.currentPeriodEnd || 0) * 1000;
+        const scheduleDueMs = activeSubscription.scheduleEffectiveDate || 0;
+        const isPeriodExpired = periodEndMs > 0 && now >= periodEndMs;
+        const isScheduleDue = scheduleDueMs > 0 && now >= scheduleDueMs;
+
+        if (isPeriodExpired || isScheduleDue) {
+          try {
+            console.log(`🔄 [JIT SYNC] User ${userId} subscription ${activeSubscription.stripeSubscriptionId} due for sync (periodExpired: ${isPeriodExpired}, scheduleDue: ${isScheduleDue}). Reconciling...`);
+            const reconciledSub = await this.reconcileSubscriptionWithStripe(activeSubscription);
+            if (!reconciledSub || reconciledSub.status !== 'active') {
+              return null;
+            }
+            return reconciledSub;
+          } catch (syncError) {
+            console.error('⚠️ [JIT SYNC] Failed to reconcile subscription, falling back to cached record:', syncError);
+          }
+        }
       }
 
       return activeSubscription as UserSubscription | null;
@@ -285,6 +309,109 @@ export class SubscriptionService {
       console.error('❌ Error getting subscription by Stripe ID:', error);
       return null;
     }
+  }
+
+  /**
+   * JIT (Just-In-Time) Reconciliation:
+   * Synchronizes an expired or due subscription with Stripe on-demand without requiring background cron jobs.
+   */
+  static async reconcileSubscriptionWithStripe(subscription: UserSubscription): Promise<UserSubscription | null> {
+    const docId = (subscription as any).id || subscription.stripeSubscriptionId;
+    const now = Date.now();
+
+    let stripeSub: any = null;
+    if (subscription.stripeSubscriptionId) {
+      try {
+        const stripe = (await import('../config/stripe.js')).default;
+        stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+      } catch (stripeErr: any) {
+        if (stripeErr.message?.includes('No such subscription') || stripeErr.code === 'resource_missing') {
+          console.log(`[JIT SYNC] Stripe subscription ${subscription.stripeSubscriptionId} missing in Stripe. Finalizing cancel locally.`);
+          await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, {
+            status: 'canceled',
+            scheduledPlanId: null,
+            scheduleId: null,
+            scheduleEffectiveDate: null,
+            updatedAt: now,
+          });
+          const { updateCreditsOnPlanChange } = await import('./creditService.js');
+          await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, 'free', now + 30 * 24 * 3600 * 1000);
+          subscription.status = 'canceled';
+          return null;
+        }
+        console.warn('[JIT SYNC] Non-fatal error retrieving Stripe subscription:', stripeErr.message);
+      }
+    }
+
+    // 1. If Stripe explicitly marked canceled / incomplete_expired:
+    if (stripeSub && (stripeSub.status === 'canceled' || stripeSub.status === 'incomplete_expired')) {
+      console.log(`[JIT SYNC] Subscription ${subscription.stripeSubscriptionId} status is ${stripeSub.status} in Stripe. Updating Firestore.`);
+      await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, {
+        status: 'canceled',
+        scheduledPlanId: null,
+        scheduleId: null,
+        scheduleEffectiveDate: null,
+        updatedAt: now,
+      });
+      const { updateCreditsOnPlanChange } = await import('./creditService.js');
+      await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, 'free', now + 30 * 24 * 3600 * 1000);
+      subscription.status = 'canceled';
+      return null;
+    }
+
+    // 2. If scheduled downgrade to free has reached its effective date:
+    if (subscription.scheduledPlanId === 'free' && subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate) {
+      console.log(`[JIT SYNC] Scheduled downgrade to free for user ${subscription.userId} reached effective date. Finalizing cancel.`);
+      await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, {
+        status: 'canceled',
+        scheduledPlanId: null,
+        scheduleId: null,
+        scheduleEffectiveDate: null,
+        updatedAt: now,
+      });
+      const { updateCreditsOnPlanChange } = await import('./creditService.js');
+      await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, 'free', now + 30 * 24 * 3600 * 1000);
+      subscription.status = 'canceled';
+      return null;
+    }
+
+    // 3. If Stripe confirms active: sync period dates and check for renewal/plan changes
+    if (stripeSub && stripeSub.status === 'active') {
+      const newPeriodStart = stripeSub.current_period_start;
+      const newPeriodEnd = stripeSub.current_period_end;
+      let targetPlanId: 'free' | 'pro' | 'ultra' | 'admin_test' = (subscription.planId as any) || 'free';
+
+      if (subscription.scheduledPlanId && subscription.scheduledPlanId !== 'free' && subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate) {
+        targetPlanId = subscription.scheduledPlanId as any;
+      }
+
+      const updates: any = {
+        currentPeriodStart: newPeriodStart,
+        currentPeriodEnd: newPeriodEnd,
+        updatedAt: now,
+      };
+
+      if (subscription.scheduleEffectiveDate && now >= subscription.scheduleEffectiveDate) {
+        updates.planId = targetPlanId;
+        updates.scheduledPlanId = null;
+        updates.scheduleId = null;
+        updates.scheduleEffectiveDate = null;
+      }
+
+      await FirestoreService.updateDocument(this.COLLECTION_NAME, docId, updates);
+
+      // If period rolled forward (renewed), refresh monthly credits
+      if (newPeriodEnd > (subscription.currentPeriodEnd || 0)) {
+        console.log(`[JIT SYNC] Subscription renewed to ${newPeriodEnd}. Refreshing credits...`);
+        const { updateCreditsOnPlanChange } = await import('./creditService.js');
+        await updateCreditsOnPlanChange(subscription.userId, subscription.planId as any, targetPlanId, newPeriodEnd * 1000);
+      }
+
+      Object.assign(subscription, updates);
+      return subscription;
+    }
+
+    return subscription;
   }
 }
 
