@@ -512,6 +512,7 @@ function AdminPage() {
   const [subscriptionsPagination, setSubscriptionsPagination] = useState({ total: 0, totalPages: 0 });
   const [loadingList, setLoadingList] = useState(false);
   const [subscriptionFilter, setSubscriptionFilter] = useState('active'); // Filter: 'active' or 'all'
+  const [subscriptionMetrics, setSubscriptionMetrics] = useState({ activeCount: 0, scheduledChurnCount: 0, mrr: '0.00' });
 
   // Memoized matching and structural check results
   // This prevents the "Triple Check" from running hundreds of times per render.
@@ -2073,6 +2074,9 @@ function AdminPage() {
           const { data } = await ApiClient.get(`/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
           setSubscriptionsList(data.subscriptions);
           setSubscriptionsPagination(data.pagination);
+          if (data.metrics) {
+            setSubscriptionMetrics(data.metrics);
+          }
         } catch (error) {
           console.error('Error loading subscriptions:', error);
         } finally {
@@ -4997,6 +5001,60 @@ function AdminPage() {
 
             {/* All Subscriptions List */}
             <div className="admin-subscription-list-section">
+              {/* Subscription Metric Cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '16px',
+                marginBottom: '20px'
+              }}>
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  backgroundColor: '#1f2937',
+                  border: '1px solid #374151'
+                }}>
+                  <div style={{ color: '#9ca3af', fontSize: '13px', fontWeight: 500, marginBottom: '6px' }}>
+                    Active Subscribers
+                  </div>
+                  <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#10b981' }}>
+                    {subscriptionMetrics.activeCount}
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  backgroundColor: '#1f2937',
+                  border: '1px solid #374151'
+                }}>
+                  <div style={{ color: '#9ca3af', fontSize: '13px', fontWeight: 500, marginBottom: '6px' }}>
+                    Scheduled Churn / Downgrades
+                  </div>
+                  <div style={{
+                    fontSize: '26px',
+                    fontWeight: 'bold',
+                    color: subscriptionMetrics.scheduledChurnCount > 0 ? '#f59e0b' : '#9ca3af'
+                  }}>
+                    {subscriptionMetrics.scheduledChurnCount}
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  backgroundColor: '#1f2937',
+                  border: '1px solid #374151'
+                }}>
+                  <div style={{ color: '#9ca3af', fontSize: '13px', fontWeight: 500, marginBottom: '6px' }}>
+                    Estimated MRR
+                  </div>
+                  <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#60a5fa' }}>
+                    £{subscriptionMetrics.mrr}
+                  </div>
+                </div>
+              </div>
+
               <div className="admin-subscription-list-header">
                 <div>
                   <h3>Subscriptions ({subscriptionsPagination.total})</h3>
@@ -5009,6 +5067,15 @@ function AdminPage() {
                       }}
                     >
                       Active Only
+                    </button>
+                    <button
+                      className={`admin-filter-tab ${subscriptionFilter === 'scheduled' ? 'admin-filter-tab--active' : ''}`}
+                      onClick={() => {
+                        setSubscriptionFilter('scheduled');
+                        setSubscriptionsPage(1);
+                      }}
+                    >
+                      ⚠️ Scheduled Changes ({subscriptionMetrics.scheduledChurnCount})
                     </button>
                     <button
                       className={`admin-filter-tab ${subscriptionFilter === 'all' ? 'admin-filter-tab--active' : ''}`}
@@ -5039,6 +5106,9 @@ function AdminPage() {
                       if (data) {
                         setSubscriptionsList(data.subscriptions);
                         setSubscriptionsPagination(data.pagination);
+                        if (data.metrics) {
+                          setSubscriptionMetrics(data.metrics);
+                        }
                       }
                     } catch (error) {
                       console.error('Error loading subscriptions:', error);
@@ -5073,65 +5143,125 @@ function AdminPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {subscriptionsList.map((sub) => (
-                          <tr key={sub.id} className="admin-table__row">
-                            <td className="admin-table__cell">{sub.email}</td>
-                            <td className="admin-table__cell" style={{ textTransform: 'capitalize' }}>{sub.planId}</td>
-                            <td className="admin-table__cell">
-                              <span className={`status-badge status-badge--${sub.status === 'active' ? 'success' : 'warning'}`}>
-                                {sub.status}
-                              </span>
-                            </td>
-                            <td className="admin-table__cell">
-                              {(sub.amount / 100).toFixed(2)} {sub.currency?.toUpperCase()}
-                            </td>
-                            <td className="admin-table__cell">
-                              {sub.credits ? (
-                                <span style={{
-                                  fontWeight: 600,
-                                  color: sub.credits.remainingCredits < 10 ? '#EF4444' : '#10B981'
-                                }}>
-                                  {sub.credits.remainingCredits} / {sub.credits.totalCredits}
+                        {subscriptionsList.map((sub) => {
+                          const now = Date.now();
+                          const periodEndMs = sub.currentPeriodEnd * 1000;
+                          const isExpired = periodEndMs < now;
+                          const daysLeft = Math.ceil((periodEndMs - now) / (1000 * 60 * 60 * 24));
+
+                          return (
+                            <tr key={sub.id} className="admin-table__row">
+                              <td className="admin-table__cell">
+                                <span style={{ fontWeight: 500 }}>{sub.email}</span>
+                              </td>
+                              <td className="admin-table__cell" style={{ textTransform: 'capitalize' }}>
+                                <span style={{ fontWeight: 600 }}>{sub.planId}</span>
+                                {sub.billingCycle && (
+                                  <span style={{ color: '#9CA3AF', fontSize: '11px', display: 'block', textTransform: 'lowercase' }}>
+                                    {sub.billingCycle}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="admin-table__cell">
+                                <span className={`status-badge status-badge--${sub.status === 'active' ? 'success' : 'warning'}`}>
+                                  {sub.status}
                                 </span>
-                              ) : (
-                                <span style={{ color: '#9CA3AF' }}>—</span>
-                              )}
-                            </td>
-                            <td className="admin-table__cell">
-                              {new Date(sub.currentPeriodEnd * 1000).toLocaleDateString()}
-                            </td>
-                            <td className="admin-table__cell">
-                              <button
-                                className="admin-btn admin-btn--secondary"
-                                style={{ padding: '6px 12px', fontSize: '13px' }}
-                                onClick={() => {
-                                  setSearchUserId(sub.userId);
-                                  // Auto-load this user's data
-                                  (async () => {
-                                    setLoadingSubscription(true);
-                                    try {
-                                      const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${sub.userId}`);
-                                      if (subResponse.ok) {
-                                        const subData = await subResponse.json();
-                                        setUserSubscription(subData.subscription);
+                                {sub.scheduledPlanId && (
+                                  <div style={{ marginTop: '4px' }}>
+                                    {sub.scheduledPlanId === 'free' ? (
+                                      <span
+                                        className="status-badge"
+                                        style={{
+                                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                          color: '#F87171',
+                                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                                          fontSize: '11px',
+                                          padding: '2px 6px',
+                                          whiteSpace: 'nowrap',
+                                          display: 'inline-block'
+                                        }}
+                                      >
+                                        ⚠️ Canceling {sub.scheduleEffectiveDate ? `on ${new Date(sub.scheduleEffectiveDate).toLocaleDateString()}` : 'at period end'}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="status-badge"
+                                        style={{
+                                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                          color: '#FBBF24',
+                                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                                          fontSize: '11px',
+                                          padding: '2px 6px',
+                                          whiteSpace: 'nowrap',
+                                          display: 'inline-block'
+                                        }}
+                                      >
+                                        ⬇️ To {sub.scheduledPlanId} {sub.scheduleEffectiveDate ? `on ${new Date(sub.scheduleEffectiveDate).toLocaleDateString()}` : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="admin-table__cell">
+                                {(sub.amount / 100).toFixed(2)} {sub.currency?.toUpperCase()}
+                              </td>
+                              <td className="admin-table__cell">
+                                {sub.credits ? (
+                                  <span style={{
+                                    fontWeight: 600,
+                                    color: sub.credits.remainingCredits < 10 ? '#EF4444' : '#10B981'
+                                  }}>
+                                    {sub.credits.remainingCredits} / {sub.credits.totalCredits}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: '#9CA3AF' }}>—</span>
+                                )}
+                              </td>
+                              <td className="admin-table__cell">
+                                <div>{new Date(periodEndMs).toLocaleDateString()}</div>
+                                {isExpired && sub.status === 'active' ? (
+                                  <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 600, display: 'block' }}>
+                                    ⚠️ Expired
+                                  </span>
+                                ) : !isExpired ? (
+                                  <span style={{ color: '#9CA3AF', fontSize: '11px', display: 'block' }}>
+                                    ({daysLeft}d left)
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className="admin-table__cell">
+                                <button
+                                  className="admin-btn admin-btn--secondary"
+                                  style={{ padding: '6px 12px', fontSize: '13px' }}
+                                  onClick={() => {
+                                    setSearchUserId(sub.email || sub.userId);
+                                    // Auto-load this user's data
+                                    (async () => {
+                                      setLoadingSubscription(true);
+                                      try {
+                                        const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${encodeURIComponent(sub.userId)}`);
+                                        if (subResponse.ok) {
+                                          const subData = await subResponse.json();
+                                          setUserSubscription(subData.subscription);
+                                        }
+                                        const creditsResponse = await fetch(`http://localhost:5001/api/credits/${encodeURIComponent(sub.userId)}`);
+                                        if (creditsResponse.ok) {
+                                          setUserCredits(await creditsResponse.json());
+                                        }
+                                      } catch (error) {
+                                        console.error('Error:', error);
+                                      } finally {
+                                        setLoadingSubscription(false);
                                       }
-                                      const creditsResponse = await fetch(`http://localhost:5001/api/credits/${sub.userId}`);
-                                      if (creditsResponse.ok) {
-                                        setUserCredits(await creditsResponse.json());
-                                      }
-                                    } catch (error) {
-                                      console.error('Error:', error);
-                                    } finally {
-                                      setLoadingSubscription(false);
-                                    }
-                                  })();
-                                }}
-                              >
-                                Manage
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                                    })();
+                                  }}
+                                >
+                                  Manage
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -5178,7 +5308,7 @@ function AdminPage() {
               <div className="admin-search-box">
                 <input
                   type="text"
-                  placeholder="Enter User ID..."
+                  placeholder="Enter User ID or Email..."
                   value={searchUserId}
                   onChange={(e) => setSearchUserId(e.target.value)}
                   className="admin-search-input"
@@ -5187,13 +5317,14 @@ function AdminPage() {
                   className="admin-btn admin-btn--primary"
                   onClick={async () => {
                     if (!searchUserId.trim()) {
-                      alert('Please enter a User ID');
+                      alert('Please enter a User ID or Email');
                       return;
                     }
                     setLoadingSubscription(true);
                     try {
+                      const trimmedSearch = searchUserId.trim();
                       // Fetch subscription
-                      const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${searchUserId}`);
+                      const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${encodeURIComponent(trimmedSearch)}`);
                       if (subResponse.ok) {
                         const subData = await subResponse.json();
                         setUserSubscription(subData.subscription);
@@ -5202,7 +5333,7 @@ function AdminPage() {
                       }
 
                       // Fetch credits
-                      const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
+                      const creditsResponse = await fetch(`http://localhost:5001/api/credits/${encodeURIComponent(trimmedSearch)}`);
                       if (creditsResponse.ok) {
                         const creditsData = await creditsResponse.json();
                         setUserCredits(creditsData);

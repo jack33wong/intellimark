@@ -106,7 +106,23 @@ router.post('/create-subscription', async (req, res) => {
 router.get('/user-subscription/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const subscription = await SubscriptionService.getUserSubscription(userId);
+    let targetUserId = userId;
+
+    // Support search by email if an email address was provided
+    if (userId.includes('@')) {
+      const db = getFirestore();
+      if (db) {
+        const snap = await db.collection('userSubscriptions')
+          .where('email', '==', userId.toLowerCase().trim())
+          .limit(1)
+          .get();
+        if (!snap.empty) {
+          targetUserId = snap.docs[0].data().userId;
+        }
+      }
+    }
+
+    const subscription = await SubscriptionService.getUserSubscription(targetUserId);
 
     if (!subscription) {
       return res.json({
@@ -117,7 +133,7 @@ router.get('/user-subscription/:userId', async (req, res) => {
 
     // Fetch user credits to include in response
     const { getUserCredits } = await import('../services/creditService.js');
-    const userCredits = await getUserCredits(userId);
+    const userCredits = await getUserCredits(targetUserId);
 
     // Heal logic: If amount is 990 but plan is ultra (Ultra), it's likely from the plan-change bug
     if (subscription && subscription.planId === 'ultra' && subscription.amount === 990) {
@@ -186,25 +202,56 @@ router.get('/list-subscriptions', async (req, res) => {
     }
 
     let query = db.collection('userSubscriptions');
+    let paginatedDocs: any[] = [];
+    let total = 0;
 
-    // Apply status filter if not 'all'
-    if (status !== 'all') {
-      query = query.where('status', '==', status) as any;
+    if (status === 'scheduled') {
+      const activeSnapshot = await query.where('status', '==', 'active').orderBy('createdAt', 'desc').get();
+      const scheduledDocs = activeSnapshot.docs.filter(d => Boolean(d.data().scheduledPlanId));
+      total = scheduledDocs.length;
+      paginatedDocs = scheduledDocs.slice(skip, skip + limit);
+    } else {
+      let filteredQuery = query;
+      if (status !== 'all') {
+        filteredQuery = filteredQuery.where('status', '==', status) as any;
+      }
+      const snapshot = await filteredQuery.get();
+      total = snapshot.size;
+
+      const paginatedSnapshot = await filteredQuery
+        .orderBy('createdAt', 'desc')
+        .limit(limit)
+        .offset(skip)
+        .get();
+      paginatedDocs = paginatedSnapshot.docs;
     }
 
-    // Get total count with filter
-    const snapshot = await query.get();
-    const total = snapshot.size;
+    // Global Subscription Metrics
+    const allActiveSnapshot = await db.collection('userSubscriptions').where('status', '==', 'active').get();
+    let scheduledChurnCount = 0;
+    let mrrCents = 0;
+    allActiveSnapshot.docs.forEach(doc => {
+      const d = doc.data();
+      if (d.scheduledPlanId) {
+        scheduledChurnCount++;
+      }
+      if (d.amount) {
+        if (d.billingCycle === 'yearly') {
+          mrrCents += Math.round(d.amount / 12);
+        } else {
+          mrrCents += d.amount;
+        }
+      }
+    });
 
-    // Get paginated results sorted by most recent
-    const paginatedSnapshot = await query
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .offset(skip)
-      .get();
+    const metrics = {
+      activeCount: allActiveSnapshot.size,
+      scheduledChurnCount,
+      mrr: (mrrCents / 100).toFixed(2)
+    };
 
     // Batch fetch userCredits for these subscriptions
-    const userIds = Array.from(new Set(paginatedSnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
+    const userIds = Array.from(new Set(paginatedDocs.map(doc => doc.data().userId).filter(Boolean)));
     const creditMap = new Map<string, any>();
     if (userIds.length > 0) {
       try {
@@ -220,7 +267,7 @@ router.get('/list-subscriptions', async (req, res) => {
       }
     }
 
-    const subscriptions = paginatedSnapshot.docs.map(doc => {
+    const subscriptions = paginatedDocs.map(doc => {
       const data = doc.data();
       const credits = data.userId ? creditMap.get(data.userId) : null;
       return {
@@ -236,6 +283,7 @@ router.get('/list-subscriptions', async (req, res) => {
 
     res.json({
       subscriptions,
+      metrics,
       pagination: {
         page,
         limit,

@@ -14,8 +14,24 @@ const router = express.Router();
 router.get('/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+        let targetUid = userId;
 
-        const credits = await getUserCredits(userId);
+        // Support search by email
+        if (userId.includes('@')) {
+            const { getFirestore } = await import('../config/firebase.js');
+            const db = getFirestore();
+            if (db) {
+                const snap = await db.collection('userSubscriptions')
+                    .where('email', '==', userId.toLowerCase().trim())
+                    .limit(1)
+                    .get();
+                if (!snap.empty) {
+                    targetUid = snap.docs[0].data().userId;
+                }
+            }
+        }
+
+        const credits = await getUserCredits(targetUid);
 
         if (!credits) {
             // Return default 0 credits instead of 404
