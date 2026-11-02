@@ -990,7 +990,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     if (selectedSubject === 'custom') {
       return 'Upload your question & answer pages together with the marking scheme (Science, English Lit, History, etc.). Marking scheme pages are free and do not count toward your page limit.';
     }
-    return 'Built-in mark schemes & grade boundaries for GCSE/A-Level Maths and GCSE English Language—or upload any subject with its mark scheme (mark scheme pages are free of page limits).';
+    return 'Instant, official-standard marking for Maths, English, or any subject with a mark scheme.';
   };
 
   return (
