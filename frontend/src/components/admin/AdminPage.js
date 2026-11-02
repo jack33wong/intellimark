@@ -2571,8 +2571,61 @@ function AdminPage() {
                           <td className="admin-table__cell">${userStats.totalCost.toFixed(4)}</td>
                           <td className="admin-table__cell">{userStats.apiRequests}</td>
                           <td className="admin-table__cell">
-                            {userStats.paywallHits > 0 ? (
-                                <span className="status-badge status-badge--error">{userStats.paywallHits} Hits</span>
+                            {userStats.paywallHits > 0 || userStats.checkoutInitiated > 0 || userStats.pricingPageViews > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                {userStats.paywallHits > 0 && (
+                                  <span className="status-badge status-badge--error" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                                    {userStats.paywallHits} {userStats.paywallHits === 1 ? 'Hit' : 'Hits'}
+                                  </span>
+                                )}
+                                {userStats.checkoutStage === 'Abandoned on Stripe' && (
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                      color: '#F87171',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      fontSize: '11px',
+                                      padding: '2px 6px',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title={`Initiated Stripe checkout ${userStats.checkoutInitiated || 1} time(s) but abandoned credit card entry`}
+                                  >
+                                    💳 Left on Stripe Card Page
+                                  </span>
+                                )}
+                                {userStats.checkoutStage === 'Stopped on Pricing' && (
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                      color: '#FBBF24',
+                                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                                      fontSize: '11px',
+                                      padding: '2px 6px',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title={`Viewed pricing page ${userStats.pricingPageViews || 1} time(s) but did not click Subscribe`}
+                                  >
+                                    📑 Left on Pricing Page
+                                  </span>
+                                )}
+                                {userStats.checkoutStage === 'Stopped at Paywall' && (
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: 'rgba(107, 114, 128, 0.2)',
+                                      color: '#9CA3AF',
+                                      fontSize: '11px',
+                                      padding: '2px 6px',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title="Closed paywall modal without navigating to pricing"
+                                  >
+                                    🚫 Closed Paywall Modal
+                                  </span>
+                                )}
+                              </div>
                             ) : '-'}
                           </td>
                           <td className="admin-table__cell">

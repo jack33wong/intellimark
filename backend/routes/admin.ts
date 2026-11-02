@@ -1195,6 +1195,9 @@ router.get('/usage', async (req: Request, res: Response) => {
           sessionEngagements: new Map<string, any>(),
           lastActive: txDateIso,
           paywallHits: 0,
+          pricingPageViews: 0,
+          checkoutInitiated: 0,
+          checkoutCanceled: 0,
           churnReason: 'None'
         });
       }
@@ -1238,6 +1241,15 @@ router.get('/usage', async (req: Request, res: Response) => {
               const userStats = usersMap.get(data.userId)!;
               if (data.eventType === 'paywall_viewed') {
                   userStats.paywallHits += 1;
+              }
+              if (data.eventType === 'pricing_page_viewed') {
+                  userStats.pricingPageViews = (userStats.pricingPageViews || 0) + 1;
+              }
+              if (data.eventType === 'checkout_initiated') {
+                  userStats.checkoutInitiated = (userStats.checkoutInitiated || 0) + 1;
+              }
+              if (data.eventType === 'checkout_canceled') {
+                  userStats.checkoutCanceled = (userStats.checkoutCanceled || 0) + 1;
               }
               if (data.eventType === 'exit_survey_submitted') {
                   userStats.churnReason = data.metadata?.reason || 'Unknown';
@@ -1389,9 +1401,23 @@ router.get('/usage', async (req: Request, res: Response) => {
           };
         }
 
+        let checkoutStage = 'None';
+        if (u.checkoutInitiated > 0 || u.checkoutCanceled > 0) {
+          checkoutStage = 'Abandoned on Stripe';
+        } else if (u.pricingPageViews > 0) {
+          checkoutStage = 'Stopped on Pricing';
+        } else if (u.paywallHits > 0) {
+          checkoutStage = 'Stopped at Paywall';
+        }
+
         const { sessionEngagements, ...restUser } = u;
         return {
             ...restUser,
+            paywallHits: u.paywallHits || 0,
+            pricingPageViews: u.pricingPageViews || 0,
+            checkoutInitiated: u.checkoutInitiated || 0,
+            checkoutCanceled: u.checkoutCanceled || 0,
+            checkoutStage,
             avgRating,
             feedbackReasons: feedbackReasons.length > 0 ? feedbackReasons.join(' | ') : '',
             sessionCount: u.sessionIds.size,

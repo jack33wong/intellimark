@@ -11,6 +11,7 @@ import SEO from '../common/SEO';
 import ConfigService from '../../services/configService';
 import { useCredits } from '../../hooks/useCredits';
 import { useSubscription } from '../../hooks/useSubscription';
+import { useTelemetry } from '../../hooks/useTelemetry';
 import './SubscriptionPage.css';
 import '../credits.css';
 
@@ -67,6 +68,28 @@ const SubscriptionPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { logEvent } = useTelemetry();
+
+  // Telemetry: Track pricing page view and Stripe checkout cancellations
+  useEffect(() => {
+    if (!user?.uid) return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const wasCanceled = searchParams.get('canceled') === 'true';
+
+    if (wasCanceled) {
+      logEvent('telemetry_events', {
+        eventType: 'checkout_canceled',
+        metadata: { fromStripe: true }
+      });
+    } else {
+      logEvent('telemetry_events', {
+        eventType: 'pricing_page_viewed',
+        metadata: {
+          fromApp: (location.state as any)?.fromApp || false
+        }
+      });
+    }
+  }, [user?.uid, logEvent, location.search]);
 
   // Fetch configuration and pricing
   useEffect(() => {
@@ -699,6 +722,12 @@ const SubscriptionPage: React.FC = () => {
       }
 
       const { url: checkoutUrl } = await response.json();
+
+      // Log checkout initiated before redirecting to Stripe hosted page
+      logEvent('telemetry_events', {
+        eventType: 'checkout_initiated',
+        metadata: { planId, billingCycle }
+      });
 
       // Redirect to Stripe Checkout
       window.location.href = checkoutUrl;
