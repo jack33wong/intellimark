@@ -40,14 +40,19 @@ Unlike Mathematics (where discrete step ticks sum up to the total score), Englis
 - **Step 3 — Anchor Annotations to Each Developed Paragraph or Point (\`annotations\` array)**:
   - Read through each paragraph across all pages. Place **1 positive evidence marker per developed analytical, comparative, or structural point/paragraph** (typically 2 to 3 per page) so every major section of the student's work receives feedback.
   - Use the appropriate Assessment Objective for the question being marked (e.g., \`AO1\` for Q2 Synthesis, \`AO2\` for Language/Structure, \`AO3\` for Comparison, \`AO4\` for Evaluation, \`AO5\`/\`AO6\` for Writing).
-  - **CONCISE V1 EXAMINER MARGIN PHRASING (5 TO 6 WORDS)**:
-    Every annotation's \`reasoning\` text MUST be an authoritative, specific **5 to 6 word** examiner note following the pattern **\`[Level Adjective] + [Analytical/Rubric Skill] + [Specific Topic from Student's Line]\`**:
+  - **CONCISE V1 EXAMINER MARGIN PHRASING & STRICT LEVEL-KEYWORD ALIGNMENT (5 TO 6 WORDS)**:
+    Every annotation's \`reasoning\` text MUST be an authoritative, specific **5 to 6 word** examiner note following the pattern **\`[Level Adjective] + [Analytical/Rubric Skill] + [Specific Topic from Student's Line]\`**.
+    - **STRICT BADGE-TO-ADJECTIVE MATCH RULE**: The opening \`[Level Adjective]\` in \`reasoning\` MUST strictly match the Level tag (\`L1\`, \`L2\`, \`L3\`, \`L4\`) in that annotation's \`text\` badge:
+      - If badge is \`L1\` -> Start with **"Simple..."** or **"Limited..."** (NEVER use "Simple" on an \`L2\`, \`L3\`, or \`L4\` badge!).
+      - If badge is \`L2\` -> Start with **"Some..."**, **"Attempted..."**, **"Attempts..."**, or **"Identifies..."**.
+      - If badge is \`L3\` -> Start with **"Clear..."**, **"Relevant..."**, **"Effective..."**, or **"Apt..."**.
+      - If badge is \`L4\` -> Start with **"Perceptive..."**, **"Detailed..."**, **"Convincing..."**, or **"Compelling..."**.
     - *Good 5–6 word examples (v1 standard)*:
-      - \`"Clear inference drawn from dining facilities"\`
-      - \`"Perceptive inference regarding stage of development"\`
-      - \`"Effective conceptual synthesis of train designs"\`
-      - \`"Clear like-for-like synthesis of capacity"\`
-      - \`"Apt synthesis of passenger accommodations"\`
+      - \`"Some evaluation of selected verb"\` (for \`[AO4 L2]\`)
+      - \`"Clear inference drawn from dining facilities"\` (for \`[AO1 L3]\`)
+      - \`"Perceptive inference regarding stage of development"\` (for \`[AO1 L4]\`)
+      - \`"Perceptive conceptual synthesis of train designs"\` (for \`[AO1 L4]\`)
+      - \`"Apt synthesis of passenger accommodations"\` (for \`[AO1 L3]\`)
     - Never write vague 2–3 word labels (like \`"Good analysis"\` or \`"Effective synthesis"\`) and never exceed 6 words.
 
 ### 2. SUPPORT ALL 3 QUESTION MODES
