@@ -146,19 +146,63 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         );
       }
 
-      // --- NEW: CONNECTED COMPONENTS GROUPING ---
+      // --- NEW: CONNECTED COMPONENTS GROUPING (WITH DENSE NOTEBOOK GUARD) ---
       // We group questions that share pages into a single "Classification Task"
       // to avoid redundant token usage and coordinate collisions.
+      // 🛡️ DENSE SHEET GUARD: If a lined notebook page contains >= 3 distinct base questions,
+      // it must NOT act as a BFS bridge that chains 20+ printed booklet pages into one mega-task.
 
       const baseQToPages = new Map<string, Set<number>>();
       const pageToBaseQs = new Map<number, Set<string>>();
 
-      // NEW: Track which sub-question is on which page for display & prompt hinting
+      // Track which sub-question is on which page for display & prompt hinting
       // Map<BaseQuestionNumber, Map<PageIndex, Set<QuestionPart>>>
       const subQuestionPageMap = new Map<string, Map<number, Set<string>>>();
 
+      // Detect if we have a Separate Answer / Hybrid upload (some pages are questionAnswer, some are questionOnly)
+      const answeredBaseQsInMapper = new Set<string>();
+      const hasAnyQuestionAnswerPage = resolvedPageMaps.some(m => m.category === 'questionAnswer');
+
+      resolvedPageMaps.forEach(map => {
+        if (map.category === 'questionAnswer' && Array.isArray(map.questions)) {
+          map.questions.forEach(qObj => {
+            const qNum = typeof qObj === 'string' ? qObj : qObj.questionNumber;
+            const match = String(qNum || '').match(/^(\d+)/);
+            const baseQ = match ? match[1] : String(qNum || '').replace(/[a-z]+$/i, '').trim();
+            if (baseQ) answeredBaseQsInMapper.add(baseQ);
+          });
+        }
+      });
+
       resolvedPageMaps.forEach(map => {
         const pageIdx = map.pageIndex;
+
+        // 🛡️ UNATTEMPTED QUESTION-ONLY PRUNING (Multi-Page Exam Guard):
+        // If this upload has student answers (`hasAnyQuestionAnswerPage`) and > 3 total pages,
+        // any `questionOnly` page whose questions were NOT answered anywhere by the student
+        // does not need expensive Pass-2 Heavy Classification.
+        if (
+          hasAnyQuestionAnswerPage &&
+          images.length > 3 &&
+          map.category === 'questionOnly' &&
+          Array.isArray(map.questions) &&
+          map.questions.length > 0
+        ) {
+          const hasAnsweredQOnThisPage = map.questions.some(qObj => {
+            const qNum = typeof qObj === 'string' ? qObj : qObj.questionNumber;
+            const match = String(qNum || '').match(/^(\d+)/);
+            const baseQ = match ? match[1] : String(qNum || '').replace(/[a-z]+$/i, '').trim();
+            return baseQ && answeredBaseQsInMapper.has(baseQ);
+          });
+
+          if (!hasAnsweredQOnThisPage) {
+            // Downgrade unattempted questionOnly page to metadata so Pass 2 skips it
+            map.category = 'frontPage';
+            map.questions = [];
+            return;
+          }
+        }
+
         if (map.questions && Array.isArray(map.questions)) {
           map.questions.forEach(qObj => {
             const qNum = typeof qObj === 'string' ? qObj : qObj.questionNumber;
@@ -180,47 +224,96 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             if (!pageToParts.has(pageIdx)) {
               pageToParts.set(pageIdx, new Set());
             }
-            // Add all involved labels for this baseQ on this page
-            const labels = typeof qObj === 'string' ? [qObj] : [qObj.questionNumber, ...(qObj.subQuestions?.map((s: string) => `${qObj.questionNumber}${s}`) || [])];
+            const labels = typeof qObj === 'string'
+              ? [qObj]
+              : [qObj.questionNumber, ...(qObj.subQuestions?.map((s: string) => `${qObj.questionNumber}${s}`) || [])];
             labels.forEach(l => pageToParts.get(pageIdx)!.add(l));
           });
         }
       });
 
-      // Find Connected Components using BFS
-      const visitedQs = new Set<string>();
+      // Identify dense multi-question pages (>= 3 distinct base questions on a single page, e.g. lined notebook sheet)
+      // AND separate category domains ('questionOnly' vs 'questionAnswer') so a notebook page never BFS-bridges
+      // all printed PDF pages into a single 26-page component.
+      const pageCategoryMap = new Map<number, string>();
+      resolvedPageMaps.forEach(m => pageCategoryMap.set(m.pageIndex, m.category || 'questionAnswer'));
+
+      const isDensePage = (pIdx: number) => (pageToBaseQs.get(pIdx)?.size || 0) >= 3;
+
+      // Group pages by category domain ('questionOnly' vs 'questionAnswer') first,
+      // and cap each task at MAX_QUESTIONS_PER_COMPONENT to prevent MAX_TOKENS_EXCEEDED on notebook pages.
+      const MAX_QUESTIONS_PER_COMPONENT = 4;
       const markingTasks: Array<{ questionNumber: string; pageIndices: number[]; baseQNumbers: string[] }> = [];
 
-      baseQToPages.forEach((_, startQ) => {
-        if (visitedQs.has(startQ)) return;
+      const buildTasksForDomain = (domainFilter: (cat: string) => boolean) => {
+        const domainVisitedQs = new Set<string>();
 
-        const componentQs = new Set<string>();
-        const componentPages = new Set<number>();
-        const qQueue = [startQ];
+        // Build domain-specific adjacency maps
+        const domainQToPages = new Map<string, Set<number>>();
+        const domainPageToQs = new Map<number, Set<string>>();
 
-        while (qQueue.length > 0) {
-          const q = qQueue.shift()!;
-          if (visitedQs.has(q)) continue;
-          visitedQs.add(q);
-          componentQs.add(q);
-
-          const pages = baseQToPages.get(q) || new Set();
-          pages.forEach(p => {
-            componentPages.add(p);
-            const otherQs = pageToBaseQs.get(p) || new Set();
-            otherQs.forEach(oq => {
-              if (!visitedQs.has(oq)) qQueue.push(oq);
+        baseQToPages.forEach((pages, q) => {
+          const filteredPages = Array.from(pages).filter(p => domainFilter(pageCategoryMap.get(p) || 'questionAnswer'));
+          if (filteredPages.length > 0) {
+            domainQToPages.set(q, new Set(filteredPages));
+            filteredPages.forEach(p => {
+              if (!domainPageToQs.has(p)) domainPageToQs.set(p, new Set());
+              domainPageToQs.get(p)!.add(q);
             });
-          });
-        }
-
-        const sortedQs = Array.from(componentQs).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
-        markingTasks.push({
-          questionNumber: sortedQs.join(', '), // Display label
-          baseQNumbers: sortedQs,
-          pageIndices: Array.from(componentPages).sort((a, b) => a - b)
+          }
         });
-      });
+
+        domainQToPages.forEach((_, startQ) => {
+          if (domainVisitedQs.has(startQ)) return;
+
+          const componentQs = new Set<string>();
+          const componentPages = new Set<number>();
+          const qQueue = [startQ];
+
+          while (qQueue.length > 0) {
+            const q = qQueue.shift()!;
+            if (domainVisitedQs.has(q)) continue;
+            domainVisitedQs.add(q);
+            componentQs.add(q);
+
+            const pages = domainQToPages.get(q) || new Set();
+            pages.forEach(p => {
+              componentPages.add(p);
+              // Do not traverse across different pages through a dense notebook sheet (>3 questions)
+              // if doing so would blow past MAX_QUESTIONS_PER_COMPONENT
+              const otherQs = domainPageToQs.get(p) || new Set();
+              if (!isDensePage(p) || componentPages.size <= 1) {
+                otherQs.forEach(oq => {
+                  if (!domainVisitedQs.has(oq)) qQueue.push(oq);
+                });
+              }
+            });
+          }
+
+          const sortedQs = Array.from(componentQs).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+
+          // Split into batches of MAX_QUESTIONS_PER_COMPONENT if a dense notebook page has many questions
+          for (let i = 0; i < sortedQs.length; i += MAX_QUESTIONS_PER_COMPONENT) {
+            const batchQs = sortedQs.slice(i, i + MAX_QUESTIONS_PER_COMPONENT);
+            const batchPagesSet = new Set<number>();
+            batchQs.forEach(bq => {
+              (domainQToPages.get(bq) || new Set()).forEach(p => batchPagesSet.add(p));
+            });
+            const batchPages = Array.from(batchPagesSet).sort((a, b) => a - b);
+
+            markingTasks.push({
+              questionNumber: batchQs.join(', '),
+              baseQNumbers: batchQs,
+              pageIndices: batchPages
+            });
+          }
+        });
+      };
+
+      // 1. Build tasks for 'questionAnswer' pages (Student work pages never merge with 'questionOnly' PDF pages)
+      buildTasksForDomain(cat => cat !== 'questionOnly');
+      // 2. Build tasks for remaining 'questionOnly' pages (Donor stem pages or pure Question Mode)
+      buildTasksForDomain(cat => cat === 'questionOnly');
 
       // Handle pages that are categorized as question content but have no specific question number
       const mappedPageIndices = new Set<number>();
@@ -231,8 +324,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       );
 
       if (isVerbatimProse) {
-        // Group consecutive unmapped 'questionAnswer' pages (e.g., multi-page essay / creative writing)
-        // into a single task so they are evaluated as ONE unified piece of work.
         const sortedUnmapped = [...unmappedContentPages].sort((a, b) => a.pageIndex - b.pageIndex);
         const processedIndices = new Set<number>();
 
@@ -241,7 +332,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           if (processedIndices.has(map.pageIndex)) continue;
 
           if (map.category === 'questionAnswer') {
-            // Find continuous run of consecutive questionAnswer pages
             const consecutiveRun: number[] = [map.pageIndex];
             processedIndices.add(map.pageIndex);
 
@@ -264,7 +354,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               isFullPage: true
             } as any);
           } else {
-            // questionOnly page
             processedIndices.add(map.pageIndex);
             markingTasks.push({
               questionNumber: `Page ${map.pageIndex + 1}`,
@@ -275,12 +364,11 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           }
         }
       } else {
-        // Standard non-verbatim / Maths / Science behaviour: 1 task per page
         unmappedContentPages.forEach(map => {
           markingTasks.push({
-            questionNumber: `Page ${map.pageIndex + 1}`, // Placeholder name
+            questionNumber: `Page ${map.pageIndex + 1}`,
             pageIndices: [map.pageIndex],
-            isFullPage: true // Flag to indicate full page extraction
+            isFullPage: true
           } as any);
         });
       }
@@ -673,6 +761,35 @@ ${pageHints}
 
         }
       }
+
+      // Consolidate multiple question-batch results that ran on the same dense pageIndex
+      const consolidatedByPage = new Map<number, { pageIndex: number; mapperCategory?: string; result: ClassificationResult }>();
+      for (const entry of results) {
+        const existing = consolidatedByPage.get(entry.pageIndex);
+        if (!existing) {
+          consolidatedByPage.set(entry.pageIndex, {
+            ...entry,
+            result: {
+              ...entry.result,
+              questions: [...(entry.result.questions || [])]
+            }
+          });
+        } else {
+          existing.result.questions = [
+            ...(existing.result.questions || []),
+            ...(entry.result.questions || [])
+          ];
+          existing.result.usageTokens = (existing.result.usageTokens || 0) + (entry.result.usageTokens || 0);
+          existing.result.llmInputTokens = (existing.result.llmInputTokens || 0) + (entry.result.llmInputTokens || 0);
+          existing.result.llmOutputTokens = (existing.result.llmOutputTokens || 0) + (entry.result.llmOutputTokens || 0);
+          if (entry.result.category === 'questionAnswer') {
+            existing.result.category = 'questionAnswer';
+            existing.mapperCategory = 'questionAnswer';
+          }
+        }
+      }
+      results.length = 0;
+      results.push(...consolidatedByPage.values());
 
       // Sort by page index
       results.sort((a, b) => a.pageIndex - b.pageIndex);

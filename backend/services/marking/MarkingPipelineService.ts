@@ -1281,6 +1281,156 @@ export class MarkingPipelineService {
                 }
             }
 
+            // --- 🌟 SEPARATE ANSWER & HYBRID DONOR STEM HARVESTING ---
+            // When a student writes answers on separate notebook pages (or partially on the booklet and
+            // partially on notebook pages), `questionOnly` pages contain the printed question stems and
+            // sub-question prompts for questions answered in `answeredBaseQuestions`.
+            // 1. Harvest printed stems & sub-question texts from `questionOnly` pages into `donatedStemsByQNum`.
+            // 2. If an entire uploaded source file has ZERO `questionAnswer` pages (a pure Reference Question Paper PDF)
+            //    while other files have student work, eject all pages of that Reference Question Paper from
+            //    `standardizedPages` and `allClassificationResults` so they are never OCR'd by Mathpix or rendered in output!
+            // 3. In multi-page exams (> 3 pages) that have student work, reclassify any remaining `questionOnly`
+            //    pages inside partially-answered booklets to `'metadata'` so `QuestionModeHandlerService` does not solve them.
+            const donatedStemsByQNum = new Map<string, {
+                text: string;
+                subQuestionsMap: Map<string, string>;
+                donorImageData?: string;
+            }>();
+
+            if (answeredBaseQuestions.size > 0) {
+                for (const item of allClassificationResults) {
+                    if (item.result?.category === 'questionOnly' && Array.isArray(item.result?.questions)) {
+                        const donorPage = standardizedPages.find(p => p.pageIndex === item.pageIndex);
+                        for (const q of item.result.questions) {
+                            const baseNum = String(q.questionNumber || '').replace(/[^0-9]/g, '');
+                            if (!baseNum || !answeredBaseQuestions.has(baseNum)) continue;
+
+                            if (!donatedStemsByQNum.has(baseNum)) {
+                                donatedStemsByQNum.set(baseNum, {
+                                    text: '',
+                                    subQuestionsMap: new Map<string, string>(),
+                                    donorImageData: donorPage?.imageData
+                                });
+                            }
+                            const entry = donatedStemsByQNum.get(baseNum)!;
+                            const qText = (q.text || (q as any).questionText || '').trim();
+                            if (qText && qText !== 'null' && qText.length > entry.text.length) {
+                                entry.text = qText;
+                            }
+
+                            const harvestSubQuestions = (subs: any[], prefix: string = '') => {
+                                if (!Array.isArray(subs)) return;
+                                for (const sq of subs) {
+                                    const rawPart = String(sq.part || '').replace(/[()\s]/g, '').toLowerCase();
+                                    const fullPart = prefix ? `${prefix}${rawPart}` : rawPart;
+                                    const sqText = (sq.text || (sq as any).questionText || '').trim();
+                                    if (fullPart && sqText && sqText !== 'null') {
+                                        const existingSqText = entry.subQuestionsMap.get(fullPart) || '';
+                                        if (sqText.length > existingSqText.length) {
+                                            entry.subQuestionsMap.set(fullPart, sqText);
+                                        }
+                                    }
+                                    if (Array.isArray(sq.subQuestions)) {
+                                        harvestSubQuestions(sq.subQuestions, fullPart);
+                                    }
+                                }
+                            };
+                            harvestSubQuestions(q.subQuestions);
+                        }
+                    }
+                }
+
+                // Detect Pure Reference Question Paper files (files with >= 2 pages and 0 `questionAnswer` pages)
+                const getSourceFileKey = (p: StandardizedPage) =>
+                    `${(p as any)._sourceIndex ?? 'img'}_${p.originalFileName || 'default'}`;
+
+                const fileAnswerCounts = new Map<string, { total: number; answered: number; name: string }>();
+                for (const page of standardizedPages) {
+                    const key = getSourceFileKey(page);
+                    const stat = fileAnswerCounts.get(key) || { total: 0, answered: 0, name: page.originalFileName || 'default' };
+                    stat.total++;
+                    const cls = allClassificationResults.find(r => r.pageIndex === page.pageIndex);
+                    if (cls?.result?.category === 'questionAnswer') {
+                        stat.answered++;
+                    }
+                    fileAnswerCounts.set(key, stat);
+                }
+
+                const hasAnsweredFile = Array.from(fileAnswerCounts.values()).some(s => s.answered > 0);
+                const pureReferenceFileKeys = new Set<string>();
+                if (hasAnsweredFile && fileAnswerCounts.size >= 2) {
+                    fileAnswerCounts.forEach((stat, key) => {
+                        if (stat.answered === 0 && stat.total >= 2) {
+                            pureReferenceFileKeys.add(key);
+                            console.log(
+                                `📑 [SEPARATE-ANSWER DEMUX] Ejecting Reference Question Paper "${stat.name}" (${stat.total} pages, 0 student work) after harvesting ${donatedStemsByQNum.size} question stem(s).`
+                            );
+                        }
+                    });
+                }
+
+                if (pureReferenceFileKeys.size > 0) {
+                    const keptPages: StandardizedPage[] = [];
+                    const keptClassifications: typeof allClassificationResults = [];
+                    const oldToCompactedIdx = new Map<number, number>();
+
+                    for (const page of standardizedPages) {
+                        if (!pureReferenceFileKeys.has(getSourceFileKey(page))) {
+                            const newIdx = keptPages.length;
+                            oldToCompactedIdx.set(page.pageIndex, newIdx);
+                            keptPages.push({ ...page, pageIndex: newIdx });
+                        }
+                    }
+
+                    const remapNodePageIdx = (node: any, newIdx: number) => {
+                        if (!node || typeof node !== 'object') return;
+                        node.pageIndex = newIdx;
+                        node.sourceImageIndex = newIdx;
+                        node.sourceImageIndices = [newIdx];
+                        if (Array.isArray(node.studentWorkLines)) {
+                            node.studentWorkLines.forEach((l: any) => {
+                                if (l && typeof l === 'object') {
+                                    l.pageIndex = newIdx;
+                                    if (l.position) l.position.pageIndex = newIdx;
+                                }
+                            });
+                        }
+                        if (Array.isArray(node.subQuestions)) {
+                            node.subQuestions.forEach((sq: any) => remapNodePageIdx(sq, newIdx));
+                        }
+                    };
+
+                    for (const cls of allClassificationResults) {
+                        const newIdx = oldToCompactedIdx.get(cls.pageIndex);
+                        if (newIdx !== undefined) {
+                            if (Array.isArray(cls.result?.questions)) {
+                                cls.result.questions.forEach((q: any) => remapNodePageIdx(q, newIdx));
+                            }
+                            keptClassifications.push({
+                                ...cls,
+                                pageIndex: newIdx
+                            });
+                        }
+                    }
+
+                    standardizedPages = keptPages;
+                    allClassificationResults = keptClassifications;
+                } else if (standardizedPages.length > 3) {
+                    // Hybrid / Partially-Answered Booklet Case:
+                    // Reclassify remaining `questionOnly` pages inside a partially-answered exam booklet (> 3 pages)
+                    // to `'metadata'` so `QuestionModeHandlerService` does NOT solve unattempted exam questions.
+                    for (const item of allClassificationResults) {
+                        if (item.result?.category === 'questionOnly') {
+                            console.log(
+                                `🧹 [HYBRID-BOOKLET] Reclassifying blank/donor exam page ${item.pageIndex} from 'questionOnly' to 'metadata' (stems already harvested).`
+                            );
+                            item.result.category = 'metadata';
+                            item.result.questions = [];
+                        }
+                    }
+                }
+            }
+
             // ========================= CATEGORY OVERRIDE (BEFORE SPLIT) =========================
             // [REMOVED] Override 1: Drawing-only pages → questionOnly
             // User requested to preserve drawing detection even if text is minimal.
@@ -1411,12 +1561,70 @@ export class MarkingPipelineService {
             // Merge questions with same questionNumber
             const allQuestions: any[] = [];
 
+            // Helper to hydrate missing question & sub-question stems from donatedStemsByQNum
+            const hydrateQuestionWithDonatedStems = (qObj: any, baseQNum: string) => {
+                const donated = donatedStemsByQNum.get(baseQNum);
+                if (!donated) return qObj;
+
+                // Mark this question as residing on a separate handwritten answer sheet (no physical printed stem on page)
+                qObj.isSeparateAnswerSheet = true;
+
+                // 1. Hydrate main question stem if missing or contaminated/short on notebook page
+                const currentText = (qObj.text && qObj.text !== 'null') ? String(qObj.text).trim() : '';
+                if ((!currentText || currentText.length < 10) && donated.text) {
+                    qObj.text = donated.text;
+                }
+
+                // 2. Hydrate existing sub-questions and inject any sub-question texts from the donor PDF
+                const existingSubQs = Array.isArray(qObj.subQuestions) ? qObj.subQuestions : [];
+                const normalizePartKey = (p: string) =>
+                    String(p || '').replace(new RegExp(`^0*${baseQNum}`, 'i'), '').replace(/[()\s]/g, '').toLowerCase();
+
+                existingSubQs.forEach((sq: any) => {
+                    sq.isSeparateAnswerSheet = true;
+                    const partKey = normalizePartKey(sq.part || '');
+                    const donatedSqText = donated.subQuestionsMap.get(partKey);
+                    const curSqText = (sq.text && sq.text !== 'null') ? String(sq.text).trim() : '';
+                    if ((!curSqText || curSqText.length < 5) && donatedSqText) {
+                        sq.text = donatedSqText;
+                    }
+                });
+
+                // If the notebook question has no subQuestions array yet, but donatedStems has sub-question prompts,
+                // attach them to qObj.text so both Question Detection and the Marking AI see the full sub-question wording & marks
+                if (donated.subQuestionsMap.size > 0) {
+                    const fullStemParts: string[] = [];
+                    if (qObj.text && qObj.text !== 'null') fullStemParts.push(String(qObj.text).trim());
+                    donated.subQuestionsMap.forEach((sqText, partKey) => {
+                        const alreadyInMain = fullStemParts.some(p => p.toLowerCase().includes(sqText.toLowerCase().slice(0, 25)));
+                        if (!alreadyInMain) {
+                            fullStemParts.push(`(${partKey}) ${sqText}`);
+                        }
+                    });
+                    qObj.text = fullStemParts.join('\n');
+                }
+
+                return qObj;
+            };
+
+            // Helper to check if a question instance on a page actually has student work
+            const hasInstanceStudentWork = (q: any): boolean => {
+                if (!q) return false;
+                if (q.hasStudentDrawing === true) return true;
+                if (Array.isArray(q.studentWorkLines) && q.studentWorkLines.length > 0) return true;
+                if (q.studentWork && q.studentWork !== 'null' && String(q.studentWork).trim().length > 0) return true;
+                if (Array.isArray(q.subQuestions)) {
+                    return q.subQuestions.some((sq: any) => hasInstanceStudentWork(sq));
+                }
+                return false;
+            };
+
             // Process merged questions
             questionsByNumber.forEach((questionInstances, questionNumber) => {
-
                 if (questionInstances.length === 1) {
-                    // Single page - no merge needed
+                    // Single page - hydrate with donated stems if needed
                     const { question, pageIndex } = questionInstances[0];
+                    hydrateQuestionWithDonatedStems(question, questionNumber);
                     const page = standardizedPages.find(p => p.pageIndex === pageIndex);
                     allQuestions.push({
                         ...question,
@@ -1425,10 +1633,6 @@ export class MarkingPipelineService {
                     });
                 } else {
                     // Multiple pages with same questionNumber - merge them
-                    // Fix: Prioritize finding the BEST text, not just the first one.
-                    // 1. Deprioritize "BLANK PAGE" explicitly
-                    // 2. Deprioritize contaminated stems (where question.text is actually the student's own handwriting on that page)
-                    // 3. Otherwise prefer longer text
                     const isVerbatimProse = subjectProfile?.ocrStrategy === 'VISION_VERBATIM';
                     const isContaminatedStem = (q: any): boolean => {
                         if (!q || !q.text) return false;
@@ -1443,13 +1647,11 @@ export class MarkingPipelineService {
                         const textA = a.question.text || '';
                         const textB = b.question.text || '';
 
-                        // Deprioritize "BLANK PAGE" explicitly
                         const isBlankA = textA.toUpperCase().includes('BLANK PAGE');
                         const isBlankB = textB.toUpperCase().includes('BLANK PAGE');
                         if (isBlankA && !isBlankB) return 1;
                         if (!isBlankA && isBlankB) return -1;
 
-                        // Deprioritize contaminated stems (verbatim prose only)
                         if (isVerbatimProse) {
                             const cA = isContaminatedStem(a.question);
                             const cB = isContaminatedStem(b.question);
@@ -1457,25 +1659,25 @@ export class MarkingPipelineService {
                             if (!cA && cB) return -1;
                         }
 
-                        // Otherwise prefer longer text
                         return textB.length - textA.length;
                     });
 
                     const pageWithText = sortedInstances[0];
 
-                    // Combine student work from all pages
+                    // 🛡️ ANCHOR FIX: Always anchor `sourceImageIndex` to the first page that has actual student work,
+                    // NOT `pageWithText` (which may be a blank printed booklet page in hybrid mode).
+                    const firstInstanceWithWork = questionInstances.find(inst => hasInstanceStudentWork(inst.question)) || pageWithText;
+                    const anchorPageIndex = firstInstanceWithWork.pageIndex;
+
                     const combinedStudentWork = questionInstances
                         .map(({ question }) => question.studentWork)
                         .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
                         .join('\n');
 
-                    // 🛡️ [GLOBAL-ID FIX]: Combine parent-level student work lines from all pages
-                    // Every line must keep its original page index
                     const combinedParentLines: any[] = [];
                     questionInstances.forEach(({ question, pageIndex }) => {
                         if (question.studentWorkLines && Array.isArray(question.studentWorkLines)) {
                             question.studentWorkLines.forEach((line: any) => {
-                                // Stamp the page index on the line before adding
                                 combinedParentLines.push({
                                     ...line,
                                     pageIndex: line.pageIndex !== undefined ? line.pageIndex : pageIndex
@@ -1484,13 +1686,15 @@ export class MarkingPipelineService {
                         }
                     });
 
-                    // Merge sub-questions if present (group by part, combine student work)
-                    // Also track which pages each sub-question came from
-                    // Recursive merge helper for sub-questions
+                    const mergedSubQuestionsMap = new Map<string, any>();
+                    const subQuestionPageIndices = new Set<number>();
+
                     const mergeSubQuestionsRecursive = (existingMap: Map<string, any>, incomingSubQuestions: any[], pIdx: number) => {
                         incomingSubQuestions.forEach((subQ: any) => {
                             const part = subQ.part || '';
-                            subQuestionPageIndices.add(pIdx);
+                            if (hasInstanceStudentWork(subQ)) {
+                                subQuestionPageIndices.add(pIdx);
+                            }
 
                             if (!existingMap.has(part)) {
                                 existingMap.set(part, {
@@ -1503,12 +1707,15 @@ export class MarkingPipelineService {
 
                             const existing = existingMap.get(part)!;
 
-                            // Merge Text
+                            // Prefer anchoring sub-question pageIndex to the page that actually has student work
+                            if (hasInstanceStudentWork(subQ) && (!existing.studentWorkLines || existing.studentWorkLines.length === 0)) {
+                                existing.pageIndex = pIdx;
+                            }
+
                             if (subQ.text && subQ.text !== 'null' && !existing.text) {
                                 existing.text = subQ.text;
                             }
 
-                            // Merge Student Work
                             if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim().length > 0) {
                                 if (existing.studentWork && !existing.studentWork.includes(subQ.studentWork)) {
                                     existing.studentWork += '\n' + subQ.studentWork;
@@ -1517,11 +1724,8 @@ export class MarkingPipelineService {
                                 }
                             }
 
-                            // Merge Lines
                             if (subQ.studentWorkLines && Array.isArray(subQ.studentWorkLines)) {
-                                // Simple deduplication based on text and position
                                 subQ.studentWorkLines.forEach((newLine: any) => {
-                                    // Stamp source page index
                                     const stampedLine = {
                                         ...newLine,
                                         pageIndex: newLine.pageIndex !== undefined ? newLine.pageIndex : pIdx
@@ -1536,7 +1740,6 @@ export class MarkingPipelineService {
                                 });
                             }
 
-                            // Merge Drawing Flag
                             if (subQ.hasStudentDrawing) {
                                 existing.hasStudentDrawing = true;
                                 if (existing.studentWork && !existing.studentWork.includes('[DRAWING]')) {
@@ -1546,7 +1749,6 @@ export class MarkingPipelineService {
                                 }
                             }
 
-                            // RECURSE: Merge children of this sub-question
                             if (subQ.subQuestions && Array.isArray(subQ.subQuestions)) {
                                 if (!existing.subQuestionsMap) existing.subQuestionsMap = new Map<string, any>();
                                 mergeSubQuestionsRecursive(existing.subQuestionsMap, subQ.subQuestions, pIdx);
@@ -1564,46 +1766,39 @@ export class MarkingPipelineService {
                         });
                     };
 
-                    const mergedSubQuestionsMap = new Map<string, any>();
-                    const subQuestionPageIndices = new Set<number>();
-
                     questionInstances.forEach(({ question, pageIndex }) => {
                         if (question.subQuestions && Array.isArray(question.subQuestions)) {
                             mergeSubQuestionsRecursive(mergedSubQuestionsMap, question.subQuestions, pageIndex);
                         }
                     });
 
-                    // Collect all page indices for this merged question
-                    // Include both question instance pages AND pages that have sub-questions
-                    const questionInstancePageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
-                    const allPageIndices = [...new Set([...questionInstancePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
-
+                    // Only include pages that actually contain student work in `sourceImageIndices` if at least one exists
+                    const workPageIndices = questionInstances
+                        .filter(inst => hasInstanceStudentWork(inst.question))
+                        .map(inst => inst.pageIndex);
+                    const basePageIndices = workPageIndices.length > 0
+                        ? workPageIndices
+                        : questionInstances.map(({ pageIndex }) => pageIndex);
+                    const allPageIndices = [...new Set([...basePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
 
                     const merged = {
                         ...pageWithText.question,
                         questionNumber: questionNumber,
-                        // Use text from page that has it (not null/empty)
                         text: pageWithText.question.text && pageWithText.question.text !== 'null'
                             ? pageWithText.question.text
                             : questionInstances[0].question.text,
-                        // Combine student work from all pages
-                        studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
-                        // [GLOBAL-ID FIX]: Include all merged lines with their page indices
-                        studentWorkLines: combinedParentLines.length > 0 ? combinedParentLines : (pageWithText.question.studentWorkLines || []),
-                        // Use sourceImageIndex from page with text, or first page (for backward compatibility)
-                        sourceImage: standardizedPages.find(p => p.pageIndex === pageWithText.pageIndex)?.originalFileName || 'unknown',
-                        sourceImageIndex: pageWithText.pageIndex,
-                        // Store all page indices this question spans (for multi-page questions)
+                        studentWork: combinedStudentWork || firstInstanceWithWork.question.studentWork || null,
+                        studentWorkLines: combinedParentLines.length > 0 ? combinedParentLines : (firstInstanceWithWork.question.studentWorkLines || []),
+                        sourceImage: standardizedPages.find(p => p.pageIndex === anchorPageIndex)?.originalFileName || 'unknown',
+                        sourceImageIndex: anchorPageIndex,
                         sourceImageIndices: allPageIndices,
-                        // Merge sub-questions if present
                         subQuestions: mergedSubQuestionsMap.size > 0
                             ? finalizeSubQuestions(mergedSubQuestionsMap)
-                            : pageWithText.question.subQuestions || [],
-                        // Use highest confidence
+                            : firstInstanceWithWork.question.subQuestions || [],
                         confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
                     };
 
-
+                    hydrateQuestionWithDonatedStems(merged, questionNumber);
                     allQuestions.push(merged);
                 }
             });
@@ -1990,11 +2185,17 @@ export class MarkingPipelineService {
                 }
             }
 
+            // Build effective paper hint: prefer explicit customText, otherwise use clean paper code extracted from PDF cover/headers
+            const cleanGeoPaperHint = geoPaperCodeHint
+                ? (geoPaperCodeHint.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700\/[12]|8300\/[123][FH]|1MA1\/[123][FH]|J560\/0[1-6])\b/i)?.[1] || geoPaperCodeHint.split(/\s+/)[0])
+                : undefined;
+            const effectiveExamPaperHint = options.customText || cleanGeoPaperHint;
+
             // Orchestrate marking scheme lookup (detection, grouping, merging)
             const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
                 classificationResult,
-                options.customText,
+                effectiveExamPaperHint,
                 inputMarkingScheme,
                 subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
             );

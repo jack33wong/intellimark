@@ -707,6 +707,7 @@ export interface MarkingTask {
   mathBlocks: MathBlock[]; // Raw OCR blocks for this question
   markingScheme: any;
   sourcePages: number[];
+  isSeparateAnswerSheet?: boolean; // Separate handwritten answer sheet without physical printed stem on page
   classificationStudentWork?: string | null; // Raw classification student work (may include [DRAWING])
   formattedOcrText?: string; // Formatted OCR text for context
   questionText?: string; // Detected question text

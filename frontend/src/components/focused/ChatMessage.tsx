@@ -648,7 +648,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             !message.isProcessing &&
             ((message as any).requiresMarkingScheme === true ||
               (typeof content === 'string' && /Attach Marking Scheme|Unsupported subject/i.test(content))) && (
-              <div className="attach-marking-scheme-recovery" style={{ marginTop: '14px', paddingLeft: '25px' }}>
+              <div className="attach-marking-scheme-recovery" style={{ marginTop: '14px', marginBottom: '14px', paddingLeft: '12px' }}>
                 <input
                   ref={attachSchemeInputRef}
                   type="file"
@@ -692,7 +692,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           {/* Provide Feedback Button (Only on final AI response containing follow-ups or results) */}
           {!isUser && session && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <>
-              <div className="provide-feedback-container" style={{ marginTop: '16px', paddingLeft: '25px' }}>
+              <div className="provide-feedback-container" style={{ marginTop: '16px',marginBottom: '16px', paddingLeft: '12px' }}>
                 <button 
                   className="provide-feedback-btn" 
                   onClick={() => setIsFeedbackModalOpen(true)}

@@ -535,6 +535,7 @@ export class MarkingTaskFactory {
                 sourcePages: group.sourceImageIndices,
                 classificationStudentWork: promptMainWork,
                 classificationBlocks: group.classificationBlocks,
+                isSeparateAnswerSheet: (group.mainQuestion as any)?.isSeparateAnswerSheet,
                 allClassificationBlocks: masterLandmarks.filter(l => group.sourceImageIndices.includes(l.pageIndex)),
                 pageDimensions: pageDimensionsMap,
                 pageContext: siblingsOnSamePages,

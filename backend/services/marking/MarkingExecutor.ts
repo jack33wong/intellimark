@@ -276,11 +276,45 @@ export async function executeMarkingForQuestion(
       });
     }
 
+    // Detect if this task lives on a separate handwritten answer sheet (where donated questionText is NOT physically printed on the page)
+    const isSeparateAnswerSheetTask = Boolean(
+      (task as any).isSeparateAnswerSheet ||
+      (!task.classificationBlocks || task.classificationBlocks.length === 0)
+    );
+
+    // If on a separate handwritten answer sheet, strip false-positive [PRINTED_INSTRUCTION ...] tags
+    // that SpatialShield added to student-written question numbers (e.g. "1. e^5", "2. 0.75", "10a. 24,000")
+    if (isSeparateAnswerSheetTask) {
+      const stripPrintedTag = (str?: string) =>
+        typeof str === 'string' ? str.replace(/\s*\[PRINTED_INSTRUCTION[^\]]*\]\s*/gi, '').trim() : str;
+
+      rawOcrBlocks.forEach((b: any) => {
+        if (b.text) b.text = stripPrintedTag(b.text);
+        if (b.cleanedText) b.cleanedText = stripPrintedTag(b.cleanedText);
+        if (b.mathpixLatex) b.mathpixLatex = stripPrintedTag(b.mathpixLatex);
+        b.isHandwritten = true;
+        b.isPrinted = false;
+      });
+
+      if (Array.isArray((markingResult as any).taggedOcrBlocks)) {
+        (markingResult as any).taggedOcrBlocks.forEach((b: any) => {
+          if (b.text) b.text = stripPrintedTag(b.text);
+          if (b.cleanedText) b.cleanedText = stripPrintedTag(b.cleanedText);
+          if (b.mathpixLatex) b.mathpixLatex = stripPrintedTag(b.mathpixLatex);
+          b.isHandwritten = true;
+          b.isPrinted = false;
+        });
+      }
+    }
+
     // --- 4. VETO LIST ---
+    // Only veto printed question text if the printed text actually exists physically on the page!
     const vetoList: string[] = [];
-    if (task.questionText) vetoList.push(AnnotationLinker.normalizeForMatching(task.questionText));
-    if (task.classificationBlocks) task.classificationBlocks.forEach(cb => cb.text && cb.text.length > 2 && vetoList.push(AnnotationLinker.normalizeForMatching(cb.text)));
-    if (task.subQuestionMetadata?.subQuestions) task.subQuestionMetadata.subQuestions.forEach((sq: any) => sq.text && vetoList.push(AnnotationLinker.normalizeForMatching(sq.text)));
+    if (!isSeparateAnswerSheetTask) {
+      if (task.questionText) vetoList.push(AnnotationLinker.normalizeForMatching(task.questionText));
+      if (task.classificationBlocks) task.classificationBlocks.forEach(cb => cb.text && cb.text.length > 2 && vetoList.push(AnnotationLinker.normalizeForMatching(cb.text)));
+      if (task.subQuestionMetadata?.subQuestions) task.subQuestionMetadata.subQuestions.forEach((sq: any) => sq.text && vetoList.push(AnnotationLinker.normalizeForMatching(sq.text)));
+    }
 
     // --- 5. LINKING ---
     if (markingResult.annotations) {

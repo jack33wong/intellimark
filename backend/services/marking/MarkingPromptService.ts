@@ -115,10 +115,10 @@ ${genericHeader}
 
                 if (Array.isArray(marks)) {
                     // V28 FIX: "Virtual Scheme Update" - Inject B3 for Q10a to solve the 2+2=6 overflow bug
-                    if (subQ === '10a' && !marks.some(m => String(m.mark).includes('B3'))) {
-                        console.log(`💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.`);
-                        output += `- B3: Fully correct diagram (36, 19, 41) [3 marks]\n`;
-                    }
+                    //if (subQ === '10a' && !marks.some(m => String(m.mark).includes('B3'))) {
+                    //    console.log(`💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.`);
+                    //    output += `- B3: Fully correct diagram (36, 19, 41) [3 marks]\n`;
+                    //}
 
                     marks.forEach((m: any) => {
                         output += formatMarkLine(m);
