@@ -26,12 +26,12 @@ export const IMAGE_STORAGE_CONFIG: ImageStorageConfig = {
   // Size limits (in MB)
   maxFileSizeMB: 50, // 50MB max file size
 
-  // Image dimensions (pixels)
-  maxWidth: 1920,
-  maxHeight: 1080,
+  // Image dimensions (pixels) - 2560x2560 to preserve crisp A4 portrait detail
+  maxWidth: 2560,
+  maxHeight: 2560,
 
   // Compression settings (1-100)
-  compressionQuality: 85,
+  compressionQuality: 88,
   enableCompression: true,
 
   // Storage settings

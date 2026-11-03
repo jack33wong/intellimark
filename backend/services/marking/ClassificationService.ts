@@ -226,16 +226,64 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const mappedPageIndices = new Set<number>();
       markingTasks.forEach(task => task.pageIndices.forEach(i => mappedPageIndices.add(i)));
 
-      resolvedPageMaps.forEach(map => {
-        // If page is NOT mapped to a question AND is content (not metadata/frontPage)
-        if (!mappedPageIndices.has(map.pageIndex) && (map.category === 'questionOnly' || map.category === 'questionAnswer')) {
+      const unmappedContentPages = resolvedPageMaps.filter(
+        map => !mappedPageIndices.has(map.pageIndex) && (map.category === 'questionOnly' || map.category === 'questionAnswer')
+      );
+
+      if (isVerbatimProse) {
+        // Group consecutive unmapped 'questionAnswer' pages (e.g., multi-page essay / creative writing)
+        // into a single task so they are evaluated as ONE unified piece of work.
+        const sortedUnmapped = [...unmappedContentPages].sort((a, b) => a.pageIndex - b.pageIndex);
+        const processedIndices = new Set<number>();
+
+        for (let idx = 0; idx < sortedUnmapped.length; idx++) {
+          const map = sortedUnmapped[idx];
+          if (processedIndices.has(map.pageIndex)) continue;
+
+          if (map.category === 'questionAnswer') {
+            // Find continuous run of consecutive questionAnswer pages
+            const consecutiveRun: number[] = [map.pageIndex];
+            processedIndices.add(map.pageIndex);
+
+            for (let nextIdx = idx + 1; nextIdx < sortedUnmapped.length; nextIdx++) {
+              const nextMap = sortedUnmapped[nextIdx];
+              const prevPage = consecutiveRun[consecutiveRun.length - 1];
+              if (nextMap.pageIndex === prevPage + 1 && nextMap.category === 'questionAnswer') {
+                consecutiveRun.push(nextMap.pageIndex);
+                processedIndices.add(nextMap.pageIndex);
+              } else {
+                break;
+              }
+            }
+
+            const firstPageNum = consecutiveRun[0] + 1;
+            markingTasks.push({
+              questionNumber: `Page ${firstPageNum}`,
+              pageIndices: consecutiveRun,
+              baseQNumbers: [`${firstPageNum}`],
+              isFullPage: true
+            } as any);
+          } else {
+            // questionOnly page
+            processedIndices.add(map.pageIndex);
+            markingTasks.push({
+              questionNumber: `Page ${map.pageIndex + 1}`,
+              pageIndices: [map.pageIndex],
+              baseQNumbers: [`${map.pageIndex + 1}`],
+              isFullPage: true
+            } as any);
+          }
+        }
+      } else {
+        // Standard non-verbatim / Maths / Science behaviour: 1 task per page
+        unmappedContentPages.forEach(map => {
           markingTasks.push({
             questionNumber: `Page ${map.pageIndex + 1}`, // Placeholder name
             pageIndices: [map.pageIndex],
             isFullPage: true // Flag to indicate full page extraction
-          } as any); // Cast to any to avoid changing type definition if strict
-        }
-      });
+          } as any);
+        });
+      }
 
 
 
@@ -292,8 +340,14 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           let taskUserPrompt = '';
 
           if ((task as any).isFullPage) {
-            taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${chunkIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${chunkIndices[0] + 1}" (representing the page number).`;
-            taskUserPrompt = `Extract all text and student work from Page ${chunkIndices[0] + 1}.`;
+            if (isVerbatimProse && chunkIndices.length > 1) {
+              const primaryQNum = `${chunkIndices[0] + 1}`;
+              taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Pages ${chunkIndices.map(idx => idx + 1).join(', ')}. These ${chunkIndices.length} pages are ONE CONTINUOUS student response/essay with no printed question numbers. Extract ALL text and student work across all these pages as a single unified question. You MUST set questionNumber to "${primaryQNum}" on EVERY page in the "pages" array. Do NOT create separate or different questionNumbers for each page.`;
+              taskUserPrompt = `Extract all text and student work from Pages ${chunkIndices.map(idx => idx + 1).join(', ')} as a single unified question "${primaryQNum}".`;
+            } else {
+              taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${chunkIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${chunkIndices[0] + 1}" (representing the page number).`;
+              taskUserPrompt = `Extract all text and student work from Page ${chunkIndices[0] + 1}.`;
+            }
           } else {
             const qList = Array.isArray(baseQNumbers) && baseQNumbers.length > 0 ? baseQNumbers : [questionNumber];
             const pageHints = chunkIndices.map(idx => {
@@ -321,6 +375,11 @@ ${pageHints}
 - **PRONOUN "I" IN SANS-SERIF FONTS & HANDWRITING**: In sans-serif fonts (like Arial/Calibri) and standard handwriting, uppercase "I" is a plain vertical stroke (\`|\`) without top/bottom bars, which looks similar in height to lowercase \`l\` (e.g. in \`"until I finally"\`). Always transcribe a standalone vertical stroke for the pronoun as uppercase \`"I"\` unless it clearly has a short stem with a distinct floating dot above it (\`"i"\`).
 - Do NOT wrap English prose in LaTeX math delimiters.
 - If a page is an "Extra space" or "Additional page" overflow sheet where the student handwrote a question number (e.g. "04", "Q4", "05") in the margin box, assign all lines on that page to that questionNumber.
+- **CONTINUATION PAGES — \`text\` FIELD (MANDATORY)**:
+  * The \`text\` field must contain ONLY printed question wording visible physically on THIS page.
+  * If a page has NO printed question prompt (e.g. a lined continuation page, an extra-space sheet, or a plain lined notebook page), you MUST set \`text: ""\` for that question on that page.
+  * Student handwriting is NEVER question text. Every single handwritten line belongs exclusively in \`studentWorkLines\`, including the first line at the top of a continuation page, even if it starts mid-sentence.
+  * Pages may be uploaded out of order. A continuation page can arrive before the page containing the printed prompt. NEVER put student handwriting into \`text\` just because you cannot see the printed question on an earlier page.
 - **SHADED OVAL / CHECKBOX QUESTIONS (e.g. Question 1 Statements A–H)**:
   * The 8 answer boxes on the far right form a strict vertical column of 8 boxes corresponding in exact top-to-bottom order to: Box 1 (top) = A, Box 2 = B, Box 3 = C, Box 4 = D, Box 5 = E, Box 6 = F, Box 7 = G, Box 8 (bottom) = H.
   * CRITICAL: Do NOT try to visually trace horizontally across the wide blank space from a shaded box on the right to the text on the left (page curvature or 2-line statements like D and F will cause you to misalign row 2 B or row 5 E).
@@ -508,9 +567,12 @@ ${pageHints}
             processedQuestions.forEach(q => injectPageIndex(q));
 
             // 🛡️ CONTINUATION PAGE QUESTION NUMBER BINDING:
-            // When a task targets a single base question (e.g. Q3 across pages [4, 5]), a lined continuation page
-            // has no printed question number header. Ensure extracted questions on continuation pages retain that base question number.
-            if (!(task as any).isFullPage && Array.isArray(baseQNumbers) && baseQNumbers.length === 1) {
+            // When a task targets a single base question (e.g. Q3 across pages [4, 5], or a multi-page unnumbered essay task),
+            // a lined continuation page has no printed question number header.
+            // Ensure extracted questions on continuation pages retain that base question number.
+            const isSingleBaseQTask = Array.isArray(baseQNumbers) && baseQNumbers.length === 1;
+            const allowBinding = !(task as any).isFullPage || (isVerbatimProse && (task as any).isFullPage && isSingleBaseQTask);
+            if (allowBinding && isSingleBaseQTask) {
               const targetBaseQ = baseQNumbers[0];
               processedQuestions.forEach((q: any) => {
                 if (!q || typeof q !== 'object') return;

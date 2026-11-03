@@ -1425,9 +1425,20 @@ export class MarkingPipelineService {
                     });
                 } else {
                     // Multiple pages with same questionNumber - merge them
-                    // Multiple pages with same questionNumber - merge them
                     // Fix: Prioritize finding the BEST text, not just the first one.
-                    // "BLANK PAGE" is "valid" text but we want the real question text from the other page (e.g. Page 9 vs Page 4)
+                    // 1. Deprioritize "BLANK PAGE" explicitly
+                    // 2. Deprioritize contaminated stems (where question.text is actually the student's own handwriting on that page)
+                    // 3. Otherwise prefer longer text
+                    const isVerbatimProse = subjectProfile?.ocrStrategy === 'VISION_VERBATIM';
+                    const isContaminatedStem = (q: any): boolean => {
+                        if (!q || !q.text) return false;
+                        const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const stem = norm(q.text);
+                        if (stem.length < 15) return false;
+                        const work = norm((q.studentWorkLines || []).map((l: any) => l?.t || '').join(' ') || q.studentWork || '');
+                        return work.length > 0 && work.includes(stem.slice(0, 40));
+                    };
+
                     const sortedInstances = [...questionInstances].sort((a, b) => {
                         const textA = a.question.text || '';
                         const textB = b.question.text || '';
@@ -1437,6 +1448,14 @@ export class MarkingPipelineService {
                         const isBlankB = textB.toUpperCase().includes('BLANK PAGE');
                         if (isBlankA && !isBlankB) return 1;
                         if (!isBlankA && isBlankB) return -1;
+
+                        // Deprioritize contaminated stems (verbatim prose only)
+                        if (isVerbatimProse) {
+                            const cA = isContaminatedStem(a.question);
+                            const cB = isContaminatedStem(b.question);
+                            if (cA && !cB) return 1;
+                            if (!cA && cB) return -1;
+                        }
 
                         // Otherwise prefer longer text
                         return textB.length - textA.length;
@@ -1976,7 +1995,8 @@ export class MarkingPipelineService {
                 individualQuestions,
                 classificationResult,
                 options.customText,
-                inputMarkingScheme
+                inputMarkingScheme,
+                subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;
@@ -2150,11 +2170,58 @@ export class MarkingPipelineService {
                     && !/no\s*questions\s*printed|blank\s*page/i.test(pageOcrText);
                 const isFrontCover = pageRawResult?.category === 'frontPage' || (isMeta && hasCoverLandmarks);
 
+                // Detect whether this page contains a printed question prompt vs continuation text only
+                const isContaminatedStemLocal = (q: any): boolean => {
+                    if (!q || !q.text) return false;
+                    const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const stem = norm(q.text);
+                    if (stem.length < 15) return false;
+                    const work = norm((q.studentWorkLines || []).map((l: any) => l?.t || '').join(' ') || q.studentWork || '');
+                    return work.length > 0 && work.includes(stem.slice(0, 40));
+                };
+
+                const hasPrintedStem = Boolean(
+                    pageRawResult?.questions?.some((q: any) => {
+                        const t = (q.text || '').trim();
+                        return t.length > 20 && !isContaminatedStemLocal(q);
+                    })
+                );
+
+                // Detect printed booklet page number from OCR (header or footer blocks)
+                let bookletPage: number | null = null;
+                if (pageOcrBlocks.length > 0) {
+                    for (let i = 0; i < Math.min(4, pageOcrBlocks.length); i++) {
+                        const txt = (pageOcrBlocks[i].googleVisionText || pageOcrBlocks[i].text || '').trim();
+                        if (/^\d{1,2}$/.test(txt)) {
+                            const num = parseInt(txt, 10);
+                            if (num >= 1 && num <= 40) {
+                                bookletPage = num;
+                                break;
+                            }
+                        }
+                    }
+                    if (bookletPage === null && pageOcrBlocks.length > 3) {
+                        for (let i = pageOcrBlocks.length - 1; i >= Math.max(0, pageOcrBlocks.length - 4); i--) {
+                            const raw = (pageOcrBlocks[i].googleVisionText || pageOcrBlocks[i].text || '').trim();
+                            const txt = raw.replace(/\s+/g, '');
+                            if (/^\d{1,2}$/.test(txt)) {
+                                const num = parseInt(txt, 10);
+                                if (num >= 1 && num <= 40) {
+                                    bookletPage = num;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 return {
                     originalIdx,
                     originalPageIndex: page.originalPageIndex,
                     filename: page.originalFileName,
                     minQ: minSortWeight === Infinity ? 999999 : minSortWeight,
+                    hasPrintedStem,
+                    bookletPage,
                     isMeta,
                     isFrontCover,
                     debugQ: [...new Set(debugQList)].join(', ')
@@ -2248,6 +2315,15 @@ export class MarkingPipelineService {
                     if (Math.abs(a.minQ - b.minQ) > 0.00001) {
                         return a.minQ - b.minQ;
                     }
+
+                    // Rule 2.1: Intra-Question Ordering by Printed Booklet Page Number
+                    if (a.bookletPage !== null && b.bookletPage !== null && a.bookletPage !== b.bookletPage) {
+                        return a.bookletPage - b.bookletPage;
+                    }
+
+                    // Rule 2.2: Printed Question Stem Precedes Continuation Pages
+                    if (a.hasPrintedStem && !b.hasPrintedStem) return -1;
+                    if (!a.hasPrintedStem && b.hasPrintedStem) return 1;
 
                     // Rule 3: Physical Tie-breaker (Original Upload Order)
                     return a.originalIdx - b.originalIdx;

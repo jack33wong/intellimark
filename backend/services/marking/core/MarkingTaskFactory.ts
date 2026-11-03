@@ -359,12 +359,20 @@ export class MarkingTaskFactory {
             });
 
             group.aiSegmentationResults.sort((a: any, b: any) => {
+                const pageDiff = (a.pageIndex ?? 0) - (b.pageIndex ?? 0);
+                if (pageDiff !== 0) return pageDiff;
+
                 const labelA = a.subQuestionLabel || 'main';
                 const labelB = b.subQuestionLabel || 'main';
-                if (labelA === labelB) return 0;
-                if (labelA === 'main') return -1;
-                if (labelB === 'main') return 1;
-                return labelA.localeCompare(labelB, undefined, { numeric: true });
+                if (labelA !== labelB) {
+                    if (labelA === 'main') return -1;
+                    if (labelB === 'main') return 1;
+                    return labelA.localeCompare(labelB, undefined, { numeric: true });
+                }
+
+                const yA = a.position?.y ?? a.coordinates?.y ?? (a.p ? a.p[1] : 0);
+                const yB = b.position?.y ?? b.coordinates?.y ?? (b.p ? b.p[1] : 0);
+                return yA - yB;
             });
 
             group.aiSegmentationResults.forEach((seg: any) => {

@@ -121,7 +121,8 @@ export class MarkingSchemeOrchestrationService {
     individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number; parentText?: string; studentWork?: string }>,
     classificationResult: any,
     examPaperHint?: string | null,
-    inputMarkingScheme?: any
+    inputMarkingScheme?: any,
+    guardContaminatedStems?: boolean
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
 
@@ -142,6 +143,16 @@ export class MarkingSchemeOrchestrationService {
     const cleanQuestionsMap = new Map<string, string>();
     const parentTextMap = new Map<string, string>();
 
+    // Helper to detect if a candidate question.text actually duplicates that page's studentWorkLines
+    const isContaminatedStem = (q: any): boolean => {
+      if (!q || !q.text) return false;
+      const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const stem = norm(q.text);
+      if (stem.length < 15) return false;
+      const work = norm((q.studentWorkLines || []).map((l: any) => l?.t || '').join(' ') || q.studentWork || '');
+      return work.length > 0 && work.includes(stem.slice(0, 40));
+    };
+
     // Use either pages structure (original classification) or flat questions (merged result)
     const questionsToProcess: any[] = [];
     if (classificationResult && classificationResult.pages) {
@@ -155,10 +166,12 @@ export class MarkingSchemeOrchestrationService {
     questionsToProcess.forEach((q: any) => {
       const qNum = q.questionNumber;
       if (qNum && q.text) {
-        cleanQuestionsMap.set(qNum, q.text);
-        const baseNum = getBaseQuestionNumber(qNum);
-        if (!parentTextMap.has(baseNum)) {
-          parentTextMap.set(baseNum, q.text);
+        if (!guardContaminatedStems || !isContaminatedStem(q)) {
+          cleanQuestionsMap.set(qNum, q.text);
+          const baseNum = getBaseQuestionNumber(qNum);
+          if (!parentTextMap.has(baseNum)) {
+            parentTextMap.set(baseNum, q.text);
+          }
         }
       }
       // Deeply check sub-questions for the map
