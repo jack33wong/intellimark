@@ -364,10 +364,14 @@ export class ModelAnswerController {
 
         } catch (error: any) {
             console.error('❌ [MODEL-ANSWER] Generation failed:', error);
-            void AdminAlertService.notifyCrash('MODEL_ANSWER', req, error);
+            const isCreditExhausted = error.message?.includes('exhausted your credits');
+            if (!isCreditExhausted) {
+                void AdminAlertService.notifyCrash('MODEL_ANSWER', req, error);
+            }
             sendSseUpdate(res, {
                 type: 'error',
-                error: error.message || 'Failed to generate model answers.'
+                error: error.message || 'Failed to generate model answers.',
+                ...(isCreditExhausted ? { credits_exhausted: true } : {})
             });
             res.end();
         }

@@ -35,11 +35,11 @@ export const useCredits = () => {
 
     const lastRequestIdRef = useRef(0);
 
-    const fetchCredits = useCallback(async (force = false) => {
+    const fetchCredits = useCallback(async (force = false): Promise<UserCredits | null> => {
         if (!user?.uid) {
             setCredits(null);
             setLoading(false);
-            return;
+            return null;
         }
 
         const requestId = Date.now();
@@ -51,7 +51,7 @@ export const useCredits = () => {
                 setCredits(globalCreditCache.credits);
                 setLoading(false);
             }
-            return;
+            return globalCreditCache.credits;
         }
 
         // 2. Dedup parallel requests (REBUILT: Works for both force and non-force)
@@ -65,16 +65,17 @@ export const useCredits = () => {
                     setCredits(data);
                     setError(null);
                 }
+                return data;
             } catch (err: any) {
                 if (lastRequestIdRef.current === requestId) {
                     setError(err.message);
                 }
+                return null;
             } finally {
                 if (lastRequestIdRef.current === requestId) {
                     setLoading(false);
                 }
             }
-            return;
         }
 
         const performFetch = async () => {
@@ -112,11 +113,13 @@ export const useCredits = () => {
                 setCredits(data);
                 setError(null);
             }
+            return data;
         } catch (err: any) {
             if (lastRequestIdRef.current === requestId) {
                 console.error('❌ [useCredits] Fetch failed:', err);
                 setError(err.message);
             }
+            return null;
         } finally {
             globalCreditCache.inProgressPromise = null;
             if (lastRequestIdRef.current === requestId) {
@@ -160,9 +163,17 @@ export const useCredits = () => {
     }, [user?.uid]);
 
     const hasCredits = credits ? credits.remainingCredits > 0 : true; // Assume true if not loaded to prevent blocking
-    const isNegative = credits ? credits.remainingCredits < 0 : false;
+    const isNegative = credits ? credits.remainingCredits <= 0 : false;
 
     const refreshCredits = useCallback(() => fetchCredits(true), [fetchCredits]);
+
+    const ensureCredits = useCallback(async (force = false): Promise<UserCredits | null> => {
+        if (!user?.uid) return null;
+        if (!force && globalCreditCache.loaded && globalCreditCache.credits && !loading) {
+            return globalCreditCache.credits;
+        }
+        return await fetchCredits(force);
+    }, [user?.uid, loading, fetchCredits]);
 
     return {
         credits,
@@ -170,6 +181,7 @@ export const useCredits = () => {
         error,
         hasCredits,
         isNegative,
-        refreshCredits
+        refreshCredits,
+        ensureCredits
     };
 };

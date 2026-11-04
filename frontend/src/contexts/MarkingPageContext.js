@@ -169,7 +169,7 @@ export const MarkingPageProvider = ({
     addMessage, clearSession, loadSession, onFavoriteToggle, onRatingChange, onTitleUpdate
   } = useSessionManager();
 
-  const { credits, isNegative, refreshCredits } = useCredits();
+  const { credits, isNegative, refreshCredits, ensureCredits, loading: creditsLoading } = useCredits();
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
   const [showGuestLimitModal, setShowGuestLimitModal] = React.useState(false);
   const [guestLimitInfo, setGuestLimitInfo] = React.useState({ usageCount: 0, usageLimit: 0, resetAt: null });
@@ -178,6 +178,20 @@ export const MarkingPageProvider = ({
   const [initialInput, setInitialInput] = React.useState('');
   const [showModelAnswerConfirmation, setShowModelAnswerConfirmation] = React.useState(false);
   const [pendingModelAnswerPaper, setPendingModelAnswerPaper] = React.useState(null);
+
+  const checkNegativeCredits = useCallback(async () => {
+    if (!user) return false;
+    let activeCredits = credits;
+    if (activeCredits === null || creditsLoading) {
+      activeCredits = await ensureCredits();
+    }
+    const hasNegative = activeCredits ? activeCredits.remainingCredits <= 0 : isNegative;
+    if (hasNegative) {
+      setShowCreditsModal(true);
+      return true;
+    }
+    return false;
+  }, [user, credits, creditsLoading, ensureCredits, isNegative]);
 
   const apiProcessor = useApiProcessor();
   const { isProcessing, isAIThinking, error } = apiProcessor;
@@ -536,8 +550,8 @@ export const MarkingPageProvider = ({
     }
 
     // --- CREDIT ENFORCEMENT ---
-    if (user && isNegative) {
-      setShowCreditsModal(true);
+    if (await checkNegativeCredits()) {
+      if (typeof clearFile === 'function') clearFile();
       return false;
     }
 
@@ -637,8 +651,9 @@ export const MarkingPageProvider = ({
           dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
         }
         return false;
-      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted || err?.message?.includes('exhausted your credits')) {
         setShowCreditsModal(true);
+        refreshCredits();
       }
       handleError(err);
       stopAIThinking();
@@ -647,7 +662,7 @@ export const MarkingPageProvider = ({
       return false;
     }
   }, [
-    user, isNegative, getAuthToken, currentSession, selectedModel,
+    user, isNegative, checkNegativeCredits, getAuthToken, currentSession, selectedModel,
     activeQuestionId, isModelAnswerMode, isMarkingSchemeMode,
     addMessage, clearSession, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing
   ]);
@@ -668,8 +683,7 @@ export const MarkingPageProvider = ({
       return false;
     }
 
-    if (user && isNegative) {
-      setShowCreditsModal(true);
+    if (await checkNegativeCredits()) {
       return false;
     }
 
@@ -757,7 +771,7 @@ export const MarkingPageProvider = ({
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedModel, currentSession, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
+  }, [user, isNegative, checkNegativeCredits, selectedModel, currentSession, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   const onExplainMarkingScheme = useCallback(async (input) => {
     const trimmedInput = input.trim();
@@ -775,8 +789,7 @@ export const MarkingPageProvider = ({
       return false;
     }
 
-    if (user && isNegative) {
-      setShowCreditsModal(true);
+    if (await checkNegativeCredits()) {
       return false;
     }
 
@@ -863,7 +876,7 @@ export const MarkingPageProvider = ({
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedModel, currentSession, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
+  }, [user, isNegative, checkNegativeCredits, selectedModel, currentSession, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, handleError, apiProcessor]);
 
   // Ref to track the last handled session ID to prevent redundant scrolls on every message update
   const lastHandledSessionIdRef = useRef(null);
@@ -958,8 +971,8 @@ export const MarkingPageProvider = ({
     }
 
     // --- CREDIT ENFORCEMENT ---
-    if (user && isNegative) {
-      setShowCreditsModal(true);
+    if (await checkNegativeCredits()) {
+      if (typeof clearFile === 'function') clearFile();
       return false;
     }
 
@@ -1010,8 +1023,9 @@ export const MarkingPageProvider = ({
               fileCount: 1
             }, null);
             return;
-          } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+          } else if (err.credits_exhausted || err.response?.data?.credits_exhausted || err?.message?.includes('exhausted your credits')) {
             setShowCreditsModal(true);
+            refreshCredits();
           }
 
           trackFunnelEvent('upload_failed_client_seen', {
@@ -1051,8 +1065,9 @@ export const MarkingPageProvider = ({
         }, null);
         // REMOVED clearSession() and SET_PAGE_MODE
         return false;
-      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted || err?.message?.includes('exhausted your credits')) {
         setShowCreditsModal(true);
+        refreshCredits();
       }
       trackFunnelEvent('upload_failed_client_seen', {
         errorMessage: err?.response?.data?.error || err?.message || 'Unknown upload error'
@@ -1067,7 +1082,7 @@ export const MarkingPageProvider = ({
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedFile, selectedModel, activeQuestionId, processImage, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
+  }, [user, isNegative, checkNegativeCredits, selectedFile, selectedModel, activeQuestionId, processImage, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
 
   const handleMultiImageAnalysis = useCallback(async (files = [], customText = null) => {
     if (!files || files.length === 0) return;
@@ -1094,8 +1109,8 @@ export const MarkingPageProvider = ({
     }
 
     // --- CREDIT ENFORCEMENT ---
-    if (user && isNegative) {
-      setShowCreditsModal(true);
+    if (await checkNegativeCredits()) {
+      if (typeof clearFile === 'function') clearFile();
       return false;
     }
 
@@ -1231,8 +1246,9 @@ export const MarkingPageProvider = ({
               fileCount: files?.length || 1
             }, null);
             return;
-          } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+          } else if (err.credits_exhausted || err.response?.data?.credits_exhausted || err?.message?.includes('exhausted your credits')) {
             setShowCreditsModal(true);
+            refreshCredits();
           }
 
           trackFunnelEvent('upload_failed_client_seen', {
@@ -1271,8 +1287,9 @@ export const MarkingPageProvider = ({
         }, null);
         // REMOVED clearSession() and SET_PAGE_MODE
         return false;
-      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted) {
+      } else if (err.credits_exhausted || err.response?.data?.credits_exhausted || err?.message?.includes('exhausted your credits')) {
         setShowCreditsModal(true);
+        refreshCredits();
       }
       trackFunnelEvent('upload_failed_client_seen', {
         errorMessage: err?.response?.data?.error || err?.message || 'Unknown upload error'
@@ -1287,7 +1304,7 @@ export const MarkingPageProvider = ({
       stopProcessing();
       return false;
     }
-  }, [user, isNegative, selectedModel, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
+  }, [user, isNegative, checkNegativeCredits, selectedModel, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
 
   // Handle files passed from Landing Pages (SEO Phase 2)
   const handoverProcessedRef = useRef(false);
@@ -1430,6 +1447,7 @@ export const MarkingPageProvider = ({
     showCreditsModal,
     credits,
     refreshCredits,
+    ensureCredits,
     setSidebarOpen,
     guestLimitInfo,
     lastHandledSessionIdRef, // Expose ref if needed
@@ -1453,7 +1471,7 @@ export const MarkingPageProvider = ({
     state.visibleTableIds,
     isNegative,
     setShowCreditsModal,
-    showCreditsModal, credits, refreshCredits,
+    showCreditsModal, credits, refreshCredits, ensureCredits,
     setSidebarOpen,
     guestLimitInfo,
     lastHandledSessionIdRef

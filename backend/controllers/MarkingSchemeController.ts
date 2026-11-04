@@ -421,10 +421,14 @@ export class MarkingSchemeController {
 
         } catch (error: any) {
             console.error('❌ [MARKING-SCHEME] Generation failed:', error);
-            void AdminAlertService.notifyCrash('MARKING_SCHEME', req, error);
+            const isCreditExhausted = error.message?.includes('exhausted your credits');
+            if (!isCreditExhausted) {
+                void AdminAlertService.notifyCrash('MARKING_SCHEME', req, error);
+            }
             sendSseUpdate(res, {
                 type: 'error',
-                error: error.message || 'Failed to retrieve marking scheme.'
+                error: error.message || 'Failed to retrieve marking scheme.',
+                ...(isCreditExhausted ? { credits_exhausted: true } : {})
             });
             res.end();
         }

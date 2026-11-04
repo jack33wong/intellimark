@@ -1327,21 +1327,66 @@
 .nav-item.credits-nav {
   background: transparent;
   color: var(--text-primary);
-  border-color: var(--border-main);
+  border: 1px solid var(--border-main);
   box-shadow: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1.2;
 }
 
 .nav-item.credits-nav:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.credits-nav-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.credits-nav-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.credits-percent-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.credits-ring {
+  display: block;
+}
+
+.credits-nav-subtext {
+  align-self: center;
+  text-align: center;
+  width: 100%;
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .credits-icon {
   color: var(--text-tertiary);
-  /* Or specific color from screenshot */
 }
 
 .credits-count {

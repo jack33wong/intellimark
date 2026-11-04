@@ -136,13 +136,29 @@
 .subject-quick-pills {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   margin-top: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-top: 2px;
+  padding-bottom: 6px;
+  padding-right: 20px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.subject-quick-pills::-webkit-scrollbar {
+  display: none;
 }
 
 .subject-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -293,7 +309,7 @@
     /* Match input bar width */
     margin-left: 0;
     margin-right: 0;
-    padding-left: 32px;
+    padding-left: 16px;
     /* Matches total internal offset of input placeholder on mobile */
     margin-bottom: 20px;
     /* Mobile specific margin */
@@ -321,6 +337,11 @@
 
   .chat-title-subtitle {
     font-size: 16px;
+  }
+
+  .subject-quick-pills {
+    margin-top: 12px;
+    padding-right: 32px;
   }
 
   .followup-chat-input-bar.follow-up-bottom {

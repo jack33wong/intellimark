@@ -28,6 +28,53 @@ import ModelSelector from '../focused/ModelSelector';
 import { STORAGE_KEYS } from '../../utils/constants';
 import { useModels } from '../../contexts/ModelContext';
 
+const formatTokenValue = (val) => {
+  if (val === null || val === undefined || isNaN(val)) return '0';
+  const num = Number(val);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+
+  if (abs >= 1000) {
+    const inK = abs / 1000;
+    if (inK % 1 === 0) {
+      return `${sign}${inK.toLocaleString()} K`;
+    }
+    // Truncate to at most 2 decimal places without rounding unspent tokens up
+    const truncatedK = Math.floor(inK * 100) / 100;
+    const formattedK = truncatedK.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+    return `${sign}${formattedK} K`;
+  }
+
+  if (Number.isInteger(num)) {
+    return num.toLocaleString();
+  }
+  return Number(num.toFixed(2)).toLocaleString();
+};
+
+const getPercentLeftDisplay = (remaining, total) => {
+  if (total <= 0) return remaining > 0 ? '100%' : '0%';
+  if (remaining >= total) return '100%';
+  if (remaining <= 0) return '0%';
+
+  const pct = (remaining / total) * 100;
+  if (pct % 1 === 0) {
+    return `${pct}%`;
+  }
+  if (pct >= 99.9) {
+    const rounded = Math.min(99.99, Number(pct.toFixed(2)));
+    return `${rounded}%`;
+  }
+  if (pct >= 10) {
+    const rounded = Number(pct.toFixed(1));
+    return `${rounded}%`;
+  }
+  const rounded = Math.max(0.01, Number(pct.toFixed(1)));
+  return `${rounded}%`;
+};
+
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileClosing, setIsProfileClosing] = useState(false);
@@ -35,6 +82,29 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const { credits: userCredits } = useCredits();
   const { subscription: userSubscription, loading: subscriptionLoading, setSubscription: setUserSubscription, checkPermission } = useSubscription();
+
+  const remainingTokens = typeof userCredits?.remainingCredits === 'number'
+    ? userCredits.remainingCredits
+    : (typeof userCredits?.remainingTokens === 'number' ? userCredits.remainingTokens : 0);
+
+  const totalTokens = typeof userCredits?.totalCredits === 'number'
+    ? userCredits.totalCredits
+    : (typeof userCredits?.totalTokens === 'number' ? userCredits.totalTokens : 0);
+
+  const percentLeftText = getPercentLeftDisplay(remainingTokens, totalTokens);
+
+  const rawPercent = totalTokens > 0
+    ? Math.max(0, Math.min(100, (remainingTokens / totalTokens) * 100))
+    : (remainingTokens > 0 ? 100 : 0);
+
+  const ringRadius = 6.8;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  // If tokens have been used, guarantee at least a small visible gap so it doesn't look 100% full
+  const effectiveRingPercent = (remainingTokens < totalTokens && remainingTokens > 0)
+    ? Math.min(98, rawPercent)
+    : rawPercent;
+  const ringOffset = ringCircumference * (1 - effectiveRingPercent / 100);
+  const ringColor = rawPercent <= 10 ? '#ef4444' : rawPercent <= 25 ? '#f59e0b' : '#22c55e';
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -348,11 +418,44 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                 <button
                   className="nav-item credits-nav"
                   onClick={() => setIsSubscriptionDetailsOpen(!isSubscriptionDetailsOpen)}
+                  title={`${remainingTokens.toLocaleString()} / ${totalTokens.toLocaleString()} tokens remaining (${percentLeftText})`}
                 >
-                  <CreditIcon size={16} className="credits-icon" />
-                  <span className="credits-count">
-                    {typeof userCredits?.remainingCredits === 'number' ? userCredits.remainingCredits.toFixed(2) : (userCredits?.remainingCredits ?? 0)}
-                  </span>
+                  <div className="credits-nav-box">
+                    <div className="credits-nav-top">
+                      <span className="credits-percent-text">{percentLeftText} left</span>
+                      <svg
+                        className="credits-ring"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}
+                        aria-hidden="true"
+                      >
+                        <circle
+                          cx="8"
+                          cy="8"
+                          r={ringRadius}
+                          fill="none"
+                          stroke="rgba(255, 255, 255, 0.2)"
+                          strokeWidth="2.2"
+                        />
+                        <circle
+                          cx="8"
+                          cy="8"
+                          r={ringRadius}
+                          fill="none"
+                          stroke={ringColor}
+                          strokeWidth="2.2"
+                          strokeDasharray={ringCircumference}
+                          strokeDashoffset={ringOffset}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </div>
+                    <div className="credits-nav-subtext">
+                      {formatTokenValue(remainingTokens)} / {formatTokenValue(totalTokens)}
+                    </div>
+                  </div>
                 </button>
 
                 {/* Subscription Details Dropdown */}

@@ -233,7 +233,28 @@ export class MarkingController {
 
         } catch (error: any) {
             console.error(`❌ [CONTROLLER] Marking request failed: ${error.message}`);
-            void AdminAlertService.notifyCrash('MARKING', req, error);
+            
+            const isCreditExhausted = error.message?.includes('exhausted your credits');
+            if (!isCreditExhausted) {
+                void AdminAlertService.notifyCrash('MARKING', req, error);
+            }
+
+            if (isCreditExhausted) {
+                if (!res.headersSent) {
+                    res.setHeader('Content-Type', 'text/event-stream');
+                    res.setHeader('Cache-Control', 'no-cache');
+                    res.setHeader('Connection', 'keep-alive');
+                    res.status(200);
+                }
+                const errorPayload = JSON.stringify({
+                    type: 'error',
+                    error: error.message,
+                    credits_exhausted: true
+                });
+                res.write(`data: ${errorPayload}\n\n`);
+                res.end();
+                return;
+            }
             
             // Safely extract IDs to tie the response back to the user's UI
             const aiMessageId = req.body?.aiMessageId || `ai-${Date.now()}`;

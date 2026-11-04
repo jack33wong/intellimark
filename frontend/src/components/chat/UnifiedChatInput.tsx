@@ -426,7 +426,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [metadata.papers, selectedSubject, isEnglishPaper]);
 
   const canSend = useMemo(() => {
-    if (isProcessing) return false;
+    if (isProcessing || isNegative) return false;
 
     // 1. Specialized Mode Check (Model Answer / Marking Scheme)
     if (isModelAnswerMode || isMarkingSchemeMode) {
@@ -457,7 +457,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // First-time standard upload: FILES ARE MANDATORY
       return hasFiles;
     }
-  }, [isProcessing, isModelAnswerMode, isMarkingSchemeMode, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search, mode]);
+  }, [isProcessing, isNegative, isModelAnswerMode, isMarkingSchemeMode, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search, mode]);
 
   const validationMessageType = useMemo(() => {
     // Suppress warning if not in paper mode, input is physically empty (no text typed),  const validationMessageType = useMemo(() => {
@@ -655,14 +655,15 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [imageFiles, imageFile, isMultiImage, isProcessing]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isNegative) return;
     const newFiles = Array.from(e.target.files || []);
     processFiles(newFiles);
     // Clear the input value so the same file can be selected again
     if (e.target) e.target.value = '';
-  }, [processFiles]);
+  }, [processFiles, isNegative]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    if (isProcessing) return;
+    if (isProcessing || isNegative) return;
 
     const items = e.clipboardData.items;
     const pastedFiles: File[] = [];
@@ -683,13 +684,21 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // to keep the chat input clean for the user's typing.
       e.preventDefault();
     }
-  }, [processFiles, isProcessing]);
+  }, [processFiles, isProcessing, isNegative]);
 
   const handleUploadClick = useCallback(() => {
+    if (isNegative) {
+      navigate('/upgrade', { state: { fromApp: true } });
+      return;
+    }
     fileInputRef.current?.click();
-  }, []);
+  }, [isNegative, navigate]);
 
   const handleOpenCameraHandoff = useCallback(async () => {
+    if (isNegative) {
+      navigate('/upgrade', { state: { fromApp: true } });
+      return;
+    }
     let sessionId = mobileSessionId;
     if (!sessionId) {
       sessionId = mobileUploadService.generateSessionId();
@@ -711,7 +720,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
     // Redirect to mobile camera page with return URL
     window.location.href = `/mobile-upload/${sessionId}?returnUrl=${encodeURIComponent('/app')}`;
-  }, [mobileSessionId]);
+  }, [mobileSessionId, isNegative, navigate]);
 
   // V16.5: Restore session on return from camera
   useEffect(() => {
@@ -797,7 +806,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [isMultiImage, imageFiles, previewImages, removePreview]);
 
   const handleSendClick = useCallback(async () => {
-    if (!canSend) return;
+    if (!canSend || isNegative) {
+      if (isNegative) {
+        navigate('/upgrade', { state: { fromApp: true } });
+      }
+      return;
+    }
     const textToSend = combinedInput;
     const fileToSend = imageFile;
     const filesToSend = imageFiles;
@@ -868,14 +882,20 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       }
     }
   }, [
-    isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode,
+    canSend, isNegative, isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode,
     onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage,
-    onGenerateModelAnswer, onExplainMarkingScheme, isModelAnswerMode, isMarkingSchemeMode
+    onGenerateModelAnswer, onExplainMarkingScheme, isModelAnswerMode, isMarkingSchemeMode, navigate
   ]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (!canSend || isNegative) {
+        if (isNegative) {
+          navigate('/upgrade', { state: { fromApp: true } });
+        }
+        return;
+      }
       handleSendClick();
     } else if (e.key === 'Backspace' && chatInput === '' && selectedTags.length > 0) {
       // If user presses Backspace with empty input, remove the last tag
@@ -1203,7 +1223,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                 <div className="followup-left-buttons">
                   {/* Allow uploads if in follow-up mode OR if NO specialized mode is active in first-time mode */}
                   {(mode === 'follow-up' || (!isModelAnswerMode && !isMarkingSchemeMode)) && (
-                    <button className="followup-upload-button add-files-btn" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
+                    <button
+                      className={`followup-upload-button add-files-btn ${isNegative ? 'disabled' : ''}`}
+                      onClick={handleUploadClick}
+                      disabled={isProcessing || isNegative}
+                      title={isNegative ? "You have exhausted your credits. Please top up to continue." : "Upload image(s)/PDF(s)"}
+                    >
                       <span className="btn-icon"><Plus size={16} /></span>
                       <span className="btn-text">Add Files</span>
                     </button>
@@ -1211,14 +1236,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
                   {!isMarkingSchemeMode && selectedSubject !== 'custom' && (
                     <button
-                      className={`followup-upload-button mode-toggle-btn model-answer-btn ${isModelAnswerMode ? 'active' : ''}`}
+                      className={`followup-upload-button mode-toggle-btn model-answer-btn ${isModelAnswerMode ? 'active' : ''} ${isNegative ? 'disabled' : ''}`}
                       onClick={() => {
+                        if (isNegative) {
+                          navigate('/upgrade', { state: { fromApp: true } });
+                          return;
+                        }
                         const newVal = !isModelAnswerMode;
                         setIsModelAnswerMode(newVal);
                         if (newVal) setIsMarkingSchemeMode(false);
                       }}
-                      disabled={isProcessing}
-                      title={isModelAnswerMode ? "Switch to Normal Mode" : "Generate Model Answer"}
+                      disabled={isProcessing || isNegative}
+                      title={isNegative ? "You have exhausted your credits. Please top up to continue." : (isModelAnswerMode ? "Switch to Normal Mode" : "Generate Model Answer")}
                     >
                       <span className="btn-icon"><Sparkles size={16} /></span>
                       <span className="btn-text">Generate Model Answer</span>
@@ -1227,14 +1256,18 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
                   {!isModelAnswerMode && selectedSubject !== 'custom' && (
                     <button
-                      className={`followup-upload-button mode-toggle-btn marking-scheme-btn ${isMarkingSchemeMode ? 'active' : ''}`}
+                      className={`followup-upload-button mode-toggle-btn marking-scheme-btn ${isMarkingSchemeMode ? 'active' : ''} ${isNegative ? 'disabled' : ''}`}
                       onClick={() => {
+                        if (isNegative) {
+                          navigate('/upgrade', { state: { fromApp: true } });
+                          return;
+                        }
                         const newVal = !isMarkingSchemeMode;
                         setIsMarkingSchemeMode(newVal);
                         if (newVal) setIsModelAnswerMode(false);
                       }}
-                      disabled={isProcessing}
-                      title={isMarkingSchemeMode ? "Switch to Normal Mode" : "Explain Marking Scheme"}
+                      disabled={isProcessing || isNegative}
+                      title={isNegative ? "You have exhausted your credits. Please top up to continue." : (isMarkingSchemeMode ? "Switch to Normal Mode" : "Explain Marking Scheme")}
                     >
                       <span className="btn-icon"><BookOpen size={16} /></span>
                       <span className="btn-text">Explain Marking Scheme</span>
@@ -1243,8 +1276,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
                   {(mode === 'follow-up' || (!isModelAnswerMode && !isMarkingSchemeMode)) && (
                     <button
-                      className="followup-upload-button mobile-scan-btn scan-camera-btn"
+                      className={`followup-upload-button mobile-scan-btn scan-camera-btn ${isNegative ? 'disabled' : ''}`}
                       onClick={() => {
+                        if (isNegative) {
+                          navigate('/upgrade', { state: { fromApp: true } });
+                          return;
+                        }
                         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                         if (isMobile) {
                           handleOpenCameraHandoff();
@@ -1252,8 +1289,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                           setIsMobileUploadOpen(true);
                         }
                       }}
-                      disabled={isProcessing}
-                      title="Scan from Mobile"
+                      disabled={isProcessing || isNegative}
+                      title={isNegative ? "You have exhausted your credits. Please top up to continue." : "Scan from Mobile"}
                     >
                       <span className="btn-icon"><Smartphone size={16} /></span>
                       <span className="btn-text">Scan with Camera</span>
@@ -1275,7 +1312,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   {/* 👇 SendButton disabled logic updated to check combinedInput */}
                   <SendButton
                     onClick={handleSendClick}
-                    disabled={!canSend}
+                    disabled={!canSend || isNegative}
                     loading={isProcessing}
                     variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'}
                     size={mode === 'first-time' ? 'main' : 'small'}
@@ -1354,7 +1391,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         </div>
       </div>
 
-      <input ref={fileInputRef} id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing} />
+      <input ref={fileInputRef} id="unified-file-input" type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} style={{ display: 'none' }} disabled={isProcessing || isNegative} />
 
       <MobileUploadModal
         isOpen={isMobileUploadOpen}
