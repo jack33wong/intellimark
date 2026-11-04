@@ -69,8 +69,18 @@ export class MarkingOutputService {
 
             const scoresToDraw = questionFirstPageScores.get(pageIndex);
 
-            // First page logic: Check if this is the very first page in the array
-            const isFirstOutputPage = (i === 0);
+            // Find the first page index in standardizedPages that actually contains graded questions (fallback to 0)
+            const firstGradedPageIdx = standardizedPages.findIndex(p =>
+                markingResults.some(r =>
+                    r.pageIndex === p.pageIndex ||
+                    r.annotations?.some(a => a.pageIndex === p.pageIndex) ||
+                    (r.sourceImageIndices && r.sourceImageIndices.includes(p.pageIndex))
+                )
+            );
+            const targetStampArrayIdx = firstGradedPageIdx >= 0 ? firstGradedPageIdx : 0;
+
+            // Draw the circular overall score stamp on the first graded page
+            const isFirstOutputPage = (i === targetStampArrayIdx);
             const totalScoreToDraw = isFirstOutputPage ? overallScoreText : undefined;
 
             const mapperCategory = allClassificationResults.find(c => c.pageIndex === pageIndex)?.result?.category;

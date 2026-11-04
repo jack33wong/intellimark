@@ -89,7 +89,12 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
         }
     };
 
-    if (!detectedQuestion || !detectedQuestion.examPapers) return null;
+    if (groupedQuestions.length === 0) return null;
+
+    const isGenericPaper = !detectedQuestion?.found;
+    const ribbonTooltip = isGenericPaper
+        ? "Question score breakdown (estimated criteria for non-past paper questions)"
+        : "Question Breakdown";
 
     const handleQuestionClick = (q: GroupedQuestion) => {
 
@@ -102,7 +107,7 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
     if (mode === 'ribbon') {
         return (
             <div className="question-navigator-ribbon">
-                <div className="ribbon-label">Question Breakdown</div>
+                <div className="ribbon-label" title={ribbonTooltip}>Question Breakdown</div>
                 <div className="ribbon-nav-row">
                     <button
                         type="button"
@@ -119,16 +124,18 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                     <div className="ribbon-scroll-container" ref={scrollContainerRef}>
                         {groupedQuestions.map((q, idx) => {
                             const color = getGroupColor(q);
+                            const scoreLabel = q.hasResults ? `${q.awardedMarks}/${q.totalMarks}` : `${q.totalMarks}`;
                             return (
                                 <button
                                     key={`${q.questionNumber}-${idx}`}
                                     id={`${idPrefix}-item-${q.questionNumber}`}
                                     className={`ribbon-item ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''} score-${color}-bg`}
                                     onClick={() => handleQuestionClick(q)}
+                                    title={`Question ${q.questionNumber}: ${scoreLabel} marks`}
                                 >
                                     <span className="q-label">Q{q.questionNumber}</span>
                                     <span className={`score-text ${color}`}>
-                                        {q.hasResults ? `${q.awardedMarks}/${q.totalMarks}` : `${q.totalMarks}`}
+                                        {scoreLabel}
                                     </span>
                                 </button>
                             );
@@ -167,6 +174,7 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                             id={`${idPrefix}-item-${q.questionNumber}`}
                             className={`table-ribbon-item ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''} score-${color}-bg`}
                             onClick={() => handleQuestionClick(q)}
+                            title={`Question ${q.questionNumber}: ${scoreText} marks`}
                         >
                             <span className="q-label">Q{q.questionNumber}</span>
                             <span className={`score-text ${color}`}>

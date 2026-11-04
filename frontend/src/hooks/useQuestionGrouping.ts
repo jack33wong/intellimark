@@ -15,13 +15,26 @@ export const useQuestionGrouping = (
     detectedQuestion: DetectedQuestion | null,
     markingContext?: MarkingContext
 ) => {
-    // Flatten all questions first
-    const allQuestions = useMemo(() => detectedQuestion?.examPapers?.flatMap(paper =>
-        paper.questions.map(q => ({
-            ...q,
-            examPaper: paper
-        }))
-    ) || [], [detectedQuestion]);
+    // Flatten all questions first (supports detectedQuestion.examPapers and falls back to markingContext.questionResults)
+    const allQuestions = useMemo(() => {
+        if (detectedQuestion?.examPapers && detectedQuestion.examPapers.length > 0) {
+            return detectedQuestion.examPapers.flatMap(paper =>
+                paper.questions.map(q => ({
+                    ...q,
+                    examPaper: paper
+                }))
+            );
+        }
+        // Fallback: build question list directly from markingContext.questionResults
+        if (markingContext?.questionResults && markingContext.questionResults.length > 0) {
+            return markingContext.questionResults.map(r => ({
+                questionNumber: r.number,
+                marks: r.totalMarks || 0,
+                sourceImageIndex: r.pageIndex ?? 0
+            }));
+        }
+        return [];
+    }, [detectedQuestion, markingContext]);
 
     // Group questions by main number
     const groupedQuestions = useMemo(() => {

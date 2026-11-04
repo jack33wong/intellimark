@@ -176,13 +176,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     return [...currentSession.messages].reverse().find(m => (m as any).markingContext);
   }, [currentSession]);
 
-  // Determine Detected Question for Ribbon logic
+  // Determine Detected Question for Ribbon logic (supports both past papers and generic papers)
   const activeDetectedQuestion = React.useMemo(() => {
     if (!currentSession) return null;
-    if (currentSession.detectedQuestion?.found) return currentSession.detectedQuestion;
+    if (currentSession.detectedQuestion?.examPapers?.length || currentSession.detectedQuestion?.found) {
+      return currentSession.detectedQuestion;
+    }
 
     if (currentSession.messages) {
-      const msgWithQuestion = currentSession.messages.find((m: any) => m.detectedQuestion?.found);
+      const msgWithQuestion = currentSession.messages.find(
+        (m: any) => m.detectedQuestion?.examPapers?.length || m.detectedQuestion?.found
+      );
       if (msgWithQuestion) return (msgWithQuestion as any).detectedQuestion;
     }
     return null;
@@ -382,7 +386,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
-    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
+    if (!currentSession || groupedQuestions.length === 0) return null;
 
     const ribbonContent = (
       <QuestionNavigator

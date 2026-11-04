@@ -178,9 +178,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         const pageIdx = map.pageIndex;
 
         // 🛡️ UNATTEMPTED QUESTION-ONLY PRUNING (Multi-Page Exam Guard):
-        // If this upload has student answers (`hasAnyQuestionAnswerPage`) and > 3 total pages,
-        // any `questionOnly` page whose questions were NOT answered anywhere by the student
-        // does not need expensive Pass-2 Heavy Classification.
+        // Keep `map.questions` intact so `mapperHints` preserves Q15/Q16/Q17 for the Straightener!
         if (
           hasAnyQuestionAnswerPage &&
           images.length > 3 &&
@@ -196,10 +194,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           });
 
           if (!hasAnsweredQOnThisPage) {
-            // Downgrade unattempted questionOnly page to metadata so Pass 2 skips it
-            map.category = 'frontPage';
-            map.questions = [];
-            return;
+            map.category = 'metadata' as any;
+            return; // Keep map.questions intact so Straightener sorts Q15/Q16/Q17 at the END!
           }
         }
 
@@ -730,35 +726,39 @@ ${pageHints}
 
       await Promise.all(workers);
 
-      // Handle pages that were NOT mapped to any question (e.g., front pages, metadata pages)
-      // Check Map Pass results for pages that are marked as "frontPage"
+      // Handle pages that were NOT mapped to any active question task (e.g., front pages, unattempted metadata pages)
       for (let i = 0; i < images.length; i++) {
-        // If this page was not in results, it was not mapped to any question
         const hasResult = results.some(r => r.pageIndex === i);
         if (!hasResult) {
           const mapResult = resolvedPageMaps.find(m => m.pageIndex === i);
           const rawCategory = mapResult?.category;
-          const category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage" =
-            (rawCategory === "frontPage" || rawCategory === "metadata")
-              ? rawCategory
-              : "frontPage";
+          const preservedHints = Array.isArray(mapResult?.flatQuestions) && mapResult.flatQuestions.length > 0
+            ? mapResult.flatQuestions
+            : (Array.isArray(mapResult?.questions)
+                ? mapResult.questions.map((q: any) => typeof q === 'string' ? q : q?.questionNumber).filter(Boolean)
+                : []);
 
-          // Mark as front page or metadata based on Map Pass category
+          const category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage" =
+            preservedHints.length > 0
+              ? "metadata"
+              : (rawCategory === "frontPage" || rawCategory === "metadata")
+                ? rawCategory
+                : "frontPage";
+
           results.push({
             pageIndex: i,
-            mapperCategory: category,  // Add mapper category for mode detection
+            mapperCategory: category,
             result: {
-              category: category,  // FIXED: Keep frontPage as-is, don't leave empty unmapped pages as questionOnly
-              reasoning: category === "frontPage"
-                ? "Front page or blank booklet page detected by Map Pass - contains no questions"
-                : "Page not mapped to any question",
+              category: category,
+              reasoning: preservedHints.length > 0
+                ? `Unattempted question page (${preservedHints.join(', ')}) skipped in Marking Mode`
+                : "Front page or blank booklet page detected by Map Pass - contains no questions",
               questions: [],
+              mapperHints: preservedHints,
               apiUsed: "Map Pass Detection",
               usageTokens: 0
             }
           });
-
-
         }
       }
 
@@ -1121,15 +1121,28 @@ ${pageHints}
       // Gemini sometimes appends `undefined` after numbers (e.g., 4.08undefined) or at the end of properties.
       sanitized = sanitized.replace(/undefined/gi, '');
 
-      // 🛡️ [MATH EVALUATION FIX]: Catch un-evaluated division ONLY inside the "p" arrays
-      // This calculates things like "p": [9.33, 676.0 / 10] into "p": [9.33, 67.6]
-      // while safely ignoring math inside the student transcription text.
+      // 🛡️ [MATH & TERNARY EVALUATION FIX]: Catch un-evaluated division or ternary expressions inside "p" arrays
+      // e.g. "p": [574.0 / 10, 41.5, 6.0, 2.2] or "p": [224.0 / 10.0 > 100 ? 22.4 : 22.4, 73.8, 4.3, 5.0]
       sanitized = sanitized.replace(/"p"\s*:\s*\[([^\]]+)\]/g, (match, arrayContents) => {
-        const evaluatedContents = arrayContents.replace(/(\d+\.?\d*)\s*\/\s*(\d+\.?\d*)/g, (mathMatch: string, num1: string, num2: string) => {
-          const result = parseFloat(num1) / parseFloat(num2);
-          return isNaN(result) ? mathMatch : result.toString();
+        const cleanedElements = arrayContents.split(',').map((el: string) => {
+          let item = el.trim();
+          // If AI wrote a ternary `cond ? valTrue : valFalse`, take the last numeric value after `:` or `?`
+          if (item.includes('?') && item.includes(':')) {
+            item = item.split(':').pop()!.trim();
+          }
+          // Evaluate simple division `num1 / num2`
+          item = item.replace(/(\d+\.?\d*)\s*\/\s*(\d+\.?\d*)/g, (mathMatch: string, num1: string, num2: string) => {
+            const result = parseFloat(num1) / parseFloat(num2);
+            return isNaN(result) ? mathMatch : result.toString();
+          });
+          // Fallback: extract first valid float if any comparison operators remain
+          if (/[<>?:]/.test(item)) {
+            const numMatch = item.match(/-?\d+\.?\d*/);
+            if (numMatch) item = numMatch[0];
+          }
+          return item;
         });
-        return `"p": [${evaluatedContents}]`;
+        return `"p": [${cleanedElements.join(', ')}]`;
       });
 
       // 🛡️ [TOXIC-UNDERSCORE FIX]: If the AI gets caught in a loop generating escaped underscores,

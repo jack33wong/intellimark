@@ -63,7 +63,7 @@ export interface MarkingSchemeOrchestrationResult {
 
 export class MarkingSchemeOrchestrationService {
 
-  // [HELPER] Smart Estimate from Text
+  // [HELPER] Smart Estimate from Text (Supports Edexcel "(3 marks)", AQA "[3 marks]", and WJEC/OCR "[3]" / "[ 3 ]")
   private static smartEstimateMaxMarks(text: string): number {
     if (!text) return 0;
     const patterns = [
@@ -71,7 +71,8 @@ export class MarkingSchemeOrchestrationService {
       /\(\s*Total\s*(\d+)\s*marks?\s*\)/i,
       /\[\s*(\d+)\s*marks?\s*\]/i,
       /Total\s*:?\s*(\d+)\s*marks?/i,
-      /\(\s*(\d+)\s*marks?\s*\)/i
+      /\(\s*(\d+)\s*marks?\s*\)/i,
+      /\[\s*(\d{1,2})\s*\]\s*$/m // Matches trailing [3] or [ 2 ] on WJEC/OCR/CIE questions
     ];
     for (const pattern of patterns) {
       const match = text.match(pattern);

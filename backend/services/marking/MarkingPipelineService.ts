@@ -1419,10 +1419,20 @@ export class MarkingPipelineService {
                     // Hybrid / Partially-Answered Booklet Case:
                     // Reclassify remaining `questionOnly` pages inside a partially-answered exam booklet (> 3 pages)
                     // to `'metadata'` so `QuestionModeHandlerService` does NOT solve unattempted exam questions.
+                    // CRITICAL: Preserve question numbers in `mapperHints` before clearing `questions` so the Straightener
+                    // knows their logical question order (e.g. Q15, Q16, Q17) and puts them at the END, not Page 0!
                     for (const item of allClassificationResults) {
                         if (item.result?.category === 'questionOnly') {
+                            const existingQs = Array.isArray(item.result.questions)
+                                ? item.result.questions.map((q: any) => String(q.questionNumber || '')).filter(Boolean)
+                                : [];
+                            if (existingQs.length > 0) {
+                                (item.result as any).mapperHints = [
+                                    ...new Set([...((item.result as any).mapperHints || []), ...existingQs])
+                                ];
+                            }
                             console.log(
-                                `🧹 [HYBRID-BOOKLET] Reclassifying blank/donor exam page ${item.pageIndex} from 'questionOnly' to 'metadata' (stems already harvested).`
+                                `🧹 [HYBRID-BOOKLET] Reclassifying blank/donor exam page ${item.pageIndex} (Qs: ${existingQs.join(', ') || 'none'}) from 'questionOnly' to 'metadata'.`
                             );
                             item.result.category = 'metadata';
                             item.result.questions = [];
@@ -2504,15 +2514,18 @@ export class MarkingPipelineService {
             // Scrambling a PDF because of an OCR misread destroys the visual flow of the document.
             if (!isPdf && !isMultiplePdfs) {
                 pageSortMap.sort((a, b) => {
-                    // Rule 1: Leading Metadata (Cover pages before any question has started) go first.
-                    // Interior/trailing blank booklet pages have inherited minQ < 999999 from their preceding question
-                    // so they remain in their true physical booklet sequence!
-                    const aIsLeadingCover = a.isMeta && a.minQ === 999999;
-                    const bIsLeadingCover = b.isMeta && b.minQ === 999999;
-                    if (aIsLeadingCover && !bIsLeadingCover) return -1;
-                    if (!aIsLeadingCover && bIsLeadingCover) return 1;
-                    
-                    // Rule 2: Logical Question Order
+                    // Rule 1: ONLY true Exam Front Covers (isFrontCover === true) go before Q1.
+                    // Unattempted/unresolved metadata pages (isMeta && minQ === 999999 && !isFrontCover) go to the END!
+                    const aIsTrueCover = a.isFrontCover && a.minQ === 999999;
+                    const bIsTrueCover = b.isFrontCover && b.minQ === 999999;
+                    if (aIsTrueCover && !bIsTrueCover) return -1;
+                    if (!aIsTrueCover && bIsTrueCover) return 1;
+
+                    // Push non-cover unresolved metadata pages (minQ === 999999) to the end of the upload
+                    if (a.minQ === 999999 && b.minQ !== 999999) return 1;
+                    if (a.minQ !== 999999 && b.minQ === 999999) return -1;
+
+                    // Rule 2: Logical Question Order (Now Q1..Q14 -> Pages 0..13, and Q15..Q17 -> Pages 14..16!)
                     if (Math.abs(a.minQ - b.minQ) > 0.00001) {
                         return a.minQ - b.minQ;
                     }
@@ -3338,6 +3351,38 @@ export class MarkingPipelineService {
                                                     }, 0);
 
                                                     result.score.awardedMarks = newAwarded;
+
+                                                    // 🛡️ GENERIC / UNIVERSAL MODE TOTAL MARKS RECOVERY:
+                                                    // If `result.score.totalMarks` is 0 (because the paper is not in the DB and
+                                                    // mark brackets like `[ 1 ]` or `[ 4 ]` were in OCR blocks rather than classification text),
+                                                    // compute the true denominator from all evaluated mark annotations (e.g. B1, B2, M1, A1, B0, M0, A0).
+                                                    if (!result.score.totalMarks || result.score.totalMarks <= 0) {
+                                                        const inferredTotalFromAnnotations = finalizedAnnotations.reduce((sum: number, a: any) => {
+                                                            const text = (a.text || '').trim();
+                                                            const isMath = /[\\{}=\^_\(\)]/.test(text) || text.includes('sqrt') || text.includes('frac');
+                                                            if (!isMath) {
+                                                                const clean = text.replace(/[^a-zA-Z0-9]/g, '');
+                                                                // Match both awarded (B1, B2, M1, A1) and un-awarded (B0, M0, A0, P0) rubric criteria
+                                                                const m = clean.match(/^([BMAPC])(\d+)$/i);
+                                                                if (m) {
+                                                                    const num = parseInt(m[2], 10);
+                                                                    return sum + (num > 0 ? num : 1);
+                                                                }
+                                                            }
+                                                            if (a.action === 'tick' || a.action === 'cross' || a.action === 'mark') {
+                                                                return sum + 1;
+                                                            }
+                                                            return sum;
+                                                        }, 0);
+
+                                                        result.score.totalMarks = Math.max(inferredTotalFromAnnotations, newAwarded);
+                                                        (result as any).totalMarks = result.score.totalMarks;
+                                                        if (task.markingScheme && result.score.totalMarks > 0) {
+                                                            task.markingScheme.totalMarks = result.score.totalMarks;
+                                                            task.markingScheme.parentQuestionMarks = result.score.totalMarks;
+                                                        }
+                                                    }
+
                                                     result.score.scoreText = `${newAwarded}/${result.score.totalMarks}`;
                                                 }
 
