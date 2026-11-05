@@ -1362,7 +1362,7 @@
 .credits-percent-text {
   font-size: 12px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   letter-spacing: -0.01em;
   white-space: nowrap;
   line-height: 1.2;

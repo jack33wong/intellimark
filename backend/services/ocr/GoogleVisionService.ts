@@ -39,31 +39,52 @@ export class GoogleVisionService {
   }
 
   /**
-   * NEW: Detects the physical orientation of the text in the image.
-   * Uses a weighted voting system across all text blocks to prevent marginal vertical text from dominating.
+   * Detects the physical orientation of the text in the image.
+   * Filters out exam margin boilerplate ("DO NOT WRITE IN THIS AREA") and outer-edge stack artifacts,
+   * and applies a portrait aspect-ratio guard so sparse diagram/arithmetic pages are never falsely rotated 90°.
    * Returns the clockwise rotation degrees (0, 90, 180, 270) required to make the image upright.
    */
   static async detectOrientation(imageBuffer: Buffer): Promise<number> {
     try {
       const result = await this.detectText(imageBuffer, 'DOCUMENT_TEXT_DETECTION');
-      
+
       const page = result.fullTextAnnotation?.pages?.[0];
       if (!page || !page.blocks || page.blocks.length === 0) {
         console.warn('⚠️ [GOOGLE VISION] No text blocks found for orientation detection. Assuming 0 degrees.');
         return 0;
       }
 
+      const pageWidth = page.width || 1000;
+      const pageHeight = page.height || 1400;
+      const isPortraitImage = pageHeight > pageWidth * 1.12;
+
       let upVotes = 0;    // Needs 0
       let downVotes = 0;  // Needs 180
       let rightVotes = 0; // Needs 270 (Image is rotated 90 CW)
       let leftVotes = 0;  // Needs 90 (Image is rotated 90 CCW)
+      let horizontalCoreBlockCount = 0;
+
+      // Boilerplate regex for vertical exam margin text & barcode/footer codes
+      const MARGIN_BOILERPLATE_REGEX = /do\s*not\s*write|in\s*this\s*area|outside\s*the\s*(box|area)|leave\s*blank|turn\s*over/i;
 
       for (const block of page.blocks) {
         if (!block.boundingBox || !block.boundingBox.vertices || block.boundingBox.vertices.length < 2) continue;
 
-        const v0 = block.boundingBox.vertices[0];
-        const v1 = block.boundingBox.vertices[1];
-        const v2 = block.boundingBox.vertices[2];
+        // 1. Extract plain text of the block to filter out "DO NOT WRITE IN THIS AREA" margin strips
+        const blockText = (block.paragraphs || [])
+          .flatMap(p => p.words || [])
+          .map(w => (w.symbols || []).map(s => s.text || '').join(''))
+          .join(' ')
+          .trim();
+
+        if (blockText && MARGIN_BOILERPLATE_REGEX.test(blockText)) {
+          continue; // Never allow margin boilerplate to vote on page orientation!
+        }
+
+        const vertices = block.boundingBox.vertices;
+        const v0 = vertices[0];
+        const v1 = vertices[1];
+        const v2 = vertices[2];
 
         const x0 = v0.x || 0;
         const y0 = v0.y || 0;
@@ -75,26 +96,58 @@ export class GoogleVisionService {
         const dx = x1 - x0;
         const dy = y1 - y0;
 
-        // Calculate a rough block area weight to prioritize main body text over marginal text
+        const xs = vertices.map(v => v.x || 0);
+        const ys = vertices.map(v => v.y || 0);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        // 2. Check if block sits entirely in the outer left/right/top/bottom 18% margin (fanned paper stack edges)
+        const isInLeftRightOuterMargin = maxX < pageWidth * 0.20 || minX > pageWidth * 0.80;
+        const isInTopBottomOuterMargin = maxY < pageHeight * 0.12 || minY > pageHeight * 0.88;
+
         const width = Math.sqrt(dx * dx + dy * dy) || 1;
         const height = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2)) || 1;
-        const weight = width * height;
+        // Use character count * line length so multi-line vertical margin strips don't get quadratic area inflation
+        const charCount = Math.max(1, blockText.replace(/\s+/g, '').length);
+        let weight = width * Math.min(height, 60) * Math.sqrt(charCount);
 
-        if (Math.abs(dx) > Math.abs(dy)) {
-            // Text is horizontal
-            if (dx > 0) upVotes += weight;
-            else downVotes += weight;
+        const isHorizontal = Math.abs(dx) > Math.abs(dy);
+
+        if (isHorizontal) {
+          if (dx > 0) {
+            upVotes += weight;
+            if (!isInLeftRightOuterMargin && !isInTopBottomOuterMargin && charCount >= 5) {
+              horizontalCoreBlockCount++;
+            }
+          } else {
+            downVotes += weight;
+          }
         } else {
-            // Text is vertical
-            if (dy > 0) rightVotes += weight; // 90° Clockwise -> needs 270
-            else leftVotes += weight;         // 90° Counter-Clockwise -> needs 90
+          // Vertical text block: if it sits in the outer 20% left/right margin of a portrait image,
+          // it is almost certainly a fanned-out page stack edge or margin label — heavily penalize it!
+          if (isPortraitImage && isInLeftRightOuterMargin) {
+            weight *= 0.02;
+          }
+          if (dy > 0) rightVotes += weight; // 90° Clockwise -> needs 270
+          else leftVotes += weight;         // 90° Counter-Clockwise -> needs 90
         }
       }
 
-      // Determine the winner
+      // 3. Portrait Aspect-Ratio Guard:
+      // If the photo is already a portrait image (height > width * 1.12) and contains at least 2 upright horizontal
+      // text blocks in the core body of the page, never rotate it 90°/270° into landscape unless vertical votes
+      // overwhelm horizontal votes by > 3x!
+      if (isPortraitImage && horizontalCoreBlockCount >= 2 && upVotes >= downVotes) {
+        if (leftVotes < upVotes * 3 && rightVotes < upVotes * 3) {
+          return 0;
+        }
+      }
+
       const maxVotes = Math.max(upVotes, downVotes, rightVotes, leftVotes);
-      
-      if (maxVotes === 0) return 0; // Fallback
+
+      if (maxVotes === 0) return 0;
       if (maxVotes === upVotes) return 0;
       if (maxVotes === rightVotes) return 270;
       if (maxVotes === leftVotes) return 90;
