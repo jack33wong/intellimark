@@ -102,18 +102,36 @@ export const useSubscription = (): UseSubscriptionResult => {
             fetchSubscription();
         });
 
+        const logoutCleanup = EventManager.listen(EVENT_TYPES.USER_LOGGED_OUT, () => {
+            globalCache.subscription = null;
+            globalCache.loaded = false;
+            globalCache.userId = null;
+            globalCache.inProgressPromise = null;
+            setSubscription(null);
+        });
+
         return () => {
             cleanup();
+            logoutCleanup();
         };
 
     }, [user?.uid]);
 
-    // Invalidate cache on logout
+    // Invalidate cache on logout or user switch
     useEffect(() => {
         if (!user?.uid) {
             globalCache.subscription = null;
             globalCache.loaded = false;
             globalCache.userId = null;
+            globalCache.inProgressPromise = null;
+            setSubscription(null);
+        } else if (globalCache.userId && globalCache.userId !== user.uid) {
+            globalCache.subscription = null;
+            globalCache.loaded = false;
+            globalCache.userId = user.uid;
+            globalCache.inProgressPromise = null;
+            setSubscription(null);
+            fetchSubscription();
         }
     }, [user?.uid]);
 

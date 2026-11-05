@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import API_CONFIG from '../config/api';
-import EventManager from '../utils/eventManager';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 
 export interface UserCredits {
     userId: string;
-    planId: 'free' | 'pro' | 'ultra';
+    planId: 'free' | 'pro' | 'ultra' | 'admin_test';
     totalCredits: number;
     usedCredits: number;
     remainingCredits: number;
@@ -20,17 +20,20 @@ const globalCreditCache: {
     loaded: boolean;
     timestamp: number;
     inProgressPromise: Promise<UserCredits | null> | null;
+    userId: string | null;
 } = {
     credits: null,
     loaded: false,
     timestamp: 0,
-    inProgressPromise: null
+    inProgressPromise: null,
+    userId: null
 };
 
 export const useCredits = () => {
     const { user } = useAuth();
-    const [credits, setCredits] = useState<UserCredits | null>(globalCreditCache.credits);
-    const [loading, setLoading] = useState(!globalCreditCache.loaded);
+    const isCacheValidForUser = globalCreditCache.loaded && globalCreditCache.userId === user?.uid;
+    const [credits, setCredits] = useState<UserCredits | null>(isCacheValidForUser ? globalCreditCache.credits : null);
+    const [loading, setLoading] = useState(!isCacheValidForUser);
     const [error, setError] = useState<string | null>(null);
 
     const lastRequestIdRef = useRef(0);
@@ -45,8 +48,14 @@ export const useCredits = () => {
         const requestId = Date.now();
         lastRequestIdRef.current = requestId;
 
-        // 1. Check cache (only if not forcing and no promise in progress)
-        if (!force && !globalCreditCache.inProgressPromise && globalCreditCache.loaded && (Date.now() - globalCreditCache.timestamp < 60000)) {
+        // 1. Check cache (only if for current user, not forcing, and within 60s)
+        if (
+            !force &&
+            !globalCreditCache.inProgressPromise &&
+            globalCreditCache.loaded &&
+            globalCreditCache.userId === user.uid &&
+            (Date.now() - globalCreditCache.timestamp < 60000)
+        ) {
             if (lastRequestIdRef.current === requestId) {
                 setCredits(globalCreditCache.credits);
                 setLoading(false);
@@ -54,10 +63,8 @@ export const useCredits = () => {
             return globalCreditCache.credits;
         }
 
-        // 2. Dedup parallel requests (REBUILT: Works for both force and non-force)
-        if (globalCreditCache.inProgressPromise) {
-            // IF we are already loading, just wait for that one to finish
-            // This prevents the 2ms burst seen on mount
+        // 2. Dedup parallel requests for the same user
+        if (globalCreditCache.inProgressPromise && globalCreditCache.userId === user.uid) {
             setLoading(true);
             try {
                 const data = await globalCreditCache.inProgressPromise;
@@ -99,6 +106,7 @@ export const useCredits = () => {
             globalCreditCache.credits = data;
             globalCreditCache.loaded = true;
             globalCreditCache.timestamp = Date.now();
+            globalCreditCache.userId = user.uid;
             return data;
         };
 
@@ -130,15 +138,43 @@ export const useCredits = () => {
 
     const lastFetchedUidRef = useRef<string | null>(null);
 
+    // Watch for user changes and logout
     useEffect(() => {
-        // Only fetch automatically on mount or when UID actually changes
-        // Use globalCreditCache.loaded sparingly here to avoid loops on failure
-        if (user?.uid && user.uid !== lastFetchedUidRef.current) {
+        if (!user?.uid) {
+            globalCreditCache.credits = null;
+            globalCreditCache.loaded = false;
+            globalCreditCache.timestamp = 0;
+            globalCreditCache.userId = null;
+            globalCreditCache.inProgressPromise = null;
+            setCredits(null);
+            setLoading(false);
+            lastFetchedUidRef.current = null;
+            return;
+        }
+
+        // If user switched accounts, immediately clear old user's cached credits and force fetch
+        if (globalCreditCache.userId && globalCreditCache.userId !== user.uid) {
+            globalCreditCache.credits = null;
+            globalCreditCache.loaded = false;
+            globalCreditCache.timestamp = 0;
+            globalCreditCache.userId = user.uid;
+            globalCreditCache.inProgressPromise = null;
+            setCredits(null);
+            setLoading(true);
+            fetchCredits(true);
+            lastFetchedUidRef.current = user.uid;
+            return;
+        }
+
+        // Initial fetch on mount or UID change
+        if (user.uid !== lastFetchedUidRef.current) {
             fetchCredits();
             lastFetchedUidRef.current = user.uid;
         }
+    }, [fetchCredits, user?.uid]);
 
-        // Listen for events that should trigger a credit refresh
+    // Listen for events that should trigger a credit refresh or logout cache purge
+    useEffect(() => {
         const creditsRefreshUnsubscribe = EventManager.listen('refreshCredits', () => {
             fetchCredits(true);
         });
@@ -147,20 +183,23 @@ export const useCredits = () => {
             fetchCredits(true);
         });
 
+        const logoutUnsubscribe = EventManager.listen(EVENT_TYPES.USER_LOGGED_OUT, () => {
+            globalCreditCache.credits = null;
+            globalCreditCache.loaded = false;
+            globalCreditCache.timestamp = 0;
+            globalCreditCache.userId = null;
+            globalCreditCache.inProgressPromise = null;
+            setCredits(null);
+            setLoading(false);
+            lastFetchedUidRef.current = null;
+        });
+
         return () => {
             creditsRefreshUnsubscribe();
             subscriptionUpdatedUnsubscribe();
+            logoutUnsubscribe();
         };
-    }, [fetchCredits, user?.uid]);
-
-    // Invalidate cache on auth change
-    useEffect(() => {
-        if (!user?.uid) {
-            globalCreditCache.credits = null;
-            globalCreditCache.loaded = false;
-            setCredits(null);
-        }
-    }, [user?.uid]);
+    }, [fetchCredits]);
 
     const hasCredits = credits ? credits.remainingCredits > 0 : true; // Assume true if not loaded to prevent blocking
     const isNegative = credits ? credits.remainingCredits <= 0 : false;
@@ -169,7 +208,7 @@ export const useCredits = () => {
 
     const ensureCredits = useCallback(async (force = false): Promise<UserCredits | null> => {
         if (!user?.uid) return null;
-        if (!force && globalCreditCache.loaded && globalCreditCache.credits && !loading) {
+        if (!force && globalCreditCache.loaded && globalCreditCache.credits && globalCreditCache.userId === user.uid && !loading) {
             return globalCreditCache.credits;
         }
         return await fetchCredits(force);
