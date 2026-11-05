@@ -19,6 +19,7 @@ export { default as ExamSeriesTierReminder } from './ExamSeriesTierReminder';
 export {
     groupMarkingResults,
     extractPaperCode,
+    matchesPaperCode,
     normalizeExamBoard,
     normalizeExamSeries,
     parseExamSeriesDate

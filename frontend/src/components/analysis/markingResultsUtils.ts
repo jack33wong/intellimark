@@ -37,9 +37,26 @@ export interface GroupedMarkingResult {
  * Extract paper code from examCode (e.g., "1MA1/1H" -> "1H")
  */
 export function extractPaperCode(examCode: string): string | null {
-  if (!examCode || !examCode.includes('/')) return null;
-  const parts = examCode.split('/');
-  return parts.length > 1 ? parts[parts.length - 1].trim() : null;
+  if (!examCode) return null;
+  const trimmed = examCode.trim();
+  if (trimmed.includes('/')) {
+    const parts = trimmed.split('/');
+    return parts.length > 1 ? parts[parts.length - 1].trim() : trimmed;
+  }
+  return trimmed;
+}
+
+/**
+ * Flexible matching for paper codes (e.g., matches "1MA1/2H" with "2H" or "1MA1/2H")
+ */
+export function matchesPaperCode(examCode: string, targetPaperCode: string): boolean {
+  if (!examCode || !targetPaperCode) return false;
+  const normExam = examCode.trim().toLowerCase();
+  const normTarget = targetPaperCode.trim().toLowerCase();
+  if (normExam === normTarget) return true;
+  const shortExam = normExam.includes('/') ? normExam.split('/').pop()!.trim() : normExam;
+  const shortTarget = normTarget.includes('/') ? normTarget.split('/').pop()!.trim() : normTarget;
+  return shortExam === shortTarget || shortExam === normTarget || normExam === shortTarget;
 }
 
 /**
@@ -109,8 +126,9 @@ export function groupMarkingResults(
 
   // Filter results that match the paper code set
   const filteredResults = results.filter(result => {
-    const paperCode = extractPaperCode(result.examMetadata.examCode);
-    return paperCode && paperCodeSet.includes(paperCode);
+    return paperCodeSet.some(targetCode =>
+      matchesPaperCode(result.examMetadata.examCode, targetCode)
+    );
   });
 
   // Get all unique exam series from all results (not just filtered ones)
@@ -183,8 +201,7 @@ export function groupMarkingResults(
       .map(paperCode => {
         // Find exam code that matches this paper code
         const matchingExamCode = Array.from(examCodeMap.keys()).find(examCode => {
-          const pc = extractPaperCode(examCode);
-          return pc === paperCode;
+          return matchesPaperCode(examCode, paperCode);
         });
 
         if (matchingExamCode) {

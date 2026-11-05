@@ -15,7 +15,7 @@ export class AnalysisService {
    * Generate analysis report for a session or multiple sessions grouped by subject
    * Cost-saving: Pass lastAnalysisReport if exists to avoid regenerating from scratch
    */
-  private static pendingAnalyses = new Set<string>();
+  private static pendingPromises = new Map<string, Promise<AnalysisResult>>();
 
   /**
    * Generate analysis report for a session or multiple sessions grouped by subject
@@ -27,22 +27,23 @@ export class AnalysisService {
     userId?: string
   ): Promise<AnalysisResult> {
 
-    // Idempotency Lock: Prevent double-execution for same user/subject
-    const analysisKey = userId && request.subject ? `${userId}-${request.subject}` : null;
-    if (analysisKey) {
-      if (AnalysisService.pendingAnalyses.has(analysisKey)) {
-        console.warn(`⚠️ [ANALYSIS SERVICE] Blocked duplicate analysis request for ${analysisKey}`);
-        throw new Error('Analysis is already in progress for this subject. Please wait.');
-      }
-      AnalysisService.pendingAnalyses.add(analysisKey);
+    // Idempotency Lock: Join in-flight analysis promise if one is already running
+    const paperKey = (request.paperCodeSet || []).slice().sort().join(',');
+    const analysisKey = userId && request.subject
+      ? `${userId}-${request.subject}-${request.qualification || ''}-${request.examBoard || ''}-${paperKey}`
+      : null;
+    if (analysisKey && AnalysisService.pendingPromises.has(analysisKey)) {
+      console.log(`🔄 [ANALYSIS SERVICE] Joining in-flight analysis for ${analysisKey}`);
+      return await AnalysisService.pendingPromises.get(analysisKey)!;
     }
 
-    try {
-      // 0. Resolve 'auto' model to default if needed
-      if (request.model === 'auto') {
-        const { getDefaultModel } = await import('../../config/aiModels.js');
-        request.model = getDefaultModel();
-      }
+    const executionPromise = (async (): Promise<AnalysisResult> => {
+      try {
+        // 0. Resolve 'auto' model to default if needed
+        if (request.model === 'auto') {
+          const { getDefaultModel } = await import('../../config/aiModels.js');
+          request.model = getDefaultModel();
+        }
 
       // 1. Get marking data from subjectMarkingResults (preferred) or session(s) (fallback)
       let markingData: MarkingDataForAnalysis | null = null;
@@ -139,10 +140,13 @@ export class AnalysisService {
         analysisResult.performance.averageGrade = markingData.averageGrade;
       }
 
-      // 7. Persist usage record if userId is provided
+      // 7. Calculate actual cost from UsageTracker and persist usage record if userId is provided
+      const cost = analysisTracker.calculateCost(request.model as string);
+      const { inputTokens, outputTokens } = analysisTracker.getTotalInputOutput();
+      analysisResult.actualCost = cost.total;
+      analysisResult.usageTokens = inputTokens + outputTokens;
+
       if (userId) {
-        const cost = analysisTracker.calculateCost(request.model as string);
-        const { inputTokens, outputTokens } = analysisTracker.getTotalInputOutput();
         const apiRequests = analysisTracker.getTotalRequests();
         const analysisSessionId = `analysis-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -166,17 +170,24 @@ export class AnalysisService {
         );
       }
 
-      return analysisResult;
+        return analysisResult;
 
-    } catch (error) {
-      console.error('❌ [ANALYSIS SERVICE] Error generating analysis:', error);
-      throw error;
-    } finally {
-      // Release lock
-      if (analysisKey) {
-        AnalysisService.pendingAnalyses.delete(analysisKey);
+      } catch (error) {
+        console.error('❌ [ANALYSIS SERVICE] Error generating analysis:', error);
+        throw error;
+      } finally {
+        // Release in-flight lock
+        if (analysisKey) {
+          AnalysisService.pendingPromises.delete(analysisKey);
+        }
       }
+    })();
+
+    if (analysisKey) {
+      AnalysisService.pendingPromises.set(analysisKey, executionPromise);
     }
+
+    return await executionPromise;
   }
 
   /**
@@ -896,16 +907,37 @@ export class AnalysisService {
 
       // Filter by exam board if provided
       if (examBoard) {
+        const normBoard = (b: string) => {
+          if (!b) return '';
+          const s = b.toLowerCase().trim();
+          if (s.includes('edexcel')) return 'Pearson Edexcel';
+          if (s.includes('aqa')) return 'AQA';
+          if (s.includes('ocr')) return 'OCR';
+          if (s.includes('wjec')) return 'WJEC';
+          if (s.includes('eduqas')) return 'Eduqas';
+          return b;
+        };
+        const normalizedTargetBoard = normBoard(examBoard);
         markingResults = markingResults.filter((mr: any) =>
-          mr.examMetadata?.examBoard === examBoard
+          normBoard(mr.examMetadata?.examBoard || '') === normalizedTargetBoard
         );
       }
 
       // Filter by paper code set if provided
       if (paperCodeSet && paperCodeSet.length > 0) {
+        const matchesPaperCode = (examCode: string, targetCode: string): boolean => {
+          if (!examCode || !targetCode) return false;
+          const normExam = examCode.trim().toLowerCase();
+          const normTarget = targetCode.trim().toLowerCase();
+          if (normExam === normTarget) return true;
+          const shortExam = normExam.includes('/') ? normExam.split('/').pop()!.trim() : normExam;
+          const shortTarget = normTarget.includes('/') ? normTarget.split('/').pop()!.trim() : normTarget;
+          return shortExam === shortTarget || shortExam === normTarget || normExam === shortTarget;
+        };
+
         markingResults = markingResults.filter((mr: any) => {
-          const paperCode = this.extractPaperCode(mr.examMetadata?.examCode || '');
-          return paperCode && paperCodeSet.includes(paperCode);
+          const examCode = mr.examMetadata?.examCode || '';
+          return paperCodeSet.some((targetCode: string) => matchesPaperCode(examCode, targetCode));
         });
       }
 

@@ -24,6 +24,8 @@ export interface AnalysisResult {
   };
   strengths: string[];          // AI-identified strengths
   weaknesses: string[];         // AI-identified weaknesses
+  actualCost?: number;          // Actual LLM cost in USD from UsageTracker
+  usageTokens?: number;         // Actual tokens used
 }
 
 export interface MarkingDataForAnalysis {

@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import {
   normalizeExamBoard,
   parseExamSeriesDate,
-  extractPaperCode
+  extractPaperCode,
+  matchesPaperCode
 } from './markingResultsUtils';
 import './ExamSeriesTierReminder.css';
 
@@ -83,11 +84,11 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
 
       // Find which paper code set this paper code belongs to
       const paperCodeSet = availablePaperCodeSets.find(set =>
-        set.paperCodes.includes(paperCode)
+        set.paperCodes.some(pc => matchesPaperCode(mr.examMetadata.examCode, pc))
       );
       if (!paperCodeSet) return;
 
-      const tierKey = paperCodeSet.tier.toLowerCase();
+      const tierKey = (paperCodeSet.tier || 'single tier').toLowerCase();
       if (!attemptedMap.has(series)) {
         attemptedMap.set(series, new Map());
       }
@@ -118,15 +119,17 @@ const ExamSeriesTierReminder: React.FC<ExamSeriesTierReminderProps> = ({
 
       // Check each tier/paper code set for this series
       gb.subjects.forEach(subject => {
-        subject.tiers.forEach(tier => {
-          const tierKey = tier.tier_level.toLowerCase();
+        (subject.tiers || []).forEach(tier => {
+          const tierKey = (tier.tier_level || 'single tier').toLowerCase();
           const paperCodeSet = availablePaperCodeSets.find(set =>
-            set.tier.toLowerCase() === tierKey
+            (set.tier || 'single tier').toLowerCase() === tierKey
           );
           if (!paperCodeSet) return;
 
           const attemptedForTier = attemptedMap.get(series)?.get(tierKey) || new Set();
-          const missingCodes = paperCodeSet.paperCodes.filter(pc => !attemptedForTier.has(pc));
+          const missingCodes = paperCodeSet.paperCodes.filter(pc =>
+            !Array.from(attemptedForTier).some(attempted => matchesPaperCode(attempted, pc))
+          );
 
           if (missingCodes.length > 0 && attemptedForTier.size > 0) {
             // Incomplete set: some paper codes attempted but not all

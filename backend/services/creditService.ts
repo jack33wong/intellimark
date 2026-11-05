@@ -79,13 +79,13 @@ export async function getUserCredits(userId: string): Promise<UserCredits> {
 export async function checkCredits(
     userId: string,
     estimatedCost: number,
-    currentPlan: 'free' | 'pro' | 'ultra' | 'admin_test' = 'free'
+    currentPlan?: 'free' | 'pro' | 'ultra' | 'admin_test'
 ): Promise<{ canProceed: boolean; warning?: string; remaining: number }> {
     let credits = await getUserCredits(userId);
 
     // Reconcile if the subscription plan has changed since the credit record was created
-    // (e.g., subscription expired → planMiddleware says 'free', but record still says 'pro')
-    if (credits.planId !== currentPlan) {
+    // Only reconcile if currentPlan was explicitly provided (avoids false downgrade on missing param)
+    if (currentPlan && credits.planId !== currentPlan) {
         console.log(`🔄 [CREDIT] Plan drift detected: record=${credits.planId}, actual=${currentPlan}. Reconciling...`);
         await updateCreditsOnPlanChange(
             userId,
@@ -217,6 +217,9 @@ export async function updateCreditsOnPlanChange(
     const levels: Record<string, number> = { free: 0, pro: 1, ultra: 2, admin_test: 3 };
     const isUpgrade = levels[newPlanId] > levels[oldPlanId];
 
+    // Special Protection: Admin test accounts should NEVER lose their test credit pool
+    const isAdminAccount = oldPlanId === 'admin_test' || currentCredits.planId === 'admin_test' || newPlanId === 'admin_test';
+
     if (isUpgrade) {
         // Upgrade: Keep unused + add new allocation
         const newRemaining = currentCredits.remainingCredits + newPlanCredits;
@@ -230,17 +233,21 @@ export async function updateCreditsOnPlanChange(
         });
         console.log(`⬆️ Upgrade: ${oldPlanId} → ${newPlanId}, credits: ${currentCredits.remainingCredits} + ${newPlanCredits} = ${newRemaining}`);
     } else {
-        // Downgrade: Cap at new plan limit (forfeit excess)
-        const newRemaining = Math.min(currentCredits.remainingCredits, newPlanCredits);
+        // Downgrade / Expiration: Carry forward remaining credits (do not forfeit unused credits)
+        const newRemaining = isAdminAccount
+            ? Math.max(currentCredits.remainingCredits, CREDIT_CONFIG.planCredits.admin_test)
+            : Math.max(currentCredits.remainingCredits, newPlanCredits);
+        const newTotal = Math.max(currentCredits.totalCredits, newPlanCredits);
+
         await userCreditsRef.update({
             planId: newPlanId,
-            totalCredits: newPlanCredits,
+            totalCredits: newTotal,
             remainingCredits: newRemaining,
-            usedCredits: newPlanCredits - newRemaining,
+            usedCredits: Math.max(0, currentCredits.usedCredits || 0),
             resetDate: subscriptionEndDate,
             updatedAt: now
         });
-        console.log(`⬇️ Downgrade: ${oldPlanId} → ${newPlanId}, credits capped: ${currentCredits.remainingCredits} → ${newRemaining}`);
+        console.log(`⬇️ Plan change (carry forward): ${oldPlanId} → ${newPlanId}, credits preserved: ${currentCredits.remainingCredits} → ${newRemaining}`);
     }
 }
 

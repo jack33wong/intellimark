@@ -48,12 +48,29 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
 
   // Group marking results for all paper code sets
   const allGroupedResults = useMemo(() => {
-    if (!paperCodeSets || paperCodeSets.length === 0) return [];
+    let effectiveSets = paperCodeSets;
+    if ((!effectiveSets || effectiveSets.length === 0) && markingResults.length > 0) {
+      const uniqueCodes = Array.from(
+        new Set(
+          markingResults
+            .map(r => extractPaperCode(r.examMetadata?.examCode || '') || r.examMetadata?.examCode)
+            .filter(Boolean) as string[]
+        )
+      );
+      effectiveSets = [
+        {
+          tier: 'All Papers',
+          paperCodes: uniqueCodes.length > 0 ? uniqueCodes : ['Paper']
+        }
+      ];
+    }
+
+    if (!effectiveSets || effectiveSets.length === 0) return [];
 
     // Group results for each paper code set
     const results: Array<{ paperCodeSet: PaperCodeSet; grouped: GroupedMarkingResult[] }> = [];
 
-    paperCodeSets.forEach(paperCodeSet => {
+    effectiveSets.forEach(paperCodeSet => {
       const grouped = groupMarkingResults(markingResults, paperCodeSet.paperCodes);
       // Always include paper code sets, even if they have no records
       // This ensures all paper code sets from grade boundaries are shown

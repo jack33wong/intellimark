@@ -69,6 +69,17 @@ router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.A
       return board;
     };
 
+    // Helper to match paper codes flexibly (e.g. "1MA1/2H" vs "2H" vs "8300/2H")
+    const matchesPaperCode = (examCode: string, targetCode: string): boolean => {
+      if (!examCode || !targetCode) return false;
+      const normExam = examCode.trim().toLowerCase();
+      const normTarget = targetCode.trim().toLowerCase();
+      if (normExam === normTarget) return true;
+      const shortExam = normExam.includes('/') ? normExam.split('/').pop()!.trim() : normExam;
+      const shortTarget = normTarget.includes('/') ? normTarget.split('/').pop()!.trim() : normTarget;
+      return shortExam === shortTarget || shortExam === normTarget || normExam === shortTarget;
+    };
+
     // Filter marking results by qualification, exam board, and paper code set
     let filteredResults = subjectResult.markingResults;
     if (qualification) {
@@ -87,8 +98,7 @@ router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.A
     if (paperCodeSet && Array.isArray(paperCodeSet) && paperCodeSet.length > 0) {
       filteredResults = filteredResults.filter((mr: any) => {
         const examCode = mr.examMetadata?.examCode || '';
-        const paperCode = examCode.split('/').pop()?.trim();
-        return paperCode && paperCodeSet.includes(paperCode);
+        return paperCodeSet.some((targetCode: string) => matchesPaperCode(examCode, targetCode));
       });
     }
 
@@ -147,10 +157,11 @@ router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.A
     // 5. Get last analysis report (for cost-saving context) - use cached even if regenerating
     const lastAnalysisReport = cachedAnalysis || null;
 
-    // --- NEW: Credit Check ---
+    // --- Credit Check ---
+    const userPlan = (req as any).userPlan;
     try {
-      const estimatedCost = 0.05; // Fixed cost for analysis generation
-      const creditCheck = await checkCredits(userId, estimatedCost);
+      const estimatedCost = 0.005; // Reasonable pre-flight estimate for analysis generation (~0.5 credits)
+      const creditCheck = await checkCredits(userId, estimatedCost, userPlan);
       if (!creditCheck.canProceed) {
         return res.status(403).json({
           success: false,
@@ -188,9 +199,13 @@ router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.A
       paperCodeSet
     );
 
-    // --- NEW: Credit Deduction ---
+    // --- Dynamic Token-Based Credit Deduction (once per generation) ---
     try {
-      await deductCredits(userId, 0.05, `analysis-${subject}`);
+      if (!(analysis as any)._creditDeducted) {
+        (analysis as any)._creditDeducted = true;
+        const actualCost = (analysis as any)?.actualCost !== undefined ? (analysis as any).actualCost : 0.005;
+        await deductCredits(userId, actualCost, `analysis-${subject}`);
+      }
     } catch (error) {
       console.error('❌ Credit deduction failed for analysis:', error);
     }
@@ -278,7 +293,7 @@ router.get('/grade-boundaries', optionalAuth, async (req: Request, res: Response
             name: matchingSubject.name,
             code: matchingSubject.code,
             tiers: matchingSubject.tiers?.map((tier: any) => ({
-              tier_level: tier.tier_level,
+              tier_level: tier.tier_level || 'Single Tier',
               paper_codes: tier.paper_codes || []
             })) || []
           }]

@@ -247,7 +247,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
       try {
         // Estimate cost based on message length and image size
         const estimatedCost = ((imageData ? imageData.length / 1000 : 0) + (message?.length || 0) / 100) * 0.001;
-        const creditCheck = await checkCredits(userId, estimatedCost);
+        const userPlan = (req as any).userPlan;
+        const creditCheck = await checkCredits(userId, estimatedCost, userPlan);
         creditWarning = creditCheck.warning;
 
         if (!creditCheck.canProceed) {

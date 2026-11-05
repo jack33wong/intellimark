@@ -3,7 +3,7 @@
  * Main component for displaying analysis report
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import './AnalysisReport.css';
 
@@ -41,39 +41,24 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [reAnalysisNeeded, setReAnalysisNeeded] = useState(reAnalysisNeededProp);
   const [isLoading, setIsLoading] = useState(true);
+  const inProgressRetriesRef = useRef(0);
 
   useEffect(() => {
     if (subject) {
-      // Only load analysis if all required filters are set
-      // This prevents race conditions where filters are being set asynchronously
-      const allFiltersReady = qualification && examBoard && paperCodeSet && paperCodeSet.length > 0;
-
-      if (allFiltersReady) {
-        // Reset state when filters change
-        setAnalysis(null);
-        setError(null);
-        setIsGenerating(false);
-        setIsLoading(true);
-        setReAnalysisNeeded(reAnalysisNeededProp);
-        // Load analysis when all filters are ready
-        loadAnalysis();
-      } else {
-        // Filters not ready yet - reset to loading state but don't try to load
-        setAnalysis(null);
-        setError(null);
-        setIsGenerating(false);
-        setIsLoading(true);
-      }
+      // Reset state when filters change and load analysis
+      inProgressRetriesRef.current = 0;
+      setAnalysis(null);
+      setError(null);
+      setIsGenerating(false);
+      setIsLoading(true);
+      setReAnalysisNeeded(reAnalysisNeededProp);
+      loadAnalysis();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, qualification, examBoard, paperCodeSet]);
 
   useEffect(() => {
     setReAnalysisNeeded(reAnalysisNeededProp);
-
-    // Don't trigger analysis automatically when flag changes - only when user explicitly visits the page
-    // Analysis will be triggered in loadAnalysis() when component first loads
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reAnalysisNeededProp]);
 
   const loadAnalysis = async () => {
@@ -88,56 +73,8 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         return;
       }
 
-      // When filters are active, check for cached analysis or generate new one
-      if (examBoard && paperCodeSet && paperCodeSet.length > 0 && qualification) {
-        // Trigger analysis generation (backend will check cache first)
-        await triggerBackgroundAnalysis();
-        return;
-      }
-
-      // No filters - get existing analysis (legacy support)
-      const apiBaseUrl = process.env.NODE_ENV === 'production'
-        ? ''
-        : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001');
-
-      const getResponse = await fetch(`${apiBaseUrl}/api/analysis/${encodeURIComponent(subject)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
-
-      if (getResponse.ok) {
-        const getData = await getResponse.json();
-        if (getData.success && getData.subjectMarkingResult) {
-          const analysisData = getData.subjectMarkingResult.analysis;
-          const needsReAnalysis = getData.subjectMarkingResult.reAnalysisNeeded || false;
-
-          // Handle both old structure (direct analysis) and new structure (nested)
-          let analysisToUse = null;
-          if (analysisData) {
-            if (analysisData.performance || analysisData.strengths) {
-              // Old structure - direct analysis object
-              analysisToUse = analysisData;
-            }
-          }
-
-          if (analysisToUse) {
-            setAnalysis(analysisToUse);
-          }
-          setReAnalysisNeeded(needsReAnalysis);
-          setIsLoading(false);
-
-          if (needsReAnalysis && !isGenerating) {
-            triggerBackgroundAnalysis();
-          }
-        } else {
-          setIsLoading(false);
-        }
-      } else {
-        setIsLoading(false);
-      }
+      // Trigger analysis generation (backend will check cache first)
+      await triggerBackgroundAnalysis();
     } catch (err) {
       console.error('Failed to load analysis:', err);
       setIsLoading(false);
@@ -172,9 +109,9 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         },
         body: JSON.stringify({
           subject,
-          qualification,
-          examBoard,
-          paperCodeSet,
+          qualification: qualification || undefined,
+          examBoard: examBoard || undefined,
+          paperCodeSet: (paperCodeSet && paperCodeSet.length > 0) ? paperCodeSet : undefined,
           model: 'auto'
         })
       });
@@ -193,6 +130,19 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         // For actual errors, log and set error state
         const errorMessage = errorData?.error || `Failed to generate analysis: ${response.status} ${response.statusText}`;
         console.error(`❌ Analysis generation failed: ${response.status} ${response.statusText}`, errorMessage);
+
+        // If the analysis is already in progress on the server, wait and re-check for the completed report
+        if (errorMessage.toLowerCase().includes('in progress') && inProgressRetriesRef.current < 5) {
+          inProgressRetriesRef.current += 1;
+          console.log(`⏳ Analysis is in progress on server (retry ${inProgressRetriesRef.current}/5)...`);
+          setIsGenerating(true);
+          setTimeout(() => {
+            setIsGenerating(false);
+            loadAnalysis();
+          }, 2500);
+          return;
+        }
+
         setError(errorMessage);
         setIsLoading(false);
         return;
@@ -201,6 +151,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       const data = await response.json();
 
       if (data.success) {
+        inProgressRetriesRef.current = 0;
         // Handle empty result (no marking results found)
         if (data.empty || !data.analysis) {
           setError(null);
