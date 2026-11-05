@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { SubscriptionService } from '../services/subscriptionService.js';
+import { isAdminUser } from '../config/firebase.js';
 
 // Extend Express Request to include plan info
 declare global {
     namespace Express {
         interface Request {
-            userPlan?: 'free' | 'pro' | 'ultra';
+            userPlan?: 'free' | 'pro' | 'ultra' | 'admin_test';
         }
     }
 }
@@ -22,12 +23,22 @@ export const attachUserPlan = async (req: Request, res: Response, next: NextFunc
             return next();
         }
 
+        const isAdmin = req.user.email ? isAdminUser(req.user.email) : false;
         const subscription = await SubscriptionService.getUserSubscription(req.user.uid);
 
         if (subscription && subscription.status === 'active') {
-            req.userPlan = subscription.planId as 'free' | 'pro' | 'ultra';
+            req.userPlan = subscription.planId as 'free' | 'pro' | 'ultra' | 'admin_test';
+        } else if (isAdmin) {
+            req.userPlan = 'admin_test';
         } else {
-            req.userPlan = 'free';
+            // Check if user has admin_test plan in userCredits
+            const { getUserCredits } = await import('../services/creditService.js');
+            const credits = await getUserCredits(req.user.uid);
+            if (credits && credits.planId === 'admin_test') {
+                req.userPlan = 'admin_test';
+            } else {
+                req.userPlan = 'free';
+            }
         }
 
         console.log(`👤 [PLAN CHECK] User ${req.user.uid} is on plan: ${req.userPlan}`);
@@ -46,6 +57,11 @@ export const attachUserPlan = async (req: Request, res: Response, next: NextFunc
  */
 export const requirePlan = (allowedPlans: string[]) => {
     return (req: Request, res: Response, next: NextFunction) => {
+        // Admin test plan has full access to all features
+        if (req.userPlan === 'admin_test') {
+            return next();
+        }
+
         if (!req.userPlan || !allowedPlans.includes(req.userPlan)) {
             return res.status(403).json({
                 error: 'Forbidden',

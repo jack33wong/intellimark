@@ -7,7 +7,7 @@ import { UserSubscription } from '../types/payment';
 export interface UseSubscriptionResult {
     subscription: UserSubscription | null;
     setSubscription: React.Dispatch<React.SetStateAction<UserSubscription | null>>;
-    planId: 'free' | 'pro' | 'ultra';
+    planId: 'free' | 'pro' | 'ultra' | 'admin_test';
     loading: boolean;
     error: string | null;
     refreshSubscription: () => Promise<void>;
@@ -117,24 +117,25 @@ export const useSubscription = (): UseSubscriptionResult => {
         }
     }, [user?.uid]);
 
-    const planId = (subscription?.status === 'active' ? subscription.planId.toLowerCase() : 'free') as 'free' | 'pro' | 'ultra';
+    const planId = (subscription?.status === 'active' ? subscription.planId.toLowerCase() : 'free') as 'free' | 'pro' | 'ultra' | 'admin_test';
 
 
     // Get allowed plans from env vars or default (ROBUST: trim spaces)
-    const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,ultra').split(',').map(p => p.trim()), []);
-    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'ultra').split(',').map(p => p.trim()), []);
+    const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,ultra,admin_test').split(',').map(p => p.trim()), []);
+    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'ultra,admin_test').split(',').map(p => p.trim()), []);
 
     const checkPermission = useCallback((feature: 'analysis' | 'model_selection') => {
-        // ROBUST CHECK: Using keyword matching to handle Variations like "Ultra Plan" or "Pro Month"
+        // ROBUST CHECK: Using keyword matching to handle Variations like "Ultra Plan", "Pro Month", or "admin_test"
         const currentPlan = planId.toLowerCase();
         const isUltra = currentPlan.includes('ultra');
         const isPro = currentPlan.includes('pro');
+        const isAdmin = currentPlan.includes('admin');
 
         if (feature === 'analysis') {
-            return isPro || isUltra || ALLOWED_ANALYSIS_PLANS.includes(currentPlan);
+            return isPro || isUltra || isAdmin || ALLOWED_ANALYSIS_PLANS.includes(currentPlan);
         }
         if (feature === 'model_selection') {
-            return isPro || isUltra || ALLOWED_MODEL_SELECTION_PLANS.includes(currentPlan);
+            return isPro || isUltra || isAdmin || ALLOWED_MODEL_SELECTION_PLANS.includes(currentPlan);
         }
         return false;
     }, [planId, ALLOWED_ANALYSIS_PLANS, ALLOWED_MODEL_SELECTION_PLANS]);

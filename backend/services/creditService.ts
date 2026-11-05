@@ -85,7 +85,8 @@ export async function checkCredits(
 
     // Reconcile if the subscription plan has changed since the credit record was created
     // Only reconcile if currentPlan was explicitly provided (avoids false downgrade on missing param)
-    if (currentPlan && credits.planId !== currentPlan) {
+    // NOTE: admin_test accounts are permanently protected from plan drift downgrade
+    if (currentPlan && credits.planId !== currentPlan && credits.planId !== 'admin_test') {
         console.log(`🔄 [CREDIT] Plan drift detected: record=${credits.planId}, actual=${currentPlan}. Reconciling...`);
         await updateCreditsOnPlanChange(
             userId,

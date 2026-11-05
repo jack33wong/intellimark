@@ -109,6 +109,14 @@ export class SubscriptionService {
         userId
       );
 
+      // Special protection for admin_test plan:
+      // If user has any subscription with planId === 'admin_test', it is perpetually active
+      const adminTestSub = subscriptions.find(sub => sub.planId === 'admin_test');
+      if (adminTestSub) {
+        adminTestSub.status = 'active';
+        return adminTestSub as UserSubscription;
+      }
+
       // Find the active subscription (most recent one with status 'active')
       const activeSubscription = subscriptions
         .filter(sub => sub.status === 'active')
@@ -121,6 +129,11 @@ export class SubscriptionService {
           // If it's a known legacy amount (19.9, 29.9, etc) or likely a major unit
           // We'll keep this for safety but exclude the new test plan
           activeSubscription.amount = Math.round(activeSubscription.amount * 100);
+        }
+
+        // Admin test subscriptions never expire and should never be downgraded by Stripe JIT sync
+        if (activeSubscription.planId === 'admin_test') {
+          return activeSubscription as UserSubscription;
         }
 
         // =========================================================================
@@ -145,6 +158,31 @@ export class SubscriptionService {
           } catch (syncError) {
             console.error('⚠️ [JIT SYNC] Failed to reconcile subscription, falling back to cached record:', syncError);
           }
+        }
+      }
+
+      if (!activeSubscription) {
+        // Fallback: Check if user has admin_test plan in userCredits
+        try {
+          const { getUserCredits } = await import('./creditService.js');
+          const credits = await getUserCredits(userId);
+          if (credits && credits.planId === 'admin_test') {
+            return {
+              id: `admin_sub_${userId}`,
+              userId,
+              planId: 'admin_test',
+              status: 'active',
+              currentPeriodStart: Math.floor(Date.now() / 1000),
+              currentPeriodEnd: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
+              billingCycle: 'monthly',
+              amount: 50,
+              currency: 'gbp',
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            } as unknown as UserSubscription;
+          }
+        } catch (creditCheckErr) {
+          // Ignore
         }
       }
 

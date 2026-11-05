@@ -42,6 +42,8 @@ class SubscriptionService {
         return 'Pro: The Exam Ready';
       case 'ultra':
         return 'Ultra: The Tutor Pro';
+      case 'admin_test':
+        return 'Admin Test: Unlimited Testing';
       default:
         return planId.charAt(0).toUpperCase() + planId.slice(1);
     }
