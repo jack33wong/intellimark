@@ -182,16 +182,16 @@
 }
 
 .subject-pill:hover {
-  border-color: #8b5cf6;
-  color: #8b5cf6;
+  border-color: var(--text-brand);
+  color: var(--text-brand-light);
   background: rgba(139, 92, 246, 0.06);
   transform: translateY(-1px);
 }
 
 .subject-pill.active {
   background: rgba(139, 92, 246, 0.12);
-  border-color: #8b5cf6;
-  color: #8b5cf6;
+  border-color: var(--text-brand);
+  color: var(--text-brand-light);
   font-weight: 600;
   box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
 }
@@ -199,7 +199,7 @@
 .subject-pill .pill-tag-new {
   font-size: 0.625rem;
   font-weight: 700;
-  background: #8b5cf6;
+  background: var(--text-brand-light);
   color: #ffffff;
   padding: 1px 6px;
   border-radius: 9999px;
@@ -218,7 +218,7 @@
 }
 
 .greeting-sparkle {
-  color: #a855f7;
+  color: var(--text-brand-light);
   filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.4));
   animation: sparkle-pulse 2s infinite ease-in-out;
 }
@@ -579,7 +579,7 @@
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: var(--background-white-main);
+  background: var(--background-nav);
   /* Slightly translucent */
   border: 1px solid rgba(255, 255, 255, 0.08);
   /* Subtle glass border */
@@ -810,7 +810,7 @@
 }
 
 .followup-upload-button.mobile-scan-btn {
-  color: var(--text-brand);
+  color: var(--text-brand-light);
   font-weight: 800;
 }
 

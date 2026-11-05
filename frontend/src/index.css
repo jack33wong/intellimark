@@ -126,6 +126,7 @@ html {
 
   /* --- Legacy/Mixins --- */
   --text-brand: #7f00ff;
+  --text-brand-light: #a855f7;
   --text-katex: #5eb92d;
   --background-mask: var(--background-mask-black);
   --chat-user: white;
