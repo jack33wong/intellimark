@@ -896,13 +896,17 @@ export class SessionManagementService {
           rawScheme = rawScheme.split('[OFFICIAL SCHEME]')[1].trim();
         }
 
+        const totalQMarks = r.totalMarks || r.score?.totalMarks || (typeof r.marks === 'number' && r.marks > 0 ? r.marks : 0);
+        const awardedQMarks = r.score?.awardedMarks ?? (typeof r.marks === 'number' ? r.marks : 0);
+
         return {
           questionNumber: String(r.questionNumber),
           questionText: r.promptQuestionText || r.questionText || '', // [V2 CLEAN FIX] Prioritize exact prompt text
           markingScheme: rawScheme, // [V2 CLEAN FIX] Cleaned scheme
 
-          marks: r.marks ?? 0,
-          totalMarks: r.totalMarks ?? 0,
+          marks: totalQMarks,
+          totalMarks: totalQMarks,
+          awardedMarks: awardedQMarks,
           pageIndex: r.pageIndex, // [SYNC FIX]
           sourceImageIndex: r.pageIndex // [SYNC FIX] For ribbon navigation
         };

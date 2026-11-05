@@ -7,13 +7,18 @@ import { ImageUtils } from '../../utils/ImageUtils.js';
 import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { MarkingOutputService } from './MarkingOutputService.js';
 import { MarkingPersistenceService } from './MarkingPersistenceService.js';
-import { ImageGeometryService } from './ImageGeometryService.js';
+import { ImageGeometryService, isRecognizedAcademicSubject } from './ImageGeometryService.js';
 import { createProgressData } from '../../utils/sseUtils.js';
+import axios from 'axios';
+import { getFirestore } from '../../config/firebase.js';
+import { GradeBoundaryService } from './GradeBoundaryService.js';
+import { ChatContextBuilder } from './ChatContextBuilder.js';
 import {
     logPerformanceSummary,
     extractQuestionsFromClassification,
     logAnnotationSummary,
-    getQuestionSortValue
+    getQuestionSortValue,
+    getSuggestedFollowUps
 } from './MarkingHelpers.js';
 import { withPerformanceLogging } from '../../utils/markingRouterHelpers.js';
 import UsageTracker from '../../utils/UsageTracker.js';
@@ -68,6 +73,28 @@ const MULTI_IMAGE_STEPS = [
     'Marking',
     'Output Generation'
 ];
+
+// Define the steps for re-marking processing
+const REMARK_STEPS = [
+    'Loading cached student work...',
+    'Fetching official mark scheme...',
+    'Re-marking with official rubric...',
+    'Updating grade boundaries & annotations...'
+];
+
+// Helper to format marking scheme required message for genuine academic subjects
+const formatMarkSchemeRequiredMessage = (rawReasonOrSubject: string): string => {
+    let subjectName = rawReasonOrSubject.trim();
+    const subjectMatch = rawReasonOrSubject.match(/Unsupported subject\s*\(([^)]+)\)/i);
+    if (subjectMatch) {
+        subjectName = subjectMatch[1].trim();
+    }
+    if (!subjectName || /^(this subject|other|unknown|none)$/i.test(subjectName)) {
+        subjectName = 'this subject';
+    }
+
+    return `📋 **Marking Scheme Required (${subjectName}):** AI Marking includes built-in official past paper mark schemes for **GCSE & A-Level Mathematics** and **GCSE English Language**. For **${subjectName}** (and all other subjects), we support full AI grading as soon as you provide the marking scheme!\n\n💡 **Want me to mark this paper right now?** Click **Attach Marking Scheme** below to upload the official or teacher marking scheme (marking scheme pages are free and do not count toward your page limit!).`;
+};
 
 export interface MarkingOptions {
     model?: string;
@@ -816,7 +843,11 @@ export class MarkingPipelineService {
 
             const isMultiPageUpload = standardizedPages.length >= 2;
             const unsupportedPageResults = geometryResults.filter(
-                g => g && g.is_supported_doc === false && !g.is_marking_scheme && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')
+                g => g && g.is_acceptable_quality !== false && g.is_supported_doc === false && !g.is_marking_scheme &&
+                g.detected_subject !== 'NON_ACADEMIC' &&
+                !/not educational|please upload an academic exam|non-academic/i.test(g.rejection_reason || '') &&
+                (g.detected_subject === 'ENGLISH_LITERATURE' ||
+                 (g.detected_subject === 'UNSUPPORTED_SUBJECT' && isRecognizedAcademicSubject(g.unsupported_subject_name)))
             );
             const nonSchemePageCount = Math.max(1, geometryResults.filter(g => !g?.is_marking_scheme).length);
             const unsupportedRatio = unsupportedPageResults.length / nonSchemePageCount;
@@ -979,21 +1010,39 @@ export class MarkingPipelineService {
                 console.log(`⚠️ [PIPELINE] All pages rejected by Geometry check. Short-circuiting gracefully.`);
                 progressCallback(createProgressData(2, 'Content rejected by quality inspector.', MULTI_IMAGE_STEPS));
 
-                const isUnsupportedWithoutScheme =
-                    interceptedSchemeImages.length === 0 &&
-                    geometryResults.some(
-                        g => g && g.is_supported_doc === false && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')
-                    );
+                const isNonEducational =
+                    /not educational|please upload an academic exam|non-academic|invoice|receipt|selfie|exam cover page/i.test(lastRejectionReason) ||
+                    geometryResults.some(g => g && (
+                        g.detected_subject === 'NON_ACADEMIC' ||
+                        /not educational|please upload an academic exam|non-academic/i.test(g.rejection_reason || '')
+                    ));
 
-                // Only trigger Admin Alert email when NO marking scheme was uploaded
-                if (interceptedSchemeImages.length === 0) {
+                const academicSubjectGeo = geometryResults.find(
+                    g => g && g.is_acceptable_quality !== false && g.is_supported_doc === false &&
+                    g.detected_subject !== 'NON_ACADEMIC' &&
+                    !/not educational|please upload an academic exam|non-academic/i.test(g.rejection_reason || '') &&
+                    (g.detected_subject === 'ENGLISH_LITERATURE' ||
+                     (g.detected_subject === 'UNSUPPORTED_SUBJECT' && isRecognizedAcademicSubject(g.unsupported_subject_name)))
+                );
+
+                const isUnsupportedWithoutScheme =
+                    !isNonEducational &&
+                    interceptedSchemeImages.length === 0 &&
+                    Boolean(academicSubjectGeo);
+
+                const detectedAcademicSubjectName = academicSubjectGeo?.detected_subject === 'ENGLISH_LITERATURE'
+                    ? 'English Literature'
+                    : (academicSubjectGeo?.unsupported_subject_name || 'this subject');
+
+                // Only trigger Admin Alert email when NO marking scheme was uploaded and NOT educational content
+                if (interceptedSchemeImages.length === 0 && !isUnsupportedWithoutScheme) {
                     void AdminAlertService.notifyCrash('MARKING', req, new Error(lastRejectionReason));
                 }
 
                 // If rejected due to an unsupported subject without a marking scheme, guide the user to attach their mark scheme
                 const guidedRejectionReason = isUnsupportedWithoutScheme
-                    ? `${lastRejectionReason}\n\n💡 **Want me to mark this paper right now?** Click **Attach Marking Scheme** below to upload the official or teacher marking scheme alongside your pages (marking scheme pages do not count toward your page limit!).`
-                    : lastRejectionReason;
+                    ? formatMarkSchemeRequiredMessage(detectedAcademicSubjectName)
+                    : (lastRejectionReason || 'Not educational exam content: Please upload an academic exam question or student homework.');
 
                 // Persist the rejected session so it shows in Library and chat history
                 try {
@@ -3678,7 +3727,8 @@ export class MarkingPipelineService {
                 totalLLMTokens,
                 combinedQuestionResponses,  // Pass questionOnly responses for persistence
                 usageTracker,  // Pass UsageTracker for accurate token/cost tracking
-                usageTracker.getMathpixPages()  // Pass actual Mathpix call count from tracker
+                usageTracker.getMathpixPages(),  // Pass actual Mathpix call count from tracker
+                allPagesOcrData  // Pass OCR data for pipeline cache persistence
             );
 
             // Construct unified finalOutput that works for both authenticated and unauthenticated users
@@ -3822,5 +3872,561 @@ export class MarkingPipelineService {
             console.error('❌ Pipeline Error:', error);
             throw error;
         }
+    }
+
+    /**
+     * Executes the zero-reupload re-marking pipeline.
+     * Reuses cached OCR data & student page images to re-grade against an official past paper mark scheme
+     * and updates the session in-place. Deducts 0 credits!
+     */
+    static async executeRemarkPipeline(
+        req: Request,
+        options: {
+            sessionId: string;
+            paperTitle?: string;
+            questionNumber?: string | null;
+            uploadedSchemeFiles?: Array<{ originalName: string; mimeType: string; base64Data: string }>;
+            model?: string;
+            userId?: string;
+            aiMessageId?: string;
+        },
+        progressCallback: (data: any) => void,
+        usageTracker: UsageTracker
+    ): Promise<any> {
+        const startTime = Date.now();
+        console.log(`🚀 [REMARK-PIPELINE] Starting re-marking for session ${options.sessionId} | paper="${options.paperTitle || 'N/A'}" | question="${options.questionNumber || 'ALL'}" | schemeFiles=${options.uploadedSchemeFiles?.length || 0}`);
+
+        // 1. Load Cache (loading_cache)
+        progressCallback(createProgressData(0, 'Loading cached student work...', REMARK_STEPS));
+        const db = getFirestore();
+        if (!db) {
+            throw new Error('Firestore is not available');
+        }
+
+        let resolvedSessionId = options.sessionId;
+        let cacheDoc = await db.collection('unifiedSessions').doc(resolvedSessionId).collection('pipelineCache').doc('latest').get();
+
+        if (!cacheDoc.exists) {
+            const alternateId = resolvedSessionId.startsWith('sub-')
+                ? resolvedSessionId.replace(/^sub-/, 'session-')
+                : resolvedSessionId.startsWith('session-')
+                ? resolvedSessionId.replace(/^session-/, 'sub-')
+                : null;
+            if (alternateId) {
+                const altDoc = await db.collection('unifiedSessions').doc(alternateId).collection('pipelineCache').doc('latest').get();
+                if (altDoc.exists) {
+                    resolvedSessionId = alternateId;
+                    cacheDoc = altDoc;
+                }
+            }
+        }
+
+        if (!cacheDoc.exists) {
+            const sessionSnap = await db.collection('unifiedSessions').doc(options.sessionId).get();
+            if (sessionSnap.exists) {
+                const sData = sessionSnap.data() as any;
+                if (sData?.pipelineCache) {
+                    cacheDoc = { exists: true, data: () => sData.pipelineCache } as any;
+                } else if (sData?.sessionId && sData.sessionId !== options.sessionId) {
+                    const linkedDoc = await db.collection('unifiedSessions').doc(sData.sessionId).collection('pipelineCache').doc('latest').get();
+                    if (linkedDoc.exists) {
+                        resolvedSessionId = sData.sessionId;
+                        cacheDoc = linkedDoc;
+                    }
+                }
+            }
+        }
+
+        if (!cacheDoc.exists) {
+            throw new Error(`Pipeline cache not found for session ${options.sessionId}. Please re-upload your document.`);
+        }
+
+        let cacheData = cacheDoc.data() as any;
+        if (cacheData.cacheStorageUrl) {
+            const resp = await axios.get(cacheData.cacheStorageUrl);
+            cacheData = resp.data;
+        }
+
+        const pagesMeta = cacheData.pagesMeta || [];
+        if (pagesMeta.length === 0) {
+            throw new Error('No cached student pages found in pipeline cache.');
+        }
+
+        const standardizedPages: StandardizedPage[] = [];
+        for (let i = 0; i < pagesMeta.length; i++) {
+            const pm = pagesMeta[i];
+            let imgData = '';
+            if (pm.imageUrl) {
+                if (pm.imageUrl.startsWith('data:')) {
+                    imgData = pm.imageUrl;
+                } else {
+                    try {
+                        const imgResp = await axios.get(pm.imageUrl, { responseType: 'arraybuffer' });
+                        const contentType = imgResp.headers['content-type'] || 'image/jpeg';
+                        const base64 = Buffer.from(imgResp.data).toString('base64');
+                        imgData = `data:${contentType};base64,${base64}`;
+                    } catch (fetchErr) {
+                        console.error(`❌ [REMARK] Failed to fetch image from ${pm.imageUrl}:`, fetchErr);
+                    }
+                }
+            }
+            standardizedPages.push({
+                pageIndex: pm.pageIndex ?? i,
+                originalPageIndex: pm.originalPageIndex ?? i,
+                originalFileName: pm.originalFileName || `page-${i + 1}.jpg`,
+                width: pm.width,
+                height: pm.height,
+                imageData: imgData
+            });
+        }
+
+        let classificationResult = JSON.parse(JSON.stringify(cacheData.classificationResult || { questions: [] }));
+        let allClassificationResults = JSON.parse(JSON.stringify(cacheData.allClassificationResults || []));
+        const allPagesOcrData: PageOcrResult[] = cacheData.allPagesOcrData || [];
+
+        // 2. Resolve Target Rubric: Either Custom Uploaded Mark Scheme OR Official Past Paper
+        progressCallback(createProgressData(1, 'Fetching & validating mark scheme...', REMARK_STEPS));
+
+        let parsedCustomScheme: any = undefined;
+
+        // --- PATH A: USER UPLOADED CUSTOM MARK SCHEME FILES ---
+        if (Array.isArray(options.uploadedSchemeFiles) && options.uploadedSchemeFiles.length > 0) {
+            const schemePageImages: string[] = [];
+
+            for (const f of options.uploadedSchemeFiles) {
+                const rawB64 = f.base64Data.includes(',') ? f.base64Data.split(',')[1] : f.base64Data;
+                const buf = Buffer.from(rawB64, 'base64');
+                if (f.mimeType === 'application/pdf' || f.originalName?.toLowerCase().endsWith('.pdf')) {
+                    const pdfPages = await PdfProcessingService.convertPdfToImages(buf, { maxPages: 30 });
+                    pdfPages.forEach(p => schemePageImages.push(p.imageData));
+                } else {
+                    const normImg = await ImageUtils.normalizeOrientation(
+                        f.base64Data.startsWith('data:') ? f.base64Data : `data:${f.mimeType || 'image/jpeg'};base64,${rawB64}`
+                    );
+                    schemePageImages.push(normImg);
+                }
+            }
+
+            if (schemePageImages.length === 0) {
+                throw new Error('INVALID_MARKING_SCHEME: Could not read any pages from the uploaded file.');
+            }
+
+            // 🛡️ STRICT VALIDATION GATE 1: Verify with ImageGeometryService that the uploaded files are actually a Marking Scheme
+            // (Rejects dummy images, selfies, or duplicate student essay pages like "HARRY D Q5 P1_page_1.jpg"!)
+            const lightSchemeImages = await Promise.all(
+                schemePageImages.map(img => ImageUtils.createLightweightCopy(img, 800))
+            );
+            const geoChecks = await Promise.all(
+                lightSchemeImages.map(img => ImageGeometryService.analyze(img, 800, 1000, 'fast', usageTracker))
+            );
+
+            const validSchemeImages = schemePageImages.filter((_, idx) => geoChecks[idx]?.is_acceptable_quality && geoChecks[idx]?.is_marking_scheme === true);
+
+            if (validSchemeImages.length === 0) {
+                console.warn(`🛑 [REMARK-REJECTED] Uploaded file(s) failed Marking Scheme validation gate. None of the ${schemePageImages.length} page(s) were recognized as a marking scheme.`);
+                throw new Error('INVALID_MARKING_SCHEME: The uploaded file is not a valid marking scheme (it looks like a student answer page or non-scheme image). Your existing marks have been kept.');
+            }
+
+            // 🛡️ STRICT VALIDATION GATE 2: Parse the scheme and ensure it contains valid question criteria
+            const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
+            parsedCustomScheme = await MarkingSchemeParserService.parseImagesToObject(validSchemeImages, usageTracker);
+
+            if (!parsedCustomScheme || !parsedCustomScheme.questions || Object.keys(parsedCustomScheme.questions).length === 0) {
+                throw new Error('INVALID_MARKING_SCHEME: Could not extract any valid marking scheme criteria from the uploaded file. Your existing marks have been kept.');
+            }
+            console.log(`✅ [REMARK-SCHEME] Validated & parsed custom marking scheme with ${Object.keys(parsedCustomScheme.questions).length} question(s).`);
+        }
+
+        // --- PATH B: USER SELECTED OFFICIAL PAST PAPER ---
+        const targetQNum = options.questionNumber && options.questionNumber !== 'ALL'
+            ? String(options.questionNumber).replace(/^Q/i, '').trim()
+            : null;
+
+        const findOfficialPaperDoc = async (paperTitleStr?: string): Promise<any | null> => {
+            if (!paperTitleStr) return null;
+            const exactSnap = await db.collection('fullExamPapers').where('paperTitle', '==', paperTitleStr).limit(1).get();
+            if (!exactSnap.empty) return exactSnap.docs[0].data();
+
+            const codeMatch = paperTitleStr.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700\/[12]|8300\/[123][FH]|1MA1\/[123][FH]|J560\/0[1-6]|J351\/0[12]|1EN0\/0[12])\b/i);
+            if (codeMatch) {
+                const targetCode = codeMatch[1].toUpperCase();
+                let byCodeSnap = await db.collection('fullExamPapers').where('paperCode', '==', targetCode).get();
+                if (byCodeSnap.empty) {
+                    byCodeSnap = await db.collection('fullExamPapers').where('metadata.exam_code', '==', targetCode).get();
+                }
+                if (!byCodeSnap.empty) {
+                    const norm = (s: string) => (s || '').toLowerCase().replace(/\b(june|may|summer)\b/g, 'summer').replace(/[^a-z0-9]/g, '');
+                    const targetNorm = norm(paperTitleStr);
+                    const matched = byCodeSnap.docs.find(d => {
+                        const data = d.data();
+                        const series = data.examSeries || data.metadata?.exam_series || '';
+                        return series && targetNorm.includes(norm(series));
+                    }) || byCodeSnap.docs[0];
+                    return matched.data();
+                }
+            }
+            return null;
+        };
+
+        const officialPaperDoc = await findOfficialPaperDoc(options.paperTitle);
+
+        const getOfficialQuestionFromDoc = (paperDoc: any, qNum: string): any | null => {
+            if (!paperDoc) return null;
+            const qList = paperDoc.questions || paperDoc.marking_scheme?.questions || paperDoc.markingScheme?.allQuestions;
+            const baseTarget = getBaseQuestionNumber(qNum) || qNum;
+            if (Array.isArray(qList)) {
+                return qList.find((q: any) => {
+                    const qn = String(q.questionNumber ?? q.question_number ?? q.number ?? '').replace(/^0+/, '');
+                    return qn === qNum || getBaseQuestionNumber(qn) === baseTarget;
+                }) || null;
+            } else if (qList && typeof qList === 'object') {
+                return qList[qNum] || qList[`0${qNum}`] || qList[baseTarget] || null;
+            }
+            return null;
+        };
+
+        if (targetQNum) {
+            const dbQObj = getOfficialQuestionFromDoc(officialPaperDoc, targetQNum);
+            const officialStemText = dbQObj?.questionText || dbQObj?.question_text || dbQObj?.text || '';
+
+            if (classificationResult?.questions?.length > 0) {
+                classificationResult.questions.forEach((q: any) => {
+                    q.questionNumber = targetQNum;
+                    if (officialStemText) {
+                        q.text = officialStemText;
+                    }
+                });
+            }
+            if (Array.isArray(allClassificationResults)) {
+                allClassificationResults.forEach((cr: any) => {
+                    const qArr = cr?.result?.questions || cr?.questions || [];
+                    if (Array.isArray(qArr)) {
+                        qArr.forEach((q: any) => {
+                            q.questionNumber = targetQNum;
+                            if (officialStemText) {
+                                q.text = officialStemText;
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        let subjectProfile: SubjectProfile = resolveSubjectProfile({
+            detectedSubject: cacheData.subjectProfileKey,
+            subject: parsedCustomScheme?.examDetails?.subject || officialPaperDoc?.metadata?.subject || officialPaperDoc?.subject,
+            paperCode: parsedCustomScheme?.examDetails?.paperCode || officialPaperDoc?.metadata?.exam_code || officialPaperDoc?.paperCode || options.paperTitle,
+            paperTitle: options.paperTitle,
+            customText: options.paperTitle
+        });
+
+        const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
+        if (targetQNum && individualQuestions.length > 0) {
+            const dbQObj = getOfficialQuestionFromDoc(officialPaperDoc, targetQNum);
+            const officialStemText = dbQObj?.questionText || dbQObj?.question_text || dbQObj?.text || '';
+            individualQuestions.forEach(iq => {
+                iq.questionNumber = targetQNum;
+                if (officialStemText) iq.text = officialStemText;
+            });
+        }
+
+        const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
+            individualQuestions,
+            classificationResult,
+            options.paperTitle || null,
+            parsedCustomScheme,
+            subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
+        );
+
+        const markingSchemesMap = orchestrationResult.markingSchemesMap;
+        const detectionResults = orchestrationResult.detectionResults;
+        classificationResult = orchestrationResult.updatedClassificationResult;
+
+        const firstMatch = detectionResults.find((dr: any) => dr?.detectionResult?.found && dr?.detectionResult?.match)?.detectionResult?.match;
+        if (firstMatch) {
+            const dbResolvedProfile = resolveSubjectProfile({
+                detectedSubject: cacheData.subjectProfileKey,
+                subject: firstMatch.subject || firstMatch.qualification,
+                paperCode: firstMatch.paperCode || firstMatch.examCode || options.paperTitle,
+                paperTitle: firstMatch.paperTitle || options.paperTitle
+            });
+            if (dbResolvedProfile.key !== subjectProfile.key) {
+                subjectProfile = dbResolvedProfile;
+            }
+        }
+
+        // CRITICAL: Attach subjectProfile to every entry in markingSchemesMap so LoR vs M1/A1/B1 prompts work properly!
+        if (markingSchemesMap && markingSchemesMap.size > 0) {
+            for (const schemeEntry of markingSchemesMap.values()) {
+                if (schemeEntry && typeof schemeEntry === 'object') {
+                    schemeEntry.subjectProfile = subjectProfile;
+                    if (schemeEntry.questionMarks && typeof schemeEntry.questionMarks === 'object') {
+                        schemeEntry.questionMarks.subjectProfile = subjectProfile;
+                    }
+                }
+            }
+        }
+
+        // 3. Run Fast Marking & Output Generation (marking -> generating_output)
+        progressCallback(createProgressData(2, 'Re-marking with official rubric...', REMARK_STEPS));
+
+        const pageDimensionsMap = new Map<number, { width: number; height: number }>();
+        standardizedPages.forEach(p => {
+            if (p.width && p.height) pageDimensionsMap.set(p.pageIndex, { width: p.width, height: p.height });
+        });
+
+        // Attach classificationResult to allPagesOcrData pages so createMarkingTasksFromClassification links lines properly
+        allPagesOcrData.forEach(page => {
+            const matches = allClassificationResults.filter((r: any) => r.pageIndex === page.pageIndex);
+            if (matches.length > 0) {
+                (page as any).classificationResult = {
+                    questions: matches.flatMap((m: any) => m.result?.questions || m.questions || [])
+                };
+            }
+        });
+
+        const markingTasks = createMarkingTasksFromClassification(
+            classificationResult,
+            allPagesOcrData,
+            markingSchemesMap,
+            pageDimensionsMap,
+            standardizedPages,
+            allClassificationResults,
+            []
+        );
+
+        const { resolveModelTier, getDefaultModel } = await import('../../config/aiModels.js');
+        const actualModel = resolveModelTier((options.model || 'fast') === 'auto' ? getDefaultModel() : (options.model || 'fast'));
+
+        const allQuestionResults: any[] = [];
+        for (const task of markingTasks) {
+            const mockRes = {
+                write: (data: string) => {
+                    if (data.startsWith('data: ')) {
+                        try {
+                            const parsed = JSON.parse(data.substring(6));
+                            progressCallback(parsed);
+                        } catch (e) {}
+                    }
+                }
+            } as any;
+            const result = await executeMarkingForQuestion(
+                task,
+                mockRes,
+                resolvedSessionId,
+                actualModel as ModelType,
+                allPagesOcrData,
+                usageTracker
+            );
+            if (!result.studentWork) {
+                result.studentWork = task.classificationStudentWork || task.formattedOcrText || '';
+            }
+            if (!result.classificationBlocks && task.classificationBlocks) {
+                result.classificationBlocks = task.classificationBlocks;
+            }
+            if (task.questionText && !result.questionText) {
+                result.questionText = task.questionText;
+            }
+            if (task.databaseQuestionText && !result.databaseQuestionText) {
+                result.databaseQuestionText = task.databaseQuestionText;
+            }
+            allQuestionResults.push(result);
+        }
+
+        progressCallback(createProgressData(3, 'Updating grade boundaries & annotations...', REMARK_STEPS));
+
+        const dummyFiles: any[] = standardizedPages.map((p, idx) => ({
+            originalname: p.originalFileName || `page-${idx + 1}.jpg`,
+            buffer: Buffer.from(p.imageData.replace(/^data:image\/[a-z]+;base64,/, ''), 'base64'),
+            size: p.imageData.length
+        }));
+
+        const {
+            finalAnnotatedOutput,
+            overallScore,
+            totalPossibleScore,
+            overallScoreText,
+            updatedQuestionResults,
+            sortedStandardizedPages
+        } = await MarkingOutputService.generateOutput(
+            standardizedPages,
+            allQuestionResults,
+            classificationResult,
+            allClassificationResults,
+            allPagesOcrData,
+            dummyFiles,
+            resolvedSessionId,
+            { userId: options.userId },
+            markingSchemesMap,
+            progressCallback,
+            REMARK_STEPS
+        );
+
+        let detectedQuestionForGrade: any = undefined;
+        if (markingSchemesMap && markingSchemesMap.size > 0) {
+            const allSchemes = Array.from(markingSchemesMap.values());
+            const firstSchemeEntry = allSchemes.find((s: any) => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match) || allSchemes[0];
+            detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
+        }
+
+        const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
+            overallScore,
+            totalPossibleScore,
+            detectedQuestionForGrade,
+            markingSchemesMap
+        );
+
+        const richMarkingContext = await ChatContextBuilder.buildMarkingContext({
+            allQuestionResults: updatedQuestionResults,
+            questionDetection: detectionResults?.[0] || null,
+            markingSchemesMap,
+            detectionResults,
+            overallScore: {
+                awardedMarks: overallScore,
+                totalMarks: totalPossibleScore,
+                percentage: totalPossibleScore > 0 ? Math.round((overallScore / totalPossibleScore) * 100) : 0,
+                scoreText: overallScoreText
+            },
+            gradeBoundaryResult: gradeResult,
+            standardizedPages: sortedStandardizedPages
+        });
+
+        // 4. Update Session In-Place using SessionManagementService.createAIMessageForDatabase
+        const sessionRef = db.collection('unifiedSessions').doc(resolvedSessionId);
+        const sessionSnap = await sessionRef.get();
+        if (!sessionSnap.exists) {
+            throw new Error(`Unified session ${resolvedSessionId} not found`);
+        }
+        const sessionDoc = sessionSnap.data() as any;
+        const existingMessages: any[] = Array.isArray(sessionDoc.messages)
+            ? [...sessionDoc.messages]
+            : Array.isArray(sessionDoc.unifiedMessages)
+                ? [...sessionDoc.unifiedMessages]
+                : [];
+
+        let assistantIndex = -1;
+        for (let i = existingMessages.length - 1; i >= 0; i--) {
+            if (existingMessages[i].role === 'assistant') {
+                assistantIndex = i;
+                break;
+            }
+        }
+
+        const preservedAiMessageId = assistantIndex >= 0
+            ? existingMessages[assistantIndex].id
+            : (options.aiMessageId || `ai-${Date.now()}`);
+
+        const stepTimings: any = {};
+        const dbAiMessage = await SessionManagementService.createAIMessageForDatabase({
+            allQuestionResults: updatedQuestionResults,
+            finalAnnotatedOutput,
+            files: dummyFiles as any,
+            actualModel,
+            startTime,
+            markingSchemesMap,
+            detectionResults,
+            globalQuestionText: classificationResult?.questions?.[0]?.text || '',
+            resolvedAIMessageId: preservedAiMessageId,
+            studentScore: {
+                totalMarks: totalPossibleScore,
+                awardedMarks: overallScore,
+                scoreText: overallScoreText
+            },
+            grade: gradeResult.grade,
+            predictedGrade: gradeResult.predictedGrade,
+            gradeBoundaryType: gradeResult.boundaryType,
+            gradeBoundaries: gradeResult.boundaries,
+            markingContext: richMarkingContext,
+            usageTracker,
+            stepTimings,
+            standardizedPages: sortedStandardizedPages
+        });
+
+        (dbAiMessage as any).suggestedFollowUps = await getSuggestedFollowUps();
+        (dbAiMessage as any).requiresMarkingScheme = false;
+        (dbAiMessage as any).timestamp = new Date().toISOString();
+
+        (dbAiMessage as any).questionResponses = updatedQuestionResults.map(qr => ({
+            questionNumber: String(qr.questionNumber || ''),
+            questionText: qr.questionText || '',
+            markingScheme: qr.markingScheme || '',
+            score: qr.score,
+            annotations: Array.isArray(qr.annotations)
+                ? [...qr.annotations].sort((a, b) => getQuestionSortValue(a.subQuestion) - getQuestionSortValue(b.subQuestion))
+                : qr.annotations,
+            studentWork: qr.studentWork,
+            pageIndex: qr.pageIndex,
+            overallPerformanceSummary: qr.overallPerformanceSummary || qr.feedback
+        })).sort((a, b) => getQuestionSortValue(a.questionNumber) - getQuestionSortValue(b.questionNumber));
+
+        if (assistantIndex >= 0) {
+            existingMessages[assistantIndex] = dbAiMessage;
+        } else {
+            existingMessages.push(dbAiMessage);
+        }
+
+        const { generateSessionTitleFromDetectionResults } = await import('./questionDetectionService.js');
+        const finalSessionTitle = detectionResults && detectionResults.length > 0
+            ? generateSessionTitleFromDetectionResults(detectionResults, 'Marking')
+            : `${options.paperTitle || 'Custom Mark Scheme'}${targetQNum ? ` Q${targetQNum}` : ''}`;
+
+        const updatedSessionFields: any = {
+            title: finalSessionTitle,
+            sessionTitle: finalSessionTitle,
+            messageType: 'Marking',
+            usageMode: 'marking',
+            isPastPaper: Boolean(options.paperTitle),
+            studentScore: dbAiMessage.studentScore,
+            detectedQuestion: dbAiMessage.detectedQuestion,
+            messages: existingMessages,
+            unifiedMessages: existingMessages,
+            updatedAt: new Date().toISOString(),
+            lastMessagePreview: {
+                content: dbAiMessage.content,
+                role: 'assistant',
+                timestamp: dbAiMessage.timestamp
+            }
+        };
+
+        await sessionRef.set(updatedSessionFields, { merge: true });
+
+        const unifiedSessionPayload = {
+            ...sessionDoc,
+            ...updatedSessionFields,
+            id: resolvedSessionId,
+            sessionId: resolvedSessionId,
+            messages: existingMessages
+        };
+
+        import('../subjectMarkingResultService.js').then(({ persistMarkingResultToSubject }) => {
+            persistMarkingResultToSubject(unifiedSessionPayload, dbAiMessage).catch(() => {});
+        }).catch(() => {});
+
+        const finalOutput = {
+            success: true,
+            submissionId: resolvedSessionId,
+            sessionId: resolvedSessionId,
+            sessionTitle: finalSessionTitle,
+            unifiedSession: unifiedSessionPayload,
+            aiMessage: dbAiMessage,
+            annotatedOutput: finalAnnotatedOutput,
+            outputFormat: 'images',
+            results: updatedQuestionResults,
+            metadata: {
+                totalQuestions: updatedQuestionResults.length,
+                totalScore: overallScore,
+                maxScore: totalPossibleScore,
+                processingTime: (Date.now() - startTime) / 1000
+            },
+            processingStats: {
+                modelUsed: actualModel,
+                totalMarks: totalPossibleScore,
+                awardedMarks: overallScore,
+                questionCount: updatedQuestionResults.length
+            }
+        };
+
+        progressCallback({ type: 'complete', result: finalOutput });
+        return finalOutput;
     }
 }

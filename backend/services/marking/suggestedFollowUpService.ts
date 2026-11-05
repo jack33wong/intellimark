@@ -293,6 +293,7 @@ export class SuggestedFollowUpService {
     const { ModelProvider } = await import('../../utils/ModelProvider.js');
     const { resolveSubjectProfile } = await import('../../config/subjectProfiles.js');
     const isModelAnswer = mode === 'model-answer';
+    const isSimilarQuestions = mode === 'similarquestions';
 
     const detectedQuestion = targetMessage.detectedQuestion;
     if (!detectedQuestion?.examPapers || !Array.isArray(detectedQuestion.examPapers)) {
@@ -309,18 +310,46 @@ export class SuggestedFollowUpService {
     const isEnglishLoR = subjectProfile.paradigm === 'LEVEL_OF_RESPONSE';
 
     const currentPromptKey = isModelAnswer ? `${config.promptKey}Html` : config.promptKey;
-    const systemPrompt = isEnglishLoR
-      ? (isModelAnswer ? getPrompt('englishModelAnswerHtml.system') : getPrompt('englishMarkingScheme.system'))
-      : getPrompt(`${currentPromptKey}.system`);
+    let systemPrompt: string;
+    if (isSimilarQuestions) {
+      systemPrompt = getPrompt('similarquestions.system');
+    } else if (isEnglishLoR) {
+      systemPrompt = isModelAnswer ? getPrompt('englishModelAnswerHtml.system') : getPrompt('englishMarkingScheme.system');
+    } else {
+      systemPrompt = getPrompt(`${currentPromptKey}.system`);
+    }
 
     // 2. Process Questions directly (Handle both examPapers and root questions)
     let questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
-      (ep.questions || []).map((q: any) => ({
-        ...q,
-        base: String(q.questionNumber || q.number || 'unknown'),
-        examBoard: ep.examBoard || 'Custom',
-        examCode: ep.examCode || 'N/A'
-      }))
+      (ep.questions || []).map((q: any) => {
+        const base = String(q.questionNumber || q.number || 'unknown');
+
+        // Look up question result from targetMessage to get authoritative totalMarks (not the student's awarded score)
+        const matchedQr = targetMessage?.questionResponses?.find(
+          (qr: any) => String(qr.questionNumber || '').toLowerCase() === base.toLowerCase()
+        );
+        const matchedContextQr = targetMessage?.markingContext?.allQuestionResults?.find(
+          (qr: any) => String(qr.questionNumber || '').toLowerCase() === base.toLowerCase()
+        );
+
+        const authoritativeTotalMarks =
+          matchedQr?.score?.totalMarks ||
+          matchedContextQr?.score?.totalMarks ||
+          matchedContextQr?.totalMarks ||
+          q.totalMarks ||
+          q.score?.totalMarks ||
+          q.marks ||
+          0;
+
+        return {
+          ...q,
+          base,
+          marks: authoritativeTotalMarks,
+          totalMarks: authoritativeTotalMarks,
+          examBoard: ep.examBoard || 'Custom',
+          examCode: ep.examCode || 'N/A'
+        };
+      })
     );
 
     // If contextQuestionId is provided, filter the questions array to ONLY include that question!
@@ -364,6 +393,9 @@ export class SuggestedFollowUpService {
         ? qReport
         : (typeof qReport === 'object' ? JSON.stringify(qReport, null, 2) : (firstEp?.examinerReport || ''));
 
+      if (isSimilarQuestions) {
+        return getPrompt('similarquestions.user', qText, this.stringifyMarkingScheme(qScheme), 3, base, qMarks);
+      }
       if (isEnglishLoR) {
         const promptKey = isModelAnswer ? 'englishModelAnswerHtml' : 'englishMarkingScheme';
         return getPrompt(
@@ -394,7 +426,10 @@ export class SuggestedFollowUpService {
       content = content.replace(redundantPrefixRegex, '$1');
 
       const mark_str = `[${qMarks} mark${qMarks > 1 ? 's' : ''}]`;
-      const header = `<div class="model-question-number">Question ${base} <span class="question-max-mark">${mark_str}</span></div>`;
+      const headerTitle = isSimilarQuestions
+        ? `Similar Practice Questions (Question ${base})`
+        : `Question ${base}`;
+      const header = `<div class="model-question-number${isSimilarQuestions ? ' practice-question-number' : ''}">${headerTitle} <span class="question-max-mark">${mark_str}</span></div>`;
 
       let finalContent = content;
       if (isModelAnswer && !content.includes('class="model_question"')) {
@@ -405,9 +440,10 @@ export class SuggestedFollowUpService {
 
       const isGuest = detectedQuestion?.isGuest === true;
       const blurClass = (isGuest && qIndex >= 4) ? ' paywall-blur' : '';
+      const blockClass = isSimilarQuestions ? 'model-answer-block practice-question-block' : 'model-answer-block';
 
       const html = `
-<div class="model-answer-block${blurClass}">
+<div class="${blockClass}${blurClass}">
     ${header}
     <div class="model-question-content">
         ${finalContent}
@@ -438,7 +474,8 @@ export class SuggestedFollowUpService {
           console.log(`--- USER ---\n${userPrompt}\n`);
         }
         try {
-          const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+          const followUpPhase = isModelAnswer ? 'modelAnswer' : (isSimilarQuestions ? 'similarquestions' : 'markingScheme');
+          const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, followUpPhase as any);
           totalTokens += ai.usageTokens || 0;
           rawAnswersByBase.set(String(q.base), ai.content);
         } catch (err) {
@@ -488,7 +525,8 @@ export class SuggestedFollowUpService {
         await Promise.all(missingQuestions.map(async (q) => {
           try {
             const singlePrompt = buildSingleQuestionUserPrompt(q);
-            const ai = await ModelProvider.callText(systemPrompt, singlePrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+            const followUpPhase = isModelAnswer ? 'modelAnswer' : (isSimilarQuestions ? 'similarquestions' : 'markingScheme');
+            const ai = await ModelProvider.callText(systemPrompt, singlePrompt, model as any, false, tracker, followUpPhase as any);
             totalTokens += ai.usageTokens || 0;
             rawAnswersByBase.set(String(q.base), ai.content);
           } catch (err) {

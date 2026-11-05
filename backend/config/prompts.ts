@@ -237,18 +237,20 @@ Please generate a perfect model answer following the scheme.`;
 
   similarquestions: {
     system: similar_questions_system_prompt,
-    user: (questionText: string, schemeJson: string, questionCount: number = 3) => {
+    user: (questionText: string, schemeJson: string, questionCount: number = 3, questionNumber?: string, marks?: number) => {
       const scheme = formatMarkingSchemeAsBullets(schemeJson);
+      const markStr = marks ? ` (${marks} mark${marks > 1 ? 's' : ''})` : '';
+      const qNumStr = questionNumber ? `Question ${questionNumber}${markStr}` : `Original Question${markStr}`;
       return `# TASK DATA
-QUESTION COUNT: ${questionCount}
+Target: Generate ${questionCount} similar practice questions for ${qNumStr}
 
 ## ORIGINAL QUESTION TEXT
-${questionText}
+${questionText || '(See marking criteria below)'}
 
-## MARKING SCHEME
-${scheme}
+## MARKING CRITERIA / SCHEME
+${scheme || 'Not provided'}
 
-Please generate ${questionCount} similar practice questions that test the same skills but with different numbers or scenarios.`;
+Please generate exactly ${questionCount} similar practice questions that test the same skills and assessment objectives, matching the difficulty and mark allocation.`;
     }
   }
 };

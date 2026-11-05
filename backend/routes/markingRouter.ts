@@ -118,6 +118,17 @@ router.post('/process',
 );
 
 /**
+ * POST /api/marking/remark-session
+ * Zero-reupload re-marking endpoint for existing sessions
+ */
+router.post('/remark-session',
+  optionalAuth,
+  attachUserPlan,
+  express.json({ limit: '50mb' }),
+  MarkingController.remarkSession
+);
+
+/**
  * GET /api/marking/download-image
  * Proxies image downloads to force attachment and bypass CORS
  */

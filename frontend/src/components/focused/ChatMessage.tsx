@@ -5,11 +5,12 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './ChatMessage.css';
 import YourWorkSection from './YourWorkSection';
-import { Brain, ChevronDown, ChevronUp, Lock, Paperclip, Star } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Lock, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react';
 import MarkingFeedbackModal from '../modals/MarkingFeedbackModal';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
+import { useTelemetry } from '../../hooks/useTelemetry';
 import {
   isUserMessage,
   hasImage,
@@ -23,6 +24,7 @@ import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
 import PerformanceSummaryPanel from '../marking/PerformanceSummaryPanel';
+import { FollowUpRectificationPanel } from '../marking/FollowUpRectificationPanel';
 import ImageModeModal from '../common/ImageModeModal';
 import SimpleImageGallery from '../common/SimpleImageGallery';
 import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUtils';
@@ -66,8 +68,46 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
-  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal, attachMarkingSchemeAndRetry } = useMarkingPage();
+  const { logEvent } = useTelemetry();
+  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal, attachMarkingSchemeAndRetry, remarkWithOfficialPaper, onRatingChange } = useMarkingPage();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [showFeedbackToast, setShowFeedbackToast] = useState<boolean>(false);
+
+  // Derive initial feedback vote from session rating
+  const feedbackVote = useMemo<'up' | 'down' | null>(() => {
+    if (session?.rating === 5) return 'up';
+    if (session?.rating && session.rating <= 2) return 'down';
+    return null;
+  }, [session?.rating]);
+
+  const handleThumbsUp = async () => {
+    if (feedbackVote === 'up') {
+      if (onRatingChange) await onRatingChange(0);
+      return;
+    }
+    setShowFeedbackToast(true);
+    setTimeout(() => setShowFeedbackToast(false), 2400);
+
+    if (onRatingChange) {
+      await onRatingChange(5);
+    }
+    if (session?.id) {
+      logEvent('marking_feedback', {
+        sessionId: session.id,
+        modelUsed: session.sessionStats?.modelUsed || selectedModel,
+        stars: 5,
+        vote: 'up',
+        tags: ['positive', 'thumbs_up']
+      });
+    }
+  };
+
+  const handleThumbsDown = async () => {
+    if (onRatingChange) {
+      await onRatingChange(1);
+    }
+    setIsFeedbackModalOpen(true);
+  };
   const attachSchemeInputRef = useRef<HTMLInputElement | null>(null);
 
   // Inline function to avoid Jest import issues
@@ -269,11 +309,29 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }, 100);
   }, [session, onEnterSplitMode, setActiveQuestionId, message, onNavigate]);
 
-  const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
+  const handleFollowUpClick = useCallback(async (suggestionInput: any, explicitMode?: string) => {
     // Credit check
     if (user && isNegative) {
       setShowCreditsModal(true);
       return;
+    }
+
+    const suggestionText = typeof suggestionInput === 'string'
+      ? suggestionInput
+      : (suggestionInput?.text || suggestionInput?.displayName || String(suggestionInput || ''));
+
+    let resolvedMode = explicitMode || (typeof suggestionInput === 'object' ? suggestionInput?.mode : undefined);
+    if (!resolvedMode || resolvedMode === 'chat') {
+      const lower = suggestionText.toLowerCase();
+      if (lower.includes('similar') && lower.includes('practice')) {
+        resolvedMode = 'similarquestions';
+      } else if (lower.includes('model answer')) {
+        resolvedMode = 'model-answer';
+      } else if (lower.includes('marking scheme') || lower.includes('show marking scheme')) {
+        resolvedMode = 'marking-scheme';
+      } else {
+        resolvedMode = 'chat';
+      }
     }
 
     try {
@@ -281,27 +339,36 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         addMessage({
           id: `user-${Date.now()}`,
           role: 'user',
-          content: suggestion,
+          content: suggestionText,
           timestamp: new Date().toISOString(),
           type: 'chat',
           contextQuestionId: message.contextQuestionId
         });
       }
 
+      let stepDescription = 'AI is thinking...';
+      if (resolvedMode === 'similarquestions') {
+        stepDescription = 'Generating similar practice questions...';
+      } else if (resolvedMode === 'model-answer') {
+        stepDescription = 'Generating model answer...';
+      } else if (resolvedMode === 'marking-scheme') {
+        stepDescription = 'Fetching marking scheme...';
+      }
+
       if (startAIThinking) {
         startAIThinking({
           isComplete: false,
-          currentStepDescription: 'AI is thinking...',
-          allSteps: ['AI is thinking...'],
+          currentStepDescription: stepDescription,
+          allSteps: [stepDescription],
           currentStepIndex: 0,
         }, `ai-${Date.now()}`);
       }
 
       const requestBody: any = {
-        message: suggestion,
+        message: suggestionText,
         sessionId: session?.id,
         model: selectedModel || 'thinking',
-        mode: mode,
+        mode: resolvedMode,
         sourceMessageId: message.id,
         contextQuestionId: message.contextQuestionId
       };
@@ -456,7 +523,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
 
-          {!isUser && content && ensureStringContent(content).trim() !== '' && (() => {
+          {!isUser && !(message.isProcessing && !message.progressData?.isComplete) && content && ensureStringContent(content).trim() !== '' && (() => {
             let processedContent = ensureStringContent(content);
             const questionSections = processedContent.split(/^(###\s+Question\s+\d+[^\n]*)/gim);
 
@@ -472,7 +539,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   const allQuestions = message.detectedQuestion.examPapers.flatMap((ep: any) => ep.questions || []);
                   const matchedQ = allQuestions.find((q: any) => q.questionNumber === qNumMatch[1]);
                   if (matchedQ) {
-                    totalMarks = matchedQ.marks;
+                    totalMarks = matchedQ.totalMarks || matchedQ.marks || 0;
                   }
                 }
                 if (totalMarks === 0 && message.detectedQuestion.totalMarks) {
@@ -589,12 +656,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             );
           })()}
 
-          {/* Processing Skeletons */}
-          {message.isProcessing &&
+          {/* Processing Skeletons (Shown on initial upload AND during in-place Re-Mark) */}
+          {!isUser &&
+            message.isProcessing &&
             !message.progressData?.isComplete &&
-            (message as any).imageDataArray?.length > 0 &&
-            !content &&
-            !isAnnotatedImageMessage(message) && (
+            (message as any).imageDataArray?.length > 0 && (
               <div className={`skeleton-gallery-wrapper ${hasYourWork ? 'has-your-work' : ''}`}>
                 <div className="skeleton-gallery thumbnail-horizontal">
                   {(message as any).imageDataArray.map((imgItem: any, idx: number) => {
@@ -643,72 +709,46 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             <SuggestedFollowUpButtons suggestions={message.suggestedFollowUps as string[]} onSuggestionClick={handleFollowUpClick} disabled={isAnyMessageProcessing} />
           )}
 
-          {/* Two-Step Guided Recovery: Attach Marking Scheme Button for Unsupported Subjects */}
-          {!isUser &&
-            !message.isProcessing &&
-            ((message as any).requiresMarkingScheme === true ||
-              (typeof content === 'string' && /Attach Marking Scheme|Unsupported subject/i.test(content))) && (
-              <div className="attach-marking-scheme-recovery" style={{ marginTop: '14px', marginBottom: '24px', paddingLeft: '12px' }}>
-                <input
-                  ref={attachSchemeInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,application/pdf,.pdf"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0 && attachMarkingSchemeAndRetry) {
-                      attachMarkingSchemeAndRetry(e.target.files);
-                      e.target.value = '';
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={isAnyMessageProcessing}
-                  onClick={() => attachSchemeInputRef.current?.click()}
-                  style={{
-                    width: 'fit-content',
-                    padding: '9px 16px',
-                    background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: isAnyMessageProcessing ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
-                    opacity: isAnyMessageProcessing ? 0.6 : 1
-                  }}
-                >
-                  <Paperclip size={16} />
-                  <span>Attach Marking Scheme (Free Quota)</span>
-                </button>
-              </div>
-            )}
+          {!isUser && !message.isProcessing && (message as any).remarkError && (
+            <div
+              style={{
+                marginTop: '12px',
+                marginLeft: '12px',
+                marginRight: '12px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#fca5a5',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px'
+              }}
+            >
+              <span>⚠️ {(message as any).remarkError}</span>
+            </div>
+          )}
 
-          {/* Provide Feedback Button (Only on final AI response containing follow-ups or results) */}
-          {!isUser && session && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
-            <>
-              <div className="provide-feedback-container" style={{ marginTop: '16px',marginBottom: '26px', paddingLeft: '12px' }}>
-                <button 
-                  className="provide-feedback-btn" 
-                  onClick={() => setIsFeedbackModalOpen(true)}
-                  style={{ width: 'fit-content', padding: '8px 16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  <Star size={16} color="#fbbf24" fill="#fbbf24" />
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#4b5563' }}>Provide Feedback</span>
-                </button>
-              </div>
-              <MarkingFeedbackModal
-                isOpen={isFeedbackModalOpen}
-                onClose={() => setIsFeedbackModalOpen(false)}
-                sessionId={session.id}
-                modelUsed={session.sessionStats?.modelUsed || selectedModel}
-              />
-            </>
+          {/* Universal Conversational Follow-Up Bar (Attach Marking Scheme / Amend Paper & Question) */}
+          {!isUser && !message.isProcessing && (
+            <FollowUpRectificationPanel
+              message={message}
+              session={session}
+              content={ensureStringContent(content)}
+              isProcessing={isAnyMessageProcessing}
+              onAttachFilesForRemark={(files) => attachMarkingSchemeAndRetry?.(files)}
+              onRemarkOfficialPaper={async ({ paperTitle, questionNumber }) => {
+                if (remarkWithOfficialPaper) {
+                  await remarkWithOfficialPaper({
+                    sessionId: session?.id,
+                    paperTitle,
+                    questionNumber
+                  });
+                }
+              }}
+            />
           )}
 
           {isUser && content && <div className="message-text">{ensureStringContent(content)}</div>}
@@ -763,7 +803,61 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           </div>
         )}
 
-        {timestamp && (isUser || !message.isProcessing) && <div className="chat-message-timestamp">{timestamp}</div>}
+        {/* Footer row outside chat bubble: Action bar on the left, Timestamp on the right */}
+        {(!message.isProcessing || isUser) && (
+          <div className="chat-message-footer">
+            {!isUser && session ? (
+              <div className="gemini-actions-bar">
+                {/* Thumbs Up (Default 5 Star) */}
+                <button
+                  type="button"
+                  aria-label="Good response"
+                  title="Good response"
+                  className={`gemini-action-btn ${feedbackVote === 'up' ? 'active-up' : ''}`}
+                  onClick={handleThumbsUp}
+                >
+                  <ThumbsUp size={15} fill={feedbackVote === 'up' ? 'currentColor' : 'none'} />
+                </button>
+
+                {/* Thumbs Down (Default 1 Star & Open Feedback Modal) */}
+                <button
+                  type="button"
+                  aria-label="Bad response"
+                  title="Bad response"
+                  className={`gemini-action-btn ${feedbackVote === 'down' ? 'active-down' : ''}`}
+                  onClick={handleThumbsDown}
+                >
+                  <ThumbsDown size={15} fill={feedbackVote === 'down' ? 'currentColor' : 'none'} />
+                </button>
+
+                {/* Subtle confirmation toast for Thumbs Up */}
+                {showFeedbackToast && (
+                  <span className="gemini-feedback-toast">
+                    ✓ Thanks for your feedback!
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {timestamp && (
+              <div className="chat-message-timestamp">
+                {timestamp}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isUser && session && (
+          <MarkingFeedbackModal
+            isOpen={isFeedbackModalOpen}
+            onClose={() => setIsFeedbackModalOpen(false)}
+            sessionId={session.id}
+            modelUsed={session.sessionStats?.modelUsed || selectedModel}
+            onRatingChange={onRatingChange}
+          />
+        )}
       </div>
 
       {isImageModeOpen && (

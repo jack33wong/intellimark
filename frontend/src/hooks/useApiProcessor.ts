@@ -69,18 +69,27 @@ export const useApiProcessor = () => {
   const stopAIThinking = useCallback(() => {
     setApiState(prev => ({ ...prev, isAIThinking: false }));
 
-    // Clean up any orphaned processing messages (defense in depth)
     const currentSession = simpleSessionService.getCurrentSession() as any;
     if (currentSession?.messages && Array.isArray(currentSession.messages)) {
-      const filteredMessages = currentSession.messages.filter((msg: any) =>
-        !(msg.role === 'assistant' && msg.isProcessing)
-      );
-      if (filteredMessages.length !== currentSession.messages.length) {
-        simpleSessionService.updateCurrentSessionOnly({
-          ...currentSession,
-          messages: filteredMessages
-        });
-      }
+      const updatedMessages = currentSession.messages
+        .map((msg: any) => {
+          // If this is an existing marked message that was being re-marked in place, NEVER delete it! Restore isProcessing: false.
+          if (msg.role === 'assistant' && msg.isProcessing && (msg.performanceSummary || msg.studentScore || (msg.content && msg.content.trim() !== ''))) {
+            return {
+              ...msg,
+              isProcessing: false,
+              progressData: msg.progressData ? { ...msg.progressData, isComplete: true } : undefined
+            };
+          }
+          return msg;
+        })
+        // Only remove truly empty placeholder messages from failed first-time uploads
+        .filter((msg: any) => !(msg.role === 'assistant' && msg.isProcessing));
+
+      simpleSessionService.updateCurrentSessionOnly({
+        ...currentSession,
+        messages: updatedMessages
+      });
     }
   }, []);
 
@@ -171,10 +180,11 @@ export const useApiProcessor = () => {
       // Call the generic stream processor
       const result = await (simpleSessionService as any).processStream(
         endpoint,
-        body.paper,
+        body.paper || body.paperTitle,
         body.model,
         onProgress as any,
-        body.aiMessageId
+        body.aiMessageId,
+        body
       );
       return result;
     } catch (error) {

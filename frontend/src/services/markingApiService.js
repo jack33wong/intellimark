@@ -208,6 +208,10 @@ class SimpleSessionService {
     this._setAndMergeCurrentSession(session);
   }
 
+  updateCurrentSession = (session) => {
+    this._setAndMergeCurrentSession(session);
+  }
+
   // Update only the current session without affecting sidebar (for unauthenticated users)
   updateCurrentSessionOnly = (session) => {
     this.setState({ currentSession: session });
@@ -266,8 +270,12 @@ class SimpleSessionService {
       // Handle unifiedSession data (for both authenticated and unauthenticated users)
       if (data.unifiedSession) {
         // Extract the AI message from unifiedSession and add it directly
-        const aiMessage = data.unifiedSession.messages?.find(msg => msg.role === 'assistant');
+        const aiMessages = (data.unifiedSession.messages || []).filter(msg => msg.role === 'assistant');
+        const aiMessage = (aiMessageId && data.unifiedSession.messages?.find(msg => msg.id === aiMessageId)) ||
+          data.aiMessage ||
+          aiMessages[aiMessages.length - 1];
         if (aiMessage) {
+          if (aiMessageId) aiMessage.id = aiMessageId;
           this.addMessage(aiMessage);
         }
 
@@ -530,25 +538,32 @@ class SimpleSessionService {
     }
   }
 
-  async processStream(endpoint, paper, model = 'thinking', onProgress = null, aiMessageId = null) {
+  async processStream(endpoint, paper, model = 'thinking', onProgress = null, aiMessageId = null, extraBody = {}) {
     try {
       const authToken = await this.getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-      const sessionId = (this.state.currentSession?.id || '').startsWith('temp-')
-        ? null
-        : this.state.currentSession?.id;
+      const targetSessionId = extraBody?.sessionId || (
+        (this.state.currentSession?.id || '').startsWith('temp-')
+          ? null
+          : this.state.currentSession?.id
+      );
+
+      const requestPayload = {
+        paper,
+        paperTitle: extraBody?.paperTitle || paper,
+        questionNumber: extraBody?.questionNumber || null,
+        model,
+        sessionId: targetSessionId || null,
+        aiMessageId,
+        ...extraBody
+      };
 
       const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          paper,
-          model,
-          sessionId: sessionId || null,
-          aiMessageId
-        })
+        body: JSON.stringify(requestPayload)
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -580,8 +595,21 @@ class SimpleSessionService {
               }
 
               if (data.type === 'complete') {
-                this.handleTextChatComplete(data.result, model);
-                return true; // Stop processing
+                if (endpoint.includes('remark-session')) {
+                  if (data.result?.unifiedSession) {
+                    this.updateCurrentSession(data.result.unifiedSession);
+                  } else if (data.result?.aiMessage) {
+                    const aiMsg = data.result.aiMessage;
+                    if (aiMessageId) aiMsg.id = aiMessageId;
+                    this.updateMessageInCurrentSession(aiMsg.id, aiMsg);
+                  }
+                  this.triggerCreditRefresh();
+                } else if (endpoint.includes('remark') || data.result?.annotatedOutput || data.result?.results) {
+                  this.handleProcessComplete(data.result, model, aiMessageId);
+                } else {
+                  this.handleTextChatComplete(data.result, model);
+                }
+                return data.result || true; // Stop processing
               }
 
               if (data.type === 'error') {
@@ -605,7 +633,13 @@ class SimpleSessionService {
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              if (buffer) processChunk(buffer);
+              if (buffer) {
+                const chunkResult = processChunk(buffer);
+                if (chunkResult) {
+                  reader.releaseLock();
+                  return chunkResult === true ? undefined : chunkResult;
+                }
+              }
               throw new Error("Stream disconnected unexpectedly before completion. The request may have timed out.");
             }
             buffer += decoder.decode(value, { stream: true });
@@ -613,9 +647,10 @@ class SimpleSessionService {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-              if (processChunk(line)) {
+              const chunkResult = processChunk(line);
+              if (chunkResult) {
                 reader.releaseLock();
-                return; // Exit success
+                return chunkResult === true ? undefined : chunkResult; // Exit success
               }
             }
           }

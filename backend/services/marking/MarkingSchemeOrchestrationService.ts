@@ -520,9 +520,15 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 3 RECOVERY FALLBACK (Only if examPaperHint failed to establish strong consensus) ---
+    // --- STEP 3 RECOVERY FALLBACK (Only if examPaperHint was a weak footer guess, NOT an explicit full paper title) ---
+    const isExplicitFullPaperSelection = Boolean(
+      examPaperHint &&
+      /\b(20\d{2}|june|november|may|january|summer|autumn|winter)\b/i.test(examPaperHint) &&
+      /\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700|8300|1MA1|J560|J351|1EN0|9MA0|7357)\b/i.test(examPaperHint)
+    );
+
     const hintInfo = detectionStats.hintInfo;
-    if (hintInfo && Boolean(examPaperHint)) {
+    if (hintInfo && Boolean(examPaperHint) && !isExplicitFullPaperSelection) {
       const matchedPapersCount = hintInfo.matchedPapersCount || 0;
       const detectedCount = detectionStats.detected;
       const totalCount = detectionStats.totalQuestions;

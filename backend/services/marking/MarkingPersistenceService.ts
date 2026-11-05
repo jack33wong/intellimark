@@ -9,6 +9,7 @@ import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import type { MarkingSessionContext } from '../../types/sessionManagement.js';
 import UsageTracker from '../../utils/UsageTracker.js';
 import { ChatContextBuilder } from './ChatContextBuilder.js';
+import { getFirestore } from '../../config/firebase.js';
 
 export class MarkingPersistenceService {
 
@@ -48,7 +49,8 @@ export class MarkingPersistenceService {
         totalLLMTokens: number,
         questionOnlyClassificationResult: any | undefined,  // Clean Bucket B classification for text responses
         usageTracker: UsageTracker,  // UsageTracker instance with all token/cost data
-        mathpixCallCount: number  // Actual Mathpix OCR call count
+        mathpixCallCount: number,  // Actual Mathpix OCR call count
+        allPagesOcrData?: any[]  // Cached OCR blocks for Zero-Reupload Re-Marking
     ): Promise<{ unifiedSession: any }> {
         let dbUserMessage: any = null;
         let dbAiMessage: any = null;
@@ -96,7 +98,7 @@ export class MarkingPersistenceService {
             // Extract request data
             const userId = options.userId || 'anonymous';
             const sessionId = options.sessionId || `temp-${Date.now()}`;
-            const currentSessionId = sessionId.startsWith('temp-') ? `session-${Date.now()}` : sessionId;
+            const currentSessionId = sessionId.startsWith('temp-') ? submissionId : sessionId;
             const customText = options.customText;
             const model = options.model || 'auto';
             const isAuthenticated = !!options.userId;
@@ -296,6 +298,77 @@ export class MarkingPersistenceService {
             persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
             if (stepTimings['database_persistence']) {
                 stepTimings['database_persistence'].duration = Date.now() - stepTimings['database_persistence'].start;
+            }
+
+            // 🛡️ [ZERO-REUPLOAD PIPELINE CACHE]:
+            // Persist lightweight pipeline cache so users can re-mark or amend paper with 0 re-upload!
+            const targetSessionId = persistenceResult?.sessionId || persistenceResult?.unifiedSession?.id || currentSessionId || submissionId;
+            if (targetSessionId && allPagesOcrData && allPagesOcrData.length > 0) {
+                try {
+                    const db = getFirestore();
+                    if (db) {
+                        const pipelineCachePayload = {
+                            subjectProfileKey: (Array.from(markingSchemesMap?.values() || [])[0] as any)?.subjectProfile?.key || 'MATHS',
+                            classificationResult,
+                            allClassificationResults,
+                            allPagesOcrData: allPagesOcrData.map((p: any) => ({
+                                pageIndex: p.pageIndex,
+                                classificationText: p.classificationText || '',
+                                ocrData: {
+                                    text: p.ocrData?.text || '',
+                                    dimensions: p.ocrData?.dimensions,
+                                    mathBlocks: (p.ocrData?.mathBlocks || []).map((b: any) => ({
+                                        id: b.id,
+                                        globalBlockId: b.globalBlockId,
+                                        mathpixLatex: b.mathpixLatex,
+                                        googleVisionText: b.googleVisionText,
+                                        text: b.text,
+                                        coordinates: b.coordinates,
+                                        isPrinted: b.isPrinted
+                                    }))
+                                }
+                            })),
+                            pagesMeta: standardizedPages.map((p: any, idx: number) => ({
+                                pageIndex: p.pageIndex,
+                                originalPageIndex: p.originalPageIndex,
+                                originalFileName: p.originalFileName,
+                                width: p.width,
+                                height: p.height,
+                                imageUrl: uploadResult?.originalImageLinks?.[idx] || null
+                            })),
+                            updatedAt: new Date().toISOString()
+                        };
+
+                        const cacheJson = JSON.stringify(pipelineCachePayload);
+                        const sidsToCache = Array.from(new Set([targetSessionId, currentSessionId, submissionId].filter(Boolean)));
+
+                        for (const sid of sidsToCache) {
+                            if (Buffer.byteLength(cacheJson, 'utf8') < 800000) {
+                                await db.collection('unifiedSessions')
+                                    .doc(sid)
+                                    .collection('pipelineCache')
+                                    .doc('latest')
+                                    .set(pipelineCachePayload);
+                            } else {
+                                const { ImageStorageService } = await import('../imageStorageService.js');
+                                const storageUrl = await ImageStorageService.uploadJson(
+                                    pipelineCachePayload,
+                                    userId || 'anonymous',
+                                    sid,
+                                    'pipeline-cache'
+                                );
+                                await db.collection('unifiedSessions')
+                                    .doc(sid)
+                                    .collection('pipelineCache')
+                                    .doc('latest')
+                                    .set({ cacheStorageUrl: storageUrl, updatedAt: new Date().toISOString() });
+                            }
+                        }
+                        console.log(`💾 [PIPELINE-CACHE] Successfully cached pipeline state for sessions: ${sidsToCache.join(', ')}`);
+                    }
+                } catch (cacheErr) {
+                    console.warn(`⚠️ [PIPELINE-CACHE] Failed to cache pipeline state:`, cacheErr);
+                }
             }
 
             // For authenticated users, use the unifiedSession from persistence

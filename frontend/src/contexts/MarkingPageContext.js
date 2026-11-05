@@ -417,7 +417,7 @@ export const MarkingPageProvider = ({
           type: 'ENTER_SPLIT_MODE',
           payload: { images: newImages, index: 0, isGlobal: true }
         });
-      } else if (splitModeImages && (!newImages || newImages.length === 0 || isQuestionMode || isActivelyProcessing || isUserClosedNew)) {
+      } else if (splitModeImages && (!newImages || newImages.length === 0 || isQuestionMode || isUserClosedNew)) {
         dispatch({ type: 'EXIT_SPLIT_MODE' });
       }
       
@@ -437,9 +437,11 @@ export const MarkingPageProvider = ({
         return;
       }
 
-      // 2. If we shouldn't auto-open but the panel is globally forced open, close it.
+      // 2. Only close an already-open global panel if genuine exit conditions are met.
       // (We check isGlobalSplit to ensure we don't close a modal the user manually clicked open)
-      if (splitModeImages && splitModeImages.length > 0 && !shouldAutoOpen && isGlobalSplit) {
+      // CRITICAL: DO NOT close just because AI is thinking or processing a follow-up action!
+      const shouldCloseExisting = isMobile || isQuestionMode || isUserClosed || !newImages || newImages.length === 0;
+      if (splitModeImages && splitModeImages.length > 0 && shouldCloseExisting && isGlobalSplit) {
          dispatch({ type: 'EXIT_SPLIT_MODE' });
          return;
       }
@@ -1370,13 +1372,178 @@ export const MarkingPageProvider = ({
     dispatch({ type: 'SET_CONTEXT_FILTER_ACTIVE', payload: isActive });
   }, []);
 
+  const remarkWithOfficialPaper = useCallback(async ({ sessionId, paperTitle, questionNumber }) => {
+    const targetSessionId = sessionId || currentSession?.id;
+    if (!targetSessionId || !paperTitle) return false;
+
+    const allMsgs = chatMessages || currentSession?.messages || [];
+    const existingAssistantMsg = [...allMsgs]
+      .reverse()
+      .find(m => m.role === 'assistant' && (m.performanceSummary || m.studentScore || m.requiresMarkingScheme));
+    const snapshotMsg = existingAssistantMsg ? JSON.parse(JSON.stringify(existingAssistantMsg)) : null;
+    const targetAiMessageId = existingAssistantMsg?.id || createAIMessageId(`remark-${Date.now()}`);
+
+    const userMsg = allMsgs.find(m => m.role === 'user');
+    const skeletonImages = (userMsg?.imageDataArray && userMsg.imageDataArray.length > 0)
+      ? userMsg.imageDataArray
+      : (existingAssistantMsg?.imageDataArray || []);
+
+    try {
+      startProcessing();
+      const progressData = {
+        isComplete: false,
+        currentStepDescription: `Re-marking with official scheme (${paperTitle})...`,
+        allSteps: [
+          'Loading cached student work...',
+          'Fetching official mark scheme...',
+          'Re-marking with official rubric...',
+          'Updating grade boundaries & annotations...'
+        ],
+        currentStepIndex: 0,
+      };
+
+      if (existingAssistantMsg) {
+        simpleSessionService.updateMessageInCurrentSession(targetAiMessageId, {
+          isProcessing: true,
+          progressData,
+          imageDataArray: skeletonImages,
+          remarkError: null
+        });
+      } else {
+        startAIThinking(progressData, targetAiMessageId, skeletonImages);
+      }
+
+      const streamResult = await apiProcessor.processStreamRequest(
+        '/api/marking/remark-session',
+        {
+          sessionId: targetSessionId,
+          paperTitle,
+          questionNumber: questionNumber || null,
+          model: selectedModel || 'fast',
+          aiMessageId: targetAiMessageId
+        },
+        {
+          'loading_cache': 0,
+          'fetching_scheme': 1,
+          'marking': 2,
+          'generating_output': 3
+        }
+      );
+
+      if (streamResult?.unifiedSession) {
+        loadSession(streamResult.unifiedSession);
+      }
+      stopProcessing();
+      return true;
+    } catch (err) {
+      if (snapshotMsg) {
+        simpleSessionService.updateMessageInCurrentSession(targetAiMessageId, {
+          ...snapshotMsg,
+          isProcessing: false,
+          progressData: snapshotMsg.progressData ? { ...snapshotMsg.progressData, isComplete: true } : undefined,
+          remarkError: err?.message || 'Failed to re-mark session.'
+        });
+      }
+      handleError(err);
+      stopProcessing();
+      return false;
+    }
+  }, [currentSession?.id, currentSession?.messages, chatMessages, selectedModel, startProcessing, startAIThinking, stopProcessing, handleError, apiProcessor, loadSession]);
+
   const attachMarkingSchemeAndRetry = useCallback(async (schemeFileList) => {
     const schemeFiles = Array.from(schemeFileList || []);
     if (schemeFiles.length === 0) return false;
 
-    let studentFiles = lastUploadedStudentFilesRef.current || [];
+    const targetSessionId = currentSession?.id;
+    const allMsgs = chatMessages || currentSession?.messages || [];
+    const existingAssistantMsg = [...allMsgs]
+      .reverse()
+      .find(m => m.role === 'assistant');
+    const snapshotMsg = existingAssistantMsg ? JSON.parse(JSON.stringify(existingAssistantMsg)) : null;
 
-    // Fallback: if page was refreshed and in-memory File[] is empty, reconstruct from last user message base64 data
+    const userMsg = allMsgs.find(m => m.role === 'user');
+    const skeletonImages = (userMsg?.imageDataArray && userMsg.imageDataArray.length > 0)
+      ? userMsg.imageDataArray
+      : (existingAssistantMsg?.imageDataArray || []);
+
+    const isEarlyRejectedUnsupportedSubject = Boolean(existingAssistantMsg?.requiresMarkingScheme === true);
+
+    if (!isEarlyRejectedUnsupportedSubject && targetSessionId && !targetSessionId.startsWith('temp-')) {
+      const targetAiMessageId = existingAssistantMsg?.id || createAIMessageId(`remark-scheme-${Date.now()}`);
+      try {
+        startProcessing();
+        const progressData = {
+          isComplete: false,
+          currentStepDescription: 'Validating & parsing uploaded marking scheme...',
+          allSteps: [
+            'Validating uploaded marking scheme...',
+            'Extracting rubric criteria...',
+            'Re-marking cached student work...',
+            'Updating annotations & summary...'
+          ],
+          currentStepIndex: 0,
+        };
+
+        if (existingAssistantMsg) {
+          simpleSessionService.updateMessageInCurrentSession(targetAiMessageId, {
+            isProcessing: true,
+            progressData,
+            imageDataArray: skeletonImages,
+            remarkError: null
+          });
+        }
+
+        const fileToBase64Obj = (file) => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve({
+            originalName: file.name,
+            mimeType: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+            base64Data: reader.result
+          });
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const uploadedSchemePayloads = await Promise.all(schemeFiles.map(fileToBase64Obj));
+
+        const streamResult = await apiProcessor.processStreamRequest(
+          '/api/marking/remark-session',
+          {
+            sessionId: targetSessionId,
+            uploadedSchemeFiles: uploadedSchemePayloads,
+            model: selectedModel || 'fast',
+            aiMessageId: targetAiMessageId
+          },
+          {
+            'loading_cache': 0,
+            'fetching_scheme': 1,
+            'marking': 2,
+            'generating_output': 3
+          }
+        );
+
+        if (streamResult?.unifiedSession) {
+          loadSession(streamResult.unifiedSession);
+        }
+        stopProcessing();
+        return true;
+      } catch (err) {
+        // Restore the exact original assistant message snapshot and attach remarkError so nothing is lost!
+        if (snapshotMsg) {
+          simpleSessionService.updateMessageInCurrentSession(targetAiMessageId, {
+            ...snapshotMsg,
+            isProcessing: false,
+            progressData: snapshotMsg.progressData ? { ...snapshotMsg.progressData, isComplete: true } : undefined,
+            remarkError: (err?.message || 'Invalid marking scheme uploaded.').replace(/^INVALID_MARKING_SCHEME:\s*/i, '')
+          });
+        }
+        stopProcessing();
+        return false;
+      }
+    }
+
+    // Fallback ONLY for early-exit unsupported subjects (where student pages were never OCR'd)
+    let studentFiles = lastUploadedStudentFilesRef.current || [];
     if (studentFiles.length === 0 && Array.isArray(chatMessages)) {
       const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user');
       const dataUrlToFile = (dataUrl, name) => {
@@ -1409,7 +1576,7 @@ export const MarkingPageProvider = ({
       mergedFiles,
       `Attached Marking Scheme (${schemeFiles.map(f => f.name).join(', ')}) for grading.`
     );
-  }, [chatMessages, handleMultiImageAnalysis]);
+  }, [currentSession?.id, currentSession?.messages, chatMessages, selectedModel, startProcessing, stopProcessing, handleError, apiProcessor, loadSession, handleMultiImageAnalysis]);
 
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
@@ -1435,6 +1602,7 @@ export const MarkingPageProvider = ({
     onAnalyzeMultiImage: handleMultiImageAnalysis,
     onFollowUpMultiImage: handleMultiImageAnalysis,
     attachMarkingSchemeAndRetry,
+    remarkWithOfficialPaper,
     getImageSrc,
     startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
@@ -1464,7 +1632,7 @@ export const MarkingPageProvider = ({
     onSendMessage, addMessage, chatContainerRef,
     isHistoryLoading,
     scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage,
-    handleMultiImageAnalysis, attachMarkingSchemeAndRetry, progressProps, getImageSrc, startAIThinking,
+    handleMultiImageAnalysis, attachMarkingSchemeAndRetry, remarkWithOfficialPaper, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,

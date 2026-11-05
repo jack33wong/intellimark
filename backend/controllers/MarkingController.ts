@@ -18,6 +18,86 @@ const keepAliveAgent = new https.Agent({
 
 export class MarkingController {
     /**
+     * Handles re-marking an existing session using an official past paper mark scheme
+     * with zero re-upload. Sets up SSE stream and delegates to MarkingPipelineService.executeRemarkPipeline.
+     * Deducts 0 credits (Free Quota)!
+     */
+    public static async remarkSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+        const usageTracker = new UsageTracker();
+
+        const { sessionId, paperTitle, questionNumber, model, aiMessageId, uploadedSchemeFiles } = req.body || {};
+        if (!sessionId || (!paperTitle && (!Array.isArray(uploadedSchemeFiles) || uploadedSchemeFiles.length === 0))) {
+            res.status(400).json({ error: 'Missing required parameters: sessionId and either paperTitle or uploadedSchemeFiles are required.' });
+            return;
+        }
+
+        // Setup SSE Headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        sendSseUpdate(res, { type: 'connected', message: 'Connection established', sessionId });
+
+        const heartbeat = setInterval(() => {
+            res.write(':\n\n');
+        }, 15000);
+
+        try {
+            let requestedModel = model;
+            if (!requestedModel || requestedModel.toUpperCase() === 'AUTO') {
+                requestedModel = 'FAST';
+            }
+
+            const options = {
+                sessionId,
+                paperTitle,
+                questionNumber: questionNumber || null,
+                uploadedSchemeFiles: Array.isArray(uploadedSchemeFiles) ? uploadedSchemeFiles : undefined,
+                model: requestedModel,
+                userId: (req as any).user?.uid,
+                aiMessageId
+            };
+
+            let completeEventSent = false;
+            const progressCallback = (data: any) => {
+                if (data?.type === 'complete') {
+                    completeEventSent = true;
+                }
+                sendSseUpdate(res, data);
+            };
+
+            const result = await MarkingPipelineService.executeRemarkPipeline(
+                req,
+                options,
+                progressCallback,
+                usageTracker
+            );
+
+            if (result && !completeEventSent) {
+                sendSseUpdate(res, { type: 'complete', result });
+                completeEventSent = true;
+            }
+
+            res.end();
+        } catch (error: any) {
+            console.error('❌ [CONTROLLER] Remark request failed:', error);
+            const isCreditExhausted = error.message?.includes('exhausted your credits');
+            const isInvalidScheme = error.message?.includes('INVALID_MARKING_SCHEME');
+            if (!isCreditExhausted && !isInvalidScheme) {
+                void AdminAlertService.notifyCrash('MARKING', req, error);
+            }
+            sendSseUpdate(res, {
+                type: 'error',
+                error: error.message?.replace(/^INVALID_MARKING_SCHEME:\s*/i, '') || 'Failed to re-mark session.'
+            });
+            res.end();
+        } finally {
+            clearInterval(heartbeat);
+        }
+    }
+
+    /**
      * Proxies image download to bypass CORS and force attachment
      */
     public static async downloadImage(req: Request, res: Response): Promise<void> {

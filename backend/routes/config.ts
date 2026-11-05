@@ -138,6 +138,90 @@ router.get('/exam-metadata', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/config/paper-questions
+ * Queries fullExamPapers in Firestore by paperTitle (or board + paperCode + examSeries)
+ * and returns the sorted list of questions and their maximum marks.
+ */
+router.get('/paper-questions', async (req, res) => {
+  try {
+    const paperTitle = String(req.query.paperTitle || '').trim();
+    if (!paperTitle) {
+      return res.status(400).json({ error: 'Missing paperTitle parameter' });
+    }
+
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ error: 'Firestore not available' });
+    }
+
+    // 1. Direct query on paperTitle field
+    const snapshot = await db.collection('fullExamPapers')
+      .where('paperTitle', '==', paperTitle)
+      .limit(1)
+      .get();
+
+    let docData: any = !snapshot.empty ? snapshot.docs[0].data() : null;
+
+    // 2. Fallback: match by normalized code + series if exact paperTitle differs
+    if (!docData) {
+      const codeMatch = paperTitle.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3})\b/i);
+      if (codeMatch) {
+        const byCodeSnap = await db.collection('fullExamPapers')
+          .where('metadata.exam_code', '==', codeMatch[1].toUpperCase())
+          .get();
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const targetNorm = norm(paperTitle);
+        const matchedDoc = byCodeSnap.docs.find(d => {
+          const data = d.data();
+          const seriesNorm = norm(`${data.metadata?.exam_series || data.examSeries || ''} ${data.metadata?.tier || data.tier || ''}`);
+          return seriesNorm && targetNorm.includes(seriesNorm);
+        }) || byCodeSnap.docs[0];
+        if (matchedDoc) docData = matchedDoc.data();
+      }
+    }
+
+    // 3. Fallback: ExamReferenceService.findPaper
+    if (!docData) {
+      const found = await ExamReferenceService.findPaper(paperTitle);
+      if (found) docData = found;
+    }
+
+    if (!docData) {
+      return res.json({ questions: [] });
+    }
+
+    const rawQuestions = docData.questions || docData.markingScheme?.allQuestions || {};
+    const questionsList: Array<{ questionNumber: string; marks: number }> = [];
+
+    if (Array.isArray(rawQuestions)) {
+      rawQuestions.forEach((q: any) => {
+        const qNum = String(q.questionNumber || q.number || q.question_number || '').replace(/^0+/, '');
+        const marks = Number(q.marks || q.totalMarks || q.maxMarks || q.total_marks || 0);
+        if (qNum) questionsList.push({ questionNumber: qNum, marks });
+      });
+    } else if (typeof rawQuestions === 'object') {
+      // Group sub-questions by base question number so pills show top-level questions (Q1, Q2, Q3...)
+      const groupedMarks = new Map<string, number>();
+      Object.entries(rawQuestions).forEach(([key, val]: [string, any]) => {
+        const baseMatch = key.match(/^0*(\d+)/);
+        const baseNum = baseMatch ? baseMatch[1] : key;
+        const m = Number(val?.marks || val?.totalMarks || val?.total_marks || (Array.isArray(val) ? val.length : 0));
+        groupedMarks.set(baseNum, (groupedMarks.get(baseNum) || 0) + m);
+      });
+      groupedMarks.forEach((marks, questionNumber) => {
+        questionsList.push({ questionNumber, marks });
+      });
+    }
+
+    questionsList.sort((a, b) => (parseInt(a.questionNumber, 10) || 0) - (parseInt(b.questionNumber, 10) || 0));
+    return res.json({ questions: questionsList });
+  } catch (err: any) {
+    console.error('Error fetching paper questions:', err);
+    return res.status(500).json({ error: 'Failed to fetch paper questions' });
+  }
+});
+
 // POST /api/config/telemetry - Lightweight client funnel & drop-off logger
 // Accepts both application/json and text/plain (used by sendBeacon to avoid cross-origin OPTIONS preflight on Safari)
 router.post('/telemetry', express.json({ type: ['application/json', 'text/plain'], limit: '50kb' }), (req, res) => {

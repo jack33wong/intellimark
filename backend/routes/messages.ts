@@ -275,6 +275,19 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let contextSummary: string | undefined = undefined; // Declare at function scope
     const startTime = Date.now();
 
+    // Auto-resolve follow-up mode from message text if mode is missing or 'chat'
+    let followUpMode = mode;
+    if (!followUpMode || followUpMode === 'chat') {
+      const lower = typeof message === 'string' ? message.toLowerCase() : '';
+      if (lower.includes('similar') && lower.includes('practice')) {
+        followUpMode = 'similarquestions';
+      } else if (lower.includes('model answer')) {
+        followUpMode = 'model-answer';
+      } else if (lower.includes('marking scheme') || lower.includes('show marking scheme')) {
+        followUpMode = 'marking-scheme';
+      }
+    }
+
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
@@ -292,12 +305,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats
-      } else if (isFollowUpMode(mode)) {
+      } else if (isFollowUpMode(followUpMode)) {
         // Handle all follow-up requests using the centralized service
         const { SuggestedFollowUpService } = await import('../services/marking/suggestedFollowUpService.js');
 
         const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
-          mode,
+          mode: followUpMode,
           sessionId: currentSessionId,
           sourceMessageId,
           model: resolvedModel,
@@ -488,7 +501,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     }
 
     // --- Two-Prompt Bridge for Diagrams in Follow-Up Chat Mode ---
-    if (finalResponse && !isFollowUpMode(mode)) {
+    if (finalResponse && !isFollowUpMode(followUpMode)) {
       const { DiagramBridgeService } = await import('../services/diagram/DiagramBridgeService.js');
       finalResponse = await DiagramBridgeService.processDiagramHints(
         finalResponse,
@@ -574,7 +587,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
             totalAnnotations: 0,
             apiRequests: 1 // Initialize API requests count
           },
-          usageMode: mode || 'chat'
+          usageMode: followUpMode || 'chat'
         });
       } else {
         // Adding to existing session - add both user and AI messages
@@ -584,8 +597,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           const sessionExists = await FirestoreService.getUnifiedSession(currentSessionId);
 
           if (sessionExists) {
-            await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage, mode || 'chat');
-            await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage, mode || 'chat');
+            await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage, followUpMode || 'chat');
+            await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage, followUpMode || 'chat');
           } else {
             console.log(`🔍 [CHAT] Session ${currentSessionId} not found in Firestore. Creating new session.`);
             // Create new session if it doesn't exist
@@ -593,7 +606,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
               sessionId: currentSessionId,
               title: sessionTitle || 'Context Chat',
               userId: userId,
-              messageType: mode || 'chat',
+              messageType: followUpMode || 'chat',
               messages: [userMessage, aiMessage],
               isPastPaper: false,
               sessionStats: {

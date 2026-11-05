@@ -580,11 +580,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                          sessionMode === 'question mode' ||
                          hasQuestionResponseType;
 
-  // 2. Simplified Processing Check: If AI is thinking at all, block the view
-  const isActivelyProcessing = isProcessing || isAIThinking;
-
-  // 3. Force showSplitView to false if in Question Mode OR during any active processing
-  const showSplitView = hasImages && !isMobile && !isQuestionMode && !isActivelyProcessing;
+  // 2. Split view condition: show split view when images are open, on desktop, and not in Question Mode
+  // Note: Do NOT block/close split view during active processing/AI thinking so follow-up actions keep the image panel stably open
+  const showSplitView = hasImages && !isMobile && !isQuestionMode;
 
   const layoutClass = `mark-homework-page ${isFollowUp ? 'chat-mode follow-up-mode' : 'initial-mode'} ${showSplitView ? 'split-mode' : ''}`;
 
