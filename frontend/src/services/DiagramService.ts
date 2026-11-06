@@ -143,19 +143,38 @@ export class DiagramService {
                         case 'coordinate_grid': {
                             const idx = m.index || 0;
                             const matchEnd = idx + m[0].length;
-                            const beforeRaw = content.substring(Math.max(0, idx - 1500), idx);
-                            const lastQHeader = Math.max(
+                            const beforeRaw = content.substring(Math.max(0, idx - 800), idx);
+                            const lastSubQ = Math.max(
+                                beforeRaw.lastIndexOf('class="model_question"'),
+                                beforeRaw.lastIndexOf("class='model_question'"),
                                 beforeRaw.lastIndexOf('model-question-number'),
                                 beforeRaw.lastIndexOf('question-group-container')
                             );
-                            const qText = (lastQHeader >= 0 ? beforeRaw.substring(lastQHeader) : beforeRaw).toLowerCase();
-                            const afterRaw = content.substring(matchEnd, Math.min(content.length, matchEnd + 800));
-                            const nextQHeader = afterRaw.indexOf('model-question-number');
-                            const localAfterText = (nextQHeader >= 0 ? afterRaw.substring(0, nextQHeader) : afterRaw).toLowerCase();
-                            const qContext = `${qText} ${localAfterText}`;
+                            const qText = (lastSubQ >= 0 ? beforeRaw.substring(lastSubQ) : beforeRaw).toLowerCase();
+                            const afterRaw = content.substring(matchEnd, Math.min(content.length, matchEnd + 600));
+                            const nextSubQCandidates = [
+                                afterRaw.indexOf('class="model_question"'),
+                                afterRaw.indexOf("class='model_question'"),
+                                afterRaw.indexOf('model-question-number')
+                            ].filter(pos => pos >= 0);
+                            const nextSubQ = nextSubQCandidates.length > 0 ? Math.min(...nextSubQCandidates) : -1;
+                            const localAfterText = (nextSubQ >= 0 ? afterRaw.substring(0, nextSubQ) : afterRaw).toLowerCase();
+                            const rawHintText = String(data._rawHint || data.description || '');
+                            const qContext = `${qText} ${rawHintText.toLowerCase()} ${localAfterText}`;
+                            data._rawHint = rawHintText;
+                            data._qContext = qContext;
 
-                            const isEnlargeOrReflect = qContext.includes('enlarge shape') || qContext.includes('reflect shape') ||
-                                (qContext.includes('enlarge') && qContext.includes('scale factor'));
+                            // If AI omitted layers or failed to extract shapes from _rawHint when _rawHint explicitly lists shape vertices,
+                            // deterministically parse the shapes and grid bounds from _rawHint!
+                            if ((!Array.isArray(data.layers) || data.layers.length === 0) && rawHintText) {
+                                const recovered = this.recoverCoordinateGridFromHint(rawHintText);
+                                if (recovered) {
+                                    Object.assign(data, recovered);
+                                }
+                            }
+
+                            const isEnlargeOrReflect = qText.includes('enlarge shape') || qText.includes('reflect shape') ||
+                                (qText.includes('enlarge') && qText.includes('scale factor'));
 
                             // Auto-Detect Compass Circle Constructions (e.g. Question 11) - strictly scoped to qContext!
                             const isCompassCircle = qContext.includes('pair of compasses') || qContext.includes('diameter of a circle');
@@ -271,9 +290,145 @@ export class DiagramService {
                                 }
                             }
 
-                            // If the text asks to enlarge/reflect, but DOES NOT mention specific coordinates like (1,2)
-                            // or "vertex at", the AI is likely hallucinating a shape from the printed paper.
-                            if (isEnlargeOrReflect && !qText.match(/\(\s*-?\d+\s*,\s*-?\d+\s*\)/) && !qText.includes('vertex')) {
+                            // Auto-populate solved transformation polygon from the adjacent <div class="model_answer"> if missing
+                            if (Array.isArray(data.layers)) {
+                                // 1. Universal Polygon Sanitizer: strip duplicate closing vertices, remove self-intersections/spikes,
+                                // and reconcile vertex counts on congruent transformation pairs (e.g. Shape A -> Shape B)
+                                const orient = (a: [number, number], b: [number, number], c: [number, number]): number =>
+                                    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+
+                                const onSegment = (p: [number, number], a: [number, number], b: [number, number]): boolean =>
+                                    Math.min(a[0], b[0]) - 1e-6 <= p[0] && p[0] <= Math.max(a[0], b[0]) + 1e-6 &&
+                                    Math.min(a[1], b[1]) - 1e-6 <= p[1] && p[1] <= Math.max(a[1], b[1]) + 1e-6;
+
+                                const segmentsIntersectOrOverlap = (a: [number, number], b: [number, number], c: [number, number], d: [number, number]): boolean => {
+                                    const o1 = orient(a, b, c);
+                                    const o2 = orient(a, b, d);
+                                    const o3 = orient(c, d, a);
+                                    const o4 = orient(c, d, b);
+                                    if (((o1 > 1e-6 && o2 < -1e-6) || (o1 < -1e-6 && o2 > 1e-6)) &&
+                                        ((o3 > 1e-6 && o4 < -1e-6) || (o3 < -1e-6 && o4 > 1e-6))) {
+                                        return true;
+                                    }
+                                    if (Math.abs(o1) <= 1e-6 && onSegment(c, a, b)) return true;
+                                    if (Math.abs(o2) <= 1e-6 && onSegment(d, a, b)) return true;
+                                    if (Math.abs(o3) <= 1e-6 && onSegment(a, c, d)) return true;
+                                    if (Math.abs(o4) <= 1e-6 && onSegment(b, c, d)) return true;
+                                    return false;
+                                };
+
+                                const isCleanSimplePolygon = (poly: [number, number][]): boolean => {
+                                    const n = poly.length;
+                                    if (n <= 3) return true;
+                                    for (let i = 0; i < n; i++) {
+                                        const prev = poly[(i - 1 + n) % n];
+                                        const curr = poly[i];
+                                        const next = poly[(i + 1) % n];
+                                        // Reject degenerate zero-length edges or sharp 180-degree spike foldbacks
+                                        const v1x = prev[0] - curr[0], v1y = prev[1] - curr[1];
+                                        const v2x = next[0] - curr[0], v2y = next[1] - curr[1];
+                                        const len1 = Math.hypot(v1x, v1y), len2 = Math.hypot(v2x, v2y);
+                                        if (len1 < 1e-3 || len2 < 1e-3) return false;
+                                        const cosTheta = (v1x * v2x + v1y * v2y) / (len1 * len2);
+                                        if (cosTheta > 0.96) return false; // interior angle < ~16° spike
+
+                                        // Check non-adjacent edge intersections
+                                        for (let j = i + 2; j < n; j++) {
+                                            if (i === 0 && j === n - 1) continue;
+                                            const b1 = poly[j], b2 = poly[(j + 1) % n];
+                                            if (segmentsIntersectOrOverlap(curr, next, b1, b2)) return false;
+                                        }
+                                    }
+                                    return true;
+                                };
+
+                                const getSortedEdgeLengths = (poly: [number, number][]): number[] =>
+                                    poly.map((pt, i) => {
+                                        const nxt = poly[(i + 1) % poly.length];
+                                        return Math.hypot(nxt[0] - pt[0], nxt[1] - pt[1]);
+                                    }).sort((a, b) => a - b);
+
+                                // First pass: parse and clean individual polygons
+                                const parsedPolyLayers: { layer: any; pts: [number, number][] }[] = [];
+                                data.layers.forEach((l: any) => {
+                                    const rawPts = l.points || l.vertices;
+                                    const isPoly = !l.is_open && (l.shape_name === 'polygon' || l.type === 'polygon' || (!l.shape_name && !l.type && Array.isArray(rawPts) && rawPts.length >= 3));
+                                    if (!isPoly || !Array.isArray(rawPts) || rawPts.length < 3) return;
+
+                                    let pts: [number, number][] = rawPts.map((p: any) => [
+                                        parseFloat(Array.isArray(p) ? p[0] : p?.x),
+                                        parseFloat(Array.isArray(p) ? p[1] : p?.y)
+                                    ]);
+                                    if (pts.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) return;
+
+                                    // Strip duplicate closing vertex if first === last
+                                    while (pts.length >= 4 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-3) {
+                                        pts = pts.slice(0, -1);
+                                    }
+                                    // Strip consecutive duplicate vertices
+                                    pts = pts.filter((pt, idx) => idx === 0 || Math.hypot(pt[0] - pts[idx - 1][0], pt[1] - pts[idx - 1][1]) >= 1e-3);
+
+                                    // If polygon self-intersects or has a degenerate spike, drop 1 stray vertex to restore simplicity
+                                    if (pts.length >= 5 && !isCleanSimplePolygon(pts)) {
+                                        for (let dropIdx = pts.length - 1; dropIdx >= 0; dropIdx--) {
+                                            const candidate = pts.filter((_, idx) => idx !== dropIdx);
+                                            if (isCleanSimplePolygon(candidate)) {
+                                                pts = candidate;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (l.points) l.points = pts;
+                                    if (l.vertices) l.vertices = pts;
+                                    parsedPolyLayers.push({ layer: l, pts });
+                                });
+
+                                // Second pass: if two polygons are on a transformation grid (e.g. Shape A with N vertices and Shape B with N+1 vertices
+                                // due to a collinear/intermediate DB point), prune the extra vertex from the N+1 polygon if doing so makes them congruent!
+                                if (parsedPolyLayers.length === 2) {
+                                    const [p1, p2] = parsedPolyLayers;
+                                    const [smaller, larger] = p1.pts.length < p2.pts.length ? [p1, p2] : [p2, p1];
+                                    if (larger.pts.length === smaller.pts.length + 1 && smaller.pts.length >= 3) {
+                                        const targetEdges = getSortedEdgeLengths(smaller.pts);
+                                        for (let dropIdx = larger.pts.length - 1; dropIdx >= 0; dropIdx--) {
+                                            const candidate = larger.pts.filter((_, idx) => idx !== dropIdx);
+                                            const candEdges = getSortedEdgeLengths(candidate);
+                                            const isCongruent = candEdges.every((len, idx) => Math.abs(len - targetEdges[idx]) < 0.15);
+                                            if (isCongruent && isCleanSimplePolygon(candidate)) {
+                                                larger.pts = candidate;
+                                                if (larger.layer.points) larger.layer.points = candidate;
+                                                if (larger.layer.vertices) larger.layer.vertices = candidate;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 2. If the answer text states "vertices at (x1, y1), (x2, y2) and (x3, y3)" (like Q9b),
+                                // ensure the solved polygon is rendered on the grid in green ('solution' purpose)!
+                                const hasSolPoly = data.layers.some((l: any) => l.purpose === 'solution' && (l.shape_name === 'polygon' || l.type === 'polygon'));
+                                if (!hasSolPoly && localAfterText.includes('vertices at')) {
+                                    const coordMatches = Array.from(localAfterText.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g))
+                                        .map(cm => [parseFloat(cm[1]), parseFloat(cm[2])] as [number, number]);
+                                    if (coordMatches.length >= 3) {
+                                        data.layers.forEach((l: any) => { l.purpose = 'reference'; });
+                                        data.layers.push({
+                                            shape_name: 'polygon',
+                                            purpose: 'solution',
+                                            points: coordMatches
+                                        });
+                                    }
+                                }
+                            }
+
+                            // Only show fallback if data.layers has NO valid polygon/line coordinates at all
+                            const hasValidLayerCoords = Array.isArray(data.layers) && data.layers.some((l: any) => {
+                                const pts = l.points || l.vertices;
+                                return Array.isArray(pts) && pts.length >= 2;
+                            });
+
+                            if (isEnlargeOrReflect && !hasValidLayerCoords && !qText.match(/\(\s*-?\d+\s*,\s*-?\d+\s*\)/) && !qText.includes('vertex')) {
                                 const desc = "Shape transformed on the grid (original shape coordinates unknown)";
                                 replacement = this.renderFallbackBox(desc);
                             } else {
@@ -304,8 +459,15 @@ export class DiagramService {
                         }
                         case 'composite_2d':
                             replacement = this.drawComposite2D(data); break;
+                        case 'histogram':
+                            replacement = this.drawHistogram(data); break;
                         case 'bar_chart':
-                            replacement = this.drawBarChart(data); break;
+                            if (Array.isArray(data.bars) && data.bars.some((b: any) => b.x_start !== undefined && b.x_end !== undefined)) {
+                                replacement = this.drawHistogram(data);
+                            } else {
+                                replacement = this.drawBarChart(data);
+                            }
+                            break;
                         case 'venn_diagram':
                             replacement = this.drawVennDiagram(data); break;
                         case 'number_line':
@@ -322,7 +484,17 @@ export class DiagramService {
                             const lowerDesc = desc.toLowerCase();
                             // [v9.98] Smart Fallback Routing: if the AI outputs a fallback box that is actually
                             // a bar chart, frequency tree, pictogram, number machine, 3D solid, or straight-line angle diagram, draw the SVG instead.
-                            if (lowerDesc.startsWith("bar chart:")) {
+                            const fullFallbackHint = String(data._rawHint || desc);
+                            if (/\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/.test(fullFallbackHint) && /grid|axes|shape|triangle|pentagon|polygon|curve|velocity/i.test(fullFallbackHint)) {
+                                const recoveredGrid = this.recoverCoordinateGridFromHint(fullFallbackHint);
+                                if (recoveredGrid) {
+                                    replacement = this.drawCoordinateGrid(recoveredGrid);
+                                    break;
+                                }
+                            }
+                            if (lowerDesc.includes("histogram") || lowerDesc.includes("frequency density")) {
+                                replacement = this.renderHistogramFromHint(desc);
+                            } else if (lowerDesc.startsWith("bar chart:")) {
                                 replacement = this.renderBarChartFromHint(`[${desc}]`);
                             } else if (lowerDesc.startsWith("frequency tree:")) {
                                 replacement = this.renderFrequencyTreeFromHint(`[Diagram: ${desc}]`);
@@ -386,14 +558,20 @@ export class DiagramService {
             return this.renderBarChartFromHint(content.trim());
         });
 
+        // Histogram Safety Net - intercept [Diagram: A histogram ...] hints if unbridged
+        const histogramRegex = /\[(?:Type:\s*Diagram|Diagram):\s*([^\[\]]*histogram[^\[\]]*)\]/gi;
+        processedContent = processedContent.replace(histogramRegex, (_match: string, content: string) => {
+            return this.renderHistogramFromHint(content.trim());
+        });
+
         // [v9.97] Frequency Tree Safety Net - intercept [Diagram: Frequency tree ...] hints
         const freqTreeRegex = /\[Diagram:\s*Frequency tree(.*?)\]/gi;
         processedContent = processedContent.replace(freqTreeRegex, (_match: string, content: string) => {
             return this.renderFrequencyTreeFromHint(content.trim());
         });
 
-        // Legacy hints... (Cleanup Pass)
-        const legacyRegex = /\[(Type:|Diagram:|Answer Diagram:)(.*?)\]/gi;
+        // Legacy hints... (Cleanup Pass - supports 1 level of nested brackets)
+        const legacyRegex = /\[(Type:|Diagram:|Answer Diagram:)((?:[^\[\]]|\[[^\]]*\])*)\]/gi;
         processedContent = processedContent.replace(legacyRegex, (match, prefix, description) => {
             // [v9.63] Comprehensive Redundancy Suppression
             const desc = description.trim().toLowerCase();
@@ -776,6 +954,24 @@ export class DiagramService {
             }
         }
 
+        // Determine true data span from allPossiblePoints BEFORE padding
+        const ptSpanX = (Number.isFinite(minX) && Number.isFinite(maxX)) ? (maxX - minX) : NaN;
+        const ptSpanY = (Number.isFinite(minY) && Number.isFinite(maxY)) ? (maxY - minY) : NaN;
+
+        // Route non-uniform scale graphs (like Q12 Velocity-Time where X is 0..6 and Y is 0..60) to drawNormalizedCartesianGraph!
+        if (data.show_axes !== false && !data.hide_grid && !data._isSymmetry) {
+            const checkW = (Number.isFinite(ptSpanX) && ptSpanX > 0) ? ptSpanX : (xMax - xMin);
+            const checkH = (Number.isFinite(ptSpanY) && ptSpanY > 0) ? ptSpanY : (yMax - yMin);
+            const contextStr = `${data.x_label || ''} ${data.y_label || ''} ${data.x_axis_label || ''} ${data.y_axis_label || ''} ${data._rawHint || ''} ${data._qContext || ''}`.toLowerCase();
+            const hasPhysicalUnits = /velocity|m\/s|time\s*\(|seconds|frequency\s+density|cumulative\s+frequency|distance|speed|temperature/.test(contextStr);
+
+            if (Number.isFinite(checkW) && Number.isFinite(checkH) && checkW > 0 && checkH > 0) {
+                if (checkH / checkW > 2.2 || checkW / checkH > 2.2 || hasPhysicalUnits) {
+                    return this.drawNormalizedCartesianGraph(data);
+                }
+            }
+        }
+
         if (allPossiblePoints.length > 0) {
             if (minX < xMin) xMin = minX - 1;
             if (maxX > xMax) xMax = maxX + 1;
@@ -823,6 +1019,11 @@ export class DiagramService {
             </defs>
         `;
 
+        // Auto-hide grid & axes when show_axes is false and no grid is explicitly requested
+        if (data.show_axes === false && data.hide_grid === undefined) {
+            data.hide_grid = true;
+        }
+
         const xStep = Math.max(1, Math.ceil((width || 10) / 20));
         const yStep = Math.max(1, Math.ceil((height || 10) / 20));
 
@@ -865,19 +1066,123 @@ export class DiagramService {
             layersHtml += `<text x="${0.25 * u}" y="${-0.25 * u}" font-size="${vertexFontSize}" fill="var(--diagram-foreground)" font-weight="bold">${data.label_origin}</text>`;
         }
 
-        const pointLabelSet = new Set(
-            layers
-                .filter((l: any) => l.shape_name === 'point' || l.type === 'point' || l.coords || l.coord)
-                .map((l: any) => String(l.label || '').trim().toUpperCase())
-                .filter(Boolean)
-        );
+        const pointLabelSet = new Set<string>();
+        layers.forEach((l: any) => {
+            if (l.shape_name === 'point' || l.type === 'point' || l.coords || l.coord) {
+                const lbl = String(l.label || '').trim().toUpperCase();
+                if (/^[A-Z]$/.test(lbl)) pointLabelSet.add(lbl);
+            }
+            const pts = l.points || l.vertices;
+            if (Array.isArray(pts)) {
+                pts.forEach((p: any) => {
+                    const vLbl = String(Array.isArray(p) ? p[2] : (p?.label || '')).trim().toUpperCase();
+                    if (/^[A-Z]$/.test(vLbl)) pointLabelSet.add(vLbl);
+                });
+            }
+        });
+
+        // Universal Bidirectional Parallel-Intercept Collinearity Snap (works for any vertex letters, e.g. ABC+ED or PQR+ST):
+        // If a diagram has a triangle polygon and a 2-point line segment with one endpoint on one edge of the triangle
+        // and the segment parallel to a second edge of the triangle, snap its floating endpoint onto the third edge of the triangle.
+        const triPolyLayer = layers.find((l: any) => {
+            const pts = l.points || l.vertices;
+            return Array.isArray(pts) && (pts.length === 3 || (pts.length === 4 && Math.hypot(pts[0][0] - pts[3][0], pts[0][1] - pts[3][1]) < 1e-3));
+        });
+        if (triPolyLayer) {
+            const rawTriPts = (triPolyLayer.points || triPolyLayer.vertices).slice(0, 3).map((p: any) => [
+                parseFloat(Array.isArray(p) ? p[0] : p?.x),
+                parseFloat(Array.isArray(p) ? p[1] : p?.y)
+            ] as [number, number]);
+
+            if (rawTriPts.length === 3 && rawTriPts.every(([x, y]: [number, number]) => Number.isFinite(x) && Number.isFinite(y))) {
+                const distToSegment = (p: [number, number], a: [number, number], b: [number, number]): number => {
+                    const dx = b[0] - a[0], dy = b[1] - a[1];
+                    const lenSq = dx * dx + dy * dy;
+                    if (lenSq < 1e-6) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+                    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lenSq));
+                    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+                };
+
+                const lineRayIntersect = (p1: [number, number], p2: [number, number], a: [number, number], b: [number, number]): [number, number] | null => {
+                    const r = [p2[0] - p1[0], p2[1] - p1[1]];
+                    const s = [b[0] - a[0], b[1] - a[1]];
+                    const rxs = r[0] * s[1] - r[1] * s[0];
+                    if (Math.abs(rxs) < 1e-6) return null;
+                    const u = ((a[0] - p1[0]) * r[1] - (a[1] - p1[1]) * r[0]) / rxs;
+                    if (u < 0.01 || u > 0.99) return null;
+                    return [+(a[0] + u * s[0]).toFixed(2), +(a[1] + u * s[1]).toFixed(2)];
+                };
+
+                const edges: [[number, number], [number, number]][] = [
+                    [rawTriPts[0], rawTriPts[1]],
+                    [rawTriPts[1], rawTriPts[2]],
+                    [rawTriPts[2], rawTriPts[0]]
+                ];
+
+                layers.forEach((l: any) => {
+                    if (l === triPolyLayer) return;
+                    const pts = l.points || l.vertices;
+                    if (!Array.isArray(pts) || pts.length !== 2) return;
+
+                    const s0: [number, number] = [parseFloat(Array.isArray(pts[0]) ? pts[0][0] : pts[0]?.x), parseFloat(Array.isArray(pts[0]) ? pts[0][1] : pts[0]?.y)];
+                    const s1: [number, number] = [parseFloat(Array.isArray(pts[1]) ? pts[1][0] : pts[1]?.x), parseFloat(Array.isArray(pts[1]) ? pts[1][1] : pts[1]?.y)];
+                    if (!Number.isFinite(s0[0]) || !Number.isFinite(s0[1]) || !Number.isFinite(s1[0]) || !Number.isFinite(s1[1])) return;
+
+                    const onEdgeIdx0 = edges.findIndex(([ea, eb]) => distToSegment(s0, ea, eb) < 0.25);
+                    const onEdgeIdx1 = edges.findIndex(([ea, eb]) => distToSegment(s1, ea, eb) < 0.25);
+
+                    let anchorPt: [number, number] | null = null;
+                    let floatPt: [number, number] | null = null;
+                    let floatIndex = -1;
+                    let anchorEdgeIdx = -1;
+
+                    if (onEdgeIdx0 >= 0 && onEdgeIdx1 === -1) {
+                        anchorPt = s0; floatPt = s1; floatIndex = 1; anchorEdgeIdx = onEdgeIdx0;
+                    } else if (onEdgeIdx1 >= 0 && onEdgeIdx0 === -1) {
+                        anchorPt = s1; floatPt = s0; floatIndex = 0; anchorEdgeIdx = onEdgeIdx1;
+                    }
+
+                    if (anchorPt && floatPt && anchorEdgeIdx >= 0) {
+                        const segAngle = Math.atan2(floatPt[1] - anchorPt[1], floatPt[0] - anchorPt[0]);
+                        const parallelEdgeIdx = edges.findIndex(([ea, eb], idx) => {
+                            if (idx === anchorEdgeIdx) return false;
+                            const eAngle = Math.atan2(eb[1] - ea[1], eb[0] - ea[0]);
+                            const diff = Math.abs((segAngle - eAngle) % Math.PI);
+                            return diff < 0.08 || Math.abs(diff - Math.PI) < 0.08;
+                        });
+                        if (parallelEdgeIdx >= 0) {
+                            const targetEdgeIdx = [0, 1, 2].find(idx => idx !== anchorEdgeIdx && idx !== parallelEdgeIdx)!;
+                            const snapped = lineRayIntersect(anchorPt, floatPt, edges[targetEdgeIdx][0], edges[targetEdgeIdx][1]);
+                            if (snapped) {
+                                const oldX = floatPt[0], oldY = floatPt[1];
+                                pts[floatIndex] = [snapped[0], snapped[1]];
+                                layers.forEach((pl: any) => {
+                                    const c = pl.coords || pl.coord || (Array.isArray(pl.points) && pl.points.length === 1 ? pl.points[0] : null);
+                                    if (c) {
+                                        const cx = parseFloat(Array.isArray(c) ? c[0] : c.x);
+                                        const cy = parseFloat(Array.isArray(c) ? c[1] : c.y);
+                                        if (Math.hypot(cx - oldX, cy - oldY) < 0.8) {
+                                            if (pl.coords) pl.coords = [snapped[0], snapped[1]];
+                                            if (pl.coord) pl.coord = [snapped[0], snapped[1]];
+                                            if (Array.isArray(pl.points) && pl.points.length === 1) pl.points = [[snapped[0], snapped[1]]];
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+        }
 
         layers = layers.filter((layer: any) => {
             const lbl = String(layer.label || '').trim().toLowerCase();
             if (lbl.includes('not drawn accurately') || lbl.includes('not to scale')) return false;
-            if (layer.label && /^[A-Z]{2}$/.test(String(layer.label).trim())) {
+            // Suppress 2-to-5 letter vertex-concatenation labels (e.g. "AC", "ABC", "ADE", "CDYX", "BCX")
+            // on polygons/lines when individual vertex points are already labeled, preventing "ABC" from rendering at the centroid!
+            if (layer.label && /^[A-Z]{2,5}$/.test(String(layer.label).trim())) {
                 const chars = String(layer.label).trim().split('');
-                if (chars.every(c => pointLabelSet.has(c))) {
+                if (pointLabelSet.size >= 2 && chars.some(c => pointLabelSet.has(c))) {
                     layer.label = '';
                 }
             }
@@ -997,8 +1302,11 @@ export class DiagramService {
                     /^\d+\s*[a-zA-Z]+$/.test(labelStr) ||
                     (labelStr.length > 2 && !labelStr.startsWith('('));
 
+                const isVertexLetter = /^[A-Z]'?$/.test(labelStr);
+                const isPureGeometry = Boolean(data.hide_grid && data.show_axes === false);
+
                 if (isSinglePoint) {
-                    if (!isTextOnlyLabel && !layer.hide_dot) {
+                    if (!isTextOnlyLabel && !layer.hide_dot && !(isPureGeometry && isVertexLetter)) {
                         const [px, py] = parsedPts[0];
                         layersHtml += `<circle cx="${px}" cy="${-py}" r="${pointRadius}" fill="${strokeColor}" />`;
                     }
@@ -1362,6 +1670,407 @@ export class DiagramService {
         } catch (e) {
             console.error("FreqTree error:", e);
             return this.renderFallbackBox("Frequency Tree");
+        }
+    }
+
+    /**
+     * Deterministically recovers a coordinate_grid JSON object from a natural language [Diagram: ...] hint
+     * whenever the LLM returns a fallback or empty layers for a grid with explicit (x, y) coordinates.
+     */
+    private static recoverCoordinateGridFromHint(hint: string): any | null {
+        try {
+            const xRangeMatch = hint.match(/x(?:-axis)?\s+(?:ranging\s+)?from\s+(?:x\s*=\s*)?(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)/i);
+            const yRangeMatch = hint.match(/y(?:-axis)?\s+(?:ranging\s+)?from\s+(?:y\s*=\s*)?(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)/i);
+
+            const x_min = xRangeMatch ? parseFloat(xRangeMatch[1]) : -7;
+            const x_max = xRangeMatch ? parseFloat(xRangeMatch[2]) : 7;
+            const y_min = yRangeMatch ? parseFloat(yRangeMatch[1]) : -7;
+            const y_max = yRangeMatch ? parseFloat(yRangeMatch[2]) : 7;
+
+            const parseCoordList = (str: string): [number, number][] =>
+                Array.from(str.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g))
+                    .map(m => [parseFloat(m[1]), parseFloat(m[2])] as [number, number]);
+
+            const layers: any[] = [];
+
+            // Check for named shapes: "Shape A is ... vertices at (...) ... Shape B is ... vertices at (...)"
+            const shapeSegments = Array.from(hint.matchAll(/Shape\s+([A-Z])\s+is\s+[^.]*?\s+vertices\s+at\s+([^.]+(?:\.[^.]+)*?)(?=Shape\s+[A-Z]|$)/gi));
+            if (shapeSegments.length > 0) {
+                shapeSegments.forEach(seg => {
+                    const label = seg[1].toUpperCase();
+                    const pts = parseCoordList(seg[2]);
+                    if (pts.length >= 3) {
+                        layers.push({ shape_name: 'polygon', purpose: 'reference', label, points: pts });
+                    }
+                });
+            } else if (/curve/i.test(hint)) {
+                const pts = parseCoordList(hint);
+                if (pts.length >= 3) {
+                    layers.push({ shape_name: 'curve', purpose: 'reference', smooth: true, points: pts });
+                }
+            } else {
+                const pts = parseCoordList(hint);
+                if (pts.length >= 3) {
+                    layers.push({ shape_name: 'polygon', purpose: 'reference', points: pts });
+                }
+            }
+
+            if (layers.length === 0) return null;
+            return {
+                type: 'coordinate_grid',
+                purpose: 'reference',
+                show_axes: true,
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                _rawHint: hint,
+                layers
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Renders non-uniform scale scientific/empirical Cartesian graphs (e.g., Q12 Velocity-Time graph
+     * where x is 0..6 and y is 0..60) into a proportional exam-style grid with millimeter subdivisions,
+     * smooth Catmull-Rom cubic Bezier curves through data points, viewport clipping, and external axis titles.
+     */
+    private static drawNormalizedCartesianGraph(data: any): string {
+        const layers: any[] = Array.isArray(data.layers) ? data.layers : (Array.isArray(data.shapes) ? data.shapes : []);
+
+        // Separate reference curve points from extrapolated solution lines (e.g. tangent lines that shoot up to y = 72)
+        const refPts: [number, number][] = [];
+        const allPts: [number, number][] = [];
+        layers.forEach((l: any) => {
+            const pts = l.points || l.vertices || (l.coords ? [l.coords] : (l.coord ? [l.coord] : []));
+            if (Array.isArray(pts)) {
+                const isSolLine = l.purpose === 'solution' || l.dashed === true || pts.length === 2;
+                pts.forEach((p: any) => {
+                    const px = parseFloat(Array.isArray(p) ? p[0] : p?.x);
+                    const py = parseFloat(Array.isArray(p) ? p[1] : p?.y);
+                    if (Number.isFinite(px) && Number.isFinite(py)) {
+                        allPts.push([px, py]);
+                        if (!isSolLine) refPts.push([px, py]);
+                    }
+                });
+            }
+        });
+
+        const boundPts = refPts.length >= 3 ? refPts : allPts;
+        const minPtX = boundPts.length > 0 ? Math.min(...boundPts.map(p => p[0])) : 0;
+        const maxPtX = boundPts.length > 0 ? Math.max(...boundPts.map(p => p[0])) : 6;
+        const minPtY = boundPts.length > 0 ? Math.min(...boundPts.map(p => p[1])) : 0;
+        const maxPtY = boundPts.length > 0 ? Math.max(...boundPts.map(p => p[1])) : 60;
+
+        // Parse explicit bounds from _rawHint if LLM omitted x_min/x_max/y_min/y_max or left default -6..6
+        const hintStr = String(data._rawHint || data._qContext || '');
+        const xHintMatch = hintStr.match(/x-axis\s+ranging\s+from\s+(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)/i);
+        const yHintMatch = hintStr.match(/y-axis\s+ranging\s+from\s+(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)/i);
+
+        let xMin = xHintMatch ? parseFloat(xHintMatch[1]) : (Number.isFinite(parseFloat(data.x_min)) && parseFloat(data.x_min) >= 0 ? parseFloat(data.x_min) : Math.min(0, minPtX));
+        let xMax = xHintMatch ? parseFloat(xHintMatch[2]) : (Number.isFinite(parseFloat(data.x_max)) && parseFloat(data.x_max) >= maxPtX ? parseFloat(data.x_max) : maxPtX);
+        let yMin = yHintMatch ? parseFloat(yHintMatch[1]) : (Number.isFinite(parseFloat(data.y_min)) && parseFloat(data.y_min) >= 0 ? parseFloat(data.y_min) : Math.min(0, minPtY));
+        let yMax = yHintMatch ? parseFloat(yHintMatch[2]) : (Number.isFinite(parseFloat(data.y_max)) && parseFloat(data.y_max) >= maxPtY ? parseFloat(data.y_max) : maxPtY);
+
+        const getNiceStep = (span: number): number => {
+            if (span <= 6.5) return 1;
+            if (span <= 13) return 2;
+            if (span <= 32) return 5;
+            if (span <= 75) return 10;
+            if (span <= 150) return 20;
+            return Math.ceil(span / 6 / 10) * 10;
+        };
+
+        const xStep = (Number.isFinite(parseFloat(data.x_step)) && parseFloat(data.x_step) > 0) ? parseFloat(data.x_step) : getNiceStep(Math.max(1e-3, xMax - xMin));
+        const yStep = (Number.isFinite(parseFloat(data.y_step)) && parseFloat(data.y_step) > 0) ? parseFloat(data.y_step) : getNiceStep(Math.max(1e-3, yMax - yMin));
+
+        // Universal Axis Top-Tick Snapping (e.g. 65 -> 60 or 72 -> 60 when reference curve max is 60 and step is 10)
+        const snappedXMax = Math.floor(xMax / xStep) * xStep;
+        if (snappedXMax > xMin && xMax > snappedXMax && maxPtX <= snappedXMax + 1e-3) {
+            xMax = snappedXMax;
+        }
+        const snappedYMax = Math.floor(yMax / yStep) * yStep;
+        if (snappedYMax > yMin && yMax > snappedYMax && maxPtY <= snappedYMax + 1e-3) {
+            yMax = snappedYMax;
+        }
+
+        const xSpan = Math.max(1e-3, xMax - xMin);
+        const ySpan = Math.max(1e-3, yMax - yMin);
+
+        const VIEW_W = 160;
+        const VIEW_H = 160;
+        const LEFT_PAD = 32;
+        const RIGHT_PAD = 14;
+        const TOP_PAD = 12;
+        const BOTTOM_PAD = 28;
+
+        const mapX = (x: number) => LEFT_PAD + ((x - xMin) / xSpan) * VIEW_W;
+        const mapY = (y: number) => TOP_PAD + VIEW_H - ((y - yMin) / ySpan) * VIEW_H;
+
+        const clipId = `norm-grid-clip-${Math.round(xMax * 100)}-${Math.round(yMax * 100)}`;
+        let svg = `<defs><clipPath id="${clipId}"><rect x="${LEFT_PAD}" y="${TOP_PAD}" width="${VIEW_W}" height="${VIEW_H}" /></clipPath></defs>`;
+
+        // 1. Fine Millimeter Sub-Gridlines (5 subdivisions per major step)
+        const xMinor = xStep / 5;
+        const yMinor = yStep / 5;
+        for (let x = xMin; x <= xMax + 1e-6; x += xMinor) {
+            const sx = +mapX(x).toFixed(2);
+            svg += `<line x1="${sx}" y1="${TOP_PAD}" x2="${sx}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-grid)" stroke-width="0.2" opacity="0.32" vector-effect="non-scaling-stroke" />`;
+        }
+        for (let y = yMin; y <= yMax + 1e-6; y += yMinor) {
+            const sy = +mapY(y).toFixed(2);
+            svg += `<line x1="${LEFT_PAD}" y1="${sy}" x2="${LEFT_PAD + VIEW_W}" y2="${sy}" stroke="var(--diagram-grid)" stroke-width="0.2" opacity="0.32" vector-effect="non-scaling-stroke" />`;
+        }
+
+        // 2. Major Gridlines & Tick Labels
+        for (let x = xMin; x <= xMax + 1e-6; x += xStep) {
+            const sx = +mapX(x).toFixed(2);
+            svg += `<line x1="${sx}" y1="${TOP_PAD}" x2="${sx}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-grid)" stroke-width="0.45" opacity="0.75" vector-effect="non-scaling-stroke" />`;
+            svg += `<line x1="${sx}" y1="${TOP_PAD + VIEW_H}" x2="${sx}" y2="${TOP_PAD + VIEW_H + 2.5}" stroke="var(--diagram-foreground)" stroke-width="0.6" vector-effect="non-scaling-stroke" />`;
+            svg += `<text x="${sx}" y="${TOP_PAD + VIEW_H + 8}" font-size="5" fill="var(--diagram-foreground)" text-anchor="middle">${Math.round(x * 100) / 100}</text>`;
+        }
+        for (let y = yMin; y <= yMax + 1e-6; y += yStep) {
+            const sy = +mapY(y).toFixed(2);
+            svg += `<line x1="${LEFT_PAD}" y1="${sy}" x2="${LEFT_PAD + VIEW_W}" y2="${sy}" stroke="var(--diagram-grid)" stroke-width="0.45" opacity="0.75" vector-effect="non-scaling-stroke" />`;
+            svg += `<line x1="${LEFT_PAD - 2.5}" y1="${sy}" x2="${LEFT_PAD}" y2="${sy}" stroke="var(--diagram-foreground)" stroke-width="0.6" vector-effect="non-scaling-stroke" />`;
+            svg += `<text x="${LEFT_PAD - 4}" y="${sy + 1.6}" font-size="5" fill="var(--diagram-foreground)" text-anchor="end">${Math.round(y * 100) / 100}</text>`;
+        }
+
+        // 3. Axes with Arrowheads
+        svg += `
+            <line x1="${LEFT_PAD}" y1="${TOP_PAD + VIEW_H}" x2="${LEFT_PAD}" y2="${TOP_PAD - 6}" stroke="var(--diagram-foreground)" stroke-width="0.9" vector-effect="non-scaling-stroke" />
+            <polygon points="${LEFT_PAD},${TOP_PAD - 8} ${LEFT_PAD - 2.2},${TOP_PAD - 3.5} ${LEFT_PAD + 2.2},${TOP_PAD - 3.5}" fill="var(--diagram-foreground)" />
+            <line x1="${LEFT_PAD}" y1="${TOP_PAD + VIEW_H}" x2="${LEFT_PAD + VIEW_W + 6}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-foreground)" stroke-width="0.9" vector-effect="non-scaling-stroke" />
+            <polygon points="${LEFT_PAD + VIEW_W + 8},${TOP_PAD + VIEW_H} ${LEFT_PAD + VIEW_W + 3.5},${TOP_PAD + VIEW_H - 2.2} ${LEFT_PAD + VIEW_W + 3.5},${TOP_PAD + VIEW_H + 2.2}" fill="var(--diagram-foreground)" />
+        `;
+
+        const buildSmoothPath = (pts: [number, number][]): string => {
+            if (pts.length === 0) return '';
+            if (pts.length === 1) return `M ${pts[0][0]} ${pts[0][1]}`;
+            if (pts.length === 2) return `M ${pts[0][0]} ${pts[0][1]} L ${pts[1][0]} ${pts[1][1]}`;
+            let d = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+            for (let i = 0; i < pts.length - 1; i++) {
+                const p0 = pts[Math.max(0, i - 1)];
+                const p1 = pts[i];
+                const p2 = pts[i + 1];
+                const p3 = pts[Math.min(pts.length - 1, i + 2)];
+                const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+                const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+                const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+                const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+                d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
+            }
+            return d;
+        };
+
+        // 4. Render Layers (Smooth Curves, Lines, Points)
+        let xTitle = data.x_label || data.x_axis_label || '';
+        let yTitle = data.y_label || data.y_axis_label || '';
+
+        if (!yTitle && /showing\s+([^']+?)\s+on\s+the\s+vertical\s+y-axis/i.test(hintStr)) {
+            yTitle = hintStr.match(/showing\s+([^']+?)\s+on\s+the\s+vertical\s+y-axis/i)![1].trim();
+        }
+        if (!xTitle && /against\s+([^']+?)\s+on\s+the\s+horizontal\s+x-axis/i.test(hintStr)) {
+            xTitle = hintStr.match(/against\s+([^']+?)\s+on\s+the\s+horizontal\s+x-axis/i)![1].trim();
+        }
+
+        layers.forEach((layer: any) => {
+            const lbl = String(layer.label || '').trim();
+            if (/time|seconds/i.test(lbl) && !xTitle) { xTitle = lbl; return; }
+            if (/velocity|m\/s|frequency/i.test(lbl) && !yTitle) { yTitle = lbl; return; }
+            if (/^t\s*=\s*\d+/i.test(lbl)) return; // Suppress floating "t = 3" label in middle of curve
+
+            const rawPts = layer.points || layer.vertices || (layer.coords ? [layer.coords] : (layer.coord ? [layer.coord] : []));
+            if (!Array.isArray(rawPts) || rawPts.length === 0) return;
+
+            const screenPts: [number, number][] = rawPts
+                .map((p: any) => [
+                    parseFloat(Array.isArray(p) ? p[0] : p?.x),
+                    parseFloat(Array.isArray(p) ? p[1] : p?.y)
+                ] as [number, number])
+                .filter(([px, py]) => Number.isFinite(px) && Number.isFinite(py))
+                .map(([px, py]) => [mapX(px), mapY(py)]);
+
+            if (screenPts.length === 0) return;
+
+            const isSolution = layer.purpose === 'solution' || layer.dashed === true;
+            const strokeColor = isSolution ? '#10b981' : 'var(--diagram-foreground)';
+            const dashed = layer.dashed ? 'stroke-dasharray="4,3"' : '';
+
+            if (screenPts.length >= 4 && (layer.shape_name === 'curve' || layer.smooth !== false)) {
+                const pathD = buildSmoothPath(screenPts);
+                svg += `<path d="${pathD}" clip-path="url(#${clipId})" fill="none" stroke="${strokeColor}" stroke-width="1.2" ${dashed} vector-effect="non-scaling-stroke" />`;
+            } else if (screenPts.length >= 2) {
+                const ptsStr = screenPts.map(([sx, sy]) => `${sx.toFixed(2)},${sy.toFixed(2)}`).join(' ');
+                const tag = (layer.shape_name === 'polygon' && !layer.is_open) ? 'polygon' : 'polyline';
+                const fill = tag === 'polygon' ? (isSolution ? 'rgba(16, 185, 129, 0.14)' : 'rgba(128, 128, 128, 0.15)') : 'none';
+                svg += `<${tag} points="${ptsStr}" clip-path="url(#${clipId})" fill="${fill}" stroke="${strokeColor}" stroke-width="1.1" ${dashed} vector-effect="non-scaling-stroke" />`;
+            } else if (screenPts.length === 1 && lbl) {
+                const [sx, sy] = screenPts[0];
+                svg += `<text x="${sx.toFixed(2)}" y="${(sy - 4).toFixed(2)}" font-size="5" fill="${strokeColor}" font-weight="bold" text-anchor="middle">${lbl}</text>`;
+            }
+        });
+
+        // 5. Render Axis Titles Outside the Grid
+        if (xTitle) {
+            svg += `<text x="${LEFT_PAD + VIEW_W / 2}" y="${TOP_PAD + VIEW_H + 21}" font-size="5.6" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${xTitle}</text>`;
+        }
+        if (yTitle) {
+            const cy = TOP_PAD + VIEW_H / 2;
+            svg += `<text x="9" y="${cy}" font-size="5.6" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle" transform="rotate(-90 9 ${cy})">${yTitle}</text>`;
+        }
+
+        return this.wrapSVG(0, 0, LEFT_PAD + VIEW_W + RIGHT_PAD, TOP_PAD + VIEW_H + BOTTOM_PAD, svg);
+    }
+
+    /**
+     * Draws an unequal-width GCSE Histogram with continuous x-axis intervals,
+     * Frequency Density y-axis, minor gridlines, and shaded interval bars.
+     */
+    private static drawHistogram(data: any): string {
+        const rawBars: any[] = Array.isArray(data.bars) ? data.bars : [];
+        if (rawBars.length === 0) {
+            return this.renderFallbackBox(data.description || 'Histogram (no bar data)');
+        }
+
+        const bars = rawBars.map((b: any) => ({
+            xStart: parseFloat(b.x_start ?? b.xMin ?? b.start ?? 0),
+            xEnd: parseFloat(b.x_end ?? b.xMax ?? b.end ?? 10),
+            height: parseFloat(b.height ?? b.fd ?? b.value ?? 0)
+        })).filter(b => Number.isFinite(b.xStart) && Number.isFinite(b.xEnd) && b.xEnd > b.xStart && Number.isFinite(b.height));
+
+        if (bars.length === 0) {
+            return this.renderFallbackBox(data.description || 'Histogram (invalid bar intervals)');
+        }
+
+        const minBarX = Math.min(...bars.map(b => b.xStart));
+        const maxBarX = Math.max(...bars.map(b => b.xEnd));
+        const maxBarH = Math.max(...bars.map(b => b.height));
+
+        const xMin = Number.isFinite(parseFloat(data.x_min)) ? parseFloat(data.x_min) : Math.min(0, minBarX);
+        const xMax = Number.isFinite(parseFloat(data.x_max)) ? Math.max(parseFloat(data.x_max), maxBarX) : maxBarX;
+        const yMin = 0;
+        const yMax = Number.isFinite(parseFloat(data.y_max)) ? Math.max(parseFloat(data.y_max), maxBarH) : Math.ceil(maxBarH * 1.15);
+
+        const xSpan = Math.max(1, xMax - xMin);
+        const ySpan = Math.max(1, yMax - yMin);
+
+        const getNiceStep = (span: number): number => {
+            if (span <= 5) return 1;
+            if (span <= 15) return 2;
+            if (span <= 35) return 5;
+            if (span <= 70) return 10;
+            if (span <= 150) return 20;
+            return Math.ceil(span / 6 / 10) * 10;
+        };
+
+        const xStep = (Number.isFinite(parseFloat(data.x_step)) && parseFloat(data.x_step) > 0) ? parseFloat(data.x_step) : getNiceStep(xSpan);
+        const yStep = (Number.isFinite(parseFloat(data.y_step)) && parseFloat(data.y_step) > 0) ? parseFloat(data.y_step) : getNiceStep(ySpan);
+
+        const VIEW_W = 180;
+        const VIEW_H = 120;
+        const LEFT_PAD = 28;
+        const RIGHT_PAD = 12;
+        const TOP_PAD = 10;
+        const BOTTOM_PAD = 26;
+
+        const mapX = (x: number) => LEFT_PAD + ((x - xMin) / xSpan) * VIEW_W;
+        const mapY = (y: number) => TOP_PAD + VIEW_H - ((y - yMin) / ySpan) * VIEW_H;
+
+        let svg = '';
+
+        const xMinorStep = xStep / 5;
+        const yMinorStep = yStep / 5;
+
+        for (let x = xMin; x <= xMax + 1e-6; x += xMinorStep) {
+            const sx = +mapX(x).toFixed(2);
+            svg += `<line x1="${sx}" y1="${TOP_PAD}" x2="${sx}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-grid)" stroke-width="0.2" opacity="0.35" vector-effect="non-scaling-stroke" />`;
+        }
+        for (let y = yMin; y <= yMax + 1e-6; y += yMinorStep) {
+            const sy = +mapY(y).toFixed(2);
+            svg += `<line x1="${LEFT_PAD}" y1="${sy}" x2="${LEFT_PAD + VIEW_W}" y2="${sy}" stroke="var(--diagram-grid)" stroke-width="0.2" opacity="0.35" vector-effect="non-scaling-stroke" />`;
+        }
+
+        for (let x = xMin; x <= xMax + 1e-6; x += xStep) {
+            const sx = +mapX(x).toFixed(2);
+            svg += `<line x1="${sx}" y1="${TOP_PAD}" x2="${sx}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-grid)" stroke-width="0.45" opacity="0.75" vector-effect="non-scaling-stroke" />`;
+            svg += `<line x1="${sx}" y1="${TOP_PAD + VIEW_H}" x2="${sx}" y2="${TOP_PAD + VIEW_H + 2.5}" stroke="var(--diagram-foreground)" stroke-width="0.6" vector-effect="non-scaling-stroke" />`;
+            svg += `<text x="${sx}" y="${TOP_PAD + VIEW_H + 8}" font-size="5" fill="var(--diagram-foreground)" text-anchor="middle">${Math.round(x * 100) / 100}</text>`;
+        }
+        for (let y = yMin; y <= yMax + 1e-6; y += yStep) {
+            const sy = +mapY(y).toFixed(2);
+            svg += `<line x1="${LEFT_PAD}" y1="${sy}" x2="${LEFT_PAD + VIEW_W}" y2="${sy}" stroke="var(--diagram-grid)" stroke-width="0.45" opacity="0.75" vector-effect="non-scaling-stroke" />`;
+            svg += `<line x1="${LEFT_PAD - 2.5}" y1="${sy}" x2="${LEFT_PAD}" y2="${sy}" stroke="var(--diagram-foreground)" stroke-width="0.6" vector-effect="non-scaling-stroke" />`;
+            svg += `<text x="${LEFT_PAD - 4}" y="${sy + 1.6}" font-size="5" fill="var(--diagram-foreground)" text-anchor="end">${Math.round(y * 100) / 100}</text>`;
+        }
+
+        bars.forEach(b => {
+            const bx = +mapX(b.xStart).toFixed(2);
+            const bw = +(mapX(b.xEnd) - mapX(b.xStart)).toFixed(2);
+            const by = +mapY(b.height).toFixed(2);
+            const bh = +(TOP_PAD + VIEW_H - by).toFixed(2);
+            svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="rgba(148, 163, 184, 0.28)" stroke="var(--diagram-foreground)" stroke-width="0.75" vector-effect="non-scaling-stroke" />`;
+        });
+
+        svg += `<line x1="${LEFT_PAD}" y1="${TOP_PAD}" x2="${LEFT_PAD}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-foreground)" stroke-width="0.9" vector-effect="non-scaling-stroke" />`;
+        svg += `<line x1="${LEFT_PAD}" y1="${TOP_PAD + VIEW_H}" x2="${LEFT_PAD + VIEW_W}" y2="${TOP_PAD + VIEW_H}" stroke="var(--diagram-foreground)" stroke-width="0.9" vector-effect="non-scaling-stroke" />`;
+
+        const xLabel = data.x_label || data.x_axis_label || '';
+        const yLabel = data.y_label || data.y_axis_label || 'Frequency density';
+        if (xLabel) {
+            svg += `<text x="${LEFT_PAD + VIEW_W / 2}" y="${TOP_PAD + VIEW_H + 19}" font-size="5.5" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle">${xLabel}</text>`;
+        }
+        if (yLabel) {
+            const cy = TOP_PAD + VIEW_H / 2;
+            svg += `<text x="8" y="${cy}" font-size="5.5" font-weight="bold" fill="var(--diagram-foreground)" text-anchor="middle" transform="rotate(-90 8 ${cy})">${yLabel}</text>`;
+        }
+
+        return this.wrapSVG(0, 0, LEFT_PAD + VIEW_W + RIGHT_PAD, TOP_PAD + VIEW_H + BOTTOM_PAD, svg);
+    }
+
+    /**
+     * Safety Net: Parses a raw histogram description (e.g. Question 15) into a structured drawHistogram() call.
+     */
+    private static renderHistogramFromHint(desc: string): string {
+        try {
+            const xAxisMatch = desc.match(/['"]([^'"]+)['"]\s+on\s+the\s+horizontal\s+x-axis\s+from\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)/i);
+            const yAxisMatch = desc.match(/['"]([^'"]+)['"]\s+on\s+the\s+vertical\s+y-axis\s+from\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)/i);
+
+            const x_label = xAxisMatch ? xAxisMatch[1] : 'Value';
+            const x_min = xAxisMatch ? parseFloat(xAxisMatch[2]) : 0;
+            const x_max = xAxisMatch ? parseFloat(xAxisMatch[3]) : 60;
+
+            const y_label = yAxisMatch ? yAxisMatch[1] : 'Frequency density';
+            const y_min = yAxisMatch ? parseFloat(yAxisMatch[2]) : 0;
+            const y_max = yAxisMatch ? parseFloat(yAxisMatch[3]) : 12;
+
+            const bars: { x_start: number; x_end: number; height: number }[] = [];
+            const barRegex = /from\s+(?:x\s*=\s*)?(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)\s+with\s+(?:height|frequency\s+density)\s+(\d+(?:\.\d+)?)/gi;
+            let m;
+            while ((m = barRegex.exec(desc)) !== null) {
+                bars.push({
+                    x_start: parseFloat(m[1]),
+                    x_end: parseFloat(m[2]),
+                    height: parseFloat(m[3])
+                });
+            }
+
+            if (bars.length === 0) return this.renderFallbackBox(desc);
+            return this.drawHistogram({
+                type: 'histogram',
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+                x_label,
+                y_label,
+                bars
+            });
+        } catch (e) {
+            console.error('[DiagramService] renderHistogramFromHint error:', e);
+            return this.renderFallbackBox(desc);
         }
     }
 

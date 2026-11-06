@@ -26,8 +26,8 @@ export class DiagramBridgeService {
       '$1'
     );
 
-    // 2. Match all [Diagram: ...] or [Type: Diagram: ...] hints
-    const diagramRegex = /\[(?:Type:\s*Diagram|Diagram):\s*([\s\S]*?)\]/gi;
+    // 2. Match all [Diagram: ...] or [Type: Diagram: ...] hints (supports 1 level of nested [...] inside the hint, e.g. Q9a)
+    const diagramRegex = /\[(?:Type:\s*Diagram|Diagram):\s*((?:[^\[\]]|\[[^\]]*\])*)\]/gi;
     const matches = Array.from(processedContent.matchAll(diagramRegex));
 
     if (matches.length === 0) {
@@ -57,12 +57,17 @@ export class DiagramBridgeService {
         .slice(0, 1000);
     };
 
+    // Helper to strip confusing editorial sub-brackets like "[with intermediate vertex along the line]" from the hint sent to the LLM
+    const cleanHintForLlm = (rawHint: string): string =>
+      rawHint.replace(/\[\s*with\s+[^\]]*\]/gi, '').replace(/\s+/g, ' ').trim();
+
     // 3A. Fast Single-Call Batch Extraction when multiple diagram hints are present
     if (matches.length > 1) {
       const validItems = matches.map((match, idx) => ({
         idx,
         fullMatchText: match[0],
-        hintDescription: (match[1] || '').trim(),
+        rawHintDescription: (match[1] || '').trim(),
+        hintDescription: cleanHintForLlm((match[1] || '').trim()),
         localContext: getLocalContext(match.index || 0, match[0].length)
       })).filter(item => item.hintDescription.length > 0);
 
@@ -91,7 +96,9 @@ export class DiagramBridgeService {
           const parsedArray = JSON.parse(rawArrayText);
           if (Array.isArray(parsedArray) && parsedArray.length === validItems.length) {
             for (let i = 0; i < validItems.length; i++) {
-              const jsonStr = JSON.stringify(parsedArray[i]);
+              const obj = parsedArray[i] && typeof parsedArray[i] === 'object' ? parsedArray[i] : { type: 'fallback', description: validItems[i].rawHintDescription };
+              obj._rawHint = validItems[i].rawHintDescription;
+              const jsonStr = JSON.stringify(obj);
               const scriptTag = `\n<script type="application/json" class="ai-diagram-data">\n${jsonStr}\n</script>\n`;
               processedContent = processedContent.replace(validItems[i].fullMatchText, scriptTag);
             }
@@ -119,7 +126,7 @@ export class DiagramBridgeService {
         }
 
         const plainContext = getLocalContext(match.index || 0, fullMatchText.length);
-        const diagramUserPrompt = getPrompt('diagramExtractor.user', hintDescription, plainContext);
+        const diagramUserPrompt = getPrompt('diagramExtractor.user', cleanHintForLlm(hintDescription), plainContext);
 
         try {
           const diagramAi = await ModelProvider.callText(
@@ -140,17 +147,21 @@ export class DiagramBridgeService {
             console.log(`[DEBUG] [${logPrefix}] Raw JSON Output #${diagramNum}:\n${jsonOutput}`);
           }
 
-          // Verify JSON validity before injecting
-          JSON.parse(jsonOutput);
+          // Verify JSON validity and attach _rawHint before injecting
+          const parsedObj = JSON.parse(jsonOutput);
+          if (parsedObj && typeof parsedObj === 'object') {
+            parsedObj._rawHint = hintDescription;
+          }
 
-          const scriptTag = `\n<script type="application/json" class="ai-diagram-data">\n${jsonOutput}\n</script>\n`;
+          const scriptTag = `\n<script type="application/json" class="ai-diagram-data">\n${JSON.stringify(parsedObj)}\n</script>\n`;
           return { fullMatchText, replacement: scriptTag };
         } catch (err) {
           console.error(`[${logPrefix}] Error extracting diagram #${diagramNum} ("${hintDescription}"):`, err);
           // Graceful fallback JSON so DiagramService renders a clean fallback reference box instead of raw bracketed text
           const fallbackJson = JSON.stringify({
             type: 'fallback',
-            description: hintDescription
+            description: hintDescription,
+            _rawHint: hintDescription
           });
           const fallbackScriptTag = `\n<script type="application/json" class="ai-diagram-data">\n${fallbackJson}\n</script>\n`;
           return { fullMatchText, replacement: fallbackScriptTag };
