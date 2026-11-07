@@ -125,13 +125,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  margin: 0 auto 64px auto;
+  gap: 6px;
+  margin: 0 auto 16px auto;
   padding: 6px;
   background: var(--background-card);
   border-radius: 12px;
   max-width: 320px;
   box-shadow: var(--shadow-S);
+}
+
+.credit-explainer-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 auto 36px auto;
+  padding: 6px 18px;
+  background: var(--background-card, #f8fafc);
+  color: var(--text-secondary, #475569);
+  border-radius: 9999px;
+  font-size: 13px;
+  border: 1px solid var(--border-main, #e2e8f0);
+  width: fit-content;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.credit-explainer-pill strong {
+  color: var(--text-primary, #0f172a);
 }
 
 .upgrade-billing-toggle span {
@@ -217,6 +239,14 @@
   font-size: 16px;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.upgrade-plan-yearly-subtext {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  margin-top: 4px;
+  min-height: 18px;
 }
 
 .upgrade-plan-popular-badge {
@@ -415,18 +445,19 @@
   color: var(--text-tertiary);
 }
 
-/* Scheduled Change Banner */
+/* Scheduled Change Banner - The Racing API Soft-Red Style */
 .scheduled-banner {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border: 2px solid #fbbf24;
-  border-radius: 10px;
-  padding: 8px 16px;
-  margin-bottom: 20px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  box-shadow: 0 2px 4px -1px rgba(251, 191, 36, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   max-width: 800px;
   margin-left: auto;
   margin-right: auto;
@@ -434,59 +465,142 @@
 
 .scheduled-banner-content {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
   flex: 1;
 }
 
-.scheduled-banner-content svg {
-  color: #f59e0b;
-  flex-shrink: 0;
-}
-
-.scheduled-banner-text {
+.scheduled-banner-header {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.scheduled-banner-text strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: #92400e;
+.scheduled-banner-header strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: #991b1b;
 }
 
-.scheduled-banner-text span {
+.scheduled-effective-badge {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.3px;
+}
+
+.scheduled-banner-subtitle {
   font-size: 13px;
-  color: #78350f;
+  color: #b91c1c;
+  margin: 0;
   line-height: 1.4;
-}
-
-.scheduled-banner-text span strong {
-  text-transform: capitalize;
-  font-size: 13px;
 }
 
 .cancel-schedule-button {
   padding: 8px 16px;
-  background: white;
-  color: #92400e;
-  border: 2px solid #fbbf24;
-  border-radius: 6px;
+  background: #ffffff;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
   white-space: nowrap;
+  transition: all 0.15s ease;
 }
 
 .cancel-schedule-button:hover {
-  background: #fef3c7;
-  border-color: #f59e0b;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px -2px rgba(251, 191, 36, 0.3);
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+/* Low Credits Banner - Dark-Mode Native */
+.low-credits-banner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--text-primary);
+  border-radius: 12px;
+  padding: 12px 18px;
+  max-width: 1080px;
+  margin: 0 auto 24px auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.low-credits-banner svg {
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+[data-theme='dark'] .low-credits-banner svg,
+.dark .low-credits-banner svg {
+  color: #fbbf24;
+}
+
+/* Admin Debug Bar - Dark-Mode Native */
+.admin-plan-bar {
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
+  border-radius: 12px;
+  padding: 10px 18px;
+  max-width: 760px;
+  margin: 0 auto 28px auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.admin-plan-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-plan-tag {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.admin-plan-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.admin-plan-active-badge {
+  background: #10b981;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.admin-plan-switch-btn {
+  padding: 6px 12px;
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-plan-switch-btn:hover {
+  background: var(--background-gray-main, #f1f5f9);
 }
 
 .upgrade-plans-grid {
@@ -567,10 +681,11 @@
 }
 
 .upgrade-plan-subscribe-button.current {
-  background: var(--background-gray-main);
-  color: var(--text-tertiary);
-  border: 1px solid var(--border-main);
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
   cursor: default;
+  font-weight: 600;
 }
 
 .upgrade-plan-subscribe-button.current:hover {
@@ -578,74 +693,45 @@
   transform: none;
 }
 
-/* Current Plan Status - Reverting to status-centric indicator */
+/* Current Plan Card - Clean Racing API Emerald Style */
 .upgrade-plan-card.current-plan {
-  border: 2px solid #FFD700 !important;
+  border: 2px solid #10b981 !important;
   background: var(--background-white-main);
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.2);
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
-/* Glowing animation */
-@keyframes glow-pulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5),
-      0 0 40px rgba(255, 165, 0, 0.3);
-  }
-
-  50% {
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.8),
-      0 0 60px rgba(255, 165, 0, 0.5);
-  }
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+  position: relative;
 }
 
 .upgrade-plan-card.current-plan:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 30px rgba(255, 215, 0, 0.6),
-    0 0 50px rgba(255, 165, 0, 0.4);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.15);
 }
 
-/* Plan Change Info - Positioned at bottom after features */
-.plan-change-info {
-  margin: 16px 0 0 0;
-  padding: 0;
-  border-radius: 8px;
+.current-plan-pill {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: #10b981;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.plan-button-subtext {
   font-size: 12px;
-  line-height: 1.4;
+  color: var(--text-tertiary);
+  margin-top: -14px;
+  margin-bottom: 16px;
+  text-align: center;
 }
 
-.upgrade-info {
-  background: var(--function-success-tsp);
-  color: var(--function-success);
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--function-success-tsp);
-  text-align: left;
+.yearly-billed-subtitle {
+  font-size: 12px;
   font-weight: 500;
-}
-
-.downgrade-info {
-  background: var(--function-warning-tsp);
-  color: var(--function-warning);
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--function-warning-tsp);
-  text-align: left;
-  font-weight: 500;
-}
-
-.upgrade-info svg,
-.downgrade-info svg {
-  flex-shrink: 0;
-  margin-top: 2px;
+  color: var(--function-success, #10b981);
+  margin-top: 4px;
 }
 
 /* Button Disabled State */

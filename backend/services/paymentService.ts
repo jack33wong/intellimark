@@ -108,32 +108,9 @@ export class PaymentService {
       },
     };
 
-    // If user has an existing active subscription, cancel it before creating new one
-    // BUT only if it's a real Stripe subscription (not our internal 'free' placeholder)
-    if (existingSubscription && existingSubscription.status === 'active') {
-      const isFreePlaceholder = existingSubscription.stripeSubscriptionId.startsWith('free_');
-
-      if (!isFreePlaceholder) {
-        console.log(`⚠️ User ${userId} has existing active subscription: ${existingSubscription.stripeSubscriptionId}`);
-        console.log(`   Canceling old subscription before creating new checkout session...`);
-
-        try {
-          // Cancel the old subscription immediately
-          await stripe.subscriptions.cancel(existingSubscription.stripeSubscriptionId);
-          console.log(`✅ Canceled old subscription: ${existingSubscription.stripeSubscriptionId}`);
-
-          // Update our database to reflect cancellation
-          await SubscriptionService.updateSubscriptionStatus(
-            existingSubscription.stripeSubscriptionId,
-            'canceled'
-          );
-        } catch (error) {
-          console.error(`❌ Failed to cancel existing subscription:`, error);
-          // Continue anyway - user might still be able to subscribe
-        }
-      } else {
-        console.log(`ℹ️ Skipping cancellation for free/internal subscription: ${existingSubscription.stripeSubscriptionId}`);
-      }
+    if (existingSubscription && existingSubscription.status === 'active' && !existingSubscription.stripeSubscriptionId.startsWith('free_')) {
+      sessionParams.metadata.previousStripeSubscriptionId = existingSubscription.stripeSubscriptionId;
+      sessionParams.subscription_data.metadata.previousStripeSubscriptionId = existingSubscription.stripeSubscriptionId;
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);

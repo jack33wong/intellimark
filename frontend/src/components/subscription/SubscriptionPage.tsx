@@ -70,10 +70,24 @@ const SubscriptionPage: React.FC = () => {
   const { user } = useAuth();
   const { logEvent } = useTelemetry();
 
+  const effectivePlanId: Plan | null =
+    currentSubscription && currentSubscription.status === 'active'
+      ? (currentSubscription.planId as Plan)
+      : user
+        ? 'free'
+        : null;
+
+  const hasLoggedViewRef = React.useRef<string | null>(null);
+
   // Telemetry: Track pricing page view and Stripe checkout cancellations
   useEffect(() => {
-    if (!user?.uid) return;
-    const searchParams = new URLSearchParams(window.location.search);
+    if (!user?.uid || loading) return;
+    // Prevent duplicate firing in React StrictMode or when async hooks resolve
+    const visitKey = `${location.key || 'init'}_${location.search}`;
+    if (hasLoggedViewRef.current === visitKey) return;
+    hasLoggedViewRef.current = visitKey;
+
+    const searchParams = new URLSearchParams(location.search);
     const wasCanceled = searchParams.get('canceled') === 'true';
 
     if (wasCanceled) {
@@ -81,15 +95,20 @@ const SubscriptionPage: React.FC = () => {
         eventType: 'checkout_canceled',
         metadata: { fromStripe: true }
       });
+      // Clean ?canceled=true from the URL so refreshes or re-renders don't re-log it
+      navigate('/pricing', { replace: true, state: location.state });
     } else {
       logEvent('telemetry_events', {
         eventType: 'pricing_page_viewed',
         metadata: {
-          fromApp: (location.state as any)?.fromApp || false
+          fromApp: Boolean((location.state as any)?.fromApp),
+          entrySource: (location.state as any)?.source || ((location.state as any)?.fromLanding ? 'landing' : 'direct'),
+          currentPlan: effectivePlanId || 'free',
+          remainingCredits: userCredits?.remainingCredits ?? null
         }
       });
     }
-  }, [user?.uid, logEvent, location.search]);
+  }, [user?.uid, loading, location.key, location.search, effectivePlanId, userCredits?.remainingCredits, logEvent, navigate, location.state]);
 
   // Fetch configuration and pricing
   useEffect(() => {
@@ -172,6 +191,14 @@ const SubscriptionPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error cancelling schedule:', error);
+      logEvent('telemetry_events', {
+        eventType: 'payment_or_system_error',
+        metadata: {
+          stage: 'client_subscription_action',
+          action: 'cancel_schedule',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
       setConfirmationData({
         isOpen: true,
         title: 'Error',
@@ -189,14 +216,14 @@ const SubscriptionPage: React.FC = () => {
     "@type": "Product",
     "name": "AI Marking Subscription",
     "image": "https://aimarking.ai/logo-social-share.jpg",
-    "description": "Spatial AI-powered marking for GCSE Maths papers. Get instant grades and marks for your working out.",
+    "description": "Spatial AI-powered examiner for GCSE & A-Level Maths, GCSE English Language, and custom mark schemes. Get instant grades, method marks (M1/A1), and step-by-step feedback.",
     "brand": { "@type": "Brand", "name": "AI Marking" },
     "offers": [
       {
         "@type": "Offer",
         "name": "Pro Plan",
         "url": "https://aimarking.ai/pricing",
-        "price": "9.90",
+        "price": "9.99",
         "priceCurrency": "GBP",
         "priceValidUntil": "2027-01-01",
         "availability": "https://schema.org/InStock",
@@ -218,7 +245,7 @@ const SubscriptionPage: React.FC = () => {
         "@type": "Offer",
         "name": "Ultra Plan",
         "url": "https://aimarking.ai/pricing",
-        "price": "19.90",
+        "price": "19.99",
         "priceCurrency": "GBP",
         "priceValidUntil": "2027-01-01",
         "availability": "https://schema.org/InStock",
@@ -261,35 +288,61 @@ const SubscriptionPage: React.FC = () => {
     );
   }
 
+  const adminTestPlan = {
+    id: 'admin_test' as Plan,
+    name: 'Admin Test',
+    price: dynamicPlans?.admin_test?.[billingCycle]?.amount || 0.01,
+    name_short: 'Admin',
+    description: 'Internal testing only.',
+    icon: <Database size={24} />,
+    features: [
+      {
+        icon: <CreditsIcon size={16} />,
+        text: `Unlimited (Test) Credits`,
+        tooltip: "Admin-only test plan for verified internal debugging."
+      },
+      {
+        icon: <Zap size={16} />,
+        text: 'Full System Access'
+      }
+    ],
+    popular: false,
+    adminOnly: true
+  } as any;
+
+  const creditTooltipText =
+    "1 Credit = 1 full page of handwritten work analyzed (approx. 15–20 credits per full past paper). Marking scheme pages uploaded alongside custom papers are free and do not consume credits.";
+
   const plans = [
     {
       id: 'free' as Plan,
       name: 'Free',
       price: 0,
-      description: 'Best for a fast score check.',
+      description: 'Best for trying your first paper & quick score checks.',
       icon: <Zap size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `10 Monthly Credits`,
-          subtext: `(Marks approx. 1 half-paper)`,
-          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed. We use advanced Mathpix OCR and 0.1mm spatial precision to perfectly read messy fractions, crossed-out lines, and drawn graphs, grading them against official examiner standards."
+          text: `${planCredits.free || 10} Monthly Credits`,
+          subtext: `(Marks approx. 10 pages / half a past paper)`,
+          tooltip: creditTooltipText
         },
         {
           icon: <Zap size={16} />,
-          text: 'Instant AI Grading'
+          text: 'Instant Examiner-Standard AI Grading',
+          subtext: 'GCSE & A-Level Maths, English & Custom Mark Schemes'
         },
         {
           icon: <Crosshair size={16} />,
-          text: 'Reads messy handwriting'
+          text: 'Reads messy handwriting, fractions & diagrams'
         },
         {
           icon: <Award size={16} />,
-          text: 'Step-by-step marking'
+          text: 'Step-by-step method marks (M1/A1) & rubric feedback'
         },
         {
           icon: <RotateCcw size={16} />,
-          text: 'Marks for working out'
+          text: 'Error-Carried-Forward (ECF) working out detection'
         }
       ],
       popular: false
@@ -298,38 +351,39 @@ const SubscriptionPage: React.FC = () => {
       id: 'pro' as Plan,
       name: 'Pro',
       price: dynamicPlans?.pro?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 9.99 : 95.90),
-      description: 'Best for active GCSE & A-Level revision.',
+      description: 'Best for active weekly GCSE & A-Level revision.',
       icon: <Users size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `200 Monthly Credits`,
-          subtext: `(Marks approx. 10 full past papers)`,
-          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed. We use advanced Mathpix OCR and 0.1mm spatial precision to perfectly read messy fractions, crossed-out lines, and drawn graphs, grading them against official examiner standards."
+          text: `${planCredits.pro || 200} Monthly Credits`,
+          subtext: `(Marks approx. 10–13 full past papers / month)`,
+          tooltip: creditTooltipText
         },
         {
-          icon: <Award size={16} />,
-          text: 'Grade full-length exam papers (up to 50+ pages per upload)'
-        },
-        {
-          icon: <Award size={16} />,
-          text: 'GCSE & A-Level Access'
-        },
-        {
-          icon: <MessageSquare size={16} />,
-          text: '24/7 AI Tutor Chat'
-        },
-        {
-          icon: <FileText size={16} />,
-          text: 'Full Model Answers'
-        },
-        {
-          icon: <TrendingUp size={16} />,
-          text: 'Find your weak topics'
+          icon: <Crown size={16} />,
+          text: 'Unlock All Pro & Reasoning AI Models',
+          subtext: 'Switch freely between Fast and Deep Reasoning models'
         },
         {
           icon: <Layers size={16} />,
-          text: 'Save all your mock exams'
+          text: 'Full-length paper uploads (up to 50+ pages per batch)'
+        },
+        {
+          icon: <Award size={16} />,
+          text: 'All Subjects: Maths, English Language & Any Mark Scheme'
+        },
+        {
+          icon: <MessageSquare size={16} />,
+          text: '24/7 AI Examiner Tutor Chat on every question'
+        },
+        {
+          icon: <FileText size={16} />,
+          text: 'Full Grade 9 / A* Model Answers & Mark Scheme Explanations'
+        },
+        {
+          icon: <TrendingUp size={16} />,
+          text: 'Performance Analytics & Weak Topic Discovery'
         }
       ],
       popular: true
@@ -338,63 +392,44 @@ const SubscriptionPage: React.FC = () => {
       id: 'ultra' as Plan,
       name: 'Ultra',
       price: dynamicPlans?.ultra?.[billingCycle]?.amount || (billingCycle === 'monthly' ? 19.99 : 191.90),
-      description: 'Best for max. progress & heavy practice.',
+      description: 'Best for heavy mock practice & multi-subject exam season.',
       icon: <Building2 size={24} />,
       features: [
         {
           icon: <CreditsIcon size={16} />,
-          text: `600 Monthly Credits`,
-          subtext: `(Marks approx. 30 full past papers)`,
-          tooltip: "What is 1 Credit? 1 Credit = 1 full page of handwritten math analyzed. We use advanced Mathpix OCR and 0.1mm spatial precision to perfectly read messy fractions, crossed-out lines, and drawn graphs, grading them against official examiner standards."
+          text: `${planCredits.ultra || 600} Monthly Credits`,
+          subtext: `(3x Pro capacity • Marks approx. 30–40 full past papers)`,
+          tooltip: creditTooltipText
+        },
+        {
+          icon: <Check size={16} />,
+          text: 'Everything in Pro included',
+          subtext: 'Full access to all frontier & reasoning AI models'
         },
         {
           icon: <Zap size={16} />,
-          text: 'Priority AI Processing'
+          text: 'Priority AI Grading Queue',
+          subtext: 'Fastest turnaround during peak GCSE/A-Level exam weeks'
         },
         {
           icon: <Database size={16} />,
-          text: 'Keep your papers forever'
+          text: 'Unlimited Permanent Mock Exam Archive'
         },
         {
           icon: <Users size={16} />,
-          text: 'Fast Email Support'
+          text: 'Priority Direct Support'
         }
       ],
       popular: false
-    },
-    {
-      id: 'admin_test' as Plan,
-      name: 'Admin Test',
-      price: dynamicPlans?.admin_test?.[billingCycle]?.amount || 0.01,
-      name_short: 'Admin',
-      description: 'Internal testing only.',
-      icon: <Database size={24} />,
-      features: [
-        {
-          icon: <CreditsIcon size={16} />,
-          text: `Unlimited (Test) Credits`,
-          tooltip: "Admin-only test plan for verified internal debugging."
-        },
-        {
-          icon: <Zap size={16} />,
-          text: 'Full System Access'
-        }
-      ],
-      popular: false,
-      adminOnly: true
-    } as any
+    }
   ].filter(p => {
-    // Admin check
-    if (p.adminOnly && !user?.isAdmin) return false;
-
-    // Cycle availability check (e.g. Admin Test might only have monthly)
+    // Cycle availability check
     if (p.id !== 'free' && dynamicPlans) {
       const planPrices = dynamicPlans[p.id];
       if (!planPrices || !planPrices[billingCycle]) {
         return false;
       }
     }
-
     return true;
   });
 
@@ -426,8 +461,21 @@ const SubscriptionPage: React.FC = () => {
     // ============================================
     // CASE 1: Already on this plan
     // ============================================
-    if (planId === currentSubscription?.planId) {
-      const remaining = currentSubscription?.credits?.remainingCredits ?? 100;
+    if (planId === effectivePlanId) {
+      if (planId === 'free') {
+        setConfirmationData({
+          isOpen: true,
+          title: 'Current Plan',
+          message: 'You are currently on the Free plan. Choose Pro or Ultra to upgrade.',
+          confirmText: 'OK',
+          variant: 'primary',
+          showCancel: false,
+          action: () => { }
+        });
+        return;
+      }
+
+      const remaining = currentSubscription?.credits?.remainingCredits ?? userCredits?.remainingCredits ?? 100;
       const isLowCredits = remaining < 5;
 
       if (isLowCredits) {
@@ -491,13 +539,13 @@ const SubscriptionPage: React.FC = () => {
       return;
     }
 
-    const plan = plans.find(p => p.id === planId);
+    const plan = [...plans, adminTestPlan].find(p => p.id === planId);
     if (!plan) return;
 
     // ============================================
     // CASE 3: Downgrade to Free (Cancel subscription)
     // ============================================
-    if (planId === 'free' && currentSubscription && currentSubscription.planId !== 'free') {
+    if (planId === 'free' && currentSubscription && currentSubscription.planId !== 'free' && currentSubscription.planId !== 'admin_test') {
       setConfirmationData({
         isOpen: true,
         title: 'Cancel Subscription',
@@ -523,9 +571,6 @@ const SubscriptionPage: React.FC = () => {
 
             const result = await response.json();
 
-            // Show Success Modal (reusing confirmation modal but just for info, or use alert for simple success)
-            // For now, simple alert is fine for success feedback, or we could add a success modal state.
-            // Let's stick to alert for success to keep it simple as requested "confirmation modal" replacement.
             setConfirmationData({
               isOpen: true,
               title: 'Subscription Cancelled',
@@ -543,6 +588,15 @@ const SubscriptionPage: React.FC = () => {
             refreshHeaderData();
           } catch (error) {
             console.error('Error cancelling subscription:', error);
+            logEvent('telemetry_events', {
+              eventType: 'payment_or_system_error',
+              metadata: {
+                stage: 'client_subscription_action',
+                planId,
+                billingCycle,
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+              }
+            });
             setConfirmationData({
               isOpen: true,
               title: 'Cancellation Failed',
@@ -563,7 +617,7 @@ const SubscriptionPage: React.FC = () => {
     // Upgrades: Immediate via /change-plan
     // Downgrades: Scheduled via /change-plan
     // ============================================
-    if (currentSubscription && currentSubscription.planId !== 'free') {
+    if (currentSubscription && currentSubscription.planId !== 'free' && currentSubscription.planId !== 'admin_test') {
       const currentLevel = getPlanLevel(currentSubscription.planId);
       const newLevel = getPlanLevel(planId);
       const isUpgrade = newLevel > currentLevel;
@@ -614,6 +668,15 @@ const SubscriptionPage: React.FC = () => {
               refreshHeaderData();
             } catch (error) {
               console.error('Error upgrading plan:', error);
+              logEvent('telemetry_events', {
+                eventType: 'payment_or_system_error',
+                metadata: {
+                  stage: 'client_subscription_action',
+                  planId,
+                  billingCycle,
+                  errorMessage: error instanceof Error ? error.message : 'Unknown error'
+                }
+              });
               setConfirmationData({
                 isOpen: true,
                 title: 'Upgrade Failed',
@@ -669,6 +732,15 @@ const SubscriptionPage: React.FC = () => {
               refreshHeaderData();
             } catch (error) {
               console.error('Error scheduling downgrade:', error);
+              logEvent('telemetry_events', {
+                eventType: 'payment_or_system_error',
+                metadata: {
+                  stage: 'client_subscription_action',
+                  planId,
+                  billingCycle,
+                  errorMessage: error instanceof Error ? error.message : 'Unknown error'
+                }
+              });
               setConfirmationData({
                 isOpen: true,
                 title: 'Downgrade Failed',
@@ -723,16 +795,19 @@ const SubscriptionPage: React.FC = () => {
 
       const { url: checkoutUrl } = await response.json();
 
-      // Log checkout initiated before redirecting to Stripe hosted page
-      logEvent('telemetry_events', {
-        eventType: 'checkout_initiated',
-        metadata: { planId, billingCycle }
-      });
-
       // Redirect to Stripe Checkout
       window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Error creating checkout session:', error);
+      logEvent('telemetry_events', {
+        eventType: 'payment_or_system_error',
+        metadata: {
+          stage: 'client_subscription_action',
+          planId,
+          billingCycle,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
       setConfirmationData({
         isOpen: true,
         title: 'Checkout Error',
@@ -812,30 +887,31 @@ const SubscriptionPage: React.FC = () => {
         {currentSubscription?.scheduledPlanId && (
           <div className="scheduled-banner">
             <div className="scheduled-banner-content">
-              <AlertCircle size={20} />
-              <div className="scheduled-banner-text">
-                <strong>Plan Change Scheduled</strong>
-                <span>
-                  Your plan will downgrade to <strong>{currentSubscription.scheduledPlanId}</strong> on{' '}
-                  {new Date(currentSubscription.scheduleEffectiveDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+              <div className="scheduled-banner-header">
+                <strong>
+                  {currentSubscription.scheduledPlanId === 'free' ? 'Cancellation Scheduled' : 'Downgrade Scheduled'}
+                </strong>
+                <span className="scheduled-effective-badge">
+                  Effective: {new Date(currentSubscription.scheduleEffectiveDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
               </div>
+              <p className="scheduled-banner-subtitle">
+                Your subscription will change to{' '}
+                <strong>{SubscriptionService.getPlanDisplayName(currentSubscription.scheduledPlanId)}</strong> on{' '}
+                {new Date(currentSubscription.scheduleEffectiveDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. You&apos;ll continue to have full access and credits until then.
+              </p>
             </div>
             <button
               className="cancel-schedule-button"
               onClick={handleCancelSchedule}
             >
-              Cancel Downgrade
+              Don&apos;t Cancel
             </button>
           </div>
         )}
 
         {/* Current Subscription Info - Compact */}
-        {currentSubscription && currentSubscription.status === 'active' && (
+        {currentSubscription && currentSubscription.status === 'active' && currentSubscription.planId !== 'admin_test' && (
           <div className="current-subscription-compact">
             <div className="subscription-compact-content">
               <span className="compact-label">Current Plan:</span>
@@ -861,6 +937,24 @@ const SubscriptionPage: React.FC = () => {
           </div>
         )}
 
+        {/* Low-Credit / Depleted Alert Banner */}
+        {userCredits && userCredits.remainingCredits < 5 && (
+          <div className="low-credits-banner">
+            <AlertCircle size={18} />
+            <span>
+              {effectivePlanId === 'free' ? (
+                userCredits.remainingCredits <= 0
+                  ? `You have exhausted your free credits (${userCredits.remainingCredits.toFixed(2)} remaining). Upgrade to Pro or Ultra below to unlock instant credits and continue marking.`
+                  : `Your free credits are running low (${userCredits.remainingCredits.toFixed(2)} remaining). Upgrade to Pro or Ultra below to unlock instant credits and continue marking.`
+              ) : (
+                userCredits.remainingCredits <= 0
+                  ? `You have 0 credits remaining (${userCredits.remainingCredits.toFixed(2)}). Upgrade your plan or click 'Top Up Credits' on your current plan for an immediate refill.`
+                  : `Your credits are running low (${userCredits.remainingCredits.toFixed(2)} remaining). Upgrade your plan or click 'Top Up Credits' on your current plan for an immediate refill.`
+              )}
+            </span>
+          </div>
+        )}
+
         {/* Billing Toggle */}
         <div className="upgrade-billing-toggle">
           <span className={billingCycle === 'monthly' ? 'active' : ''}>Monthly</span>
@@ -876,15 +970,48 @@ const SubscriptionPage: React.FC = () => {
           </span>
         </div>
 
+        <p className="credit-explainer-pill">
+          <CreditsIcon size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} />
+          <strong>1 Credit = 1 Page Marked</strong> (A full past paper is ~15–20 pages • Mark scheme uploads are free)
+        </p>
+
+        {/* Admin Debug Bar */}
+        {user?.isAdmin && (
+          <div className="admin-plan-bar">
+            <div className="admin-plan-bar-left">
+              <span className="admin-plan-tag">🛠️ Admin Testing Plan</span>
+              <span className="admin-plan-meta">
+                £{((currentSubscription?.amount || 50) / 100).toFixed(2)}/mo • {(userCredits?.remainingCredits || 0).toFixed(0)} credits remaining
+              </span>
+            </div>
+            <div className="admin-plan-bar-right">
+              {currentSubscription?.planId === 'admin_test' ? (
+                <span className="admin-plan-active-badge">Active (Admin Plan)</span>
+              ) : (
+                <button
+                  className="admin-plan-switch-btn"
+                  onClick={() => handleSubscribe('admin_test')}
+                >
+                  Switch to Admin Test
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Plans Grid */}
         <div className="upgrade-plans-grid">
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'ultra' ? 'ultra' : ''} ${plan.id === currentSubscription?.planId ? 'current-plan' : ''}`}
+              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'ultra' ? 'ultra' : ''} ${plan.id === effectivePlanId ? 'current-plan' : ''}`}
               onClick={() => handlePlanSelect(plan.id)}
             >
-              {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
+              {plan.id === effectivePlanId ? (
+                <span className="current-plan-pill">CURRENT PLAN</span>
+              ) : plan.popular ? (
+                <div className="upgrade-plan-popular-badge">Most Popular</div>
+              ) : null}
 
               <div className="upgrade-plan-header">
                 <h3>{plan.name}</h3>
@@ -894,53 +1021,79 @@ const SubscriptionPage: React.FC = () => {
               <div className="upgrade-plan-pricing">
                 <div className="upgrade-plan-price">
                   {plan.price !== undefined ? (
-                    <>
-                      £{plan.price}
-                    </>
+                    billingCycle === 'yearly' && plan.price > 0 ? (
+                      <>£{(plan.price / 12).toFixed(2)}</>
+                    ) : (
+                      <>£{plan.price}</>
+                    )
                   ) : (
-                    <span className="price-subLoading || loading">£...</span>
+                    <span>£...</span>
                   )}
-                  <span className="upgrade-plan-period"> / {billingCycle === 'monthly' ? 'month' : 'year'}</span>
+                  <span className="upgrade-plan-period"> / month</span>
                 </div>
+                {billingCycle === 'yearly' && plan.price > 0 ? (
+                  <div className="upgrade-plan-yearly-subtext">
+                    Billed £{plan.price.toFixed(2)} yearly (2 months free)
+                  </div>
+                ) : (
+                  <div className="upgrade-plan-yearly-subtext">
+                    {plan.price === 0 ? 'Free forever' : 'Billed monthly • Cancel anytime'}
+                  </div>
+                )}
               </div>
 
               <button
                 onClick={() => handleSubscribe(plan.id)}
                 disabled={
-                  (plan.id === currentSubscription?.planId && (currentSubscription?.credits?.remainingCredits ?? 100) >= 5) ||
+                  (plan.id === effectivePlanId && (plan.id === 'free' || ((currentSubscription?.credits?.remainingCredits ?? userCredits?.remainingCredits ?? 100) >= 5))) ||
                   (currentSubscription?.scheduledPlanId === plan.id) ||
                   (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
                 }
-                className={`upgrade-plan-subscribe-button ${plan.id === currentSubscription?.planId
-                  ? (currentSubscription?.credits?.remainingCredits ?? 100) < 5 ? 'early-renewal' : 'current'
+                className={`upgrade-plan-subscribe-button ${plan.id === effectivePlanId
+                  ? (plan.id !== 'free' && (currentSubscription?.credits?.remainingCredits ?? userCredits?.remainingCredits ?? 100) < 5) ? 'early-renewal' : 'current'
                   : (currentSubscription?.scheduledPlanId === plan.id)
                     ? 'scheduled'
-                    : (currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId))
+                    : (currentSubscription && currentSubscription.planId !== 'admin_test' && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId))
                       ? 'downgrade'
                       : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
                         ? 'disabled'
                         : ''
                   }`}
               >
-                {plan.id === currentSubscription?.planId
-                  ? (currentSubscription?.credits?.remainingCredits ?? 100) < 5
-                    ? 'Top Up Credits'
-                    : 'Current Plan'
-                  : (currentSubscription?.scheduledPlanId === plan.id)
-                    ? `Change Scheduled`
-                    : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
-                      ? 'Change Pending'
-                      : !currentSubscription
-                        ? plan.id === 'free'
-                          ? 'Get Started'
-                          : `Subscribe to ${plan.name}`
-                        : plan.id === 'free'
-                          ? 'Downgrade to Free'
-                          : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
-                            ? `Downgrade to ${plan.name}`
-                            : `Subscribe to ${plan.name}`
+                {!user
+                  ? plan.id === 'free'
+                    ? 'Get Started'
+                    : `Subscribe to ${plan.name}`
+                  : plan.id === effectivePlanId
+                    ? (plan.id !== 'free' && (currentSubscription?.credits?.remainingCredits ?? userCredits?.remainingCredits ?? 100) < 5)
+                      ? 'Top Up Credits (Renew Now)'
+                      : 'Current Plan'
+                    : (currentSubscription?.scheduledPlanId === plan.id)
+                      ? `Change Scheduled`
+                      : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
+                        ? 'Change Pending'
+                        : effectivePlanId === 'free'
+                          ? `Subscribe to ${plan.name}`
+                          : currentSubscription?.planId === 'admin_test'
+                            ? `Switch to ${plan.name}`
+                            : plan.id === 'free'
+                              ? 'Downgrade to Free'
+                              : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
+                                ? `Downgrade to ${plan.name}`
+                                : `Subscribe to ${plan.name}`
                 }
               </button>
+
+              {/* Single-line subtle helper text directly below CTA button */}
+              {currentSubscription && currentSubscription.planId !== 'free' && currentSubscription.planId !== 'admin_test' && plan.id !== effectivePlanId && (
+                <div className="plan-button-subtext">
+                  {getPlanLevel(plan.id) > getPlanLevel(currentSubscription.planId) ? (
+                    <span>Immediate effect • Prorated billing</span>
+                  ) : (
+                    <span>Takes effect at end of billing cycle</span>
+                  )}
+                </div>
+              )}
 
               <ul className="upgrade-plan-features">
                 {plan.features.map((feature: any, index: number) => (
@@ -965,25 +1118,6 @@ const SubscriptionPage: React.FC = () => {
                   </li>
                 ))}
               </ul>
-
-              {/* Plan Change Info - Moved to bottom */}
-              {currentSubscription && currentSubscription.planId !== 'free' && plan.id !== currentSubscription.planId && (
-                <div className="plan-change-info">
-                  {getPlanLevel(plan.id) > getPlanLevel(currentSubscription.planId) ? (
-                    // Show upgrade info for any upgrade (Pro->Enterprise, Free->Pro, etc)
-                    <div className="upgrade-info">
-                      <ArrowUp size={14} />
-                      <span>Upgrade: Immediate effect.</span>
-                    </div>
-                  ) : (
-                    // Show downgrade info when going down
-                    <div className="downgrade-info">
-                      <ArrowDown size={14} />
-                      <span>Downgrade: Takes effect at period end.</span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           ))}
         </div>

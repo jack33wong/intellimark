@@ -1198,6 +1198,12 @@ router.get('/usage', async (req: Request, res: Response) => {
           pricingPageViews: 0,
           checkoutInitiated: 0,
           checkoutCanceled: 0,
+          paymentSucceeded: 0,
+          paymentErrors: 0,
+          lastErrorMessage: '',
+          lastErrorTime: 0,
+          lastSuccessTime: 0,
+          billingAuditLog: [],
           churnReason: 'None'
         });
       }
@@ -1230,30 +1236,82 @@ router.get('/usage', async (req: Request, res: Response) => {
       const telemetrySnapshot = await db.collection('telemetry_events').get();
       telemetrySnapshot.forEach(doc => {
           const data = doc.data();
-          const txTimestamp = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+          const txTimestamp = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now());
           const txTime = txTimestamp.getTime();
           
           if (filter !== 'all') {
               if (txTime < startTime || txTime >= endTime) return;
           }
 
-          if (data.userId && usersMap.has(data.userId)) {
-              const userStats = usersMap.get(data.userId)!;
-              if (data.eventType === 'paywall_viewed') {
-                  userStats.paywallHits += 1;
+          const userId = data.userId;
+          if (!userId) return;
+
+          if (!usersMap.has(userId)) {
+            usersMap.set(userId, {
+              userId,
+              email: userId,
+              totalCost: 0,
+              modelCost: 0,
+              mathpixCost: 0,
+              apiRequests: 0,
+              sessionIds: new Set(),
+              sessionEngagements: new Map<string, any>(),
+              lastActive: txTimestamp.toISOString(),
+              paywallHits: 0,
+              pricingPageViews: 0,
+              checkoutInitiated: 0,
+              checkoutCanceled: 0,
+              paymentSucceeded: 0,
+              paymentErrors: 0,
+              lastErrorMessage: '',
+              lastErrorTime: 0,
+              lastSuccessTime: 0,
+              billingAuditLog: [],
+              churnReason: 'None'
+            });
+          }
+
+          const userStats = usersMap.get(userId)!;
+          if (txTime > new Date(userStats.lastActive).getTime()) {
+            userStats.lastActive = txTimestamp.toISOString();
+          }
+
+          // Record in billingAuditLog
+          if (!userStats.billingAuditLog) userStats.billingAuditLog = [];
+          userStats.billingAuditLog.push({
+            id: doc.id,
+            eventType: data.eventType,
+            timestamp: txTimestamp.toISOString(),
+            metadata: data.metadata || {}
+          });
+
+          if (data.eventType === 'paywall_viewed') {
+              userStats.paywallHits += 1;
+          }
+          if (data.eventType === 'pricing_page_viewed') {
+              userStats.pricingPageViews = (userStats.pricingPageViews || 0) + 1;
+          }
+          if (data.eventType === 'checkout_initiated' || data.eventType === 'checkout_session_created') {
+              userStats.checkoutInitiated = (userStats.checkoutInitiated || 0) + 1;
+          }
+          if (data.eventType === 'checkout_canceled' || data.eventType === 'checkout_expired') {
+              userStats.checkoutCanceled = (userStats.checkoutCanceled || 0) + 1;
+          }
+          if (data.eventType === 'payment_succeeded') {
+              userStats.paymentSucceeded = (userStats.paymentSucceeded || 0) + 1;
+              if (txTime > userStats.lastSuccessTime) {
+                userStats.lastSuccessTime = txTime;
               }
-              if (data.eventType === 'pricing_page_viewed') {
-                  userStats.pricingPageViews = (userStats.pricingPageViews || 0) + 1;
+          }
+          if (data.eventType === 'payment_or_system_error') {
+              userStats.paymentErrors = (userStats.paymentErrors || 0) + 1;
+              userStats.lastErrorMessage = data.metadata?.errorMessage || 'Payment error';
+              if (txTime > userStats.lastErrorTime) {
+                userStats.lastErrorTime = txTime;
               }
-              if (data.eventType === 'checkout_initiated') {
-                  userStats.checkoutInitiated = (userStats.checkoutInitiated || 0) + 1;
-              }
-              if (data.eventType === 'checkout_canceled') {
-                  userStats.checkoutCanceled = (userStats.checkoutCanceled || 0) + 1;
-              }
-              if (data.eventType === 'exit_survey_submitted') {
-                  userStats.churnReason = data.metadata?.reason || 'Unknown';
-              }
+          }
+          if (data.eventType === 'exit_survey_submitted') {
+              userStats.churnReason = data.metadata?.reason || 'Unknown';
           }
       });
 
@@ -1401,8 +1459,16 @@ router.get('/usage', async (req: Request, res: Response) => {
           };
         }
 
+        if (u.billingAuditLog && Array.isArray(u.billingAuditLog)) {
+          u.billingAuditLog.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        }
+
         let checkoutStage = 'None';
-        if (u.checkoutInitiated > 0 || u.checkoutCanceled > 0) {
+        if (u.paymentErrors > 0 && (!u.paymentSucceeded || u.lastErrorTime > u.lastSuccessTime)) {
+          checkoutStage = 'Payment / System Error';
+        } else if (u.paymentSucceeded > 0) {
+          checkoutStage = 'Converted / Subscribed';
+        } else if (u.checkoutInitiated > 0 || u.checkoutCanceled > 0) {
           checkoutStage = 'Abandoned on Stripe';
         } else if (u.pricingPageViews > 0) {
           checkoutStage = 'Stopped on Pricing';
@@ -1417,6 +1483,10 @@ router.get('/usage', async (req: Request, res: Response) => {
             pricingPageViews: u.pricingPageViews || 0,
             checkoutInitiated: u.checkoutInitiated || 0,
             checkoutCanceled: u.checkoutCanceled || 0,
+            paymentSucceeded: u.paymentSucceeded || 0,
+            paymentErrors: u.paymentErrors || 0,
+            lastErrorMessage: u.lastErrorMessage || '',
+            billingAuditLog: u.billingAuditLog || [],
             checkoutStage,
             avgRating,
             feedbackReasons: feedbackReasons.length > 0 ? feedbackReasons.join(' | ') : '',
@@ -1450,7 +1520,7 @@ router.get('/usage', async (req: Request, res: Response) => {
         totalModelCost,
         totalMathpixCost,
         totalUsers: uniqueUsers.size,
-        totalSessions: usageData.length,
+        totalSessions: usageData.reduce((sum, u) => sum + (u.sessionCount || 0), 0),
         totalApiRequests
       },
       usage: usageData

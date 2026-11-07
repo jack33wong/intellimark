@@ -18,7 +18,7 @@ const InsufficientCreditsModal: React.FC<InsufficientCreditsModalProps> = ({ isO
     useEffect(() => {
         if (isOpen) {
             setStep('pitch');
-            logEvent('telemetry_events', { eventType: 'paywall_viewed', metadata: { remainingCredits } });
+            logEvent('telemetry_events', { eventType: 'paywall_viewed', metadata: { remainingCredits, source: 'insufficient_credits_modal' } });
         }
     }, [isOpen, logEvent, remainingCredits]);
 
@@ -26,7 +26,7 @@ const InsufficientCreditsModal: React.FC<InsufficientCreditsModalProps> = ({ isO
 
     const handleUpgrade = () => {
         logEvent('telemetry_events', { eventType: 'subscription_clicked', metadata: {} });
-        navigate('/pricing', { state: { fromApp: true } });
+        navigate('/pricing', { state: { fromApp: true, source: 'insufficient_credits_modal' } });
         onClose();
     };
 

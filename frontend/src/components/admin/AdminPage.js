@@ -513,6 +513,71 @@ function AdminPage() {
   const [loadingList, setLoadingList] = useState(false);
   const [subscriptionFilter, setSubscriptionFilter] = useState('active'); // Filter: 'active' or 'all'
   const [subscriptionMetrics, setSubscriptionMetrics] = useState({ activeCount: 0, scheduledChurnCount: 0, mrr: '0.00' });
+  const [selectedAuditUser, setSelectedAuditUser] = useState(null);
+  const [syncingStripe, setSyncingStripe] = useState(false);
+
+  const handleManageUserSubscription = async (userId) => {
+    setActiveTab('subscriptions');
+    setSearchUserId(userId);
+    setLoadingSubscription(true);
+    setSelectedAuditUser(null);
+    try {
+      const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${encodeURIComponent(userId)}`);
+      if (subResponse.ok) {
+        const subData = await subResponse.json();
+        setUserSubscription(subData.subscription);
+      } else {
+        setUserSubscription(null);
+      }
+
+      const creditsResponse = await fetch(`http://localhost:5001/api/credits/${encodeURIComponent(userId)}`);
+      if (creditsResponse.ok) {
+        const creditsData = await creditsResponse.json();
+        setUserCredits(creditsData);
+      } else {
+        setUserCredits(null);
+      }
+    } catch (err) {
+      console.error('Error fetching subscription for user:', err);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
+
+  const handleVerifyStripeSync = async (userId) => {
+    if (!userId) return;
+    setSyncingStripe(true);
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(`http://localhost:5001/api/payment/verify-stripe-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId })
+      });
+      const data = await response.json();
+      if (response.ok && data.synced) {
+        alert('Stripe subscription successfully verified and synced!');
+        if (data.firestoreSubscription) setUserSubscription(data.firestoreSubscription);
+        if (data.firestoreCredits) setUserCredits(data.firestoreCredits);
+      } else {
+        alert(data.error || 'Failed to sync with Stripe');
+      }
+    } catch (err) {
+      console.error('Error syncing with Stripe:', err);
+      alert('Error verifying sync with Stripe');
+    } finally {
+      setSyncingStripe(false);
+    }
+  };
+
+  const copyToClipboard = (text, label) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    alert(`Copied ${label} to clipboard!`);
+  };
 
   // Memoized matching and structural check results
   // This prevents the "Triple Check" from running hundreds of times per render.
@@ -2571,11 +2636,48 @@ function AdminPage() {
                           <td className="admin-table__cell">${userStats.totalCost.toFixed(4)}</td>
                           <td className="admin-table__cell">{userStats.apiRequests}</td>
                           <td className="admin-table__cell">
-                            {userStats.paywallHits > 0 || userStats.checkoutInitiated > 0 || userStats.pricingPageViews > 0 ? (
+                            {userStats.paywallHits > 0 || userStats.checkoutInitiated > 0 || userStats.pricingPageViews > 0 || userStats.paymentErrors > 0 || userStats.paymentSucceeded > 0 || (userStats.billingAuditLog && userStats.billingAuditLog.length > 0) ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                                 {userStats.paywallHits > 0 && (
                                   <span className="status-badge status-badge--error" style={{ fontSize: '11px', padding: '2px 6px' }}>
                                     {userStats.paywallHits} {userStats.paywallHits === 1 ? 'Hit' : 'Hits'}
+                                  </span>
+                                )}
+                                {userStats.checkoutStage === 'Payment / System Error' && (
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: 'rgba(239, 68, 68, 0.25)',
+                                      color: '#DC2626',
+                                      border: '1px solid #DC2626',
+                                      fontSize: '11px',
+                                      padding: '2px 6px',
+                                      whiteSpace: 'nowrap',
+                                      fontWeight: 700,
+                                      cursor: 'pointer'
+                                    }}
+                                    title={userStats.lastErrorMessage || 'Payment or system error occurred'}
+                                    onClick={() => setSelectedAuditUser(userStats)}
+                                  >
+                                    🚨 Payment / System Error
+                                  </span>
+                                )}
+                                {userStats.checkoutStage === 'Converted / Subscribed' && (
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                      color: '#10B981',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                      fontSize: '11px',
+                                      padding: '2px 6px',
+                                      whiteSpace: 'nowrap',
+                                      cursor: 'pointer'
+                                    }}
+                                    title="User completed checkout and subscribed"
+                                    onClick={() => setSelectedAuditUser(userStats)}
+                                  >
+                                    ✅ Converted
                                   </span>
                                 )}
                                 {userStats.checkoutStage === 'Abandoned on Stripe' && (
@@ -2587,9 +2689,11 @@ function AdminPage() {
                                       border: '1px solid rgba(239, 68, 68, 0.3)',
                                       fontSize: '11px',
                                       padding: '2px 6px',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'nowrap',
+                                      cursor: 'pointer'
                                     }}
                                     title={`Initiated Stripe checkout ${userStats.checkoutInitiated || 1} time(s) but abandoned credit card entry`}
+                                    onClick={() => setSelectedAuditUser(userStats)}
                                   >
                                     💳 Left on Stripe Card Page
                                   </span>
@@ -2603,9 +2707,11 @@ function AdminPage() {
                                       border: '1px solid rgba(245, 158, 11, 0.3)',
                                       fontSize: '11px',
                                       padding: '2px 6px',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'nowrap',
+                                      cursor: 'pointer'
                                     }}
                                     title={`Viewed pricing page ${userStats.pricingPageViews || 1} time(s) but did not click Subscribe`}
+                                    onClick={() => setSelectedAuditUser(userStats)}
                                   >
                                     📑 Left on Pricing Page
                                   </span>
@@ -2618,12 +2724,34 @@ function AdminPage() {
                                       color: '#9CA3AF',
                                       fontSize: '11px',
                                       padding: '2px 6px',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'nowrap',
+                                      cursor: 'pointer'
                                     }}
                                     title="Closed paywall modal without navigating to pricing"
+                                    onClick={() => setSelectedAuditUser(userStats)}
                                   >
                                     🚫 Closed Paywall Modal
                                   </span>
+                                )}
+                                {userStats.billingAuditLog && userStats.billingAuditLog.length > 0 && (
+                                  <button
+                                    type="button"
+                                    style={{
+                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      color: '#3B82F6',
+                                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                                      borderRadius: '4px',
+                                      fontSize: '10px',
+                                      padding: '2px 6px',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                      fontWeight: 600,
+                                      marginTop: '2px'
+                                    }}
+                                    onClick={() => setSelectedAuditUser(userStats)}
+                                  >
+                                    🔍 Audit Log ({userStats.billingAuditLog.length})
+                                  </button>
                                 )}
                               </div>
                             ) : '-'}
@@ -5437,6 +5565,38 @@ function AdminPage() {
                     <span className="admin-detail-label">Period End:</span>
                     <span className="admin-detail-value">{new Date(userSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
                   </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Stripe Subscription ID:</span>
+                    <span className="admin-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <code style={{ fontSize: '12px' }}>{userSubscription.stripeSubscriptionId || 'None'}</code>
+                      {userSubscription.stripeSubscriptionId && (
+                        <button
+                          type="button"
+                          style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer', background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                          onClick={() => copyToClipboard(userSubscription.stripeSubscriptionId, 'Stripe Subscription ID')}
+                          title="Copy Stripe Subscription ID"
+                        >
+                          📋
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Stripe Customer ID:</span>
+                    <span className="admin-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <code style={{ fontSize: '12px' }}>{userSubscription.stripeCustomerId || 'None'}</code>
+                      {userSubscription.stripeCustomerId && (
+                        <button
+                          type="button"
+                          style={{ padding: '2px 6px', fontSize: '11px', cursor: 'pointer', background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                          onClick={() => copyToClipboard(userSubscription.stripeCustomerId, 'Stripe Customer ID')}
+                          title="Copy Stripe Customer ID"
+                        >
+                          📋
+                        </button>
+                      )}
+                    </span>
+                  </div>
                   {userSubscription.scheduledPlanId && (
                     <div className="admin-detail-item" style={{ gridColumn: '1 / -1' }}>
                       <span className="admin-detail-label">Scheduled Change:</span>
@@ -5470,7 +5630,16 @@ function AdminPage() {
                   </div>
                 </div>
 
-                <div className="admin-credit-actions">
+                <div className="admin-credit-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn--secondary"
+                    style={{ background: '#2563eb', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={() => handleVerifyStripeSync(userSubscription?.userId || searchUserId)}
+                    disabled={syncingStripe}
+                  >
+                    🔄 {syncingStripe ? 'Syncing with Stripe...' : 'Verify & Sync with Stripe'}
+                  </button>
                   <button
                     className="admin-btn admin-btn--danger"
                     onClick={async () => {
@@ -5567,6 +5736,217 @@ function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* User Billing & Paywall Audit Trail Modal */}
+      {selectedAuditUser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => setSelectedAuditUser(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1e293b',
+              color: '#f8fafc',
+              borderRadius: '12px',
+              border: '1px solid #334155',
+              width: '100%',
+              maxWidth: '850px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #334155',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>User Billing & Paywall Audit Trail</h3>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  {selectedAuditUser.email} (UID: <code>{selectedAuditUser.userId}</code>)
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  className="admin-btn admin-btn--primary"
+                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                  onClick={() => handleManageUserSubscription(selectedAuditUser.userId)}
+                >
+                  Manage User Subscription
+                </button>
+                <button
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: '20px',
+                    padding: '4px 8px'
+                  }}
+                  onClick={() => setSelectedAuditUser(null)}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Summary Pill Bar */}
+            <div
+              style={{
+                padding: '12px 20px',
+                backgroundColor: '#0f172a',
+                borderBottom: '1px solid #334155',
+                display: 'flex',
+                gap: '16px',
+                flexWrap: 'wrap',
+                fontSize: '12px'
+              }}
+            >
+              <div><strong>Paywall Hits:</strong> {selectedAuditUser.paywallHits || 0}</div>
+              <div><strong>Checkout Stage:</strong> {selectedAuditUser.checkoutStage}</div>
+              <div><strong>Exit Survey Reason:</strong> {selectedAuditUser.churnReason || 'None'}</div>
+              <div><strong>Total Events:</strong> {selectedAuditUser.billingAuditLog?.length || 0}</div>
+            </div>
+
+            {/* Timeline / Events Table */}
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+              {selectedAuditUser.billingAuditLog && selectedAuditUser.billingAuditLog.length > 0 ? (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left', color: '#94a3b8' }}>
+                      <th style={{ padding: '8px', width: '160px' }}>Timestamp</th>
+                      <th style={{ padding: '8px', width: '180px' }}>Event Type</th>
+                      <th style={{ padding: '8px' }}>Source / Metadata Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedAuditUser.billingAuditLog.map((log, idx) => {
+                      let badgeStyle = {
+                        backgroundColor: 'rgba(148, 163, 184, 0.15)',
+                        color: '#94a3b8',
+                        border: '1px solid rgba(148, 163, 184, 0.3)'
+                      };
+                      if (log.eventType === 'paywall_viewed') {
+                        badgeStyle = {
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.3)'
+                        };
+                      } else if (log.eventType === 'pricing_page_viewed') {
+                        badgeStyle = {
+                          backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                          color: '#60a5fa',
+                          border: '1px solid rgba(59, 130, 246, 0.3)'
+                        };
+                      } else if (log.eventType === 'checkout_session_created' || log.eventType === 'checkout_initiated') {
+                        badgeStyle = {
+                          backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                          color: '#c084fc',
+                          border: '1px solid rgba(168, 85, 247, 0.3)'
+                        };
+                      } else if (log.eventType === 'checkout_canceled' || log.eventType === 'checkout_expired') {
+                        badgeStyle = {
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          color: '#fbbf24',
+                          border: '1px solid rgba(245, 158, 11, 0.3)'
+                        };
+                      } else if (log.eventType === 'payment_succeeded') {
+                        badgeStyle = {
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#34d399',
+                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                        };
+                      } else if (log.eventType === 'payment_or_system_error') {
+                        badgeStyle = {
+                          backgroundColor: 'rgba(220, 38, 38, 0.25)',
+                          color: '#fca5a5',
+                          border: '1px solid #ef4444',
+                          fontWeight: 700
+                        };
+                      }
+
+                      return (
+                        <tr key={log.id || idx} style={{ borderBottom: '1px solid #334155' }}>
+                          <td style={{ padding: '8px', whiteSpace: 'nowrap', color: '#94a3b8' }}>
+                            {new Date(log.timestamp).toLocaleString('en-GB')}
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                                fontSize: '11px',
+                                display: 'inline-block',
+                                ...badgeStyle
+                              }}
+                            >
+                              {log.eventType}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px', wordBreak: 'break-word' }}>
+                            {log.metadata?.errorMessage && (
+                              <div style={{ color: '#F87171', fontWeight: 600, marginBottom: '2px' }}>
+                                Error: {log.metadata.errorMessage}
+                              </div>
+                            )}
+                            <div style={{ color: '#cbd5e1', fontSize: '11px', fontFamily: 'monospace' }}>
+                              {Object.entries(log.metadata || {})
+                                .filter(([k]) => k !== 'errorMessage')
+                                .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                                .join(' | ') || (log.metadata?.errorMessage ? '' : 'No additional metadata')}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
+                  No billing audit records found for this user.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '12px 20px',
+                borderTop: '1px solid #334155',
+                display: 'flex',
+                justifyContent: 'flex-end'
+              }}
+            >
+              <button
+                className="admin-btn"
+                style={{ padding: '6px 16px', background: '#334155', color: '#fff' }}
+                onClick={() => setSelectedAuditUser(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

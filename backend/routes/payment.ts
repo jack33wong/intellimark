@@ -2,11 +2,26 @@ import express from 'express';
 import { STRIPE_CONFIG } from '../config/stripe.js';
 import paymentService from '../services/paymentService.js';
 import SubscriptionService from '../services/subscriptionService.js';
-import { initializeUserCredits, updateCreditsOnPlanChange } from '../services/creditService.js';
+import { initializeUserCredits, updateCreditsOnPlanChange, getUserCredits } from '../services/creditService.js';
 import { createDowngradeSchedule, cancelSchedule, getActiveSchedule } from '../services/scheduleService.js';
 import { getFirestore } from '../config/firebase.js';
 
 const router = express.Router();
+
+async function logBillingAuditEvent(userId: string, eventType: string, metadata: Record<string, any> = {}) {
+  try {
+    const db = getFirestore();
+    if (!db || !userId) return;
+    await db.collection('telemetry_events').add({
+      userId,
+      eventType,
+      metadata,
+      createdAt: new Date()
+    });
+  } catch (err) {
+    console.error('[BillingAudit] Failed to log event:', err);
+  }
+}
 
 // Get Stripe configuration
 router.get('/config', (req, res) => {
@@ -45,10 +60,22 @@ router.post('/create-checkout-session', async (req, res) => {
       userId,
     });
 
+    await logBillingAuditEvent(userId, 'checkout_session_created', {
+      planId,
+      billingCycle,
+      sessionId: 'id' in checkoutSession ? checkoutSession.id : undefined
+    });
+
     res.json({ url: checkoutSession.url });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating checkout session:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    await logBillingAuditEvent(req.body?.userId || 'unknown', 'payment_or_system_error', {
+      stage: 'create_checkout_session',
+      planId: req.body?.planId,
+      errorCode: error?.code || error?.type || 'server_error',
+      errorMessage: error?.message || 'Unknown error'
+    });
     res.status(500).json({
       error: 'Failed to create checkout session',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -448,6 +475,13 @@ router.post('/change-plan', async (req, res) => {
 
       console.log(`⬆️ Immediate upgrade: ${currentPlanId} → ${newPlanId}`);
 
+      await logBillingAuditEvent(userId, 'payment_succeeded', {
+        action: 'immediate_upgrade',
+        fromPlan: currentPlanId,
+        toPlan: newPlanId,
+        billingCycle
+      });
+
       res.json({
         success: true,
         changeType: 'immediate_upgrade',
@@ -499,6 +533,12 @@ router.post('/change-plan', async (req, res) => {
 
         console.log(`⬇️ Scheduled downgrade to FREE: ${currentPlanId} → free on ${new Date(subscription.currentPeriodEnd * 1000).toISOString()}`);
 
+        await logBillingAuditEvent(userId, 'plan_change_scheduled', {
+          fromPlan: currentPlanId,
+          toPlan: newPlanId,
+          effectiveDate: subscription.currentPeriodEnd * 1000
+        });
+
         res.json({
           success: true,
           changeType: 'scheduled_downgrade',
@@ -527,6 +567,12 @@ router.post('/change-plan', async (req, res) => {
 
         console.log(`⬇️ Scheduled downgrade: ${currentPlanId} → ${newPlanId} on ${new Date(subscription.currentPeriodEnd * 1000).toISOString()}`);
 
+        await logBillingAuditEvent(userId, 'plan_change_scheduled', {
+          fromPlan: currentPlanId,
+          toPlan: newPlanId,
+          effectiveDate: subscription.currentPeriodEnd * 1000
+        });
+
         res.json({
           success: true,
           changeType: 'scheduled_downgrade',
@@ -540,11 +586,17 @@ router.post('/change-plan', async (req, res) => {
       // Same plan - no change
       res.status(400).json({ error: 'New plan is same as current plan' });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error changing plan:', error);
+    await logBillingAuditEvent(req.body?.userId || 'unknown', 'payment_or_system_error', {
+      stage: 'change_plan',
+      newPlanId: req.body?.newPlanId,
+      errorCode: error?.code || error?.decline_code || 'change_plan_error',
+      errorMessage: error?.message || 'Unknown error'
+    });
     res.status(500).json({
       error: 'Failed to change plan',
-      details: error.message,
+      details: error?.message || 'Unknown error',
     });
   }
 });
@@ -951,6 +1003,26 @@ router.post('/webhook', async (req, res) => {
       case 'checkout.session.completed':
         await handleCheckoutSessionCompleted(event.data.object);
         break;
+      case 'invoice.payment_failed': {
+        const failedInvoice = event.data.object as any;
+        const failedCustomer = failedInvoice.customer;
+        const failedUserId = failedInvoice.subscription_details?.metadata?.userId || failedInvoice.metadata?.userId || failedCustomer;
+        await logBillingAuditEvent(failedUserId || 'unknown', 'payment_or_system_error', {
+          stage: 'stripe_invoice_payment_failed',
+          stripeInvoiceId: failedInvoice.id,
+          attemptCount: failedInvoice.attempt_count,
+          errorMessage: failedInvoice.last_finalization_error?.message || 'Card declined or invoice payment failed'
+        });
+        break;
+      }
+      case 'checkout.session.expired': {
+        const expiredSession = event.data.object as any;
+        await logBillingAuditEvent(expiredSession.metadata?.userId || 'unknown', 'checkout_expired', {
+          planId: expiredSession.metadata?.planId,
+          stripeSessionId: expiredSession.id
+        });
+        break;
+      }
       case 'customer.subscription.created':
         await handleSubscriptionCreated(event.data.object);
         break;
@@ -981,10 +1053,9 @@ async function handleCheckoutSessionCompleted(session: any) {
   try {
 
     // Extract subscription data from session metadata
-    const { planId, billingCycle, userId } = session.metadata || {};
+    const { planId, billingCycle, userId, previousStripeSubscriptionId } = session.metadata || {};
     const customerId = session.customer;
     const subscriptionId = session.subscription;
-
 
     if (!planId || !billingCycle || !customerId || !subscriptionId) {
       console.error('❌ Missing required data in checkout session:', { planId, billingCycle, customerId, subscriptionId });
@@ -994,6 +1065,17 @@ async function handleCheckoutSessionCompleted(session: any) {
     // Get subscription details from Stripe
     const stripe = (await import('../config/stripe.js')).default;
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    // If previousStripeSubscriptionId is present and different from session.subscription, safely cancel the old subscription
+    if (previousStripeSubscriptionId && previousStripeSubscriptionId !== subscriptionId) {
+      console.log(`🔄 Safely canceling previous subscription: ${previousStripeSubscriptionId}`);
+      await stripe.subscriptions.cancel(previousStripeSubscriptionId).catch((err: any) => {
+        console.warn('Non-fatal error canceling old subscription in Stripe:', err.message);
+      });
+      await SubscriptionService.updateSubscriptionStatus(previousStripeSubscriptionId, 'canceled').catch((err: any) => {
+        console.warn('Non-fatal error updating old subscription in Firestore:', err.message);
+      });
+    }
 
     // Get customer details
     const customer = await stripe.customers.retrieve(customerId);
@@ -1015,9 +1097,22 @@ async function handleCheckoutSessionCompleted(session: any) {
       currentPeriodEnd: (subscription as any).current_period_end,
     };
 
-
     await SubscriptionService.createOrUpdateSubscription(subscriptionData);
 
+    const normalizedPlanId = (planId || 'free').toLowerCase() as 'free' | 'pro' | 'ultra' | 'admin_test';
+    await initializeUserCredits(
+      finalUserId,
+      normalizedPlanId,
+      subscriptionData.currentPeriodEnd * 1000
+    );
+    await logBillingAuditEvent(finalUserId, 'payment_succeeded', {
+      action: previousStripeSubscriptionId ? 'early_renewal_or_replace' : 'new_subscription',
+      planId: normalizedPlanId,
+      billingCycle,
+      stripeSubscriptionId: subscriptionId,
+      stripeSessionId: session.id,
+      amount: subscriptionData.amount
+    });
   } catch (error) {
     console.error('Error handling checkout session completion:', error);
   }
@@ -1136,5 +1231,80 @@ async function handleSubscriptionDeleted(subscription: any) {
     console.error('Error handling subscription deletion:', error);
   }
 }
+
+// Create Stripe Customer Billing Portal Session
+router.post('/create-portal-session', async (req, res) => {
+  try {
+    const { userId, returnUrl } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const subscription = await SubscriptionService.getUserSubscription(userId);
+    const stripeCustomerId = subscription?.stripeCustomerId;
+
+    if (!stripeCustomerId || stripeCustomerId.startsWith('cus_debug_') || stripeCustomerId.startsWith('cus_test_')) {
+      return res.status(400).json({ error: 'No active Stripe customer found for this user' });
+    }
+
+    const stripe = (await import('../config/stripe.js')).default;
+    const origin = req.headers.origin || 'http://localhost:3000';
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: returnUrl || `${origin}/app`,
+    });
+
+    res.json({ url: portalSession.url });
+  } catch (error: any) {
+    console.error('Error creating portal session:', error);
+    res.status(500).json({
+      error: 'Failed to create billing portal session',
+      details: error?.message || 'Unknown error'
+    });
+  }
+});
+
+// Admin Diagnostic Endpoint: Verify & Sync with Stripe
+router.post('/verify-stripe-sync', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const subscription = await SubscriptionService.getUserSubscription(userId);
+    const credits = await getUserCredits(userId);
+
+    let stripeSub: any = null;
+    let reconciledSub: any = subscription;
+
+    if (subscription && subscription.stripeSubscriptionId && !subscription.stripeSubscriptionId.startsWith('free_')) {
+      try {
+        const stripe = (await import('../config/stripe.js')).default;
+        stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+      } catch (err: any) {
+        console.warn(`[verify-stripe-sync] Stripe retrieve failed for ${subscription.stripeSubscriptionId}:`, err.message);
+      }
+      reconciledSub = await SubscriptionService.reconcileSubscriptionWithStripe(subscription);
+    }
+
+    const updatedCredits = await getUserCredits(userId);
+
+    res.json({
+      synced: true,
+      firestoreSubscription: reconciledSub || subscription,
+      firestoreCredits: updatedCredits || credits,
+      stripeStatus: stripeSub?.status || null,
+      stripeCancelAtPeriodEnd: stripeSub?.cancel_at_period_end ?? null,
+      stripeCurrentPeriodEnd: stripeSub?.current_period_end ? stripeSub.current_period_end * 1000 : null
+    });
+  } catch (error: any) {
+    console.error('Error in verify-stripe-sync:', error);
+    res.status(500).json({
+      error: 'Failed to verify and sync Stripe subscription',
+      details: error?.message || 'Unknown error'
+    });
+  }
+});
 
 export default router;

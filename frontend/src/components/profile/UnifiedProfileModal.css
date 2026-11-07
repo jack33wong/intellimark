@@ -932,6 +932,147 @@
     font-size: 13px;
 }
 
+.plan-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.plan-status-pill.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.plan-status-pill.canceling {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.plan-cancellation-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-md);
+    color: #991b1b;
+}
+
+.plan-cancellation-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.plan-cancellation-left strong {
+    font-weight: 700;
+}
+
+.plan-dont-cancel-btn {
+    padding: 6px 14px;
+    background: #ffffff;
+    border: 1px solid #fca5a5;
+    color: #991b1b;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.plan-dont-cancel-btn:hover {
+    background: #fee2e2;
+}
+
+.plan-credit-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.plan-credit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+.plan-credit-counts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.plan-topup-btn-small {
+    padding: 3px 8px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.plan-topup-btn-small:hover {
+    opacity: 0.9;
+}
+
+.plan-progress-bar-bg {
+    width: 100%;
+    height: 8px;
+    background: rgba(125, 125, 125, 0.2);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.plan-progress-bar-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.3s ease;
+}
+
+.plan-actions-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 16px;
+}
+
+.plan-portal-btn {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--modal-border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.plan-portal-btn:hover {
+    background: rgba(125, 125, 125, 0.1);
+}
+
 .manage-subscription-btn {
     margin-top: auto;
     width: 100%;

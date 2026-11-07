@@ -19,6 +19,7 @@ import ConfigService from '../../services/configService';
 import ConfirmationModal from '../common/ConfirmationModal';
 import { mobileUploadService } from '../../services/MobileUploadService';
 import { FileHandoff } from './FileHandoff';
+import { useTelemetry } from '../../hooks/useTelemetry';
 import './UnifiedChatInput.css';
 
 // Define the type for the props this component receives
@@ -78,6 +79,15 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
   const location = useLocation();
   const navigate = useNavigate();
+  const { logEvent } = useTelemetry();
+
+  const handleNegativeCreditsRedirect = useCallback((source: string) => {
+    logEvent('telemetry_events', {
+      eventType: 'paywall_viewed',
+      metadata: { source, isNegative: true }
+    });
+    navigate('/pricing', { state: { fromApp: true, source } });
+  }, [logEvent, navigate]);
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
   const { defaultModel } = useModels();
@@ -688,15 +698,15 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
   const handleUploadClick = useCallback(() => {
     if (isNegative) {
-      navigate('/upgrade', { state: { fromApp: true } });
+      handleNegativeCreditsRedirect('upload_button_blocked');
       return;
     }
     fileInputRef.current?.click();
-  }, [isNegative, navigate]);
+  }, [isNegative, handleNegativeCreditsRedirect]);
 
   const handleOpenCameraHandoff = useCallback(async () => {
     if (isNegative) {
-      navigate('/upgrade', { state: { fromApp: true } });
+      handleNegativeCreditsRedirect('camera_button_blocked');
       return;
     }
     let sessionId = mobileSessionId;
@@ -808,7 +818,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const handleSendClick = useCallback(async () => {
     if (!canSend || isNegative) {
       if (isNegative) {
-        navigate('/upgrade', { state: { fromApp: true } });
+        handleNegativeCreditsRedirect('send_button_blocked');
       }
       return;
     }
@@ -884,7 +894,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, [
     canSend, isNegative, isProcessing, combinedInput, imageFile, imageFiles, isMultiImage, mode,
     onAnalyzeImage, onFollowUpImage, onAnalyzeMultiImage, onFollowUpMultiImage, onSendMessage,
-    onGenerateModelAnswer, onExplainMarkingScheme, isModelAnswerMode, isMarkingSchemeMode, navigate
+    onGenerateModelAnswer, onExplainMarkingScheme, isModelAnswerMode, isMarkingSchemeMode, handleNegativeCreditsRedirect
   ]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -892,7 +902,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       e.preventDefault();
       if (!canSend || isNegative) {
         if (isNegative) {
-          navigate('/upgrade', { state: { fromApp: true } });
+          handleNegativeCreditsRedirect('send_button_blocked');
         }
         return;
       }
@@ -1080,7 +1090,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    navigate('/upgrade', { state: { fromApp: true } });
+                    handleNegativeCreditsRedirect('chat_banner_topup');
                   }}
                 >
                   Top Up
@@ -1239,7 +1249,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       className={`followup-upload-button mode-toggle-btn model-answer-btn ${isModelAnswerMode ? 'active' : ''} ${isNegative ? 'disabled' : ''}`}
                       onClick={() => {
                         if (isNegative) {
-                          navigate('/upgrade', { state: { fromApp: true } });
+                          handleNegativeCreditsRedirect('mode_toggle_blocked');
                           return;
                         }
                         const newVal = !isModelAnswerMode;
@@ -1259,7 +1269,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       className={`followup-upload-button mode-toggle-btn marking-scheme-btn ${isMarkingSchemeMode ? 'active' : ''} ${isNegative ? 'disabled' : ''}`}
                       onClick={() => {
                         if (isNegative) {
-                          navigate('/upgrade', { state: { fromApp: true } });
+                          handleNegativeCreditsRedirect('mode_toggle_blocked');
                           return;
                         }
                         const newVal = !isMarkingSchemeMode;
@@ -1279,7 +1289,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                       className={`followup-upload-button mobile-scan-btn scan-camera-btn ${isNegative ? 'disabled' : ''}`}
                       onClick={() => {
                         if (isNegative) {
-                          navigate('/upgrade', { state: { fromApp: true } });
+                          handleNegativeCreditsRedirect('camera_button_blocked');
                           return;
                         }
                         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -1419,7 +1429,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         onClose={() => setShowUpgradeModal(false)}
         onConfirm={() => {
           setShowUpgradeModal(false);
-          navigate('/upgrade', { state: { fromApp: true } });
+          navigate('/pricing', { state: { fromApp: true, source: 'model_picker_modal' } });
         }}
         title="Upgrade Plan"
         message="Custom model selection is available on Pro and Ultra plans. Would you like to upgrade now and unlock all powerful AI models?"

@@ -140,7 +140,10 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     // Get allowed plans from env vars or default (ROBUST: trim spaces)
     const ALLOWED_ANALYSIS_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,ultra,admin_test').split(',').map(p => p.trim()), []);
-    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(() => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'ultra,admin_test').split(',').map(p => p.trim()), []);
+    const ALLOWED_MODEL_SELECTION_PLANS = useMemo(
+        () => (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'pro,ultra,admin_test').split(',').map(p => p.trim()),
+        []
+    );
 
     const checkPermission = useCallback((feature: 'analysis' | 'model_selection') => {
         // ROBUST CHECK: Using keyword matching to handle Variations like "Ultra Plan", "Pro Month", or "admin_test"
