@@ -539,9 +539,60 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     // Block file selection while processing
     if (isProcessing) return;
 
-    const compressedFilesPromises = newFiles.map(async (file) => {
-      // Skip PDFs and files already processed by your OpenCV scanner
+    // 1. Pre-deduplicate against existing files AND within the newly selected batch using original file name + original size
+    const existingFiles: File[] = [...imageFiles, ...(imageFile ? [imageFile] : [])];
+    const getOriginalSize = (f: File): number => (f as any)._originalSize ?? f.size;
+
+    const seenKeys = new Set<string>(
+      existingFiles.map(f => `${f.name}::${getOriginalSize(f)}`)
+    );
+    const deduplicatedNewFiles: File[] = [];
+    for (const file of newFiles) {
+      const key = `${file.name}::${getOriginalSize(file)}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        deduplicatedNewFiles.push(file);
+      }
+    }
+
+    if (deduplicatedNewFiles.length === 0) return;
+
+    // Helper: Detect Safari/WebKit silent canvas memory exhaustion that produces a solid-black JPEG (~70 KB)
+    const isSolidBlackOrCorruptBlob = async (blob: Blob, originalSize: number): Promise<boolean> => {
+      if (!blob || blob.size === 0) return true;
+      // Solid-black 1875x2500 JPEG at q=0.85 is ~73 KB; only inspect suspiciously small outputs from larger photos
+      if (originalSize > 150 * 1024 && blob.size < 100 * 1024) {
+        try {
+          const bitmap = await createImageBitmap(blob);
+          const sampleCanvas = document.createElement('canvas');
+          sampleCanvas.width = 8;
+          sampleCanvas.height = 8;
+          const ctx = sampleCanvas.getContext('2d');
+          if (!ctx) {
+            bitmap.close();
+            return false;
+          }
+          ctx.drawImage(bitmap, 0, 0, 8, 8);
+          bitmap.close();
+          const { data } = ctx.getImageData(0, 0, 8, 8);
+          for (let i = 0; i < data.length; i += 4) {
+            if (data[i] > 5 || data[i + 1] > 5 || data[i + 2] > 5) {
+              return false; // Found non-black pixel
+            }
+          }
+          return true; // All 64 sampled pixels are completely black
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    };
+
+    const compressSingleFile = async (file: File): Promise<File> => {
+      const origSize = getOriginalSize(file);
+      // Skip PDFs and files already processed by OpenCV scanner
       if (file.type === 'application/pdf' || file.name.startsWith('mobile-scan-')) {
+        (file as any)._originalSize = origSize;
         return file;
       }
 
@@ -555,29 +606,33 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
 
       try {
         const compressedBlob = await imageCompression(file, options);
-        return new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        if (await isSolidBlackOrCorruptBlob(compressedBlob, origSize)) {
+          console.warn(`[Compression Guard] Detected blank/black canvas output for ${file.name} (${compressedBlob.size}B). Falling back to original file.`);
+          (file as any)._originalSize = origSize;
+          return file;
+        }
+        const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        (compressedFile as any)._originalSize = origSize;
+        return compressedFile;
       } catch (error) {
         console.warn(`Compression failed for ${file.name}, using original.`, error);
+        (file as any)._originalSize = origSize;
         return file;
       }
-    });
+    };
 
-    const processedNewFiles = await Promise.all(compressedFilesPromises);
+    // 2. Compress in small batches of 3 to avoid exceeding Safari/WebKit's per-tab Canvas memory ceiling
+    const COMPRESSION_CONCURRENCY = 3;
+    const processedNewFiles: File[] = [];
+    for (let i = 0; i < deduplicatedNewFiles.length; i += COMPRESSION_CONCURRENCY) {
+      const batch = deduplicatedNewFiles.slice(i, i + COMPRESSION_CONCURRENCY);
+      const batchResults = await Promise.all(batch.map(compressSingleFile));
+      processedNewFiles.push(...batchResults);
+    }
 
     // If we already have files and user selects more, add to existing
-    if (imageFiles.length > 0 || imageFile) {
-      // Filter out duplicate files by name and size
-      const existingFiles: File[] = [...imageFiles, ...(imageFile ? [imageFile] : [])];
-      const uniqueNewFiles = processedNewFiles.filter(newFile =>
-        !existingFiles.some(existingFile =>
-          existingFile.name === newFile.name && existingFile.size === newFile.size
-        )
-      );
-
-      if (uniqueNewFiles.length === 0) return;
-
-      // Add only unique new files to existing ones
-      const allFiles = [...existingFiles, ...uniqueNewFiles];
+    if (existingFiles.length > 0) {
+      const allFiles = [...existingFiles, ...processedNewFiles];
       setImageFiles(allFiles);
       setImageFile(null);
       setPreviewImage(null);
@@ -639,7 +694,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       setIsMultiImage(true);
 
       // Load previews for images only (skip PDFs)
-      const imageFilesOnly = newFiles.filter(file => !isPDF(file));
+      const imageFilesOnly = processedNewFiles.filter(file => !isPDF(file));
       const readers = imageFilesOnly.map(file => {
         const reader = new FileReader();
         return new Promise<string>((resolve) => {

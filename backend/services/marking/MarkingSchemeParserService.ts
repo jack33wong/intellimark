@@ -1,7 +1,11 @@
+import crypto from 'crypto';
 import { ModelProvider } from '../../utils/ModelProvider.js';
 import UsageTracker from '../../utils/UsageTracker.js';
+import { getFirestore } from '../../config/firebase.js';
+import { ImageUtils } from '../../utils/ImageUtils.js';
 
 export class MarkingSchemeParserService {
+    private static memoryCache = new Map<string, any>();
 
     private static getSystemPrompt(): string {
         return `Role: Senior Examination Data Extraction Specialist & Quality Assurance Verifier
@@ -111,26 +115,69 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
     /**
      * Parses an array of raw base64 images of a marking scheme into a custom scheme object.
+     * Uses SHA-256 fingerprint caching (in-memory + Firestore) and 1200px lightweight copies for speed.
      */
     static async parseImagesToObject(
         base64Images: string[],
         tracker?: UsageTracker
     ): Promise<any> {
         const PARSER_MODEL = 'gemini-3.7-flash';
-        console.log(`🧠 [MarkingSchemeParser] Processing ${base64Images.length} marking scheme images...`);
-        console.log(`🤖 [MarkingSchemeParser] Using Hardcoded Model: ${PARSER_MODEL}`);
 
-        if (base64Images.length === 0) {
+        if (!base64Images || base64Images.length === 0) {
             return null;
         }
+
+        // Compute deterministic SHA-256 cache key across all scheme page images
+        const hash = crypto.createHash('sha256');
+        hash.update(`v1:${base64Images.length}:`);
+        for (const img of base64Images) {
+            // Sample prefix, middle, and suffix + length of each base64 page for fast (<1ms) collision-free hashing
+            const len = img.length;
+            const mid = Math.floor(len / 2);
+            hash.update(`${len}:${img.slice(0, 512)}:${img.slice(Math.max(0, mid - 256), mid + 256)}:${img.slice(-512)}|`);
+        }
+        const cacheKey = hash.digest('hex');
+
+        // 1. Check fast in-memory cache
+        const memCached = this.memoryCache.get(cacheKey);
+        if (memCached && memCached.questions && Object.keys(memCached.questions).length > 0) {
+            console.log(`⚡ [MarkingSchemeParser] In-memory cache HIT (${cacheKey.slice(0, 12)}) for ${base64Images.length} scheme page(s).`);
+            return JSON.parse(JSON.stringify(memCached));
+        }
+
+        // 2. Check Firestore persistent cache
+        try {
+            const db = getFirestore();
+            if (db) {
+                const docSnap = await db.collection('parsedMarkingSchemesCache').doc(cacheKey).get();
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    if (data?.parsedScheme && data.parsedScheme.questions && Object.keys(data.parsedScheme.questions).length > 0) {
+                        console.log(`⚡ [MarkingSchemeParser] Firestore cache HIT (${cacheKey.slice(0, 12)}) for ${base64Images.length} scheme page(s).`);
+                        this.memoryCache.set(cacheKey, data.parsedScheme);
+                        return JSON.parse(JSON.stringify(data.parsedScheme));
+                    }
+                }
+            }
+        } catch (cacheReadErr) {
+            // Non-fatal: proceed to LLM extraction
+        }
+
+        console.log(`🧠 [MarkingSchemeParser] Processing ${base64Images.length} marking scheme images...`);
+        console.log(`🤖 [MarkingSchemeParser] Using Hardcoded Model: ${PARSER_MODEL}`);
 
         try {
             const prompt = this.getSystemPrompt();
 
+            // Downscale full-res 220 DPI images to 1200px WebP copies so 28-page schemes transfer & encode 5x faster
+            const lightweightSchemeImages = await Promise.all(
+                base64Images.map(img => ImageUtils.createLightweightCopy(img, 1200).catch(() => img))
+            );
+
             const response = await ModelProvider.callGeminiChat(
                 prompt,
                 "Extract the marking scheme data from these images into the requested JSON format.",
-                base64Images,
+                lightweightSchemeImages,
                 PARSER_MODEL,
                 true, // forceJsonResponse
                 tracker,
@@ -147,6 +194,27 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
             const parsedObj = JSON.parse(content);
             console.log(`✅ [MarkingSchemeParser] Successfully parsed custom scheme.`);
+
+            if (parsedObj && parsedObj.questions && Object.keys(parsedObj.questions).length > 0) {
+                if (this.memoryCache.size > 100) {
+                    const firstKey = this.memoryCache.keys().next().value;
+                    if (firstKey) this.memoryCache.delete(firstKey);
+                }
+                this.memoryCache.set(cacheKey, parsedObj);
+
+                // Fire-and-forget write to Firestore cache
+                try {
+                    const db = getFirestore();
+                    if (db) {
+                        void db.collection('parsedMarkingSchemesCache').doc(cacheKey).set({
+                            parsedScheme: parsedObj,
+                            pageCount: base64Images.length,
+                            examDetails: parsedObj.examDetails || null,
+                            createdAt: new Date().toISOString()
+                        }).catch(() => {});
+                    }
+                } catch {}
+            }
 
             return parsedObj;
 

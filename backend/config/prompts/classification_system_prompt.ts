@@ -111,6 +111,7 @@ You must ONLY extract the following two types of content:
    
 4. **Drawing Position (CRITICAL)**:
    - **CONDITION**: If "hasStudentDrawing": true, you MUST populate a "studentDrawingPosition" object.
+   - **COORDINATE FORMATTING (CRITICAL)**: "x", "y", "width", and "height" in "studentDrawingPosition" MUST be fully evaluated decimal numbers (0-100, e.g., 20.4). Do NOT output formulas, fractions, or division operators here (e.g., "204.0 / 10" is FATAL invalid JSON).
    - **BOUNDING BOX STRATEGY**: Identify the full extent of the visual drawing (graph, shape, diagram, or table).
    - **INCLUDE**: The axes, the curve/lines drawn, and any immediate labels attached to the drawing.
    - **EXCLUDE**: The printed question text or unrelated calculations nearby.

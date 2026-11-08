@@ -1077,16 +1077,61 @@ ${pageHints}
   }
 
   /**
+   * Pre-normalizes un-evaluated arithmetic division or ternary expressions that Gemini
+   * sometimes emits inside numeric coordinate fields (both `"p": [...]` arrays and
+   * `"studentDrawingPosition": { "x": 204.0 / 10, ... }` objects) BEFORE `JSON.parse`.
+   */
+  private static normalizeNumericMathExpressions(rawJson: string): string {
+    let normalized = rawJson;
+
+    const evalNumericExpr = (rawVal: string): string => {
+      let item = rawVal.trim();
+      if (item.includes('?') && item.includes(':')) {
+        item = item.split(':').pop()!.trim();
+      }
+      item = item.replace(/(-?\d+\.?\d*)\s*\/\s*(-?\d+\.?\d*)/g, (mathMatch: string, num1: string, num2: string) => {
+        const denom = parseFloat(num2);
+        if (denom === 0) return mathMatch;
+        const result = parseFloat(num1) / denom;
+        return isNaN(result) ? mathMatch : Number(result.toFixed(4)).toString();
+      });
+      if (/[<>?:]/.test(item)) {
+        const numMatch = item.match(/-?\d+\.?\d*/);
+        if (numMatch) item = numMatch[0];
+      }
+      return item;
+    };
+
+    // 1. Normalize `"p": [44.6, 260.0 / 10, 13.5, 6.2]` arrays
+    normalized = normalized.replace(/"p"\s*:\s*\[([^\]]+)\]/g, (_match, arrayContents) => {
+      const cleanedElements = arrayContents.split(',').map((el: string) => evalNumericExpr(el));
+      return `"p": [${cleanedElements.join(', ')}]`;
+    });
+
+    // 2. Normalize object coordinate properties like `"x": 204.0 / 10` in `studentDrawingPosition`
+    normalized = normalized.replace(
+      /"(x|y|width|height|rotation|confidence)"\s*:\s*(-?\d+\.?\d*\s*\/\s*-?\d+\.?\d*(?:\s*[<>?:][^\n\r,}]*)?)/g,
+      (_match, key, expr) => `"${key}": ${evalNumericExpr(expr)}`
+    );
+
+    return normalized;
+  }
+
+  /**
    * Parse JSON with robust sanitization for invalid escape sequences
    * @param jsonString The JSON string to parse
    * @param returnString If true, return the sanitized string instead of parsed object (for parseGeminiResponse)
    * @returns Parsed object or sanitized string
    */
   private static parseJsonWithSanitization(jsonString: string, returnString: boolean = false): any {
+    // Pre-normalize un-evaluated division/ternary expressions (e.g. `204.0 / 10` in `p` or `studentDrawingPosition`)
+    // BEFORE the first JSON.parse attempt so coordinate math never triggers a parse error.
+    const preNormalized = this.normalizeNumericMathExpressions(jsonString);
+
     // First, try to parse directly (fast path for valid JSON)
     try {
-      const parsed = JSON.parse(jsonString);
-      return returnString ? jsonString : parsed;
+      const parsed = JSON.parse(preNormalized);
+      return returnString ? preNormalized : parsed;
     } catch (error) {
       // Log the error and problematic content
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1098,52 +1143,31 @@ ${pageHints}
       const errorPosition = positionMatch ? parseInt(positionMatch[1], 10) : null;
 
       // Log the problematic content around the error position
-      if (errorPosition !== null && errorPosition < jsonString.length) {
+      if (errorPosition !== null && errorPosition < preNormalized.length) {
         const start = Math.max(0, errorPosition - 100);
-        const end = Math.min(jsonString.length, errorPosition + 100);
-        const context = jsonString.substring(start, end);
+        const end = Math.min(preNormalized.length, errorPosition + 100);
+        const context = preNormalized.substring(start, end);
         const relativePos = errorPosition - start;
         console.error(`❌ [CLASSIFICATION] Content around error position ${errorPosition}:`);
         console.error(`❌ [CLASSIFICATION] ...${context.substring(0, relativePos)}${'\x1b[31m'}${context[relativePos]}${'\x1b[0m'}${context.substring(relativePos + 1)}...`);
       } else {
         // If we can't find position, log a sample of the content
-        console.error(`❌ [CLASSIFICATION] Content length: ${jsonString.length} characters`);
-        console.error(`❌ [CLASSIFICATION] First 500 chars: ${jsonString.substring(0, 500)}`);
-        if (jsonString.length > 500) {
-          console.error(`❌ [CLASSIFICATION] Last 500 chars: ...${jsonString.substring(jsonString.length - 500)}`);
+        console.error(`❌ [CLASSIFICATION] Content length: ${preNormalized.length} characters`);
+        console.error(`❌ [CLASSIFICATION] First 500 chars: ${preNormalized.substring(0, 500)}`);
+        if (preNormalized.length > 500) {
+          console.error(`❌ [CLASSIFICATION] Last 500 chars: ...${preNormalized.substring(preNormalized.length - 500)}`);
         }
       }
 
       // Sanitize invalid escape sequences and bad control characters
-      let sanitized = jsonString;
+      let sanitized = preNormalized;
 
       // 🛡️ [TOXIC-HALLUCINATION FIX]: Strip "undefined" if it appears in the JSON source.
       // Gemini sometimes appends `undefined` after numbers (e.g., 4.08undefined) or at the end of properties.
       sanitized = sanitized.replace(/undefined/gi, '');
 
-      // 🛡️ [MATH & TERNARY EVALUATION FIX]: Catch un-evaluated division or ternary expressions inside "p" arrays
-      // e.g. "p": [574.0 / 10, 41.5, 6.0, 2.2] or "p": [224.0 / 10.0 > 100 ? 22.4 : 22.4, 73.8, 4.3, 5.0]
-      sanitized = sanitized.replace(/"p"\s*:\s*\[([^\]]+)\]/g, (match, arrayContents) => {
-        const cleanedElements = arrayContents.split(',').map((el: string) => {
-          let item = el.trim();
-          // If AI wrote a ternary `cond ? valTrue : valFalse`, take the last numeric value after `:` or `?`
-          if (item.includes('?') && item.includes(':')) {
-            item = item.split(':').pop()!.trim();
-          }
-          // Evaluate simple division `num1 / num2`
-          item = item.replace(/(\d+\.?\d*)\s*\/\s*(\d+\.?\d*)/g, (mathMatch: string, num1: string, num2: string) => {
-            const result = parseFloat(num1) / parseFloat(num2);
-            return isNaN(result) ? mathMatch : result.toString();
-          });
-          // Fallback: extract first valid float if any comparison operators remain
-          if (/[<>?:]/.test(item)) {
-            const numMatch = item.match(/-?\d+\.?\d*/);
-            if (numMatch) item = numMatch[0];
-          }
-          return item;
-        });
-        return `"p": [${cleanedElements.join(', ')}]`;
-      });
+      // Re-run numeric math normalization in case stripping `undefined` exposed a math expression
+      sanitized = this.normalizeNumericMathExpressions(sanitized);
 
       // 🛡️ [TOXIC-UNDERSCORE FIX]: If the AI gets caught in a loop generating escaped underscores,
       // it causes MAX_TOKENS truncation. We must strip these massive strings before JSON parsing.

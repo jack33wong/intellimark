@@ -50,7 +50,8 @@ export class MarkingPersistenceService {
         questionOnlyClassificationResult: any | undefined,  // Clean Bucket B classification for text responses
         usageTracker: UsageTracker,  // UsageTracker instance with all token/cost data
         mathpixCallCount: number,  // Actual Mathpix OCR call count
-        allPagesOcrData?: any[]  // Cached OCR blocks for Zero-Reupload Re-Marking
+        allPagesOcrData?: any[],  // Cached OCR blocks for Zero-Reupload Re-Marking
+        preUploadedOriginalFilesPromise?: Promise<import('../sessionManagementService.js').FileUploadResult>
     ): Promise<{ unifiedSession: any }> {
         let dbUserMessage: any = null;
         let dbAiMessage: any = null;
@@ -115,13 +116,16 @@ export class MarkingPersistenceService {
             const userTimestamp = new Date(Date.now() - 1000).toISOString(); // User message 1 second earlier
             const aiTimestamp = new Date().toISOString(); // AI message current time
 
-            // Upload original files for authenticated users
-            const uploadResult = await SessionManagementService.uploadOriginalFiles(
-                files,
-                options.userId || 'anonymous',
-                submissionId,
-                !!options.userId
-            );
+            // Upload original files for authenticated users (reuse background upload promise if already started)
+            const uploadResult = preUploadedOriginalFilesPromise
+                ? await preUploadedOriginalFilesPromise
+                : await SessionManagementService.uploadOriginalFiles(
+                    files,
+                    options.userId || 'anonymous',
+                    submissionId,
+                    !!options.userId,
+                    pdfContext
+                );
 
             // ========= USER MESSAGE CREATION =========
             const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(

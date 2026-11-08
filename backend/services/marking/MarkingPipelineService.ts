@@ -247,6 +247,7 @@ export class MarkingPipelineService {
             const isFreeUser = !userId || userPlan === 'free';
             const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
             const MAX_FREE_PAGES = parseInt(process.env.MAX_FREE_PAGES || String(MAX_PAGES_LIMIT)); // Unified to 50 for combined 48-page booklets
+            const MAX_RAW_COMBINED_PAGES = parseInt(process.env.MAX_RAW_UPLOAD_PAGES || '100'); // Allows up to 50 student pages + up to 50 Mark Scheme pages before Stage 2 ejection
             const effectiveMaxPages = isFreeUser ? Math.min(MAX_FREE_PAGES, MAX_PAGES_LIMIT) : MAX_PAGES_LIMIT;
             const getPageLimitErrorMessage = (count?: number) =>
                 `PDF_PAGE_LIMIT_EXCEEDED: Upload exceeds the maximum limit of ${effectiveMaxPages} pages/images${count ? ` (uploaded ${count} pages)` : ''}.`;
@@ -265,6 +266,11 @@ export class MarkingPipelineService {
             let markingTasks: MarkingTask[] = [];
             let pdfContext: any = null;
             let pageDimensionsMap = new Map<number, { width: number; height: number }>();
+            const MARK_SCHEME_FILENAME_REGEX = /(^|[-_\s.])(rms|ms|mark[-_\s]?scheme|marking[-_\s]?scheme)([-_\s.]|$)/i;
+            const isExplicitMarkSchemePdfFile = (f: Express.Multer.File) =>
+                f?.mimetype === 'application/pdf' && MARK_SCHEME_FILENAME_REGEX.test((f.originalname || '').replace(/\.pdf$/i, ''));
+            const hasNonSchemeStudentFiles = files.some(f => !isExplicitMarkSchemePdfFile(f));
+            const deferredSchemePdfFiles: Express.Multer.File[] = [];
 
             // --- Conditional Routing (PDF first) ---
             if (isPdf || isMultiplePdfs) {
@@ -306,6 +312,11 @@ export class MarkingPipelineService {
                     stepTimings['pdf_conversion'] = { start: Date.now() };
 
                     const pdfConversionPromises = files.map(async (file, index) => {
+                        if (hasNonSchemeStudentFiles && isExplicitMarkSchemePdfFile(file)) {
+                            deferredSchemePdfFiles.push(file);
+                            console.log(`⏭️  [DEFERRED-MS-PDF] Holding Mark Scheme PDF "${file.originalname}" off Stage 1 rasterization until DB pre-check.`);
+                            return { index, pdfPages: [] };
+                        }
                         try {
                             const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer, {
                                 maxPages: effectiveMaxPages,
@@ -360,8 +371,8 @@ export class MarkingPipelineService {
 
                     standardizedPages = allPdfPages;
 
-                    // Enforce Total Page Limit for Multiple PDFs
-                    if (standardizedPages.length > MAX_PAGES_LIMIT) {
+                    // Enforce Raw Combined Ceiling for Multiple PDFs (Mark Scheme pages are exempted after Stage 2 Geometry)
+                    if (standardizedPages.length > MAX_RAW_COMBINED_PAGES) {
                         throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
                     }
 
@@ -589,9 +600,8 @@ export class MarkingPipelineService {
                     page.pageIndex = index;
                 });
 
-                // Enforce Page Limit for Multiple Images
-                const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
-                if (standardizedPages.length > MAX_PAGES_LIMIT) {
+                // Enforce Raw Combined Ceiling for Multiple Images (Mark Scheme pages are exempted after Stage 2 Geometry)
+                if (standardizedPages.length > MAX_RAW_COMBINED_PAGES) {
                     throw new Error(`Upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} images. Selected ${standardizedPages.length} images.`);
                 }
 
@@ -605,6 +615,11 @@ export class MarkingPipelineService {
 
                 const mixedConversionPromises = files.map(async (file, index): Promise<StandardizedPage[]> => {
                     if (file.mimetype === 'application/pdf') {
+                        if (hasNonSchemeStudentFiles && isExplicitMarkSchemePdfFile(file)) {
+                            deferredSchemePdfFiles.push(file);
+                            console.log(`⏭️  [DEFERRED-MS-PDF] Holding Mark Scheme PDF "${file.originalname}" off Stage 1 rasterization until DB pre-check.`);
+                            return [];
+                        }
                         try {
                             const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer, {
                                 maxPages: effectiveMaxPages,
@@ -660,7 +675,7 @@ export class MarkingPipelineService {
                     pageIndex: idx
                 }));
 
-                if (standardizedPages.length > MAX_PAGES_LIMIT) {
+                if (standardizedPages.length > MAX_RAW_COMBINED_PAGES) {
                     throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
                 }
 
@@ -719,23 +734,25 @@ export class MarkingPipelineService {
                 throw new Error('Standardization failed: No processable pages/images found.');
             }
 
-            // --- Input Page Gating (Final Check for Multi-Image / Combined Totals) ---
-            console.log(`📊 [PAGE GATING] User ${userId || 'anonymous'} (${userPlan}) uploaded ${standardizedPages.length} page(s).`);
-
-            // 1. Check Product Tier Limits
-            if (isFreeUser && standardizedPages.length > MAX_FREE_PAGES) {
-                throw new Error(`Free accounts are limited to grading ${MAX_FREE_PAGES} pages at a time. Upgrade to Pro to grade full past papers.`);
-            }
-
-            // 2. Check Financial Limits
-            if (userId && userId !== 'anonymous') {
-                const exactEstimatedCost = standardizedPages.length * 0.020; // $0.02 per page (Mathpix + Gemini tokens)
-                const creditCheck = await checkCredits(userId, exactEstimatedCost, userPlan);
-
-                if (!creditCheck.canProceed) {
-                    throw new Error(creditCheck.warning);
+            // Stamp pre-split raw page index & detect 100% solid-black corrupted client canvas exports (<1ms via sharp.stats)
+            await Promise.all(standardizedPages.map(async (page, idx) => {
+                (page as any)._rawPageIndex = idx;
+                if ((page as any)._sourceIndex === undefined) {
+                    try {
+                        const base64Data = page.imageData.split(',')[1];
+                        if (base64Data) {
+                            const buf = Buffer.from(base64Data, 'base64');
+                            const stats = await sharp(buf).stats();
+                            if (stats.channels.length > 0 && stats.channels.every(c => c.max <= 2)) {
+                                (page as any)._isSolidBlackCorrupted = true;
+                                console.warn(`🖤 [CORRUPT-IMAGE GUARD] Page ${idx} (${page.originalFileName}) is 100% solid black (Safari canvas memory limit). Marking for ejection.`);
+                            }
+                        }
+                    } catch {}
                 }
-            }
+            }));
+
+            console.log(`📊 [RAW UPLOAD] User ${userId || 'anonymous'} (${userPlan}) uploaded ${standardizedPages.length} raw page(s) pre-geometry.`);
 
             // --- 1. Vision Orientation Fix (Deterministic) ---
             progressCallback(createProgressData(2, `Detecting orientation via Google Vision for ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
@@ -743,9 +760,8 @@ export class MarkingPipelineService {
             
             const { GoogleVisionService } = await import('../ocr/GoogleVisionService.js');
 
-            // ⚡ Skip orientation for pages from digital official Mark Scheme PDFs (identified by filename, >= 5 pages).
-            // These are rendered from the PDF vector source and are always 0° upright.
-            const MARK_SCHEME_FILENAME_REGEX = /(^|[-_\s.])(rms|ms|mark[-_\s]?scheme|marking[-_\s]?scheme)([-_\s.]|$)/i;
+            // ⚡ Skip orientation for pages from digital official Mark Scheme PDFs (identified by filename, >= 5 pages)
+            // and for solid-black corrupted canvas exports.
             const pdfPageCountByName = new Map<string, number>();
             standardizedPages.forEach(p => {
                 const name = p.originalFileName || '';
@@ -758,10 +774,12 @@ export class MarkingPipelineService {
                 return (pdfPageCountByName.get(name) || 0) >= 5 && MARK_SCHEME_FILENAME_REGEX.test(name.replace(/\.pdf$/i, ''));
             };
 
-            const orientationTargets = standardizedPages.filter(p => !isUprightMarkSchemePdfPage(p));
+            const orientationTargets = standardizedPages.filter(
+                p => !isUprightMarkSchemePdfPage(p) && !(p as any)._isSolidBlackCorrupted
+            );
             const skippedOrientationCount = standardizedPages.length - orientationTargets.length;
             if (skippedOrientationCount > 0) {
-                console.log(`⏭️  [VISION ORIENTATION] Skipped ${skippedOrientationCount} upright digital Mark Scheme PDF page(s).`);
+                console.log(`⏭️  [VISION ORIENTATION] Skipped ${skippedOrientationCount} upright Mark Scheme / corrupted page(s).`);
             }
 
             const ORIENTATION_BATCH_SIZE = 8;
@@ -797,7 +815,7 @@ export class MarkingPipelineService {
             
             const newStandardizedPages: StandardizedPage[] = [];
             const newLightweightPages: StandardizedPage[] = [];
-            let pagesEjected = false;
+            let pagesEjected = deferredSchemePdfFiles.length > 0;
             const interceptedSchemeImages: string[] = [];
             
             // --- 1.5 Create Tier 2 (Low-Res WEBP) for Gemini ---
@@ -805,12 +823,24 @@ export class MarkingPipelineService {
             let lightweightPages = await Promise.all(
                 standardizedPages.map(async page => ({
                     ...page,
-                    imageData: await ImageUtils.createLightweightCopy(page.imageData, 800)
+                    imageData: (page as any)._isSolidBlackCorrupted
+                        ? page.imageData
+                        : await ImageUtils.createLightweightCopy(page.imageData, 800)
                 }))
             );
 
             const geometryResults = await Promise.all(
-                lightweightPages.map(async page => {
+                lightweightPages.map(async (page, idx) => {
+                    if ((standardizedPages[idx] as any)._isSolidBlackCorrupted) {
+                        return {
+                            is_acceptable_quality: false,
+                            rejection_reason: 'Image is blank or solid black due to browser memory limits during upload.',
+                            needs_rotation: 0,
+                            is_two_page_spread: false,
+                            is_marking_scheme: false,
+                            is_supported_doc: false
+                        };
+                    }
                     return ImageGeometryService.analyze(page.imageData, page.width, page.height, 'fast', usageTracker);
                 })
             );
@@ -838,6 +868,7 @@ export class MarkingPipelineService {
             // Check if any uploaded page in the batch is a Marking Scheme (or if a custom marking scheme was provided).
             // When a Marking Scheme is present, Universal BYOMS mode is enabled for any academic subject!
             const hasUploadedMarkingScheme =
+                deferredSchemePdfFiles.length > 0 ||
                 geometryResults.some(g => g?.is_marking_scheme === true) ||
                 Boolean(options.markingScheme);
 
@@ -1143,6 +1174,43 @@ export class MarkingPipelineService {
 
             logGeometryComplete();
 
+            // --- Post-Geometry Input Page & Credit Gating (Mark Scheme & ejected pages are exempt!) ---
+            const studentRawPageCount = new Set(
+                standardizedPages.map(p => (p as any)._rawPageIndex ?? p.pageIndex)
+            ).size;
+            console.log(`📊 [PAGE GATING] User ${userId || 'anonymous'} (${userPlan}): ${studentRawPageCount} student page(s) to grade (${standardizedPages.length} post-split page(s), ${interceptedSchemeImages.length} mark scheme page(s) exempted).`);
+
+            // 1. Check Product Tier & Upload Limits (excluding Mark Scheme pages)
+            if (isFreeUser && studentRawPageCount > MAX_FREE_PAGES) {
+                throw new Error(`Free accounts are limited to grading ${MAX_FREE_PAGES} pages at a time. Upgrade to Pro to grade full past papers.`);
+            }
+            if (studentRawPageCount > MAX_PAGES_LIMIT) {
+                throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${studentRawPageCount} pages.`);
+            }
+
+            // 2. Check Financial Limits (only charge estimated cost for student/question pages, never Mark Scheme pages)
+            if (userId && userId !== 'anonymous') {
+                const exactEstimatedCost = studentRawPageCount * 0.020; // $0.02 per student page (Mathpix + Gemini tokens)
+                const creditCheck = await checkCredits(userId, exactEstimatedCost, userPlan);
+
+                if (!creditCheck.canProceed) {
+                    throw new Error(creditCheck.warning);
+                }
+            }
+
+            // 🚀 [BACKGROUND ORIGINAL FILE UPLOAD]:
+            // Start uploading original files in the background right after page & credit gating passes,
+            // so Firebase Storage uploads run concurrently with Classification, OCR, and Marking instead of blocking ~35s at the end!
+            const preUploadedOriginalFilesPromise = isAuthenticated
+                ? SessionManagementService.uploadOriginalFiles(
+                    files,
+                    userId || 'anonymous',
+                    submissionId,
+                    true,
+                    pdfContext
+                )
+                : undefined;
+
             // --- Preprocessing (Common for Multi-Page PDF & Multi-Image) ---
             progressCallback(createProgressData(2, `Preprocessing ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
             const logPreprocessingComplete = logStep('Preprocessing', 'image-processing');
@@ -1178,37 +1246,6 @@ export class MarkingPipelineService {
 
             // ========================= START: IMPLEMENT STAGE 2 =========================
             // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
-            
-            // 🧠 [DYNAMIC PARSER]: Parse intercepted scheme pages CONCURRENTLY with Classification & OCR.
-            // Neither Classification nor OCR consume inputMarkingScheme — only the scheme orchestration step does —
-            // so we start the parser now and await it right before MarkingSchemeOrchestrationService.
-            const schemeParserPromise: Promise<any | null> = (async () => {
-                if (!pagesEjected || interceptedSchemeImages.length === 0) return null;
-                const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-3.7-flash');
-                try {
-                    const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
-                    const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
-                    logSchemeParserComplete();
-
-                    // Ensure the object actually contains parsed questions before overriding
-                    if (parsedObj && Object.keys(parsedObj).length > 0) {
-                        console.log(`✅ [SCHEME PARSER] Successfully extracted marking scheme via gemini-3.7-flash.`);
-                        if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
-                            console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
-                            console.log(JSON.stringify(parsedObj, null, 2));
-                            console.log(`----------------------------------------------------\n`);
-                        }
-                        return parsedObj;
-                    }
-                    console.warn(`⚠️ [SCHEME PARSER] Parser returned empty object. Falling back to generic marking scheme.`);
-                    return null;
-                } catch (err) {
-                    logSchemeParserComplete();
-                    // Leaves inputMarkingScheme untouched (as undefined/null), allowing the rest of the pipeline to default to the generic prompt.
-                    console.error(`⚠️ [SCHEME PARSER] Exception during custom marking scheme parsing. Proceeding with generic fallback. Error:`, err instanceof Error ? err.message : String(err));
-                    return null;
-                }
-            })();
 
             // --- 🧭 EARLY SUBJECT ROUTING (BEFORE CLASSIFICATION & STAGE 3 OCR) ---
             const geoSubjectVote = geometryResults
@@ -2134,6 +2171,87 @@ export class MarkingPipelineService {
                 pagesToOcr = new Set(standardizedPages.map(p => p.pageIndex));
             }
 
+            // Build effective paper hint & extract questions from Classification BEFORE OCR so we can fast-check DB before LLM scheme parsing
+            const fileNamePaperHintMatch = uploadedFileNames
+                .join(' ')
+                .match(/\b(1ma1|8300|8700|j560|9ma0)[-_\/]([0-9a-z]{1,3})\b/i);
+            const fileNamePaperHint = fileNamePaperHintMatch
+                ? `${fileNamePaperHintMatch[1].toUpperCase()}/${fileNamePaperHintMatch[2].toUpperCase()}`
+                : undefined;
+            const cleanGeoPaperHint = geoPaperCodeHint
+                ? (geoPaperCodeHint.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700\/[12]|8300\/[123][FH]|1MA1\/[123][FH]|J560\/0[1-6])\b/i)?.[1] || geoPaperCodeHint.split(/\s+/)[0])
+                : fileNamePaperHint;
+            const effectiveExamPaperHint = options.customText || cleanGeoPaperHint;
+            const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
+
+            // ⚡ [FAST DB PRE-CHECK FOR UPLOADED MARKING SCHEMES]:
+            // If the user uploaded a Marking Scheme alongside an exam paper that ALREADY exists in our Firestore DB,
+            // verify against our in-memory DB cache (~15ms) first. If found, skip the 30s LLM scheme extraction (and deferred PDF rasterization) completely!
+            let preResolvedOrchestrationResult: Awaited<ReturnType<typeof MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup>> | null = null;
+            if (pagesEjected && (interceptedSchemeImages.length > 0 || deferredSchemePdfFiles.length > 0) && !inputMarkingScheme && individualQuestions.length > 0) {
+                try {
+                    const dbPreCheck = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
+                        individualQuestions.map(q => ({ ...q })),
+                        classificationResult,
+                        effectiveExamPaperHint,
+                        undefined,
+                        subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
+                    );
+                    const totalGroups = dbPreCheck.markingSchemesMap.size;
+                    const matchedDbSchemes = Array.from(dbPreCheck.markingSchemesMap.values()).filter(
+                        (s: any) => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match?.markingScheme
+                    );
+                    if (totalGroups > 0 && matchedDbSchemes.length > 0 && (matchedDbSchemes.length / totalGroups) >= 0.7) {
+                        const matchedTitle = matchedDbSchemes[0]?.questionDetection?.match?.paperTitle || 'Official Past Paper';
+                        console.log(`⚡ [FAST-DB-SCHEME] Official marking scheme already exists in DB ("${matchedTitle}", ${matchedDbSchemes.length}/${totalGroups} question groups). Skipping LLM extraction of uploaded mark scheme!`);
+                        preResolvedOrchestrationResult = dbPreCheck;
+                    }
+                } catch (preCheckErr) {
+                    // Non-fatal: fall through to custom scheme parser
+                }
+            }
+
+            // 🧠 [DYNAMIC PARSER]: Only run LLM custom scheme extraction if the paper was NOT already matched in our DB.
+            // Runs concurrently with Mathpix OCR below.
+            const schemeParserPromise: Promise<any | null> = (async () => {
+                if (preResolvedOrchestrationResult || !pagesEjected || (interceptedSchemeImages.length === 0 && deferredSchemePdfFiles.length === 0)) return null;
+                const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-3.7-flash');
+                try {
+                    if (deferredSchemePdfFiles.length > 0) {
+                        console.log(`📄 [DEFERRED-MS-PDF] Paper not found in DB — rasterizing ${deferredSchemePdfFiles.length} deferred Mark Scheme PDF(s) on demand...`);
+                        for (const msFile of deferredSchemePdfFiles) {
+                            const msPages = await PdfProcessingService.convertPdfToImages(msFile.buffer, {
+                                maxPages: MAX_RAW_COMBINED_PAGES
+                            });
+                            msPages.forEach(p => interceptedSchemeImages.push(p.imageData));
+                        }
+                    }
+                    if (interceptedSchemeImages.length === 0) {
+                        logSchemeParserComplete();
+                        return null;
+                    }
+                    const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
+                    const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
+                    logSchemeParserComplete();
+
+                    if (parsedObj && Object.keys(parsedObj).length > 0) {
+                        console.log(`✅ [SCHEME PARSER] Successfully extracted marking scheme via gemini-3.7-flash.`);
+                        if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
+                            console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
+                            console.log(JSON.stringify(parsedObj, null, 2));
+                            console.log(`----------------------------------------------------\n`);
+                        }
+                        return parsedObj;
+                    }
+                    console.warn(`⚠️ [SCHEME PARSER] Parser returned empty object. Falling back to generic marking scheme.`);
+                    return null;
+                } catch (err) {
+                    logSchemeParserComplete();
+                    console.error(`⚠️ [SCHEME PARSER] Exception during custom marking scheme parsing. Proceeding with generic fallback. Error:`, err instanceof Error ? err.message : String(err));
+                    return null;
+                }
+            })();
+
             progressCallback(createProgressData(3, `Running Precision OCR on ${pagesToOcr.size} pages...`, MULTI_IMAGE_STEPS));
             const logOcrComplete = logStep('OCR Processing', 'mathpix');
 
@@ -2211,17 +2329,13 @@ export class MarkingPipelineService {
             // ========================= START: ADD QUESTION DETECTION STAGE =========================
             progressCallback(createProgressData(4, 'Detecting questions and fetching schemes...', MULTI_IMAGE_STEPS));
 
-            // Extract questions from AI classification result
-            // Extract questions from AI classification result
-            const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
-
             // Call question detection for each individual question
             const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
 
             // Collect full OCR text for reliable metadata extraction (e.g. Total Marks)
             const extractedOcrText = allPagesOcrData.map((p: any) => p.ocrData.text).join('\n\n');
 
-            // ⏳ Resolve the concurrently-running custom scheme parser (started before Classification)
+            // ⏳ Resolve the concurrently-running custom scheme parser (if not already satisfied by fast DB pre-check)
             const parsedCustomScheme = await schemeParserPromise;
             if (parsedCustomScheme) {
                 inputMarkingScheme = parsedCustomScheme;
@@ -2244,14 +2358,8 @@ export class MarkingPipelineService {
                 }
             }
 
-            // Build effective paper hint: prefer explicit customText, otherwise use clean paper code extracted from PDF cover/headers
-            const cleanGeoPaperHint = geoPaperCodeHint
-                ? (geoPaperCodeHint.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700\/[12]|8300\/[123][FH]|1MA1\/[123][FH]|J560\/0[1-6])\b/i)?.[1] || geoPaperCodeHint.split(/\s+/)[0])
-                : undefined;
-            const effectiveExamPaperHint = options.customText || cleanGeoPaperHint;
-
-            // Orchestrate marking scheme lookup (detection, grouping, merging)
-            const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
+            // Orchestrate marking scheme lookup (reuse pre-resolved DB match if available, otherwise run lookup)
+            const orchestrationResult = preResolvedOrchestrationResult || await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
                 individualQuestions,
                 classificationResult,
                 effectiveExamPaperHint,
@@ -3728,7 +3836,8 @@ export class MarkingPipelineService {
                 combinedQuestionResponses,  // Pass questionOnly responses for persistence
                 usageTracker,  // Pass UsageTracker for accurate token/cost tracking
                 usageTracker.getMathpixPages(),  // Pass actual Mathpix call count from tracker
-                allPagesOcrData  // Pass OCR data for pipeline cache persistence
+                allPagesOcrData,  // Pass OCR data for pipeline cache persistence
+                preUploadedOriginalFilesPromise
             );
 
             // Construct unified finalOutput that works for both authenticated and unauthenticated users

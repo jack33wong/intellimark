@@ -69,17 +69,16 @@ export class MarkingOutputService {
 
             const scoresToDraw = questionFirstPageScores.get(pageIndex);
 
-            // Find the first page index in standardizedPages that actually contains graded questions (fallback to 0)
-            const firstGradedPageIdx = standardizedPages.findIndex(p =>
-                markingResults.some(r =>
-                    r.pageIndex === p.pageIndex ||
-                    r.annotations?.some(a => a.pageIndex === p.pageIndex) ||
-                    (r.sourceImageIndices && r.sourceImageIndices.includes(p.pageIndex))
-                )
-            );
-            const targetStampArrayIdx = firstGradedPageIdx >= 0 ? firstGradedPageIdx : 0;
+            // Place the overall total score (e.g. 77/80) on the Meta / Front Cover page if one exists
+            // (excluding unattempted trailing question pages that have mapperHints), otherwise on the first page (index 0).
+            const firstMetaPageIdx = standardizedPages.findIndex(p => {
+                const cls = allClassificationResults.find(c => c.pageIndex === p.pageIndex)?.result;
+                return cls?.category === 'frontPage' ||
+                    (cls?.category === 'metadata' && (!Array.isArray((cls as any)?.mapperHints) || (cls as any).mapperHints.length === 0));
+            });
+            const targetStampArrayIdx = firstMetaPageIdx >= 0 ? firstMetaPageIdx : 0;
 
-            // Draw the circular overall score stamp on the first graded page
+            // Draw the overall total score stamp on the target page (Meta page if present, else Page 0)
             const isFirstOutputPage = (i === targetStampArrayIdx);
             const totalScoreToDraw = isFirstOutputPage ? overallScoreText : undefined;
 

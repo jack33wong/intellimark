@@ -582,7 +582,8 @@ export class SessionManagementService {
     files: Express.Multer.File[],
     userId: string,
     submissionId: string,
-    isAuthenticated: boolean
+    isAuthenticated: boolean,
+    existingPdfContext?: any
   ): Promise<FileUploadResult> {
     const result: FileUploadResult = {
       originalImageLinks: []
@@ -593,50 +594,71 @@ export class SessionManagementService {
     }
 
     try {
-      // 🛑 THE FIX: Upload sequentially to prevent Firebase 503 rate limits
-      // Previously, Promise.all blasted all 15 massive PDF pages into Firebase at once,
-      // overloading the server and causing a 503 Service Unavailable crash.
-      const uploadedLinks: string[] = [];
-      for (let index = 0; index < files.length; index++) {
-        const file = files[index];
-        try {
-          // Check if file is a PDF
-          const isPdf = file.mimetype === 'application/pdf';
+      // Upload with bounded concurrency (5 at a time) to avoid Firebase 503 rate limits
+      // while avoiding a 35s+ sequential 1-by-1 bottleneck on 25-file uploads.
+      const UPLOAD_CONCURRENCY = 5;
+      const uploadedLinks: string[] = new Array(files.length).fill('');
 
-          if (isPdf) {
-            // Upload as PDF
-            const pdfLink = await ImageStorageService.uploadPdf(
-              `data:application/pdf;base64,${file.buffer.toString('base64')}`,
-              userId,
-              `multi-${submissionId}`,
-              file.originalname || `document-${index + 1}.pdf`
-            );
-            uploadedLinks.push(pdfLink);
-          } else {
-            // Upload as image
-            const imageLink = await ImageStorageService.uploadImage(
-              file.buffer.toString('base64'),
-              userId,
-              `multi-${submissionId}`,
-              'original'
-            );
-            uploadedLinks.push(imageLink);
+      // Map any already-uploaded PDF links from Stage 1 (`pdfContext`) by originalFileName
+      const existingPdfLinkByName = new Map<string, string>();
+      if (existingPdfContext?.originalPdfLink && existingPdfContext?.originalFileName) {
+        existingPdfLinkByName.set(existingPdfContext.originalFileName, existingPdfContext.originalPdfLink);
+      }
+      if (Array.isArray(existingPdfContext?.pdfContexts)) {
+        for (const ctx of existingPdfContext.pdfContexts) {
+          if (ctx?.originalPdfLink && ctx?.originalFileName) {
+            existingPdfLinkByName.set(ctx.originalFileName, ctx.originalPdfLink);
           }
-        } catch (uploadError) {
-          const fileName = file.originalname || `file-${index + 1}`;
-          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-          const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
-          console.error(`❌ [UPLOAD] Failed to upload original file ${index} (${fileName}):`);
-          console.error(`  - File size: ${fileSizeMB}MB`);
-          console.error(`  - Error: ${errorMessage}`);
-          if (uploadError instanceof Error && uploadError.stack) {
-            console.error(`  - Stack: ${uploadError.stack}`);
-          }
-          // Do not throw! Let the other pages continue uploading, and just push a placeholder or continue
-          // But wait, the frontend needs the array to map to the correct page index!
-          // We MUST push an empty string or null so the array indices match the file indices
-          uploadedLinks.push(""); 
         }
+      }
+
+      for (let batchStart = 0; batchStart < files.length; batchStart += UPLOAD_CONCURRENCY) {
+        const batchIndices = Array.from(
+          { length: Math.min(UPLOAD_CONCURRENCY, files.length - batchStart) },
+          (_, k) => batchStart + k
+        );
+
+        await Promise.all(batchIndices.map(async (index) => {
+          const file = files[index];
+          try {
+            const isPdf = file.mimetype === 'application/pdf';
+
+            if (isPdf) {
+              const originalName = file.originalname || `document-${index + 1}.pdf`;
+              const preUploadedLink = existingPdfLinkByName.get(originalName);
+              if (preUploadedLink) {
+                uploadedLinks[index] = preUploadedLink;
+                return;
+              }
+              const pdfLink = await ImageStorageService.uploadPdf(
+                `data:application/pdf;base64,${file.buffer.toString('base64')}`,
+                userId,
+                `multi-${submissionId}`,
+                originalName
+              );
+              uploadedLinks[index] = pdfLink;
+            } else {
+              const imageLink = await ImageStorageService.uploadImage(
+                file.buffer.toString('base64'),
+                userId,
+                `multi-${submissionId}`,
+                'original'
+              );
+              uploadedLinks[index] = imageLink;
+            }
+          } catch (uploadError) {
+            const fileName = file.originalname || `file-${index + 1}`;
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
+            console.error(`❌ [UPLOAD] Failed to upload original file ${index} (${fileName}):`);
+            console.error(`  - File size: ${fileSizeMB}MB`);
+            console.error(`  - Error: ${errorMessage}`);
+            if (uploadError instanceof Error && uploadError.stack) {
+              console.error(`  - Stack: ${uploadError.stack}`);
+            }
+            uploadedLinks[index] = '';
+          }
+        }));
       }
 
       result.originalImageLinks = uploadedLinks;
