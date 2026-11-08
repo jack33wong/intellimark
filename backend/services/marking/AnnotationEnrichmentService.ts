@@ -379,8 +379,75 @@ export const enrichAnnotationsWithPositions = (
         // console.log(`🛡️ [ENRICH-AUTHORITY] ${anno.subQuestion} | Status: ${status} | Snapped: [${Math.round(authorityBox[0])}, ${Math.round(authorityBox[1])}]px`);
 
         // Resolve student/class text as before
+        const aiTargetSnippet = ((anno as any).student_text || (anno as any).studentText || '').trim();
         let studentText = "";
         let classText = (anno as any).classification_text || "";
+
+        if (anno.action === 'circle' && activePointer) {
+            const match = findInData(activePointer);
+            const fullLineText = (match?.text || match?.cleanedText || '').trim();
+            if (fullLineText) {
+                const lowerLine = fullLineText.toLowerCase();
+                const quoteMatches = Array.from(String((anno as any).reasoning || '').matchAll(/'([^']+)'/g)).map(m => m[1].trim());
+                // Priority 1: AI's verbatim student_text snippet; Priority 2: quoted words in reasoning
+                const candidates = [aiTargetSnippet, ...quoteMatches].filter(c => c && c.length > 0 && c.length < fullLineText.length);
+
+                let matchedStart = -1;
+                let matchedLen = 0;
+
+                // 1. Try exact substring match first
+                for (const cand of candidates) {
+                    const idx = lowerLine.indexOf(cand.toLowerCase());
+                    if (idx >= 0) {
+                        matchedStart = idx;
+                        matchedLen = cand.length;
+                        break;
+                    }
+                }
+
+                // 2. If exact match failed (e.g. 'advice' vs 'advise', 'Holocaust' vs 'Hollacast'), fuzzy-match against words on the line
+                if (matchedStart < 0 && candidates.length > 0) {
+                    const wordRegex = /[a-zA-Z']+/g;
+                    let wordMatch: RegExpExecArray | null;
+                    let bestScore = 0;
+                    while ((wordMatch = wordRegex.exec(lowerLine)) !== null) {
+                        const lineWord = wordMatch[0];
+                        if (lineWord.length < 3) continue;
+                        for (const cand of candidates) {
+                            const target = cand.toLowerCase().replace(/[^a-z']/g, '');
+                            if (target.length < 3) continue;
+                            // Check shared prefix/characters (e.g. 'advis' in 'advise'/'advice', 'hol' + 'cast' in 'hollacast'/'holocaust')
+                            let common = 0;
+                            const minLen = Math.min(lineWord.length, target.length);
+                            const maxLen = Math.max(lineWord.length, target.length);
+                            for (let i = 0; i < minLen; i++) {
+                                if (lineWord[i] === target[i]) common++;
+                            }
+                            const endsSame = lineWord.slice(-2) === target.slice(-2) ? 1.5 : 0;
+                            const score = (common + endsSame) / maxLen;
+                            if (score >= 0.55 && score > bestScore) {
+                                bestScore = score;
+                                matchedStart = wordMatch.index;
+                                matchedLen = lineWord.length;
+                            }
+                        }
+                    }
+                }
+
+                if (matchedStart >= 0 && matchedLen > 0) {
+                    const lineLen = Math.max(1, fullLineText.length);
+                    const startRatio = Math.max(0, (matchedStart - 0.5) / lineLen);
+                    const widthRatio = Math.min(1 - startRatio, Math.max(0.10, (matchedLen + 1) / lineLen));
+                    const [bx, by, bw, bh] = authorityBox;
+                    authorityBox = [
+                        bx + bw * startRatio,
+                        by,
+                        Math.max(28, bw * widthRatio),
+                        bh
+                    ];
+                }
+            }
+        }
 
         if (activePointer) {
             const match = findInData(activePointer);

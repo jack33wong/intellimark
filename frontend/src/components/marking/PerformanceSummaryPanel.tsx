@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { CheckCircle2, Target, Sparkles, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMarkingPage } from '../../contexts/MarkingPageContext';
+import './css/PerformanceSummaryPanel.css';
 
 interface RadarPoint {
   axis: string;
@@ -71,7 +73,165 @@ interface PerformanceSummaryPanelProps {
   rawSummary: string;
   MarkdownMathRenderer: React.ElementType;
   onQuestionClick?: (qNum: string) => void;
+  activeQuestionId?: string | null;
 }
+
+// Helpers for Scannable Micro-Coaching and Single-Expand Strategy
+const renderBoldText = (str: string, highlight?: boolean): React.ReactNode[] => {
+  if (!str) return [];
+  const parts = str.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      const inner = part.slice(2, -2);
+      return (
+        <strong
+          key={i}
+          className={highlight ? 'coaching-highlight-phrase' : undefined}
+        >
+          {inner}
+        </strong>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+};
+
+const parseCoachingBullets = (text: string): string[] => {
+  if (!text || typeof text !== 'string') return [];
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  // 1. Pipe-separated bullets: "bullet 1 | bullet 2"
+  if (trimmed.includes('|')) {
+    return trimmed
+      .split(/\s*\|\s*/)
+      .map(b => b.trim())
+      .filter(Boolean);
+  }
+
+  // 2. Numbered markers: "1) ... 2) ..."
+  if (/\b\d+\)\s*/.test(trimmed)) {
+    return trimmed
+      .split(/(?=\b\d+\)\s*)/)
+      .map(b => b.replace(/^\d+\)\s*/, '').trim())
+      .filter(Boolean);
+  }
+
+  // 3. Fallback: multiple sentences if length > 140 chars
+  if (trimmed.length > 140) {
+    const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s+|$)/g);
+    if (sentences && sentences.length > 1) {
+      return sentences.map(s => s.trim()).filter(Boolean).slice(0, 3);
+    }
+  }
+
+  return [trimmed];
+};
+
+const getDefaultExpandedKey = (qcList: QuestionCoachingItem[]): string | null => {
+  if (!qcList || qcList.length === 0) return null;
+  const parseQNum = (qStr: string | number) => {
+    const num = parseInt(String(qStr).replace(/\D/g, ''), 10);
+    return isNaN(num) ? 999 : num;
+  };
+  const sorted = [...qcList].sort((a, b) => parseQNum(a.q) - parseQNum(b.q));
+
+  // 1. Find the first extended question (> 4 maxMarks) that lost marks
+  const firstExtendedLost = sorted.find(
+    qc => (qc.maxMarks ?? 0) > 4 && (qc.awardedMarks ?? 0) < (qc.maxMarks ?? 0)
+  );
+  if (firstExtendedLost) return String(firstExtendedLost.q);
+
+  // 2. Fallback: first question of any mark value where marks were lost
+  const firstLost = sorted.find(
+    qc => (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < (qc.maxMarks ?? 0)
+  );
+  if (firstLost) return String(firstLost.q);
+
+  // 3. Fallback: first question in qcList
+  if (sorted.length > 0) return String(sorted[0].q);
+  return null;
+};
+
+const getCardPreviewText = (
+  qc: QuestionCoachingItem,
+  focusNextList: Array<{ q?: string; text: string }> = []
+): string => {
+  const normQ = String(qc.q).replace(/^Q/i, '').trim().toLowerCase();
+  const matchFocus = focusNextList.find(f => f.q && String(f.q).replace(/^Q/i, '').trim().toLowerCase() === normQ);
+  if (matchFocus && matchFocus.text) {
+    return matchFocus.text;
+  }
+  const rawGap = qc.coaching?.nextLevelGap || qc.coaching?.rationale || '';
+  const clean = rawGap.replace(/\*\*/g, '').replace(/\|/g, '•').trim();
+  return clean.length > 60 ? clean.slice(0, 60) + '...' : clean;
+};
+
+// Formats the rubric stamp into a clean, compact pill text (desktop vs. mobile)
+const formatRubricBadge = (
+  stamp: string | undefined,
+  awarded: number | undefined,
+  max: number | undefined,
+  isMobile: boolean
+): string => {
+  const aw = awarded ?? 0;
+  const mx = max ?? 0;
+  const markPart = mx > 0 ? `${aw}/${mx}` : '';
+
+  if (!stamp) return markPart ? (isMobile ? markPart : `${markPart} marks`) : '';
+
+  // Clean outer brackets and extra whitespaces
+  let clean = stamp.replace(/^\[\s*|\s*\]$/g, '').trim();
+
+  // Strip parentheses content like "(Clear, relevant)"
+  clean = clean.replace(/\s*\([^)]*\)/g, '').trim();
+
+  // Check if contains pipe separator: "Point-Based | 3/4 marks" or "Level 3 | 9/12 marks"
+  if (clean.includes('|')) {
+    const [tier, marks] = clean.split(/\s*\|\s*/).map(s => s.trim());
+    const cleanMarks = marks ? marks.replace(/\s+marks?/i, '').trim() : markPart;
+    if (isMobile) {
+      let shortTier = tier;
+      if (/^point-based/i.test(tier)) shortTier = 'Pt';
+      else if (/^level\s*(\d+)/i.test(tier)) {
+        const m = tier.match(/^level\s*(\d+)/i);
+        shortTier = m ? `L${m[1]}` : tier;
+      }
+      return cleanMarks ? `${shortTier} • ${cleanMarks}` : shortTier;
+    }
+    return cleanMarks ? `${tier} • ${cleanMarks}` : tier;
+  }
+
+  // Dual AO pattern: "AO5: 16/24 (L3) + AO6: 12/16 (L3) = 28/40"
+  if (/AO5.*AO6/i.test(clean)) {
+    if (isMobile) {
+      return markPart ? `AO5+6 • ${markPart}` : 'AO5+6';
+    }
+    return markPart ? `AO5+AO6 • ${markPart}` : 'AO5+AO6';
+  }
+
+  // Remove trailing "marks" and replace | with •
+  clean = clean.replace(/\s+marks?/i, '').replace(/\s*\|\s*/g, ' • ');
+
+  if (isMobile) {
+    clean = clean.replace(/^point-based/i, 'Pt').replace(/^level\s*(\d+)/i, 'L$1');
+  }
+
+  return clean;
+};
+
+// Aligns badge color with top question ribbon (full mark = green, mid = yellow, low = red)
+const getStampScoreColor = (
+  awarded: number | undefined,
+  max: number | undefined
+): 'green' | 'yellow' | 'red' | 'neutral' => {
+  if (max === undefined || max === null || max <= 0 || awarded === undefined || awarded === null) {
+    return 'neutral';
+  }
+  if (awarded >= max) return 'green';
+  if (awarded === 0) return 'red';
+  return 'yellow';
+};
 
 // Soft pastel sector colors (adapts via opacity to both light & dark mode)
 const SECTOR_COLORS = [
@@ -86,10 +246,11 @@ const SECTOR_COLORS = [
 ];
 
 const TopicRadarChart: React.FC<{ data: RadarPoint[] }> = ({ data }) => {
-  const size = 250;
-  const cx = size / 2;
-  const cy = size / 2;
-  const radius = 78;
+  const width = 360;
+  const height = 310;
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = 94;
   const levels = [0.25, 0.5, 0.75, 1.0];
   const n = data.length || 6;
 
@@ -121,7 +282,7 @@ const TopicRadarChart: React.FC<{ data: RadarPoint[] }> = ({ data }) => {
     return data.map((d, i) => {
       const ratio = Math.max(0.08, Math.min(1, (d.score || 0) / 100));
       const pt = getPoint(i, ratio);
-      const labelPt = getPoint(i, 1.27);
+      const labelPt = getPoint(i, 1.20);
       return { ...pt, labelX: labelPt.x, labelY: labelPt.y, item: d };
     });
   }, [data, n]);
@@ -132,7 +293,7 @@ const TopicRadarChart: React.FC<{ data: RadarPoint[] }> = ({ data }) => {
   return (
     <div className="tmua-radar-wrapper">
       <div className="tmua-section-label">MASTERY BY TOPIC</div>
-      <svg viewBox={`0 0 ${size} ${size}`} className="tmua-radar-svg">
+      <svg viewBox={`0 0 ${width} ${height}`} className="tmua-radar-svg">
         {/* Subtle colored sector wedges */}
         {sectorPaths.map((s, idx) => (
           <path key={idx} d={s.d} fill={s.color} className="tmua-radar-sector" />
@@ -233,8 +394,18 @@ const TopicRadarChart: React.FC<{ data: RadarPoint[] }> = ({ data }) => {
 export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = ({
   rawSummary,
   MarkdownMathRenderer,
-  onQuestionClick
+  onQuestionClick,
+  activeQuestionId: propActiveQuestionId
 }) => {
+  let contextActiveQuestionId: string | null = null;
+  try {
+    const markingPage = useMarkingPage();
+    contextActiveQuestionId = markingPage?.activeQuestionId || null;
+  } catch (_) {
+    // Safe fallback if rendered outside MarkingPageProvider
+  }
+  const effectiveActiveQuestionId = propActiveQuestionId ?? contextActiveQuestionId;
+
   const parsedV2 = useMemo<SummaryV2Payload | null>(() => {
     if (!rawSummary || typeof rawSummary !== 'string') return null;
     const trimmed = rawSummary.trim();
@@ -257,36 +428,28 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
       .sort((a, b) => b.mark - a.mark);
   }, [parsedV2]);
 
-  // Card collapse/expand state (Default: questions with lost marks expanded, or first 2 if 100%)
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    const qcList = parsedV2?.questionCoaching || [];
-    const anyLostMarks = qcList.some(qc => (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks);
-    qcList.forEach((qc, idx) => {
-      const key = qc.q || String(idx);
-      if (anyLostMarks) {
-        initial[key] = (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks;
-      } else {
-        initial[key] = idx < 2;
-      }
-    });
-    return initial;
-  });
+  // Strategy 1 Initial Default (Single-Expand Accordion)
+  const [expandedQuestionKey, setExpandedQuestionKey] = useState<string | null>(() =>
+    getDefaultExpandedKey(parsedV2?.questionCoaching || [])
+  );
 
   useEffect(() => {
-    const nextState: Record<string, boolean> = {};
-    const qcList = parsedV2?.questionCoaching || [];
-    const anyLostMarks = qcList.some(qc => (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks);
-    qcList.forEach((qc, idx) => {
-      const key = qc.q || String(idx);
-      if (anyLostMarks) {
-        nextState[key] = (qc.maxMarks ?? 0) > 0 && (qc.awardedMarks ?? 0) < qc.maxMarks;
-      } else {
-        nextState[key] = idx < 2;
-      }
-    });
-    setExpandedCards(nextState);
+    if (parsedV2?.questionCoaching && parsedV2.questionCoaching.length > 0) {
+      setExpandedQuestionKey(prev => prev ?? getDefaultExpandedKey(parsedV2.questionCoaching!));
+    }
   }, [parsedV2]);
+
+  // Sync When User Clicks Top QUESTION BREAKDOWN Ribbon or Focus Next Chips
+  useEffect(() => {
+    if (!effectiveActiveQuestionId || !parsedV2?.questionCoaching) return;
+    const normActive = String(effectiveActiveQuestionId).replace(/^Q/i, '').trim().toLowerCase();
+    const match = parsedV2.questionCoaching.find(
+      qc => String(qc.q).replace(/^Q/i, '').trim().toLowerCase() === normActive
+    );
+    if (match) {
+      setExpandedQuestionKey(String(match.q));
+    }
+  }, [effectiveActiveQuestionId, parsedV2]);
 
   // Fallback for legacy markdown sessions
   if (!parsedV2) {
@@ -305,13 +468,6 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
   }
 
   const { examInfo, score, grading, radar, mastered, focusNext, headline, tooDenseWarning, questionCoaching } = parsedV2;
-
-  const toggleCard = (key: string) => {
-    setExpandedCards(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
 
   const isPastPaperWithBoundaries = sortedBoundariesDesc.length > 0;
   const maxBoundaryMark = sortedBoundariesDesc[0]?.mark || 0;
@@ -339,6 +495,22 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
     : (rawPredictedGrade || 'N/A');
 
   const hasAchievedGrade = gradeAchieved !== 'N/A' && gradeAchieved !== 'Partial Paper';
+
+  // Compute the next higher grade boundary above score.awardedMarks (lowest b.mark above score.awardedMarks)
+  const nextBoundary = (() => {
+    if (!sortedBoundariesDesc || sortedBoundariesDesc.length === 0 || !score) return null;
+    const higherBoundaries = sortedBoundariesDesc.filter(b => b.mark > score.awardedMarks);
+    if (higherBoundaries.length === 0) return null;
+    return higherBoundaries[higherBoundaries.length - 1];
+  })();
+
+  const scrollToCoachingCard = (qNum: string) => {
+    const clean = String(qNum).replace(/^Q/i, '');
+    const el = document.getElementById(`coaching-card-q${clean}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
 
   return (
     <div className="tmua-summary-card">
@@ -376,14 +548,33 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
               <div className="tmua-hero-score-group">
                 <span className="tmua-hero-pct">{score.percentage}%</span>
                 <span className="tmua-hero-Raw">
-                  {score.awardedMarks} / {score.totalMarks} marks
+                  <span className="score-raw-desktop">{score.awardedMarks} / {score.totalMarks} marks</span>
+                  <span className="score-raw-mobile">{score.awardedMarks}/{score.totalMarks}</span>
                 </span>
               </div>
-              {isPastPaperWithBoundaries && (
-                <div className={`tmua-grade-badge ${!hasAchievedGrade ? 'na' : ''}`}>
-                  {gradeAchieved === 'Partial Paper' ? 'Partial Paper' : `Grade Achieved: ${gradeAchieved}`}
-                </div>
-              )}
+              <div className="tmua-hero-badges">
+                {isPastPaperWithBoundaries && (
+                  <div className={`tmua-grade-badge ${!hasAchievedGrade ? 'na' : ''}`}>
+                    <span className="pill-text-desktop">
+                      {gradeAchieved === 'Partial Paper' ? 'Partial Paper' : `Grade Achieved: ${gradeAchieved}`}
+                    </span>
+                    <span className="pill-text-mobile">
+                      {gradeAchieved === 'Partial Paper' ? 'Partial' : `Grade: ${gradeAchieved}`}
+                    </span>
+                  </div>
+                )}
+                {nextBoundary && isPastPaperWithBoundaries && score.totalMarks > 0 && (
+                  <div
+                    className="tmua-next-grade-pill"
+                    title={`${nextBoundary.mark - score.awardedMarks} ${nextBoundary.mark - score.awardedMarks === 1 ? 'mark' : 'marks'} away from Grade ${nextBoundary.grade}`}
+                  >
+                    <span>🔥</span>
+                    <span>
+                      {nextBoundary.mark - score.awardedMarks} {nextBoundary.mark - score.awardedMarks === 1 ? 'mark' : 'marks'} to Grade {nextBoundary.grade}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {headline && <p className="tmua-headline-text">{headline}</p>}
@@ -495,7 +686,14 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
                         key={idx}
                         type="button"
                         className="tmua-insight-chip mastered"
-                        onClick={() => m.q && onQuestionClick?.(String(m.q).replace(/^Q/i, ''))}
+                        onClick={() => {
+                          if (m.q) {
+                            const cleanQ = String(m.q).replace(/^Q/i, '');
+                            setExpandedQuestionKey(String(m.q));
+                            onQuestionClick?.(cleanQ);
+                            scrollToCoachingCard(cleanQ);
+                          }
+                        }}
                       >
                         {m.q && <span className="chip-q">Q{String(m.q).replace(/^Q/i, '')}</span>}
                         <span>{m.text}</span>
@@ -517,7 +715,14 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
                         key={idx}
                         type="button"
                         className="tmua-insight-chip focus"
-                        onClick={() => f.q && onQuestionClick?.(String(f.q).replace(/^Q/i, ''))}
+                        onClick={() => {
+                          if (f.q) {
+                            const cleanQ = String(f.q).replace(/^Q/i, '');
+                            setExpandedQuestionKey(String(f.q));
+                            onQuestionClick?.(cleanQ);
+                            scrollToCoachingCard(cleanQ);
+                          }
+                        }}
                       >
                         {f.q && <span className="chip-q">Q{String(f.q).replace(/^Q/i, '')}</span>}
                         <span>{f.text}</span>
@@ -540,154 +745,134 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
 
       {/* 3-Part Examiner Coaching Block for Level-of-Response Questions */}
       {questionCoaching && questionCoaching.length > 0 && (
-        <div
-          className="tmua-coaching-section"
-          style={{
-            marginTop: '14px',
-            paddingTop: '14px',
-            borderTop: '1px solid rgba(148, 163, 184, 0.2)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}
-        >
-          <div className="tmua-section-label" style={{ marginBottom: '2px' }}>
+        <div className="tmua-coaching-section">
+          <div className="tmua-section-label">
             EXAMINER LEVEL &amp; GRADE-BOOSTING COACHING
           </div>
           {questionCoaching.map((qc, idx) => {
-            const cardKey = qc.q || String(idx);
-            const isCardExpanded = expandedCards[cardKey] ?? false;
-            const ratio = qc.maxMarks > 0 ? (qc.awardedMarks ?? 0) / qc.maxMarks : 0;
-            const isLevel4 = (qc.awardedLevel ?? 0) >= 4 || ((qc.awardedLevel ?? 0) === 0 && ratio >= 0.80);
-            const isLevel3 = (qc.awardedLevel ?? 0) === 3 || ((qc.awardedLevel ?? 0) === 0 && ratio >= 0.55 && ratio < 0.80);
-            const badgeStyle = isLevel4
-              ? { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }
-              : isLevel3
-                ? { background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.35)' }
-                : { background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.35)' };
+            const cardKey = String(qc.q || idx);
+            const isCardExpanded = expandedQuestionKey === cardKey;
+            const cleanQ = String(qc.q).replace(/^Q/i, '');
+            const cardId = `coaching-card-q${cleanQ}`;
+            const scoreColor = getStampScoreColor(qc.awardedMarks, qc.maxMarks);
+
+            const handleCardHeaderClick = () => {
+              if (isCardExpanded) {
+                setExpandedQuestionKey(null);
+              } else {
+                setExpandedQuestionKey(cardKey);
+                onQuestionClick?.(cleanQ);
+                scrollToCoachingCard(cleanQ);
+              }
+            };
+
+            const previewText = getCardPreviewText(qc, focusNext);
 
             return (
               <div
                 key={idx}
-                style={{
-                  borderRadius: '10px',
-                  border: '1px solid rgba(148, 163, 184, 0.24)',
-                  background: 'rgba(15, 23, 42, 0.03)',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}
+                id={cardId}
+                className={`coaching-card ${isCardExpanded ? 'expanded' : ''}`}
               >
                 <div
-                  onClick={() => toggleCard(cardKey)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                  }}
+                  className="coaching-card-header"
+                  onClick={handleCardHeaderClick}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="coaching-card-header-left">
                     {isCardExpanded ? (
-                      <ChevronUp size={16} style={{ color: 'var(--text-muted, #94a3b8)' }} />
+                      <ChevronUp size={16} className="coaching-card-chevron" />
                     ) : (
-                      <ChevronDown size={16} style={{ color: 'var(--text-muted, #94a3b8)' }} />
+                      <ChevronDown size={16} className="coaching-card-chevron" />
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (qc.q && onQuestionClick) {
-                          onQuestionClick(String(qc.q).replace(/^Q/i, ''));
-                        } else {
-                          toggleCard(cardKey);
-                        }
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        cursor: onQuestionClick ? 'pointer' : 'default',
-                        fontWeight: 700,
-                        fontSize: '0.92rem',
-                        color: 'inherit'
-                      }}
-                    >
+                    <span className="coaching-card-q-title">
                       Question {qc.q}
-                    </button>
+                    </span>
                     {!isCardExpanded && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: 500 }}>
-                        — Click to view feedback
+                      <span className="coaching-card-preview" title={previewText}>
+                        — {previewText}
                       </span>
                     )}
                   </div>
-                  <span
-                    style={{
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      padding: '3px 9px',
-                      borderRadius: '999px',
-                      ...badgeStyle
-                    }}
-                  >
-                    {qc.rubricStamp}
+                  <span className={`coaching-stamp-badge score-${scoreColor}`}>
+                    <span className="badge-text-desktop">
+                      {formatRubricBadge(qc.rubricStamp, qc.awardedMarks, qc.maxMarks, false)}
+                    </span>
+                    <span className="badge-text-mobile">
+                      {formatRubricBadge(qc.rubricStamp, qc.awardedMarks, qc.maxMarks, true)}
+                    </span>
                   </span>
                 </div>
 
                 {isCardExpanded && (
-                  <>
-                    {qc.coaching?.rationale && (
-                      <div style={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
-                        <strong style={{ color: '#059669' }}>Why This Level Was Awarded: </strong>
-                        <span>{qc.coaching.rationale}</span>
+                  <div className="coaching-card-body">
+                    {/* 2-Column Grid */}
+                    <div className="coaching-grid">
+                      {/* Left Box (✅ What Worked) */}
+                      <div className="coaching-box coaching-what-worked">
+                        <div className="coaching-box-header what-worked">
+                          <span>✅</span>
+                          <span>What Worked</span>
+                        </div>
+                        {qc.coaching?.rationale ? (
+                          <ul className="coaching-bullet-list">
+                            {parseCoachingBullets(qc.coaching.rationale).map((bullet, bIdx) => (
+                              <li key={bIdx}>
+                                {renderBoldText(bullet)}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="coaching-empty-note">No rationale provided.</span>
+                        )}
                       </div>
-                    )}
 
-                    {qc.coaching?.nextLevelGap && (
-                      <div style={{ fontSize: '0.84rem', lineHeight: 1.45 }}>
-                        <strong style={{ color: '#d97706' }}>How to Reach the Next Level: </strong>
-                        <span>{qc.coaching.nextLevelGap}</span>
+                      {/* Right Box (🎯 How to Reach Next Level) */}
+                      <div className="coaching-box coaching-next-level">
+                        <div className="coaching-box-header next-level">
+                          <span>🎯</span>
+                          <span>How to Reach Next Level</span>
+                        </div>
+                        {qc.coaching?.nextLevelGap ? (
+                          <ul className="coaching-bullet-list">
+                            {parseCoachingBullets(qc.coaching.nextLevelGap).map((bullet, bIdx) => (
+                              <li key={bIdx}>
+                                {renderBoldText(bullet)}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="coaching-empty-note">Full marks achieved.</span>
+                        )}
                       </div>
-                    )}
+                    </div>
 
+                    {/* Compact Grade 9 Upgrade Rewrite Box */}
                     {qc.coaching?.upgradeRewrite?.originalQuote &&
                       qc.coaching?.upgradeRewrite?.upgradedVersion &&
                       (qc.maxMarks ? qc.maxMarks > 4 : true) && (
-                        <div
-                          style={{
-                            marginTop: '4px',
-                            padding: '9px 11px',
-                            borderRadius: '8px',
-                            background: 'rgba(59, 130, 246, 0.06)',
-                            borderLeft: '3px solid #3b82f6',
-                            fontSize: '0.82rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px'
-                          }}
-                        >
-                          <div style={{ fontWeight: 700, color: '#2563eb' }}>Concrete Upgrade Rewrite</div>
-                          <div>
-                            <span style={{ opacity: 0.75, fontWeight: 600 }}>Your Sentence: </span>
-                            <em>&ldquo;{qc.coaching.upgradeRewrite.originalQuote}&rdquo;</em>
+                        <div className="coaching-rewrite-box">
+                          <div className="coaching-rewrite-title">
+                            Grade 9 Analytical Upgrade Rewrite
                           </div>
                           <div>
-                            <span style={{ color: '#059669', fontWeight: 600 }}>Top-Band Upgrade: </span>
-                            <span>&ldquo;{qc.coaching.upgradeRewrite.upgradedVersion}&rdquo;</span>
+                            <span className="coaching-rewrite-label user-line">Your Line: </span>
+                            <em className="coaching-rewrite-quote">&ldquo;{qc.coaching.upgradeRewrite.originalQuote}&rdquo;</em>
+                          </div>
+                          <div>
+                            <span className="coaching-rewrite-label upgrade">Grade 9 Upgrade: </span>
+                            <span>
+                              &ldquo;{renderBoldText(qc.coaching.upgradeRewrite.upgradedVersion, true)}&rdquo;
+                            </span>
                           </div>
                           {qc.coaching.upgradeRewrite.explanation && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
+                            <div className="coaching-rewrite-explanation">
                               💡 <strong>Why this scores higher: </strong>
                               <span>{qc.coaching.upgradeRewrite.explanation}</span>
                             </div>
                           )}
                         </div>
                       )}
-                  </>
+                  </div>
                 )}
               </div>
             );

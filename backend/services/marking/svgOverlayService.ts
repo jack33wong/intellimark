@@ -92,8 +92,8 @@ export class SVGOverlayService {
     circleMark: {
       baseRadius: 60,
       baseFontSize: 30,
-      marginRight: 90,
-      marginTop: 90,
+      marginRight: 195,
+      marginTop: 70,
       baseStrokeWidth: 8,
       minRadius: 30,
       minStrokeWidth: 4
@@ -441,7 +441,10 @@ export class SVGOverlayService {
     }
 
     if (action === 'tick' || action === 'cross' || action === 'write') {
-      const symbol = action === 'tick' ? '✓' : (action === 'cross' ? '✗' : (text && text.length < 5 ? text : '✎'));
+      let symbol = action === 'tick' ? '✓' : (action === 'cross' ? '✗' : (text && text.length < 5 ? text : '✎'));
+      if (action === 'tick' && text && /\bL[12]\b/i.test(text)) {
+        symbol = '↑';
+      }
       const reasoning = (annotation as any).reasoning;
       svg += this.createSymbolAnnotation(
         annotation,
@@ -510,19 +513,34 @@ export class SVGOverlayService {
     );
 
     // 1. Resolution-proportional sizing (scales cleanly from 320x480 split pages up to 2400px+ scans)
-    const baseSymbolSize = Math.max(9, Math.round((symbol === '✓' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
+    const baseSymbolSize = Math.max(9, Math.round(((symbol === '✓' || symbol === '↑') ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
     const baseTextSize = Math.max(8, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
 
     // --- CALCULATE SYMBOL LINE (LINE 1) ---
-    const cleanCodeText = (text && text.trim()) ? text.trim() : '';
+    let cleanCodeText = (text && text.trim()) ? text.trim() : '';
     const isEnglishAoBadge = /\[?AO\d|L[1-4]\]?/i.test(cleanCodeText);
+    if (isEnglishAoBadge) {
+      // Strip outer square brackets to save ~25px horizontal width (e.g. [AO5 L3] -> AO5 L3, [AO6] Grammar -> AO6 Grammar)
+      cleanCodeText = cleanCodeText.replace(/\[([^\]]+)\]/g, '$1').trim();
+    }
 
-    const textSize = isEnglishAoBadge ? Math.max(7, Math.round(baseTextSize * 0.58)) : baseTextSize;
-    const symbolSize = isEnglishAoBadge ? Math.max(8, Math.round(baseSymbolSize * 0.62)) : baseSymbolSize;
+    const compactCodeText = isEnglishAoBadge
+      ? cleanCodeText
+          .replace(/^\[\vert{}\]$/g, '')
+          .replace(/\[\vert{}\]/g, '')
+          .replace(/\bCapitalisation\b/i, 'Caps')
+          .replace(/\bPunctuation\b/i, 'Punct')
+          .replace(/\bSpelling\b/i, 'Spell')
+          .replace(/\bComma\s+splice\b/i, 'Comma')
+          .trim()
+      : cleanCodeText;
+
+    const textSize = isEnglishAoBadge ? Math.max(7, Math.round(baseTextSize * 0.50)) : baseTextSize;
+    const symbolSize = isEnglishAoBadge ? Math.max(8, Math.round(baseSymbolSize * 0.54)) : baseSymbolSize;
     const badgeFontFamily = isEnglishAoBadge ? "Arial, sans-serif" : this.CONFIG.fontFamily;
     const classificationSize = Math.max(7, Math.round(textSize * 0.8));
 
-    const markingCodeWidth = cleanCodeText ? this.estimateTextWidth(cleanCodeText, textSize) : 0;
+    const markingCodeWidth = compactCodeText ? this.estimateTextWidth(compactCodeText, textSize) : 0;
 
     const maxChars = 50;
     // Suppress classification text next to English AO badges so student sentences don't expand the badge or clash with margins
@@ -576,7 +594,7 @@ export class SVGOverlayService {
     const isFlipped = false;
     const maxSymbolRightX = Math.max(edgeMargin, pageRightLimit - finalLine1Width);
     const symbolAnchorX = isEnglishAoBadge
-      ? maxSymbolRightX
+      ? Math.max(Math.min(rightEdgeOfStudentWork + Math.round(8 * fontScaleFactor), maxSymbolRightX), Math.min(Math.round(actualWidth * 0.875), maxSymbolRightX))
       : Math.min(rightEdgeOfStudentWork + padding, maxSymbolRightX);
 
     let symBoxX = symbolAnchorX;
@@ -606,8 +624,8 @@ export class SVGOverlayService {
     occupiedRects.push({ ...symRect });
 
     // Queue reasoning text for Pass 2 (Teacher-Style Empty-Space Placement)
-    // Supports: ✗ (Math/English/BYOMS errors), ⭕ (English SPaG circles), and ✓ with English AO/Level tags (e.g. [AO2 L4])
-    const isEnglishPositiveAoComment = symbol === '✓' && isEnglishAoBadge;
+    // Supports: ✗ (Math/English/BYOMS errors), ⭕ (English SPaG circles), and ✓ / ↑ with English AO/Level tags (e.g. [AO2 L4], [AO2 L2])
+    const isEnglishPositiveAoComment = (symbol === '✓' || symbol === '↑') && isEnglishAoBadge;
     if ((symbol === '✗' || symbol === '⭕' || isEnglishPositiveAoComment) && reasoning && reasoning.trim()) {
       let cleanReasoning = reasoning
         .replace(/^\s*(?:\[[^\]]+\]\s*)+:?\s*/i, '') // Strip leading [1c] / [2b] subQuestion tags on canvas
@@ -643,14 +661,14 @@ export class SVGOverlayService {
           studentRect: { x, y, w: Math.max(8, width), h: Math.max(8, height) },
           reasoningText: cleanReasoning,
           subQuestion: annotation.subQuestion,
-          color: symbol === '✓' ? '#008000' : (symbol === '⭕' ? '#d97706' : '#e60000')
+          color: symbol === '✓' ? '#008000' : ((symbol === '⭕' || symbol === '↑') ? '#d97706' : '#e60000')
         });
       }
     }
 
     // --- RENDER SYMBOL LINE (WITH SUBTLE HALO INSTEAD OF OPAQUE BOX) ---
     let mainSVG = '';
-    const mainColor = symbol === '✓' ? '#008000' : (symbol === '⭕' ? '#d97706' : '#ff0000');
+    const mainColor = symbol === '✓' ? '#008000' : ((symbol === '⭕' || symbol === '↑') ? '#d97706' : '#ff0000');
     const haloStrokeWidth = Math.max(1.2, Number((3.5 * fontScaleFactor).toFixed(1)));
     const haloStyle = `paint-order="stroke fill" stroke="rgba(255, 255, 255, 0.88)" stroke-width="${haloStrokeWidth}px" stroke-linecap="round" stroke-linejoin="round"`;
 
@@ -673,9 +691,9 @@ export class SVGOverlayService {
                   font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
       currentX += symbolSize + gapAfterSymbol;
 
-      if (cleanCodeText) {
+      if (compactCodeText) {
         mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" ${haloStyle}
-                      font-family="${badgeFontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(cleanCodeText)}</text>`;
+                      font-family="${badgeFontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(compactCodeText)}</text>`;
         currentX += markingCodeWidth + gapAfterCode;
       }
       if (displayClassText) {
@@ -687,9 +705,9 @@ export class SVGOverlayService {
                   font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
       currentX -= (symbolSize + gapAfterSymbol);
 
-      if (cleanCodeText) {
+      if (compactCodeText) {
         mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="end" fill="${mainColor}" ${haloStyle}
-                      font-family="${badgeFontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(cleanCodeText)}</text>`;
+                      font-family="${badgeFontFamily}" font-size="${textSize}" font-weight="bold">${this.escapeXml(compactCodeText)}</text>`;
         currentX -= (markingCodeWidth + gapAfterCode);
       }
       if (displayClassText) {
@@ -741,7 +759,7 @@ export class SVGOverlayService {
       }
     }
 
-    const isEnglishPositiveAoComment = item.color === '#008000';
+    const isEnglishPositiveAoComment = item.color === '#008000' || item.color === '#d97706';
 
     // Search window around the symbol, respecting zone bounds when reasonable
     const searchMinY = Math.max(edgeMargin, Math.min(zoneMinY, symbolRect.y - 30 * fontScaleFactor));
@@ -1108,7 +1126,7 @@ export class SVGOverlayService {
       const verticalGap = circleRadius * 2.5;
       const circleY = circleRadius + (config.marginTop * scaleFactor) + (index * verticalGap);
 
-      const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" fill="none" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
+      const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" fill="rgba(255, 255, 255, 0.90)" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
       const textYAdjust = scoreFontSize * 0.35;
       const text = `<text x="${circleX}" y="${circleY + textYAdjust}" text-anchor="middle" dominant-baseline="middle" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" font-size="${scoreFontSize}" font-weight="bold">${scoreText}</text>`;
       svg += circle + text;
