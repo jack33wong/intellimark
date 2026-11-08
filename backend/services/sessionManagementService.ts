@@ -951,6 +951,7 @@ export class SessionManagementService {
           examSeries: firstDetection.examSeries || firstDetection.year || '',
           tier: firstDetection.tier || '',
           subject: firstDetection.subject || firstDetection.qualification || '',
+          qualification: firstDetection.qualification || firstDetection.level || '',
           paperTitle: firstDetection.paperTitle || firstQuestionMetadata.paperTitle || "Annotated Paper",
           totalMarks: syncTotal,
           questions: questions

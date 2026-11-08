@@ -126,6 +126,63 @@ export class SuggestedFollowUpService {
   }
 
   /**
+   * Builds the TMUA-style exam metadata pill bar HTML for follow-up responses
+   */
+  private static buildExamMetaPills(detectedQuestion: any): string {
+    const firstEp = detectedQuestion?.examPapers?.[0];
+
+    // Check if it is a real past paper (not a generic fallback or custom upload)
+    const board = String(firstEp?.examBoard || '').trim();
+    const isCustomOrUnknown = !board || board.toLowerCase() === 'custom' || board.toLowerCase() === 'unknown';
+    const isGeneric = firstEp?.isGeneric === true || firstEp?.examCode === 'Generic Question';
+    const isNotFound = detectedQuestion?.found === false;
+
+    // For custom mark scheme, non past paper: show "Custom" on the badge, only 1 badge
+    if (isCustomOrUnknown || isGeneric || isNotFound || !firstEp) {
+      return `<div class="tmua-exam-pills"><span class="tmua-pill">Custom</span></div>\n\n`;
+    }
+
+    const pills: string[] = [];
+
+    // 1. Exam Board
+    if (firstEp.examBoard && firstEp.examBoard !== 'Unknown') {
+      pills.push(`<span class="tmua-pill">${firstEp.examBoard}</span>`);
+    }
+
+    // 2. Subject
+    if (firstEp.subject && firstEp.subject !== 'General') {
+      pills.push(`<span class="tmua-pill">${firstEp.subject}</span>`);
+    }
+
+    // 3. Exam Code
+    if (firstEp.examCode && firstEp.examCode !== 'N/A') {
+      pills.push(`<span class="tmua-pill strong">${firstEp.examCode}</span>`);
+    }
+
+    // 4. Exam Series
+    const series = firstEp.examSeries || (firstEp as any).year;
+    if (series) {
+      pills.push(`<span class="tmua-pill">${series}</span>`);
+    }
+
+    // 5. Tier: Omit if n.a, empty, none, unknown, or untiered
+    if (firstEp.tier) {
+      const normTier = String(firstEp.tier).trim().toLowerCase();
+      const isOmittedTier = !normTier || ['n/a', 'na', 'n.a', 'n.a.', 'none', 'unknown', 'untiered'].includes(normTier);
+      if (!isOmittedTier) {
+        pills.push(`<span class="tmua-pill">${firstEp.tier}</span>`);
+      }
+    }
+
+    // Fallback: If no past paper pills were generated, show 1 Custom badge
+    if (pills.length === 0) {
+      return `<div class="tmua-exam-pills"><span class="tmua-pill">Custom</span></div>\n\n`;
+    }
+
+    return `<div class="tmua-exam-pills">${pills.join('')}</div>\n\n`;
+  }
+
+  /**
    * Helper to stringify marking scheme (handles text, array, and object formats)
    * Public for testing purposes.
    */
@@ -547,6 +604,12 @@ export class SuggestedFollowUpService {
     if (isModelAnswer && !isEnglishLoR) {
       const { DiagramBridgeService } = await import('../diagram/DiagramBridgeService.js');
       combinedResponse = await DiagramBridgeService.processDiagramHints(combinedResponse, model, tracker, 'MODEL-ANSWER-BATCH');
+    }
+
+    // Prepend exam metadata pills header for model answers and marking scheme explanations
+    if (isModelAnswer || mode === 'marking-scheme') {
+      const pillsHeader = this.buildExamMetaPills(detectedQuestion);
+      combinedResponse = pillsHeader + combinedResponse;
     }
 
     // 4. Cleanup and Return

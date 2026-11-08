@@ -883,6 +883,7 @@ export function buildExamPaperStructure(detectionResults: any[]) {
         examSeries: series,
         tier: tier,
         subject: subject,
+        qualification: match.qualification || match.level || '',
         // Pattern: Exam Series + Board Short + Subject Short + Tier
         paperTitle: `${series} ${boardPart} ${subjectPart}${tier ? ` ${tier}` : ''}`.replace(/\s+/g, ' ').trim(),
         questions: [],

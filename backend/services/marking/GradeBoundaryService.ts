@@ -50,7 +50,8 @@ export class GradeBoundaryService {
     examCode: string,
     tier: string,
     studentScore: number,
-    totalMarks: number
+    totalMarks: number,
+    qualification?: string
   ): Promise<GradeResult> {
     try {
       // Find matching grade boundary entry
@@ -59,7 +60,8 @@ export class GradeBoundaryService {
         examSeries,
         subject,
         examCode,
-        tier
+        tier,
+        qualification
       );
 
       if (!boundaryEntry) {
@@ -71,10 +73,13 @@ export class GradeBoundaryService {
         };
       }
 
-      // Find matching subject
+      // Find matching subject (prioritize exact specification code match e.g. "1MA1" over generic name "Mathematics")
+      const extractedSubjectCode = this.extractSubjectCodeFromExamCode(examCode);
       const matchingSubject = boundaryEntry.subjects.find(s =>
+        Boolean(extractedSubjectCode && s.code && s.code.toUpperCase() === extractedSubjectCode.toUpperCase())
+      ) || boundaryEntry.subjects.find(s =>
         this.normalizeSubjectName(s.name) === this.normalizeSubjectName(subject) ||
-        this.extractSubjectCodeFromExamCode(examCode) === s.code
+        Boolean(extractedSubjectCode && s.code && s.code.toUpperCase() === extractedSubjectCode.toUpperCase())
       );
 
       if (!matchingSubject) {
@@ -220,7 +225,8 @@ export class GradeBoundaryService {
     examSeries: string,
     subject: string,
     examCode: string,
-    tier: string
+    tier: string,
+    qualification?: string
   ): Promise<GradeBoundaryEntry | null> {
     try {
       const db = getFirestore();
@@ -248,22 +254,76 @@ export class GradeBoundaryService {
         return null;
       }
 
-      // Find the best matching entry (should be only one, but handle multiple)
+      const extractedSubjectCode = this.extractSubjectCodeFromExamCode(examCode);
+      const extractedPaperCode = this.extractPaperCodeFromExamCode(examCode);
+      const targetQualNorm = qualification ? this.normalizeQualification(qualification) : '';
+
+      let bestEntry: GradeBoundaryEntry | null = null;
+      let highestScore = -1;
+
+      // Find the best matching entry using weighted specificity
       for (const doc of snapshot.docs) {
         const entry = { id: doc.id, ...doc.data() } as GradeBoundaryEntry;
+        const entryQualNorm = this.normalizeQualification(entry.qualification);
 
-        // Check if subject matches
-        const hasMatchingSubject = entry.subjects.some(s =>
-          this.normalizeSubjectName(s.name) === this.normalizeSubjectName(subject) ||
-          this.extractSubjectCodeFromExamCode(examCode) === s.code
-        );
+        for (const s of entry.subjects || []) {
+          let score = 0;
+          const sNameMatch = this.normalizeSubjectName(s.name) === this.normalizeSubjectName(subject);
+          const sCodeMatch = Boolean(
+            extractedSubjectCode && (
+              s.code.toUpperCase() === extractedSubjectCode.toUpperCase() ||
+              examCode.toUpperCase().includes(s.code.toUpperCase())
+            )
+          );
 
-        if (hasMatchingSubject) {
-          return entry;
+          // If neither subject name nor code matches, skip this subject
+          if (!sNameMatch && !sCodeMatch) continue;
+
+          // 1. Exact specification/subject code match (e.g. "1MA1" === "1MA1") gives highest priority
+          if (sCodeMatch) {
+            score += 100;
+          }
+          if (sNameMatch) {
+            score += 20;
+          }
+
+          // 2. Qualification matching (GCSE vs A-Level vs IGCSE)
+          if (targetQualNorm && entryQualNorm) {
+            if (targetQualNorm === entryQualNorm) {
+              score += 50;
+            } else {
+              score -= 80; // Penalize mismatch (e.g. looking for GCSE but document is A-Level)
+            }
+          }
+
+          // 3. Tier & Paper code matching
+          if (tier && s.tiers) {
+            const normTier = this.normalizeTier(tier);
+            const matchingTier = s.tiers.find(t => this.normalizeTier(t.tier_level) === normTier);
+            if (matchingTier) {
+              score += 15;
+              if (extractedPaperCode && matchingTier.papers) {
+                const normPaperCode = extractedPaperCode.toLowerCase();
+                const hasPaper = matchingTier.papers.some(p => {
+                  const pCodeNorm = String(p.code || '').trim().toLowerCase();
+                  const pShortNorm = String(this.extractPaperCodeFromExamCode(p.code) || '').trim().toLowerCase();
+                  return pCodeNorm === normPaperCode || pShortNorm === normPaperCode;
+                });
+                if (hasPaper) {
+                  score += 40; // Exact paper code found (e.g. "1H")
+                }
+              }
+            }
+          }
+
+          if (score > highestScore) {
+            highestScore = score;
+            bestEntry = entry;
+          }
         }
       }
 
-      return null;
+      return bestEntry;
     } catch (error) {
       return null;
     }
@@ -498,6 +558,18 @@ export class GradeBoundaryService {
   }
 
   /**
+   * Normalize qualification for matching (e.g., "GCSE", "A-Level", "IGCSE")
+   */
+  private static normalizeQualification(q?: string | null): string {
+    if (!q) return '';
+    const s = q.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (s.includes('alevel') || s.includes('advanced')) return 'a-level';
+    if (s.includes('igcse') || s.includes('internationalgcse')) return 'igcse';
+    if (s.includes('gcse')) return 'gcse';
+    return s;
+  }
+
+  /**
    * Infer subject from exam code (e.g., "1MA1" -> "MATHEMATICS", "8700" -> "ENGLISH LANGUAGE")
    */
   static inferSubjectFromExamCode(examCode: string): string {
@@ -556,7 +628,8 @@ export class GradeBoundaryService {
           examCode: match.paperCode || '',
           examSeries: match.examSeries || (match as any).year || '',
           tier: match.tier || '',
-          subject: subject
+          subject: subject,
+          qualification: match.qualification || match.level || ''
         }]
       };
     }
@@ -602,7 +675,8 @@ export class GradeBoundaryService {
           firstExamPaper.examCode,
           firstExamPaper.tier,
           overallScore,
-          totalPossibleScore
+          totalPossibleScore,
+          firstExamPaper.qualification || (firstExamPaper as any).level
         );
 
         // Always store boundaries if available
