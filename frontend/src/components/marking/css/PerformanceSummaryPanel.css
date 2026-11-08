@@ -440,11 +440,11 @@
 }
 
 .tmua-insight-heading.mastered {
-  color: #10b981;
+  color: var(--function-success);
 }
 
 .tmua-insight-heading.focus {
-  color: #f59e0b;
+  color:  var(--function-warning);
 }
 
 .tmua-insight-chips {
@@ -728,21 +728,21 @@ html.dark .coaching-card.expanded {
 html.dark .coaching-stamp-badge.score-green,
 html.dark .coaching-stamp-badge.level-4 {
   background: rgba(94, 185, 45, 0.15);
-  color: #5eb92d;
+  color: var(--function-success);
   border-color: rgba(94, 185, 45, 0.4);
 }
 
 html.dark .coaching-stamp-badge.score-yellow,
 html.dark .coaching-stamp-badge.level-3 {
   background: rgba(255, 191, 54, 0.15);
-  color: #ffbf36;
+  color: var(--function-warning);
   border-color: rgba(251, 191, 36, 0.4);
 }
 
 html.dark .coaching-stamp-badge.score-red,
 html.dark .coaching-stamp-badge.level-below {
   background: rgba(235, 77, 77, 0.15);
-  color: #eb4d4d;
+  color: var(--function-error);
   border-color: rgba(235, 77, 77, 0.4);
 }
 
@@ -800,11 +800,11 @@ html.dark .coaching-next-level {
 }
 
 .coaching-box-header.what-worked {
-  color: #059669;
+  color: var(--function-success);
 }
 
 .coaching-box-header.next-level {
-  color: #d97706;
+  color: var(--function-warning);
 }
 
 .coaching-bullet-list {
@@ -828,7 +828,7 @@ html.dark .coaching-next-level {
   padding: 10px 12px;
   border-radius: 8px;
   background: rgba(59, 130, 246, 0.06);
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid var(--text-blue);
   font-size: 0.82rem;
   display: flex;
   flex-direction: column;
@@ -837,19 +837,19 @@ html.dark .coaching-next-level {
 
 html.dark .coaching-rewrite-box {
   background: rgba(59, 130, 246, 0.10);
-  border-left-color: #60a5fa;
+  border-left-color: var(--text-blue);
 }
 
 .coaching-rewrite-title {
   font-weight: 700;
-  color: #2563eb;
+  color: var(--text-blue);
   font-size: 0.80rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 html.dark .coaching-rewrite-title {
-  color: #60a5fa;
+  color: var(--text-blue);
 }
 
 .coaching-rewrite-label {
@@ -861,11 +861,11 @@ html.dark .coaching-rewrite-title {
 }
 
 .coaching-rewrite-label.upgrade {
-  color: #059669;
+  color: var(--text-blue);
 }
 
 html.dark .coaching-rewrite-label.upgrade {
-  color: #34d399;
+  color: var(--function-success);
 }
 
 .coaching-rewrite-quote {
@@ -873,7 +873,7 @@ html.dark .coaching-rewrite-label.upgrade {
 }
 
 .coaching-highlight-phrase {
-  color: #34d399;
+  color: var(--function-success);
   font-weight: 700;
 }
 
