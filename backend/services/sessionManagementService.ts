@@ -64,6 +64,7 @@ export interface AIMessageData {
   usageTracker?: any;
   stepTimings?: any;
   standardizedPages?: import('../types/markingRouter.js').StandardizedPage[]; // NEW: For metadata sync
+  precomputedPerformanceSummaryPromise?: Promise<{ summary: string | undefined; durationMs: number; startTime: number }>;
 }
 
 export class SessionManagementService {
@@ -637,6 +638,20 @@ export class SessionManagementService {
                 originalName
               );
               uploadedLinks[index] = pdfLink;
+
+              // Back-fill existingPdfContext if PDF upload was deferred from Stage 1 to background
+              if (existingPdfContext) {
+                if (!existingPdfContext.isMultiplePdfs && !existingPdfContext.originalPdfLink) {
+                  existingPdfContext.originalPdfLink = pdfLink;
+                } else if (Array.isArray(existingPdfContext.pdfContexts)) {
+                  const matchingCtx = existingPdfContext.pdfContexts.find(
+                    (c: any) => c.fileIndex === index || (!c.originalPdfLink && c.originalFileName === originalName)
+                  );
+                  if (matchingCtx) {
+                    matchingCtx.originalPdfLink = pdfLink;
+                  }
+                }
+              }
             } else {
               const imageLink = await ImageStorageService.uploadImage(
                 file.buffer.toString('base64'),
@@ -972,43 +987,52 @@ export class SessionManagementService {
     // ==================================================================================
     // ==================================================================================
 
-    // Aggregated Summaries Redesign: Distilled Data Pass
-    const summaryStartTime = Date.now();
-    const firstExamPaper = detectedQuestion?.examPapers?.[0];
-    
-    // Check if it's a real past paper (not a generic fallback)
-    const isPastPaper = firstExamPaper && firstExamPaper.examBoard && firstExamPaper.examBoard !== 'Unknown' && detectedQuestion?.found === true;
+    // Aggregated Summaries Redesign: Distilled Data Pass (uses precomputed parallel promise if started alongside Output Generation)
+    let summaryStartTime = Date.now();
+    let summaryDurationMs = 0;
+    let overallPerformanceSummary: string | undefined;
 
-    const examInfo = firstExamPaper ? {
-      examBoard: firstExamPaper.examBoard,
-      examSeries: firstExamPaper.examSeries || (firstExamPaper as any).year,
-      subject: firstExamPaper.subject,
-      examCode: firstExamPaper.examCode,
-      tier: firstExamPaper.tier
-    } : undefined;
+    if (aiData.precomputedPerformanceSummaryPromise) {
+      const precomputed = await aiData.precomputedPerformanceSummaryPromise;
+      overallPerformanceSummary = precomputed.summary;
+      summaryStartTime = precomputed.startTime;
+      summaryDurationMs = precomputed.durationMs;
+    } else {
+      const firstExamPaper = detectedQuestion?.examPapers?.[0];
+      const isPastPaper = firstExamPaper && firstExamPaper.examBoard && firstExamPaper.examBoard !== 'Unknown' && detectedQuestion?.found === true;
 
-    const overallPerformanceSummary = await this.generateMasterPerformanceSummary(
-      allQuestionResults, 
-      actualModel, 
-      aiData.usageTracker,
-      isPastPaper ? grade : undefined,
-      isPastPaper ? predictedGrade : undefined,
-      isPastPaper ? gradeBoundaries : undefined,
-      isPastPaper ? studentScore : studentScore, // Pass studentScore regardless
-      isPastPaper ? examInfo : undefined
-    );
+      const examInfo = firstExamPaper ? {
+        examBoard: firstExamPaper.examBoard,
+        examSeries: firstExamPaper.examSeries || (firstExamPaper as any).year,
+        subject: firstExamPaper.subject,
+        examCode: firstExamPaper.examCode,
+        tier: firstExamPaper.tier
+      } : undefined;
+
+      overallPerformanceSummary = await this.generateMasterPerformanceSummary(
+        allQuestionResults, 
+        actualModel, 
+        aiData.usageTracker,
+        isPastPaper ? grade : undefined,
+        isPastPaper ? predictedGrade : undefined,
+        isPastPaper ? gradeBoundaries : undefined,
+        studentScore,
+        isPastPaper ? examInfo : undefined
+      );
+      summaryDurationMs = Date.now() - summaryStartTime;
+    }
 
     // Record timing if stepTimings is provided
     if (aiData.stepTimings) {
       aiData.stepTimings['performance_summary'] = {
         start: summaryStartTime,
-        duration: Date.now() - summaryStartTime
+        duration: summaryDurationMs
       };
 
       const green = '\x1b[32m';
       const bold = '\x1b[1m';
       const reset = '\x1b[0m';
-      const durationSec = ((Date.now() - summaryStartTime) / 1000).toFixed(1);
+      const durationSec = (summaryDurationMs / 1000).toFixed(1);
       console.log(`${bold}${green}✅ [PERFORMANCE SUMMARY AI]${reset} ${bold}COMPLETED${reset} in ${bold}${durationSec}s${reset} (${green}${bold}${actualModel.toUpperCase()}${reset})`);
     }
 
@@ -1123,7 +1147,7 @@ export class SessionManagementService {
   /**
    * Generates a cohesive master performance summary based on distilled results of all questions.
    */
-  private static async generateMasterPerformanceSummary(
+  public static async generateMasterPerformanceSummary(
     allQuestionResults: any[],
     model: string,
     tracker?: any,

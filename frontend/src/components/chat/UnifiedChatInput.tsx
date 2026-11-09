@@ -156,6 +156,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [isMultiImage, setIsMultiImage] = useState<boolean>(false);
+  const [fileSizeWarning, setFileSizeWarning] = useState<string | null>(null);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
   const [isMobileUploadOpen, setIsMobileUploadOpen] = useState<boolean>(false);
@@ -547,14 +548,32 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       existingFiles.map(f => `${f.name}::${getOriginalSize(f)}`)
     );
     const deduplicatedNewFiles: File[] = [];
+    const MAX_SINGLE_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per file (matches backend Firebase Storage limit)
+    const MAX_TOTAL_BATCH_BYTES = 100 * 1024 * 1024; // 100 MB total per batch
+    let runningBatchBytes = existingFiles.reduce((sum, f) => sum + (f.size || 0), 0);
+    let sizeWarningMsg: string | null = null;
+
     for (const file of newFiles) {
       const key = `${file.name}::${getOriginalSize(file)}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        deduplicatedNewFiles.push(file);
+      if (seenKeys.has(key)) continue;
+
+      if (file.size > MAX_SINGLE_FILE_BYTES) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        sizeWarningMsg = `"${file.name}" (${sizeMB} MB) exceeds the 50 MB per-file limit and was skipped.`;
+        continue;
       }
+
+      if (runningBatchBytes + file.size > MAX_TOTAL_BATCH_BYTES) {
+        sizeWarningMsg = `Total upload size cannot exceed 100 MB per batch. "${file.name}" was skipped.`;
+        continue;
+      }
+
+      seenKeys.add(key);
+      runningBatchBytes += file.size;
+      deduplicatedNewFiles.push(file);
     }
 
+    setFileSizeWarning(sizeWarningMsg);
     if (deduplicatedNewFiles.length === 0) return;
 
     // Helper: Detect Safari/WebKit silent canvas memory exhaustion that produces a solid-black JPEG (~70 KB)
@@ -839,9 +858,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     setImageFiles([]);
     setIsMultiImage(false);
     setIsExpanded(false);
+    setFileSizeWarning(null);
   }, []);
 
   const removeImageAtIndex = useCallback((indexToRemove: number) => {
+    setFileSizeWarning(null);
     if (isMultiImage) {
       const newFiles = imageFiles.filter((_, index) => index !== indexToRemove);
       const newPreviews = previewImages.filter((_, index) => index !== indexToRemove);
@@ -933,6 +954,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       setImageFiles([]);
       setIsMultiImage(false);
       setIsExpanded(false);
+      setFileSizeWarning(null);
 
       // Finalize Mobile Session if it exists
       if (mobileSessionId) {
@@ -1263,6 +1285,12 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                     }
                   }}
                 />
+                {fileSizeWarning && (
+                  <div className="input-validation-message">
+                    <span className="warning-icon">⚠️</span>
+                    <span>{fileSizeWarning}</span>
+                  </div>
+                )}
                 {showValidationWarning && (
                   <div className="input-validation-message">
                     <span className="warning-icon">⚠️</span>

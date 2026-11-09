@@ -18,7 +18,8 @@ import {
     extractQuestionsFromClassification,
     logAnnotationSummary,
     getQuestionSortValue,
-    getSuggestedFollowUps
+    getSuggestedFollowUps,
+    calculateOverallScore
 } from './MarkingHelpers.js';
 import { withPerformanceLogging } from '../../utils/markingRouterHelpers.js';
 import UsageTracker from '../../utils/UsageTracker.js';
@@ -410,39 +411,15 @@ export class MarkingPipelineService {
                     const pageCount = standardizedPages.length;
                     progressCallback(createProgressData(2, pageCount === 1 ? 'Processing as single converted page...' : 'Processing multi-page PDF...', MULTI_IMAGE_STEPS));
 
-                    // Upload original PDF to storage for authenticated users
-                    let originalPdfLink = null;
-                    let originalPdfDataUrl = null;
-
-                    if (isAuthenticated) {
-                        const originalFileName = files[0].originalname || 'document.pdf';
-                        try {
-                            const { ImageStorageService } = await import('../imageStorageService.js');
-                            const sessionId = options.sessionId || submissionId;
-                            originalPdfLink = await ImageStorageService.uploadPdf(
-                                `data:application/pdf;base64,${files[0].buffer.toString('base64')}`,
-                                userId || 'anonymous',
-                                sessionId,
-                                originalFileName
-                            );
-                        } catch (error) {
-                            const pdfSizeMB = (files[0].size / (1024 * 1024)).toFixed(2);
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error(`❌ [PDF UPLOAD] Failed to upload original PDF (${originalFileName}):`);
-                            console.error(`  - PDF size: ${pdfSizeMB}MB`);
-                            console.error(`  - Error: ${errorMessage}`);
-                            if (error instanceof Error && error.stack) {
-                                console.error(`  - Stack: ${error.stack}`);
-                            }
-                            throw new Error(`Failed to upload original PDF (${originalFileName}): ${errorMessage}`);
-                        }
-                    }
+                    // Defer original PDF upload to background (preUploadedOriginalFilesPromise) so Stage 1 doesn't block 2-5s
+                    const originalPdfLink = null;
+                    const originalPdfDataUrl = null;
 
                     // Calculate file size for single PDF
                     const fileSizeBytes = files[0].buffer.length;
                     const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
 
-                    // Store PDF context for later use in the unified pipeline
+                    // Store PDF context for later use in the unified pipeline (originalPdfLink is back-filled by background upload)
                     pdfContext = {
                         originalFileType: 'pdf' as const,
                         originalPdfLink,
@@ -452,42 +429,16 @@ export class MarkingPipelineService {
                         fileSizeMB: fileSizeMB + ' MB'
                     };
                 } else if (isMultiplePdfs) {
-                    // Multiple PDFs - store all PDFs for later use
+                    // Multiple PDFs - store all PDFs for later use (uploads deferred to background preUploadedOriginalFilesPromise)
                     progressCallback(createProgressData(2, 'Processing multiple PDFs...', MULTI_IMAGE_STEPS));
 
                     const pdfContexts: any[] = [];
 
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
-                        let originalPdfLink = null;
-                        let originalPdfDataUrl = null;
-
+                        const originalPdfLink = null;
                         // Always create base64 URL for immediate display
-                        originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
-
-                        if (isAuthenticated) {
-                            const originalFileName = file.originalname || `document-${i + 1}.pdf`;
-                            try {
-                                const { ImageStorageService } = await import('../imageStorageService.js');
-                                const sessionId = options.sessionId || submissionId;
-                                originalPdfLink = await ImageStorageService.uploadPdf(
-                                    `data:application/pdf;base64,${file.buffer.toString('base64')}`,
-                                    userId || 'anonymous',
-                                    sessionId,
-                                    originalFileName
-                                );
-                            } catch (error) {
-                                const pdfSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                                const errorMessage = error instanceof Error ? error.message : String(error);
-                                console.error(`❌ [PDF UPLOAD] Failed to upload PDF ${i + 1} (${originalFileName}):`);
-                                console.error(`  - PDF size: ${pdfSizeMB}MB`);
-                                console.error(`  - Error: ${errorMessage}`);
-                                if (error instanceof Error && error.stack) {
-                                    console.error(`  - Stack: ${error.stack}`);
-                                }
-                                throw new Error(`Failed to upload PDF ${i + 1} (${originalFileName}): ${errorMessage}`);
-                            }
-                        }
+                        const originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
 
                         // Calculate file size
                         const fileSizeBytes = file.buffer.length;
@@ -679,30 +630,15 @@ export class MarkingPipelineService {
                     throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
                 }
 
-                // Store PDF context for any PDFs included in the mixed batch
+                // Store PDF context for any PDFs included in the mixed batch (upload deferred to background preUploadedOriginalFilesPromise)
                 const pdfFiles = files.filter(f => f.mimetype === 'application/pdf');
                 if (pdfFiles.length > 0) {
                     const pdfContexts: any[] = [];
                     for (let i = 0; i < pdfFiles.length; i++) {
                         const file = pdfFiles[i];
-                        let originalPdfLink = null;
+                        const originalFileIdx = files.indexOf(file);
+                        const originalPdfLink = null;
                         const originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
-
-                        if (isAuthenticated) {
-                            const originalFileName = file.originalname || `document-${i + 1}.pdf`;
-                            try {
-                                const { ImageStorageService } = await import('../imageStorageService.js');
-                                const sessionId = options.sessionId || submissionId;
-                                originalPdfLink = await ImageStorageService.uploadPdf(
-                                    originalPdfDataUrl,
-                                    userId || 'anonymous',
-                                    sessionId,
-                                    originalFileName
-                                );
-                            } catch (e) {
-                                console.warn(`⚠️ [MIXED PDF UPLOAD] Non-fatal storage error for ${file.originalname}:`, e);
-                            }
-                        }
 
                         const fileSizeBytes = file.buffer.length;
                         const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
@@ -713,7 +649,7 @@ export class MarkingPipelineService {
                             originalFileName: file.originalname || `document-${i + 1}.pdf`,
                             fileSize: fileSizeBytes,
                             fileSizeMB: fileSizeMB + ' MB',
-                            fileIndex: i
+                            fileIndex: originalFileIdx >= 0 ? originalFileIdx : i
                         });
                     }
                     pdfContext = {
@@ -805,6 +741,9 @@ export class MarkingPipelineService {
                             page.height = temp;
                         }
                     }
+
+                    // Overlap Tier 2 (800px WebP) generation immediately after each page's orientation check resolves
+                    (page as any)._lightweightImageData = await ImageUtils.createLightweightCopy(page.imageData, 800);
                 }));
             }
             logOrientationComplete();
@@ -819,14 +758,18 @@ export class MarkingPipelineService {
             const interceptedSchemeImages: string[] = [];
             
             // --- 1.5 Create Tier 2 (Low-Res WEBP) for Gemini ---
-            // 🛑 CRITICAL: We generate lightweightPages ONCE here from the raw color uploads.
+            // Reuse pre-generated _lightweightImageData from Vision Orientation batch, or generate for skipped upright pages
             let lightweightPages = await Promise.all(
-                standardizedPages.map(async page => ({
-                    ...page,
-                    imageData: (page as any)._isSolidBlackCorrupted
-                        ? page.imageData
-                        : await ImageUtils.createLightweightCopy(page.imageData, 800)
-                }))
+                standardizedPages.map(async page => {
+                    const precomputedLight = (page as any)._lightweightImageData;
+                    delete (page as any)._lightweightImageData;
+                    return {
+                        ...page,
+                        imageData: (page as any)._isSolidBlackCorrupted
+                            ? page.imageData
+                            : (precomputedLight || await ImageUtils.createLightweightCopy(page.imageData, 800))
+                    };
+                })
             );
 
             const geometryResults = await Promise.all(
@@ -1081,7 +1024,8 @@ export class MarkingPipelineService {
                         files,
                         userId || 'anonymous',
                         submissionId,
-                        !!userId
+                        !!userId,
+                        pdfContext
                     );
                     const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
                         files,
@@ -1214,30 +1158,21 @@ export class MarkingPipelineService {
             // --- Preprocessing (Common for Multi-Page PDF & Multi-Image) ---
             progressCallback(createProgressData(2, `Preprocessing ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
             const logPreprocessingComplete = logStep('Preprocessing', 'image-processing');
-            const preprocessedImageDatas = await Promise.all(
-                standardizedPages.map(page => ImageUtils.preProcess(page.imageData))
+            const preprocessedResults = await Promise.all(
+                standardizedPages.map(page => ImageUtils.preProcessWithMetadata(page.imageData))
             );
 
-            // Update image data AND re-extract dimensions (critical for orientation/rotation normalization)
+            // Update image data and dimensions directly from single-pass Sharp output (avoids decoding 24 WebPs a second time)
             for (let i = 0; i < standardizedPages.length; i++) {
                 const page = standardizedPages[i];
-                page.imageData = preprocessedImageDatas[i];
-                try {
-                    const base64Data = page.imageData.split(',')[1];
-                    if (base64Data) {
-                        const buffer = Buffer.from(base64Data, 'base64');
-                        const metadata = await sharp(buffer).metadata();
-                        if (metadata.width && metadata.height) {
-                            if (page.width !== metadata.width || page.height !== metadata.height) {
-                                console.log(`📐 [DIMENSIONS] Refreshed Page ${page.pageIndex} dimensions after preprocessing: ${page.width}x${page.height} -> ${metadata.width}x${metadata.height}`);
-                                page.width = metadata.width;
-                                page.height = metadata.height;
-                            }
-
-                        }
+                const { imageData: enhancedImageData, width: newW, height: newH } = preprocessedResults[i];
+                page.imageData = enhancedImageData;
+                if (newW && newH) {
+                    if (page.width !== newW || page.height !== newH) {
+                        console.log(`📐 [DIMENSIONS] Refreshed Page ${page.pageIndex} dimensions after preprocessing: ${page.width}x${page.height} -> ${newW}x${newH}`);
+                        page.width = newW;
+                        page.height = newH;
                     }
-                } catch (err) {
-                    console.warn(`[DIMENSIONS] Failed to refresh dimensions for page ${page.pageIndex}:`, err);
                 }
             }
 
@@ -3731,6 +3666,55 @@ export class MarkingPipelineService {
             progressCallback(createProgressData(7, 'Aggregating results and generating annotated images...', MULTI_IMAGE_STEPS));
             const logOutputGenerationComplete = logStep('Output Generation', 'output-generation');
 
+            // 🚀 [PARALLEL PERFORMANCE SUMMARY]:
+            // Kick off the 4s Performance Summary AI call concurrently with Output Generation (SVG burning + Firebase Storage image uploads)!
+            const precomputedPerformanceSummaryPromise = (async () => {
+                const summaryStart = Date.now();
+                try {
+                    const { overallScore: preOverall, totalPossibleScore: preTotal, overallScoreText: preScoreText } =
+                        calculateOverallScore(allQuestionResults);
+                    let detectedQuestionForGrade: any = undefined;
+                    if (markingSchemesMap && markingSchemesMap.size > 0) {
+                        const allSchemes = Array.from(markingSchemesMap.values());
+                        const firstSchemeEntry =
+                            allSchemes.find((s: any) => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match) ||
+                            allSchemes[0];
+                        detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
+                    }
+                    const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
+                        preOverall,
+                        preTotal,
+                        detectedQuestionForGrade,
+                        markingSchemesMap
+                    );
+                    const firstDetection = detectionResults?.[0]?.detectionResult?.match || {};
+                    const isAnyQuestionFound = detectionResults?.some((r: any) => r.detectionResult?.found === true) || false;
+                    const isRealPastPaper = Boolean(firstDetection.board && firstDetection.board !== 'Unknown' && isAnyQuestionFound);
+                    const examInfo = isRealPastPaper ? {
+                        examBoard: firstDetection.board || '',
+                        examSeries: firstDetection.examSeries || firstDetection.year || '',
+                        subject: firstDetection.subject || firstDetection.qualification || '',
+                        examCode: firstDetection.paperCode || '',
+                        tier: firstDetection.tier || ''
+                    } : undefined;
+
+                    const summary = await SessionManagementService.generateMasterPerformanceSummary(
+                        allQuestionResults,
+                        actualModel,
+                        usageTracker,
+                        isRealPastPaper ? gradeResult.grade : undefined,
+                        isRealPastPaper ? gradeResult.predictedGrade : undefined,
+                        isRealPastPaper ? gradeResult.boundaries : undefined,
+                        { totalMarks: preTotal, awardedMarks: preOverall, scoreText: preScoreText },
+                        examInfo
+                    );
+                    return { summary, durationMs: Date.now() - summaryStart, startTime: summaryStart };
+                } catch (err) {
+                    console.warn('⚠️ [PARALLEL SUMMARY] Failed to precompute performance summary:', err);
+                    return { summary: undefined, durationMs: Date.now() - summaryStart, startTime: summaryStart };
+                }
+            })();
+
             const {
                 finalAnnotatedOutput,
                 overallScore,
@@ -3837,7 +3821,8 @@ export class MarkingPipelineService {
                 usageTracker,  // Pass UsageTracker for accurate token/cost tracking
                 usageTracker.getMathpixPages(),  // Pass actual Mathpix call count from tracker
                 allPagesOcrData,  // Pass OCR data for pipeline cache persistence
-                preUploadedOriginalFilesPromise
+                preUploadedOriginalFilesPromise,
+                precomputedPerformanceSummaryPromise
             );
 
             // Construct unified finalOutput that works for both authenticated and unauthenticated users

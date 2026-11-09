@@ -167,14 +167,14 @@ export class ImageStorageService {
 
 
       // Process image (compress and resize if enabled)
+      // Skip redundant Sharp decode/re-encode if this is an annotated JPEG already burned & compressed by SVGOverlayService
       let processedBuffer: Buffer = originalBuffer;
       let compressionApplied = false;
+      const isAlreadyBurnedAnnotatedJpeg =
+        imageType === 'annotated' && imageData.startsWith('data:image/jpeg;base64,');
 
-      if (config.enableCompression) {
+      if (config.enableCompression && !isAlreadyBurnedAnnotatedJpeg) {
         try {
-          // First, try to get metadata to validate the image
-          const metadata = await sharp(originalBuffer).metadata();
-
           processedBuffer = await sharp(originalBuffer)
             .rotate() // Auto-orient images based on EXIF data (fixes iPhone rotation)
             .resize(config.maxWidth, config.maxHeight, {
@@ -329,6 +329,29 @@ export class ImageStorageService {
     } catch (error) {
       console.error('❌ Failed to delete user images:', error);
     }
+  }
+
+  /**
+   * Download a temporary uploaded file from Firebase Storage into a Buffer and delete the temp object.
+   * Used when the frontend offloads large (>20MB) file batches to Firebase Storage to bypass Cloud Run's 32MiB HTTP body limit.
+   */
+  static async downloadAndDeleteTempUpload(storagePath: string): Promise<Buffer> {
+    if (!storagePath || !storagePath.startsWith('temp_uploads/') || storagePath.includes('..')) {
+      throw new Error(`Invalid temporary upload path: ${storagePath}`);
+    }
+
+    const config = getImageStorageConfig();
+    const bucket = this.getStorage().bucket(config.bucketName);
+    const fileRef = bucket.file(storagePath);
+
+    const [buffer] = await fileRef.download();
+
+    // Best-effort cleanup of temporary handoff file
+    fileRef.delete().catch((err) => {
+      console.warn(`⚠️ [TEMP-UPLOAD] Failed to delete temporary file ${storagePath}:`, err?.message || err);
+    });
+
+    return buffer;
   }
 
   /**

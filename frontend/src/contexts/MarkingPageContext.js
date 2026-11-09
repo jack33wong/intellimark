@@ -1131,39 +1131,11 @@ export const MarkingPageProvider = ({
       let imageDataArray = [];
 
       if (hasPDFs) {
-        // Convert each PDF file to a Blob URL for immediate display (avoids data URL length limits)
-        const convertPdfToBlobUrl = async (file) => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              try {
-                const base64DataUrl = e.target.result;
-                const base64String = base64DataUrl.split(',')[1];
-                const byteCharacters = atob(base64String);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                  byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/pdf' });
-                const blobUrl = URL.createObjectURL(blob);
-                resolve({ base64DataUrl, blobUrl });
-              } catch (error) {
-                reject(error);
-              }
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        };
-
-        pdfContexts = await Promise.all(pdfFiles.map(async (file) => {
-          const { blobUrl } = await convertPdfToBlobUrl(file);
-          return {
-            originalFileName: file.name,
-            fileSize: file.size, // Use bytes (number) to match imageDataArray structure
-            url: blobUrl
-          };
+        // Create direct Blob URLs for immediate display (0-copy, avoids Base64 memory bloat and data URL length limits)
+        pdfContexts = pdfFiles.map((file) => ({
+          originalFileName: file.name,
+          fileSize: file.size, // Use bytes (number) to match imageDataArray structure
+          url: URL.createObjectURL(file)
         }));
       }
 
@@ -1694,27 +1666,40 @@ export const MarkingPageProvider = ({
         if (stashedData) {
           console.log("Recovered stashed data after login, auto-resuming...");
 
-          // Helper to convert base64 back to File object (falls back if iOS leaves MIME blank)
-          const base64ToFile = (base64, filename, mimeType) => {
+          // Helper to convert stashed ArrayBuffer or legacy base64 back to File object (falls back if iOS leaves MIME blank)
+          const restoreStashedFile = (item, filename, mimeType) => {
+            const resolvedName = filename || item?.name || 'upload';
+            const fallbackMime = resolvedName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+
+            if (item?.buffer instanceof ArrayBuffer || ArrayBuffer.isView(item?.buffer)) {
+              return new File([item.buffer], resolvedName, { type: mimeType || item.type || fallbackMime });
+            }
+
+            const base64 = typeof item === 'string' ? item : item?.base64;
+            if (!base64) return null;
             const parts = base64.split(',');
             const rawBase64 = parts.length > 1 ? parts[1] : parts[0];
-            const detectedMime = mimeType || (parts[0].match(/:(.*?);/)?.[1]) || 'application/octet-stream';
+            const detectedMime = mimeType || item?.type || (parts[0].match(/:(.*?);/)?.[1]) || fallbackMime;
             const bstr = atob(rawBase64);
             let n = bstr.length;
             const u8arr = new Uint8Array(n);
             while (n--) {
               u8arr[n] = bstr.charCodeAt(n);
             }
-            return new File([u8arr], filename || 'upload', { type: detectedMime });
+            return new File([u8arr], resolvedName, { type: detectedMime });
           };
 
           setTimeout(() => {
-            if (stashedData.type === 'multi_base64' && Array.isArray(stashedData.files)) {
-              const files = stashedData.files.map(f => base64ToFile(f.base64, f.name, f.type));
-              resumeHandlersRef.current.handleMultiImageAnalysis(files, stashedData.customText);
-            } else if (stashedData.type === 'single_base64' && stashedData.base64) {
-              const file = base64ToFile(stashedData.base64, stashedData.fileName, stashedData.mimeType);
-              resumeHandlersRef.current.handleImageAnalysis(file, stashedData.customText);
+            if ((stashedData.type === 'multi_buffer' || stashedData.type === 'multi_base64') && Array.isArray(stashedData.files)) {
+              const files = stashedData.files.map(f => restoreStashedFile(f, f.name, f.type)).filter(Boolean);
+              if (files.length > 0) {
+                resumeHandlersRef.current.handleMultiImageAnalysis(files, stashedData.customText);
+              }
+            } else if ((stashedData.type === 'single_buffer' || stashedData.type === 'single_base64') && (stashedData.buffer || stashedData.base64)) {
+              const file = restoreStashedFile(stashedData, stashedData.fileName, stashedData.mimeType);
+              if (file) {
+                resumeHandlersRef.current.handleImageAnalysis(file, stashedData.customText);
+              }
             } else if (stashedData.type === 'model_answer' && stashedData.paper) {
               resumeHandlersRef.current.onGenerateModelAnswer(stashedData.paper);
             } else if (stashedData.type === 'marking_scheme' && stashedData.paper) {
@@ -1761,35 +1746,29 @@ export const MarkingPageProvider = ({
 
           setShowGuestLimitModal(false);
 
-          // Convert File(s) to Base64 strings (or stash paper code) and await IndexedDB transaction completion BEFORE redirect
+          // Store File(s) as binary ArrayBuffers in IndexedDB (avoids Base64 memory bloat while remaining iOS Safari safe) BEFORE redirect
           if (pendingUploadRef.current) {
             try {
               const uploadData = pendingUploadRef.current;
-              const fileToBase64 = (file) => new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-              });
 
               if (uploadData.type === 'single' && uploadData.file) {
-                const base64 = await fileToBase64(uploadData.file);
+                const buffer = await uploadData.file.arrayBuffer();
                 await stashUploadData({
-                  type: 'single_base64',
+                  type: 'single_buffer',
                   fileName: uploadData.file.name,
                   mimeType: uploadData.file.type || (uploadData.file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-                  base64,
+                  buffer,
                   customText: uploadData.customText
                 });
               } else if (uploadData.type === 'multi' && Array.isArray(uploadData.files)) {
-                const base64Files = await Promise.all(uploadData.files.map(async (f) => ({
+                const bufferedFiles = await Promise.all(uploadData.files.map(async (f) => ({
                   name: f.name,
                   type: f.type || (f.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-                  base64: await fileToBase64(f)
+                  buffer: await f.arrayBuffer()
                 })));
                 await stashUploadData({
-                  type: 'multi_base64',
-                  files: base64Files,
+                  type: 'multi_buffer',
+                  files: bufferedFiles,
                   customText: uploadData.customText
                 });
               } else if ((uploadData.type === 'model_answer' || uploadData.type === 'marking_scheme') && uploadData.paper) {

@@ -14,7 +14,7 @@ import os from 'os';
 
 // Disable libvips internal operation cache in Cloud Run so native C++ memory is freed immediately after each page
 sharp.cache(false);
-sharp.concurrency(2);
+sharp.concurrency(4);
 
 interface StandardizedPage {
   pageIndex: number; // 0-based index
@@ -111,7 +111,7 @@ export class PdfProcessingService {
     const targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
     const targetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
 
-    const CHUNK_SIZE = 3; // Process 3 pages per sub-PDF chunk
+    const CHUNK_SIZE = 6; // Process 6 pages per sub-PDF chunk (halves Ghostscript + pdf-lib overhead while keeping RAM bounded)
     const standardizedPages: StandardizedPage[] = [];
 
     try {
@@ -154,35 +154,42 @@ export class PdfProcessingService {
             if (Array.isArray(chunkResults)) {
               chunkResults.sort((a, b) => (a.page || 0) - (b.page || 0));
 
-              for (let j = 0; j < chunkResults.length; j++) {
-                const res = chunkResults[j];
-                const globalPageIndex = chunkStart + j;
-                if (!res || !res.path) continue;
+              const chunkPages = await Promise.all(
+                chunkResults.map(async (res, j): Promise<StandardizedPage | null> => {
+                  const globalPageIndex = chunkStart + j;
+                  if (!res || !res.path) return null;
 
-                try {
-                  // Single-pass sharp optimization + dimension extraction (avoids decoding JPEG twice!)
-                  const { data: optimizedBuffer, info } = await sharp(res.path)
-                    .flatten({ background: { r: 255, g: 255, b: 255 } })
-                    .grayscale()
-                    .jpeg({ quality: 84, mozjpeg: true })
-                    .toBuffer({ resolveWithObject: true });
+                  try {
+                    // Single-pass sharp optimization + dimension extraction in parallel across chunk pages
+                    const { data: optimizedBuffer, info } = await sharp(res.path)
+                      .flatten({ background: { r: 255, g: 255, b: 255 } })
+                      .grayscale()
+                      .jpeg({ quality: 85 })
+                      .toBuffer({ resolveWithObject: true });
 
-                  // Immediately delete the rasterized page file from /tmp RAM disk
-                  await fs.unlink(res.path).catch(() => {});
+                    // Immediately delete the rasterized page file from /tmp RAM disk
+                    await fs.unlink(res.path).catch(() => {});
 
-                  if (info.width && info.height) {
-                    standardizedPages.push({
-                      pageIndex: globalPageIndex,
-                      imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
-                      width: info.width,
-                      height: info.height
-                    });
+                    if (info.width && info.height) {
+                      return {
+                        pageIndex: globalPageIndex,
+                        imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
+                        width: info.width,
+                        height: info.height
+                      };
+                    }
+                    return null;
+                  } catch (pageErr) {
+                    console.error(`❌ [PDF Processing] Failed to optimize page ${globalPageIndex + 1}:`, pageErr);
+                    await fs.unlink(res.path).catch(() => {});
+                    return null;
                   }
-                } catch (pageErr) {
-                  console.error(`❌ [PDF Processing] Failed to optimize page ${globalPageIndex + 1}:`, pageErr);
-                  await fs.unlink(res.path).catch(() => {});
-                }
-              }
+                })
+              );
+
+              chunkPages.forEach((p) => {
+                if (p) standardizedPages.push(p);
+              });
             }
           } finally {
             // Immediately delete the 3-page sub-PDF from /tmp RAM disk before starting the next chunk

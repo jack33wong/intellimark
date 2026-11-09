@@ -45,8 +45,16 @@ export class ImageUtils {
    * @returns Preprocessed base64 image data (Color JPEG)
    */
   static async preProcess(imageData: string): Promise<string> {
+    const res = await this.preProcessWithMetadata(imageData);
+    return res.imageData;
+  }
+
+  /**
+   * Preprocess image quality and return output dimensions in a single Sharp pass
+   * (eliminates decoding the WebP output a second time just to read metadata).
+   */
+  static async preProcessWithMetadata(imageData: string): Promise<{ imageData: string; width?: number; height?: number }> {
     try {
-      const startTime = Date.now();
       let imageBuffer: Buffer;
       if (imageData.startsWith('data:')) {
         const base64Data = imageData.split(',')[1];
@@ -58,24 +66,25 @@ export class ImageUtils {
 
       // Strategy: Grayscale Hack + Normalize for Mathpix.
       // This drops the file size by 60%+ while making the text pure black on white.
-      const finalBuffer = await sharp(imageBuffer)
+      const { data: finalBuffer, info } = await sharp(imageBuffer)
         .resize({ width: 2000, withoutEnlargement: true }) // The ~240 DPI sweet spot for Mathpix
         .grayscale() // CRITICAL: Drops file size by 66% (1 channel instead of 3 RGB channels)
         .normalize() // CRITICAL: Forces background to pure white and text to pure black
         .sharpen() // Hardens the edges of faint decimal points
         .webp({ quality: 90 }) // Avoids JPEG blurring artifacts
-        .toBuffer();
+        .toBuffer({ resolveWithObject: true });
 
       const enhancedBase64 = finalBuffer.toString('base64');
       const enhancedDataUrl = `data:image/webp;base64,${enhancedBase64}`;
 
-      // Updated logging message to reflect the new strategy
-      return enhancedDataUrl;
-
+      return {
+        imageData: enhancedDataUrl,
+        width: info.width,
+        height: info.height
+      };
     } catch (error) {
       console.error('❌ [IMAGE UTILS] Error enhancing image, returning original:', error);
-      // Fallback to original image if processing fails
-      return imageData;
+      return { imageData };
     }
   }
   /**

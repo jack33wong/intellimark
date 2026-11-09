@@ -51,7 +51,8 @@ export class MarkingPersistenceService {
         usageTracker: UsageTracker,  // UsageTracker instance with all token/cost data
         mathpixCallCount: number,  // Actual Mathpix OCR call count
         allPagesOcrData?: any[],  // Cached OCR blocks for Zero-Reupload Re-Marking
-        preUploadedOriginalFilesPromise?: Promise<import('../sessionManagementService.js').FileUploadResult>
+        preUploadedOriginalFilesPromise?: Promise<import('../sessionManagementService.js').FileUploadResult>,
+        precomputedPerformanceSummaryPromise?: Promise<{ summary: string | undefined; durationMs: number; startTime: number }>
     ): Promise<{ unifiedSession: any }> {
         let dbUserMessage: any = null;
         let dbAiMessage: any = null;
@@ -245,7 +246,8 @@ export class MarkingPersistenceService {
                 gradeBoundaries: gradeBoundaries,
                 markingContext: richMarkingContext,
                 usageTracker: usageTracker,
-                stepTimings: stepTimings
+                stepTimings: stepTimings,
+                precomputedPerformanceSummaryPromise
             });
 
             // Add suggested follow-ups

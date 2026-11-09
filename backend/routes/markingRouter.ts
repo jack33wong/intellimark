@@ -94,6 +94,57 @@ const firebaseMultipartHandler = (req: any, res: any, next: any) => {
   }
 };
 
+/**
+ * Middleware to hydrate large file batches (>20MB) that were uploaded directly
+ * to Firebase Storage (temp_uploads/...) by the frontend to bypass Cloud Run's 32MiB HTTP body limit.
+ */
+const firebaseStorageRefsHandler = async (req: any, _res: any, next: any) => {
+  try {
+    // If files were already uploaded directly via multipart, nothing to hydrate
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      return next();
+    }
+
+    const rawStorageRefs = req.body?.storageRefs;
+    if (!rawStorageRefs) {
+      return next();
+    }
+
+    const parsedRefs = typeof rawStorageRefs === 'string'
+      ? JSON.parse(rawStorageRefs)
+      : rawStorageRefs;
+
+    if (!Array.isArray(parsedRefs) || parsedRefs.length === 0) {
+      return next();
+    }
+
+    console.log(`☁️ [STORAGE-HANDOFF] Hydrating ${parsedRefs.length} large file(s) from Firebase Storage...`);
+    const { ImageStorageService } = await import('../services/imageStorageService.js');
+
+    const hydratedFiles = await Promise.all(
+      parsedRefs.map(async (refItem: any) => {
+        const buffer = await ImageStorageService.downloadAndDeleteTempUpload(refItem.storagePath);
+        return {
+          fieldname: 'files',
+          originalname: refItem.originalname || 'upload.pdf',
+          encoding: '7bit',
+          mimetype: refItem.mimetype || 'application/pdf',
+          buffer,
+          size: buffer.length
+        };
+      })
+    );
+
+    req.files = hydratedFiles;
+    const totalMB = (hydratedFiles.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024)).toFixed(2);
+    console.log(`✅ [STORAGE-HANDOFF] Successfully hydrated ${hydratedFiles.length} file(s) (${totalMB} MB) into req.files`);
+    next();
+  } catch (err) {
+    console.error('❌ [STORAGE-HANDOFF] Failed to hydrate files from Firebase Storage:', err);
+    next(err);
+  }
+};
+
 const router = express.Router();
 
 /**
@@ -112,6 +163,7 @@ router.post('/process',
   // Then parse the files safely
   upload.array('files'),
   firebaseMultipartHandler,
+  firebaseStorageRefsHandler,
   
   // Finally, execute controller
   MarkingController.processMarkingRequest

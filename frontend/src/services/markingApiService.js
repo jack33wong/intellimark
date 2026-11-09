@@ -671,6 +671,45 @@ class SimpleSessionService {
     }
   }
 
+  /**
+   * Appends files directly to FormData if total payload is <= 20MB, or offloads them
+   * to Firebase Storage (temp_uploads/...) if > 20MB to bypass Cloud Run's 32MiB HTTP request limit.
+   */
+  async _appendFilesOrUploadLargeBatch(formData, files) {
+    const LARGE_UPLOAD_THRESHOLD_BYTES = 20 * 1024 * 1024; // 20 MB
+    const totalBytes = files.reduce((sum, f) => sum + (f?.size || 0), 0);
+
+    if (totalBytes <= LARGE_UPLOAD_THRESHOLD_BYTES) {
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+      return;
+    }
+
+    const { default: app } = await import('../config/firebase');
+    const { getStorage, ref, uploadBytes } = await import('firebase/storage');
+    const storage = getStorage(app);
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    const storageRefs = await Promise.all(
+      files.map(async (file, index) => {
+        const safeName = (file.name || `upload_${index}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `temp_uploads/${batchId}/${index}_${safeName}`;
+        const storageRef = ref(storage, storagePath);
+        const mimeType = file.type || (safeName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+        await uploadBytes(storageRef, file, { contentType: mimeType });
+        return {
+          storagePath,
+          originalname: file.name || `upload_${index}`,
+          mimetype: mimeType,
+          size: file.size || 0
+        };
+      })
+    );
+
+    formData.append('storageRefs', JSON.stringify(storageRefs));
+  }
+
   async processMultiImageWithProgress(files, model = 'thinking', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
     try {
       const authToken = await this.getAuthToken();
@@ -683,10 +722,8 @@ class SimpleSessionService {
         formData.append('token', authToken);
       }
 
-      // Add all files to the FormData under the 'files' key
-      files.forEach((file, index) => {
-        formData.append('files', file);
-      });
+      // Add all files directly (<20MB) or offload to Firebase Storage (>20MB)
+      await this._appendFilesOrUploadLargeBatch(formData, files);
 
       // Add other form data
       formData.append('model', model);
@@ -849,8 +886,8 @@ class SimpleSessionService {
         formData.append('token', authToken);
       }
       
-      // 2. APPEND FILE SECOND
-      formData.append('files', file);
+      // 2. APPEND FILE SECOND (or offload if >20MB)
+      await this._appendFilesOrUploadLargeBatch(formData, [file]);
       
       formData.append('model', model);
       formData.append('clientCompressed', 'true');

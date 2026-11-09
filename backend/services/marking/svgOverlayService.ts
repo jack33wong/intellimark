@@ -150,12 +150,24 @@ export class SVGOverlayService {
       const base64Data = originalImageData.replace(/^data:image\/[a-z]+;base64,/, '');
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
-      // Rotate image to upright
-      const uprightImageBuffer = await sharp(imageBuffer).rotate().toBuffer();
-      const imageMetadata = await sharp(uprightImageBuffer).metadata();
+      // Only run a full rotate() re-encode if the image has EXIF orientation > 1;
+      // images from ImageUtils.preProcess (WebP) are already upright with known dimensions.
+      let uprightImageBuffer: Buffer = imageBuffer;
+      let burnWidth = imageDimensions.width;
+      let burnHeight = imageDimensions.height;
 
-      const burnWidth = imageMetadata.width || imageDimensions.width;
-      const burnHeight = imageMetadata.height || imageDimensions.height;
+      if (!burnWidth || !burnHeight || !originalImageData.startsWith('data:image/webp;')) {
+        const imageMetadata = await sharp(imageBuffer).metadata();
+        if (imageMetadata.orientation && imageMetadata.orientation > 1) {
+          uprightImageBuffer = await sharp(imageBuffer).rotate().toBuffer();
+          const rotatedMeta = await sharp(uprightImageBuffer).metadata();
+          burnWidth = rotatedMeta.width || imageDimensions.width;
+          burnHeight = rotatedMeta.height || imageDimensions.height;
+        } else {
+          burnWidth = imageMetadata.width || imageDimensions.width;
+          burnHeight = imageMetadata.height || imageDimensions.height;
+        }
+      }
 
       // Build fast 2D integral ink-density map from the page image so reasoning text finds genuine empty paper
       let inkMap: InkDensityMap | undefined;
