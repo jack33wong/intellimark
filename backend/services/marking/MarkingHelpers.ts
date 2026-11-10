@@ -11,7 +11,8 @@ import type { QuestionResult } from '../../types/marking.js';
 import {
   getBaseQuestionNumber,
   normalizeSubQuestionPart,
-  generateGenericTitleFromText
+  generateGenericTitleFromText,
+  combineQuestionAndPart
 } from '../../utils/TextNormalizationUtils.js';
 import { ZoneUtils } from '../../utils/ZoneUtils.js';
 
@@ -78,22 +79,10 @@ export function getShortExamBoard(board: string | undefined): string {
   return board;
 }
 
-export function combineQuestionAndPart(base: string, part: string): string {
-  if (!part) return String(base);
-  if (!base) return String(part);
-  
-  const b = String(base).trim();
-  let p = String(part).trim();
-  
-  if (p.startsWith('.')) p = p.substring(1);
-  if (p === b || p.startsWith(b + '.')) return p;
-  
-  // If part starts with a number (e.g., base "5", part "1"), add a dot -> "5.1"
-  if (/^\d/.test(p)) return `${b}.${p}`;
-  
-  // Otherwise standard GCSE format (e.g., base "5", part "a") -> "5a"
-  return `${b}${p}`;
-}
+// Re-exported from TextNormalizationUtils (single source of truth).
+// Previously `if (p === b) return p;` collapsed AQA-style "1.1", "2.2", "3.3"... into "1", "2", "3",
+// which dropped those sub-questions from auto-persisted fullExamPapers.
+export { combineQuestionAndPart };
 
 // Common function to generate session titles for non-past-paper images
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {

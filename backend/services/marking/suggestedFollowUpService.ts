@@ -448,7 +448,7 @@ export class SuggestedFollowUpService {
         : (Array.isArray(qExtracts) ? qExtracts.join('\n\n') : (firstEp?.sourceExtracts || ''));
       const reportText = typeof qReport === 'string'
         ? qReport
-        : (typeof qReport === 'object' ? JSON.stringify(qReport, null, 2) : (firstEp?.examinerReport || ''));
+        : (qReport && typeof qReport === 'object' ? MarkingPromptService.formatExaminerReport(qReport) : (firstEp?.examinerReport || ''));
 
       if (isSimilarQuestions) {
         return getPrompt('similarquestions.user', qText, this.stringifyMarkingScheme(qScheme), 3, base, qMarks);

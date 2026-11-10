@@ -143,6 +143,42 @@ export function sanitizeOcrArtifacts(text: string | null | undefined): string {
 }
 
 /**
+ * Safely combine a base question number with a sub-question part.
+ *
+ * Examples:
+ *   ("5", "a")    -> "5a"     (GCSE letter style)
+ *   ("5", "1")    -> "5.1"    (AQA decimal style)
+ *   ("5", ".1")   -> "5.1"
+ *   ("5", "5.1")  -> "5.1"    (part already fully qualified)
+ *   ("1", "1")    -> "1.1"    (⚠️ must NOT collapse to "1" — previously dropped 1.1/2.2/3.3...)
+ *   ("1", ".1")   -> "1.1"
+ *   ("5", "5a")   -> "5a"     (part already fully qualified, letter style)
+ */
+export function combineQuestionAndPart(base: string, part: string): string {
+  if (!part) return String(base);
+  if (!base) return String(part);
+
+  const b = String(base).trim();
+  const rawP = String(part).trim();
+
+  // Part already fully qualified with a decimal separator (e.g. base "1", part "1.1")
+  if (rawP.startsWith(b + '.')) return rawP;
+
+  const p = rawP.startsWith('.') ? rawP.substring(1) : rawP;
+  if (!p) return b;
+
+  // Part already fully qualified in letter/roman style (e.g. base "5", part "5a" / "5(a)")
+  if (p.startsWith(b) && /^[a-z(]/i.test(p.slice(b.length))) return p;
+
+  // Numeric sub-part (e.g. base "5", part "1" or ".1") -> "5.1".
+  // NOTE: This intentionally also applies when p === b ("1" + "1" -> "1.1").
+  if (/^\d/.test(p)) return `${b}.${p}`;
+
+  // Standard GCSE letter/roman format (e.g. base "5", part "a") -> "5a"
+  return `${b}${p}`;
+}
+
+/**
  * Extract base question number from a question number string
  * 
  * Extracts the leading numeric part, handling:

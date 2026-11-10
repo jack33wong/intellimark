@@ -19,6 +19,7 @@ export interface NormalizedMarkingScheme {
     parentQuestionMarks?: number;
     isGeneric?: boolean;
     guidance?: any[];
+    subQuestionGuidanceMap?: { [key: string]: any[] };
 }
 
 /**

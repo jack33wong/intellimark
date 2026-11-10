@@ -47,6 +47,18 @@ export default (isGeneric: boolean = false): string => {
     2. **LOOK AT THE IMAGE:** Scan the visual region for that question.
     3. **FORCE AN ANNOTATION:** If you see a drawing, mark it using the specific "Visual Protocol" below.
 
+### GATE D: INDEPENDENT PROCESS/METHOD MARKS & ESTIMATION FALLBACK (CRITICAL)
+- **INDEPENDENCE BY DEFAULT:** In UK exam schemes, Process (\`P1\`) and Method (\`M1\`) marks are **INDEPENDENT** unless the scheme explicitly writes \`dep\` (dependent on previous mark). Failing the 1st \`P1\`/\`M1\` does **NOT** automatically forfeit the 2nd \`P1\`/\`M1\`.
+- **THE ESTIMATION RULE:** In estimation questions, the 1st \`P1\`/\`M1\` is typically for rounding values to 1 significant figure, and the 2nd \`P1\`/\`M1\` is for a full process/method to find the total.
+  - Even when \`[Examiner Notes]\` on the 2nd \`P1\`/\`M1\` only shows rounded examples, you **MUST ACCEPT UNROUNDED / EXACT QUESTION VALUES** for the 2nd \`P1\`/\`M1\` process mark!
+  - If a student fails to round (scoring \`P0\` on the 1st mark) but sets up the correct full operation using the exact numbers from the question, you **MUST AWARD** the 2nd \`P1\`/\`M1\` process mark (even if their final arithmetic has a manual calculation slip). Only the final \`A1\` mark is forfeited (\`A0\`).
+
+
+### GATE E: EQUIVALENT FORMS ("oe") & PRE-COMPUTED INTERMEDIATE STEPS
+- **THE RULE:** \`eg\` means "for example" (not an exhaustive list) and \`oe\` means "or equivalent".
+- **PRE-EVALUATED STEPS:** If a mark requires a multi-step expression like \`[distance] ÷ [unit] × [rate]\`, and the student writes the pre-divided intermediate expression (having already divided \`[distance] ÷ [unit]\` mentally or in rough work), you **MUST RECOGNIZE** the mathematical equivalence and **AWARD THE MARK**.
+- **PROCESS vs. ACCURACY:** \`P1\` and \`M1\` marks reward setting up the correct mathematical operation. If the student writes a valid expression that equals the wrong number due to a manual arithmetic slip, they **STILL EARN \`P1\`/\`M1\`** for the correct expression, and only lose \`A1\` (\`A0\`).
+
 ---
 
 ## 3. MARKING SOVEREIGNTY & VISUAL PROTOCOLS
@@ -68,6 +80,7 @@ You MUST perform all your mathematical reasoning visibly within the \`step_by_st
 * **Exhaustive Evaluation:** The scratchpad must evaluate every visible sub-question sequentially (e.g., explicitly cover 16a and 16b without skipping parts or combining sub-parts).
 * **Zero-Mark Integrity:** You must evaluate the mathematical logic against the scheme and NEVER assign arbitrary zero marks unless explicitly dictated by the criteria.
 * **No Placeholder Artifacts:** Explicitly forbidden: mock citations, placeholder text (e.g., \`[cite ...]\` or \`TODO\`), and unverified tags within the reasoning array or annotations.
+- **Mark-by-Mark Independence Check:** Evaluate each \`P1\`/\`M1\`/\`B1\`/\`A1\` line in the scheme individually. If the first \`P1\`/\`M1\` is not awarded (\`P0\`/\`M0\`), explicitly check whether the student's working satisfies any subsequent \`P1\`/\`M1\` via Gate D (unrounded values) or Gate E (pre-computed intermediate steps).
 
 ---
 

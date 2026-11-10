@@ -9,7 +9,7 @@
 
 import { logDetectionAudit, getQuestionSortValue } from './MarkingHelpers.js';
 import { questionDetectionService } from './questionDetectionService.js';
-import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
+import { getBaseQuestionNumber, normalizeSubQuestionPart, combineQuestionAndPart } from '../../utils/TextNormalizationUtils.js';
 
 // --- CONFIGURATION ---
 const GENERIC_EXAMINER_INSTRUCTION = `
@@ -180,7 +180,8 @@ export class MarkingSchemeOrchestrationService {
         subs.forEach((sq: any) => {
           const subPart = sq.part || sq.label || '';
           if (subPart) {
-            const fullKey = qNum ? `${qNum}${subPart}`.toLowerCase() : subPart.toLowerCase();
+            // Use safe combiner so AQA decimal parts map correctly ("1" + ".1"/"1" -> "1.1", not "11"/"1")
+            const fullKey = qNum ? combineQuestionAndPart(String(qNum), String(subPart)).toLowerCase() : String(subPart).toLowerCase();
             if (sq.text) cleanQuestionsMap.set(fullKey, sq.text);
           }
           if (sq.subQuestions) processSubQs(sq.subQuestions);
@@ -727,6 +728,7 @@ export class MarkingSchemeOrchestrationService {
 
       const subQuestionMarksMap: any = {};
       const subQuestionMetadataMap: Record<string, any> = {};
+      const subQuestionGuidanceMap: Record<string, any> = {};
       const subQuestionNumbers: string[] = [];
       const subQuestionAnswers: string[] = [];
       const subQuestionAnswersMap: Record<string, string> = {};
@@ -746,8 +748,16 @@ export class MarkingSchemeOrchestrationService {
               paradigm: qObj.paradigm,
               levels: qObj.levels || qObj.levelDescriptors,
               indicativeContent: qObj.indicativeContent,
-              answer: qObj.answer
+              answer: qObj.answer,
+              guidance: qObj.guidance
             };
+            if (Array.isArray(qObj.guidance) && qObj.guidance.length > 0) {
+              subQuestionGuidanceMap[key] = qObj.guidance;
+              const suffix = key.replace(/^\d+/, '');
+              if (suffix && suffix !== key) {
+                subQuestionGuidanceMap[suffix] = qObj.guidance;
+              }
+            }
           }
           subQuestionNumbers.push(key);
           const ans = qObj?.answer;
@@ -863,6 +873,7 @@ export class MarkingSchemeOrchestrationService {
                 dropped.forEach(k => {
                   delete subQuestionMarksMap[k];
                   delete subQuestionMetadataMap[k];
+                  delete subQuestionGuidanceMap[k];
                   delete subQuestionAnswersMap[k];
                   delete finalSubQuestionMaxScores[k];
                 });
@@ -914,13 +925,18 @@ export class MarkingSchemeOrchestrationService {
           marks: parentScheme?.marks || parentScheme,
           subQuestionMarks: subQuestionMarksMap,
           subQuestionAnswersMap: subQuestionAnswersMap,
-          subQuestionMetadata: subQuestionMetadataMap
+          subQuestionMetadata: subQuestionMetadataMap,
+          subQuestionGuidanceMap: subQuestionGuidanceMap,
+          guidance: parentScheme?.guidance || masterMatch.markingScheme?.guidance
         },
         totalMarks: trimmedTotalMarks !== null ? trimmedTotalMarks : (masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0),
         parentQuestionMarks: trimmedTotalMarks !== null ? trimmedTotalMarks : (masterMatch.parentQuestionMarks || masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0),
         questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
         subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,
         subQuestionMaxScores: finalSubQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,
+        subQuestionMetadata: subQuestionMetadataMap,
+        subQuestionGuidanceMap: subQuestionGuidanceMap,
+        guidance: parentScheme?.guidance || masterMatch.markingScheme?.guidance,
         isGeneric: false, generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex,
         scoringType: parentScheme?.scoringType,
         levels: parentScheme?.levels || parentScheme?.levelDescriptors,

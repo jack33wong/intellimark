@@ -2345,11 +2345,19 @@ export class MarkingPipelineService {
             }
 
             if (inputMarkingScheme && individualQuestions.length >= 3) {
+                // Snapshot BEFORE orchestration: orchestrateMarkingSchemeLookup mutates q.text in place ("smart swap"),
+                // and this save runs asynchronously, so passing the live objects races with that mutation.
+                const questionsSnapshot = individualQuestions.map(q => ({
+                    questionNumber: q.questionNumber,
+                    text: q.text,
+                    parentText: q.parentText
+                }));
+                const schemeForPersistence = inputMarkingScheme;
                 import('./MarkingSchemeParserService.js')
                     .then(({ MarkingSchemeParserService }) => {
                         void MarkingSchemeParserService.saveOfficialExamPaperQuestionsToDatabase(
-                            inputMarkingScheme,
-                            individualQuestions,
+                            schemeForPersistence,
+                            questionsSnapshot,
                             {
                                 userId: userId || 'anonymous',
                                 sessionId: options.sessionId || submissionId,

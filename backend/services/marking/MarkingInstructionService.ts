@@ -137,6 +137,8 @@ export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | nu
       hasAlternatives: hasAlternatives,
       parentQuestionMarks: input.parentQuestionMarks,
       isGeneric: input.isGeneric === true,
+      guidance: input.guidance || questionMarksData?.guidance,
+      subQuestionGuidanceMap: input.subQuestionGuidanceMap || questionMarksData?.subQuestionGuidanceMap,
       scoringType: input.scoringType || questionMarksData?.scoringType,
       levels: input.levels || questionMarksData?.levels || questionMarksData?.levelDescriptors,
       indicativeContent: input.indicativeContent || questionMarksData?.indicativeContent,
@@ -287,9 +289,12 @@ function extractAtomicMarks(markObj: any, normalizedScheme?: Partial<NormalizedM
 }
 
 /**
- * Expands a marking scheme by splitting OCR numeric marks into atomic ones.
+ * Expands a marking scheme by splitting OCR numeric marks into atomic ones
+ * while preserving sub-question-level guidance arrays.
  */
 function expandMarkingScheme(scheme: NormalizedMarkingScheme): NormalizedMarkingScheme {
+  const anyScheme = scheme as any;
+
   // 1. Expand top-level marks
   const expandedMarks: any[] = [];
   if (scheme.marks) {
@@ -299,13 +304,23 @@ function expandMarkingScheme(scheme: NormalizedMarkingScheme): NormalizedMarking
   }
   scheme.marks = expandedMarks;
 
-  // 2. Expand sub-question marks
+  // 2. Expand sub-question marks & preserve sub-question guidance
   if (scheme.subQuestionMarks) {
     const newSubQuestionMarks: { [key: string]: any[] } = {};
+    const subQuestionGuidanceMap: { [key: string]: any[] } = anyScheme.subQuestionGuidanceMap || {};
+
     for (const [subQ, marks] of Object.entries(scheme.subQuestionMarks)) {
       const expandedSubMarks: any[] = [];
       let marksArray = marks;
-      if (!Array.isArray(marksArray) && (marksArray as any).marks) marksArray = (marksArray as any).marks;
+
+      if (!Array.isArray(marksArray) && marksArray && typeof marksArray === 'object') {
+        if (Array.isArray((marksArray as any).guidance) && (marksArray as any).guidance.length > 0) {
+          subQuestionGuidanceMap[subQ] = (marksArray as any).guidance;
+        }
+        if ((marksArray as any).marks) {
+          marksArray = (marksArray as any).marks;
+        }
+      }
 
       if (Array.isArray(marksArray)) {
         marksArray.forEach(m => {
@@ -314,7 +329,16 @@ function expandMarkingScheme(scheme: NormalizedMarkingScheme): NormalizedMarking
       }
       newSubQuestionMarks[subQ] = expandedSubMarks;
     }
+
+    const subMetaMap = anyScheme.subQuestionMetadata || {};
+    for (const [subQ, meta] of Object.entries(subMetaMap)) {
+      if ((meta as any)?.guidance && !subQuestionGuidanceMap[subQ]) {
+        subQuestionGuidanceMap[subQ] = (meta as any).guidance;
+      }
+    }
+
     scheme.subQuestionMarks = newSubQuestionMarks;
+    anyScheme.subQuestionGuidanceMap = subQuestionGuidanceMap;
   }
 
   return scheme;
@@ -511,10 +535,15 @@ export class MarkingInstructionService {
       if (Array.isArray(anyScheme.levels) && anyScheme.levels.length > 0) {
         lorSection += `\n#### Level Descriptors:\n`;
         anyScheme.levels.forEach((lvl: any) => {
-          const range = Array.isArray(lvl.markRange) ? `${lvl.markRange[0]}-${lvl.markRange[1]} marks` : (lvl.marks || '');
-          lorSection += `- **Level ${lvl.level} (${lvl.label || ''}) [${range}]**:\n`;
-          if (Array.isArray(lvl.skillsDescriptors)) {
-            lvl.skillsDescriptors.forEach((d: string) => (lorSection += `  * ${d}\n`));
+          const range = lvl.minMarks !== undefined && lvl.maxMarks !== undefined
+            ? (lvl.minMarks === lvl.maxMarks ? `${lvl.minMarks} marks` : `${lvl.minMarks}–${lvl.maxMarks} marks`)
+            : (Array.isArray(lvl.markRange) ? `${lvl.markRange[0]}–${lvl.markRange[1]} marks` : (lvl.marks ? `${lvl.marks} marks` : ''));
+          lorSection += `- **Level ${lvl.level ?? ''} (${lvl.label || ''}) [${range}]**:\n`;
+          const descList = Array.isArray(lvl.descriptors)
+            ? lvl.descriptors
+            : (Array.isArray(lvl.skillsDescriptors) ? lvl.skillsDescriptors : []);
+          if (descList.length > 0) {
+            descList.forEach((d: string) => (lorSection += `  * ${d}\n`));
           } else if (lvl.descriptor) {
             lorSection += `  * ${lvl.descriptor}\n`;
           }
@@ -523,7 +552,12 @@ export class MarkingInstructionService {
           }
         });
       }
-      if (Array.isArray(anyScheme.indicativeStandard) && anyScheme.indicativeStandard.length > 0) {
+      if (anyScheme.indicativeStandard && typeof anyScheme.indicativeStandard === 'object' && !Array.isArray(anyScheme.indicativeStandard)) {
+        lorSection += `\n#### Indicative Standard Exemplars:\n`;
+        Object.entries(anyScheme.indicativeStandard).forEach(([levelKey, exemplar]) => {
+          lorSection += `- **${levelKey}**:\n  ${String(exemplar).trim()}\n`;
+        });
+      } else if (Array.isArray(anyScheme.indicativeStandard) && anyScheme.indicativeStandard.length > 0) {
         lorSection += `\n#### Indicative Standard / Content Guidance:\n`;
         anyScheme.indicativeStandard.forEach((item: string) => (lorSection += `- ${item}\n`));
       } else if (typeof anyScheme.indicativeStandard === 'string') {
@@ -884,11 +918,7 @@ export class MarkingInstructionService {
         : (typeof rawExtracts === 'string' ? rawExtracts : '');
 
       const rawExaminerReport = anyScheme?.examinerReport || examInfo?.examinerReport;
-      const examinerReportText = typeof rawExaminerReport === 'string'
-        ? rawExaminerReport
-        : rawExaminerReport
-          ? JSON.stringify(rawExaminerReport, null, 2)
-          : '';
+      const examinerReportText = MarkingPromptService.formatExaminerReport(rawExaminerReport);
 
       userPrompt = englishPrompt.user({
         qNum: currentQNum,

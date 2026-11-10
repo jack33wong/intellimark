@@ -159,6 +159,19 @@ const getQuestionMarksRecursive = (q) => {
 };
 
 /**
+ * Sum integer weights of mark codes, e.g. [B1, B2, M1, A1] -> 5.
+ * Used as a fallback when a scheme question has no totalMarks/maxMarks, so a single "B2" counts as 2 (not 1).
+ */
+const sumMarkCodeWeights = (marks) => {
+  if (!Array.isArray(marks)) return 0;
+  return marks.reduce((sum, m) => {
+    const code = String(m && typeof m === 'object' ? (m.mark ?? m.code ?? '') : m).trim();
+    const match = code.match(/^[A-Za-z]*\s*(\d+)$/);
+    return sum + (match ? Number(match[1]) : 0);
+  }, 0);
+};
+
+/**
  * Calculate total marks for an exam paper
  * Returns { total, audit: { qNum: marks } }
  */
@@ -353,8 +366,15 @@ const checkStructureMismatch = (paperInput, schemeInput) => {
       const currentId = normId(rawId);
       
       // If we are deep nesting, join with no separator to match flat keys like "3ai"
-      // But if root has no ID, we'll handle that in the caller
-      const fullId = parentId ? `${parentId}${currentId}` : currentId;
+      // But if root has no ID, we'll handle that in the caller.
+      // Avoid double-prefixing when the child ID is already fully qualified
+      // (e.g. parent "1" + child "1.2" must be "12", not "112").
+      const rawStr = String(rawId).toLowerCase().trim();
+      const alreadyQualified = parentId && (
+        rawStr.startsWith(`${parentId}.`) ||
+        (currentId.startsWith(parentId) && /^[a-z]/.test(currentId.slice(parentId.length)))
+      );
+      const fullId = parentId && !alreadyQualified ? `${parentId}${currentId}` : currentId;
 
       // Identify Children
       const children = item.subQuestions || item.sub_questions || item.questions;
@@ -3952,7 +3972,7 @@ function AdminPage() {
                                                             return a.number.localeCompare(b.number);
                                                           })
                                                           .map((q) => {
-                                                            const qTotalMarks = Number(q.totalMarks || q.maxMarks || (typeof q.marks === 'number' ? q.marks : 0)) || robustEnsureArray(q.marks).length;
+                                                            const qTotalMarks = Number(q.totalMarks || q.maxMarks || (typeof q.marks === 'number' ? q.marks : 0)) || Number(displayData?.subQuestionMaxScores?.[q.number] || displayData?.subQuestionMaxScores?.[q.questionNumber]) || sumMarkCodeWeights(robustEnsureArray(q.marks)) || robustEnsureArray(q.marks).length;
                                                             const aos = Array.isArray(q.assessmentObjectives) ? q.assessmentObjectives : [];
                                                             const fallbackSummary = q.scoringType === 'DUAL_AO_LOR'
                                                               ? `Dual-AO Level-of-Response Rubric (${aos.join(' + ') || 'AO5 + AO6'}, ${qTotalMarks} marks)`

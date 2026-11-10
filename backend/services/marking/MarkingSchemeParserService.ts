@@ -12,6 +12,49 @@ export interface AutoPersistenceAuditContext {
     sourceFileName?: string;
 }
 
+/**
+ * Version of the auto-persistence logic. Bump when the persisted shape/accuracy changes so
+ * previously auto-persisted docs (written by buggy older logic) are rewritten on the next upload.
+ *  - v1: initial auto-persistence (dropped "N.N" sub-questions, no per-question totalMarks)
+ *  - v2: complete sub-question coverage from subQuestionMaxScores, per-question totalMarks/maxMarks,
+ *        relative sub-question `part`, parent marks reconciled with sum of sub-question marks
+ */
+export const AUTO_PERSIST_SCHEMA_VERSION = 2;
+
+/** True when a Firestore doc was written by the auto-persistence pipeline (never overwrite manual docs). */
+function isAutoPersistedDoc(data: any): boolean {
+    if (!data) return false;
+    return data.persistenceType === 'auto' || data.isAutoPersisted === true || data.autoCataloged === true;
+}
+
+/** Sums integer weights from mark codes, e.g. [B1, B2, M1, A1] -> 5. Bare numbers count as their value. */
+function sumMarkCodeWeights(marks: any): number {
+    if (typeof marks === 'number') return marks;
+    if (!Array.isArray(marks)) return 0;
+    return marks.reduce((sum: number, m: any) => {
+        const code = String(typeof m === 'object' && m !== null ? (m.mark ?? m.code ?? '') : m).trim();
+        const match = code.match(/^[A-Za-z]*\s*(\d+)$/);
+        return sum + (match ? Number(match[1]) : 0);
+    }, 0);
+}
+
+/** Numeric-aware ordering for question keys: "1.2" < "1.10", "2a" < "2b". */
+function compareQuestionKeys(a: string, b: string): number {
+    const pa = String(a).split(/(\d+)/).filter(Boolean);
+    const pb = String(b).split(/(\d+)/).filter(Boolean);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const x = pa[i] ?? '';
+        const y = pb[i] ?? '';
+        const nx = Number(x), ny = Number(y);
+        if (!isNaN(nx) && !isNaN(ny) && x !== '' && y !== '') {
+            if (nx !== ny) return nx - ny;
+        } else if (x !== y) {
+            return x.localeCompare(y);
+        }
+    }
+    return 0;
+}
+
 export class MarkingSchemeParserService {
     private static memoryCache = new Map<string, any>();
 
@@ -297,18 +340,45 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const existingDoc = await db.collection('markingSchemes').doc(docId).get();
             if (existingDoc.exists) {
                 const existingData = existingDoc.data();
-                // If already saved with at least as many questions and audit trail fields exist, skip redundant write
+                // Never overwrite a manually curated scheme that happens to share this doc ID
+                if (!isAutoPersistedDoc(existingData)) {
+                    return docId;
+                }
+                // If already saved with at least as many questions by the CURRENT auto-persist logic, skip redundant write.
+                // Older versions (pre-v2) lacked per-question totalMarks and are rewritten.
                 const existingQCount = Object.keys(existingData?.questions || {}).length;
                 const newQCount = Object.keys(parsedObj.questions || {}).length;
-                if (existingQCount >= newQCount && existingData?.subQuestionMaxScores && existingData?.persistenceType) {
+                const existingVersion = Number(existingData?.autoPersistVersion || 0);
+                if (
+                    existingVersion >= AUTO_PERSIST_SCHEMA_VERSION &&
+                    existingQCount >= newQCount &&
+                    existingData?.subQuestionMaxScores
+                ) {
                     return docId;
                 }
             }
 
-            const subQuestionMaxScores: Record<string, number> = parsedObj.subQuestionMaxScores || {};
+            const subQuestionMaxScores: Record<string, number> = { ...(parsedObj.subQuestionMaxScores || {}) };
+
+            // Stamp totalMarks / maxMarks onto every individual question so consumers (Admin UI, detection)
+            // never fall back to `marks.length` (which counts a single "B2" item as 1 mark instead of 2).
+            const questionsToSave: Record<string, any> = {};
+            for (const [qKey, qVal] of Object.entries(parsedObj.questions || {})) {
+                if (!qVal || typeof qVal !== 'object') {
+                    questionsToSave[qKey] = qVal;
+                    continue;
+                }
+                const fromScores = Number(subQuestionMaxScores[qKey]) || 0;
+                const qMarks = fromScores || sumMarkCodeWeights((qVal as any).marks);
+                if (qMarks > 0 && !fromScores) subQuestionMaxScores[qKey] = qMarks;
+                questionsToSave[qKey] = qMarks > 0
+                    ? { ...(qVal as any), totalMarks: qMarks, maxMarks: qMarks }
+                    : qVal;
+            }
+
             const totalMarks = Object.values(subQuestionMaxScores).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
             const uniqueBaseQuestions = new Set(
-                Object.keys(parsedObj.questions || {}).map(k => getBaseQuestionNumber(k) || k)
+                Object.keys(questionsToSave).map(k => getBaseQuestionNumber(k) || k)
             );
 
             const normalizedExamDetails = {
@@ -328,11 +398,13 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
             await db.collection('markingSchemes').doc(docId).set({
                 examDetails: normalizedExamDetails,
-                questions: parsedObj.questions,
+                questions: questionsToSave,
                 subQuestionMaxScores,
                 generalMarkingGuidance: parsedObj.generalMarkingGuidance || '',
                 totalQuestions: uniqueBaseQuestions.size,
+                totalSubQuestions: Object.keys(questionsToSave).length,
                 totalMarks: totalMarks || 100,
+                autoPersistVersion: AUTO_PERSIST_SCHEMA_VERSION,
                 persistenceType: 'auto',
                 isAutoPersisted: true,
                 autoCataloged: true,
@@ -366,7 +438,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
      */
     static async saveOfficialExamPaperQuestionsToDatabase(
         parsedScheme: any,
-        extractedQuestions: Array<{ questionNumber?: string | null; text?: string }>,
+        extractedQuestions: Array<{ questionNumber?: string | null; text?: string; parentText?: string }>,
         auditContext?: AutoPersistenceAuditContext
     ): Promise<void> {
         try {
@@ -387,66 +459,144 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
             const docId = `official_paper_${slug(board)}_${slug(paperCode)}_${slug(examSeries)}`;
 
+            // Normalize question keys for matching: "01.1" -> "1.1", "1(a)(i)" -> "1ai", "Q2b" -> "2b"
+            const normKey = (k: string) => String(k || '')
+                .trim()
+                .toLowerCase()
+                .replace(/^q(?:uestion)?\s*/, '')
+                .replace(/[\s()]/g, '')
+                .replace(/^0+(?=\d)/, '');
+
+            // --- 1. Official mark scheme is the source of truth for WHICH (sub-)questions exist and their marks ---
+            const rawScores: Record<string, any> = parsedScheme.subQuestionMaxScores || {};
+            const schemeScores = new Map<string, number>(); // normKey -> marks
+            const schemeDisplayKey = new Map<string, string>(); // normKey -> original display key
+            for (const [k, v] of Object.entries(rawScores)) {
+                const nk = normKey(k);
+                if (!nk) continue;
+                schemeScores.set(nk, Number(v) || 0);
+                schemeDisplayKey.set(nk, String(k).trim().replace(/^0+(?=\d)/, ''));
+            }
+            // Include question keys that exist in `questions` but are missing from subQuestionMaxScores
+            for (const [k, v] of Object.entries(parsedScheme.questions || {})) {
+                const nk = normKey(k);
+                if (!nk || schemeScores.has(nk)) continue;
+                schemeScores.set(nk, sumMarkCodeWeights((v as any)?.marks) || 0);
+                schemeDisplayKey.set(nk, String(k).trim().replace(/^0+(?=\d)/, ''));
+            }
+            const totalPaperMarks = Array.from(schemeScores.values()).reduce((s, m) => s + m, 0) || 100;
+
+            // --- 2. Collect texts extracted from the student paper ---
+            const parentStems = new Map<string, string[]>(); // base -> unique intro stems (in order)
+            const fallbackParentText = new Map<string, string>(); // base -> parentText seen on sub-questions
+            const subTexts = new Map<string, string>(); // normKey -> sub-question text
+            for (const q of extractedQuestions) {
+                const nk = normKey(String(q.questionNumber || ''));
+                const qText = String(q.text || '').trim();
+                if (!nk) continue;
+                const baseNum = getBaseQuestionNumber(nk) || nk;
+                if (nk === baseNum) {
+                    if (!qText) continue;
+                    const stems = parentStems.get(baseNum) || [];
+                    if (!stems.some(s => s === qText || s.includes(qText))) stems.push(qText);
+                    parentStems.set(baseNum, stems);
+                } else {
+                    if (qText && !subTexts.has(nk)) subTexts.set(nk, qText);
+                    const pText = String(q.parentText || '').trim();
+                    if (pText && !fallbackParentText.has(baseNum)) fallbackParentText.set(baseNum, pText);
+                }
+            }
+
+            // --- 3. Determine the set of base questions & sub-question keys ---
+            // When the scheme has keys, restrict to the scheme (drops mapper noise like phantom "Q12").
+            const schemeHasKeys = schemeScores.size > 0;
+            const allSubKeys = new Set<string>();
+            schemeScores.forEach((_, nk) => allSubKeys.add(nk));
+            if (!schemeHasKeys) subTexts.forEach((_, nk) => allSubKeys.add(nk));
+
+            const baseNums = new Set<string>();
+            allSubKeys.forEach(nk => baseNums.add(getBaseQuestionNumber(nk) || nk));
+            if (!schemeHasKeys) parentStems.forEach((_, b) => baseNums.add(b));
+
+            const subTextValues = new Set(Array.from(subTexts.values()));
+            const missingTextKeys: string[] = [];
+            const questionsMap: Record<string, any> = {};
+
+            for (const baseNum of baseNums) {
+                const subKeys = Array.from(allSubKeys)
+                    .filter(nk => nk !== baseNum && (getBaseQuestionNumber(nk) || nk) === baseNum)
+                    .sort(compareQuestionKeys);
+
+                const sub_questions = subKeys.map(nk => {
+                    const displayKey = schemeDisplayKey.get(nk) || nk;
+                    // Relative part: "1.2" -> ".2", "1a" -> "a", "1ai" -> "ai"
+                    const relativePart = displayKey.startsWith(baseNum) ? displayKey.slice(baseNum.length) : displayKey;
+                    const text = subTexts.get(nk) || '';
+                    if (!text) missingTextKeys.push(displayKey);
+                    const marks = schemeScores.get(nk);
+                    return {
+                        part: relativePart,
+                        question_part: relativePart,
+                        number: displayKey,
+                        question_number: displayKey,
+                        text,
+                        question_text: text,
+                        marks: marks || undefined,
+                        ...(text ? {} : { text_missing: true })
+                    };
+                });
+
+                // Parent stem: shared intro text only (exclude anything that is actually a sub-question's text)
+                const stems = (parentStems.get(baseNum) || []).filter(s => !subTextValues.has(s));
+                const stemText = stems.join('\n') || fallbackParentText.get(baseNum) || '';
+
+                if (!stemText && sub_questions.length === 0) continue;
+
+                // Parent marks are ALWAYS reconciled with the sum of sub-question marks
+                const subSum = sub_questions.reduce((s, sq) => s + (Number(sq.marks) || 0), 0);
+                const parentMarks = sub_questions.length > 0 ? subSum : (schemeScores.get(baseNum) || 0);
+
+                questionsMap[baseNum] = {
+                    number: baseNum,
+                    question_number: baseNum,
+                    text: stemText,
+                    question_text: stemText,
+                    marks: parentMarks || undefined,
+                    sub_questions
+                };
+            }
+
+            const questionsArray = Object.values(questionsMap).sort((a: any, b: any) =>
+                compareQuestionKeys(String(a.question_number), String(b.question_number))
+            );
+            const totalSubQuestions = questionsArray.reduce((s: number, q: any) => s + (q.sub_questions?.length || 0), 0);
+            const reconciledTotal = questionsArray.reduce((s: number, q: any) => s + (Number(q.marks) || 0), 0);
+
+            // --- 4. Skip redundant writes / never overwrite manual docs ---
             const existingSnap = await db.collection('fullExamPapers').doc(docId).get();
             if (existingSnap.exists) {
                 const existingData = existingSnap.data();
-                const existingQuestions = existingData?.questions || {};
-                const existingCount = Array.isArray(existingQuestions) ? existingQuestions.length : Object.keys(existingQuestions).length;
-                if (existingCount >= extractedQuestions.length && existingData?.persistenceType) {
+                if (!isAutoPersistedDoc(existingData)) return;
+                const existingQuestions: any[] = Array.isArray(existingData?.questions)
+                    ? existingData!.questions
+                    : Object.values(existingData?.questions || {});
+                const existingSubCount = existingQuestions.reduce((s: number, q: any) => s + (q?.sub_questions?.length || 0), 0);
+                const existingVersion = Number(existingData?.autoPersistVersion || 0);
+                if (
+                    existingVersion >= AUTO_PERSIST_SCHEMA_VERSION &&
+                    existingQuestions.length >= questionsArray.length &&
+                    existingSubCount >= totalSubQuestions
+                ) {
                     return;
                 }
             }
 
-            const subQuestionMaxScores: Record<string, number> = parsedScheme.subQuestionMaxScores || {};
-            const totalPaperMarks = Object.values(subQuestionMaxScores).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0) || 100;
-
-            // Group extracted question texts by base question number
-            const questionsMap: Record<string, any> = {};
-            for (const q of extractedQuestions) {
-                const rawNum = String(q.questionNumber || '').trim();
-                const qText = String(q.text || '').trim();
-                if (!rawNum || !qText) continue;
-                const baseNum = getBaseQuestionNumber(rawNum) || rawNum;
-                if (!questionsMap[baseNum]) {
-                    // Sum marks for this base question from subQuestionMaxScores
-                    const baseRegex = new RegExp(`^0*${baseNum}([^0-9]|$)`, 'i');
-                    const qMarks = Object.entries(subQuestionMaxScores)
-                        .filter(([k]) => baseRegex.test(k))
-                        .reduce((s, [, m]) => s + (Number(m) || 0), 0);
-                    questionsMap[baseNum] = {
-                        number: baseNum,
-                        question_number: baseNum,
-                        text: qText,
-                        question_text: qText,
-                        marks: qMarks || undefined,
-                        sub_questions: []
-                    };
-                } else if (!questionsMap[baseNum].question_text.includes(qText)) {
-                    questionsMap[baseNum].question_text += `\n${qText}`;
-                    questionsMap[baseNum].text = questionsMap[baseNum].question_text;
-                }
-
-                if (rawNum !== baseNum) {
-                    const existingSub = questionsMap[baseNum].sub_questions.find((sq: any) => sq.question_number === rawNum);
-                    if (!existingSub) {
-                        questionsMap[baseNum].sub_questions.push({
-                            part: rawNum,
-                            number: rawNum,
-                            question_number: rawNum,
-                            text: qText,
-                            question_text: qText,
-                            marks: subQuestionMaxScores[rawNum] || undefined
-                        });
-                    }
-                }
+            if (missingTextKeys.length > 0) {
+                console.warn(`⚠️ [AUTO-CATALOG] ${missingTextKeys.length} sub-question(s) present in mark scheme but no stem text was extracted: ${missingTextKeys.join(', ')} (saved with text_missing=true)`);
             }
-
-            const questionsArray = Object.values(questionsMap).sort((a: any, b: any) => {
-                const numA = parseInt(String(a.question_number), 10);
-                const numB = parseInt(String(b.question_number), 10);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return String(a.question_number).localeCompare(String(b.question_number));
-            });
+            if (schemeHasKeys && reconciledTotal !== totalPaperMarks) {
+                console.warn(`⚠️ [AUTO-CATALOG] Reconciled question marks (${reconciledTotal}) != mark scheme total (${totalPaperMarks}) for ${docId}`);
+            }
 
             if (questionsArray.length < 2) return;
 
@@ -471,7 +621,9 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 metadata: metadataBlock,
                 questions: questionsArray,
                 totalQuestions: questionsArray.length,
+                totalSubQuestions,
                 totalMarks: totalPaperMarks,
+                autoPersistVersion: AUTO_PERSIST_SCHEMA_VERSION,
                 persistenceType: 'auto',
                 isAutoPersisted: true,
                 autoCataloged: true,
@@ -490,7 +642,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             }, { merge: true });
 
             QuestionDetectionService.invalidatePapersCache();
-            console.log(`📄 [AUTO-CATALOG] Saved ${questionsArray.length} question stems to Firestore fullExamPapers/${docId}!`);
+            console.log(`📄 [AUTO-CATALOG] Saved ${questionsArray.length} questions / ${totalSubQuestions} sub-questions (${reconciledTotal} marks) to Firestore fullExamPapers/${docId}!`);
         } catch (err) {
             console.warn('⚠️ [AUTO-CATALOG] Failed to save official exam paper questions to database:', err);
         }

@@ -4,7 +4,7 @@ import { getPrompt } from '../../config/prompts.js';
 import * as path from 'path';
 import { getModelConfig, validateModel } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
-import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
+import { getBaseQuestionNumber, combineQuestionAndPart } from '../../utils/TextNormalizationUtils.js';
 import UsageTracker from '../../utils/UsageTracker.js';
 
 export interface ClassificationResult {
@@ -222,7 +222,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             }
             const labels = typeof qObj === 'string'
               ? [qObj]
-              : [qObj.questionNumber, ...(qObj.subQuestions?.map((s: string) => `${qObj.questionNumber}${s}`) || [])];
+              : [qObj.questionNumber, ...(qObj.subQuestions?.map((s: string) => combineQuestionAndPart(String(qObj.questionNumber), String(s))) || [])];
             labels.forEach(l => pageToParts.get(pageIdx)!.add(l));
           });
         }

@@ -32,6 +32,87 @@ export class MarkingPromptService {
     }
 
     /**
+     * Formats official chief examiner reports into clean, human-readable plain text/markdown.
+     * Replaces raw JSON.stringify with structured sections and bullet points.
+     */
+    public static formatExaminerReport(report: any): string {
+        if (!report) return '';
+        if (typeof report === 'string') return report.trim();
+        if (typeof report !== 'object') return String(report);
+
+        const lines: string[] = [];
+
+        // Question header if present
+        const qNum = report.questionNumber;
+        const maxM = report.maxMarks;
+        const aos = Array.isArray(report.assessmentObjectives) ? report.assessmentObjectives.join(', ') : report.assessmentObjectives;
+        if (qNum || maxM || aos) {
+            const metaParts: string[] = [];
+            if (maxM) metaParts.push(`Max Marks: ${maxM}`);
+            if (aos) metaParts.push(`AOs: ${aos}`);
+            const metaStr = metaParts.length > 0 ? ` (${metaParts.join(' | ')})` : '';
+            if (qNum) {
+                lines.push(`### Question ${qNum} Insights${metaStr}`);
+            }
+        }
+
+        // What Worked Well
+        if (report.whatWorkedWell) {
+            lines.push(`- **What Worked Well**:`);
+            if (Array.isArray(report.whatWorkedWell)) {
+                report.whatWorkedWell.forEach((item: any) => lines.push(`  * ${String(item).trim()}`));
+            } else {
+                lines.push(`  ${String(report.whatWorkedWell).trim()}`);
+            }
+        }
+
+        // Common Pitfalls
+        if (report.commonPitfalls) {
+            lines.push(`- **Common Pitfalls**:`);
+            if (Array.isArray(report.commonPitfalls)) {
+                report.commonPitfalls.forEach((item: any) => lines.push(`  * ${String(item).trim()}`));
+            } else {
+                lines.push(`  ${String(report.commonPitfalls).trim()}`);
+            }
+        }
+
+        // Level Separators
+        const separators = report.level3To4Separators || report.levelSeparators || report.whatSeparatesLevels;
+        if (separators) {
+            const title = report.level3To4Separators ? 'Level 3 to Level 4 Separators' : 'Level Separators / Key Distinctions';
+            lines.push(`- **${title}**:`);
+            if (Array.isArray(separators)) {
+                separators.forEach((item: any) => lines.push(`  * ${String(item).trim()}`));
+            } else {
+                lines.push(`  ${String(separators).trim()}`);
+            }
+        }
+
+        // Generic fallback for other fields
+        const knownKeys = new Set([
+            'questionNumber', 'maxMarks', 'assessmentObjectives',
+            'whatWorkedWell', 'commonPitfalls',
+            'level3To4Separators', 'levelSeparators', 'whatSeparatesLevels'
+        ]);
+        for (const [key, value] of Object.entries(report)) {
+            if (!knownKeys.has(key) && value) {
+                const formattedKey = key
+                    .replace(/([A-Z])/g, ' $1')
+                    .replace(/^./, str => str.toUpperCase())
+                    .trim();
+                if (Array.isArray(value)) {
+                    lines.push(`- **${formattedKey}**:`);
+                    value.forEach((item: any) => lines.push(`  * ${String(item).trim()}`));
+                } else if (typeof value === 'string' || typeof value === 'number') {
+                    lines.push(`- **${formattedKey}**: ${String(value).trim()}`);
+                }
+            }
+        }
+
+        return lines.join('\n').trim();
+    }
+
+    /**
      * Formats the marking scheme into a concise text-based format for the AI prompt.
      * Expects the scheme to be already normalized and expanded (e.g. by MarkingInstructionService).
      */
@@ -56,6 +137,7 @@ ${genericHeader}
         let output = '';
         const anyScheme = normalizedScheme as any;
         const subMetaMap = anyScheme.subQuestionMetadata || {};
+        const subGuidanceMap = anyScheme.subQuestionGuidanceMap || {};
         const hasSubQuestions = normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0;
 
         const formatMarkLine = (m: any): string => {
@@ -67,14 +149,38 @@ ${genericHeader}
                 : `- ${m.mark}: ${m.answer}\n`;
         };
 
+        const formatGuidanceBlock = (guidanceList?: any[]): string => {
+            if (!Array.isArray(guidanceList) || guidanceList.length === 0) return '';
+            const lines = guidanceList
+                .map((g: any) => {
+                    if (typeof g === 'string') return g.trim();
+                    if (g && typeof g === 'object' && g.scenario) {
+                        const scenario = String(g.scenario).trim();
+                        const outcome = g.outcome ? String(g.outcome).trim() : '';
+                        return outcome ? `${scenario} -> ${outcome}` : scenario;
+                    }
+                    return '';
+                })
+                .filter((line: string) => line !== '');
+            if (lines.length === 0) return '';
+            return `  [Additional Examiner Guidance]:\n` + lines.map(l => `  * ${l}`).join('\n') + '\n';
+        };
+
         const formatLevelsAndIndicative = (levels?: any[], indicativeContent?: any[]): string => {
             let block = '';
             if (Array.isArray(levels) && levels.length > 0) {
                 block += `  [LEVEL DESCRIPTORS]\n`;
                 levels.forEach((lvl: any) => {
                     const label = lvl.level !== undefined ? `Level ${lvl.level}` : (lvl.label || 'Band');
-                    const range = lvl.markRange || lvl.marks || '';
-                    const desc = lvl.descriptor || lvl.description || '';
+                    const range = lvl.minMarks !== undefined && lvl.maxMarks !== undefined
+                        ? (lvl.minMarks === lvl.maxMarks ? `${lvl.minMarks}` : `${lvl.minMarks}–${lvl.maxMarks}`)
+                        : (Array.isArray(lvl.markRange) ? `${lvl.markRange[0]}–${lvl.markRange[1]}` : (lvl.markRange || lvl.marks || ''));
+                    const descList = Array.isArray(lvl.descriptors)
+                        ? lvl.descriptors
+                        : (Array.isArray(lvl.skillsDescriptors) ? lvl.skillsDescriptors : []);
+                    const desc = descList.length > 0
+                        ? descList.join('; ')
+                        : (lvl.descriptor || lvl.description || (lvl.label && lvl.label !== label ? lvl.label : ''));
                     block += `  * ${label}${range ? ` (${range} marks)` : ''}: ${desc}\n`;
                 });
             }
@@ -90,8 +196,9 @@ ${genericHeader}
         if (hasSubQuestions) {
             const subQuestions = Object.keys(normalizedScheme.subQuestionMarks!).sort();
             for (const subQ of subQuestions) {
-                let marks = normalizedScheme.subQuestionMarks![subQ];
-                if (!Array.isArray(marks) && (marks as any).marks) marks = (marks as any).marks;
+                const rawSubEntry = normalizedScheme.subQuestionMarks![subQ] as any;
+                let marks = rawSubEntry;
+                if (!Array.isArray(marks) && marks?.marks) marks = marks.marks;
 
                 const subLabel = subQ.replace(/^\d+/, '');
                 const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
@@ -103,6 +210,11 @@ ${genericHeader}
                     || normalizedScheme.totalMarks || normalizedScheme.parentQuestionMarks;
 
                 const subMeta = subMetaMap[subQ] || subMetaMap[subLabel] || {};
+                const subGuidance =
+                    subGuidanceMap[subQ] ||
+                    subGuidanceMap[subLabel] ||
+                    (!Array.isArray(rawSubEntry) && rawSubEntry?.guidance ? rawSubEntry.guidance : undefined) ||
+                    subMeta.guidance;
 
                 output += `[${subQ}]`;
                 if (maxScore) output += ` [MAX SCORE: ${maxScore}]`;
@@ -114,16 +226,15 @@ ${genericHeader}
                 }
 
                 if (Array.isArray(marks)) {
-                    // V28 FIX: "Virtual Scheme Update" - Inject B3 for Q10a to solve the 2+2=6 overflow bug
-                    //if (subQ === '10a' && !marks.some(m => String(m.mark).includes('B3'))) {
-                    //    console.log(`💉 [PROMPT-INJECTION] Injecting 'B3' mark for sub-question 10a.`);
-                    //    output += `- B3: Fully correct diagram (36, 19, 41) [3 marks]\n`;
-                    //}
-
                     marks.forEach((m: any) => {
                         output += formatMarkLine(m);
                     });
                 }
+
+                if (subGuidance) {
+                    output += formatGuidanceBlock(subGuidance);
+                }
+
                 output += '\n';
             }
         } else {
@@ -138,19 +249,41 @@ ${genericHeader}
             normalizedScheme.marks.forEach((m: any) => {
                 output += formatMarkLine(m);
             });
+
+            if (anyScheme.guidance) {
+                output += formatGuidanceBlock(anyScheme.guidance);
+            }
         }
 
         if (normalizedScheme.questionLevelAnswer) {
             output += `\nFINAL ANSWER: ${normalizedScheme.questionLevelAnswer}\n`;
         }
 
+        // Check if this scheme contains Method (M) or Process (P) marks
+        const hasProcessOrMethodMarks =
+            normalizedScheme.marks.some((m: any) => /^[MP]\d+/i.test(String(m.mark || ''))) ||
+            (normalizedScheme.subQuestionMarks &&
+                Object.values(normalizedScheme.subQuestionMarks).some((sub: any) => {
+                    const arr = Array.isArray(sub) ? sub : sub?.marks;
+                    return Array.isArray(arr) && arr.some((m: any) => /^[MP]\d+/i.test(String(m.mark || '')));
+                }));
+
+        const mathProcessRules = hasProcessOrMethodMarks
+            ? `
+> 3. **INDEPENDENT PROCESS/METHOD MARKS & UNROUNDED ESTIMATION FALLBACK**:
+>    - Process (\`P\`) and Method (\`M\`) marks are **INDEPENDENT** unless explicitly marked \`dep\`.
+>    - In estimation questions, if a student fails to round (earning \`P0\`/\`M0\` on the rounding mark), still award subsequent \`P1\`/\`M1\` process marks if they write a valid full calculation method using the **exact/unrounded values from the question**, even if \`[Examiner Notes]\` only lists rounded examples and even if their final arithmetic has a slip. Only \`A1\` is forfeited (\`A0\`).
+> 4. **EQUIVALENT FORMS (\`oe\`) & PRE-COMPUTED INTERMEDIATE STEPS**:
+>    - \`eg\` indicates illustrative examples (not exhaustive) and \`oe\` means "or equivalent". Always accept mathematically equivalent expressions where an intermediate step has already been evaluated mentally or in rough work.`
+            : '';
+
         return `
 > [INSTRUCTION]: You are the CHIEF EXAMINER.
-> 1. **MATCH**: Match the student's work strictly to the M1/A1/B1 definitions below.
+> 1. **MATCH**: Match the student's work strictly to the mark definitions below.
 > 2. **STRICT SILO RULE (CRITICAL)**:
 >    - You MUST respect the [MAX SCORE] for each sub-question.
 >    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
->    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.
+>    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.${mathProcessRules}
 
 [OFFICIAL SCHEME]
 ${output.trim()}
