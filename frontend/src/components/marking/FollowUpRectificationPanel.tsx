@@ -191,7 +191,8 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
   };
 
   // 0. STRICT MESSAGE TYPE GUARD: Never show on follow-up text chat responses or question-solver responses
-  if (message.type === 'chat' || message.type === 'question_response') {
+  // (unless this message explicitly requires a marking scheme for an unsupported academic subject)
+  if (!requiresMarkingScheme && (message.type === 'chat' || message.type === 'question_response')) {
     return null;
   }
 

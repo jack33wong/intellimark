@@ -1532,11 +1532,33 @@ export const MarkingPageProvider = ({
         }
       };
       if (lastUserMsg) {
-        if (Array.isArray(lastUserMsg.imageDataArray) && lastUserMsg.imageDataArray.length > 0) {
+        if (Array.isArray(lastUserMsg.pdfContexts) && lastUserMsg.pdfContexts.length > 0) {
+          const fetchedPdfs = await Promise.all(
+            lastUserMsg.pdfContexts.map(async (pdf, idx) => {
+              const name = pdf?.originalFileName || `student-document-${idx + 1}.pdf`;
+              if (pdf?.url && pdf.url.startsWith('data:')) {
+                return dataUrlToFile(pdf.url, name);
+              }
+              if (pdf?.url) {
+                try {
+                  const resp = await fetch(pdf.url);
+                  if (!resp.ok) return null;
+                  const blob = await resp.blob();
+                  return new File([blob], name, { type: 'application/pdf' });
+                } catch {
+                  return null;
+                }
+              }
+              return null;
+            })
+          );
+          studentFiles = fetchedPdfs.filter(Boolean);
+        }
+        if (studentFiles.length === 0 && Array.isArray(lastUserMsg.imageDataArray) && lastUserMsg.imageDataArray.length > 0) {
           studentFiles = lastUserMsg.imageDataArray
             .map((item, idx) => dataUrlToFile(typeof item === 'string' ? item : item?.url, `student-page-${idx + 1}.jpg`))
             .filter(Boolean);
-        } else if (lastUserMsg.imageData) {
+        } else if (studentFiles.length === 0 && lastUserMsg.imageData) {
           const singleReconstructed = dataUrlToFile(lastUserMsg.imageData, lastUserMsg.fileName || 'student-page-1.jpg');
           if (singleReconstructed) studentFiles = [singleReconstructed];
         }

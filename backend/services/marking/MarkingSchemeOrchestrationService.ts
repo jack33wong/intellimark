@@ -758,13 +758,15 @@ export class MarkingSchemeOrchestrationService {
 
           // [FIX] Propagate Max Score to the matched part
           // Logic: 
-          // 1. Check full key (e.g. "2ai")
+          // 1. Check full key (e.g. "2ai" or leading-zero-stripped "1.1")
           // 2. Check normalized part (e.g. "ai")
           // 3. Fallback to part marks length if it's an array
+          const strippedKey = key.replace(/^0+/, '');
           const partLabel = key.replace(/^\d+/, '');
           const normalizedPartLabel = normalizeSubQuestionPart(partLabel);
 
           let dbScore = masterMatch.subQuestionMaxScores?.[key];
+          if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[strippedKey];
           if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[partLabel];
           if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[normalizedPartLabel];
 
@@ -777,6 +779,41 @@ export class MarkingSchemeOrchestrationService {
 
           if (dbScore !== undefined) {
             finalSubQuestionMaxScores[key] = dbScore;
+
+            // ⚖️ [CALCULATION MARK RECONCILIATION]:
+            // In Science / Maths custom schemes (e.g. a 4-mark calculation like Q7.5), the mark scheme table
+            // often states "an answer of X scores 4 marks" while listing fewer individual M1/A1 rows (e.g. M1 + A1 = 2).
+            // Ensure the sum of mark weights in subQuestionMarksMap[key] matches dbScore so full marks can be awarded.
+            const isCalcPart = qObj?.paradigm === 'CALCULATION_STEP' || (
+              Array.isArray(partMarks) &&
+              partMarks.length > 0 &&
+              qObj?.paradigm !== 'LEVEL_OF_RESPONSE' &&
+              partMarks.some((m: any) => /^M\d+$/i.test(String(m?.mark || '').trim()))
+            );
+            if (isCalcPart && Array.isArray(partMarks) && partMarks.length > 0 && dbScore > 0) {
+              const parseMarkWeight = (code: string): number => {
+                const m = String(code || '').trim().match(/^[BMAPC](\d+)$/i);
+                return m ? parseInt(m[1], 10) : 1;
+              };
+              const currentMarkSum = partMarks.reduce((sum: number, m: any) => sum + parseMarkWeight(m?.mark), 0);
+              if (currentMarkSum > 0 && currentMarkSum < dbScore) {
+                const deficit = dbScore - currentMarkSum;
+                const lastIdx = partMarks.length - 1;
+                const lastMarkObj = { ...partMarks[lastIdx] };
+                const lastCode = String(lastMarkObj.mark || 'A1').trim();
+                const prefixMatch = lastCode.match(/^([BMAPC])(\d+)$/i);
+                const prefix = prefixMatch ? prefixMatch[1].toUpperCase() : 'A';
+                const oldWeight = prefixMatch ? parseInt(prefixMatch[2], 10) : 1;
+                const newWeight = oldWeight + deficit;
+                lastMarkObj.mark = `${prefix}${newWeight}`;
+                lastMarkObj.comments = [
+                  lastMarkObj.comments,
+                  `Award full ${dbScore} marks if final numerical answer is correct`
+                ].filter(Boolean).join(' | ');
+                subQuestionMarksMap[key] = [...partMarks.slice(0, lastIdx), lastMarkObj];
+                console.log(`⚖️  [CALC-RECONCILE] Q${key}: upgraded final mark ${lastCode} -> ${lastMarkObj.mark} so calculation marks sum to ${dbScore} (was ${currentMarkSum}).`);
+              }
+            }
           } else if (Array.isArray(partMarks)) {
             finalSubQuestionMaxScores[key] = partMarks.length;
           }
@@ -785,11 +822,19 @@ export class MarkingSchemeOrchestrationService {
       });
 
       // ✂️ [PARTIAL-UPLOAD TRIM]: If the student only uploaded some parts of a multi-part question
-      // (e.g. 2a–2c out of 2a–2h), restrict the scheme to the contiguous range of uploaded parts so the
+      // (e.g. a cropped photo of 2a–2c out of 2a–2h), restrict the scheme to the contiguous range of uploaded parts so the
       // question is graded out of the uploaded parts' max (3/5) instead of the full question total (3/30).
-      // Parts sitting BETWEEN detected parts are kept (guards against a classifier missing a middle part).
+      // Guardrails:
+      // 1. Do NOT trim on multi-question / full-paper uploads (questionGroups.size >= 3), where the Mapper may label
+      //    a first or last sub-part (like 01.1 or 03.3) with the bare parent question number ("1" or "3").
+      // 2. Do NOT trim when the group contains a bare parent question number detection ("1", "3"), since that
+      //    detection represents an un-suffixed sub-part on the page.
       let trimmedTotalMarks: number | null = null;
-      if (subQuestionNumbers.length > 1) {
+      const isMultiQuestionPaperUpload = questionGroups.size >= 3;
+      const hasBareParentDetection = group.some(
+        item => String(item.question.questionNumber || '').trim() === baseQuestionNumber
+      );
+      if (subQuestionNumbers.length > 1 && !isMultiQuestionPaperUpload && !hasBareParentDetection) {
         const partOf = (k: string) => normalizeSubQuestionPart(String(k).replace(/^0*\d+/, '')).toLowerCase();
         // Extract specific sub-question parts (e.g. "a", "b", "c"), ignoring bare parent number ("2" -> "")
         const specificParts = Array.from(new Set(

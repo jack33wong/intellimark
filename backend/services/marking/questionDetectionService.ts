@@ -55,6 +55,7 @@ export interface MarkingSchemeMatch {
   totalMarks: number;
   confidence?: number;
   generalMarkingGuidance?: any;
+  subQuestionMaxScores?: { [key: string]: number };
 }
 
 export interface QuestionDetectionResult {
@@ -138,6 +139,20 @@ export class QuestionDetectionService {
       QuestionDetectionService.instance = new QuestionDetectionService();
     }
     return QuestionDetectionService.instance;
+  }
+
+  public static invalidateSchemesCache(): void {
+    QuestionDetectionService.cachedSchemes = null;
+    QuestionDetectionService.lastSchemesCacheTime = 0;
+  }
+
+  public static invalidatePapersCache(): void {
+    QuestionDetectionService.cachedPapers = null;
+    QuestionDetectionService.lastCacheTime = 0;
+  }
+
+  public async getMarkingSchemesList(): Promise<any[]> {
+    return this.getAllMarkingSchemes();
   }
 
   public async detectQuestion(
@@ -260,6 +275,9 @@ export class QuestionDetectionService {
           const markingScheme = await this.findCorrespondingMarkingScheme(matchResult);
           if (markingScheme) {
             matchResult.markingScheme = markingScheme;
+            if (markingScheme.subQuestionMaxScores && (!matchResult.subQuestionMaxScores || Object.keys(matchResult.subQuestionMaxScores).length === 0)) {
+              matchResult.subQuestionMaxScores = { ...markingScheme.subQuestionMaxScores };
+            }
           }
 
           return {
@@ -804,7 +822,7 @@ export class QuestionDetectionService {
           questionMarks = enrichedMainQ;
         } else {
           const subKeys = Object.keys(questions).filter(k => {
-            const m = k.match(/^(\d+)\(?([a-z]+)\)?$/i);
+            const m = k.match(/^0*(\d+)(?:\.\d+|\(?[a-z]+\)?)?$/i);
             return m && m[1] === baseNum;
           }).sort();
 
@@ -835,7 +853,8 @@ export class QuestionDetectionService {
           totalQuestions: markingScheme.totalQuestions || 0,
           totalMarks: markingScheme.totalMarks || 0,
           confidence: overallScore,
-          generalMarkingGuidance: markingScheme.generalMarkingGuidance
+          generalMarkingGuidance: markingScheme.generalMarkingGuidance,
+          subQuestionMaxScores: markingScheme.subQuestionMaxScores
         };
       }
       return null;
@@ -888,6 +907,7 @@ export function buildExamPaperStructure(detectionResults: any[]) {
         paperTitle: `${series} ${boardPart} ${subjectPart}${tier ? ` ${tier}` : ''}`.replace(/\s+/g, ' ').trim(),
         questions: [],
         totalMarks: 0,
+        _countedParentQuestions: new Set<string>(),
         isGeneric: match.isGeneric === true || match.paperCode === 'Generic Question'
       });
     }
@@ -920,11 +940,15 @@ export function buildExamPaperStructure(detectionResults: any[]) {
       markingScheme: markingSchemeStr
     });
 
-    // Add to paper total marks
-    paperGroup.totalMarks += marks;
+    // Add to paper total marks once per parent question (avoid multiplying parent marks across sub-questions)
+    const parentQKey = String(match.questionNumber || getBaseQuestionNumber(String(questionNumber || '')) || questionNumber);
+    if (!paperGroup._countedParentQuestions.has(parentQKey)) {
+      paperGroup._countedParentQuestions.add(parentQKey);
+      paperGroup.totalMarks += marks;
+    }
   });
 
-  const examPapers = Array.from(examPaperGroups.values());
+  const examPapers = Array.from(examPaperGroups.values()).map(({ _countedParentQuestions, ...rest }) => rest);
   const multipleExamPapers = examPapers.length > 1;
 
   // Total marks across all uniqueness

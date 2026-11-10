@@ -31,6 +31,9 @@ export class GoogleVisionService {
 
     try {
       const [result] = await client.annotateImage(request);
+      if (result?.error?.message) {
+        console.warn(`⚠️ [GOOGLE VISION API] annotateImage returned status error (code ${result.error.code}): ${result.error.message}`);
+      }
       return result;
     } catch (error) {
       console.error('❌ [GOOGLE VISION API] Error during detectText:', error);

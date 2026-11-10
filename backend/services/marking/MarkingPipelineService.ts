@@ -810,7 +810,7 @@ export class MarkingPipelineService {
             // 🛡️ [BYOMS DETECTION & DOCUMENT-LEVEL SUBJECT CONSENSUS]:
             // Check if any uploaded page in the batch is a Marking Scheme (or if a custom marking scheme was provided).
             // When a Marking Scheme is present, Universal BYOMS mode is enabled for any academic subject!
-            const hasUploadedMarkingScheme =
+            let hasUploadedMarkingScheme =
                 deferredSchemePdfFiles.length > 0 ||
                 geometryResults.some(g => g?.is_marking_scheme === true) ||
                 Boolean(options.markingScheme);
@@ -826,6 +826,37 @@ export class MarkingPipelineService {
             const nonSchemePageCount = Math.max(1, geometryResults.filter(g => !g?.is_marking_scheme).length);
             const unsupportedRatio = unsupportedPageResults.length / nonSchemePageCount;
 
+            // 📚 [AUTO-CATALOGED OFFICIAL SCHEME LOOKUP]:
+            // If an unsupported subject (e.g. Biology 8461/1H) is uploaded WITHOUT a marking scheme,
+            // check if an official marking scheme for this paperCode already exists in Firestore `markingSchemes`!
+            if (!hasUploadedMarkingScheme && unsupportedPageResults.length > 0) {
+                try {
+                    const combinedGeoHints = [
+                        ...geometryResults.map(g => g?.paper_code_hint || ''),
+                        ...geometryResults.map(g => g?.evidence_text_snippet || ''),
+                        ...(Array.isArray(files) ? files.map(f => f?.originalname || '') : []),
+                        options.customText || ''
+                    ].filter(Boolean).join(' ');
+                    const primarySubjName = unsupportedPageResults[0]?.unsupported_subject_name || undefined;
+                    const seriesMatch = combinedGeoHints.match(/\b((?:June|May|Summer|November|Autumn|January|Winter)\s+20\d{2}|20\d{2})\b/i);
+                    const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
+                    const catalogedScheme = await MarkingSchemeParserService.findCatalogedSchemeByPaperHint(
+                        combinedGeoHints,
+                        primarySubjName,
+                        seriesMatch?.[1]
+                    );
+                    if (catalogedScheme) {
+                        inputMarkingScheme = catalogedScheme;
+                        hasUploadedMarkingScheme = true;
+                        console.log(
+                            `📚 [AUTO-CATALOG SCHEME] Found official ${catalogedScheme.examDetails?.subject || primarySubjName} marking scheme in DB for "${catalogedScheme.examDetails?.paperCode}" (${catalogedScheme.examDetails?.exam_series || 'N/A'})! Grading automatically without requiring user mark scheme upload.`
+                        );
+                    }
+                } catch (catalogLookupErr) {
+                    // Non-fatal: proceed with standard unsupported subject handling
+                }
+            }
+
             if (!hasUploadedMarkingScheme && isMultiPageUpload && (unsupportedPageResults.length >= 2 || unsupportedRatio >= 0.4)) {
                 const primaryUnsupported = unsupportedPageResults.find(g => g.rejection_reason && g.rejection_reason.trim()) || unsupportedPageResults[0];
                 const consensusRejectionReason = primaryUnsupported?.rejection_reason ||
@@ -839,6 +870,12 @@ export class MarkingPipelineService {
                     if (g && !g.is_marking_scheme) {
                         g.is_supported_doc = false;
                         g.rejection_reason = consensusRejectionReason;
+                        if (primaryUnsupported?.detected_subject) {
+                            g.detected_subject = primaryUnsupported.detected_subject;
+                        }
+                        if (primaryUnsupported?.unsupported_subject_name) {
+                            g.unsupported_subject_name = primaryUnsupported.unsupported_subject_name;
+                        }
                     }
                 });
                 lastRejectionReason = consensusRejectionReason;
@@ -984,20 +1021,26 @@ export class MarkingPipelineService {
                 console.log(`⚠️ [PIPELINE] All pages rejected by Geometry check. Short-circuiting gracefully.`);
                 progressCallback(createProgressData(2, 'Content rejected by quality inspector.', MULTI_IMAGE_STEPS));
 
-                const isNonEducational =
-                    /not educational|please upload an academic exam|non-academic|invoice|receipt|selfie|exam cover page/i.test(lastRejectionReason) ||
-                    geometryResults.some(g => g && (
-                        g.detected_subject === 'NON_ACADEMIC' ||
-                        /not educational|please upload an academic exam|non-academic/i.test(g.rejection_reason || '')
-                    ));
-
-                const academicSubjectGeo = geometryResults.find(
+                const academicSubjectPages = geometryResults.filter(
                     g => g && g.is_acceptable_quality !== false && g.is_supported_doc === false &&
                     g.detected_subject !== 'NON_ACADEMIC' &&
                     !/not educational|please upload an academic exam|non-academic/i.test(g.rejection_reason || '') &&
                     (g.detected_subject === 'ENGLISH_LITERATURE' ||
                      (g.detected_subject === 'UNSUPPORTED_SUBJECT' && isRecognizedAcademicSubject(g.unsupported_subject_name)))
                 );
+                const academicSubjectGeo = academicSubjectPages[0];
+
+                const nonAcademicPages = geometryResults.filter(g => g && (
+                    g.detected_subject === 'NON_ACADEMIC' ||
+                    /not educational|please upload an academic exam|non-academic|invoice|receipt|selfie/i.test(g.rejection_reason || '')
+                ));
+
+                // A document is non-educational ONLY when no recognized academic subject pages were detected
+                const isNonEducational =
+                    academicSubjectPages.length === 0 && (
+                        /not educational|please upload an academic exam|non-academic|invoice|receipt|selfie/i.test(lastRejectionReason) ||
+                        nonAcademicPages.length > 0
+                    );
 
                 const isUnsupportedWithoutScheme =
                     !isNonEducational &&
@@ -2166,7 +2209,15 @@ export class MarkingPipelineService {
                         return null;
                     }
                     const { MarkingSchemeParserService } = await import('./MarkingSchemeParserService.js');
-                    const parsedObj = await MarkingSchemeParserService.parseImagesToObject(interceptedSchemeImages, usageTracker);
+                    const parsedObj = await MarkingSchemeParserService.parseImagesToObject(
+                        interceptedSchemeImages,
+                        usageTracker,
+                        {
+                            userId: userId || 'anonymous',
+                            sessionId: options.sessionId || submissionId,
+                            sourceFileName: deferredSchemePdfFiles[0]?.originalname || files?.[0]?.originalname
+                        }
+                    );
                     logSchemeParserComplete();
 
                     if (parsedObj && Object.keys(parsedObj).length > 0) {
@@ -2264,14 +2315,14 @@ export class MarkingPipelineService {
             // ========================= START: ADD QUESTION DETECTION STAGE =========================
             progressCallback(createProgressData(4, 'Detecting questions and fetching schemes...', MULTI_IMAGE_STEPS));
 
-            // Call question detection for each individual question
-            const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
-
             // Collect full OCR text for reliable metadata extraction (e.g. Total Marks)
             const extractedOcrText = allPagesOcrData.map((p: any) => p.ocrData.text).join('\n\n');
 
             // ⏳ Resolve the concurrently-running custom scheme parser (if not already satisfied by fast DB pre-check)
             const parsedCustomScheme = await schemeParserPromise;
+
+            // Call question detection for each individual question (started after custom scheme parsing completes so timings don't overlap)
+            const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
             if (parsedCustomScheme) {
                 inputMarkingScheme = parsedCustomScheme;
                 const parsedSchemeSubject = (parsedCustomScheme as any)?.examDetails?.subject;
@@ -2291,6 +2342,22 @@ export class MarkingPipelineService {
                         subjectProfile = schemeResolvedProfile;
                     }
                 }
+            }
+
+            if (inputMarkingScheme && individualQuestions.length >= 3) {
+                import('./MarkingSchemeParserService.js')
+                    .then(({ MarkingSchemeParserService }) => {
+                        void MarkingSchemeParserService.saveOfficialExamPaperQuestionsToDatabase(
+                            inputMarkingScheme,
+                            individualQuestions,
+                            {
+                                userId: userId || 'anonymous',
+                                sessionId: options.sessionId || submissionId,
+                                sourceFileName: files?.[0]?.originalname
+                            }
+                        );
+                    })
+                    .catch(() => {});
             }
 
             // Orchestrate marking scheme lookup (reuse pre-resolved DB match if available, otherwise run lookup)
@@ -3326,7 +3393,12 @@ export class MarkingPipelineService {
 
                                                 // 2. Process each group (Sub-Question Guillotine)
                                                 for (const [sq, annos] of groups.entries()) {
-                                                    const subBudget = subQuestionBudgets[sq] ?? 99; // Default high if unknown
+                                                    const cleanDotSq = sq.replace(/^\./, '');
+                                                    const subBudget =
+                                                        subQuestionBudgets[sq] ??
+                                                        subQuestionBudgets[`${task.questionNumber}${sq}`] ??
+                                                        subQuestionBudgets[`${task.questionNumber}.${cleanDotSq}`] ??
+                                                        99; // Default high if unknown
 
                                                     // Sort by priority (A > B > M)
                                                     annos.sort((a: any, b: any) => {

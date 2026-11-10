@@ -58,7 +58,7 @@ Your job is to analyze the provided image of student homework or exam booklet an
 
 2. is_acceptable_quality (boolean): Must be false if the image is extremely blurry, completely unreadable, photographed at an extreme skewed angle, or contains more than 2 pages squeezed into a single photo. Otherwise true.
 3. is_two_page_spread (boolean): Must be true ONLY if the image is a wide/landscape capture showing two FULL, complete pages side-by-side (roughly 50% left page and 50% right page separated by a central spine/fold) where BOTH pages are meant to be read and graded. CRITICAL: If the photo is a single portrait page where the booklet spine or a partial edge/corner of the adjacent page is merely peeking into the left or right margin, you MUST return false.
-4. is_marking_scheme (boolean): Must be true ONLY if the image is an official marking scheme or rubric containing explicit grading codes (e.g., M1, A1, B1, AO1, AO2, Level 4 Perceptive), structural mark distributions, or evaluator notes. CRITICAL EXCEPTION: Standard exam cover pages or title pages containing student name fields, candidate signatures, and "For Examiner's Use" mark tally grids are NOT marking schemes; return false for these. CRITICAL: Do NOT eject pages that contain large maps, graphs, reading insert extracts (Source A / Source B), or diagrams. You must scan the entire page. If there are question numbers (e.g., '1.1.1', '01', '02', 'Q5'), reading extracts, or student answer spaces beneath the image, it is an active exam page and MUST be kept in the array. Do not assume a page is a marking scheme just because it lacks handwritten student work.
+4. is_marking_scheme (boolean): Must be true ONLY if the image is an official marking scheme, mark scheme table, or rubric containing explicit grading codes (e.g., M1, A1, B1, AO1, AO2, AO3, Level 4 Perceptive), mark scheme table columns (e.g., "Question | Answers | Extra information | Mark | AO / Spec. Ref."), examiner guidance phrases (e.g., "allow", "ignore", "do not accept", "any two from"), structural mark distributions, or evaluator notes. CRITICAL EXCEPTION: Standard exam cover pages or title pages containing student name fields, candidate signatures, and "For Examiner's Use" mark tally grids are NOT marking schemes; return false for these. CRITICAL: Do NOT eject pages that contain large maps, graphs, reading insert extracts (Source A / Source B), or diagrams. You must scan the entire page. If there are question numbers (e.g., '1.1.1', '01', '02', 'Q5'), reading extracts, or student answer spaces beneath the image, it is an active exam page and MUST be kept in the array. Do not assume a page is a marking scheme just because it lacks handwritten student work.
 5. is_supported_doc (boolean): Verify that the document belongs to our **fully supported active subjects**:
    - **SUPPORTED ACTIVE SUBJECTS (MUST SET \`is_supported_doc: true\`)**:
      1. **Mathematics / Further Maths / Statistics / Numeracy** (GCSE, IGCSE, A-Level, homework, working, graphs, geometry). Set \`detected_subject: "MATHS"\`.
@@ -67,8 +67,10 @@ Your job is to analyze the provided image of student homework or exam booklet an
      - **GCSE English Literature** (AQA 8702, Edexcel 1ET0, Macbeth, A Christmas Carol, An Inspector Calls, poetry essays). Set \`detected_subject: "ENGLISH_LITERATURE"\`.
      - **Science Subjects** (Biology, Chemistry, Physics, Combined Science like AQA 8461/8464, Edexcel 1BI0/1SC0). Set \`detected_subject: "UNSUPPORTED_SUBJECT"\` and \`unsupported_subject_name: "Biology"\` (or Chemistry/Physics).
      - **Other Academic Humanities / Languages** (History, Geography, Computer Science, French, Spanish, etc.). Set \`detected_subject: "UNSUPPORTED_SUBJECT"\` and provide \`unsupported_subject_name\` (e.g. "Geography", "History").
+   - **EXAM COVER PAGES**:
+     - If the page is a standard exam booklet cover page (with exam board logos, candidate name/number boxes, and "Instructions for Candidates"), classify \`detected_subject\` and \`unsupported_subject_name\` according to the exam subject printed on the cover (e.g., \`"MATHS"\`, \`"ENGLISH_LANGUAGE"\`, or \`"UNSUPPORTED_SUBJECT"\` with \`"Biology"\`), NEVER \`"NON_ACADEMIC"\`.
    - **NON-ACADEMIC CONTENT (CRITICAL: MUST SET \`is_supported_doc: false\` AND \`detected_subject: "NON_ACADEMIC"\`)**:
-     - Parking instructions, venue directions, arrival times/rules, candidate notices, checklists, receipts, invoices, banknotes, selfies, general non-educational documents, or random photos.
+     - Parking instructions, venue directions, arrival times/rules, checklists, receipts, invoices, banknotes, selfies, general non-educational documents, or random photos.
      - Set \`detected_subject: "NON_ACADEMIC"\`, \`unsupported_subject_name: ""\`, and \`rejection_reason: "Not educational exam content: Please upload an academic exam question or student homework."\`.
    - **ZERO-FALSE-ALARM GUARD FOR MATHS & ENGLISH LANGUAGE**:
      - If a Maths question uses a science context (e.g., bacteria growth rates, magnification, density, or physics word problems) or an English Language reading extract talks about nature or science, you **MUST** set \`is_supported_doc: true\` and \`detected_subject: "MATHS"\` or \`"ENGLISH_LANGUAGE"\`. Only reject when it is unmistakably an unsupported subject.
@@ -185,11 +187,19 @@ Return ONLY valid JSON matching this schema:
             const isPhysicallyLandscape = (width && height) ? (width > height * 1.05) : true;
 
             // Strict Non-Academic / Administrative / Logistical Content Guard:
-            // Parking directions, venue rules, arrival instructions, cover-only sheets, candidate notices, receipts, etc.
+            // Parking directions, venue rules, arrival instructions, receipts, selfies, etc.
+            // Note: Do NOT include "instructions for candidate" because standard GCSE/A-Level exam cover pages print that phrase.
             const observationText = `${parsed.visual_observations || ''} ${parsed.evidence_text_snippet || ''} ${parsed.rejection_reason || ''}`.toLowerCase();
+            const hasRecognizedAcademicSubject =
+                parsed.detected_subject === 'MATHS' ||
+                parsed.detected_subject === 'ENGLISH_LANGUAGE' ||
+                parsed.detected_subject === 'ENGLISH_LITERATURE' ||
+                (parsed.detected_subject === 'UNSUPPORTED_SUBJECT' && isRecognizedAcademicSubject(parsed.unsupported_subject_name));
+
             const isNonAcademicContent =
                 parsed.detected_subject === 'NON_ACADEMIC' ||
-                /parking|car park|arrival time|doors open|venue direction|candidate notice|instructions for candidate|desk card|receipt|invoice|banknote|selfie/i.test(observationText);
+                (!hasRecognizedAcademicSubject &&
+                    /parking|car park|arrival time|doors open|venue direction|desk card|receipt|invoice|banknote|selfie/i.test(observationText));
 
             if (isNonAcademicContent) {
                 parsed.detected_subject = 'NON_ACADEMIC';

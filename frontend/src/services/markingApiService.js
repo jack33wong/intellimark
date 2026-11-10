@@ -235,17 +235,35 @@ class SimpleSessionService {
   }
 
   // Architectural Defense: Single Source of Truth for State
+  _isFallbackSessionTitle = (title) => {
+    if (!title) return true;
+    const trimmed = String(title).trim();
+    if (
+      trimmed === 'Processing...' ||
+      trimmed === 'Chat Session' ||
+      trimmed === 'Marking Session' ||
+      trimmed === 'Rejected Document' ||
+      trimmed === 'Rejected Upload'
+    ) {
+      return true;
+    }
+    return /^(Marking|Question|Single Message|Batch Session)\s*-\s*\d/i.test(trimmed);
+  }
+
   _commitServerSessionState = (serverId, serverTitle, messageType = null, userId = null) => {
     if (!serverId || !this.state.currentSession) return;
 
     const currentTitle = this.state.currentSession.title;
-    const shouldUpdateTitle = !currentTitle || currentTitle === 'Processing...' || currentTitle === 'Chat Session';
+    const shouldUpdateTitle =
+      this._isFallbackSessionTitle(currentTitle) &&
+      Boolean(serverTitle) &&
+      (serverTitle !== 'Processing...' || !currentTitle);
     const resolvedMessageType = messageType || this.state.currentSession.messageType || 'Chat';
 
     const updatedSession = {
       ...this.state.currentSession,
       id: serverId,
-      title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : currentTitle,
+      title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : (currentTitle || serverTitle || 'Marking Session'),
       messageType: resolvedMessageType,
       ...(userId ? { userId } : {}),
       updatedAt: new Date().toISOString()
@@ -422,11 +440,11 @@ class SimpleSessionService {
             costBreakdown: existingStats.costBreakdown
           };
 
-          // For unauthenticated users: Only update title if it's the first AI response
-          // Keep the original title from the first AI response, don't overwrite on follow-ups
-          const shouldUpdateTitle = !this.state.currentSession.title ||
-            this.state.currentSession.title === 'Processing...' ||
-            this.state.currentSession.title === 'Chat Session';
+          // For unauthenticated users: Only update title if it's the first AI response or a fallback title
+          // Keep the original title from the first meaningful AI response, don't overwrite on follow-ups
+          const shouldUpdateTitle = this._isFallbackSessionTitle(this.state.currentSession.title) &&
+            Boolean(data.sessionTitle) &&
+            data.sessionTitle !== 'Processing...';
 
           // Detect usageMode from AI message type so the mode-sync useEffect
           // can hide the ribbon even when the session ID changes (temp -> real).
@@ -726,6 +744,10 @@ class SimpleSessionService {
       await this._appendFilesOrUploadLargeBatch(formData, files);
 
       // Add other form data
+      const sessionId = this.state.currentSession?.id?.startsWith('temp-')
+        ? null
+        : this.state.currentSession?.id;
+      if (sessionId) formData.append('sessionId', sessionId);
       formData.append('model', model);
       formData.append('clientCompressed', 'true');
       if (aiMessageId) formData.append('aiMessageId', aiMessageId);

@@ -65,6 +65,7 @@ export class PdfProcessingService {
 
     let srcPdfDoc: PDFDocument | null = null;
     let pageCount = 1;
+    let knownPageCount = 0;
     let pdfPtW = 595.28; // Standard A4 width in PDF points
     let pdfPtH = 841.89; // Standard A4 height in PDF points
 
@@ -72,6 +73,7 @@ export class PdfProcessingService {
       console.log("🧼 [PDF-REPAIR] Loading document into pdf-lib to check page count & clean structural metadata...");
       srcPdfDoc = await PDFDocument.load(cleanPdfBytes, { ignoreEncryption: true });
       pageCount = srcPdfDoc.getPageCount();
+      knownPageCount = pageCount;
 
       // ⚡ INSTANT PAGE GATING (0.05s instead of rasterizing)
       if (maxPages && pageCount > maxPages) {
@@ -92,7 +94,12 @@ export class PdfProcessingService {
         }
       }
 
-      console.log(`✨ [PDF-REPAIR] Validated ${pageCount} pages. Ready for chunked rasterization.`);
+      if (srcPdfDoc.isEncrypted) {
+        console.warn(`🔒 [PDF-REPAIR] Encrypted/owner-protected PDF detected (${pageCount} pages). Bypassing pdf-lib sub-PDF rewrite so Ghostscript can decrypt streams natively.`);
+        srcPdfDoc = null;
+      } else {
+        console.log(`✨ [PDF-REPAIR] Validated ${pageCount} pages. Ready for chunked rasterization.`);
+      }
     } catch (repairError: any) {
       if (repairError?.message?.includes('PDF_PAGE_LIMIT_EXCEEDED')) {
         try {
@@ -155,7 +162,7 @@ export class PdfProcessingService {
               chunkResults.sort((a, b) => (a.page || 0) - (b.page || 0));
 
               const chunkPages = await Promise.all(
-                chunkResults.map(async (res, j): Promise<StandardizedPage | null> => {
+                chunkResults.map(async (res, j): Promise<{ page: StandardizedPage; isBlankWhite: boolean } | null> => {
                   const globalPageIndex = chunkStart + j;
                   if (!res || !res.path) return null;
 
@@ -170,12 +177,24 @@ export class PdfProcessingService {
                     // Immediately delete the rasterized page file from /tmp RAM disk
                     await fs.unlink(res.path).catch(() => {});
 
+                    // On Chunk 0, check if pdf-lib copyPages produced a 100% solid white blank page (<1ms via sharp.stats)
+                    let isBlankWhite = false;
+                    if (chunkStart === 0) {
+                      try {
+                        const stats = await sharp(optimizedBuffer).stats();
+                        isBlankWhite = stats.channels.length > 0 && stats.channels.every(c => c.stdev < 0.8 && c.mean > 250);
+                      } catch (_) {}
+                    }
+
                     if (info.width && info.height) {
                       return {
-                        pageIndex: globalPageIndex,
-                        imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
-                        width: info.width,
-                        height: info.height
+                        page: {
+                          pageIndex: globalPageIndex,
+                          imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
+                          width: info.width,
+                          height: info.height
+                        },
+                        isBlankWhite
                       };
                     }
                     return null;
@@ -187,69 +206,124 @@ export class PdfProcessingService {
                 })
               );
 
-              chunkPages.forEach((p) => {
-                if (p) standardizedPages.push(p);
+              const validChunkEntries = chunkPages.filter((entry): entry is { page: StandardizedPage; isBlankWhite: boolean } => entry !== null);
+              if (chunkStart === 0 && validChunkEntries.length > 0 && validChunkEntries.every(e => e.isBlankWhite)) {
+                console.warn(`⚠️ [PDF-REPAIR] Chunk 0 (${validChunkEntries.length} page(s)) rendered 100% blank white via pdf-lib sub-document. Falling back to direct Ghostscript rasterization!`);
+                standardizedPages.length = 0;
+                break;
+              }
+
+              validChunkEntries.forEach((entry) => {
+                standardizedPages.push(entry.page);
               });
             }
           } finally {
-            // Immediately delete the 3-page sub-PDF from /tmp RAM disk before starting the next chunk
+            // Immediately delete the sub-PDF from /tmp RAM disk before starting the next chunk
             await fs.unlink(chunkPdfPath).catch(() => {});
           }
         }
 
         // Release srcPdfDoc reference
         srcPdfDoc = null;
-      } else {
-        // 3B. FALLBACK FOR NON-STANDARD PDFS THAT PDF-LIB COULD NOT PARSE:
+      }
+
+      if (standardizedPages.length === 0) {
+        // 3B. DIRECT GHOSTSCRIPT RASTERIZATION (For encrypted/owner-protected PDFs or non-standard stream PDFs):
         const fallbackPdfPath = path.join(tempDirPath, `fallback_${Date.now()}.pdf`);
         await fs.writeFile(fallbackPdfPath, Buffer.from(cleanPdfBytes));
 
-        const fallbackOptions: any = {
-          density: 200,
-          format: "jpeg",
-          quality: 90,
-          savePath: tempDirPath,
-          saveFilename: `fb_page_${uuidv4()}`,
-          width: targetWidth,
-          height: targetHeight,
-          compression: "jpeg",
-          "-background": "white",
-          "-alpha": "remove",
-          "-flatten": true,
-          ...pdf2picCustomOptions
-        };
+        try {
+          const fallbackOptions: any = {
+            density: TARGET_DENSITY,
+            format: "jpeg",
+            quality: 90,
+            savePath: tempDirPath,
+            saveFilename: `fb_page_${uuidv4()}`,
+            width: targetWidth,
+            height: targetHeight,
+            compression: "jpeg",
+            "-background": "white",
+            "-alpha": "remove",
+            "-flatten": true,
+            ...pdf2picCustomOptions
+          };
 
-        const convertFallback = fromPath(fallbackPdfPath, fallbackOptions);
-        const results = (await convertFallback.bulk(-1)) as unknown as ConversionResult[];
+          const convertFallback = fromPath(fallbackPdfPath, fallbackOptions);
 
-        if (Array.isArray(results)) {
-          results.sort((a, b) => (a.page || 0) - (b.page || 0));
-          for (let i = 0; i < results.length; i++) {
-            const res = results[i];
-            if (!res?.path) continue;
-            try {
-              const { data: optimizedBuffer, info } = await sharp(res.path)
-                .flatten({ background: { r: 255, g: 255, b: 255 } })
-                .grayscale()
-                .jpeg({ quality: 84 })
-                .toBuffer({ resolveWithObject: true });
-
-              await fs.unlink(res.path).catch(() => {});
-
-              if (info.width && info.height) {
-                standardizedPages.push({
-                  pageIndex: i,
-                  imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
-                  width: info.width,
-                  height: info.height
+          if (knownPageCount > 0) {
+            for (let chunkStart = 0; chunkStart < knownPageCount; chunkStart += CHUNK_SIZE) {
+              const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, knownPageCount);
+              const pageNumbers: number[] = [];
+              for (let p = chunkStart + 1; p <= chunkEnd; p++) {
+                pageNumbers.push(p);
+              }
+              const chunkResults = (await convertFallback.bulk(pageNumbers)) as unknown as ConversionResult[];
+              if (Array.isArray(chunkResults)) {
+                chunkResults.sort((a, b) => (a.page || 0) - (b.page || 0));
+                const chunkPages = await Promise.all(
+                  chunkResults.map(async (res, j): Promise<StandardizedPage | null> => {
+                    const globalPageIndex = chunkStart + j;
+                    if (!res?.path) return null;
+                    try {
+                      const { data: optimizedBuffer, info } = await sharp(res.path)
+                        .flatten({ background: { r: 255, g: 255, b: 255 } })
+                        .grayscale()
+                        .jpeg({ quality: 85 })
+                        .toBuffer({ resolveWithObject: true });
+                      await fs.unlink(res.path).catch(() => {});
+                      if (info.width && info.height) {
+                        return {
+                          pageIndex: globalPageIndex,
+                          imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
+                          width: info.width,
+                          height: info.height
+                        };
+                      }
+                      return null;
+                    } catch (err) {
+                      await fs.unlink(res.path).catch(() => {});
+                      return null;
+                    }
+                  })
+                );
+                chunkPages.forEach((p) => {
+                  if (p) standardizedPages.push(p);
                 });
               }
-            } catch (err) {
-              await fs.unlink(res.path).catch(() => {});
+            }
+          } else {
+            const results = (await convertFallback.bulk(-1)) as unknown as ConversionResult[];
+            if (Array.isArray(results)) {
+              results.sort((a, b) => (a.page || 0) - (b.page || 0));
+              for (let i = 0; i < results.length; i++) {
+                const res = results[i];
+                if (!res?.path) continue;
+                try {
+                  const { data: optimizedBuffer, info } = await sharp(res.path)
+                    .flatten({ background: { r: 255, g: 255, b: 255 } })
+                    .grayscale()
+                    .jpeg({ quality: 84 })
+                    .toBuffer({ resolveWithObject: true });
+
+                  await fs.unlink(res.path).catch(() => {});
+
+                  if (info.width && info.height) {
+                    standardizedPages.push({
+                      pageIndex: i,
+                      imageData: `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`,
+                      width: info.width,
+                      height: info.height
+                    });
+                  }
+                } catch (err) {
+                  await fs.unlink(res.path).catch(() => {});
+                }
+              }
             }
           }
+        } finally {
+          await fs.unlink(fallbackPdfPath).catch(() => {});
         }
-        await fs.unlink(fallbackPdfPath).catch(() => {});
       }
 
       if (standardizedPages.length === 0) {

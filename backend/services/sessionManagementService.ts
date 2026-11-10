@@ -369,6 +369,24 @@ export class SessionManagementService {
           // Adding to existing session
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, context.userMessage, context.mode);
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, dbAiMessage, context.mode);
+
+          // Upgrade fallback session title (e.g. "Marking - 11/10/2026" or "Rejected Document") when a descriptive title is generated
+          const existingTitle = String(sessionExists.title || '').trim();
+          const isFallbackExistingTitle =
+            !existingTitle ||
+            existingTitle === 'Processing...' ||
+            existingTitle === 'Chat Session' ||
+            existingTitle === 'Marking Session' ||
+            existingTitle === 'Rejected Document' ||
+            existingTitle === 'Rejected Upload' ||
+            /^(Marking|Question|Single Message|Batch Session)\s*-\s*\d/i.test(existingTitle);
+          const isMeaningfulNewTitle =
+            Boolean(sessionTitle) &&
+            sessionTitle !== 'Processing...' &&
+            !/^(Marking|Question|Single Message|Batch Session)\s*-\s*\d/i.test(String(sessionTitle).trim());
+          if (isFallbackExistingTitle && isMeaningfulNewTitle) {
+            await FirestoreService.updateUnifiedSession(currentSessionId, { title: sessionTitle });
+          }
         } else {
           // Session doesn't exist, create new one
           console.log(`🔍 [PERSISTENCE] Session ${currentSessionId} not found, creating new session`);
@@ -1086,13 +1104,27 @@ export class SessionManagementService {
     delete (dbAiMessage as any).markingSchemesMap;
     delete (dbAiMessage as any).allQuestionResults; // Safety cleanup if it was somehow attached earlier
 
-    // Add grade if provided
+    // Add grade if provided (or backfill from AI performance summary when LLM estimated missing DB boundaries)
     if (grade) {
       (dbAiMessage as any).grade = grade;
       (dbAiMessage as any).gradeBoundaryType = gradeBoundaryType;
       if (gradeBoundaries) {
         (dbAiMessage as any).gradeBoundaries = gradeBoundaries;
       }
+    } else if (overallPerformanceSummary && typeof overallPerformanceSummary === 'string' && overallPerformanceSummary.trim().startsWith('{')) {
+      try {
+        const parsedSummary = JSON.parse(overallPerformanceSummary);
+        if (parsedSummary?.grading?.boundaries && Object.keys(parsedSummary.grading.boundaries).length > 0) {
+          if (parsedSummary.grading.grade && parsedSummary.grading.grade !== 'N/A') {
+            (dbAiMessage as any).grade = parsedSummary.grading.grade;
+          }
+          if (parsedSummary.grading.predictedGrade && parsedSummary.grading.predictedGrade !== 'N/A') {
+            (dbAiMessage as any).predictedGrade = parsedSummary.grading.predictedGrade;
+          }
+          (dbAiMessage as any).gradeBoundaryType = 'Paper-Specific';
+          (dbAiMessage as any).gradeBoundaries = parsedSummary.grading.boundaries;
+        }
+      } catch {}
     }
 
     return dbAiMessage;
@@ -1180,10 +1212,20 @@ export class SessionManagementService {
       return `Q${qNum} (${topic}): Score ${awarded}/${total}.${rubricInfo} Key Points: ${feedback}`;
     }).join('\n');
 
+    const preAwardedMarks = studentScore?.awardedMarks ?? allQuestionResults.reduce((s, q) => s + Number(q.score?.awardedMarks ?? 0), 0);
+    const preTotalMarks = studentScore?.totalMarks ?? allQuestionResults.reduce((s, q) => s + Number(q.score?.totalMarks ?? 0), 0);
+    const preOverallPct = preTotalMarks > 0 ? Math.round((preAwardedMarks / preTotalMarks) * 100) : 0;
+    const hasDbBoundaries = Boolean(gradeBoundaries && typeof gradeBoundaries === 'object' && Object.keys(gradeBoundaries).length > 0);
+
     let promptData = `DISTILLED QUESTION RESULTS:\n${distilledData}\n\n`;
+    promptData += `STUDENT SCORE: ${preAwardedMarks}/${preTotalMarks} (${preOverallPct}%)\n`;
     if (examInfo) {
-      promptData += `EXAM INFO: ${examInfo.examBoard || ''} | ${examInfo.subject || ''} | ${examInfo.examCode || ''} | ${examInfo.examSeries || ''} | ${examInfo.tier || ''}\n\n`;
+      promptData += `EXAM INFO: ${examInfo.examBoard || ''} | ${examInfo.subject || ''} | ${examInfo.examCode || ''} | ${examInfo.examSeries || ''} | ${examInfo.tier || ''}\n`;
     }
+    if (!hasDbBoundaries && preTotalMarks > 0) {
+      promptData += `DB_GRADE_BOUNDARIES: MISSING (Estimate realistic official raw-mark grade boundaries out of ${preTotalMarks} marks for this paper and populate "estimatedGrading.boundaries")\n`;
+    }
+    promptData += '\n';
 
     try {
       const { ModelProvider } = await import('../utils/ModelProvider.js');
@@ -1241,14 +1283,18 @@ export class SessionManagementService {
       );
       const englishRadarAxes = isEnglishP2 ? ENGLISH_LANGUAGE_P2_RADAR_AXES : ENGLISH_LANGUAGE_P1_RADAR_AXES;
 
-      const isALevel = !isLoRSubject && (aiParsed.level === 'ALEVEL' || (examInfo?.examCode && /^9|^8MA|^735|^H2/i.test(examInfo.examCode)));
-      const defaultAxes = isLoRSubject
+      const isEnglishLit = subjectProfile.key === 'ENGLISH_LITERATURE';
+      const isStrictEnglishLoR = isEnglishLanguage || isEnglishLit;
+      const isALevel = !isStrictEnglishLoR && (aiParsed.level === 'ALEVEL' || (examInfo?.examCode && /^9|^8MA|^735|^740|^H2|^H4/i.test(examInfo.examCode)));
+      const defaultAxes = isStrictEnglishLoR
         ? (isEnglishLanguage ? englishRadarAxes : subjectProfile.radarAxes)
-        : (isALevel
-            ? ['Algebra & Functions', 'Coordinate Geometry', 'Sequences & Series', 'Trigonometry', 'Exponentials & Logs', 'Differentiation', 'Integration', 'Proof & Vectors']
-            : ['Number', 'Algebra', 'Ratio & Proportion', 'Geometry', 'Probability', 'Statistics']);
+        : (subjectProfile.key !== 'MATHS' && subjectProfile.radarAxes?.length >= 4
+            ? subjectProfile.radarAxes
+            : (isALevel
+                ? ['Algebra & Functions', 'Coordinate Geometry', 'Sequences & Series', 'Trigonometry', 'Exponentials & Logs', 'Differentiation', 'Integration', 'Proof & Vectors']
+                : ['Number', 'Algebra', 'Ratio & Proportion', 'Geometry', 'Probability', 'Statistics']));
 
-      const axesList: string[] = isLoRSubject
+      const axesList: string[] = isStrictEnglishLoR
         ? (isEnglishLanguage ? englishRadarAxes : subjectProfile.radarAxes)
         : (Array.isArray(aiParsed.radarAxes) && aiParsed.radarAxes.length >= 4
             ? aiParsed.radarAxes.slice(0, 8).map((a: any) => String(a).trim())
@@ -1349,7 +1395,75 @@ export class SessionManagementService {
       });
 
       const hasTooDenseWarning = allQuestionResults.some((qr: any) => qr.isError && qr.errorMessage === 'Too Dense');
-      const hasBoundaries = Boolean(gradeBoundaries && typeof gradeBoundaries === 'object' && Object.keys(gradeBoundaries).length > 0);
+      let resolvedBoundaries: Record<string, number> | undefined =
+        gradeBoundaries && typeof gradeBoundaries === 'object' && Object.keys(gradeBoundaries).length > 0
+          ? gradeBoundaries
+          : undefined;
+      let resolvedGrade = grade;
+      let resolvedPredictedGrade = predictedGrade;
+
+      // 🎓 [LLM GRADE BOUNDARY FALLBACK]:
+      // When grade boundaries are not in the database (e.g. Biology, Chemistry, Physics, History, Geography, or a new series),
+      // use the LLM's estimated boundaries from `aiParsed.estimatedGrading.boundaries` (or a calibrated UK exam board scale)
+      // and deterministically compute the student's achieved grade from `awardedMarks`.
+      if (!resolvedBoundaries && totalMarks > 0 && (examInfo || allQuestionResults.length >= 3)) {
+        const rawEst = aiParsed?.estimatedGrading?.boundaries;
+        const sanitizedEst: Record<string, number> = {};
+        if (rawEst && typeof rawEst === 'object') {
+          for (const [k, v] of Object.entries(rawEst)) {
+            const num = Math.round(Number(v));
+            if (!isNaN(num) && num > 0 && num <= Math.max(totalMarks, 100)) {
+              sanitizedEst[String(k).trim()] = num;
+            }
+          }
+        }
+
+        if (Object.keys(sanitizedEst).length >= 4) {
+          resolvedBoundaries = sanitizedEst;
+        } else {
+          // Calibrated UK exam board fallback scale proportional to totalMarks
+          const scale = (pct: number) => Math.max(1, Math.round((pct / 100) * totalMarks));
+          const tierNorm = String(examInfo?.tier || '').toLowerCase();
+          if (isALevel) {
+            resolvedBoundaries = {
+              'A*': scale(76),
+              'A': scale(64),
+              'B': scale(53),
+              'C': scale(42),
+              'D': scale(32),
+              'E': scale(22)
+            };
+          } else if (tierNorm.includes('foundation')) {
+            resolvedBoundaries = {
+              '5': scale(67),
+              '4': scale(55),
+              '3': scale(41),
+              '2': scale(27),
+              '1': scale(13)
+            };
+          } else {
+            resolvedBoundaries = {
+              '9': scale(68),
+              '8': scale(60),
+              '7': scale(52),
+              '6': scale(43),
+              '5': scale(35),
+              '4': scale(26),
+              '3': scale(18)
+            };
+          }
+        }
+
+        const sortedEntries = Object.entries(resolvedBoundaries)
+          .map(([g, m]) => ({ grade: g, mark: Number(m) }))
+          .filter(e => !isNaN(e.mark))
+          .sort((a, b) => b.mark - a.mark);
+        const matched = sortedEntries.find(e => awardedMarks >= e.mark);
+        resolvedGrade = matched ? matched.grade : 'U';
+        resolvedPredictedGrade = resolvedGrade;
+      }
+
+      const hasBoundaries = Boolean(resolvedBoundaries && Object.keys(resolvedBoundaries).length > 0);
 
       // Refinement 4: Surface the 3-Part Coaching Block (Why Awarded, Next-Level Gap, and Concrete Upgrade Rewrite)
       const questionCoaching = allQuestionResults
@@ -1372,17 +1486,17 @@ export class SessionManagementService {
           };
         });
 
-      let finalPredictedGrade = predictedGrade && String(predictedGrade).trim() !== '' ? String(predictedGrade) : 'N/A';
-      const isPartialUpload = hasBoundaries && gradeBoundaries && totalMarks > 0 && (() => {
-        const maxB = Math.max(...Object.values(gradeBoundaries).map((v: any) => Number(v) || 0));
+      let finalPredictedGrade = resolvedPredictedGrade && String(resolvedPredictedGrade).trim() !== '' ? String(resolvedPredictedGrade) : 'N/A';
+      const isPartialUpload = hasBoundaries && resolvedBoundaries && totalMarks > 0 && (() => {
+        const maxB = Math.max(...Object.values(resolvedBoundaries).map((v: any) => Number(v) || 0));
         return maxB > 0 && totalMarks < maxB * 0.65;
       })();
 
-      if (isPartialUpload && gradeBoundaries && finalPredictedGrade === 'N/A') {
-        const maxBoundaryMark = Math.max(...Object.values(gradeBoundaries).map((v: any) => Number(v) || 0));
+      if (isPartialUpload && resolvedBoundaries && finalPredictedGrade === 'N/A') {
+        const maxBoundaryMark = Math.max(...Object.values(resolvedBoundaries).map((v: any) => Number(v) || 0));
         const fullPaperMax = maxBoundaryMark > 45 ? 80 : 100;
         const proratedMark = Math.round((overallPct / 100) * fullPaperMax);
-        const sorted = Object.entries(gradeBoundaries)
+        const sorted = Object.entries(resolvedBoundaries)
           .map(([g, m]) => ({ grade: g, mark: Number(m) }))
           .sort((a, b) => b.mark - a.mark);
         const match = sorted.find(b => proratedMark >= b.mark);
@@ -1393,7 +1507,7 @@ export class SessionManagementService {
 
       const finalGrade = isPartialUpload
         ? 'Partial Paper'
-        : (grade && String(grade).trim() !== '' ? String(grade) : 'N/A');
+        : (resolvedGrade && String(resolvedGrade).trim() !== '' ? String(resolvedGrade) : 'N/A');
 
       const summaryPayload = {
         _type: 'AI_SUMMARY_V2',
@@ -1413,7 +1527,7 @@ export class SessionManagementService {
         grading: hasBoundaries ? {
           grade: finalGrade,
           predictedGrade: finalPredictedGrade,
-          boundaries: gradeBoundaries
+          boundaries: resolvedBoundaries
         } : null,
         radar: radarData,
         mastered: Array.isArray(aiParsed.mastered) ? aiParsed.mastered.slice(0, 3) : [],

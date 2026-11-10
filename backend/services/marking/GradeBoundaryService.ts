@@ -475,15 +475,11 @@ export class GradeBoundaryService {
     studentScore: number,
     boundaries: { [grade: string]: number }
   ): string | null {
-    // Convert boundaries to array and sort by grade (descending: 9, 8, 7, ...)
+    // Convert boundaries to array and sort by boundary mark descending (supports both GCSE 9..1 and A-Level A*..E)
     const gradeEntries = Object.entries(boundaries)
       .map(([grade, boundary]) => ({ grade, boundary: Number(boundary) }))
-      .sort((a, b) => {
-        // Sort by grade number (9 > 8 > 7 > ... > 1)
-        const gradeA = parseInt(a.grade) || 0;
-        const gradeB = parseInt(b.grade) || 0;
-        return gradeB - gradeA;
-      });
+      .filter(entry => !isNaN(entry.boundary))
+      .sort((a, b) => b.boundary - a.boundary);
 
     // Find highest grade where student score >= boundary
     for (const entry of gradeEntries) {

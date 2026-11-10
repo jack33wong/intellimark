@@ -174,9 +174,14 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
           const series = examMeta.exam_series || examMeta.date || '';
           const normalizedSeries = series ? NormalizationService.normalizeExamSeries(series, board) : series;
 
+          const isAuto = Boolean(data.isAutoPersisted || data.autoCataloged || data.persistenceType === 'auto');
+          const persistenceType = data.persistenceType || (isAuto ? 'auto' : 'manual');
+
           const entry = {
             id: doc.id,
             ...data,
+            persistenceType,
+            isAutoPersisted: isAuto,
             normalizedSeries,
             uploadedAt: data.uploadedAt ?
               (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
@@ -243,10 +248,15 @@ router.get('/json/collections/:collectionName/:id', async (req: Request, res: Re
         const series = examMeta.exam_series || examMeta.date || '';
         const normalizedSeries = series ? NormalizationService.normalizeExamSeries(series, board) : series;
 
+        const isAuto = Boolean(data?.isAutoPersisted || data?.autoCataloged || data?.persistenceType === 'auto');
+        const persistenceType = data?.persistenceType || (isAuto ? 'auto' : 'manual');
+
         res.json({
           entry: {
             id: doc.id,
             ...data,
+            persistenceType,
+            isAutoPersisted: isAuto,
             normalizedSeries,
             uploadedAt: data?.uploadedAt ?
               (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
@@ -328,6 +338,7 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
 
 
 
+    const nowIso = new Date().toISOString();
     const newEntry = {
       id: uuidv4(),
       ...parsedData, // Spread the parsed data directly (examDetails and questions)
@@ -342,8 +353,16 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
       },
       totalQuestions,
       totalMarks,
-      uploadedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString()
+      persistenceType: 'manual',
+      isAutoPersisted: false,
+      persistenceAudit: {
+        persistenceType: 'manual',
+        source: 'admin_upload',
+        persistedAt: nowIso,
+        triggeredByUserId: (req as any).user?.uid || null
+      },
+      uploadedAt: nowIso,
+      createdAt: nowIso
     };
 
     // Save to Firestore if available
@@ -719,10 +738,20 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
       return res.status(400).json({ error: 'Entry data is required' });
     }
 
+    const nowIso = new Date().toISOString();
     const newEntry = {
       id: uuidv4(),
       ...entryData,
-      uploadedAt: new Date().toISOString()
+      persistenceType: entryData.persistenceType || 'manual',
+      isAutoPersisted: Boolean(entryData.isAutoPersisted),
+      persistenceAudit: entryData.persistenceAudit || {
+        persistenceType: 'manual',
+        source: 'admin_upload',
+        persistedAt: nowIso,
+        triggeredByUserId: (req as any).user?.uid || null
+      },
+      uploadedAt: nowIso,
+      createdAt: entryData.createdAt || nowIso
     };
 
     // Save to Firestore if available
@@ -913,10 +942,20 @@ router.post('/json/upload', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'JSON data is required' });
     }
 
+    const nowIso = new Date().toISOString();
     const newEntry = {
       id: uuidv4(),
       ...data,
-      uploadedAt: new Date().toISOString()
+      persistenceType: data.persistenceType || 'manual',
+      isAutoPersisted: Boolean(data.isAutoPersisted),
+      persistenceAudit: data.persistenceAudit || {
+        persistenceType: 'manual',
+        source: 'admin_upload',
+        persistedAt: nowIso,
+        triggeredByUserId: (req as any).user?.uid || null
+      },
+      uploadedAt: nowIso,
+      createdAt: data.createdAt || nowIso
     };
 
     // Save to Firestore if available
