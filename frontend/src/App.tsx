@@ -114,6 +114,7 @@ function AppContent() {
   const [autoSplit, setAutoSplit] = useState<boolean>(false);
   const [initialImageIndex, setInitialImageIndex] = useState<number>(0);
   const [isGuestLimitModalOpen, setIsGuestLimitModalOpen] = useState(false);
+  const [guestLimitRequestType, setGuestLimitRequestType] = useState<string>('marking');
 
   // Listen for custom event to load marking session from other pages
   useEffect(() => {
@@ -151,7 +152,9 @@ function AppContent() {
 
     // Listen for other UI events
     const cleanup = EventManager.listenToMultiple({
-      [EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL]: () => {
+      [EVENT_TYPES.OPEN_GUEST_LIMIT_MODAL]: (event: any) => {
+        const reqType = event?.detail?.requestType || event?.requestType || 'marking';
+        setGuestLimitRequestType(reqType);
         setIsGuestLimitModalOpen(true);
       },
       [EVENT_TYPES.OPEN_AUTH_MODAL]: (event: any) => {
@@ -316,6 +319,7 @@ function AppContent() {
       </Routes>
       <GuestLimitModal
         isOpen={isGuestLimitModalOpen}
+        requestType={guestLimitRequestType}
         onClose={() => setIsGuestLimitModalOpen(false)}
       />
     </div>

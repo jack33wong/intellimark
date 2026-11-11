@@ -69,7 +69,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     showModelAnswerConfirmation,
     setShowModelAnswerConfirmation,
     pendingModelAnswerPaper,
-    setPendingModelAnswerPaper
+    setPendingModelAnswerPaper,
+    pendingConfirmationMode,
+    setPendingConfirmationMode
   } = useMarkingPage();
 
   // [FIX] Priority: Context State (User Toggles) should determine active mode.
@@ -141,14 +143,16 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   };
   const lastModeRef = useRef(mode);
 
-  // [FIX] Reset context modes when entering fresh first-time mode
+  // [FIX] Reset context modes when entering fresh first-time mode (unless confirmation/redirect pending)
   useEffect(() => {
     if (mode === 'first-time' && lastModeRef.current !== 'first-time') {
-      setIsModelAnswerMode(false);
-      setIsMarkingSchemeMode(false);
+      if (!showModelAnswerConfirmation && !pendingModelAnswerPaper) {
+        setIsModelAnswerMode(false);
+        setIsMarkingSchemeMode(false);
+      }
     }
     lastModeRef.current = mode;
-  }, [mode, setIsModelAnswerMode, setIsMarkingSchemeMode]);
+  }, [mode, setIsModelAnswerMode, setIsMarkingSchemeMode, showModelAnswerConfirmation, pendingModelAnswerPaper]);
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -1544,32 +1548,39 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       )}
 
       {/* Model Answer / Marking Scheme Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showModelAnswerConfirmation}
-        onClose={() => {
-          setShowModelAnswerConfirmation(false);
-          setPendingModelAnswerPaper(null);
-        }}
-        onConfirm={() => {
-          if (pendingModelAnswerPaper) {
-            if (isMarkingSchemeMode) {
-              onExplainMarkingScheme(pendingModelAnswerPaper);
-            } else {
-              onGenerateModelAnswer(pendingModelAnswerPaper);
+      {(() => {
+        const isMarkScheme = pendingConfirmationMode === 'markingscheme' || isMarkingSchemeMode;
+        return (
+          <ConfirmationModal
+            isOpen={showModelAnswerConfirmation}
+            onClose={() => {
+              setShowModelAnswerConfirmation(false);
+              setPendingModelAnswerPaper(null);
+              setPendingConfirmationMode?.(null);
+            }}
+            onConfirm={() => {
+              if (pendingModelAnswerPaper) {
+                if (isMarkScheme) {
+                  onExplainMarkingScheme(pendingModelAnswerPaper);
+                } else {
+                  onGenerateModelAnswer(pendingModelAnswerPaper);
+                }
+              }
+              setShowModelAnswerConfirmation(false);
+              setPendingModelAnswerPaper(null);
+              setPendingConfirmationMode?.(null);
+            }}
+            title={isMarkScheme ? "Explain Marking Scheme" : "Generate Model Answers"}
+            message={isMarkScheme
+              ? `Would you like to explain the marking scheme for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`
+              : `Would you like to generate model answers for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`
             }
-          }
-          setShowModelAnswerConfirmation(false);
-          setPendingModelAnswerPaper(null);
-        }}
-        title={isMarkingSchemeMode ? "Explain Marking Scheme" : "Generate Model Answers"}
-        message={isMarkingSchemeMode
-          ? `Would you like to explain the marking scheme for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`
-          : `Would you like to generate model answers for "${pendingModelAnswerPaper}"? This will consume credits for AI processing.`
-        }
-        confirmText={isMarkingSchemeMode ? "Explain" : "Generate"}
-        cancelText="Cancel"
-        variant="primary"
-      />
+            confirmText={isMarkScheme ? "Explain" : "Generate"}
+            cancelText="Cancel"
+            variant="primary"
+          />
+        );
+      })()}
     </>
   );
 };

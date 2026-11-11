@@ -179,6 +179,7 @@ export const MarkingPageProvider = ({
   const [initialInput, setInitialInput] = React.useState('');
   const [showModelAnswerConfirmation, setShowModelAnswerConfirmation] = React.useState(false);
   const [pendingModelAnswerPaper, setPendingModelAnswerPaper] = React.useState(null);
+  const [pendingConfirmationMode, setPendingConfirmationMode] = React.useState(null);
 
   const checkNegativeCredits = useCallback(async () => {
     if (!user) return false;
@@ -283,8 +284,10 @@ export const MarkingPageProvider = ({
   useEffect(() => {
 
     if (!currentSession) {
-      setIsModelAnswerMode(false);
-      setIsMarkingSchemeMode(false);
+      if (!pendingModelAnswerPaper && !showModelAnswerConfirmation) {
+        setIsModelAnswerMode(false);
+        setIsMarkingSchemeMode(false);
+      }
       lastSyncedModeSessionId.current = null;
       return;
     }
@@ -906,25 +909,19 @@ export const MarkingPageProvider = ({
       setIsMarkingSchemeMode(false); // Reset other mode
       setInitialInput(paper);
       setPendingModelAnswerPaper(paper);
+      setPendingConfirmationMode('model');
       setShowModelAnswerConfirmation(true);
 
       // [FIX] Clear URL parameters using Router to prevent re-triggering
       navigate(location.pathname, { replace: true });
-    } else if ((mode === 'markingscheme' || mode === 'marking-scheme') && paper) {
+    } else if ((mode === 'markingscheme' || mode === 'marking-scheme' || mode === 'mark') && paper) {
       setIsMarkingSchemeMode(true);
       setIsModelAnswerMode(false); // Reset other mode
       setInitialInput(paper);
-      // For marking scheme, we can trigger directly or via confirmation
-      // Reusing the same confirmation modal logic for simplicity in UX
+      // For marking scheme, trigger via confirmation modal
       setPendingModelAnswerPaper(paper);
+      setPendingConfirmationMode('markingscheme');
       setShowModelAnswerConfirmation(true);
-
-      // [FIX] Clear URL parameters using Router to prevent re-triggering
-      navigate(location.pathname, { replace: true });
-    } else if (mode === 'mark' && paper) {
-      setIsModelAnswerMode(false);
-      setIsMarkingSchemeMode(false);
-      setInitialInput(paper);
 
       // [FIX] Clear URL parameters using Router to prevent re-triggering
       navigate(location.pathname, { replace: true });
@@ -1611,6 +1608,7 @@ export const MarkingPageProvider = ({
     initialInput, setInitialInput,
     showModelAnswerConfirmation, setShowModelAnswerConfirmation,
     pendingModelAnswerPaper, setPendingModelAnswerPaper,
+    pendingConfirmationMode, setPendingConfirmationMode,
     chatContainerRef,
     isHistoryLoading,
     scrollToBottom,
@@ -1649,6 +1647,7 @@ export const MarkingPageProvider = ({
     initialInput, setInitialInput,
     showModelAnswerConfirmation, setShowModelAnswerConfirmation,
     pendingModelAnswerPaper, setPendingModelAnswerPaper,
+    pendingConfirmationMode, setPendingConfirmationMode,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef,
     isHistoryLoading,
@@ -1771,6 +1770,10 @@ export const MarkingPageProvider = ({
       <GuestLimitModal
         isOpen={showGuestLimitModal}
         hasPendingUpload={Boolean(pendingUploadRef.current)}
+        requestType={
+          pendingUploadRef.current?.type ||
+          (isModelAnswerMode ? 'model_answer' : (isMarkingSchemeMode ? 'marking_scheme' : 'marking'))
+        }
         onClose={() => {
           trackFunnelEvent('guest_limit_modal_dismissed', {
             hadPendingUpload: Boolean(pendingUploadRef.current)
