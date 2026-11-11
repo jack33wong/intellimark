@@ -6,6 +6,7 @@ import { Sparkles, Zap, Activity, ChevronRight, ChevronDown, CreditCard } from '
 import CreditIcon from '../common/CreditIcon';
 import API_CONFIG from '../../config/api';
 import apiClient from '../../services/apiClient';
+import { formatModelDisplayName } from '../../utils/modelDisplay';
 
 interface UsageRecord {
     sessionId: string;
@@ -210,7 +211,7 @@ const UsageSection: React.FC = () => {
                                             )}
                                             <div>
                                                 <div style={{ fontWeight: 500 }}>{formatMode(session.mode)}</div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{session.modelUsed}</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{formatModelDisplayName(session.modelUsed)}</div>
                                             </div>
                                         </div>
                                         <div className="usage-list-date">{formatDate(session.updatedAt || session.createdAt)}</div>
@@ -226,7 +227,7 @@ const UsageSection: React.FC = () => {
                                                     <div key={`${session.sessionId}-history-${idx}`} className="usage-list-subitem">
                                                         <div className="usage-subitem-content">
                                                             <div className="usage-subitem-mode">{formatMode(historyItem.mode)}</div>
-                                                            <div className="usage-subitem-model">{historyItem.modelUsed}</div>
+                                                            <div className="usage-subitem-model">{formatModelDisplayName(historyItem.modelUsed)}</div>
                                                         </div>
                                                         <div className="usage-list-date" style={{ opacity: 0.7 }}>
                                                             {formatDate(historyItem.timestamp)}

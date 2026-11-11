@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'gemini-3.7-flash' | 'gemini-3.1-flash-lite' | 'gemini-3-flash-preview' | 'gemini-3.5-flash' | 'gemini-2.5-flash-lite' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'auto';
+export type ModelType = 'fast' | 'thinking' | 'pro' | 'lite' | 'gemini-3.8-flash' | 'gemini-4-argon' | 'gemini-3.5-flash-lite' | 'gemini-3.7-flash' | 'gemini-3.1-flash-lite' | 'gemini-3-flash-preview' | 'gemini-3.5-flash' | 'gemini-2.5-flash-lite' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'auto';
 
 export interface AIModelConfig {
   name: string;
@@ -120,6 +120,8 @@ export interface AIModelConfig {
   description?: string;
   model?: string;
   maxCompletionTokens?: number;
+  inputPricePer1M?: number;
+  outputPricePer1M?: number;
 }
 
 export interface AIModelResponse {

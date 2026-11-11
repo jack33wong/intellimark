@@ -65,7 +65,7 @@ export class ClassificationService {
    */
   static async classifyMultipleImages(
     images: Array<{ imageData: string; fileName?: string; pageIndex?: number }>,
-    model: ModelType = 'auto',
+    model: ModelType = 'fast',
     debug: boolean = false,
     tracker?: UsageTracker,  // UsageTracker (optional)
     pageMapsOrVerbatim?: Array<{ pageIndex: number; questions: string[]; category?: "frontPage" | "questionAnswer" | "questionOnly" }> | boolean,
@@ -888,7 +888,7 @@ ${pageHints}
     }
   }
 
-  static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ClassificationResult> {
+  static async classifyImage(imageData: string, model: ModelType = 'fast', debug: boolean = false, fileName?: string): Promise<ClassificationResult> {
     const systemPrompt = getPrompt('classification.heavy.system');
     const userPrompt = getPrompt('classification.heavy.user');
 

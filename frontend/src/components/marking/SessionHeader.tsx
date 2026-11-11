@@ -7,6 +7,7 @@ import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Menu, Camera, Star } from 'lucide-react';
 import './css/SessionManagement.css';
+import { formatModelDisplayName, getSessionModel } from '../../utils/modelDisplay';
 
 const SessionHeader: React.FC = () => {
   const { user, isAdmin, getAuthToken } = useAuth();
@@ -24,6 +25,7 @@ const SessionHeader: React.FC = () => {
     currentSession,
     isProcessing,
     setSidebarOpen,
+    selectedModel,
   } = useMarkingPage();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,9 @@ const SessionHeader: React.FC = () => {
       throw new Error('Old sessionMetadata data structure detected. Please clear database and create new sessions.');
     }
 
-    return stats?.lastModelUsed || 'N/A';
+    const sessionTier = getSessionModel(currentSession);
+    const raw = stats?.lastModelUsed || sessionTier;
+    return formatModelDisplayName(raw, { tierHint: sessionTier });
   };
 
   const getProcessingTime = (): string => {

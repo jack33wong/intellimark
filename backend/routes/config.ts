@@ -7,7 +7,7 @@ import express from 'express';
 import CREDIT_CONFIG from '../config/credit.config.js';
 import { getFirestore } from '../config/firebase.js';
 import { ExamReferenceService } from '../services/ExamReferenceService.js';
-import { AI_MODELS, getDefaultModel, MODEL_TIERS } from '../config/aiModels.js';
+import { AI_MODELS, getDefaultModel, MODEL_TIER_DEFINITIONS } from '../config/aiModels.js';
 import { AdminAlertService } from '../services/AdminAlertService.js';
 
 const router = express.Router();
@@ -29,34 +29,14 @@ router.get('/credits', (req, res) => {
  */
 router.get('/models', (req, res) => {
     try {
-        // Return tiers for the UI
-        const models = Object.entries(MODEL_TIERS)
-            .filter(([id]) => id !== 'auto' && id !== 'gpt-4o-mini' && id !== 'gpt-4o') // Hide internal, mini, and gpt-4o models
-            .map(([id, exactModel]) => {
-                const config = AI_MODELS[exactModel];
-                
-                // Override UI labels based on the tier ID so the user sees the logical tiers
-                let uiLabel = config.label || config.name;
-                let uiDesc = config.description || '';
-                
-                if (id === 'fast') {
-                    uiLabel = 'Fast';
-                    uiDesc = 'Answers quickly';
-                } else if (id === 'thinking') {
-                    uiLabel = 'Thinking';
-                    uiDesc = 'Deep reasoning, takes longer';
-                } else if (id === 'pro') {
-                    uiLabel = 'Pro';
-                    uiDesc = 'Best for complex coding & math';
-                }
-                
-                return {
-                    id,
-                    name: config.name,
-                    label: uiLabel,
-                    description: uiDesc
-                };
-            });
+        const models = Object.values(MODEL_TIER_DEFINITIONS)
+            .filter(t => t.exposeInUi)
+            .map(t => ({
+                id: t.id,
+                name: AI_MODELS[t.modelId as keyof typeof AI_MODELS]?.name || t.modelId,
+                label: t.uiLabel,
+                description: t.uiDescription
+            }));
         
         res.json({
             success: true,

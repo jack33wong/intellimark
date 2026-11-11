@@ -1,24 +1,28 @@
 /**
- * UsageTracker - Centralized token and cost tracking
+ * UsageTracker - Centralized token, thought, model, and cost tracking
  * 
  * Purpose: Single source of truth for ALL API usage across the marking pipeline
  * Benefits:
  * - Can't forget to track usage
- * - Detailed breakdown by phase
- * - Easy to add validation
- * - Simple cost calculation
+ * - Exact per-call cost tracking including reasoning (thoughts) tokens
+ * - Detailed breakdown by phase and model
+ * - Simple cost calculation and credit reconciliation
  */
 
 import { getLLMPricing, getMathpixPricing } from '../config/pricing.js';
-import { getDefaultModel, resolveModelTier } from '../config/aiModels.js';
+import { getDefaultModel, resolveExecutionPlan } from '../config/aiModels.js';
+import type { ModelPhase } from './ModelProvider.js';
 
 /**
- * Track token usage across different phases with input/output split
+ * Track token usage across different phases with input/output/thoughts split and exact cost
  */
-interface TokenUsage {
+export interface TokenUsage {
     inputTokens: number;
     outputTokens: number;
+    thoughtTokens?: number;
     requestCount: number;  // Number of API requests
+    costUsd?: number;
+    modelsUsed?: Set<string>;
 }
 
 export interface UsageBreakdown {
@@ -34,11 +38,12 @@ export interface UsageBreakdown {
     analysis: TokenUsage;
     performanceSummary: TokenUsage;
     other: TokenUsage;
-    mathpixPages: number; // NEW: Track Mathpix pages directly
+    mathpixPages: number;
 }
 
 export interface CostBreakdown {
     preFlight: number;
+    mapper: number;
     classification: number;
     marking: number;
     questionMode: number;
@@ -49,24 +54,24 @@ export interface CostBreakdown {
     analysis: number;
     performanceSummary: number;
     other: number;
-    mathpix: number; // NEW
+    mathpix: number;
     total: number;
 }
 
 export class UsageTracker {
     private usage: UsageBreakdown = {
-        preFlight: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        mapper: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        questionMode: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        contextChat: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        modelAnswer: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        markingScheme: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        sampleQuestion: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        analysis: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        performanceSummary: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        other: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        preFlight: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        mapper: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        classification: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        marking: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        questionMode: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        contextChat: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        modelAnswer: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        markingScheme: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        sampleQuestion: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        analysis: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        performanceSummary: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+        other: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
         mathpixPages: 0
     };
 
@@ -86,97 +91,86 @@ export class UsageTracker {
     }
 
     /**
-     * Record mapper API usage (Map Pass)
+     * Centralized phase usage recorder with exact cost accumulation
      */
-    recordMapper(inputTokens: number, outputTokens: number): void {
-        this.usage.mapper.inputTokens += inputTokens;
-        this.usage.mapper.outputTokens += outputTokens;
-        this.usage.mapper.requestCount++;
+    recordPhaseUsage(
+        phase: ModelPhase | string,
+        inputTokens: number,
+        outputTokens: number,
+        thoughtTokens: number = 0,
+        modelId: string = '',
+        costUsd?: number
+    ): void {
+        const key = (phase in this.usage ? phase : 'other') as keyof Omit<UsageBreakdown, 'mathpixPages'>;
+        const bucket = this.usage[key];
+        bucket.inputTokens += inputTokens;
+        bucket.outputTokens += outputTokens;
+        bucket.thoughtTokens = (bucket.thoughtTokens || 0) + (thoughtTokens || 0);
+        bucket.requestCount++;
+        if (!bucket.modelsUsed) bucket.modelsUsed = new Set<string>();
+        if (modelId) bucket.modelsUsed.add(modelId);
+
+        let callCost = costUsd;
+        if (callCost === undefined) {
+            const plan = resolveExecutionPlan(modelId || 'auto', key);
+            callCost = (inputTokens / 1_000_000) * plan.inputPricePer1M + (outputTokens / 1_000_000) * plan.outputPricePer1M;
+        }
+        bucket.costUsd = (bucket.costUsd || 0) + callCost;
+    }
+
+    recordPreFlight(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('preFlight', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordMapper(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('mapper', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordClassification(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('classification', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordMarking(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('marking', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordQuestionMode(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('questionMode', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordContextChat(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('contextChat', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordModelAnswer(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('modelAnswer', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordMarkingScheme(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('markingScheme', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordSampleQuestion(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('sampleQuestion', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordAnalysis(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('analysis', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordPerformanceSummary(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('performanceSummary', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
+    }
+
+    recordOther(inputTokens: number, outputTokens: number, thoughtTokens: number = 0, modelId: string = '', costUsd?: number): void {
+        this.recordPhaseUsage('other', inputTokens, outputTokens, thoughtTokens, modelId, costUsd);
     }
 
     /**
-     * Record classification phase tokens
+     * Get total tokens across all phases (input + output including thoughts)
      */
-    recordClassification(inputTokens: number, outputTokens: number): void {
-        this.usage.classification.inputTokens += inputTokens;
-        this.usage.classification.outputTokens += outputTokens;
-        this.usage.classification.requestCount++;
-    }
-
-    /**
-     * Record marking phase tokens
-     */
-    recordMarking(inputTokens: number, outputTokens: number): void {
-        this.usage.marking.inputTokens += inputTokens;
-        this.usage.marking.outputTokens += outputTokens;
-        this.usage.marking.requestCount++;
-    }
-
-    /**
-     * Record question mode tokens
-     */
-    recordQuestionMode(inputTokens: number, outputTokens: number): void {
-        this.usage.questionMode.inputTokens += inputTokens;
-        this.usage.questionMode.outputTokens += outputTokens;
-        this.usage.questionMode.requestCount++;
-    }
-
-    recordContextChat(inputTokens: number, outputTokens: number): void {
-        this.usage.contextChat.inputTokens += inputTokens;
-        this.usage.contextChat.outputTokens += outputTokens;
-        this.usage.contextChat.requestCount++;
-    }
-
-    recordModelAnswer(inputTokens: number, outputTokens: number): void {
-        this.usage.modelAnswer.inputTokens += inputTokens;
-        this.usage.modelAnswer.outputTokens += outputTokens;
-        this.usage.modelAnswer.requestCount++;
-    }
-
-    recordMarkingScheme(inputTokens: number, outputTokens: number): void {
-        this.usage.markingScheme.inputTokens += inputTokens;
-        this.usage.markingScheme.outputTokens += outputTokens;
-        this.usage.markingScheme.requestCount++;
-    }
-
-    recordSampleQuestion(inputTokens: number, outputTokens: number): void {
-        this.usage.sampleQuestion.inputTokens += inputTokens;
-        this.usage.sampleQuestion.outputTokens += outputTokens;
-        this.usage.sampleQuestion.requestCount++;
-    }
-
-    recordAnalysis(inputTokens: number, outputTokens: number): void {
-        this.usage.analysis.inputTokens += inputTokens;
-        this.usage.analysis.outputTokens += outputTokens;
-        this.usage.analysis.requestCount++;
-    }
-
-    recordPreFlight(inputTokens: number, outputTokens: number): void {
-        this.usage.preFlight.inputTokens += inputTokens;
-        this.usage.preFlight.outputTokens += outputTokens;
-        this.usage.preFlight.requestCount++;
-    }
-
-    recordPerformanceSummary(inputTokens: number, outputTokens: number): void {
-        this.usage.performanceSummary.inputTokens += inputTokens;
-        this.usage.performanceSummary.outputTokens += outputTokens;
-        this.usage.performanceSummary.requestCount++;
-    }
-
-    /**
-     * Record other API usage
-     */
-    recordOther(inputTokens: number, outputTokens: number): void {
-        this.usage.other.inputTokens += inputTokens;
-        this.usage.other.outputTokens += outputTokens;
-        this.usage.other.requestCount++;
-    }
-
-    /**
-    * Get total tokens across all phases
-    */
     getTotalTokens(): number {
-        const { mathpixPages, ...phases } = this.usage; // Exclude mathpixPages from token sum
+        const { mathpixPages, ...phases } = this.usage;
         return Object.values(phases).reduce(
             (sum, phase) => sum + (typeof phase === 'object' ? phase.inputTokens + phase.outputTokens : 0),
             0
@@ -187,26 +181,15 @@ export class UsageTracker {
      * Get total input and output tokens
      */
     getTotalInputOutput(): { inputTokens: number; outputTokens: number } {
-        const { mathpixPages, ...phases } = this.usage; // Exclude mathpixPages
+        const { mathpixPages, ...phases } = this.usage;
         const inputTokens = Object.values(phases).reduce((sum, phase) => sum + (typeof phase === 'object' ? phase.inputTokens : 0), 0);
         const outputTokens = Object.values(phases).reduce((sum, phase) => sum + (typeof phase === 'object' ? phase.outputTokens : 0), 0);
         return { inputTokens, outputTokens };
     }
 
     /**
-     * Calculate cost for a specific phase
-     */
-    private calculatePhaseCost(inputTokens: number, outputTokens: number, model?: string): number {
-        const pricing = getLLMPricing(model || getDefaultModel());
-        if (!pricing) {
-            return 0;
-        }
-        return (inputTokens / 1_000_000 * pricing.input) + (outputTokens / 1_000_000 * pricing.output);
-    }
-
-    /**
      * Get total API request count (LLM only)
-    */
+     */
     getTotalRequests(): number {
         const { mathpixPages, ...phases } = this.usage;
         return Object.values(phases).reduce((sum, phase) => sum + (typeof phase === 'object' ? phase.requestCount : 0), 0);
@@ -232,73 +215,48 @@ export class UsageTracker {
         };
     }
 
-
     /**
-     * Calculate cost for a specific model
+     * Calculate cost across all phases using exact pre-recorded per-call costs,
+     * falling back to phase-specific model plans if cost was not pre-recorded.
      */
-    calculateCost(model: string): CostBreakdown {
-        const pricing = getLLMPricing(model);
-
-        let pricingToUse = pricing;
-
-        if (!pricingToUse) {
-            console.warn(`[UsageTracker] Unknown model: ${model}, using default pricing`);
-            // Fallback to default model pricing
-            const defaultModel = resolveModelTier(getDefaultModel());
-            const defaultPricing = getLLMPricing(defaultModel);
-            if (defaultPricing) {
-                pricingToUse = defaultPricing;
+    calculateCost(fallbackModel?: string): CostBreakdown {
+        const getPhaseCost = (phaseKey: keyof Omit<UsageBreakdown, 'mathpixPages'>): number => {
+            const phase = this.usage[phaseKey];
+            if (typeof phase.costUsd === 'number' && phase.costUsd > 0) {
+                return phase.costUsd;
             }
-        }
-
-        if (!pricingToUse) {
-            return {
-                preFlight: 0,
-                classification: 0,
-                marking: 0,
-                questionMode: 0,
-                contextChat: 0,
-                modelAnswer: 0,
-                markingScheme: 0,
-                sampleQuestion: 0,
-                analysis: 0,
-                performanceSummary: 0,
-                other: 0,
-                mathpix: 0,
-                total: 0
-            };
-        }
-
-        return this.calculateWithPricing(pricingToUse);
-    }
-
-    /**
-     * Calculate cost with specific pricing
-     */
-    private calculateWithPricing(pricing: { input: number; output: number }): CostBreakdown {
-        const calculatePhaseCost = (phase: TokenUsage): number => {
-            return (phase.inputTokens / 1_000_000 * pricing.input) +
-                (phase.outputTokens / 1_000_000 * pricing.output);
+            if (phase.inputTokens === 0 && phase.outputTokens === 0) {
+                return 0;
+            }
+            // Fallback: Calculate cost using resolved plan for this phase
+            const plan = resolveExecutionPlan(fallbackModel || 'auto', phaseKey);
+            return (phase.inputTokens / 1_000_000 * plan.inputPricePer1M) +
+                   (phase.outputTokens / 1_000_000 * plan.outputPricePer1M);
         };
 
-        const preFlight = calculatePhaseCost(this.usage.preFlight);
-        const classification = calculatePhaseCost(this.usage.classification);
-        const marking = calculatePhaseCost(this.usage.marking);
-        const questionMode = calculatePhaseCost(this.usage.questionMode);
-        const contextChat = calculatePhaseCost(this.usage.contextChat);
-        const modelAnswer = calculatePhaseCost(this.usage.modelAnswer);
-        const markingScheme = calculatePhaseCost(this.usage.markingScheme);
-        const sampleQuestion = calculatePhaseCost(this.usage.sampleQuestion);
-        const analysis = calculatePhaseCost(this.usage.analysis);
-        const performanceSummary = calculatePhaseCost(this.usage.performanceSummary);
-        const other = calculatePhaseCost(this.usage.other);
+        const preFlight = getPhaseCost('preFlight');
+        const mapper = getPhaseCost('mapper');
+        const classification = getPhaseCost('classification');
+        const marking = getPhaseCost('marking');
+        const questionMode = getPhaseCost('questionMode');
+        const contextChat = getPhaseCost('contextChat');
+        const modelAnswer = getPhaseCost('modelAnswer');
+        const markingScheme = getPhaseCost('markingScheme');
+        const sampleQuestion = getPhaseCost('sampleQuestion');
+        const analysis = getPhaseCost('analysis');
+        const performanceSummary = getPhaseCost('performanceSummary');
+        const other = getPhaseCost('other');
 
-        // Mathpix: Calculate dynamically from pricing config
         const mathpixPrice = getMathpixPricing();
         const mathpix = this.usage.mathpixPages * mathpixPrice;
 
+        const total = preFlight + mapper + classification + marking + questionMode +
+                      contextChat + modelAnswer + markingScheme + sampleQuestion +
+                      analysis + performanceSummary + other + mathpix;
+
         return {
             preFlight,
+            mapper,
             classification,
             marking,
             questionMode,
@@ -310,7 +268,7 @@ export class UsageTracker {
             performanceSummary,
             other,
             mathpix,
-            total: preFlight + classification + marking + questionMode + contextChat + modelAnswer + markingScheme + sampleQuestion + analysis + performanceSummary + other + mathpix
+            total
         };
     }
 
@@ -318,32 +276,30 @@ export class UsageTracker {
      * Get usage breakdown
      */
     getBreakdown(): UsageBreakdown {
-        // Return a deep copy to prevent mutation
         return {
             ...this.usage,
-            preFlight: { ...this.usage.preFlight },
-            mapper: { ...this.usage.mapper },
-            classification: { ...this.usage.classification },
-            marking: { ...this.usage.marking },
-            questionMode: { ...this.usage.questionMode },
-            contextChat: { ...this.usage.contextChat },
-            modelAnswer: { ...this.usage.modelAnswer },
-            markingScheme: { ...this.usage.markingScheme },
-            sampleQuestion: { ...this.usage.sampleQuestion },
-            analysis: { ...this.usage.analysis },
-            performanceSummary: { ...this.usage.performanceSummary },
-            other: { ...this.usage.other }
+            preFlight: { ...this.usage.preFlight, modelsUsed: new Set(this.usage.preFlight.modelsUsed) },
+            mapper: { ...this.usage.mapper, modelsUsed: new Set(this.usage.mapper.modelsUsed) },
+            classification: { ...this.usage.classification, modelsUsed: new Set(this.usage.classification.modelsUsed) },
+            marking: { ...this.usage.marking, modelsUsed: new Set(this.usage.marking.modelsUsed) },
+            questionMode: { ...this.usage.questionMode, modelsUsed: new Set(this.usage.questionMode.modelsUsed) },
+            contextChat: { ...this.usage.contextChat, modelsUsed: new Set(this.usage.contextChat.modelsUsed) },
+            modelAnswer: { ...this.usage.modelAnswer, modelsUsed: new Set(this.usage.modelAnswer.modelsUsed) },
+            markingScheme: { ...this.usage.markingScheme, modelsUsed: new Set(this.usage.markingScheme.modelsUsed) },
+            sampleQuestion: { ...this.usage.sampleQuestion, modelsUsed: new Set(this.usage.sampleQuestion.modelsUsed) },
+            analysis: { ...this.usage.analysis, modelsUsed: new Set(this.usage.analysis.modelsUsed) },
+            performanceSummary: { ...this.usage.performanceSummary, modelsUsed: new Set(this.usage.performanceSummary.modelsUsed) },
+            other: { ...this.usage.other, modelsUsed: new Set(this.usage.other.modelsUsed) }
         };
     }
 
     /**
-    * Validate usage (detect anomalies)
-    */
+     * Validate usage (detect anomalies)
+     */
     validate(): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
         const { mathpixPages, ...phases } = this.usage;
 
-        // Check for missing input or output (both should be present if total > 0)
         Object.entries(phases).forEach(([phase, tokens]) => {
             const total = tokens.inputTokens + tokens.outputTokens;
             if (total > 0) {
@@ -354,10 +310,6 @@ export class UsageTracker {
                     errors.push(`${phase}: Has ${total} total tokens but missing output tokens`);
                 }
             }
-        });
-
-        // Check for negative tokens
-        Object.entries(phases).forEach(([phase, tokens]) => {
             if (tokens.inputTokens < 0 || tokens.outputTokens < 0) {
                 errors.push(`${phase}: Negative token count detected (input: ${tokens.inputTokens}, output: ${tokens.outputTokens})`);
             }
@@ -367,18 +319,6 @@ export class UsageTracker {
             errors.push(`Mathpix: Negative page count (${mathpixPages})`);
         }
 
-        // Check for unrealistic ratios (input should generally be > output for our use case)
-        Object.entries(phases).forEach(([phase, tokens]) => {
-            const total = tokens.inputTokens + tokens.outputTokens;
-            if (total > 100) { // Only check if significant usage
-                const outputRatio = tokens.outputTokens / total;
-                // Warn if output is > 80% (unusual for our application)
-                if (outputRatio > 0.8) {
-                    errors.push(`${phase}: Suspicious output ratio ${(outputRatio * 100).toFixed(1)}% (output >> input)`);
-                }
-            }
-        });
-
         return {
             valid: errors.length === 0,
             errors
@@ -386,31 +326,18 @@ export class UsageTracker {
     }
 
     /**
-     * Get summary for logging
+     * Get summary for logging with clean, aligned terminal table
      */
     getSummary(model?: string, _deprecatedMathpixCalls?: number): string {
-        const costs = this.calculateCost(model || getDefaultModel());
+        const costs = this.calculateCost(model);
         const { inputTokens: totalInput, outputTokens: totalOutput } = this.getTotalInputOutput();
+        const totalRequests = this.getTotalRequests();
         const mathpixPages = this.usage.mathpixPages;
 
-        let summary = `\n📊 [UsageTracker] Summary:\n`;
-        summary += `   Model: ${model || 'unknown'}\n`;
-        summary += `   API Requests: ${this.getTotalRequests()} total\n`;
-        summary += `   Total Tokens: ${this.getTotalTokens().toLocaleString()} (${totalInput.toLocaleString()} in + ${totalOutput.toLocaleString()} out)\n`;
-        summary += `   Total Cost: $${costs.total.toFixed(6)}\n`;
-
-        // Add Mathpix info if usage exists
-        if (mathpixPages > 0) {
-            summary += `   Mathpix OCR: ${mathpixPages} pages → $${costs.mathpix.toFixed(6)}\n`;
-        }
-
-        summary += `\n   Breakdown by Phase:\n`;
-
-        //Show each phase with tokens and request count
-        const phases: Array<{ name: string; key: keyof UsageBreakdown }> = [
-            { name: 'Pre-Flight Check', key: 'preFlight' },
-            { name: 'Mapper (Map Pass)', key: 'mapper' },
-            { name: 'Classification (Marking Pass)', key: 'classification' },
+        const phases: Array<{ name: string; key: keyof Omit<UsageBreakdown, 'mathpixPages'> }> = [
+            { name: 'Pre-Flight', key: 'preFlight' },
+            { name: 'Mapper', key: 'mapper' },
+            { name: 'Classification', key: 'classification' },
             { name: 'Marking', key: 'marking' },
             { name: 'Question Mode', key: 'questionMode' },
             { name: 'Context Chat', key: 'contextChat' },
@@ -418,23 +345,94 @@ export class UsageTracker {
             { name: 'Marking Scheme', key: 'markingScheme' },
             { name: 'Sample Question', key: 'sampleQuestion' },
             { name: 'Analysis', key: 'analysis' },
-            { name: 'Performance Summary', key: 'performanceSummary' },
+            { name: 'Perf Summary', key: 'performanceSummary' },
             { name: 'Other', key: 'other' }
         ];
 
+        interface AuditRow {
+            name: string;
+            modelsStr: string;
+            inTokensStr: string;
+            outTokensStr: string;
+            reqsStr: string;
+            costStr: string;
+            creditsStr: string;
+        }
+
+        const activeRows: AuditRow[] = [];
+
         phases.forEach(({ name, key }) => {
-            // @ts-ignore - we know key is not mathpixPages here based on the array above
-            const tokens = this.usage[key] as TokenUsage;
+            const tokens = this.usage[key];
             const total = tokens.inputTokens + tokens.outputTokens;
-            if (total > 0) {
-                const cost = this.calculatePhaseCost(tokens.inputTokens, tokens.outputTokens, model);
-                summary += `   • ${name}: ${total.toLocaleString()} tokens (${tokens.requestCount} requests) → $${cost.toFixed(6)}\n`;
+            if (total > 0 || tokens.requestCount > 0) {
+                const phaseCost = costs[key] || 0;
+                const credits = (phaseCost * 100).toFixed(2);
+                const modelsStr = tokens.modelsUsed && tokens.modelsUsed.size > 0
+                    ? Array.from(tokens.modelsUsed).join(', ')
+                    : resolveExecutionPlan(model, key).modelName;
+                const thoughtsStr = tokens.thoughtTokens ? ` (${tokens.thoughtTokens.toLocaleString()} th)` : '';
+                const outStr = `${tokens.outputTokens.toLocaleString()}${thoughtsStr}`;
+
+                activeRows.push({
+                    name,
+                    modelsStr,
+                    inTokensStr: tokens.inputTokens.toLocaleString(),
+                    outTokensStr: outStr,
+                    reqsStr: String(tokens.requestCount),
+                    costStr: `$${phaseCost.toFixed(6)}`,
+                    creditsStr: credits
+                });
             }
         });
 
+        if (mathpixPages > 0) {
+            const mpCost = costs.mathpix;
+            activeRows.push({
+                name: 'Mathpix OCR',
+                modelsStr: `${mathpixPages} page(s)`,
+                inTokensStr: '-',
+                outTokensStr: '-',
+                reqsStr: String(mathpixPages),
+                costStr: `$${mpCost.toFixed(6)}`,
+                creditsStr: (mpCost * 100).toFixed(2)
+            });
+        }
+
+        // Column widths - dynamically expand if any cell exceeds minimum default
+        const c1 = 18; // Phase
+        let c2 = 25;   // Model(s) Executed
+        const c3 = 12; // In Tokens
+        let c4 = 20;   // Out (Thoughts)
+        const c5 = 6;  // Reqs
+        const c6 = 12; // Cost ($)
+        const c7 = 9;  // Credits
+
+        for (const r of activeRows) {
+            if (r.modelsStr.length > c2) c2 = r.modelsStr.length;
+            if (r.outTokensStr.length > c4) c4 = r.outTokensStr.length;
+        }
+
+        const lineLen = 1 + c1 + 3 + c2 + 3 + c3 + 3 + c4 + 3 + c5 + 3 + c6 + 3 + c7;
+        const border = '='.repeat(lineLen);
+        const sep = '-'.repeat(lineLen);
+
+        let summary = `\n${border}\n`;
+        summary += `📊 [UsageTracker] Execution Audit Summary (Requested: ${model || 'auto'})\n`;
+        summary += `${sep}\n`;
+        summary += ` ${'Phase'.padEnd(c1)} | ${'Model(s) Executed'.padEnd(c2)} | ${'In Tokens'.padStart(c3)} | ${'Out (Thoughts)'.padStart(c4)} | ${'Reqs'.padStart(c5)} | ${'Cost ($)'.padStart(c6)} | ${'Credits'.padStart(c7)}\n`;
+        summary += `${sep}\n`;
+
+        activeRows.forEach(r => {
+            summary += ` ${r.name.padEnd(c1)} | ${r.modelsStr.padEnd(c2)} | ${r.inTokensStr.padStart(c3)} | ${r.outTokensStr.padStart(c4)} | ${r.reqsStr.padStart(c5)} | ${r.costStr.padStart(c6)} | ${r.creditsStr.padStart(c7)}\n`;
+        });
+
+        summary += `${sep}\n`;
+        summary += ` ${'TOTAL'.padEnd(c1)} | ${'-'.padEnd(c2)} | ${totalInput.toLocaleString().padStart(c3)} | ${totalOutput.toLocaleString().padStart(c4)} | ${String(totalRequests).padStart(c5)} | ${('$' + costs.total.toFixed(6)).padStart(c6)} | ${(costs.total * 100).toFixed(2).padStart(c7)}\n`;
+        summary += `${border}\n`;
+
         const validation = this.validate();
         if (!validation.valid) {
-            summary += `\n   ⚠️  Validation Errors:\n`;
+            summary += `\n   ⚠️  Validation Warnings:\n`;
             validation.errors.forEach(error => summary += `      - ${error}\n`);
         }
 
@@ -446,18 +444,18 @@ export class UsageTracker {
      */
     reset(): void {
         this.usage = {
-            preFlight: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            mapper: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            questionMode: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            contextChat: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            modelAnswer: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            markingScheme: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            sampleQuestion: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            analysis: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            performanceSummary: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            other: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            preFlight: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            mapper: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            classification: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            marking: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            questionMode: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            contextChat: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            modelAnswer: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            markingScheme: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            sampleQuestion: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            analysis: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            performanceSummary: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
+            other: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, requestCount: 0, costUsd: 0, modelsUsed: new Set<string>() },
             mathpixPages: 0
         };
     }

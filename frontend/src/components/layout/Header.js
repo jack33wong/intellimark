@@ -27,6 +27,7 @@ import SubscriptionService from '../../services/subscriptionService';
 import ModelSelector from '../focused/ModelSelector';
 import { STORAGE_KEYS } from '../../utils/constants';
 import { useModels } from '../../contexts/ModelContext';
+import { simpleSessionService } from '../../services/markingApiService';
 
 const formatTokenValue = (val) => {
   if (val === null || val === undefined || isNaN(val)) return '0';
@@ -124,6 +125,19 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     }
   });
 
+  // Track if a session is currently active (has messages) - model cannot be changed in active session
+  const [isSessionActive, setIsSessionActive] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = simpleSessionService.subscribe((state) => {
+      const hasMessages = state?.currentSession?.messages?.length > 0;
+      setIsSessionActive(Boolean(hasMessages));
+    });
+    const current = simpleSessionService.getCurrentSession();
+    setIsSessionActive(Boolean(current?.messages?.length > 0));
+    return unsubscribe;
+  }, []);
+
   // Sync model state with custom events
   useEffect(() => {
     const handleModelSync = (event) => {
@@ -138,6 +152,11 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   }, [headerModel]);
 
   const handleHeaderModelChange = (model) => {
+    // Model cannot be changed during an active session
+    if (isSessionActive) {
+      return;
+    }
+
     if (model !== defaultModel && !checkPermission('model_selection')) {
       navigate('/upgrade', { state: { fromApp: true } });
       return;
@@ -399,6 +418,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               <ModelSelector
                 selectedModel={headerModel}
                 onModelChange={handleHeaderModelChange}
+                disabled={isSessionActive}
                 size="small"
                 dropdownDirection="down"
               />

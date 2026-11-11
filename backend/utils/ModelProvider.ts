@@ -1,7 +1,7 @@
 import type { ModelType } from '../types/index.js';
 import * as path from 'path';
 
-export type ModelPhase = 'preFlight' | 'classification' | 'marking' | 'questionMode' | 'contextChat' | 'modelAnswer' | 'markingScheme' | 'sampleQuestion' | 'analysis' | 'performanceSummary' | 'other';
+export type ModelPhase = 'preFlight' | 'mapper' | 'classification' | 'marking' | 'questionMode' | 'contextChat' | 'modelAnswer' | 'markingScheme' | 'sampleQuestion' | 'analysis' | 'performanceSummary' | 'other';
 
 export class ModelProvider {
   /**
@@ -75,30 +75,26 @@ export class ModelProvider {
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     return this.withRetry(async () => {
-      const { VERTEX_PROJECT_ID, VERTEX_LOCATION, getModelConfig } = await import('../config/aiModels.js');
-      const config = getModelConfig(model);
-      const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const { resolveExecutionPlan } = await import('../config/aiModels.js');
+      const plan = resolveExecutionPlan(model as string, phase);
+      const modelName = plan.modelName;
 
       const { GoogleGenAI, HarmCategory, HarmBlockThreshold, ThinkingLevel } = await import('@google/genai');
       const ai = new GoogleGenAI({});
       
       let thinkingConfig: any = undefined;
-      let maxTokens = config.maxTokens;
+      const maxTokens = plan.maxOutputTokens;
       
-      if (modelName.includes('3.7-flash')) {
-        if ((model as string) === 'pro') {
-          thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
-          maxTokens = 8192;
-        } else if ((model as string) === 'thinking') {
-          thinkingConfig = { thinkingLevel: ThinkingLevel.MEDIUM };
-          maxTokens = 8192; // 🛑 INCREASED from 4096 to ensure response has room
-        } else {
-          thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
-          maxTokens = 8192; // ⬅️ BUMPED to 8192 to prevent JSON truncation
-        }
+      if (plan.thinkingLevel === 'HIGH') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+      } else if (plan.thinkingLevel === 'MEDIUM') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.MEDIUM };
+      } else if (plan.thinkingLevel === 'LOW') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
       }
 
       const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
+      const supportsCustomTemp = !modelName.includes('3.8') && !modelName.includes('argon');
 
       const response = await ai.models.generateContent({
         model: modelName,
@@ -107,7 +103,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
-          ...(isLowTempPhase ? { temperature: 0, topK: 1, seed: 42 } : {}),
+          ...(isLowTempPhase && supportsCustomTemp ? { temperature: 0, topK: 1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -132,9 +128,13 @@ export class ModelProvider {
       }
       // ---------------------
 
-      let inputTokens = response.usageMetadata?.promptTokenCount || 0;
-      let outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
-      let totalTokens = response.usageMetadata?.totalTokenCount || 0;
+      const promptTokens = response.usageMetadata?.promptTokenCount || 0;
+      const candidateTokens = response.usageMetadata?.candidatesTokenCount || 0;
+      const thoughtTokens = (response.usageMetadata as any)?.thoughtsTokenCount || 0;
+      let inputTokens = promptTokens;
+      // Google bills thoughtsTokenCount at the output token rate
+      let outputTokens = candidateTokens + thoughtTokens;
+      let totalTokens = response.usageMetadata?.totalTokenCount || (inputTokens + outputTokens);
 
       if (totalTokens === 0 && content) {
         inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
@@ -142,19 +142,29 @@ export class ModelProvider {
         totalTokens = inputTokens + outputTokens;
       }
 
+      const callCost = (inputTokens / 1_000_000) * plan.inputPricePer1M + (outputTokens / 1_000_000) * plan.outputPricePer1M;
+      console.log(
+        `🤖 [LLM-EXEC] phase=${phase.padEnd(14)} | req=${String(model).padEnd(8)} -> model=${plan.modelName} (thinking=${plan.thinkingLevel}) | in=${inputTokens.toLocaleString()} out=${outputTokens.toLocaleString()} (thoughts=${thoughtTokens.toLocaleString()}) | cost=$${callCost.toFixed(6)}`
+      );
+
       if (tracker) {
-        switch (phase) {
-          case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
-          case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
-          case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
-          case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
-          case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
-          case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
-          case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
-          case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
-          case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
-          case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
-          default: tracker.recordOther(inputTokens, outputTokens);
+        if (typeof tracker.recordPhaseUsage === 'function') {
+          tracker.recordPhaseUsage(phase, inputTokens, outputTokens, thoughtTokens, plan.modelName, callCost);
+        } else {
+          switch (phase) {
+            case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
+            case 'mapper': tracker.recordMapper?.(inputTokens, outputTokens); break;
+            case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
+            case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
+            case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
+            case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
+            case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
+            case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
+            case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
+            case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
+            case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
+            default: tracker.recordOther(inputTokens, outputTokens);
+          }
         }
       }
 
@@ -167,14 +177,14 @@ export class ModelProvider {
     userPrompt: string,
     imageData: string | string[],
     model: ModelType = 'auto',
-    forceJsonResponse: boolean = true, // ⬅️ NEW PARAMETER
+    forceJsonResponse: boolean = true,
     tracker?: any,
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     return this.withRetry(async () => {
-      const { VERTEX_PROJECT_ID, VERTEX_LOCATION, getModelConfig } = await import('../config/aiModels.js');
-      const config = getModelConfig(model);
-      const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const { resolveExecutionPlan } = await import('../config/aiModels.js');
+      const plan = resolveExecutionPlan(model as string, phase);
+      const modelName = plan.modelName;
 
       const { GoogleGenAI, HarmCategory, HarmBlockThreshold, ThinkingLevel } = await import('@google/genai');
       const ai = new GoogleGenAI({});
@@ -191,24 +201,18 @@ export class ModelProvider {
       });
 
       let thinkingConfig: any = undefined;
-      let maxTokens = config.maxTokens;
+      const maxTokens = plan.maxOutputTokens;
       
-      if (modelName.includes('3.7-flash')) {
-        if ((model as string) === 'pro') {
-          thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
-          maxTokens = 8192;
-        } else if ((model as string) === 'thinking') {
-          thinkingConfig = { thinkingLevel: ThinkingLevel.MEDIUM };
-          maxTokens = 8192; // 🛑 INCREASED from 4096 to ensure response has room
-        } else {
-          thinkingConfig = { thinkingLevel: ThinkingLevel.LOW }; 
-          maxTokens = 8192; // ⬅️ BUMPED to 8192 to prevent JSON truncation on dense math matrices
-        }
-      } else if (phase === 'preFlight' && modelName.includes('2.5-flash')) {
-        thinkingConfig = { thinkingBudget: 1024 };
+      if (plan.thinkingLevel === 'HIGH') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+      } else if (plan.thinkingLevel === 'MEDIUM') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.MEDIUM };
+      } else if (plan.thinkingLevel === 'LOW') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
       }
 
       const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
+      const supportsCustomTemp = !modelName.includes('3.8') && !modelName.includes('argon');
 
       const response = await ai.models.generateContent({
         model: modelName,
@@ -217,10 +221,10 @@ export class ModelProvider {
           { text: userPrompt }
         ] as any,
         config: {
-          maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens, // ⬅️ MATCH callGeminiText BEHAVIOR
-          ...(forceJsonResponse && { responseMimeType: "application/json" }), // ⬅️ FORCE JSON SCHEMA
+          maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
+          ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
-          ...(isLowTempPhase ? { temperature: 0, topK: 1, seed: 42 } : {}),
+          ...(isLowTempPhase && supportsCustomTemp ? { temperature: 0, topK: 1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -244,10 +248,13 @@ export class ModelProvider {
       }
       // ---------------------
 
-      // Extract REAL input/output split
-      let inputTokens = response.usageMetadata?.promptTokenCount || 0;
-      let outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
-      let totalTokens = response.usageMetadata?.totalTokenCount || 0;
+      const promptTokens = response.usageMetadata?.promptTokenCount || 0;
+      const candidateTokens = response.usageMetadata?.candidatesTokenCount || 0;
+      const thoughtTokens = (response.usageMetadata as any)?.thoughtsTokenCount || 0;
+      let inputTokens = promptTokens;
+      // Google bills thoughtsTokenCount at the output token rate
+      let outputTokens = candidateTokens + thoughtTokens;
+      let totalTokens = response.usageMetadata?.totalTokenCount || (inputTokens + outputTokens);
 
       if (totalTokens === 0 && content) {
         inputTokens = 258 + Math.ceil((systemPrompt.length + userPrompt.length) / 4);
@@ -255,19 +262,29 @@ export class ModelProvider {
         totalTokens = inputTokens + outputTokens;
       }
 
+      const callCost = (inputTokens / 1_000_000) * plan.inputPricePer1M + (outputTokens / 1_000_000) * plan.outputPricePer1M;
+      console.log(
+        `🤖 [LLM-EXEC] phase=${phase.padEnd(14)} | req=${String(model).padEnd(8)} -> model=${plan.modelName} (thinking=${plan.thinkingLevel}) | in=${inputTokens.toLocaleString()} out=${outputTokens.toLocaleString()} (thoughts=${thoughtTokens.toLocaleString()}) | cost=$${callCost.toFixed(6)}`
+      );
+
       if (tracker) {
-        switch (phase) {
-          case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
-          case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
-          case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
-          case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
-          case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
-          case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
-          case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
-          case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
-          case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
-          case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
-          default: tracker.recordOther(inputTokens, outputTokens);
+        if (typeof tracker.recordPhaseUsage === 'function') {
+          tracker.recordPhaseUsage(phase, inputTokens, outputTokens, thoughtTokens, plan.modelName, callCost);
+        } else {
+          switch (phase) {
+            case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
+            case 'mapper': tracker.recordMapper?.(inputTokens, outputTokens); break;
+            case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
+            case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
+            case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
+            case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
+            case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
+            case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
+            case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
+            case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
+            case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
+            default: tracker.recordOther(inputTokens, outputTokens);
+          }
         }
       }
 
@@ -292,16 +309,12 @@ export class ModelProvider {
     tracker?: any,
     phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
-    // Resolve tier to actual model using aiModels
-    const { resolveModelTier } = await import('../config/aiModels.js');
-    const resolvedModel = resolveModelTier(model);
-
-    // Detect provider from model name
-    const isOpenAI = resolvedModel.startsWith('openai-');
+    const rawModelStr = String(model || '').toLowerCase();
+    const isOpenAI = rawModelStr.startsWith('openai-') || rawModelStr === 'gpt-4o' || rawModelStr === 'gpt-4o-mini';
 
     if (isOpenAI) {
       // Use OpenAI - extract model name from full ID (e.g., 'openai-gpt-4o' -> 'gpt-4o')
-      const openaiModelName = resolvedModel.replace('openai-', '');
+      const openaiModelName = rawModelStr.replace('openai-', '');
       const result = await this.callOpenAIText(systemPrompt, userPrompt, openaiModelName, forceJsonResponse, tracker, phase);
       return {
         content: result.content,
@@ -310,8 +323,8 @@ export class ModelProvider {
         outputTokens: result.outputTokens
       };
     } else {
-      // Use existing Gemini method
-      return await this.callGeminiText(systemPrompt, userPrompt, resolvedModel as ModelType, forceJsonResponse, tracker, phase);
+      // Pass raw model and phase directly so resolveExecutionPlan preserves the requested tier
+      return await this.callGeminiText(systemPrompt, userPrompt, model, forceJsonResponse, tracker, phase);
     }
   }
 
@@ -397,39 +410,23 @@ export class ModelProvider {
 
     // Auto-record via tracker
     if (tracker) {
-      switch (phase) {
-        case 'preFlight':
-          tracker.recordPreFlight(inputTokens, outputTokens);
-          break;
-        case 'classification':
-          tracker.recordClassification(inputTokens, outputTokens);
-          break;
-        case 'marking':
-          tracker.recordMarking(inputTokens, outputTokens);
-          break;
-        case 'questionMode':
-          tracker.recordQuestionMode(inputTokens, outputTokens);
-          break;
-        case 'contextChat':
-          tracker.recordContextChat(inputTokens, outputTokens);
-          break;
-        case 'modelAnswer':
-          tracker.recordModelAnswer(inputTokens, outputTokens);
-          break;
-        case 'markingScheme':
-          tracker.recordMarkingScheme(inputTokens, outputTokens);
-          break;
-        case 'sampleQuestion':
-          tracker.recordSampleQuestion(inputTokens, outputTokens);
-          break;
-        case 'analysis':
-          tracker.recordAnalysis(inputTokens, outputTokens);
-          break;
-        case 'performanceSummary':
-          tracker.recordPerformanceSummary(inputTokens, outputTokens);
-          break;
-        default:
-          tracker.recordOther(inputTokens, outputTokens);
+      if (typeof tracker.recordPhaseUsage === 'function') {
+        tracker.recordPhaseUsage(phase, inputTokens, outputTokens, 0, modelName);
+      } else {
+        switch (phase) {
+          case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
+          case 'mapper': tracker.recordMapper?.(inputTokens, outputTokens); break;
+          case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
+          case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
+          case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
+          case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
+          case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
+          case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
+          case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
+          case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
+          case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
+          default: tracker.recordOther(inputTokens, outputTokens);
+        }
       }
     }
 
@@ -553,39 +550,23 @@ export class ModelProvider {
 
     // Auto-record via tracker
     if (tracker) {
-      switch (phase) {
-        case 'preFlight':
-          tracker.recordPreFlight(inputTokens, outputTokens);
-          break;
-        case 'classification':
-          tracker.recordClassification(inputTokens, outputTokens);
-          break;
-        case 'marking':
-          tracker.recordMarking(inputTokens, outputTokens);
-          break;
-        case 'questionMode':
-          tracker.recordQuestionMode(inputTokens, outputTokens);
-          break;
-        case 'contextChat':
-          tracker.recordContextChat(inputTokens, outputTokens);
-          break;
-        case 'modelAnswer':
-          tracker.recordModelAnswer(inputTokens, outputTokens);
-          break;
-        case 'markingScheme':
-          tracker.recordMarkingScheme(inputTokens, outputTokens);
-          break;
-        case 'sampleQuestion':
-          tracker.recordSampleQuestion(inputTokens, outputTokens);
-          break;
-        case 'analysis':
-          tracker.recordAnalysis(inputTokens, outputTokens);
-          break;
-        case 'performanceSummary':
-          tracker.recordPerformanceSummary(inputTokens, outputTokens);
-          break;
-        default:
-          tracker.recordOther(inputTokens, outputTokens);
+      if (typeof tracker.recordPhaseUsage === 'function') {
+        tracker.recordPhaseUsage(phase, inputTokens, outputTokens, 0, modelName);
+      } else {
+        switch (phase) {
+          case 'preFlight': tracker.recordPreFlight(inputTokens, outputTokens); break;
+          case 'mapper': tracker.recordMapper?.(inputTokens, outputTokens); break;
+          case 'classification': tracker.recordClassification(inputTokens, outputTokens); break;
+          case 'marking': tracker.recordMarking(inputTokens, outputTokens); break;
+          case 'questionMode': tracker.recordQuestionMode(inputTokens, outputTokens); break;
+          case 'contextChat': tracker.recordContextChat(inputTokens, outputTokens); break;
+          case 'modelAnswer': tracker.recordModelAnswer(inputTokens, outputTokens); break;
+          case 'markingScheme': tracker.recordMarkingScheme(inputTokens, outputTokens); break;
+          case 'sampleQuestion': tracker.recordSampleQuestion(inputTokens, outputTokens); break;
+          case 'analysis': tracker.recordAnalysis(inputTokens, outputTokens); break;
+          case 'performanceSummary': tracker.recordPerformanceSummary(inputTokens, outputTokens); break;
+          default: tracker.recordOther(inputTokens, outputTokens);
+        }
       }
     }
 

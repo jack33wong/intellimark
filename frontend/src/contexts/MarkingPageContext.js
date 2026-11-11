@@ -15,6 +15,7 @@ import InsufficientCreditsModal from '../components/common/InsufficientCreditsMo
 import { useModels } from './ModelContext';
 import GuestLimitModal from '../components/modals/GuestLimitModal';
 import { trackFunnelEvent } from '../utils/funnelTracker';
+import { getSessionModel } from '../utils/modelDisplay';
 
 // --- INDEXEDDB AUTH STASH HELPERS ---
 const STASH_DB_NAME = 'IntelliMarkStashDB';
@@ -262,9 +263,15 @@ export const MarkingPageProvider = ({
       }
 
       loadSession(selectedMarkingResult);
+      const sessionModel = getSessionModel(selectedMarkingResult);
+      dispatch({ type: 'SET_SELECTED_MODEL', payload: sessionModel });
+      window.dispatchEvent(new CustomEvent('modelChanged', { detail: sessionModel }));
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
     } else {
       clearSession();
+      const savedModel = getSavedModel();
+      dispatch({ type: 'SET_SELECTED_MODEL', payload: savedModel });
+      window.dispatchEvent(new CustomEvent('modelChanged', { detail: savedModel }));
       dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
       dispatch({ type: 'EXIT_SPLIT_MODE' });
       lastSyncedSessionId.current = null;
@@ -609,11 +616,12 @@ export const MarkingPageProvider = ({
 
       // Determine usageMode for prompt weighting
       let usageMode = isModelAnswerMode ? 'model-answer' : isMarkingSchemeMode ? 'marking-scheme' : 'chat';
+      const followUpModel = getSessionModel(currentSession) || selectedModel || 'fast';
 
       const response = await apiClient.post('/api/messages/chat', {
         message: trimmedText,
         messageId: userMessageId, // Pass the local user message ID to backend
-        model: selectedModel || 'fast',
+        model: followUpModel,
         sessionId: currentSession?.id || null,
         markingContext: guestMarkingContext, // Send context for guest users
         aiMessageId: aiMessageId, // Pass the AI message ID to backend
@@ -625,7 +633,7 @@ export const MarkingPageProvider = ({
 
       if (data.success) {
         // Use the new standardized completion handler
-        simpleSessionService.handleTextChatComplete(data, selectedModel || 'fast');
+        simpleSessionService.handleTextChatComplete(data, followUpModel);
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }

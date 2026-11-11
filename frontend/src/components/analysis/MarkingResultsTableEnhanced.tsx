@@ -17,6 +17,7 @@ import {
 } from './markingResultsUtils';
 import GradeTrendChart from './GradeTrendChart';
 import './MarkingResultsTableEnhanced.css';
+import { formatModelDisplayName } from '../../utils/modelDisplay';
 
 interface PaperCodeSet {
   tier: string;
@@ -427,7 +428,7 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
                                                 <span className="no-grade">-</span>
                                               )}
                                             </td>
-                                            <td className="model-cell">{result.modelUsed || 'N/A'}</td>
+                                            <td className="model-cell">{formatModelDisplayName(result.modelUsed)}</td>
                                             <td className="date-cell">{formatDate(result.timestamp)}</td>
                                             <td className="actions-cell">
                                               <div className="marking-result-actions-container">

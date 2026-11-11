@@ -991,13 +991,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   };
 
   const handleModelSelection = useCallback((newModel: string) => {
+    // Follow-up model is not allowed to change; it must stay the same as the session's first selected model
+    if (currentSession && currentSession.messages && currentSession.messages.length > 0) {
+      return;
+    }
     // If user is trying to change away from defaultModel, check permissions
     if (newModel !== defaultModel && !canSelectModel) {
       setShowUpgradeModal(true);
       return;
     }
     onModelChange(newModel);
-  }, [canSelectModel, onModelChange, defaultModel]);
+  }, [canSelectModel, onModelChange, defaultModel, currentSession]);
 
   // V16.4: Background Mobile Sync Logic
   const handleMobileImages = useCallback(async (imageUrls: string[]) => {

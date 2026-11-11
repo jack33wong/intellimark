@@ -311,7 +311,7 @@ const SubscriptionPage: React.FC = () => {
   } as any;
 
   const creditTooltipText =
-    "1 Credit = 1 full page of handwritten work analyzed (approx. 15–20 credits per full past paper). Marking scheme pages uploaded alongside custom papers are free and do not consume credits.";
+    "1 Credit ≈ 1 page marked in Fast mode (approx. 15–20 credits per full past paper). Thinking & Pro modes scale with reasoning depth. Marking scheme pages uploaded alongside custom papers are free and do not consume credits.";
 
   const plans = [
     {
@@ -972,7 +972,7 @@ const SubscriptionPage: React.FC = () => {
 
         <p className="credit-explainer-pill">
           <CreditsIcon size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} />
-          <strong>1 Credit = 1 Page Marked</strong> (A full past paper is ~15–20 pages • Mark scheme uploads are free)
+          <strong>1 Credit ≈ 1 Page Marked in Fast Mode</strong> (Full past paper ≈ 15–20 credits • Thinking &amp; Pro modes scale with reasoning depth • Mark scheme uploads are free)
         </p>
 
         {/* Admin Debug Bar */}

@@ -40,7 +40,8 @@ export class ModelAnswerController {
 
             // 🛑 NEW: Enforce Plan Limits in secondary controllers
             const userPlan = (req as any).userPlan || 'free';
-            if (!hasPermission(userPlan, PERMISSIONS.MODEL_SELECTION_PLANS) && requestedModel !== 'FAST') {
+            const isDefaultFast = (requestedModel || '').toUpperCase() === 'FAST';
+            if (!hasPermission(userPlan, PERMISSIONS.MODEL_SELECTION_PLANS) && !isDefaultFast) {
                 const uid = (req as any).user?.uid;
                 const userIdentifier = (uid && uid !== 'anonymous') ? `User ${uid}` : 'Guest User';
                 console.log(`🔒 [PLAN LIMIT] ${userIdentifier} (${userPlan}) tried to use model '${requestedModel}'. Forcing 'FAST'.`);

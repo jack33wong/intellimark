@@ -28,21 +28,23 @@ import type { MarkingSessionContext, QuestionSessionContext } from '../../types/
 import { getBaseQuestionNumber, extractQuestionNumberFromFilename } from '../../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
-import { resolveModelTier } from '../../config/aiModels.js';
+import { resolveModelTier, resolveExecutionPlan, getDefaultModel } from '../../config/aiModels.js';
 import { checkCredits } from '../creditService.js';
 import { AdminAlertService } from '../AdminAlertService.js';
 
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
-    return resolveModelTier(modelType);
+    return resolveExecutionPlan(modelType, 'marking').modelName;
 }
 
 function getRealApiName(modelName: string): string {
-    if (modelName.includes('gemini')) {
+    if (modelName.includes('gemini') || modelName.includes('argon')) {
         return 'Google Gemini API';
     }
-    // Add other API mappings as needed
-    return 'Unknown API';
+    if (modelName.includes('gpt') || modelName.includes('openai')) {
+        return 'OpenAI API';
+    }
+    return 'Google Gemini API';
 }
 
 import type { StandardizedPage, PageOcrResult } from '../../types/markingRouter.js';
@@ -180,9 +182,9 @@ export class MarkingPipelineService {
             const inputQuestionNumber = options.questionNumber;
             let inputMarkingScheme = options.markingScheme;
 
-            // Determine actual model
-            const { resolveModelTier, getDefaultModel } = await import('../../config/aiModels.js');
-            actualModel = resolveModelTier(model === 'auto' ? getDefaultModel() : model);
+            // Determine selected tier (preserves 'fast' | 'thinking' | 'pro')
+            const selectedTier = (options.model && options.model !== 'auto') ? options.model : getDefaultModel();
+            actualModel = selectedTier;
 
             const debugClassification = process.env.DEBUG_RAW_CLASSIFICATION_RESPONSE === 'true';
 
@@ -2215,7 +2217,8 @@ export class MarkingPipelineService {
             // Runs concurrently with Mathpix OCR below.
             const schemeParserPromise: Promise<any | null> = (async () => {
                 if (preResolvedOrchestrationResult || !pagesEjected || (interceptedSchemeImages.length === 0 && deferredSchemePdfFiles.length === 0)) return null;
-                const logSchemeParserComplete = logStep('Custom Scheme Parsing', 'gemini-3.7-flash');
+                const schemeParserModel = resolveExecutionPlan('fast', 'markingScheme').modelName;
+                const logSchemeParserComplete = logStep('Custom Scheme Parsing', schemeParserModel);
                 try {
                     if (deferredSchemePdfFiles.length > 0) {
                         console.log(`📄 [DEFERRED-MS-PDF] Paper not found in DB — rasterizing ${deferredSchemePdfFiles.length} deferred Mark Scheme PDF(s) on demand...`);
@@ -2243,7 +2246,7 @@ export class MarkingPipelineService {
                     logSchemeParserComplete();
 
                     if (parsedObj && Object.keys(parsedObj).length > 0) {
-                        console.log(`✅ [SCHEME PARSER] Successfully extracted marking scheme via gemini-3.7-flash.`);
+                        console.log(`✅ [SCHEME PARSER] Successfully extracted marking scheme via ${schemeParserModel}.`);
                         if (process.env.LOG_CUSTOM_SCHEME_JSON === 'true') {
                             console.log(`\n📄 [CUSTOM-SCHEME-DEBUG] Pretty JSON of Parsed Scheme:`);
                             console.log(JSON.stringify(parsedObj, null, 2));
@@ -3952,6 +3955,7 @@ export class MarkingPipelineService {
                 processingStats: {
                     apiUsed: getRealApiName(getRealModelName(actualModel)),
                     modelUsed: getRealModelName(actualModel),
+                    selectedModel: actualModel,
                     totalMarks: totalPossibleScore, // Use the grouped total marks calculation
                     awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
                     questionCount: allQuestionResults.length,
@@ -4408,8 +4412,8 @@ export class MarkingPipelineService {
             []
         );
 
-        const { resolveModelTier, getDefaultModel } = await import('../../config/aiModels.js');
-        const actualModel = resolveModelTier((options.model || 'fast') === 'auto' ? getDefaultModel() : (options.model || 'fast'));
+        const selectedTier = (options.model && options.model !== 'auto') ? options.model : getDefaultModel();
+        const actualModel = selectedTier;
 
         const allQuestionResults: any[] = [];
         for (const task of markingTasks) {

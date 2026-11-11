@@ -420,6 +420,7 @@ export class SessionManagementService {
       context.mode === 'Question' ? 'question' :
         'unknown';
 
+    const modelTier = (context as any).model || 'fast';
     await FirestoreService.createUnifiedSessionWithMessages({
       sessionId: currentSessionId,
       title: sessionTitle,
@@ -427,7 +428,11 @@ export class SessionManagementService {
       messageType: context.mode,
       messages: [context.userMessage, dbAiMessage],
       isPastPaper: false,
-      sessionStats,
+      sessionStats: {
+        ...sessionStats,
+        selectedModel: modelTier
+      },
+      selectedModel: modelTier,
       detectedQuestion: dbAiMessage.detectedQuestion, // Pass explicitly for session-level denormalization
       usageMode
     });

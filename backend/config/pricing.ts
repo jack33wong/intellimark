@@ -26,6 +26,11 @@ import { resolveModelTier } from './aiModels.js';
  * NOTE: Gemini pricing reflects AI STUDIO rates (as of Dec 2025)
  */
 export const LLM_PRICING: Record<string, { input: number; output: number }> = {
+  // CANONICAL MODELS
+  'gemini-3.5-flash-lite': { input: 0.30, output: 2.50 },
+  'gemini-3.8-flash': { input: 0.75, output: 3.75 },
+  'gemini-4-argon': { input: 4.00, output: 20.00 },
+
   // GOOGLE AI STUDIO PRICING
   'gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
   'gemini-3-flash-preview': { input: 0.50, output: 3.00 },
@@ -53,15 +58,20 @@ export const MATHPIX_PRICING = {
 };
 
 /**
- * Get LLM pricing for a specific model
- * @param model - The model name (e.g., 'gemini-2.5-flash', 'openai-gpt-5-mini')
+ * Get LLM pricing for a specific model or tier
+ * Checks exact model/tier first, then resolves tier
+ * @param model - The model or tier name
  * @returns Pricing object with input and output costs, or null if model not found
  */
 export function getLLMPricing(model: string): { input: number; output: number } | null {
-  // Normalize model name (handle tiers and exact strings)
-  let normalizedModel = resolveModelTier(model);
-  const pricing = LLM_PRICING[normalizedModel];
-  return pricing || null;
+  if (!model) return null;
+  // Check direct model or tier key first
+  if (LLM_PRICING[model]) {
+    return LLM_PRICING[model];
+  }
+  // Fall back to resolving tier
+  const normalizedModel = resolveModelTier(model);
+  return LLM_PRICING[normalizedModel] || null;
 }
 
 /**

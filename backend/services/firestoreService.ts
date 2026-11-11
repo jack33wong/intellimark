@@ -453,6 +453,7 @@ export class FirestoreService {
 
     detectedQuestion?: any;
     usageMode?: string; // NEW: optional usage mode
+    selectedModel?: string;
   }): Promise<string> {
     try {
       ensureDbAvailable();
@@ -599,7 +600,8 @@ export class FirestoreService {
         isPastPaper: sessionData.isPastPaper || false,
         sessionStats: finalSessionStats,
         unifiedMessages: unifiedMessages, // Nested messages array with storage URLs
-        usageMode: sessionData.usageMode?.toLowerCase() // PERSIST USAGE MODE
+        usageMode: sessionData.usageMode?.toLowerCase(), // PERSIST USAGE MODE
+        selectedModel: sessionData.selectedModel || finalSessionStats?.selectedModel || null
       };
 
 

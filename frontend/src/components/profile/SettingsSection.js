@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Settings, Moon, Sun, Monitor } from 'lucide-react';
 import useTheme from '../../hooks/useTheme';
 import { STORAGE_KEYS } from '../../utils/constants';
 import { useModels } from '../../contexts/ModelContext';
+import { useSubscription } from '../../hooks/useSubscription';
 
 const SettingsSection = () => {
     // Theme management via hook
     const { theme, setTheme } = useTheme();
+    const navigate = useNavigate();
+    const { checkPermission } = useSubscription();
 
     const { models, defaultModel, isLoading: isModelsLoading } = useModels();
 
@@ -44,6 +48,10 @@ const SettingsSection = () => {
     }, [selectedModel]);
 
     const handleModelChange = (modelId) => {
+        if (modelId !== defaultModel && !checkPermission('model_selection')) {
+            navigate('/upgrade', { state: { fromApp: true } });
+            return;
+        }
         setSelectedModel(modelId);
         localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, modelId);
         // Dispatch event for MarkingPageContext and other listeners
