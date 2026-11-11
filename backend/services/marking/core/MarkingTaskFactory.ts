@@ -540,6 +540,84 @@ export class MarkingTaskFactory {
                 }
             });
 
+            // 🛡️ [GENERIC-OCR-BUDGET-RECOVERY]:
+            // In Generic Mode, Classification often strips "[ 1 mark ]" from sq.text, leaving subQuestionMaxScores incomplete.
+            // Recover exact per-sub-question mark budgets from Mathpix OCR blocks (allOcrBlocks) via PRINTED_INSTRUCTION tags & zones.
+            if (group.markingScheme?.isGeneric) {
+                const subScores: Record<string, number> = {};
+                for (const [k, v] of Object.entries(group.markingScheme.subQuestionMaxScores || {})) {
+                    if (Number(v) > 0) subScores[k] = Number(v);
+                }
+
+                const markBracketRegex = /(?:\[\s*(\d{1,2})\s*marks?\s*\]|\(\s*(\d{1,2})\s*marks?\s*\)|Total\s*(?:for\s*Question\s*\d+\s*is\s*)?(\d{1,2})\s*marks?)/i;
+
+                // Pass A: Sequential scan of allOcrBlocks using [PRINTED_INSTRUCTION [Q...]] landmarks on each page
+                let currentSubLbl: string | null = null;
+                let currentSubPage: number | null = null;
+                for (const b of allOcrBlocks) {
+                    const txt = String(b.text || '');
+                    const tagMatch = txt.match(/\[PRINTED_INSTRUCTION\s*\[Q([^\]]+)\]\]/i);
+                    if (tagMatch) {
+                        const rawTag = tagMatch[1].trim().replace(/^0+(?=\d)/, '');
+                        if (rawTag !== baseQNum && rawTag.startsWith(baseQNum)) {
+                            currentSubLbl = rawTag;
+                            currentSubPage = b.pageIndex ?? null;
+                        }
+                    }
+                    if (currentSubLbl && (currentSubPage === null || b.pageIndex === currentSubPage)) {
+                        const m = txt.match(markBracketRegex);
+                        const parsedM = m ? parseInt(m[1] || m[2] || m[3], 10) : 0;
+                        if (parsedM > 0 && parsedM <= 30 && !(subScores[currentSubLbl] > 0)) {
+                            subScores[currentSubLbl] = parsedM;
+                        }
+                    }
+                }
+
+                // Pass B: Zone-based fallback for any sub-question still missing its mark
+                const subLabelsForQ = Object.keys(subQuestionPageMap).filter(
+                    lbl => lbl !== baseQNum && lbl.startsWith(baseQNum) && !lbl.startsWith('.')
+                );
+                for (const subLbl of subLabelsForQ) {
+                    if (subScores[subLbl] > 0) continue;
+                    const zones = globalZones?.[subLbl] || [];
+                    for (const z of zones) {
+                        const zoneBlocks = allOcrBlocks.filter(
+                            (b: any) => b.pageIndex === z.pageIndex &&
+                                (b.coordinates?.y ?? 0) >= (z.startY ?? 0) - 15 &&
+                                (b.coordinates?.y ?? 0) <= (z.endY ?? 99999) + 15
+                        );
+                        for (const zb of zoneBlocks) {
+                            const m = String(zb.text || '').match(markBracketRegex);
+                            const parsedM = m ? parseInt(m[1] || m[2] || m[3], 10) : 0;
+                            if (parsedM > 0 && parsedM <= 30) {
+                                subScores[subLbl] = parsedM;
+                                break;
+                            }
+                        }
+                        if (subScores[subLbl] > 0) break;
+                    }
+                }
+
+                // Recompute canonical totalMarks across all distinct full sub-question keys (e.g. "1.1".."1.7")
+                const fullSubKeys = Array.from(new Set([
+                    ...subLabelsForQ,
+                    ...Object.keys(subScores).filter(k => k !== baseQNum && k.startsWith(baseQNum))
+                ]));
+
+                let recoveredTotal = 0;
+                for (const fk of fullSubKeys) {
+                    if (subScores[fk] > 0) {
+                        recoveredTotal += subScores[fk];
+                    }
+                }
+
+                group.markingScheme.subQuestionMaxScores = subScores;
+                if (recoveredTotal > 0) {
+                    group.markingScheme.totalMarks = recoveredTotal;
+                    group.markingScheme.parentQuestionMarks = recoveredTotal;
+                }
+            }
+
             if (metaPageIndices && metaPageIndices.length > 0) {
                 // console.log(` 🏭 [FACTORY-META] Assigning Meta Indices ${metaPageIndices.join(', ')} to task Q${baseQNum}`);
             }

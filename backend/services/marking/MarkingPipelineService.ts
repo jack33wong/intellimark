@@ -3436,11 +3436,16 @@ export class MarkingPipelineService {
                                                 // 2. Process each group (Sub-Question Guillotine)
                                                 for (const [sq, annos] of groups.entries()) {
                                                     const cleanDotSq = sq.replace(/^\./, '');
-                                                    const subBudget =
+                                                    let subBudget =
                                                         subQuestionBudgets[sq] ??
                                                         subQuestionBudgets[`${task.questionNumber}${sq}`] ??
                                                         subQuestionBudgets[`${task.questionNumber}.${cleanDotSq}`] ??
                                                         99; // Default high if unknown
+
+                                                    // Never enforce a 0 budget! If budget is 0 or undefined, treat as unbounded (99)
+                                                    if (!subBudget || subBudget <= 0) {
+                                                        subBudget = 99;
+                                                    }
 
                                                     // Sort by priority (A > B > M)
                                                     annos.sort((a: any, b: any) => {

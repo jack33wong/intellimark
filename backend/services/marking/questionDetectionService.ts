@@ -168,6 +168,10 @@ export class QuestionDetectionService {
       const cleanQHint = this.sanitizeQuestionHint(questionNumberHint);
       const cleanPaperHint = (examPaperHint || '').trim();
 
+      if (/general\s+rubric|no\s+official\s+marking\s+scheme|generic\s+mode/i.test(cleanPaperHint)) {
+        return { found: false, message: 'Generic Rubric Mode active — skipping DB paper lookup' };
+      }
+
       if (cleanText.length === 0 && !cleanQHint) {
         return { found: false, message: 'No question text provided' };
       }
@@ -565,14 +569,26 @@ export class QuestionDetectionService {
         .trim();
     };
 
+    // Extract explicit 4+ char paper code root if present in the hint (e.g. "8462" from "8462/1H", "1MA1" from "1MA1/2H")
+    const codePrefixMatch = normalizedHint.match(/\b([0-9]{4}|[0-9][a-z]{2}[0-9]|[a-z][0-9]{3})(?:\/[0-9a-z]+)?\b/i);
+    const requiredCodePrefix = codePrefixMatch ? codePrefixMatch[1].toLowerCase() : null;
+
     const processedHint = normalizeForSearch(normalizedHint);
     const rawKeywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
-    if (rawKeywords.length === 0) return papers;
+    if (rawKeywords.length === 0) return [];
 
     // 1. Score each paper based on weighted keyword matches
     const scoredPapers = papers.map(paper => {
       const metadata = paper.metadata;
       if (!metadata) return { paper, score: 0 };
+
+      // Hard-block cross-subject paper code collisions (e.g. hint "8462/1H" must NEVER match DB paper "8461/1H" on "/1H")
+      if (requiredCodePrefix) {
+        const dbCode = String(metadata.exam_code || metadata.paper_code || '').toLowerCase();
+        if (dbCode && !dbCode.includes(requiredCodePrefix)) {
+          return { paper, score: 0 };
+        }
+      }
       
       // Explicitly include qualification to catch things like "GCSE"
       const combined = normalizeForSearch(
@@ -603,8 +619,8 @@ export class QuestionDetectionService {
     // 2. Find the highest keyword match score across all papers
     const maxScore = Math.max(...scoredPapers.map(sp => sp.score));
     
-    // 3. Fallback if literally zero words matched any paper in the DB
-    if (maxScore === 0) return papers;
+    // 3. If literally zero papers matched the hint, return empty array so narrow search is false
+    if (maxScore === 0) return [];
 
     // 4. Return only the papers that achieved the highest overlap score.
     // This allows words like "Tier" to simply be ignored without penalizing the correct paper.

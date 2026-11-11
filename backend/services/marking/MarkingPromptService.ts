@@ -125,13 +125,40 @@ export class MarkingPromptService {
             let genericHeader = `\n[GENERIC_GCSE_LOGIC]`;
             if (normalizedScheme.totalMarks) genericHeader += ` [MAX SCORE: ${normalizedScheme.totalMarks}]`;
 
+            let subQBreakdown = '';
+            const cleanSubKey = (k: string) => String(k || '').trim().replace(/^0+(?=\d)/, '');
+            const subList = Array.isArray(normalizedScheme.subQuestionNumbers) && normalizedScheme.subQuestionNumbers.length > 0
+                ? normalizedScheme.subQuestionNumbers
+                    .map(cleanSubKey)
+                    .filter(k => k && k !== String(normalizedScheme.questionNumber))
+                : Object.keys(normalizedScheme.subQuestionMarks || {})
+                    .map(cleanSubKey)
+                    .filter(k => k && k !== String(normalizedScheme.questionNumber));
+
+            const uniqueSubs = Array.from(new Set(subList)).sort((a, b) =>
+                a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+            );
+
+            if (uniqueSubs.length > 0) {
+                subQBreakdown = '\n[SUB-QUESTION BUDGETS]\n' + uniqueSubs.map(sq => {
+                    const suffix = sq.replace(/^\d+/, '');
+                    const dotStripped = suffix.replace(/^\./, '');
+                    const maxS = normalizedScheme.subQuestionMaxScores?.[sq] ??
+                        normalizedScheme.subQuestionMaxScores?.[suffix] ??
+                        normalizedScheme.subQuestionMaxScores?.[dotStripped];
+                    return maxS && maxS > 0
+                        ? `[${sq}] [MAX SCORE: ${maxS}] — Evaluate student work for [${sq}] and award up to ${maxS} mark(s).`
+                        : `[${sq}] — Determine max marks from the "[ X marks ]" printed in RAW OCR BLOCKS / image and evaluate student work for [${sq}].`;
+                }).join('\n') + '\n';
+            }
+
             return `
 ${genericHeader}
-> [INSTRUCTION]: You are the CHIEF EXAMINER.
-> 1. **GET BUDGET**: Search for "(Total X marks)".
-> 2. **SOLVE & MARK**: Award marks for valid steps.
-> 3. **CUT (Guillotine)**: Do not exceed the budget.
-`;
+> [INSTRUCTION]: You are the CHIEF EXAMINER grading in Generic Rubric Mode (no official scheme attached).
+> 1. **MARK EVERY SUB-QUESTION**: You MUST evaluate and output marking annotations (\`B1\`/\`M1\`/\`A1\` or \`B0\`/\`M0\`/\`A0\`) for EVERY sub-question listed below where the student has written work or ticked a box. Never skip a sub-question.
+> 2. **RESPECT SUB-QUESTION BUDGETS**: Use the \`[MAX SCORE]\` listed below (or the \`[ X marks ]\` printed in RAW OCR BLOCKS if not listed) as the strict maximum for each sub-question.
+> 3. **CUT (Guillotine)**: Do not exceed the budget for any sub-question.
+${subQBreakdown}`;
         }
 
         let output = '';

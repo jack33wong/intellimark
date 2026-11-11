@@ -304,19 +304,28 @@ export class MarkingSchemeOrchestrationService {
       // 👇 THE CLEAN INTERCEPTION SWITCH 👇
       let groupDetectionResult;
 
-      // Build deterministic subQuestionTexts map for this baseNum group from extracted cleanQuestionsMap / group
-      const extractedSubQuestionTexts: Record<string, string> = {};
-      group.forEach(qItem => {
-        const rawQNum = String(qItem.questionNumber || '').trim().replace(/^0+(?=\d)/, '');
-        if (rawQNum && rawQNum !== baseNum && qItem.text) {
-          const relativePart = rawQNum.startsWith(baseNum) ? rawQNum.slice(baseNum.length).replace(/^\./, '') : rawQNum;
-          if (relativePart && !extractedSubQuestionTexts[relativePart]) {
-            extractedSubQuestionTexts[relativePart] = qItem.text.trim();
-          }
-        }
-      });
+      // Detect if the user explicitly opted into Generic AI Rubric Mode (no official scheme)
+      const isExplicitGenericRubricMode = Boolean(
+        examPaperHint && /general\s+rubric|no\s+official\s+marking\s+scheme|generic\s+mode/i.test(examPaperHint)
+      );
 
-      if (inputMarkingScheme && inputMarkingScheme.questions) {
+      if (isExplicitGenericRubricMode) {
+        groupDetectionResult = {
+          found: false,
+          message: 'Explicit Generic Rubric Mode requested by user'
+        };
+      } else if (inputMarkingScheme && inputMarkingScheme.questions) {
+        // Build deterministic subQuestionTexts map for this baseNum group
+        const extractedSubQuestionTexts: Record<string, string> = {};
+        group.forEach(qItem => {
+          const rawQNum = String(qItem.questionNumber || '').trim().replace(/^0+(?=\d)/, '');
+          if (rawQNum && rawQNum !== baseNum && qItem.text) {
+            const relativePart = rawQNum.startsWith(baseNum) ? rawQNum.slice(baseNum.length).replace(/^\./, '') : rawQNum;
+            if (relativePart && !extractedSubQuestionTexts[relativePart]) {
+              extractedSubQuestionTexts[relativePart] = qItem.text.trim();
+            }
+          }
+        });
         // Dynamically reconcile the parent question total mark pool 
         // by summing up the parts that belong to the current baseNum group (e.g. 1a + 1b)
         let parentTotalMarks = 0;
@@ -537,12 +546,13 @@ export class MarkingSchemeOrchestrationService {
       }
     }
 
-    // --- STEP 3 RECOVERY FALLBACK (Only if examPaperHint was a weak footer guess, NOT an explicit full paper title) ---
-    const isExplicitFullPaperSelection = Boolean(
+    // --- STEP 3 RECOVERY FALLBACK (Only if examPaperHint was a weak footer guess, NOT an explicit paper code or generic rubric mode) ---
+    const hasExplicitPaperCodeInHint = Boolean(
       examPaperHint &&
-      /\b(20\d{2}|june|november|may|january|summer|autumn|winter)\b/i.test(examPaperHint) &&
-      /\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700|8300|1MA1|J560|J351|1EN0|9MA0|7357)\b/i.test(examPaperHint)
+      (/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700|8300|8461|8462|8463|8464|1MA1|J560|J351|1EN0|9MA0|7357)\b/i.test(examPaperHint) ||
+       /general\s+rubric|no\s+official\s+marking\s+scheme|generic\s+mode/i.test(examPaperHint))
     );
+    const isExplicitFullPaperSelection = hasExplicitPaperCodeInHint;
 
     const hintInfo = detectionStats.hintInfo;
     if (hintInfo && Boolean(examPaperHint) && !isExplicitFullPaperSelection) {
@@ -713,30 +723,62 @@ export class MarkingSchemeOrchestrationService {
 
       // CASE A: GENERIC QUESTION (Discovery Mode)
       if (paperCode === 'Generic Question') {
-        const questionNumbers = group.map(item => item.question.questionNumber || item.actualQuestionNumber);
+        const questionNumbers: string[] = [];
         const subQMarksMap: any = {};
         const subQMaxScores: any = {};
-        questionNumbers.forEach(qNum => {
-          if (qNum) {
-            subQMarksMap[qNum] = parentScheme.marks;
-            subQMaxScores[qNum] = masterMatch.marks || 0;
+        const subQTextsMap: Record<string, string> = {};
+        let groupTotalMarks = 0;
+
+        group.forEach(item => {
+          const rawQNum = String(item.question.questionNumber || item.actualQuestionNumber || '').trim().replace(/^0+(?=\d)/, '');
+          if (!rawQNum) return;
+          const itemMatch = item.detectionResult?.match;
+          const itemMarks = Number(itemMatch?.marks) || this.smartEstimateMaxMarks(item.question.text) || 0;
+          const itemSchemeMarks = itemMatch?.markingScheme?.questionMarks?.marks || parentScheme.marks;
+
+          if (!questionNumbers.includes(rawQNum)) {
+            questionNumbers.push(rawQNum);
+          }
+          subQMarksMap[rawQNum] = itemSchemeMarks;
+          // CRITICAL: Never set subQMaxScores[rawQNum] = 0!
+          // A value of 0 tells the downstream Guillotine in AnnotationLinker that the max allowed score is 0!
+          if (itemMarks > 0) {
+            subQMaxScores[rawQNum] = itemMarks;
+          }
+
+          if (rawQNum !== baseQuestionNumber || group.length === 1) {
+            groupTotalMarks += itemMarks;
+          }
+          if (rawQNum !== baseQuestionNumber && item.question.text) {
+            const relPart = rawQNum.startsWith(baseQuestionNumber)
+              ? rawQNum.slice(baseQuestionNumber.length).replace(/^\./, '')
+              : rawQNum;
+            if (relPart) subQTextsMap[relPart] = item.question.text.trim();
           }
         });
+
+        if (groupTotalMarks === 0 && masterMatch.marks) {
+          groupTotalMarks = Number(masterMatch.marks) || 0;
+        }
 
         const rawAns = parentScheme.answer || '';
         const subAns = rawAns.includes('\n') ? rawAns.split('\n') : [rawAns];
 
         markingSchemesMap.set(uniqueKey, {
           questionMarks: { marks: parentScheme.marks, subQuestionMarks: subQMarksMap },
-          totalMarks: masterMatch.marks || 0, parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
+          totalMarks: groupTotalMarks,
+          parentQuestionMarks: groupTotalMarks,
           questionNumber: baseQuestionNumber,
-        subject: masterMatch.subject || masterMatch.markingScheme?.examDetails?.subject || undefined,
-        examDetails: masterMatch.markingScheme?.examDetails || undefined,
-        questionDetection: group[0].detectionResult,
-        databaseQuestionText: masterMatch.databaseQuestionText || '',
-          subQuestionNumbers: questionNumbers, subQuestionAnswers: subAns, isGeneric: true,
+          subject: masterMatch.subject || undefined,
+          questionDetection: group[0].detectionResult,
+          databaseQuestionText: masterMatch.databaseQuestionText || '',
+          subQuestionNumbers: questionNumbers.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
+          subQuestionAnswers: subAns,
+          isGeneric: true,
           subQuestionMaxScores: subQMaxScores,
-          generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex
+          subQuestionTexts: Object.keys(subQTextsMap).length > 0 ? subQTextsMap : undefined,
+          generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance,
+          sourceImageIndex: groupSourceImageIndex
         });
         continue;
       }

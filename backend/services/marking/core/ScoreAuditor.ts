@@ -32,17 +32,25 @@ export class ScoreAuditor {
     }
 
     /**
-     * Faithfully migrates "The Guillotine" (Strict Budget Enforcement).
+     * Faithfully migrates "The Guillotine" (Strict Budget Enforcement)
+     * with safe fallback for Generic Mode when sub-question marks are not printed on the image.
      */
     static enforceStrictBudget(
         annotations: any[],
         scheme: any
-    ): { annotations: any[], awardedMarks: number } {
+    ): { annotations: any[], awardedMarks: number, inferredTotalMarks?: number } {
         const sanitizeValue = (text: string) => {
             const match = text.match(/[A-Z]+(\d+)/i);
-            if (match) return parseInt(match[1]);
-            const num = parseInt(text.replace(/\D/g, ''));
+            if (match) return parseInt(match[1], 10);
+            const num = parseInt(text.replace(/\D/g, ''), 10);
             return isNaN(num) ? 0 : num;
+        };
+
+        const countAttemptedWeight = (text: string) => {
+            const clean = (text || '').trim();
+            const zeroMatch = clean.match(/^[BMAPC]0$/i);
+            if (zeroMatch) return 1;
+            return sanitizeValue(clean);
         };
 
         const buckets: Record<string, any[]> = {};
@@ -53,42 +61,90 @@ export class ScoreAuditor {
         });
 
         let grandTotal = 0;
+        let inferredTotalMarks = 0;
         const survivorList: any[] = [];
+        const isGeneric = Boolean(scheme?.isGeneric);
 
         Object.keys(buckets).forEach(subQ => {
             const anns = buckets[subQ];
             let budget = 99;
+            let hasExplicitSubBudget = false;
 
             if (scheme) {
-                if (scheme.markBreakdown && scheme.markBreakdown[subQ]) {
-                    budget = scheme.markBreakdown[subQ].maxScore || budget;
-                }
-                else if (Array.isArray(scheme.subQuestions)) {
+                const cleanSubQ = String(subQ).trim().replace(/^0+(?=\d)/, '');
+                const suffix = cleanSubQ.replace(/^\d+/, '');
+                const dotStripped = suffix.replace(/^\./, '');
+
+                const subMaxMap = scheme.subQuestionMaxScores || {};
+                const explicitSubMax =
+                    subMaxMap[subQ] ??
+                    subMaxMap[cleanSubQ] ??
+                    subMaxMap[suffix] ??
+                    subMaxMap[dotStripped];
+
+                if (typeof explicitSubMax === 'number' && explicitSubMax > 0) {
+                    budget = explicitSubMax;
+                    hasExplicitSubBudget = true;
+                } else if (scheme.markBreakdown && scheme.markBreakdown[subQ]?.maxScore > 0) {
+                    budget = scheme.markBreakdown[subQ].maxScore;
+                    hasExplicitSubBudget = true;
+                } else if (Array.isArray(scheme.subQuestions)) {
                     const match = (scheme.subQuestions as any[]).find((sq: any) => sq.label === subQ || sq.questionNumber === subQ);
-                    if (match && match.maxScore) budget = Number(match.maxScore);
-                }
-                else if (Object.keys(buckets).length === 1 && scheme.totalMarks) {
+                    if (match && Number(match.maxScore) > 0) {
+                        budget = Number(match.maxScore);
+                        hasExplicitSubBudget = true;
+                    }
+                } else if (Object.keys(buckets).length === 1 && Number(scheme.totalMarks) > 0) {
                     budget = Number(scheme.totalMarks);
+                    hasExplicitSubBudget = true;
                 }
             }
 
+            // Never enforce a 0 budget! If budget is 0 or undefined, treat as unbounded (99)
+            if (!budget || budget <= 0) {
+                budget = 99;
+            }
+
             let currentVal = 0;
+            let subInferredMax = 0;
             const survivors: any[] = [];
-            // console.log(` 💎 [BUDGET-CHECK] Q${subQ}: Max Marks = ${budget}. Items to Process: ${anns.length}`);
             for (const ann of anns) {
                 const val = sanitizeValue(ann.text || "0");
+                subInferredMax += countAttemptedWeight(ann.text || "0");
                 if (currentVal + val <= budget) {
                     survivors.push(ann);
                     currentVal += val;
-                } else {
-                    // console.log(` ✂️ [GUILLOTINE] Q${subQ}: Cutting annotation "${ann.text}" (Value: ${val}). Budget: ${budget}, Already Awarded: ${currentVal}`);
                 }
             }
             survivors.forEach(s => survivorList.push(s));
             grandTotal += currentVal;
+
+            if (hasExplicitSubBudget) {
+                inferredTotalMarks += budget;
+            } else if (isGeneric) {
+                inferredTotalMarks += Math.max(currentVal, subInferredMax, 1);
+            }
         });
 
-        return { annotations: survivorList, awardedMarks: grandTotal };
+        // If scheme had subQuestionMaxScores for unattempted sub-questions not in buckets, include them in inferredTotalMarks
+        if (scheme?.subQuestionMaxScores && typeof scheme.subQuestionMaxScores === 'object') {
+            const baseQ = String(scheme.questionNumber || '').trim();
+            const allCanonicalSubKeys = Object.keys(scheme.subQuestionMaxScores).filter(
+                k => baseQ && k !== baseQ && k.startsWith(baseQ) && Number(scheme.subQuestionMaxScores[k]) > 0
+            );
+            if (allCanonicalSubKeys.length > 0) {
+                const fullSubSum = allCanonicalSubKeys.reduce((acc, k) => acc + Number(scheme.subQuestionMaxScores[k]), 0);
+                if (fullSubSum > inferredTotalMarks) {
+                    inferredTotalMarks = fullSubSum;
+                }
+            }
+        }
+
+        return {
+            annotations: survivorList,
+            awardedMarks: grandTotal,
+            inferredTotalMarks: inferredTotalMarks > 0 ? inferredTotalMarks : undefined
+        };
     }
 
     /**

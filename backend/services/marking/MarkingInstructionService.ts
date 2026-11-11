@@ -103,15 +103,20 @@ export function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | nu
 
     const subQuestionTexts = input.subQuestionTexts || (input as any).subQuestionTexts;
 
-    // Max Score Handling
+    // Max Score Handling (Never populate 0 into subQuestionMaxScores so Guillotine never caps at 0)
     let explicitMaxScores = input.subQuestionMaxScores || (input as any).subQuestionMaxScores;
     if (explicitMaxScores && typeof explicitMaxScores === 'object') {
       subQuestionMaxScores = {};
       for (const [key, value] of Object.entries(explicitMaxScores)) {
-        subQuestionMaxScores[key] = Number(value);
+        const numVal = Number(value);
+        if (!(numVal > 0)) continue;
+        subQuestionMaxScores[key] = numVal;
         const suffix = key.replace(/^\d+/, '');
-        if (suffix && suffix !== key) subQuestionMaxScores[suffix] = Number(value);
-        if (key === suffix && input.questionNumber) subQuestionMaxScores[`${input.questionNumber}${key}`] = Number(value);
+        if (suffix && suffix !== key) {
+          subQuestionMaxScores[suffix] = numVal;
+          if (suffix.startsWith('.')) subQuestionMaxScores[suffix.substring(1)] = numVal;
+        }
+        if (key === suffix && input.questionNumber) subQuestionMaxScores[`${input.questionNumber}${key}`] = numVal;
       }
     }
     if (!subQuestionMaxScores && subQuestionMarks) {

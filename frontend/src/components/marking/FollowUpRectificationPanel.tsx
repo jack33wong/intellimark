@@ -220,7 +220,7 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
 
       {/* CASE 1: Other Subject Requiring a Marking Scheme */}
       {requiresMarkingScheme && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', width: '100%' }}>
           {/* Button on LEFT: Mark with AI (General Rubric) */}
           <button
             type="button"
@@ -228,7 +228,7 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
             onClick={() => onGradeWithGeneralRubric?.()}
             style={{
               padding: '9px 16px',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+              background: 'var(--fill-brand)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
@@ -253,7 +253,7 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
             onClick={() => fileInputRef.current?.click()}
             style={{
               padding: '9px 16px',
-              background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+              background: 'var(--function-success)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
@@ -264,7 +264,8 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
               fontSize: '14px',
               fontWeight: 600,
               boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
-              opacity: isProcessing ? 0.6 : 1
+              opacity: isProcessing ? 0.6 : 1,
+              marginLeft: 'auto'
             }}
           >
             <Paperclip size={16} />

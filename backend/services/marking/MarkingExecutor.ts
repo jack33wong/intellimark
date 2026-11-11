@@ -468,8 +468,16 @@ export async function executeMarkingForQuestion(
       reconciledRubricEval = lorReconciled.rubricEvaluation;
     } else {
       const strictResult = ScoreAuditor.enforceStrictBudget(enrichedAnnotations, task.markingScheme);
-      if (task.markingScheme?.totalMarks !== undefined && Number(task.markingScheme.totalMarks) > 0) {
-        parsedScore.totalMarks = Number(task.markingScheme.totalMarks);
+      const schemeTotal = Number(task.markingScheme?.totalMarks || 0);
+      if (task.markingScheme?.isGeneric && strictResult.inferredTotalMarks && strictResult.inferredTotalMarks > schemeTotal) {
+        parsedScore.totalMarks = strictResult.inferredTotalMarks;
+      } else if (schemeTotal > 0) {
+        parsedScore.totalMarks = schemeTotal;
+      } else if (strictResult.inferredTotalMarks && strictResult.inferredTotalMarks > 0) {
+        parsedScore.totalMarks = strictResult.inferredTotalMarks;
+      }
+      if (parsedScore.totalMarks < strictResult.awardedMarks) {
+        parsedScore.totalMarks = strictResult.awardedMarks;
       }
       parsedScore.awardedMarks = strictResult.awardedMarks;
       parsedScore.scoreText = `${strictResult.awardedMarks}/${parsedScore.totalMarks}`;
