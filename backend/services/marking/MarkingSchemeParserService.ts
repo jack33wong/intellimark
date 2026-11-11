@@ -10,6 +10,34 @@ export interface AutoPersistenceAuditContext {
     userId?: string;
     sessionId?: string;
     sourceFileName?: string;
+    /** Completeness verification result stored in persistenceAudit for traceability */
+    completeness?: CompletenessReport;
+}
+
+export interface CompletenessReport {
+    isComplete: boolean;
+    reasons: string[];
+    warnings: string[];
+    schemeTotalMarks: number;
+    expectedTotalMarks: number | null;
+    expectedTotalSource: 'question_paper' | 'mark_scheme' | null;
+    baseQuestionCount: number;
+    subQuestionCount: number;
+}
+
+/** Normalize question keys for matching: "01.1" -> "1.1", "1(a)(i)" -> "1ai", "Q2b" -> "2b" */
+export function normQuestionKey(k: string): string {
+    return String(k || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^q(?:uestion)?\s*/, '')
+        .replace(/[\s()]/g, '')
+        .replace(/^0+(?=\d)/, '');
+}
+
+function toPositiveInt(v: any): number | null {
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 /**
@@ -18,8 +46,10 @@ export interface AutoPersistenceAuditContext {
  *  - v1: initial auto-persistence (dropped "N.N" sub-questions, no per-question totalMarks)
  *  - v2: complete sub-question coverage from subQuestionMaxScores, per-question totalMarks/maxMarks,
  *        relative sub-question `part`, parent marks reconciled with sum of sub-question marks
+ *  - v3: canonical normalized keys in markingSchemes (stripped leading zeros: "1.1" not "01.1")
+ *        and clean relative sub-part in fullExamPapers ("1" not ".1")
  */
-export const AUTO_PERSIST_SCHEMA_VERSION = 2;
+export const AUTO_PERSIST_SCHEMA_VERSION = 3;
 
 /** True when a Firestore doc was written by the auto-persistence pipeline (never overwrite manual docs). */
 function isAutoPersistedDoc(data: any): boolean {
@@ -91,7 +121,14 @@ Output JSON Schema:
     "qualification": "GCSE (9-1) | A-Level | IGCSE",
     "paperCode": "Paper code if visible, else 'Uploaded'",
     "tier": "Higher | Foundation | N/A",
-    "exam_series": "Exam series if visible, else 'N/A'"
+    "exam_series": "Exam series if visible, else 'N/A'",
+    "paperTotalMarks": "Integer total/maximum mark for the WHOLE paper ONLY if explicitly printed in the document (e.g. 'Total for paper: 100', 'Maximum mark: 80'), else null"
+  },
+  "documentCompleteness": {
+    "isComplete": "true ONLY if the images contain the marking scheme for EVERY question of the paper from Question 1 to the final question with no missing pages; false if any pages/questions appear to be missing, cut off, or only selected questions are included",
+    "firstQuestion": "First question number present (e.g. '1')",
+    "lastQuestion": "Last question number present (e.g. '8')",
+    "reason": "Short reason if isComplete is false, else ''"
   },
   "subQuestionMaxScores": {
     "1a": 2,
@@ -166,6 +203,42 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
     }
 
     /**
+     * Canonicalizes all question and subQuestionMaxScores keys in-place
+     * (e.g. "01.1" -> "1.1") so Turn 1 (BYOMS / cache) and Turn 2 (Auto-Catalog DB)
+     * produce identical prompt headers.
+     */
+    private static canonicalizeParsedScheme(parsedObj: any): any {
+        if (!parsedObj || typeof parsedObj !== 'object') return parsedObj;
+
+        const cleanKey = (k: string) => String(k || '').trim().replace(/^0+(?=\d)/, '');
+
+        if (parsedObj.subQuestionMaxScores && typeof parsedObj.subQuestionMaxScores === 'object') {
+            const normalizedScores: Record<string, number> = {};
+            for (const [k, v] of Object.entries(parsedObj.subQuestionMaxScores)) {
+                const ck = cleanKey(k);
+                if (ck) normalizedScores[ck] = Number(v) || 0;
+            }
+            parsedObj.subQuestionMaxScores = normalizedScores;
+        }
+
+        if (parsedObj.questions && typeof parsedObj.questions === 'object') {
+            const normalizedQuestions: Record<string, any> = {};
+            for (const [k, v] of Object.entries(parsedObj.questions)) {
+                const ck = cleanKey(k);
+                if (!ck) continue;
+                if (v && typeof v === 'object') {
+                    normalizedQuestions[ck] = { ...(v as any), questionNumber: ck };
+                } else {
+                    normalizedQuestions[ck] = v;
+                }
+            }
+            parsedObj.questions = normalizedQuestions;
+        }
+
+        return parsedObj;
+    }
+
+    /**
      * Parses an array of raw base64 images of a marking scheme into a custom scheme object.
      * Uses SHA-256 fingerprint caching (in-memory + Firestore) and 1200px lightweight copies for speed.
      */
@@ -182,7 +255,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
         // Compute deterministic SHA-256 cache key across all scheme page images
         const hash = crypto.createHash('sha256');
-        hash.update(`v1:${base64Images.length}:`);
+        hash.update(`v2:${base64Images.length}:`);
         for (const img of base64Images) {
             // Sample prefix, middle, and suffix + length of each base64 page for fast (<1ms) collision-free hashing
             const len = img.length;
@@ -195,8 +268,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
         const memCached = this.memoryCache.get(cacheKey);
         if (memCached && memCached.questions && Object.keys(memCached.questions).length > 0) {
             console.log(`⚡ [MarkingSchemeParser] In-memory cache HIT (${cacheKey.slice(0, 12)}) for ${base64Images.length} scheme page(s).`);
-            void this.saveOfficialSchemeToDatabase(memCached, auditContext);
-            return JSON.parse(JSON.stringify(memCached));
+            return this.canonicalizeParsedScheme(JSON.parse(JSON.stringify(memCached)));
         }
 
         // 2. Check Firestore persistent cache
@@ -208,9 +280,9 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                     const data = docSnap.data();
                     if (data?.parsedScheme && data.parsedScheme.questions && Object.keys(data.parsedScheme.questions).length > 0) {
                         console.log(`⚡ [MarkingSchemeParser] Firestore cache HIT (${cacheKey.slice(0, 12)}) for ${base64Images.length} scheme page(s).`);
-                        this.memoryCache.set(cacheKey, data.parsedScheme);
-                        void this.saveOfficialSchemeToDatabase(data.parsedScheme, auditContext);
-                        return JSON.parse(JSON.stringify(data.parsedScheme));
+                        const canonicalCached = this.canonicalizeParsedScheme(JSON.parse(JSON.stringify(data.parsedScheme)));
+                        this.memoryCache.set(cacheKey, canonicalCached);
+                        return JSON.parse(JSON.stringify(canonicalCached));
                     }
                 }
             }
@@ -247,7 +319,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 content = content.replace(/\`\`\`/g, '').trim();
             }
 
-            const parsedObj = JSON.parse(content);
+            const parsedObj = this.canonicalizeParsedScheme(JSON.parse(content));
             console.log(`✅ [MarkingSchemeParser] Successfully parsed custom scheme.`);
 
             if (parsedObj && parsedObj.questions && Object.keys(parsedObj.questions).length > 0) {
@@ -257,7 +329,9 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 }
                 this.memoryCache.set(cacheKey, parsedObj);
 
-                // Fire-and-forget write to Firestore cache & official past-paper database catalog
+                // Fire-and-forget write to Firestore parse cache.
+                // NOTE: Official past-paper auto-persistence is NOT done here — it is gated by a completeness
+                // check in `persistOfficialPastPaperIfComplete` (needs the question paper to cross-verify).
                 try {
                     const db = getFirestore();
                     if (db) {
@@ -268,7 +342,6 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                             createdAt: new Date().toISOString()
                         }).catch(() => {});
                     }
-                    void this.saveOfficialSchemeToDatabase(parsedObj, auditContext);
                 } catch {}
             }
 
@@ -311,9 +384,247 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
     }
 
     /**
+     * Collects the normalized (sub-)question keys and their max marks from a parsed scheme.
+     * `subQuestionMaxScores` is primary; `questions` keys without a score are included with score 0
+     * (they are flagged as incomplete by `assessSchemeCompleteness`).
+     */
+    private static collectSchemeScores(parsedScheme: any): Map<string, number> {
+        const scores = new Map<string, number>();
+        for (const [k, v] of Object.entries(parsedScheme?.subQuestionMaxScores || {})) {
+            const nk = normQuestionKey(k);
+            if (nk) scores.set(nk, Number(v) || 0);
+        }
+        for (const [k, v] of Object.entries(parsedScheme?.questions || {})) {
+            const nk = normQuestionKey(k);
+            if (!nk || scores.has(nk)) continue;
+            scores.set(nk, sumMarkCodeWeights((v as any)?.marks) || 0);
+        }
+        return scores;
+    }
+
+    /**
+     * STRICT completeness check for an auto-persisted official marking scheme.
+     * Rejects partial uploads (missing pages, selected questions only, single-question schemes).
+     *
+     * Checks:
+     *  1. LLM self-report `documentCompleteness.isComplete` is not false
+     *  2. Every question key has a positive max score
+     *  3. Base question numbers are contiguous from 1..N (no gaps / missing trailing questions)
+     *  4. Sub-question parts are contiguous within each base (1.1, 1.2, 1.3 ... / a, b, c ...)
+     *  5. Sum of marks equals the paper's stated total (from question paper cover or mark scheme)
+     */
+    static assessSchemeCompleteness(parsedScheme: any, paperStatedTotal?: number | null): CompletenessReport {
+        const reasons: string[] = [];
+        const warnings: string[] = [];
+        const scores = this.collectSchemeScores(parsedScheme);
+        const schemeTotalMarks = Array.from(scores.values()).reduce((s, m) => s + m, 0);
+
+        // 1. LLM self-reported completeness
+        const dc = parsedScheme?.documentCompleteness;
+        if (dc && (dc.isComplete === false || String(dc.isComplete).toLowerCase() === 'false')) {
+            reasons.push(`Mark scheme reported as incomplete${dc.reason ? `: ${dc.reason}` : ''}`);
+        }
+
+        // 2. Every key must have a positive score
+        const zeroScoreKeys = Array.from(scores.entries()).filter(([, m]) => !(m > 0)).map(([k]) => k);
+        if (zeroScoreKeys.length > 0) {
+            reasons.push(`Missing max score for: ${zeroScoreKeys.join(', ')}`);
+        }
+
+        // 3. Base question numbering contiguous 1..N
+        const baseNums = Array.from(new Set(
+            Array.from(scores.keys()).map(k => Number(getBaseQuestionNumber(k))).filter(n => Number.isInteger(n) && n > 0)
+        )).sort((a, b) => a - b);
+        const maxBase = baseNums.length > 0 ? baseNums[baseNums.length - 1] : 0;
+        if (baseNums.length === 0) {
+            reasons.push('No numbered questions found');
+        } else {
+            const missingBases: number[] = [];
+            for (let i = 1; i <= maxBase; i++) if (!baseNums.includes(i)) missingBases.push(i);
+            if (missingBases.length > 0) reasons.push(`Missing question(s): ${missingBases.join(', ')}`);
+        }
+        const reportedLast = toPositiveInt(getBaseQuestionNumber(String(dc?.lastQuestion || '')));
+        if (reportedLast && reportedLast > maxBase) {
+            reasons.push(`Mark scheme reports last question ${reportedLast} but only Q1–Q${maxBase} were extracted`);
+        }
+
+        // 4. Sub-question contiguity within each base
+        let subQuestionCount = 0;
+        for (const base of baseNums) {
+            const b = String(base);
+            const subParts = Array.from(scores.keys())
+                .filter(k => getBaseQuestionNumber(k) === b && k !== b)
+                .map(k => k.slice(b.length));
+            subQuestionCount += subParts.length;
+            if (subParts.length === 0) continue;
+
+            const decimalIdx = subParts.map(p => p.match(/^\.(\d+)/)?.[1]).filter(Boolean).map(Number);
+            const ROMANS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+            const isRomanOnly = subParts.every(p => ROMANS.includes(p));
+            const letterIdx = isRomanOnly ? [] : subParts.map(p => p.match(/^([a-z])/)?.[1]).filter(Boolean) as string[];
+
+            if (isRomanOnly) {
+                const maxIdx = Math.max(...subParts.map(p => ROMANS.indexOf(p)));
+                const missing = ROMANS.slice(0, maxIdx + 1).filter(r => !subParts.includes(r)).map(r => `${b}${r}`);
+                if (missing.length > 0) reasons.push(`Missing sub-question(s): ${missing.join(', ')}`);
+            }
+
+            if (decimalIdx.length > 0) {
+                const uniq = Array.from(new Set(decimalIdx)).sort((x, y) => x - y);
+                const max = uniq[uniq.length - 1];
+                const missing: string[] = [];
+                for (let i = 1; i <= max; i++) if (!uniq.includes(i)) missing.push(`${b}.${i}`);
+                if (missing.length > 0) reasons.push(`Missing sub-question(s): ${missing.join(', ')}`);
+            }
+            if (letterIdx.length > 0) {
+                const uniq = Array.from(new Set(letterIdx)).sort();
+                const maxCode = uniq[uniq.length - 1].charCodeAt(0);
+                const missing: string[] = [];
+                for (let c = 97; c <= maxCode; c++) {
+                    const ch = String.fromCharCode(c);
+                    if (!uniq.includes(ch)) missing.push(`${b}${ch}`);
+                }
+                if (missing.length > 0) reasons.push(`Missing sub-question(s): ${missing.join(', ')}`);
+            }
+        }
+
+        // 5. Total marks must match the paper's stated total
+        const schemeStatedTotal = toPositiveInt(parsedScheme?.examDetails?.paperTotalMarks);
+        const paperTotal = toPositiveInt(paperStatedTotal);
+        let expectedTotalMarks: number | null = null;
+        let expectedTotalSource: CompletenessReport['expectedTotalSource'] = null;
+        if (paperTotal) {
+            expectedTotalMarks = paperTotal;
+            expectedTotalSource = 'question_paper';
+            if (schemeStatedTotal && schemeStatedTotal !== paperTotal) {
+                warnings.push(`Mark scheme states ${schemeStatedTotal} marks but question paper states ${paperTotal}`);
+            }
+        } else if (schemeStatedTotal) {
+            expectedTotalMarks = schemeStatedTotal;
+            expectedTotalSource = 'mark_scheme';
+        }
+
+        if (!expectedTotalMarks) {
+            reasons.push('Cannot verify completeness: paper total marks not stated on question paper cover or mark scheme');
+        } else if (schemeTotalMarks !== expectedTotalMarks) {
+            reasons.push(`Mark scheme total (${schemeTotalMarks}) does not match paper total (${expectedTotalMarks}, from ${expectedTotalSource?.replace('_', ' ')})`);
+        }
+
+        return {
+            isComplete: reasons.length === 0,
+            reasons,
+            warnings,
+            schemeTotalMarks,
+            expectedTotalMarks,
+            expectedTotalSource,
+            baseQuestionCount: baseNums.length,
+            subQuestionCount
+        };
+    }
+
+    /**
+     * STRICT completeness check that the uploaded QUESTION PAPER covers every question in the
+     * (already verified complete) mark scheme. Rejects individual-question / partial-page uploads.
+     */
+    static assessQuestionPaperCompleteness(
+        parsedScheme: any,
+        extractedQuestions: Array<{ questionNumber?: string | null; text?: string }>
+    ): { isComplete: boolean; reasons: string[]; warnings: string[] } {
+        const reasons: string[] = [];
+        const warnings: string[] = [];
+        const scores = this.collectSchemeScores(parsedScheme);
+
+        const extractedTexts = new Map<string, string>(); // normKey -> text
+        for (const q of extractedQuestions || []) {
+            const nk = normQuestionKey(String(q.questionNumber || ''));
+            const text = String(q.text || '').trim();
+            if (nk && text && !extractedTexts.has(nk)) extractedTexts.set(nk, text);
+        }
+        const extractedBases = new Set(Array.from(extractedTexts.keys()).map(k => getBaseQuestionNumber(k) || k));
+        const schemeBases = new Set(Array.from(scores.keys()).map(k => getBaseQuestionNumber(k) || k));
+
+        const missingBases = Array.from(schemeBases).filter(b => !extractedBases.has(b)).sort(compareQuestionKeys);
+        if (missingBases.length > 0) {
+            reasons.push(`Question paper is missing question(s): ${missingBases.join(', ')}`);
+        }
+
+        // Every scheme leaf (sub-question, or base question with no sub-questions) must have extracted text
+        const missingText: string[] = [];
+        for (const nk of scores.keys()) {
+            const base = getBaseQuestionNumber(nk) || nk;
+            if (missingBases.includes(base)) continue; // already reported
+            const hasSubs = Array.from(scores.keys()).some(k => k !== base && (getBaseQuestionNumber(k) || k) === base);
+            if (nk === base && hasSubs) continue; // parent container of sub-questions
+            if (!extractedTexts.has(nk)) missingText.push(nk);
+        }
+        if (missingText.length > 0) {
+            reasons.push(`No question text extracted for: ${missingText.sort(compareQuestionKeys).join(', ')}`);
+        }
+
+        const extraBases = Array.from(extractedBases).filter(b => !schemeBases.has(b));
+        if (extraBases.length > 0) {
+            warnings.push(`Ignoring question number(s) not in mark scheme: ${extraBases.join(', ')}`);
+        }
+
+        return { isComplete: reasons.length === 0, reasons, warnings };
+    }
+
+    /**
+     * SINGLE gated entry point for auto-persisting an official non-Maths/English past paper.
+     * Both `markingSchemes` and `fullExamPapers` are written ONLY when the mark scheme AND the
+     * question paper are verified complete. Individual questions / partial uploads are ignored.
+     */
+    static async persistOfficialPastPaperIfComplete(params: {
+        parsedScheme: any;
+        extractedQuestions: Array<{ questionNumber?: string | null; text?: string; parentText?: string }>;
+        paperStatedTotal?: number | null;
+        auditContext?: AutoPersistenceAuditContext;
+    }): Promise<{ persisted: boolean; report?: CompletenessReport }> {
+        const { parsedScheme, extractedQuestions, paperStatedTotal, auditContext } = params;
+        try {
+            // Not an official non-Maths/English paper -> silently ignore (custom / teacher schemes are never cataloged)
+            if (!this.isOfficialPastPaperScheme(parsedScheme)) return { persisted: false };
+
+            const label = `${parsedScheme.examDetails?.board || ''} ${parsedScheme.examDetails?.paperCode || ''} ${parsedScheme.examDetails?.exam_series || parsedScheme.examDetails?.date || ''}`.trim();
+            const schemeReport = this.assessSchemeCompleteness(parsedScheme, paperStatedTotal);
+            const paperReport = this.assessQuestionPaperCompleteness(parsedScheme, extractedQuestions);
+
+            const report: CompletenessReport = {
+                ...schemeReport,
+                isComplete: schemeReport.isComplete && paperReport.isComplete,
+                reasons: [
+                    ...schemeReport.reasons.map(r => `[scheme] ${r}`),
+                    ...paperReport.reasons.map(r => `[paper] ${r}`)
+                ],
+                warnings: [...schemeReport.warnings, ...paperReport.warnings]
+            };
+
+            report.warnings.forEach(w => console.warn(`⚠️ [AUTO-CATALOG] ${label}: ${w}`));
+
+            if (!report.isComplete) {
+                console.log(`🚫 [AUTO-CATALOG] Skipped persisting ${label} — upload is not a complete paper + mark scheme:`);
+                report.reasons.forEach(r => console.log(`     • ${r}`));
+                return { persisted: false, report };
+            }
+
+            console.log(`✅ [AUTO-CATALOG] Completeness verified for ${label}: ${report.baseQuestionCount} questions / ${report.subQuestionCount} sub-questions / ${report.schemeTotalMarks} marks (matches ${report.expectedTotalSource?.replace('_', ' ')} total).`);
+
+            const ctx: AutoPersistenceAuditContext = { ...(auditContext || {}), completeness: report };
+            await this.saveOfficialSchemeToDatabase(parsedScheme, ctx);
+            await this.saveOfficialExamPaperQuestionsToDatabase(parsedScheme, extractedQuestions, ctx);
+            return { persisted: true, report };
+        } catch (err) {
+            console.warn('⚠️ [AUTO-CATALOG] Completeness-gated persistence failed:', err);
+            return { persisted: false };
+        }
+    }
+
+    /**
      * Persists an official non-Maths/non-English-Language past paper marking scheme
      * into the Firestore `markingSchemes` collection so future uploads of the same paper
      * are automatically graded without requiring the user to re-upload the mark scheme.
+     *
+     * ⚠️ Call via `persistOfficialPastPaperIfComplete` — this method does NOT verify completeness.
      */
     static async saveOfficialSchemeToDatabase(
         parsedObj: any,
@@ -358,22 +669,39 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 }
             }
 
-            const subQuestionMaxScores: Record<string, number> = { ...(parsedObj.subQuestionMaxScores || {}) };
+            const rawSubScores = parsedObj.subQuestionMaxScores || {};
+            const subQuestionMaxScores: Record<string, number> = {};
+            for (const [k, v] of Object.entries(rawSubScores)) {
+                const cleanKey = String(k).trim().replace(/^0+(?=\d)/, '');
+                if (cleanKey) {
+                    subQuestionMaxScores[cleanKey] = Number(v) || 0;
+                }
+            }
 
             // Stamp totalMarks / maxMarks onto every individual question so consumers (Admin UI, detection)
             // never fall back to `marks.length` (which counts a single "B2" item as 1 mark instead of 2).
+            // Also canonicalize question keys (e.g. "01.1" -> "1.1") without leading zeros.
             const questionsToSave: Record<string, any> = {};
             for (const [qKey, qVal] of Object.entries(parsedObj.questions || {})) {
+                const cleanKey = String(qKey).trim().replace(/^0+(?=\d)/, '');
                 if (!qVal || typeof qVal !== 'object') {
-                    questionsToSave[qKey] = qVal;
+                    questionsToSave[cleanKey] = qVal;
                     continue;
                 }
-                const fromScores = Number(subQuestionMaxScores[qKey]) || 0;
+                const fromScores = Number(subQuestionMaxScores[cleanKey]) || Number(rawSubScores[qKey]) || 0;
                 const qMarks = fromScores || sumMarkCodeWeights((qVal as any).marks);
-                if (qMarks > 0 && !fromScores) subQuestionMaxScores[qKey] = qMarks;
-                questionsToSave[qKey] = qMarks > 0
-                    ? { ...(qVal as any), totalMarks: qMarks, maxMarks: qMarks }
-                    : qVal;
+                if (qMarks > 0 && !subQuestionMaxScores[cleanKey]) subQuestionMaxScores[cleanKey] = qMarks;
+                questionsToSave[cleanKey] = qMarks > 0
+                    ? {
+                        ...(qVal as any),
+                        questionNumber: cleanKey,
+                        totalMarks: qMarks,
+                        maxMarks: qMarks
+                    }
+                    : {
+                        ...(qVal as any),
+                        questionNumber: cleanKey
+                    };
             }
 
             const totalMarks = Object.values(subQuestionMaxScores).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
@@ -415,12 +743,23 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                     triggeredByUserId: auditContext?.userId || null,
                     triggeredBySessionId: auditContext?.sessionId || null,
                     sourceFileName: auditContext?.sourceFileName || null,
-                    extractionModel: 'gemini-3.7-flash'
+                    extractionModel: 'gemini-3.7-flash',
+                    completenessVerified: auditContext?.completeness?.isComplete === true,
+                    completeness: auditContext?.completeness
+                        ? {
+                            schemeTotalMarks: auditContext.completeness.schemeTotalMarks,
+                            expectedTotalMarks: auditContext.completeness.expectedTotalMarks,
+                            expectedTotalSource: auditContext.completeness.expectedTotalSource,
+                            baseQuestionCount: auditContext.completeness.baseQuestionCount,
+                            subQuestionCount: auditContext.completeness.subQuestionCount,
+                            warnings: auditContext.completeness.warnings
+                        }
+                        : null
                 },
                 uploadedAt: existingUploadedAt || nowIso,
                 createdAt: existingCreatedAt || nowIso,
                 updatedAt: nowIso
-            }, { merge: true });
+            });
 
             QuestionDetectionService.invalidateSchemesCache();
             console.log(`📚 [AUTO-CATALOG] Saved official ${board} ${subject} (${paperCode} - ${examSeries}, ${totalMarks} marks) marking scheme to Firestore markingSchemes/${docId}!`);
@@ -459,13 +798,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
             const docId = `official_paper_${slug(board)}_${slug(paperCode)}_${slug(examSeries)}`;
 
-            // Normalize question keys for matching: "01.1" -> "1.1", "1(a)(i)" -> "1ai", "Q2b" -> "2b"
-            const normKey = (k: string) => String(k || '')
-                .trim()
-                .toLowerCase()
-                .replace(/^q(?:uestion)?\s*/, '')
-                .replace(/[\s()]/g, '')
-                .replace(/^0+(?=\d)/, '');
+            const normKey = normQuestionKey;
 
             // --- 1. Official mark scheme is the source of truth for WHICH (sub-)questions exist and their marks ---
             const rawScores: Record<string, any> = parsedScheme.subQuestionMaxScores || {};
@@ -529,8 +862,9 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
                 const sub_questions = subKeys.map(nk => {
                     const displayKey = schemeDisplayKey.get(nk) || nk;
-                    // Relative part: "1.2" -> ".2", "1a" -> "a", "1ai" -> "ai"
-                    const relativePart = displayKey.startsWith(baseNum) ? displayKey.slice(baseNum.length) : displayKey;
+                    // Relative part: "1.2" -> "2", "1a" -> "a", "1ai" -> "ai"
+                    let relativePart = displayKey.startsWith(baseNum) ? displayKey.slice(baseNum.length) : displayKey;
+                    if (relativePart.startsWith('.')) relativePart = relativePart.substring(1);
                     const text = subTexts.get(nk) || '';
                     if (!text) missingTextKeys.push(displayKey);
                     const marks = schemeScores.get(nk);
@@ -634,12 +968,23 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                     triggeredByUserId: auditContext?.userId || null,
                     triggeredBySessionId: auditContext?.sessionId || null,
                     sourceFileName: auditContext?.sourceFileName || null,
-                    extractionModel: 'gemini-3.7-flash'
+                    extractionModel: 'gemini-3.7-flash',
+                    completenessVerified: auditContext?.completeness?.isComplete === true,
+                    completeness: auditContext?.completeness
+                        ? {
+                            schemeTotalMarks: auditContext.completeness.schemeTotalMarks,
+                            expectedTotalMarks: auditContext.completeness.expectedTotalMarks,
+                            expectedTotalSource: auditContext.completeness.expectedTotalSource,
+                            baseQuestionCount: auditContext.completeness.baseQuestionCount,
+                            subQuestionCount: auditContext.completeness.subQuestionCount,
+                            warnings: auditContext.completeness.warnings
+                        }
+                        : null
                 },
                 uploadedAt: existingUploadedAt || nowIso,
                 createdAt: existingCreatedAt || nowIso,
                 updatedAt: nowIso
-            }, { merge: true });
+            });
 
             QuestionDetectionService.invalidatePapersCache();
             console.log(`📄 [AUTO-CATALOG] Saved ${questionsArray.length} questions / ${totalSubQuestions} sub-questions (${reconciledTotal} marks) to Firestore fullExamPapers/${docId}!`);

@@ -4,6 +4,7 @@
  */
 
 import { buildUniversalEnglishRubricFallback } from '../subjectProfiles.js';
+import { formatPageMapForPrompt } from '../../utils/TextNormalizationUtils.js';
 
 export const englishLoRSystemPrompt = (subjectKey: 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE' = 'ENGLISH_LANGUAGE'): string => {
   const isLit = subjectKey === 'ENGLISH_LITERATURE';
@@ -277,8 +278,7 @@ ${studentWork || 'No student work text extracted — inspect the attached page i
 Use these exact OCR Block IDs to populate \`linked_ocr_id\` so margin badges and SPaG circles land on the exact line:
 ${formattedBlocks}
 
-## 8. PAGE MAP
-${JSON.stringify(pageMap || {})}
+${formatPageMapForPrompt(pageMap)}
 `;
 
   return prompt;

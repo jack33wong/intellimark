@@ -1,3 +1,5 @@
+import { formatPageMapForPrompt } from '../../utils/TextNormalizationUtils.js';
+
 export const UNIVERSAL_BYOMS_MARKING_SYSTEM_PROMPT = (subjectName: string = 'General Subject') => `
 You are the CHIEF EXAMINER for UK GCSE & A-Level **${subjectName}** (and interdisciplinary academic subjects).
 Your role is to mark the student's work against the provided **[OFFICIAL SCHEME]** with 100% examiner accuracy, fairness, and consistency.
@@ -155,8 +157,7 @@ ${generalGuidance ? `${generalGuidance}\n` : ''}
 ## MARKING SCHEME
 ${schemeText}
 
-${pageMap && Object.keys(pageMap).length > 0 ? `## SUB-QUESTION PAGE MAP (AUTHORITATIVE)\n${JSON.stringify(pageMap, null, 2)}\n` : ''}
-## STUDENT WORK (CLEAN STEPS)
+${formatPageMapForPrompt(pageMap)}## STUDENT WORK (CLEAN STEPS)
 ${studentWork}
 
 ## RAW OCR BLOCKS (PHYSICAL COORDINATES)

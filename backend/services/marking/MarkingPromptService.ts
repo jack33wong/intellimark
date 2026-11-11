@@ -194,29 +194,35 @@ ${genericHeader}
         };
 
         if (hasSubQuestions) {
-            const subQuestions = Object.keys(normalizedScheme.subQuestionMarks!).sort();
+            const cleanSubKey = (k: string) => String(k || '').trim().replace(/^0+(?=\d)/, '');
+            const subQuestions = Object.keys(normalizedScheme.subQuestionMarks!).sort((a, b) =>
+                cleanSubKey(a).localeCompare(cleanSubKey(b), undefined, { numeric: true, sensitivity: 'base' })
+            );
             for (const subQ of subQuestions) {
+                const displaySubQ = cleanSubKey(subQ);
                 const rawSubEntry = normalizedScheme.subQuestionMarks![subQ] as any;
                 let marks = rawSubEntry;
                 if (!Array.isArray(marks) && marks?.marks) marks = marks.marks;
 
-                const subLabel = subQ.replace(/^\d+/, '');
+                const subLabel = displaySubQ.replace(/^\d+/, '');
                 const normalizedSubLabel = normalizeSubQuestionPart(subLabel);
 
                 const maxScore = (normalizedScheme.subQuestionMaxScores ?
                     (normalizedScheme.subQuestionMaxScores[subQ] ??
+                        normalizedScheme.subQuestionMaxScores[displaySubQ] ??
                         normalizedScheme.subQuestionMaxScores[subLabel] ??
                         normalizedScheme.subQuestionMaxScores[normalizedSubLabel]) : undefined)
                     || normalizedScheme.totalMarks || normalizedScheme.parentQuestionMarks;
 
-                const subMeta = subMetaMap[subQ] || subMetaMap[subLabel] || {};
+                const subMeta = subMetaMap[subQ] || subMetaMap[displaySubQ] || subMetaMap[subLabel] || {};
                 const subGuidance =
                     subGuidanceMap[subQ] ||
+                    subGuidanceMap[displaySubQ] ||
                     subGuidanceMap[subLabel] ||
                     (!Array.isArray(rawSubEntry) && rawSubEntry?.guidance ? rawSubEntry.guidance : undefined) ||
                     subMeta.guidance;
 
-                output += `[${subQ}]`;
+                output += `[${displaySubQ}]`;
                 if (maxScore) output += ` [MAX SCORE: ${maxScore}]`;
                 if (subMeta.paradigm) output += ` [PARADIGM: ${subMeta.paradigm}]`;
                 output += '\n';

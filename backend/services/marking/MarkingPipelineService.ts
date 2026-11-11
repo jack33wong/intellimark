@@ -111,6 +111,7 @@ export interface MarkingOptions {
     userId?: string;
     sessionId?: string;
     customText?: string;
+    allowGenericSubjectMarking?: boolean;
 }
 
 export class MarkingPipelineService {
@@ -810,6 +811,12 @@ export class MarkingPipelineService {
             // 🛡️ [BYOMS DETECTION & DOCUMENT-LEVEL SUBJECT CONSENSUS]:
             // Check if any uploaded page in the batch is a Marking Scheme (or if a custom marking scheme was provided).
             // When a Marking Scheme is present, Universal BYOMS mode is enabled for any academic subject!
+            const allowGenericSubject = Boolean(
+                options.allowGenericSubjectMarking ||
+                req.body?.allowGenericSubjectMarking === true ||
+                req.body?.allowGenericSubjectMarking === 'true'
+            );
+
             let hasUploadedMarkingScheme =
                 deferredSchemePdfFiles.length > 0 ||
                 geometryResults.some(g => g?.is_marking_scheme === true) ||
@@ -857,7 +864,22 @@ export class MarkingPipelineService {
                 }
             }
 
-            if (!hasUploadedMarkingScheme && isMultiPageUpload && (unsupportedPageResults.length >= 2 || unsupportedRatio >= 0.4)) {
+            if (allowGenericSubject && unsupportedPageResults.length > 0) {
+                const primarySubjName = unsupportedPageResults[0]?.unsupported_subject_name || undefined;
+                if (!options.subject && primarySubjName) {
+                    options.subject = primarySubjName;
+                }
+                geometryResults.forEach(g => {
+                    if (g && (g.detected_subject === 'UNSUPPORTED_SUBJECT' || g.detected_subject === 'ENGLISH_LITERATURE')) {
+                        g.is_supported_doc = true;
+                    }
+                });
+                console.log(
+                    `🤖 [GENERIC SUBJECT MODE] User opted into AI marking with general rubric (${options.subject || 'General'}) without an official scheme. Unblocking ${unsupportedPageResults.length} page(s)...`
+                );
+            }
+
+            if (!hasUploadedMarkingScheme && !allowGenericSubject && isMultiPageUpload && (unsupportedPageResults.length >= 2 || unsupportedRatio >= 0.4)) {
                 const primaryUnsupported = unsupportedPageResults.find(g => g.rejection_reason && g.rejection_reason.trim()) || unsupportedPageResults[0];
                 const consensusRejectionReason = primaryUnsupported?.rejection_reason ||
                     'The uploaded document belongs to an unsupported subject (e.g. Sciences, Humanities, or English Literature). AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language with official mark schemes and grade boundaries.';
@@ -879,9 +901,9 @@ export class MarkingPipelineService {
                     }
                 });
                 lastRejectionReason = consensusRejectionReason;
-            } else if (hasUploadedMarkingScheme && unsupportedPageResults.length > 0) {
+            } else if ((hasUploadedMarkingScheme || allowGenericSubject) && unsupportedPageResults.length > 0) {
                 console.log(
-                    `🛡️ [BYOMS MODE] Uploaded Marking Scheme detected alongside ${unsupportedPageResults.length} non-Maths/English page(s). Enabling Universal Subject Marking!`
+                    `🛡️ [${hasUploadedMarkingScheme ? 'BYOMS' : 'GENERIC SUBJECT'} MODE] ${hasUploadedMarkingScheme ? 'Uploaded Marking Scheme' : 'General AI Rubric'} enabled alongside ${unsupportedPageResults.length} non-Maths/English page(s). Enabling Universal Subject Marking!`
                 );
             }
 
@@ -908,8 +930,8 @@ export class MarkingPipelineService {
                     continue; // Skip pushing to student pages (exempt from student page quota)
                 }
 
-                // 3. Reject unsupported subjects ONLY when NO marking scheme was uploaded
-                if (geo.is_supported_doc === false && !hasUploadedMarkingScheme) {
+                // 3. Reject unsupported subjects ONLY when NO marking scheme was uploaded AND user did not opt into general rubric
+                if (geo.is_supported_doc === false && !hasUploadedMarkingScheme && !allowGenericSubject) {
                     const rawReason = (geo.rejection_reason || '').trim();
                     lastRejectionReason = rawReason || 'The uploaded document belongs to an unsupported subject or does not contain supported exam content. AI Marking currently supports GCSE & A-Level Mathematics and GCSE English Language.';
                     
@@ -2344,7 +2366,7 @@ export class MarkingPipelineService {
                 }
             }
 
-            if (inputMarkingScheme && individualQuestions.length >= 3) {
+            if (parsedCustomScheme && individualQuestions.length >= 3) {
                 // Snapshot BEFORE orchestration: orchestrateMarkingSchemeLookup mutates q.text in place ("smart swap"),
                 // and this save runs asynchronously, so passing the live objects races with that mutation.
                 const questionsSnapshot = individualQuestions.map(q => ({
@@ -2352,18 +2374,30 @@ export class MarkingPipelineService {
                     text: q.text,
                     parentText: q.parentText
                 }));
-                const schemeForPersistence = inputMarkingScheme;
+                const schemeForPersistence = parsedCustomScheme;
+
+                // Paper total printed on the QUESTION PAPER cover (e.g. "The maximum mark for this paper is 100"),
+                // detected by the pre-flight geometry pass. Most frequent value across non-scheme pages wins.
+                const totalVotes = new Map<number, number>();
+                geometryResults
+                    .filter(g => g && !g.is_marking_scheme && g.paper_total_marks_hint)
+                    .forEach(g => totalVotes.set(g!.paper_total_marks_hint!, (totalVotes.get(g!.paper_total_marks_hint!) || 0) + 1));
+                const paperStatedTotal = Array.from(totalVotes.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+                // 🛡️ COMPLETENESS GATE: Only a COMPLETE question paper + COMPLETE mark scheme is auto-persisted.
+                // Individual questions / partial uploads are ignored (see persistOfficialPastPaperIfComplete).
                 import('./MarkingSchemeParserService.js')
                     .then(({ MarkingSchemeParserService }) => {
-                        void MarkingSchemeParserService.saveOfficialExamPaperQuestionsToDatabase(
-                            schemeForPersistence,
-                            questionsSnapshot,
-                            {
+                        void MarkingSchemeParserService.persistOfficialPastPaperIfComplete({
+                            parsedScheme: schemeForPersistence,
+                            extractedQuestions: questionsSnapshot,
+                            paperStatedTotal,
+                            auditContext: {
                                 userId: userId || 'anonymous',
                                 sessionId: options.sessionId || submissionId,
-                                sourceFileName: files?.[0]?.originalname
+                                sourceFileName: deferredSchemePdfFiles[0]?.originalname || files?.[0]?.originalname
                             }
-                        );
+                        });
                     })
                     .catch(() => {});
             }

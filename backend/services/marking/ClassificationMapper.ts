@@ -10,7 +10,7 @@ export interface PageMap {
         questionNumber: string;
         subQuestions?: string[];
     }>;
-    category?: "frontPage" | "questionAnswer" | "questionOnly";
+    category?: "frontPage" | "questionAnswer" | "questionOnly" | "metadata";
     flatQuestions?: string[]; // For backward compatibility in Pass 2
 }
 
@@ -94,11 +94,14 @@ export class ClassificationMapper {
                 const structuredQuestions: Array<{ questionNumber: string; subQuestions?: string[] }> = [];
                 const flatQuestions: string[] = [];
 
+                const cleanQStr = (s: string) => String(s || '').trim().replace(/^0+(?=\d)/, '');
+
                 rawQuestions.forEach((q: any) => {
                     if (typeof q === 'string') {
-                        const match = q.match(/^(\d+)([a-z]*.*)/i);
+                        const cleaned = cleanQStr(q);
+                        const match = cleaned.match(/^(\d+)([a-z]*.*)/i);
                         if (match) {
-                            const base = match[1];
+                            const base = cleanQStr(match[1]);
                             const part = match[2];
                             const existing = structuredQuestions.find(sq => sq.questionNumber === base);
                             if (existing) {
@@ -111,30 +114,32 @@ export class ClassificationMapper {
                                     subQuestions: part ? [part] : undefined
                                 });
                             }
-                        } else {
-                            structuredQuestions.push({ questionNumber: q });
+                        } else if (cleaned) {
+                            structuredQuestions.push({ questionNumber: cleaned });
                         }
-                        flatQuestions.push(q);
+                        if (cleaned) flatQuestions.push(cleaned);
                     } else if (typeof q === 'object' && q !== null && q.questionNumber) {
-                        structuredQuestions.push(q);
+                        const baseQ = cleanQStr(String(q.questionNumber));
+                        const normalizedQObj = { ...q, questionNumber: baseQ };
+                        structuredQuestions.push(normalizedQObj);
                         if (q.subQuestions && q.subQuestions.length > 0) {
                             q.subQuestions.forEach((sq: any) => {
                                 let sqString = "";
                                 if (typeof sq === 'string') {
-                                    sqString = sq;
+                                    sqString = cleanQStr(sq);
                                 } else if (typeof sq === 'object' && sq !== null) {
                                     // Handle cases where the AI bleeds schema from the Heavy pass
-                                    sqString = String(sq.part || sq.subQuestion || sq.q || sq.id || "");
+                                    sqString = cleanQStr(String(sq.part || sq.subQuestion || sq.q || sq.id || ""));
                                 }
                                 
                                 if (sqString) {
-                                    flatQuestions.push(combineQuestionAndPart(String(q.questionNumber), sqString));
+                                    flatQuestions.push(combineQuestionAndPart(baseQ, sqString));
                                 } else {
-                                    flatQuestions.push(String(q.questionNumber)); // Fallback to just the main question
+                                    flatQuestions.push(baseQ); // Fallback to just the main question
                                 }
                             });
                         } else {
-                            flatQuestions.push(q.questionNumber);
+                            flatQuestions.push(baseQ);
                         }
                     }
                 });
@@ -187,7 +192,30 @@ export class ClassificationMapper {
             // Wait for all chunks to finish concurrently
             const allBucketResults = await Promise.all(bucketPromises);
 
-            // Merge sequentially to preserve overlapping priority logic
+            // Deterministic category priority for overlapping pages:
+            // questionAnswer > questionOnly > metadata > frontPage
+            // Note: For interior blank/continuation booklet pages (pageIndex > 0) with 0 questions,
+            // 'metadata' is always preferred over 'frontPage' so Global[33] never flips between runs.
+            const resolveOverlapCategory = (
+                pageIndex: number,
+                catA: PageMap['category'],
+                catB: PageMap['category'],
+                hasQuestions: boolean
+            ): PageMap['category'] => {
+                if (!hasQuestions && pageIndex > 0) {
+                    if (catA === 'metadata' || catB === 'metadata') return 'metadata' as any;
+                }
+                const rank = (c?: string): number => {
+                    if (c === 'questionAnswer') return 4;
+                    if (c === 'questionOnly') return 3;
+                    if (c === 'metadata') return 2;
+                    if (c === 'frontPage') return 1;
+                    return 0;
+                };
+                return rank(catB) > rank(catA) ? catB : catA;
+            };
+
+            // Merge sequentially with full sub-question union and deterministic category resolution
             allBucketResults.forEach(bucketResults => {
                 bucketResults.forEach(res => {
                     const existingIdx = results.findIndex(r => r.pageIndex === res.pageIndex);
@@ -195,11 +223,46 @@ export class ClassificationMapper {
                         results.push(res);
                         processedPageIndices.add(res.pageIndex);
                     } else {
-                        // If we already have this page, merge questions if the new result found more
                         const existing = results[existingIdx];
-                        if (res.questions.length > existing.questions.length) {
-                            results[existingIdx] = res;
-                        }
+
+                        // Union flatQuestions deterministically
+                        const mergedFlat = Array.from(
+                            new Set([...(existing.flatQuestions || []), ...(res.flatQuestions || [])])
+                        ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+                        // Union structured questions and their subQuestions
+                        const qMap = new Map<string, Set<string>>();
+                        const ingestQuestions = (qList: PageMap['questions']) => {
+                            (qList || []).forEach(q => {
+                                const qNum = String(q.questionNumber || '').trim();
+                                if (!qNum) return;
+                                if (!qMap.has(qNum)) qMap.set(qNum, new Set());
+                                (q.subQuestions || []).forEach(sq => qMap.get(qNum)!.add(sq));
+                            });
+                        };
+                        ingestQuestions(existing.questions);
+                        ingestQuestions(res.questions);
+
+                        const mergedQuestions: PageMap['questions'] = Array.from(qMap.entries())
+                            .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+                            .map(([questionNumber, subSet]) => {
+                                const subs = Array.from(subSet).sort((a, b) =>
+                                    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+                                );
+                                return subs.length > 0 ? { questionNumber, subQuestions: subs } : { questionNumber };
+                            });
+
+                        results[existingIdx] = {
+                            pageIndex: existing.pageIndex,
+                            questions: mergedQuestions,
+                            flatQuestions: mergedFlat,
+                            category: resolveOverlapCategory(
+                                existing.pageIndex,
+                                existing.category,
+                                res.category,
+                                mergedFlat.length > 0
+                            )
+                        };
                     }
                 });
             });

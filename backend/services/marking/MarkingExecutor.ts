@@ -15,6 +15,7 @@ import { ScoreAuditor } from './core/ScoreAuditor.js';
 // Utils
 import { enrichAnnotationsWithPositions } from './AnnotationEnrichmentService.js';
 import { sanitizeAiLineId, getQuestionSortValue } from './MarkingHelpers.js';
+import { combineQuestionAndPart } from '../../utils/TextNormalizationUtils.js';
 
 export async function executeMarkingForQuestion(
   task: MarkingTask,
@@ -244,10 +245,11 @@ export async function executeMarkingForQuestion(
       const qNumStr = String(questionId);
       markingResult.annotations.forEach((anno: any) => {
         // Safe mapping of sub-question labels (Maintenance)
-        // 🛡️ [LABEL-HARMONY]: Preserve the full sub-question label (e.g. "3a")
-        // We no longer strip the question number to prevent lookup collisions and "Missing Red Zone" bugs.
-        if (anno.subQuestion && !String(anno.subQuestion).startsWith(qNumStr)) {
-          anno.subQuestion = `${qNumStr}${anno.subQuestion}`;
+        // 🛡️ [LABEL-HARMONY]: Preserve the full sub-question label (e.g. "3a", "1.1")
+        // We ensure canonical question.part format without leading zeroes or duplicated base prefixes.
+        if (anno.subQuestion) {
+          const rawSub = String(anno.subQuestion).trim().replace(/^0+(?=\d)/, '');
+          anno.subQuestion = combineQuestionAndPart(qNumStr, rawSub);
         }
 
         // Sync pageIndex from the Global ID (Ground Truth)

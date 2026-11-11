@@ -69,7 +69,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
   const { logEvent } = useTelemetry();
-  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal, attachMarkingSchemeAndRetry, remarkWithOfficialPaper, onRatingChange } = useMarkingPage();
+  const { activeQuestionId, setActiveQuestionId, isContextFilterActive, isNegative, setShowCreditsModal, attachMarkingSchemeAndRetry, gradeWithGeneralRubric, remarkWithOfficialPaper, onRatingChange } = useMarkingPage();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [showFeedbackToast, setShowFeedbackToast] = useState<boolean>(false);
 
@@ -739,6 +739,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               content={ensureStringContent(content)}
               isProcessing={isAnyMessageProcessing}
               onAttachFilesForRemark={(files) => attachMarkingSchemeAndRetry?.(files)}
+              onGradeWithGeneralRubric={() => gradeWithGeneralRubric?.()}
               onRemarkOfficialPaper={async ({ paperTitle, questionNumber }) => {
                 if (remarkWithOfficialPaper) {
                   await remarkWithOfficialPaper({

@@ -275,8 +275,17 @@ export class QuestionDetectionService {
           const markingScheme = await this.findCorrespondingMarkingScheme(matchResult);
           if (markingScheme) {
             matchResult.markingScheme = markingScheme;
-            if (markingScheme.subQuestionMaxScores && (!matchResult.subQuestionMaxScores || Object.keys(matchResult.subQuestionMaxScores).length === 0)) {
-              matchResult.subQuestionMaxScores = { ...markingScheme.subQuestionMaxScores };
+            // Always merge markingScheme.subQuestionMaxScores (authoritative canonical keys e.g. "2.2": 4)
+            // on top of any paper-derived subQuestionMaxScores (relative keys e.g. "2": 4)
+            if (markingScheme.subQuestionMaxScores) {
+              matchResult.subQuestionMaxScores = {
+                ...(matchResult.subQuestionMaxScores || {}),
+                ...markingScheme.subQuestionMaxScores
+              };
+            }
+            // Ensure subject is always populated from the official markingScheme if missing on the paper
+            if (!matchResult.subject && markingScheme.examDetails?.subject) {
+              matchResult.subject = markingScheme.examDetails.subject;
             }
           }
 

@@ -17,7 +17,7 @@ import marking_fallback_system_prompt from './prompts/marking_fallback_system_pr
 import { englishLoRSystemPrompt, englishLoRUserPrompt } from './prompts/english_lor_marking_prompt.js';
 import { UNIVERSAL_BYOMS_MARKING_SYSTEM_PROMPT, UNIVERSAL_BYOMS_MARKING_USER_PROMPT } from './prompts/universal_byoms_marking_prompt.js';
 import { english_model_answer_html_system_prompt, english_marking_scheme_explanation_system_prompt } from './prompts/english_followup_prompts.js';
-import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
+import { normalizeLatexDelimiters, formatPageMapForPrompt } from '../utils/TextNormalizationUtils.js';
 
 /**
  * Interface and Types for AI Prompting System
@@ -89,10 +89,7 @@ ${Array.isArray(blocks) && blocks.length > 0 ? (
             blocks.map(b => `[${b.id}]: "${(b.text || '').replace(/\n/g, ' ')}"`).join('\n')
           ) : (typeof blocks === 'string' ? blocks : 'No raw OCR blocks available.')}
 
-## PAGE MAP
-${JSON.stringify(pageMap)}
-
-${guidance}`;
+${formatPageMapForPrompt(pageMap)}${guidance}`;
       }
     },
     basic: {

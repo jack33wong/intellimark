@@ -1,7 +1,7 @@
 import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import type { NormalizedMarkingScheme, MarkingInputs, MarkingExecutionResult } from '../../types/marking.js';
 import { getPrompt } from '../../config/prompts.js';
-import { normalizeLatexDelimiters, sanitizeOcrArtifacts, normalizeTextForComparison, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
+import { normalizeLatexDelimiters, sanitizeOcrArtifacts, normalizeTextForComparison, normalizeSubQuestionPart, combineQuestionAndPart } from '../../utils/TextNormalizationUtils.js';
 import * as stringSimilarity from 'string-similarity';
 import { MarkingPromptService } from './MarkingPromptService.js';
 import { MarkingResultParser } from './MarkingResultParser.js';
@@ -675,11 +675,17 @@ export class MarkingInstructionService {
           .replace(/(\.\d+?)0+$/g, '$1'); // Normalize deep trailing zeros
       };
 
+      const resolvedExamInfo =
+        questionDetection?.match ||
+        questionDetection?.questionDetection?.match ||
+        (questionDetection as any)?.examDetails ||
+        (questionDetection?.subject ? { subject: questionDetection.subject } : undefined);
+
       const annotationData = await this.generateFromOCR(
         model,
         cleanedOcrText,
         normalizedScheme,
-        questionDetection?.match,
+        resolvedExamInfo,
         questionText,
         rawOcrBlocks,
         classificationStudentWork,
@@ -906,7 +912,7 @@ export class MarkingInstructionService {
         Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
           const text = normalizedScheme.subQuestionTexts![key];
           if (text) {
-            const displayKey = key.includes(baseQNum) ? key : `${baseQNum}${key}`;
+            const displayKey = combineQuestionAndPart(baseQNum, key);
             structuredQuestionText += `**[${displayKey}]**: ${text}\n\n`;
           }
         });
@@ -935,10 +941,14 @@ export class MarkingInstructionService {
       });
     } else if (hasMarkingScheme && normalizedScheme && isUniversalByomsMode) {
       const universalPrompt = AI_PROMPTS.markingInstructions.universalByoms;
-      const effectiveSubjectName =
+      const rawSubject =
         examInfo?.subject ||
-        resolvedProfile.displayName ||
-        'General Subject';
+        (normalizedScheme as any)?.subject ||
+        (normalizedScheme as any)?.examDetails?.subject;
+      const effectiveSubjectName =
+        (rawSubject && !/universal subject/i.test(rawSubject))
+          ? rawSubject
+          : (resolvedProfile.displayName || 'General Subject');
       systemPrompt = universalPrompt.system(effectiveSubjectName);
 
       schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
@@ -948,15 +958,10 @@ export class MarkingInstructionService {
         structuredQuestionText += `**[${baseQNum}]**: ${questionText}\n\n`;
       }
 
-      if (normalizedScheme.subQuestionTexts) {
-        Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
-          const text = normalizedScheme.subQuestionTexts![key];
-          if (text) {
-            const displayKey = key.includes(baseQNum) ? key : `${baseQNum}${key}`;
-            structuredQuestionText += `**[${displayKey}]**: ${text}\n\n`;
-          }
-        });
-      }
+      // NOTE: Do NOT append normalizedScheme.subQuestionTexts in isUniversalByomsMode!
+      // On a first-time BYOMS upload or AUTO-CATALOG lookup, subQuestionTexts is not in the scheme,
+      // whereas FAST-DB-SCHEME populates it from fullExamPapers—causing prompt drift between Turn 1 and Turn 2.
+      // The verbatim sub-question prompts are already present in RAW OCR BLOCKS with [PRINTED_INSTRUCTION [Q...]].
 
       userPrompt = universalPrompt.user(
         currentQNum,
@@ -984,7 +989,7 @@ export class MarkingInstructionService {
         Object.keys(normalizedScheme.subQuestionTexts).sort().forEach(key => {
           const text = normalizedScheme.subQuestionTexts![key];
           if (text) {
-            const displayKey = key.includes(baseQNum) ? key : `${baseQNum}${key}`;
+            const displayKey = combineQuestionAndPart(baseQNum, key);
             structuredQuestionText += `**[${displayKey}]**: ${text}\n\n`;
           }
         });

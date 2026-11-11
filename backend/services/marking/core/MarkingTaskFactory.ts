@@ -1,5 +1,5 @@
 
-import { getBaseQuestionNumber } from '../../../utils/TextNormalizationUtils.js';
+import { getBaseQuestionNumber, combineQuestionAndPart } from '../../../utils/TextNormalizationUtils.js';
 import { MarkingTask } from '../../../types/index.js';
 import { MarkingZoneService } from '../MarkingZoneService.js';
 import { CoordinateAuditLogger } from '../../../utils/LoggerUtils.js';
@@ -75,7 +75,7 @@ export class MarkingTaskFactory {
                     mainQuestion: q,
                     markingScheme: markingScheme,
                     baseQNum: baseQNum,
-                    sourceImageIndices: sourceImageIndices,
+                    sourceImageIndices: [...sourceImageIndices].sort((a: number, b: number) => a - b),
                     classificationBlocks: [],
                     aiSegmentationResults: [],
                     subQuestionMetadata: { hasSubQuestions: false, subQuestions: [] },
@@ -84,8 +84,12 @@ export class MarkingTaskFactory {
                 });
             } else {
                 const group = questionGroups.get(groupingKey);
-                const combined = [...new Set([...group.sourceImageIndices, ...sourceImageIndices])].sort();
+                const combined = [...new Set([...group.sourceImageIndices, ...sourceImageIndices])].sort((a: number, b: number) => a - b);
                 group.sourceImageIndices = combined;
+                // Deterministically preserve the first non-empty main question stem in physical page order
+                if ((!group.mainQuestion?.text || String(group.mainQuestion.text).trim().length < 5) && q.text && String(q.text).trim().length >= 5) {
+                    group.mainQuestion = { ...group.mainQuestion, text: q.text };
+                }
             }
 
             const group = questionGroups.get(groupingKey);
@@ -272,9 +276,7 @@ export class MarkingTaskFactory {
             nodes.forEach(node => {
                 let partLabel = "";
                 if (node.part && node.part !== 'main') {
-                    const qNumStr = String(basePrefix).trim();
-                    const partStr = String(node.part).trim();
-                    partLabel = partStr.startsWith(qNumStr) ? node.part : `${basePrefix}${node.part}`;
+                    partLabel = combineQuestionAndPart(basePrefix, node.part);
                 } else {
                     partLabel = basePrefix;
                 }
@@ -372,7 +374,25 @@ export class MarkingTaskFactory {
 
                 const yA = a.position?.y ?? a.coordinates?.y ?? (a.p ? a.p[1] : 0);
                 const yB = b.position?.y ?? b.coordinates?.y ?? (b.p ? b.p[1] : 0);
-                return yA - yB;
+                // Use 1.2% vertical line-height tolerance so words on the same line sort left-to-right (xA - xB)
+                if (Math.abs(yA - yB) > 1.2) return yA - yB;
+
+                const xA = a.position?.x ?? a.coordinates?.x ?? (a.p ? a.p[0] : 0);
+                const xB = b.position?.x ?? b.coordinates?.x ?? (b.p ? b.p[0] : 0);
+                if (Math.abs(xA - xB) > 0.1) return xA - xB;
+
+                return String(a.content || '').localeCompare(String(b.content || ''));
+            });
+
+            // Re-number non-drawing student work lines sequentially AFTER sorting so line_N IDs are strictly monotonic
+            let sortedLineSeq = 1;
+            group.aiSegmentationResults.forEach((seg: any) => {
+                if (seg.content !== '[DRAWING]') {
+                    const pIdx = seg.pageIndex ?? 0;
+                    const newId = `p${pIdx}_q${baseQNum}_line_${sortedLineSeq++}`;
+                    seg.line_id = newId;
+                    seg.blockId = newId;
+                }
             });
 
             group.aiSegmentationResults.forEach((seg: any) => {
@@ -384,18 +404,15 @@ export class MarkingTaskFactory {
 
                 if (isContentValid) {
                     if (seg.subQuestionLabel && seg.subQuestionLabel !== currentHeader && seg.subQuestionLabel !== 'main') {
-                        promptMainWork += `\n[SUB-QUESTION ${seg.subQuestionLabel}]\n`;
+                        const canonicalHeader = combineQuestionAndPart(baseQNum, seg.subQuestionLabel);
+                        promptMainWork += `\n[SUB-QUESTION ${canonicalHeader}]\n`;
                         currentHeader = seg.subQuestionLabel;
                     }
 
                     // 🛡️ [OMNI-PRESENT SOURCE FIX]: 
                     // Explode [DRAWING] blocks into page-specific IDs if the question spans multiple pages.
                     if (clean === '[DRAWING]' && seg.subQuestionLabel) {
-                        const qNumStr = String(baseQNum).trim();
-                        const subQLabelStr = String(seg.subQuestionLabel).trim();
-                        const fullLabel = subQLabelStr.startsWith(qNumStr)
-                            ? seg.subQuestionLabel
-                            : `${baseQNum}${seg.subQuestionLabel}`;
+                        const fullLabel = combineQuestionAndPart(baseQNum, seg.subQuestionLabel);
 
                         const zones = globalZones[fullLabel];
                         if (zones && zones.length > 0) {
@@ -424,11 +441,7 @@ export class MarkingTaskFactory {
             group.aiSegmentationResults.forEach((seg: any) => {
                 const clean = seg.content.replace(/\s+/g, ' ').trim();
                 if (clean === '[DRAWING]' && seg.subQuestionLabel) {
-                    const qNumStr = String(baseQNum).trim();
-                    const subQLabelStr = String(seg.subQuestionLabel).trim();
-                    const fullLabel = subQLabelStr.startsWith(qNumStr)
-                        ? seg.subQuestionLabel
-                        : `${baseQNum}${seg.subQuestionLabel}`;
+                    const fullLabel = combineQuestionAndPart(baseQNum, seg.subQuestionLabel);
 
                     const zones = globalZones[fullLabel];
                     if (zones && zones.length > 0) {
@@ -519,6 +532,10 @@ export class MarkingTaskFactory {
                     const suffix = eq.label.replace(/^\d+/, '').toLowerCase();
                     if (suffix && suffix !== eq.label.toLowerCase()) {
                         subQuestionPageMap[suffix] = eq.targetPages;
+                        if (suffix.startsWith('.')) {
+                            const trimmedSuffix = suffix.substring(1);
+                            if (trimmedSuffix) subQuestionPageMap[trimmedSuffix] = eq.targetPages;
+                        }
                     }
                 }
             });
@@ -574,7 +591,7 @@ export class MarkingTaskFactory {
                     traverse(qs.subQuestions, currentPart);
                 } else {
                     if (currentPart) {
-                        const label = currentPart.startsWith(String(task.questionNumber)) ? currentPart : `${task.questionNumber}${currentPart}`;
+                        const label = combineQuestionAndPart(String(task.questionNumber), currentPart);
                         classificationExpected.push({ label, text: qs.text || "" });
                     }
                 }
@@ -587,7 +604,7 @@ export class MarkingTaskFactory {
             task.classificationBlocks.forEach(cb => {
                 let part = (cb as any).part || (cb as any).blockId?.split('_').pop();
                 if (part && part !== 'main') {
-                    const label = part.startsWith(String(task.questionNumber)) ? part : `${task.questionNumber}${part}`;
+                    const label = combineQuestionAndPart(String(task.questionNumber), part);
                     if (!classificationExpected.some(q => q.label === label)) {
                         classificationExpected.push({ label, text: cb.text || "" });
                     }

@@ -169,7 +169,18 @@ export class MarkingController {
         }
 
         const files = req.files as Express.Multer.File[];
-        const submissionId = req.body.submissionId || `sub-${Date.now()}`;
+
+        let sessionId = req.body.sessionId;
+        // Sanitization: Reject temp- IDs from frontend
+        if (sessionId && sessionId.startsWith('temp-')) {
+            console.log(`⚠️ [MARKING] Rejecting temp session ID: ${sessionId}`);
+            sessionId = undefined;
+        }
+
+        const submissionId = req.body.submissionId || sessionId || `sub-${Date.now()}`;
+        if (!sessionId) {
+            sessionId = submissionId;
+        }
 
         // 2. Setup SSE Headers
         res.setHeader('Content-Type', 'text/event-stream');
@@ -188,13 +199,6 @@ export class MarkingController {
         }, 15000); // Ping every 15 seconds
 
         try {
-            let sessionId = req.body.sessionId;
-            // Sanitization: Reject temp- IDs from frontend
-            if (sessionId && sessionId.startsWith('temp-')) {
-                console.log(`⚠️ [MARKING] Rejecting temp session ID: ${sessionId}`);
-                sessionId = undefined;
-            }
-
             // 3. Prepare Options
             let requestedModel = req.body.model;
             if (!requestedModel || requestedModel.toUpperCase() === 'AUTO') {
@@ -217,7 +221,8 @@ export class MarkingController {
                 userId: (req as any).user?.uid,
                 sessionId: sessionId,
                 customText: req.body.customText,
-                model: requestedModel
+                model: requestedModel,
+                allowGenericSubjectMarking: req.body.allowGenericSubjectMarking === true || req.body.allowGenericSubjectMarking === 'true'
             };
 
             const userId = options.userId;

@@ -165,10 +165,13 @@ export class MarkingSchemeOrchestrationService {
     }
 
     questionsToProcess.forEach((q: any) => {
-      const qNum = q.questionNumber;
+      const qNum = q.questionNumber ? String(q.questionNumber).trim().replace(/^0+(?=\d)/, '') : '';
       if (qNum && q.text) {
         if (!guardContaminatedStems || !isContaminatedStem(q)) {
-          cleanQuestionsMap.set(qNum, q.text);
+          // Keep the first non-empty question stem in page order instead of overwriting with later continuation pages
+          if (!cleanQuestionsMap.has(qNum)) {
+            cleanQuestionsMap.set(qNum, q.text);
+          }
           const baseNum = getBaseQuestionNumber(qNum);
           if (!parentTextMap.has(baseNum)) {
             parentTextMap.set(baseNum, q.text);
@@ -301,6 +304,18 @@ export class MarkingSchemeOrchestrationService {
       // 👇 THE CLEAN INTERCEPTION SWITCH 👇
       let groupDetectionResult;
 
+      // Build deterministic subQuestionTexts map for this baseNum group from extracted cleanQuestionsMap / group
+      const extractedSubQuestionTexts: Record<string, string> = {};
+      group.forEach(qItem => {
+        const rawQNum = String(qItem.questionNumber || '').trim().replace(/^0+(?=\d)/, '');
+        if (rawQNum && rawQNum !== baseNum && qItem.text) {
+          const relativePart = rawQNum.startsWith(baseNum) ? rawQNum.slice(baseNum.length).replace(/^\./, '') : rawQNum;
+          if (relativePart && !extractedSubQuestionTexts[relativePart]) {
+            extractedSubQuestionTexts[relativePart] = qItem.text.trim();
+          }
+        }
+      });
+
       if (inputMarkingScheme && inputMarkingScheme.questions) {
         // Dynamically reconcile the parent question total mark pool 
         // by summing up the parts that belong to the current baseNum group (e.g. 1a + 1b)
@@ -321,12 +336,13 @@ export class MarkingSchemeOrchestrationService {
             paperCode: inputMarkingScheme.examDetails?.paperCode || 'Uploaded',
             examSeries: inputMarkingScheme.examDetails?.exam_series || 'N/A',
             tier: inputMarkingScheme.examDetails?.tier || 'N/A',
-            subject: inputMarkingScheme.examDetails?.subject || 'Mathematics',
+            subject: inputMarkingScheme.examDetails?.subject || 'Biology',
             paperTitle: 'Custom Uploaded Marking Scheme',
             questionNumber: baseNum,
             confidence: 1.0,
             marks: parentTotalMarks,
             subQuestionMaxScores: subScores, // Directly feeds the budget map downstream
+            subQuestionTexts: Object.keys(extractedSubQuestionTexts).length > 0 ? extractedSubQuestionTexts : undefined,
             markingScheme: {
               allQuestions: inputMarkingScheme.questions, // Matches Database Payload mapping
               generalMarkingGuidance: inputMarkingScheme.generalMarkingGuidance || ""
@@ -713,7 +729,11 @@ export class MarkingSchemeOrchestrationService {
         markingSchemesMap.set(uniqueKey, {
           questionMarks: { marks: parentScheme.marks, subQuestionMarks: subQMarksMap },
           totalMarks: masterMatch.marks || 0, parentQuestionMarks: masterMatch.parentQuestionMarks || 0,
-          questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
+          questionNumber: baseQuestionNumber,
+        subject: masterMatch.subject || masterMatch.markingScheme?.examDetails?.subject || undefined,
+        examDetails: masterMatch.markingScheme?.examDetails || undefined,
+        questionDetection: group[0].detectionResult,
+        databaseQuestionText: masterMatch.databaseQuestionText || '',
           subQuestionNumbers: questionNumbers, subQuestionAnswers: subAns, isGeneric: true,
           subQuestionMaxScores: subQMaxScores,
           generalMarkingGuidance: masterMatch.markingScheme.generalMarkingGuidance, sourceImageIndex: groupSourceImageIndex
@@ -738,9 +758,10 @@ export class MarkingSchemeOrchestrationService {
       // Prepare Final Max Scores Map (Start with existing or empty)
       const finalSubQuestionMaxScores = masterMatch.subQuestionMaxScores ? { ...masterMatch.subQuestionMaxScores } : {};
 
-      Object.keys(allPaperQuestions).forEach(key => {
-        if (baseNumRegex.test(key)) {
-          const qObj = allPaperQuestions[key];
+      Object.keys(allPaperQuestions).forEach(rawKey => {
+        if (baseNumRegex.test(rawKey)) {
+          const key = rawKey.trim().replace(/^0+(?=\d)/, '');
+          const qObj = allPaperQuestions[rawKey];
           const partMarks = qObj?.marks || qObj;
           subQuestionMarksMap[key] = partMarks;
           if (qObj && typeof qObj === 'object' && !Array.isArray(qObj)) {
@@ -766,34 +787,29 @@ export class MarkingSchemeOrchestrationService {
             subQuestionAnswersMap[key] = ans;
           }
 
-          // [FIX] Propagate Max Score to the matched part
-          // Logic: 
-          // 1. Check full key (e.g. "2ai" or leading-zero-stripped "1.1")
-          // 2. Check normalized part (e.g. "ai")
-          // 3. Fallback to part marks length if it's an array
           const strippedKey = key.replace(/^0+/, '');
-          const partLabel = key.replace(/^\d+/, '');
-          const normalizedPartLabel = normalizeSubQuestionPart(partLabel);
+          const partLabel = strippedKey.replace(/^\d+/, '');
+          const dotStrippedPart = partLabel.replace(/^\./, '');
+          const normalizedPartLabel = normalizeSubQuestionPart(dotStrippedPart);
 
-          let dbScore = masterMatch.subQuestionMaxScores?.[key];
-          if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[strippedKey];
-          if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[partLabel];
-          if (dbScore === undefined) dbScore = masterMatch.subQuestionMaxScores?.[normalizedPartLabel];
+          let dbScore =
+            masterMatch.subQuestionMaxScores?.[key] ??
+            masterMatch.subQuestionMaxScores?.[rawKey] ??
+            masterMatch.subQuestionMaxScores?.[strippedKey] ??
+            masterMatch.subQuestionMaxScores?.[partLabel] ??
+            masterMatch.subQuestionMaxScores?.[dotStrippedPart] ??
+            masterMatch.subQuestionMaxScores?.[normalizedPartLabel] ??
+            (typeof qObj?.totalMarks === 'number' ? qObj.totalMarks : undefined) ??
+            (typeof qObj?.maxMarks === 'number' ? qObj.maxMarks : undefined);
 
           // [TRUTH RECONCILIATION] 
-          // If the key exactly matches the base number (e.g. "21"), prioritize the global marks field
-          // This fixes cases where the DB structure has "marks: 2" but the sub-question object is missing or has "marks: 1"
-          if (key === baseQuestionNumber && masterMatch.marks !== undefined) {
+          if (strippedKey === baseQuestionNumber && masterMatch.marks !== undefined) {
             dbScore = masterMatch.marks;
           }
 
           if (dbScore !== undefined) {
             finalSubQuestionMaxScores[key] = dbScore;
 
-            // ⚖️ [CALCULATION MARK RECONCILIATION]:
-            // In Science / Maths custom schemes (e.g. a 4-mark calculation like Q7.5), the mark scheme table
-            // often states "an answer of X scores 4 marks" while listing fewer individual M1/A1 rows (e.g. M1 + A1 = 2).
-            // Ensure the sum of mark weights in subQuestionMarksMap[key] matches dbScore so full marks can be awarded.
             const isCalcPart = qObj?.paradigm === 'CALCULATION_STEP' || (
               Array.isArray(partMarks) &&
               partMarks.length > 0 &&
@@ -825,7 +841,13 @@ export class MarkingSchemeOrchestrationService {
               }
             }
           } else if (Array.isArray(partMarks)) {
-            finalSubQuestionMaxScores[key] = partMarks.length;
+            // Sum mark weights (e.g. B1 + B2 + B1 = 4) instead of partMarks.length (3)
+            const weightSum = partMarks.reduce((sum: number, m: any) => {
+              const code = String(m?.mark || '').trim();
+              const match = code.match(/^[A-Za-z]*\s*(\d+)$/);
+              return sum + (match ? parseInt(match[1], 10) : 1);
+            }, 0);
+            finalSubQuestionMaxScores[key] = weightSum || partMarks.length;
           }
 
         }
@@ -931,9 +953,27 @@ export class MarkingSchemeOrchestrationService {
         },
         totalMarks: trimmedTotalMarks !== null ? trimmedTotalMarks : (masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0),
         parentQuestionMarks: trimmedTotalMarks !== null ? trimmedTotalMarks : (masterMatch.parentQuestionMarks || masterMatch.marks || parentScheme.totalMarks || (typeof parentScheme.marks === 'number' ? parentScheme.marks : 0) || 0),
-        questionNumber: baseQuestionNumber, questionDetection: group[0].detectionResult, databaseQuestionText: masterMatch.databaseQuestionText || '',
-        subQuestionNumbers: subQuestionNumbers.sort(), subQuestionAnswers: subQuestionAnswers,
-        subQuestionMaxScores: finalSubQuestionMaxScores, subQuestionTexts: masterMatch.subQuestionTexts,
+        questionNumber: baseQuestionNumber,
+        subject: masterMatch.subject || masterMatch.markingScheme?.examDetails?.subject || undefined,
+        examDetails: masterMatch.markingScheme?.examDetails || undefined,
+        questionDetection: group[0].detectionResult,
+        databaseQuestionText: masterMatch.databaseQuestionText || '',
+        subQuestionNumbers: subQuestionNumbers.sort((a, b) =>
+          a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+        ),
+        subQuestionAnswers: subQuestionAnswers,
+        subQuestionMaxScores: finalSubQuestionMaxScores,
+        subQuestionTexts: (() => {
+          const rawMap = masterMatch.subQuestionTexts || {};
+          const cleanedMap: Record<string, string> = {};
+          for (const [k, v] of Object.entries(rawMap)) {
+            if (typeof v === 'string' && v.trim()) {
+              // Strip trailing "[2 marks]" noise so DB stems and live stems are identical
+              cleanedMap[k] = v.replace(/\s*\[\s*\d+\s*marks?\s*\]\s*$/i, '').trim();
+            }
+          }
+          return Object.keys(cleanedMap).length > 0 ? cleanedMap : undefined;
+        })(),
         subQuestionMetadata: subQuestionMetadataMap,
         subQuestionGuidanceMap: subQuestionGuidanceMap,
         guidance: parentScheme?.guidance || masterMatch.markingScheme?.guidance,

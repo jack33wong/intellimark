@@ -148,9 +148,11 @@ export class MarkingResultParser {
                 }
 
                 if (subQ) {
-                    const normalizedSubQ = subQ.replace(/^\d+[\s()]*|[\s()]+/g, '').toLowerCase();
-                    if (subQuestionPageMap[normalizedSubQ] !== undefined) {
-                        const allowedPages = subQuestionPageMap[normalizedSubQ];
+                    const cleanSubQ = String(subQ).trim().toLowerCase();
+                    const normalizedSubQ = cleanSubQ.replace(/^\d+[\s()]*|[\s()]+/g, '');
+                    const dotStripped = normalizedSubQ.startsWith('.') ? normalizedSubQ.substring(1) : normalizedSubQ;
+                    const allowedPages = subQuestionPageMap[cleanSubQ] ?? subQuestionPageMap[normalizedSubQ] ?? subQuestionPageMap[dotStripped];
+                    if (allowedPages !== undefined && Array.isArray(allowedPages)) {
                         if (!allowedPages.includes(anno.pageIndex)) {
                             anno.pageIndex = allowedPages[0];
                         }

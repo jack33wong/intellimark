@@ -155,14 +155,19 @@ export function sanitizeOcrArtifacts(text: string | null | undefined): string {
  *   ("5", "5a")   -> "5a"     (part already fully qualified, letter style)
  */
 export function combineQuestionAndPart(base: string, part: string): string {
-  if (!part) return String(base);
-  if (!base) return String(part);
+  if (!part) return String(base || '').trim().replace(/^0+(?=\d)/, '');
+  if (!base) return String(part || '').trim().replace(/^0+(?=\d)/, '');
 
-  const b = String(base).trim();
-  const rawP = String(part).trim();
+  const b = String(base).trim().replace(/^0+(?=\d)/, '');
+  const rawP = String(part).trim().replace(/^0+(?=\d)/, '');
 
   // Part already fully qualified with a decimal separator (e.g. base "1", part "1.1")
   if (rawP.startsWith(b + '.')) return rawP;
+
+  // If rawP already has a full question number format like "1.1" or "2.3"
+  if (/^\d+\./.test(rawP)) {
+    return rawP;
+  }
 
   const p = rawP.startsWith('.') ? rawP.substring(1) : rawP;
   if (!p) return b;
@@ -515,3 +520,41 @@ export function latexToPlainText(text: string | null | undefined): string {
 
   return plain.trim();
 }
+
+/**
+ * Format page map into authoritative plain-text markdown for LLM marking prompts.
+ * Converts raw JSON objects into clear, bulleted sub-question page mappings
+ * with both 1-based page numbers and 0-based image indices.
+ */
+export function formatPageMapForPrompt(pageMap?: Record<string, any> | null): string {
+  if (!pageMap || typeof pageMap !== 'object') return '';
+  const entries = Object.entries(pageMap);
+  if (entries.length === 0) return '';
+
+  // Sort sub-questions cleanly (e.g. base 8 first, then 8.1, 8.2, 8.3)
+  const sortedEntries = [...entries].sort(([a], [b]) => {
+    const aIsBase = /^\d+$/.test(a);
+    const bIsBase = /^\d+$/.test(b);
+    if (aIsBase && !bIsBase) return -1;
+    if (!aIsBase && bIsBase) return 1;
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+
+  const formattedLines = sortedEntries.map(([label, pages]) => {
+    // Skip standalone dot or suffix duplicates like ".1" if full labels are used
+    if (label.startsWith('.')) return null;
+
+    const rawPages = Array.isArray(pages) ? pages : [pages];
+    const pageNums = rawPages.map(p => Number(p)).filter(n => !isNaN(n));
+    if (pageNums.length === 0) return null;
+    const pageStrings = pageNums.map(p => `Page ${p + 1} (image index ${p})`).join(', ');
+    const isSub = /[a-z]|\./i.test(label);
+    const itemPrefix = isSub ? `Sub-question ${label}` : `Question ${label}`;
+    return `- ${itemPrefix}: ${pageStrings}`;
+  }).filter(Boolean);
+
+  if (formattedLines.length === 0) return '';
+
+  return `## SUB-QUESTION PAGE MAP (AUTHORITATIVE)\nThe student's work for each question/part appears on the following attached image pages:\n${formattedLines.join('\n')}\n`;
+}
+

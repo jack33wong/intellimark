@@ -1086,7 +1086,7 @@ export const MarkingPageProvider = ({
     }
   }, [user, isNegative, checkNegativeCredits, selectedFile, selectedModel, activeQuestionId, processImage, addMessage, clearSession, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
 
-  const handleMultiImageAnalysis = useCallback(async (files = [], customText = null) => {
+  const handleMultiImageAnalysis = useCallback(async (files = [], customText = null, extraParams = null) => {
     if (!files || files.length === 0) return;
     lastUploadedStudentFilesRef.current = Array.from(files);
 
@@ -1099,7 +1099,7 @@ export const MarkingPageProvider = ({
 
     // --- INSTANT GUEST GATE (0ms response, avoids uploading large PDFs/images before auth) ---
     if (!user) {
-      pendingUploadRef.current = { type: 'multi', files, customText };
+      pendingUploadRef.current = { type: 'multi', files, customText, extraParams };
       setGuestLimitInfo({ usageCount: 0, usageLimit: 0, resetAt: null });
       setShowGuestLimitModal(true);
       trackFunnelEvent('guest_limit_modal_shown', {
@@ -1201,7 +1201,7 @@ export const MarkingPageProvider = ({
       startAIThinking(multiImageProgressData, multiImageAiMessageId, thinkingImages);
 
       // Execute API call in background so UI resets immediately
-      processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId)
+      processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId, extraParams)
         .catch(err => {
           const guestCheck = extractGuestLimitError(err);
           if (guestCheck.isGuestLimit) {
@@ -1515,6 +1515,15 @@ export const MarkingPageProvider = ({
     }
 
     // Fallback ONLY for early-exit unsupported subjects (where student pages were never OCR'd)
+    const studentFiles = await reconstructStudentFiles();
+    const mergedFiles = [...studentFiles, ...schemeFiles];
+    return handleMultiImageAnalysis(
+      mergedFiles,
+      `Attached Marking Scheme (${schemeFiles.map(f => f.name).join(', ')}) for grading.`
+    );
+  }, [currentSession?.id, currentSession?.messages, chatMessages, selectedModel, startProcessing, stopProcessing, handleError, apiProcessor, loadSession, handleMultiImageAnalysis]);
+
+  const reconstructStudentFiles = useCallback(async () => {
     let studentFiles = lastUploadedStudentFilesRef.current || [];
     if (studentFiles.length === 0 && Array.isArray(chatMessages)) {
       const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user');
@@ -1564,13 +1573,22 @@ export const MarkingPageProvider = ({
         }
       }
     }
+    return studentFiles;
+  }, [chatMessages]);
 
-    const mergedFiles = [...studentFiles, ...schemeFiles];
+  const gradeWithGeneralRubric = useCallback(async () => {
+    const studentFiles = await reconstructStudentFiles();
+    if (studentFiles.length === 0) {
+      console.warn('No student files available to grade with general rubric.');
+      return false;
+    }
+
     return handleMultiImageAnalysis(
-      mergedFiles,
-      `Attached Marking Scheme (${schemeFiles.map(f => f.name).join(', ')}) for grading.`
+      studentFiles,
+      'Marking with AI using General Rubric (No official marking scheme attached).',
+      { allowGenericSubjectMarking: true }
     );
-  }, [currentSession?.id, currentSession?.messages, chatMessages, selectedModel, startProcessing, stopProcessing, handleError, apiProcessor, loadSession, handleMultiImageAnalysis]);
+  }, [reconstructStudentFiles, handleMultiImageAnalysis]);
 
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
@@ -1596,6 +1614,7 @@ export const MarkingPageProvider = ({
     onAnalyzeMultiImage: handleMultiImageAnalysis,
     onFollowUpMultiImage: handleMultiImageAnalysis,
     attachMarkingSchemeAndRetry,
+    gradeWithGeneralRubric,
     remarkWithOfficialPaper,
     getImageSrc,
     startAIThinking,
@@ -1626,7 +1645,7 @@ export const MarkingPageProvider = ({
     onSendMessage, addMessage, chatContainerRef,
     isHistoryLoading,
     scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, scrollToMessage,
-    handleMultiImageAnalysis, attachMarkingSchemeAndRetry, remarkWithOfficialPaper, progressProps, getImageSrc, startAIThinking,
+    handleMultiImageAnalysis, attachMarkingSchemeAndRetry, gradeWithGeneralRubric, remarkWithOfficialPaper, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility,
     isContextFilterActive, setContextFilterActive,

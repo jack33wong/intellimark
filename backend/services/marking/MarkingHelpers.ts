@@ -308,8 +308,12 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
     questionAnns.forEach(a => {
       if (a.subQuestion) {
-        let label = a.subQuestion.replace(String(result.questionNumber), '').trim();
-        if (!label) label = 'Main';
+        const rawSub = String(a.subQuestion).trim().replace(/^0+(?=\d)/, '');
+        const qNumStr = String(result.questionNumber).trim().replace(/^0+(?=\d)/, '');
+        let label = (rawSub === qNumStr || rawSub.toLowerCase() === 'main' || !rawSub)
+          ? 'Main'
+          : combineQuestionAndPart(qNumStr, rawSub);
+
         if (!subs.has(label)) {
           subs.set(label, []);
           subAnnsMap.set(label, []);
@@ -320,13 +324,13 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     });
 
     if (subs.size > 0) {
-      const sortedKeys = Array.from(subs.keys()).sort();
+      const sortedKeys = Array.from(subs.keys()).sort((a, b) => getQuestionSortValue(a) - getQuestionSortValue(b));
       sortedKeys.forEach(key => {
         if (key === 'Main') return;
 
-        // Indented Label: "  a"
+        // Indented Label: "  1.1" or "  1a"
         // Q# Col Width is 10 (8 char + padding). 
-        // We want "|   a      |" to align.
+        // We want "|   1.1    |" to align.
         const indentLabel = `  ${key}`.padEnd(8);
         const coloredLabel = `\x1b[90m${indentLabel}\x1b[0m`; // Gray for sub-questions
 
@@ -355,9 +359,9 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
           else if (scheme.marks) allMarks = scheme.marks;
           else if (scheme.questionMarks?.marks) allMarks = scheme.questionMarks.marks;
 
-          const normKey = ZoneUtils.normalizeLabel(key);
+          const normKey = ZoneUtils.normalizeLabel(key).replace(/^0+(?=\d)/, '');
           const subSchemeMarks = allMarks.filter((m: any) => {
-            const mSub = ZoneUtils.normalizeLabel(m.subQuestion || "");
+            const mSub = ZoneUtils.normalizeLabel(m.subQuestion || "").replace(/^0+(?=\d)/, '');
             return mSub === normKey || mSub === `${result.questionNumber}${normKey}`;
           });
           subTotal = subSchemeMarks.reduce((acc: number, m: any) => acc + (m.mark ? parseInt(m.mark.match(/(\d+)$/)?.[1] || '1') : 1), 0);

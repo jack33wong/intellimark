@@ -145,10 +145,10 @@ export const useApiProcessor = () => {
     }
   }, [updateProgress, handleError]);
 
-  const processMultiImageAPI = useCallback(async (files: File[], model: string, mode: string, customText?: string, aiMessageId?: string) => {
+  const processMultiImageAPI = useCallback(async (files: File[], model: string, mode: string, customText?: string, aiMessageId?: string, extraParams?: any) => {
     try {
       const result = await simpleSessionService.processMultiImageWithProgress(
-        files, model, mode, customText as any, updateProgress as any, aiMessageId as any
+        files, model, mode, customText as any, updateProgress as any, aiMessageId as any, extraParams
       );
       return result;
     } catch (error) {

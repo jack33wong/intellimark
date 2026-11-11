@@ -253,6 +253,11 @@ class SimpleSessionService {
   _commitServerSessionState = (serverId, serverTitle, messageType = null, userId = null) => {
     if (!serverId || !this.state.currentSession) return;
 
+    const currentId = this.state.currentSession.id;
+    const isExistingStable = currentId && !currentId.startsWith('temp-');
+    // If we already have a stable persistent session, do not let an intermediate handshake overwrite it
+    const targetId = (isExistingStable && (serverTitle === 'Processing...' || !serverTitle)) ? currentId : serverId;
+
     const currentTitle = this.state.currentSession.title;
     const shouldUpdateTitle =
       this._isFallbackSessionTitle(currentTitle) &&
@@ -262,7 +267,7 @@ class SimpleSessionService {
 
     const updatedSession = {
       ...this.state.currentSession,
-      id: serverId,
+      id: targetId,
       title: shouldUpdateTitle ? (serverTitle || 'Marking Session') : (currentTitle || serverTitle || 'Marking Session'),
       messageType: resolvedMessageType,
       ...(userId ? { userId } : {}),
@@ -270,7 +275,7 @@ class SimpleSessionService {
     };
 
     this.updateCurrentSessionOnly(updatedSession);
-    if (!serverId.startsWith('temp-')) {
+    if (!targetId.startsWith('temp-')) {
       this.updateSidebarSession(updatedSession);
     }
   }
@@ -728,7 +733,7 @@ class SimpleSessionService {
     formData.append('storageRefs', JSON.stringify(storageRefs));
   }
 
-  async processMultiImageWithProgress(files, model = 'thinking', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
+  async processMultiImageWithProgress(files, model = 'thinking', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, extraParams = null) {
     try {
       const authToken = await this.getAuthToken();
       const headers = {};
@@ -752,6 +757,13 @@ class SimpleSessionService {
       formData.append('clientCompressed', 'true');
       if (aiMessageId) formData.append('aiMessageId', aiMessageId);
       if (customText) formData.append('customText', customText);
+      if (extraParams && typeof extraParams === 'object') {
+        for (const [k, v] of Object.entries(extraParams)) {
+          if (v !== undefined && v !== null) {
+            formData.append(k, String(v));
+          }
+        }
+      }
 
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/marking/process`, {

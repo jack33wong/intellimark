@@ -107,7 +107,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
-          ...(isLowTempPhase ? { temperature: 0.1, seed: 42 } : {}),
+          ...(isLowTempPhase ? { temperature: 0, topK: 1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -220,7 +220,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens, // ⬅️ MATCH callGeminiText BEHAVIOR
           ...(forceJsonResponse && { responseMimeType: "application/json" }), // ⬅️ FORCE JSON SCHEMA
           systemInstruction: systemPrompt,
-          ...(isLowTempPhase ? { temperature: 0.1, seed: 42 } : {}),
+          ...(isLowTempPhase ? { temperature: 0, topK: 1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -367,9 +367,9 @@ export class ModelProvider {
       body.response_format = { type: 'json_object' };
     }
 
-    // Set temperature 0.1 for deterministic marking/summary or when JSON is forced
+    // Set temperature 0 for deterministic marking/summary or when JSON is forced
     if (this.supportsTemperatureZero(model) || forceJsonResponse || phase === 'marking' || phase === 'performanceSummary') {
-      body.temperature = 0.1;
+      body.temperature = 0;
       body.seed = 42;
     }
 
@@ -462,7 +462,7 @@ export class ModelProvider {
     };
 
     if (this.supportsTemperatureZero(model)) {
-      body.temperature = 0.1;
+      body.temperature = 0;
       body.seed = 42;
     }
 
@@ -518,9 +518,9 @@ export class ModelProvider {
       max_tokens: 8192
     };
 
-    // Set temperature 0.1 for deterministic marking/summary or when JSON is forced
+    // Set temperature 0 for deterministic marking/summary or when JSON is forced
     if (this.supportsTemperatureZero(modelName) || forceJsonResponse || phase === 'marking' || phase === 'performanceSummary') {
-      body.temperature = 0.1;
+      body.temperature = 0;
       body.seed = 42;
     }
 

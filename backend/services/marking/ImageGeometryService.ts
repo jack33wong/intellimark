@@ -12,6 +12,8 @@ export interface GeometryAnalysisResult {
     detected_subject?: 'MATHS' | 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE' | 'UNSUPPORTED_SUBJECT' | 'NON_ACADEMIC';
     unsupported_subject_name?: string;
     paper_code_hint?: string;
+    /** Total/maximum mark for the WHOLE paper if printed on this page (usually the cover). */
+    paper_total_marks_hint?: number;
 }
 
 export const KNOWN_ACADEMIC_SUBJECTS = new Set([
@@ -45,6 +47,7 @@ interface RawGeometryAnalysisResult {
     detected_subject?: 'MATHS' | 'ENGLISH_LANGUAGE' | 'ENGLISH_LITERATURE' | 'UNSUPPORTED_SUBJECT' | 'NON_ACADEMIC';
     unsupported_subject_name?: string;
     paper_code_hint?: string;
+    paper_total_marks_hint?: number | string | null;
 }
 
 export class ImageGeometryService {
@@ -88,6 +91,8 @@ Your job is to analyze the provided image of student homework or exam booklet an
 
 8. paper_code_hint (string): If a paper code or title is visible on the cover/header/footer (e.g., "8700/1", "8700/2", "8702/1", "8461/1H", "1MA1/1H", "AQA GCSE English Language Paper 1"), extract it briefly. Otherwise "".
 
+8b. paper_total_marks_hint (integer | null): ONLY if this page explicitly prints the total/maximum mark for the WHOLE paper (typically the cover page, e.g. "The maximum mark for this paper is 100", "The total mark for this paper is 80", "Total for paper: 60 marks"), return that integer. Do NOT use per-question marks or mark tally grids. Otherwise null.
+
 9. rejection_reason (string):
    - If \`detected_subject === "NON_ACADEMIC"\` or non-academic content:
      Return: \`"Not educational exam content: Please upload an academic exam question or student homework."\`
@@ -113,6 +118,7 @@ Return ONLY valid JSON matching this schema:
     "detected_subject": "MATHS" | "ENGLISH_LANGUAGE" | "ENGLISH_LITERATURE" | "UNSUPPORTED_SUBJECT" | "NON_ACADEMIC",
     "unsupported_subject_name": string,
     "paper_code_hint": string,
+    "paper_total_marks_hint": number | null,
     "evidence_text_snippet": string
 }`;
     }
@@ -228,7 +234,11 @@ Return ONLY valid JSON matching this schema:
                 evidence_text_snippet: parsed.evidence_text_snippet || undefined,
                 detected_subject: parsed.detected_subject || undefined,
                 unsupported_subject_name: parsed.unsupported_subject_name || undefined,
-                paper_code_hint: parsed.paper_code_hint || undefined
+                paper_code_hint: parsed.paper_code_hint || undefined,
+                paper_total_marks_hint: (() => {
+                    const n = Number(parsed.paper_total_marks_hint);
+                    return Number.isInteger(n) && n >= 10 && n <= 400 ? n : undefined;
+                })()
             };
 
         } catch (error) {

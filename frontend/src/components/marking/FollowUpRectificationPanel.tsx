@@ -16,6 +16,7 @@ interface FollowUpRectificationPanelProps {
   content: string;
   isProcessing: boolean;
   onAttachFilesForRemark: (files: FileList) => void;
+  onGradeWithGeneralRubric?: () => void;
   onRemarkOfficialPaper: (payload: { paperTitle: string; questionNumber?: string | null }) => Promise<void>;
 }
 
@@ -25,6 +26,7 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
   content,
   isProcessing,
   onAttachFilesForRemark,
+  onGradeWithGeneralRubric,
   onRemarkOfficialPaper
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -219,6 +221,32 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
       {/* CASE 1: Other Subject Requiring a Marking Scheme */}
       {requiresMarkingScheme && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+          {/* Button on LEFT: Mark with AI (General Rubric) */}
+          <button
+            type="button"
+            disabled={isProcessing}
+            onClick={() => onGradeWithGeneralRubric?.()}
+            style={{
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              boxShadow: '0 2px 6px rgba(14, 165, 233, 0.25)',
+              opacity: isProcessing ? 0.6 : 1
+            }}
+          >
+            <Sparkles size={16} />
+            <span>Mark with AI (General Rubric)</span>
+          </button>
+
+          {/* Button on RIGHT: Attach Marking Scheme */}
           <button
             type="button"
             disabled={isProcessing}
@@ -240,7 +268,7 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
             }}
           >
             <Paperclip size={16} />
-            <span>Attach Marking Scheme (Free Quota)</span>
+            <span>Attach Marking Scheme</span>
           </button>
         </div>
       )}

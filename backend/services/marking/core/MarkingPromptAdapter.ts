@@ -34,9 +34,10 @@ export class MarkingPromptAdapter {
         if (subQuestionPageMap && sourceImageIndices) {
             Object.entries(subQuestionPageMap).forEach(([label, absPages]) => {
                 // [FIX]: Use strict matching to prevent "1" matching "11", "19"
-                // Check if label is exactly baseQNum OR a sub-question of it (e.g. "1a")
-                const isExactMatch = label === baseQNum;
-                const isSubOfCurrent = label.startsWith(baseQNum) && isNaN(Number(label.charAt(baseQNum.length)));
+                // Check if label is exactly baseQNum OR a sub-question of it (e.g. "1a", "8.1")
+                const normLabel = label.trim().replace(/^0+(?=\d)/, '');
+                const isExactMatch = normLabel === baseQNum;
+                const isSubOfCurrent = normLabel.startsWith(baseQNum) && isNaN(Number(normLabel.charAt(baseQNum.length)));
 
                 if (isExactMatch || isSubOfCurrent) {
                     const absArray = Array.isArray(absPages) ? absPages : [absPages];
@@ -47,7 +48,7 @@ export class MarkingPromptAdapter {
                         .sort((a, b) => a - b);
 
                     if (relPages.length > 0) {
-                        filteredSubQuestionPageMap[label] = relPages.length === 1 ? relPages[0] : relPages;
+                        filteredSubQuestionPageMap[normLabel] = relPages.length === 1 ? relPages[0] : relPages;
                     }
                 }
             });
