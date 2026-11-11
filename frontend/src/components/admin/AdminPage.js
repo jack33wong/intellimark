@@ -429,6 +429,41 @@ const checkStructureMismatch = (paperInput, schemeInput) => {
 };
 
 /**
+ * Categorize model into Free, Thinking, or Pro tier
+ * @param {string} modelName
+ * @returns {{ tier: 'free' | 'thinking' | 'pro', label: string }}
+ */
+const getModelTierInfo = (modelName) => {
+  if (!modelName || typeof modelName !== 'string') {
+    return { tier: 'free', label: 'Free' };
+  }
+  const lower = modelName.toLowerCase().trim();
+
+  // Pro tier (Argon, GPT-4o, 2.5-pro, 1.5-pro, or explicit pro)
+  if (
+    lower === 'pro' ||
+    lower.includes('argon') ||
+    lower.includes('2.5-pro') ||
+    lower.includes('1.5-pro') ||
+    (lower.includes('gpt-4o') && !lower.includes('mini'))
+  ) {
+    return { tier: 'pro', label: 'Pro' };
+  }
+
+  // Thinking tier (reasoning models, 3.7-flash, 2.0-flash-thinking, or explicit thinking)
+  if (
+    lower === 'thinking' ||
+    lower.includes('thinking') ||
+    lower.includes('3.7-flash')
+  ) {
+    return { tier: 'thinking', label: 'Thinking' };
+  }
+
+  // Free tier (Gemini 3.8 Flash, Lite, Fast, etc.)
+  return { tier: 'free', label: 'Free' };
+};
+
+/**
  * AdminPage component for managing AI model JSON data
  * @returns {JSX.Element} The admin page component
  */
@@ -445,7 +480,7 @@ function AdminPage() {
   const [jsonEntries, setJsonEntries] = useState([]);
   const [expandedJsonId, setExpandedJsonId] = useState(null);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
-  const [activeTab, setActiveTab] = useState('json');
+  const [activeTab, setActiveTab] = useState('usage');
   const [examBoardFilter, setExamBoardFilter] = useState('Pearson Edexcel');
   const [qualificationFilter, setQualificationFilter] = useState('All');
   const [subjectFilter, setSubjectFilter] = useState('All');
@@ -976,6 +1011,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 4000);
     } finally {
       setLoadingUsage(false);
+      setLoading(false);
     }
   }, [getAuthToken]);
 
@@ -2582,7 +2618,21 @@ function AdminPage() {
             {/* Usage Table */}
             <div className="admin-data-section">
               <div className="admin-data-section__header">
-                <h3 className="admin-data-section__title">Usage Records ({usageData.length})</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <h3 className="admin-data-section__title" style={{ margin: 0 }}>Usage Records ({usageData.length})</h3>
+                  <div className="usage-model-legend">
+                    <span className="usage-model-legend-label">Models:</span>
+                    <span className="admin-model-badge admin-model-badge--free">
+                      <span className="admin-model-badge__tier">Free</span>
+                    </span>
+                    <span className="admin-model-badge admin-model-badge--thinking">
+                      <span className="admin-model-badge__tier">Thinking</span>
+                    </span>
+                    <span className="admin-model-badge admin-model-badge--pro">
+                      <span className="admin-model-badge__tier">Pro</span>
+                    </span>
+                  </div>
+                </div>
                 {usageData.length > 0 && (
                   <button
                     className="admin-btn admin-btn--danger"
@@ -2609,13 +2659,11 @@ function AdminPage() {
                       <tr>
                         <th className="admin-table__header">User Email</th>
                         <th className="admin-table__header">Last Active</th>
-                        <th className="admin-table__header">Sessions</th>
                         <th className="admin-table__header">Reading / Pages Viewed</th>
                         <th className="admin-table__header">Avg Rating</th>
                         <th className="admin-table__header">Total Cost</th>
-                        <th className="admin-table__header">API Requests</th>
+                        <th className="admin-table__header">Sessions & API Requests</th>
                         <th className="admin-table__header">Paywall Hits</th>
-                        <th className="admin-table__header">User Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2632,7 +2680,6 @@ function AdminPage() {
                         <tr key={userStats.userId} className="admin-table__row">
                           <td className="admin-table__cell" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={userStats.email}>{userStats.email}</td>
                           <td className="admin-table__cell">{formatDate(userStats.lastActive)}</td>
-                          <td className="admin-table__cell">{userStats.sessionCount}</td>
                           <td className="admin-table__cell">
                             {eng ? (
                               <span
@@ -2654,7 +2701,41 @@ function AdminPage() {
                             ) : '-'}
                           </td>
                           <td className="admin-table__cell">${userStats.totalCost.toFixed(4)}</td>
-                          <td className="admin-table__cell">{userStats.apiRequests}</td>
+                          <td className="admin-table__cell">
+                            <div className="usage-requests-cell">
+                              <div className="usage-requests-headline">
+                                <span>{userStats.sessionCount || 0} {userStats.sessionCount === 1 ? 'session' : 'sessions'}</span>
+                                <span className="usage-requests-divider">·</span>
+                                <span>{userStats.apiRequests || 0} {userStats.apiRequests === 1 ? 'request' : 'requests'}</span>
+                              </div>
+                              {userStats.modelsUsed && userStats.modelsUsed.length > 0 ? (
+                                <div className="usage-models-list">
+                                  {userStats.modelsUsed.map((model) => {
+                                    const count = userStats.modelCounts?.[model];
+                                    const { tier, label } = getModelTierInfo(model);
+                                    return (
+                                      <span
+                                        key={model}
+                                        className={`admin-model-badge admin-model-badge--${tier}`}
+                                        title={count ? `${label} • ${model}: ${count} request${count > 1 ? 's' : ''}` : `${label} • ${model}`}
+                                      >
+                                        <span className="admin-model-badge__tier">{label}</span>
+                                        <span>·</span>
+                                        <span className="admin-model-badge__name">{model}</span>
+                                        {count && count > 1 && (
+                                          <span className="admin-model-badge__count">
+                                            ×{count}
+                                          </span>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <span className="usage-models-empty">No models recorded</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="admin-table__cell">
                             {userStats.paywallHits > 0 || userStats.checkoutInitiated > 0 || userStats.pricingPageViews > 0 || userStats.paymentErrors > 0 || userStats.paymentSucceeded > 0 || (userStats.billingAuditLog && userStats.billingAuditLog.length > 0) ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
@@ -2775,13 +2856,6 @@ function AdminPage() {
                                 )}
                               </div>
                             ) : '-'}
-                          </td>
-                          <td className="admin-table__cell">
-                            {userStats.churnReason !== 'None' ? (
-                                <span className="status-badge status-badge--secondary">{userStats.churnReason}</span>
-                            ) : (
-                                <span className="status-badge status-badge--success">Active</span>
-                            )}
                           </td>
                         </tr>
                         );

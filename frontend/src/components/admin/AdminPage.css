@@ -474,6 +474,122 @@
   border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
+/* Usage API Requests & Models */
+.usage-requests-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.usage-requests-headline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.usage-requests-divider {
+  color: var(--text-tertiary);
+  font-weight: normal;
+}
+
+.usage-requests-count {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.usage-models-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 280px;
+}
+
+.admin-model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.3;
+  word-break: break-all;
+}
+
+/* Free Tier (Green) */
+.admin-model-badge--free {
+  background: var(--function-success-tsp);
+  color: var(--function-success);
+  border: 1px solid var(--function-success);
+}
+
+.admin-model-badge--free .admin-model-badge__count,
+.admin-model-badge--free .admin-model-badge__tier {
+  color: var(--function-success);
+}
+
+/* Thinking Tier (Yellow) */
+.admin-model-badge--thinking {
+  background: var(--function-warning-tsp);
+  color: var(--function-warning);
+  border: 1px solid var(--function-warning);
+}
+
+.admin-model-badge--thinking .admin-model-badge__count,
+.admin-model-badge--thinking .admin-model-badge__tier {
+  color: var(--function-warning);
+}
+
+/* Pro Tier (Red) */
+.admin-model-badge--pro {
+  background: var(--function-error-tsp);
+  color: var(--function-error);
+  border: 1px solid var(--function-error);
+}
+
+.admin-model-badge--pro .admin-model-badge__count,
+.admin-model-badge--pro .admin-model-badge__tier {
+  color: var(--function-error);
+}
+
+.admin-model-badge__tier {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+.admin-model-badge__count {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.usage-models-empty {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* Legend in section header */
+.usage-model-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-model-legend-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
 /* ==========================================================================
    13. EXAM PAPER LINKS
    ========================================================================== */

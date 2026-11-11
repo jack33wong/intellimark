@@ -1230,6 +1230,8 @@ router.get('/usage', async (req: Request, res: Response) => {
           modelCost: 0,
           mathpixCost: 0,
           apiRequests: 0,
+          modelsUsed: new Set<string>(),
+          modelCounts: {} as Record<string, number>,
           sessionIds: new Set(),
           sessionEngagements: new Map<string, any>(),
           lastActive: txDateIso,
@@ -1252,6 +1254,21 @@ router.get('/usage', async (req: Request, res: Response) => {
       userStats.modelCost += interactionModelCost;
       userStats.mathpixCost += interactionMathpixCost;
       userStats.apiRequests += 1;
+
+      // Track models used (each transaction represents 1 API request)
+      const rawModel = tx.modelUsed || tx.model || tx.lastModelUsed || tx.selectedModel || tx.processingStats?.modelUsed;
+      let cleanM = '';
+      if (rawModel) {
+        const m = Array.isArray(rawModel) ? rawModel[0] : rawModel;
+        if (typeof m === 'string' && m.trim() && m.trim().toLowerCase() !== 'unknown') {
+          cleanM = m.trim();
+        }
+      }
+      if (!cleanM) {
+        cleanM = 'gemini-3.8-flash';
+      }
+      userStats.modelsUsed.add(cleanM);
+      userStats.modelCounts[cleanM] = (userStats.modelCounts[cleanM] || 0) + 1;
       if (tx.sessionId) {
         userStats.sessionIds.add(tx.sessionId);
         if (tx.engagement && !userStats.sessionEngagements.has(tx.sessionId)) {
@@ -1293,6 +1310,8 @@ router.get('/usage', async (req: Request, res: Response) => {
               modelCost: 0,
               mathpixCost: 0,
               apiRequests: 0,
+              modelsUsed: new Set<string>(),
+              modelCounts: {} as Record<string, number>,
               sessionIds: new Set(),
               sessionEngagements: new Map<string, any>(),
               lastActive: txTimestamp.toISOString(),
@@ -1406,7 +1425,7 @@ router.get('/usage', async (req: Request, res: Response) => {
       const missingSessionToUser = new Map<string, string>();
       usersMap.forEach((u) => {
         u.sessionIds.forEach((sid: string) => {
-          if (sid && !u.sessionEngagements.has(sid)) {
+          if (sid && (!u.sessionEngagements.has(sid) || u.modelsUsed.size === 0)) {
             missingSessionToUser.set(sid, u.userId);
           }
         });
@@ -1419,10 +1438,22 @@ router.get('/usage', async (req: Request, res: Response) => {
         const docs = await db.getAll(...refs);
         docs.forEach(d => {
           if (d.exists) {
-            const eng = d.data()?.sessionStats?.engagement;
+            const data = d.data();
+            const eng = data?.sessionStats?.engagement;
             const uid = missingSessionToUser.get(d.id);
-            if (eng && uid && usersMap.has(uid)) {
-              usersMap.get(uid)!.sessionEngagements.set(d.id, eng);
+            if (uid && usersMap.has(uid)) {
+              const u = usersMap.get(uid)!;
+              if (eng && !u.sessionEngagements.has(d.id)) {
+                u.sessionEngagements.set(d.id, eng);
+              }
+              const sModel = data?.sessionStats?.lastModelUsed || data?.sessionStats?.modelUsed || data?.selectedModel || data?.model;
+              if (sModel && typeof sModel === 'string' && sModel.trim() && sModel.trim().toLowerCase() !== 'unknown') {
+                const cleanM = sModel.trim();
+                if (u.modelsUsed.size === 0) {
+                  u.modelsUsed.add(cleanM);
+                  u.modelCounts[cleanM] = u.apiRequests || 1;
+                }
+              }
             }
           }
         });
@@ -1518,6 +1549,8 @@ router.get('/usage', async (req: Request, res: Response) => {
         const { sessionEngagements, ...restUser } = u;
         return {
             ...restUser,
+            modelsUsed: Array.from(u.modelsUsed),
+            modelCounts: u.modelCounts || {},
             paywallHits: u.paywallHits || 0,
             pricingPageViews: u.pricingPageViews || 0,
             checkoutInitiated: u.checkoutInitiated || 0,
