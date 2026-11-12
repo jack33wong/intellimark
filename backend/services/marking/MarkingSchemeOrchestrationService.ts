@@ -7,7 +7,7 @@
  * 3. Keeps "Sequential Rubric" and "Dynamic Totals".
  */
 
-import { logDetectionAudit, getQuestionSortValue } from './MarkingHelpers.js';
+import { logDetectionAudit, getQuestionSortValue, cleanSubjectAndQualification } from './MarkingHelpers.js';
 import { questionDetectionService } from './questionDetectionService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart, combineQuestionAndPart } from '../../utils/TextNormalizationUtils.js';
 
@@ -337,15 +337,19 @@ export class MarkingSchemeOrchestrationService {
           }
         }
 
+        const { subject: cleanSubj, qualification: cleanQual } = cleanSubjectAndQualification(
+          inputMarkingScheme.examDetails?.subject,
+          inputMarkingScheme.examDetails?.qualification
+        );
         groupDetectionResult = {
           found: true,
           match: {
             board: inputMarkingScheme.examDetails?.board || 'Custom',
-            qualification: inputMarkingScheme.examDetails?.qualification || 'GCSE',
+            qualification: cleanQual || inputMarkingScheme.examDetails?.qualification || 'GCSE',
             paperCode: inputMarkingScheme.examDetails?.paperCode || 'Uploaded',
             examSeries: inputMarkingScheme.examDetails?.exam_series || 'N/A',
             tier: inputMarkingScheme.examDetails?.tier || 'N/A',
-            subject: inputMarkingScheme.examDetails?.subject || 'Biology',
+            subject: cleanSubj || inputMarkingScheme.examDetails?.subject || 'Biology',
             paperTitle: 'Custom Uploaded Marking Scheme',
             questionNumber: baseNum,
             confidence: 1.0,

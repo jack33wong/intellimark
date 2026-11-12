@@ -5,6 +5,7 @@ import { getFirestore } from '../../config/firebase.js';
 import { ImageUtils } from '../../utils/ImageUtils.js';
 import { QuestionDetectionService } from './questionDetectionService.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
+import { cleanSubjectAndQualification } from './MarkingHelpers.js';
 
 export interface AutoPersistenceAuditContext {
     userId?: string;
@@ -48,8 +49,9 @@ function toPositiveInt(v: any): number | null {
  *        relative sub-question `part`, parent marks reconciled with sum of sub-question marks
  *  - v3: canonical normalized keys in markingSchemes (stripped leading zeros: "1.1" not "01.1")
  *        and clean relative sub-part in fullExamPapers ("1" not ".1")
+ *  - v4: strip qualification prefix (e.g. "GCSE", "A-Level") from subject field, ensuring clean separation of qualification & subject
  */
-export const AUTO_PERSIST_SCHEMA_VERSION = 3;
+export const AUTO_PERSIST_SCHEMA_VERSION = 4;
 
 /** True when a Firestore doc was written by the auto-persistence pipeline (never overwrite manual docs). */
 function isAutoPersistedDoc(data: any): boolean {
@@ -117,8 +119,8 @@ Output JSON Schema:
 {
   "examDetails": {
     "board": "AQA | Edexcel | OCR | WJEC | CIE | Custom",
-    "subject": "Exact subject name (e.g. Mathematics, Biology, Chemistry, Physics, Geography, History, Computer Science)",
-    "qualification": "GCSE (9-1) | A-Level | IGCSE",
+    "subject": "Exact academic subject name ONLY, WITHOUT any qualification prefix or suffix (e.g. 'Combined Science: Trilogy', 'Biology', 'Chemistry', 'Physics', 'Geography', 'History', 'Computer Science'). NEVER include 'GCSE', 'A-Level', 'IGCSE', or '(9-1)' in subject.",
+    "qualification": "GCSE | A-Level | IGCSE",
     "paperCode": "Paper code if visible, else 'Uploaded'",
     "tier": "Higher | Foundation | N/A",
     "exam_series": "Exam series if visible, else 'N/A'",
@@ -209,6 +211,16 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
      */
     private static canonicalizeParsedScheme(parsedObj: any): any {
         if (!parsedObj || typeof parsedObj !== 'object') return parsedObj;
+
+        // Clean qualification prefix/suffix from subject (e.g. "GCSE COMBINED SCIENCE: TRILOGY" -> "COMBINED SCIENCE: TRILOGY")
+        if (parsedObj.examDetails && typeof parsedObj.examDetails === 'object') {
+            const { subject, qualification } = cleanSubjectAndQualification(
+                parsedObj.examDetails.subject,
+                parsedObj.examDetails.qualification
+            );
+            parsedObj.examDetails.subject = subject;
+            if (qualification) parsedObj.examDetails.qualification = qualification;
+        }
 
         const cleanKey = (k: string) => String(k || '').trim().replace(/^0+(?=\d)/, '');
 
@@ -637,12 +649,16 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const db = getFirestore();
             if (!db) return null;
 
-            const details = parsedObj.examDetails;
+            const details = parsedObj.examDetails || {};
+            const { subject: cleanSubj, qualification: cleanQual } = cleanSubjectAndQualification(
+                details.subject,
+                details.qualification
+            );
             const board = String(details.board || '').trim();
             const paperCode = String(details.paperCode || '').trim().toUpperCase();
             const examSeries = String(details.exam_series || details.date || 'Unknown').trim();
-            const subject = String(details.subject || '').trim();
-            const qualification = String(details.qualification || 'GCSE (9-1)').trim();
+            const subject = cleanSubj;
+            const qualification = cleanQual || 'GCSE';
             const tier = String(details.tier || 'N/A').trim();
 
             const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -787,12 +803,16 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const db = getFirestore();
             if (!db) return;
 
-            const details = parsedScheme.examDetails;
+            const details = parsedScheme.examDetails || {};
+            const { subject: cleanSubj, qualification: cleanQual } = cleanSubjectAndQualification(
+                details.subject,
+                details.qualification
+            );
             const board = String(details.board || '').trim();
             const paperCode = String(details.paperCode || '').trim().toUpperCase();
             const examSeries = String(details.exam_series || details.date || 'Unknown').trim();
-            const subject = String(details.subject || '').trim();
-            const qualification = String(details.qualification || 'GCSE (9-1)').trim();
+            const subject = cleanSubj;
+            const qualification = cleanQual || 'GCSE';
             const tier = String(details.tier || 'N/A').trim();
 
             const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');

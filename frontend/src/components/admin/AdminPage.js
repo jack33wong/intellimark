@@ -2211,34 +2211,6 @@ function AdminPage() {
   // Loading state is now managed in the individual load functions
   // UI unblocked to allow tab navigation and header to show immediately
   // Filter logic
-  const renderFilterTabs = () => (
-    <div className="admin-filter-tabs">
-      {['All', 'Pearson Edexcel', 'AQA', 'OCR'].map(board => (
-        <button
-          key={board}
-          className={`admin-filter-tab ${examBoardFilter === board ? 'admin-filter-tab--active' : ''}`}
-          onClick={() => setExamBoardFilter(board)}
-        >
-          {board}
-        </button>
-      ))}
-    </div>
-  );
-
-  const renderQualificationFilterTabs = () => (
-    <div className="admin-filter-tabs" style={{ marginTop: '8px' }}>
-      {['All', 'GCSE', 'A-Level'].map(qual => (
-        <button
-          key={qual}
-          className={`admin-filter-tab ${qualificationFilter === qual ? 'admin-filter-tab--active' : ''}`}
-          onClick={() => setQualificationFilter(qual)}
-        >
-          {qual}
-        </button>
-      ))}
-    </div>
-  );
-
   const isEnglishRecord = (str) => {
     const lower = (str || '').toLowerCase();
     return (
@@ -2255,33 +2227,194 @@ function AdminPage() {
     );
   };
 
-  const renderSubjectFilterTabs = () => (
-    <div className="admin-filter-tabs" style={{ marginTop: '8px' }}>
-      {['All', 'MATHS', 'ENG'].map(subj => (
-        <button
-          key={subj}
-          className={`admin-filter-tab ${subjectFilter === subj ? 'admin-filter-tab--active' : ''}`}
-          onClick={() => {
-            setSubjectFilter(subj);
-            if (subj === 'ENG' && examBoardFilter === 'Pearson Edexcel') {
-              setExamBoardFilter('All');
-            }
-          }}
-        >
-          {subj}
-        </button>
-      ))}
+  const isMathsRecord = (str) => {
+    const lower = (str || '').toLowerCase();
+    return (
+      lower.includes('math') ||
+      lower.includes('1ma1') ||
+      lower.includes('9ma0') ||
+      lower.includes('8300') ||
+      lower.includes('7357') ||
+      lower.includes('j560') ||
+      lower.includes('h240')
+    );
+  };
+
+  const normalizeSubjectName = (subj) => {
+    if (!subj || typeof subj !== 'string') return '';
+    const trimmed = subj.trim();
+    const lower = trimmed.toLowerCase();
+    if (lower === 'maths' || lower === 'math') return 'Mathematics';
+    if (lower === 'eng') return 'English';
+    if (trimmed === trimmed.toUpperCase() && trimmed.length > 3) {
+      return trimmed.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    }
+    return trimmed;
+  };
+
+  const getEntrySubjects = (entry, type) => {
+    if (!entry) return [];
+    if (type === 'boundaries') {
+      const subs = [];
+      if (entry.subject && typeof entry.subject === 'string' && entry.subject.trim()) {
+        subs.push(entry.subject.trim());
+      }
+      if (Array.isArray(entry.subjects)) {
+        entry.subjects.forEach(s => {
+          if (s && s.name && typeof s.name === 'string' && s.name.trim()) {
+            subs.push(s.name.trim());
+          }
+        });
+      }
+      return subs;
+    }
+
+    const examData = entry.data || entry;
+    const meta = examData.exam || examData.metadata || entry.examDetails || entry.markingSchemeData?.examDetails || {};
+    const directSubject = (meta.subject || entry.subject || '').trim();
+    if (directSubject) {
+      return [directSubject];
+    }
+
+    const code = meta.code || meta.exam_code || meta.paperCode || '';
+    const title = meta.paper_title || meta.paper || '';
+    const info = `${code} ${title}`;
+    if (isEnglishRecord(info)) return ['English'];
+    if (isMathsRecord(info) || code || title) return ['Mathematics'];
+    return [];
+  };
+
+  // Dynamic unique subjects derived from the active tab's dataset
+  const availableSubjects = useMemo(() => {
+    let entries = [];
+    let tabType = 'json';
+
+    if (activeTab === 'json') {
+      entries = jsonEntries;
+      tabType = 'json';
+    } else if (activeTab === 'marking-scheme') {
+      entries = markingSchemeEntries;
+      tabType = 'marking';
+    } else if (activeTab === 'grade-boundaries') {
+      entries = gradeBoundaryEntries;
+      tabType = 'boundaries';
+    } else if (activeTab === 'examiner-report') {
+      entries = examinerReportEntries;
+      tabType = 'reports';
+    } else {
+      entries = [...jsonEntries, ...markingSchemeEntries, ...gradeBoundaryEntries, ...examinerReportEntries];
+    }
+
+    const set = new Set();
+    entries.forEach(entry => {
+      const subs = getEntrySubjects(entry, tabType);
+      subs.forEach(s => {
+        const norm = normalizeSubjectName(s);
+        if (norm && norm.toLowerCase() !== 'all') {
+          set.add(norm);
+        }
+      });
+    });
+
+    if (set.size === 0) {
+      return ['All', 'Mathematics', 'English'];
+    }
+
+    const sorted = Array.from(set).sort((a, b) => {
+      const aIsMath = a.toLowerCase().includes('math');
+      const bIsMath = b.toLowerCase().includes('math');
+      if (aIsMath && !bIsMath) return -1;
+      if (!aIsMath && bIsMath) return 1;
+      return a.localeCompare(b);
+    });
+
+    return ['All', ...sorted];
+  }, [activeTab, jsonEntries, markingSchemeEntries, gradeBoundaryEntries, examinerReportEntries]);
+
+  // If the active filter is no longer available in the active tab's subjects, revert to 'All'
+  useEffect(() => {
+    if (subjectFilter !== 'All' && !availableSubjects.includes(subjectFilter)) {
+      setSubjectFilter('All');
+    }
+  }, [availableSubjects, subjectFilter]);
+
+  const renderCommonFilters = () => (
+    <div className="admin-filter-container">
+      {/* Row 1: Exam Board + Separator + Qualification */}
+      <div className="admin-filter-row">
+        <div className="admin-filter-tabs">
+          {['All', 'Pearson Edexcel', 'AQA', 'OCR'].map(board => (
+            <button
+              key={board}
+              className={`admin-filter-tab ${examBoardFilter === board ? 'admin-filter-tab--active' : ''}`}
+              onClick={() => setExamBoardFilter(board)}
+            >
+              {board}
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-filter-separator" />
+
+        <div className="admin-filter-tabs">
+          {['All', 'GCSE', 'A-Level'].map(qual => (
+            <button
+              key={qual}
+              className={`admin-filter-tab ${qualificationFilter === qual ? 'admin-filter-tab--active' : ''}`}
+              onClick={() => setQualificationFilter(qual)}
+            >
+              {qual}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 2: Dynamic Subjects */}
+      <div className="admin-filter-row admin-filter-row--subjects">
+        <div className="admin-filter-tabs">
+          {availableSubjects.map(subj => (
+            <button
+              key={subj}
+              className={`admin-filter-tab ${subjectFilter === subj ? 'admin-filter-tab--active' : ''}`}
+              onClick={() => {
+                setSubjectFilter(subj);
+                if (subj.toLowerCase().includes('eng') && examBoardFilter === 'Pearson Edexcel') {
+                  setExamBoardFilter('All');
+                }
+              }}
+            >
+              {subj}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
-  const filterBySubject = (entries, getSubjectStrFn) => {
+  const filterBySubject = (entries, getSubjectStrFn, type) => {
     if (subjectFilter === 'All') return entries;
+    const normFilter = normalizeSubjectName(subjectFilter).toLowerCase();
+
     return entries.filter(entry => {
-      const info = getSubjectStrFn(entry);
-      const isEng = isEnglishRecord(info);
-      if (subjectFilter === 'ENG') return isEng;
-      if (subjectFilter === 'MATHS') return !isEng;
-      return true;
+      // 1. Direct match on entry's subject(s)
+      const subjects = getEntrySubjects(entry, type);
+      if (subjects.length > 0) {
+        const match = subjects.some(s => {
+          const normS = normalizeSubjectName(s).toLowerCase();
+          return normS === normFilter || normS.includes(normFilter) || normFilter.includes(normS);
+        });
+        if (match) return true;
+      }
+
+      // 2. Fallback using getSubjectStrFn
+      if (getSubjectStrFn) {
+        const info = (getSubjectStrFn(entry) || '').toLowerCase();
+        if (info.includes(normFilter)) return true;
+        if ((normFilter.includes('english') || normFilter.includes('eng')) && isEnglishRecord(info)) return true;
+        if ((normFilter.includes('math') || normFilter.includes('mathematics')) && isMathsRecord(info)) return true;
+      }
+
+      return false;
     });
   };
 
@@ -2370,7 +2503,8 @@ function AdminPage() {
         const examData = entry.data || entry;
         const examMeta = examData.exam || examData.metadata || {};
         return `${examMeta.subject || ''} ${examMeta.code || examMeta.exam_code || ''} ${examMeta.paper_title || ''}`;
-      }
+      },
+      'json'
     ),
     (entry) => {
       const examData = entry.data || entry;
@@ -2409,7 +2543,8 @@ function AdminPage() {
       (entry) => {
         const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
         return `${examDetails.subject || ''} ${examDetails.paperCode || examDetails.exam_code || examDetails.code || ''} ${examDetails.paper || ''}`;
-      }
+      },
+      'marking'
     ),
     (entry) => entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || '',
     (entry) => {
@@ -2436,7 +2571,8 @@ function AdminPage() {
       (entry) => {
         const subjectsStr = (entry.subjects || []).map(s => `${s.name || ''} ${s.code || ''}`).join(' ');
         return `${entry.subject || ''} ${subjectsStr}`;
-      }
+      },
+      'boundaries'
     ),
     (entry) => entry.exam_series || entry.examSeries || '',
     (entry) => {
@@ -2460,7 +2596,8 @@ function AdminPage() {
       (entry) => {
         const examDetails = entry.examDetails || entry.metadata || {};
         return `${examDetails.subject || ''} ${examDetails.paperCode || examDetails.exam_code || ''} ${examDetails.paper || ''}`;
-      }
+      },
+      'reports'
     ),
     (entry) => entry.examDetails?.exam_series || entry.metadata?.exam_series || '',
     (entry) => {
@@ -2912,9 +3049,7 @@ function AdminPage() {
 
             {/* Exam JSON List */}
             <div className="admin-data-section">
-              {renderFilterTabs()}
-              {renderQualificationFilterTabs()}
-              {renderSubjectFilterTabs()}
+              {renderCommonFilters()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Full Exam Papers ({filteredJsonEntries.length})</h3>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -3647,9 +3782,7 @@ function AdminPage() {
 
             {/* Marking Scheme List */}
             <div className="admin-data-section">
-              {renderFilterTabs()}
-              {renderQualificationFilterTabs()}
-              {renderSubjectFilterTabs()}
+              {renderCommonFilters()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Marking Schemes ({filteredMarkingSchemeEntries.length})</h3>
                  <div className="admin-data-section__actions" style={{ display: 'flex', gap: '8px' }}>
@@ -4452,9 +4585,7 @@ function AdminPage() {
 
             {/* Grade Boundary List */}
             <div className="admin-data-section">
-              {renderFilterTabs()}
-              {renderQualificationFilterTabs()}
-              {renderSubjectFilterTabs()}
+              {renderCommonFilters()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Grade Boundaries ({filteredGradeBoundaries.length})</h3>
                 {/* Delete All button removed per request */}
@@ -4603,7 +4734,14 @@ function AdminPage() {
                                         <div className="admin-questions-content">
                                           <h6 className="admin-questions-summary__title">Subjects and Grade Boundaries</h6>
                                           <div className="admin-questions-list">
-                                            {subjects.map((subject, sIndex) => {
+                                            {subjects
+                                              .filter(subject => {
+                                                if (subjectFilter === 'All') return true;
+                                                const normFilter = normalizeSubjectName(subjectFilter).toLowerCase();
+                                                const normName = normalizeSubjectName(subject.name || '').toLowerCase();
+                                                return normName === normFilter || normName.includes(normFilter) || normFilter.includes(normName);
+                                              })
+                                              .map((subject, sIndex) => {
                                               const subjectName = subject.name || 'Unknown';
                                               const subjectCode = subject.code || 'N/A';
                                               const maxMark = subject.max_mark || 0;
@@ -4776,9 +4914,7 @@ function AdminPage() {
 
             {/* Examiner Report List */}
             <div className="admin-data-section">
-              {renderFilterTabs()}
-              {renderQualificationFilterTabs()}
-              {renderSubjectFilterTabs()}
+              {renderCommonFilters()}
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Examiner Reports ({filteredExaminerReportEntries.length})</h3>
               </div>

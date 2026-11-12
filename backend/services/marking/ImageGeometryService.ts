@@ -1,5 +1,6 @@
 import { ModelProvider } from '../../utils/ModelProvider.js';
 import { ModelType } from '../../types/index.js';
+import { cleanSubjectAndQualification } from './MarkingHelpers.js';
 
 export interface GeometryAnalysisResult {
     is_acceptable_quality: boolean;
@@ -68,8 +69,8 @@ Your job is to analyze the provided image of student homework or exam booklet an
      2. **GCSE / IGCSE / A-Level English Language** (AQA 8700, Edexcel 1EN0, OCR J351, reading inserts Source A / Source B, comprehension, language/structure analysis, creative/transactional writing Q5). Set \`detected_subject: "ENGLISH_LANGUAGE"\`.
    - **UNSUPPORTED ACADEMIC SUBJECTS (MUST SET \`is_supported_doc: false\` AND \`detected_subject: "UNSUPPORTED_SUBJECT"\` / \`"ENGLISH_LITERATURE"\` as appropriate)**:
      - **GCSE English Literature** (AQA 8702, Edexcel 1ET0, Macbeth, A Christmas Carol, An Inspector Calls, poetry essays). Set \`detected_subject: "ENGLISH_LITERATURE"\`.
-     - **Science Subjects** (Biology, Chemistry, Physics, Combined Science like AQA 8461/8464, Edexcel 1BI0/1SC0). Set \`detected_subject: "UNSUPPORTED_SUBJECT"\` and \`unsupported_subject_name: "Biology"\` (or Chemistry/Physics).
-     - **Other Academic Humanities / Languages** (History, Geography, Computer Science, French, Spanish, etc.). Set \`detected_subject: "UNSUPPORTED_SUBJECT"\` and provide \`unsupported_subject_name\` (e.g. "Geography", "History").
+     - **Science Subjects** (Biology, Chemistry, Physics, Combined Science like AQA 8461/8464, Edexcel 1BI0/1SC0). Set \`detected_subject: "UNSUPPORTED_SUBJECT"\` and \`unsupported_subject_name: "Combined Science: Trilogy"\` (or Biology/Chemistry/Physics, WITHOUT any "GCSE" or "A-Level" prefix).
+     - **Other Academic Humanities / Languages** (History, Geography, Computer Science, French, Spanish, etc.). Set \`detected_subject: "UNSUPPORTED_SUBJECT"\` and provide \`unsupported_subject_name\` (e.g. "Geography", "History", WITHOUT any "GCSE" or "A-Level" prefix).
    - **EXAM COVER PAGES**:
      - If the page is a standard exam booklet cover page (with exam board logos, candidate name/number boxes, and "Instructions for Candidates"), classify \`detected_subject\` and \`unsupported_subject_name\` according to the exam subject printed on the cover (e.g., \`"MATHS"\`, \`"ENGLISH_LANGUAGE"\`, or \`"UNSUPPORTED_SUBJECT"\` with \`"Biology"\`), NEVER \`"NON_ACADEMIC"\`.
    - **NON-ACADEMIC CONTENT (CRITICAL: MUST SET \`is_supported_doc: false\` AND \`detected_subject: "NON_ACADEMIC"\`)**:
@@ -233,7 +234,9 @@ Return ONLY valid JSON matching this schema:
                 is_supported_doc: isSupportedDoc,
                 evidence_text_snippet: parsed.evidence_text_snippet || undefined,
                 detected_subject: parsed.detected_subject || undefined,
-                unsupported_subject_name: parsed.unsupported_subject_name || undefined,
+                unsupported_subject_name: parsed.unsupported_subject_name
+                    ? cleanSubjectAndQualification(parsed.unsupported_subject_name).subject || parsed.unsupported_subject_name
+                    : undefined,
                 paper_code_hint: parsed.paper_code_hint || undefined,
                 paper_total_marks_hint: (() => {
                     const n = Number(parsed.paper_total_marks_hint);

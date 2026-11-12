@@ -79,6 +79,64 @@ export function getShortExamBoard(board: string | undefined): string {
   return board;
 }
 
+/**
+ * Normalizes subject and qualification by stripping qualification labels (e.g. "GCSE", "A-Level", "IGCSE", "(9-1)")
+ * out of the subject string, while ensuring the qualification field is accurately captured.
+ */
+export function cleanSubjectAndQualification(
+  rawSubject: string | undefined | null,
+  rawQual?: string | undefined | null
+): { subject: string; qualification: string } {
+  let subject = String(rawSubject || '').trim();
+  let qualification = String(rawQual || '').trim();
+
+  const isQualEmpty = !qualification || /^(unknown|n\/a|none|uploaded|custom)$/i.test(qualification);
+
+  // 1. Detect qualification from subject if qualification is missing, generic, or conflicting
+  if (/\b(?:gce\s+)?a[- ]?level\b/i.test(subject)) {
+    if (isQualEmpty || /gcse/i.test(qualification)) {
+      qualification = 'A-Level';
+    }
+  } else if (/\bas[- ]?level\b/i.test(subject)) {
+    if (isQualEmpty) {
+      qualification = 'AS-Level';
+    }
+  } else if (/\b(?:international\s+gcse|igcse)\b/i.test(subject)) {
+    if (isQualEmpty) {
+      qualification = 'IGCSE';
+    }
+  } else if (/\bgcse\b/i.test(subject)) {
+    if (isQualEmpty) {
+      qualification = 'GCSE';
+    }
+  } else if (isQualEmpty) {
+    qualification = 'GCSE';
+  }
+
+  // 2. Strip qualification words, prefixes, and suffixes from subject
+  subject = subject
+    .replace(/\b(?:gce\s+)?a[- ]?level\b/gi, '')
+    .replace(/\bas[- ]?level\b/gi, '')
+    .replace(/\binternational\s+gcse\b/gi, '')
+    .replace(/\bi?gcse\b/gi, '')
+    .replace(/\(\s*9\s*[-–]\s*1\s*\)/g, '')
+    .replace(/\b9\s*[-–]\s*1\b/g, '')
+    .replace(/\blevel\s+(?:1\/2|[123])\b/gi, '')
+    // Clean up leading/trailing punctuation (colons, dashes, pipes, slashes, spaces)
+    .replace(/^[\s:\-,–|/]+/, '')
+    .replace(/[\s:\-,–|/]+$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  // 3. Standardize qualification formatting
+  if (/^a[- ]?level$/i.test(qualification)) qualification = 'A-Level';
+  else if (/^as[- ]?level$/i.test(qualification)) qualification = 'AS-Level';
+  else if (/^igcse$/i.test(qualification)) qualification = 'IGCSE';
+  else if (/^gcse(\s*\(9-1\))?$/i.test(qualification)) qualification = 'GCSE';
+
+  return { subject, qualification };
+}
+
 // Re-exported from TextNormalizationUtils (single source of truth).
 // Previously `if (p === b) return p;` collapsed AQA-style "1.1", "2.2", "3.3"... into "1", "2", "3",
 // which dropped those sub-questions from auto-persisted fullExamPapers.

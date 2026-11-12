@@ -2045,6 +2045,32 @@
 }
 
 /* Filter Tabs */
+.admin-filter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.admin-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-filter-row .admin-filter-tabs {
+  margin-bottom: 0;
+}
+
+.admin-filter-separator {
+  width: 1px;
+  height: 24px;
+  background-color: var(--border-color, rgba(255, 255, 255, 0.2));
+  margin: 0 6px;
+  align-self: center;
+}
+
 .admin-filter-tabs {
   display: flex;
   gap: 8px;
