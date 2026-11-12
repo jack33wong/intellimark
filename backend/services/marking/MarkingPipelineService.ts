@@ -1232,8 +1232,11 @@ export class MarkingPipelineService {
             // Update image data and dimensions directly from single-pass Sharp output (avoids decoding 24 WebPs a second time)
             for (let i = 0; i < standardizedPages.length; i++) {
                 const page = standardizedPages[i];
-                const { imageData: enhancedImageData, width: newW, height: newH } = preprocessedResults[i];
-                page.imageData = enhancedImageData;
+                const { imageData: displayImageData, ocrImageData, width: newW, height: newH } = preprocessedResults[i];
+                page.imageData = displayImageData;
+                if (ocrImageData) {
+                    (page as any).ocrImageData = ocrImageData;
+                }
                 if (newW && newH) {
                     if (page.width !== newW || page.height !== newH) {
                         console.log(`📐 [DIMENSIONS] Refreshed Page ${page.pageIndex} dimensions after preprocessing: ${page.width}x${page.height} -> ${newW}x${newH}`);
@@ -2282,7 +2285,7 @@ export class MarkingPipelineService {
                         }
 
                         const ocrResult = await OCRService.processImage(
-                            page.imageData,
+                            (page as any).ocrImageData || page.imageData,
                             { pageIndex: page.pageIndex, ocrStrategy: subjectProfile.ocrStrategy },
                             false,
                             'auto',

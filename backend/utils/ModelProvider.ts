@@ -94,7 +94,7 @@ export class ModelProvider {
       }
 
       const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
-      const supportsCustomTemp = !modelName.includes('3.8') && !modelName.includes('argon');
+      const supportsCustomTemp = !modelName.includes('argon');
 
       const response = await ai.models.generateContent({
         model: modelName,
@@ -212,7 +212,7 @@ export class ModelProvider {
       }
 
       const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
-      const supportsCustomTemp = !modelName.includes('3.8') && !modelName.includes('argon');
+      const supportsCustomTemp = !modelName.includes('argon');
 
       const response = await ai.models.generateContent({
         model: modelName,

@@ -1,4 +1,6 @@
 import type { ModelType } from '../../types/index.js';
+import crypto from 'crypto';
+import { getFirestore } from '../../config/firebase.js';
 import { ModelProvider } from '../../utils/ModelProvider.js';
 import { getPrompt } from '../../config/prompts.js';
 import * as path from 'path';
@@ -38,6 +40,25 @@ export interface ClassificationResult {
 }
 
 export class ClassificationService {
+  private static classificationMemoryCache = new Map<string, Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }>>();
+
+  private static computeImagesCacheKey(
+    images: Array<{ imageData: string; pageIndex?: number }>,
+    modelKey: string,
+    isVerbatimProse: boolean,
+    hasPageMaps: boolean
+  ): string {
+    const hash = crypto.createHash('sha256');
+    hash.update(`cls_v1:${modelKey}:${images.length}:verbatim=${isVerbatimProse}:maps=${hasPageMaps}:`);
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i]?.imageData || '';
+      hash.update(`${i}:${img.length}:`);
+      hash.update(img);
+      hash.update('|');
+    }
+    return hash.digest('hex');
+  }
+
   private static readonly SAFETY_SETTINGS = [
     {
       category: "HARM_CATEGORY_HARASSMENT",
@@ -75,6 +96,31 @@ export class ClassificationService {
 
     const pageMaps = Array.isArray(pageMapsOrVerbatim) ? pageMapsOrVerbatim : undefined;
     const isVerbatimProse = typeof pageMapsOrVerbatim === 'boolean' ? pageMapsOrVerbatim : Boolean(isVerbatimProseArg);
+
+    const validatedModelForCache = validateModel(model);
+    const cacheKey = this.computeImagesCacheKey(images, String(validatedModelForCache), isVerbatimProse, Boolean(pageMaps));
+    const memCached = this.classificationMemoryCache.get(cacheKey);
+    if (memCached && memCached.length === images.length) {
+      console.log(`⚡ [CLASSIFICATION] In-memory cache HIT (${cacheKey.slice(0, 12)}) for ${images.length} page(s).`);
+      return JSON.parse(JSON.stringify(memCached));
+    }
+
+    try {
+      const db = getFirestore();
+      if (db) {
+        const docSnap = await db.collection('parsedClassificationCache').doc(cacheKey).get();
+        if (docSnap.exists) {
+          const data = docSnap.data();
+          if (Array.isArray(data?.results) && data.results.length === images.length) {
+            console.log(`⚡ [CLASSIFICATION] Firestore cache HIT (${cacheKey.slice(0, 12)}) for ${images.length} page(s).`);
+            this.classificationMemoryCache.set(cacheKey, data.results);
+            return JSON.parse(JSON.stringify(data.results));
+          }
+        }
+      }
+    } catch {
+      // Non-fatal: proceed to live classification
+    }
 
     // Use heavy classification by default (positions required for marking)
     const systemPrompt = getPrompt('classification.heavy.system');
@@ -452,6 +498,11 @@ ${pageHints}
             taskUserPrompt = `Extract Question(s) ${qList.join(', ')} and their parts from these pages following the provided mapping.`;
           }
 
+          // Enforce strict verbatim handwriting transcription across ALL subjects
+          taskSystemPrompt += `\n\n**HANDWRITING TRANSCRIPTION FIDELITY (MANDATORY FOR ALL SUBJECTS)**:
+- NEVER auto-correct student spelling mistakes in \`studentWorkLines\` (e.g. if a student writes "nucleas", "defiency", or messy letters like "ch l ove plast", transcribe the letters as written without guessing a different technical term).
+- Do NOT include printed bullet/list numbers (e.g. printed "1" or "2" at the start of an answer line) inside \`studentWorkLines\`.`;
+
           if (isVerbatimProse) {
             taskSystemPrompt += `\n\n**STRICT VERBATIM PROSE TRANSCRIPTION (GCSE ENGLISH — MANDATORY FOR AO6/SPaG)**:
 - Do NOT auto-correct student spelling mistakes, missing apostrophes, comma splices, or grammar errors in \`studentWorkLines\`.
@@ -793,6 +844,36 @@ ${pageHints}
 
       // Sort by page index
       results.sort((a, b) => a.pageIndex - b.pageIndex);
+
+      const hasInvalidPlaceholder = results.some(r => {
+        const serialized = JSON.stringify(r.result);
+        return serialized.includes('MANUAL_REVIEW_REQUIRED') || serialized.includes('AI dropped this page from its response array.');
+      });
+
+      if (results.length === images.length && !hasInvalidPlaceholder) {
+        if (this.classificationMemoryCache.size > 50) {
+          const oldestKey = this.classificationMemoryCache.keys().next().value;
+          if (oldestKey) this.classificationMemoryCache.delete(oldestKey);
+        }
+        const cleanCopy = JSON.parse(JSON.stringify(results));
+        this.classificationMemoryCache.set(cacheKey, cleanCopy);
+
+        try {
+          const db = getFirestore();
+          const payloadSize = Buffer.byteLength(JSON.stringify(cleanCopy), 'utf8');
+          if (db && payloadSize < 900_000) {
+            void db.collection('parsedClassificationCache').doc(cacheKey).set({
+              results: cleanCopy,
+              pageCount: images.length,
+              createdAt: new Date().toISOString()
+            }).catch(err => {
+              console.warn(`⚠️ [CLASSIFICATION] Firestore cache write failed (${cacheKey.slice(0, 12)}):`, err?.message || err);
+            });
+          } else if (db && payloadSize >= 900_000) {
+            console.warn(`⚠️ [CLASSIFICATION] Skipping Firestore cache write (${cacheKey.slice(0, 12)}): payload ${payloadSize} bytes exceeds 900KB safety limit.`);
+          }
+        } catch {}
+      }
 
       return results;
     } catch (error) {

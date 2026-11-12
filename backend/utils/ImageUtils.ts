@@ -50,10 +50,12 @@ export class ImageUtils {
   }
 
   /**
-   * Preprocess image quality and return output dimensions in a single Sharp pass
-   * (eliminates decoding the WebP output a second time just to read metadata).
+   * Preprocess image quality and return both:
+   * - `imageData`: clean resized WebP for UI display/annotations and Vision Marking (no sharpen/normalize halos)
+   * - `ocrImageData`: grayscale + normalized + sharpened WebP tuned for Mathpix OCR
+   * Both share the exact same resized pixel dimensions so OCR coordinates align 1:1.
    */
-  static async preProcessWithMetadata(imageData: string): Promise<{ imageData: string; width?: number; height?: number }> {
+  static async preProcessWithMetadata(imageData: string): Promise<{ imageData: string; ocrImageData?: string; width?: number; height?: number }> {
     try {
       let imageBuffer: Buffer;
       if (imageData.startsWith('data:')) {
@@ -64,21 +66,26 @@ export class ImageUtils {
         imageBuffer = Buffer.from(imageData, 'base64');
       }
 
-      // Strategy: Grayscale Hack + Normalize for Mathpix.
-      // This drops the file size by 60%+ while making the text pure black on white.
-      const { data: finalBuffer, info } = await sharp(imageBuffer)
-        .resize({ width: 2000, withoutEnlargement: true }) // The ~240 DPI sweet spot for Mathpix
-        .grayscale() // CRITICAL: Drops file size by 66% (1 channel instead of 3 RGB channels)
-        .normalize() // CRITICAL: Forces background to pure white and text to pure black
-        .sharpen() // Hardens the edges of faint decimal points
-        .webp({ quality: 90 }) // Avoids JPEG blurring artifacts
+      // Single resize pass so display and OCR images share identical pixel dimensions
+      const { data: resizedBuffer, info } = await sharp(imageBuffer)
+        .resize({ width: 2000, withoutEnlargement: true })
         .toBuffer({ resolveWithObject: true });
 
-      const enhancedBase64 = finalBuffer.toString('base64');
-      const enhancedDataUrl = `data:image/webp;base64,${enhancedBase64}`;
+      const [displayBuffer, ocrBuffer] = await Promise.all([
+        sharp(resizedBuffer)
+          .webp({ quality: 90 })
+          .toBuffer(),
+        sharp(resizedBuffer)
+          .grayscale() // Drops file size by 66% (1 channel instead of 3 RGB channels)
+          .normalize() // Forces background to pure white and text to pure black
+          .sharpen() // Hardens the edges of faint decimal points for Mathpix
+          .webp({ quality: 90 })
+          .toBuffer()
+      ]);
 
       return {
-        imageData: enhancedDataUrl,
+        imageData: `data:image/webp;base64,${displayBuffer.toString('base64')}`,
+        ocrImageData: `data:image/webp;base64,${ocrBuffer.toString('base64')}`,
         width: info.width,
         height: info.height
       };
