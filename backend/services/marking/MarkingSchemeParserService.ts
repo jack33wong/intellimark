@@ -369,8 +369,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
     /**
      * Checks whether a parsed scheme is an official past paper from a recognized exam board
-     * for a non-Mathematics and non-English Language subject (e.g. Biology, Chemistry, Physics,
-     * Geography, History, Computer Science, Economics, Psychology, Business, English Literature).
+     * (e.g. AQA, Edexcel, OCR, WJEC, Eduqas, CIE, Cambridge, CCEA) with a valid paper code and >= 3 questions.
      */
     static isOfficialPastPaperScheme(parsedObj: any): boolean {
         if (!parsedObj || typeof parsedObj !== 'object') return false;
@@ -388,12 +387,87 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
         if (!paperCode || /^(uploaded|custom|unknown|n\/a|none)$/i.test(paperCode)) return false;
         if (paperCode.length < 3 || !/[0-9]/.test(paperCode)) return false;
 
-        // Do not overwrite curated Mathematics or English Language schemes
-        if (!subject || /\b(math|maths|mathematics)\b/i.test(subject)) return false;
-        if (/\benglish\s+language\b/i.test(subject) || /^8700|^1en0|^j351/i.test(paperCode)) return false;
+        if (!subject) return false;
 
         if (!questions || typeof questions !== 'object' || Object.keys(questions).length < 3) return false;
         return true;
+    }
+
+    /**
+     * Identifies whether a subject or paper code represents Mathematics or English Language.
+     */
+    static isMathematicsOrEnglishLanguage(subject?: string, paperCode?: string): boolean {
+        const subj = String(subject || '').trim();
+        const code = String(paperCode || '').trim();
+        if (/\b(math|maths|mathematics)\b/i.test(subj)) return true;
+        if (/\benglish\s+language\b/i.test(subj)) return true;
+        if (/^(8300|1ma1|j560|c300)/i.test(code)) return true;
+        if (/^(8700|1en0|j351|c700)/i.test(code)) return true;
+        return false;
+    }
+
+    /**
+     * Checks whether an official paper/scheme for the given code and series
+     * already exists in Firestore (`markingSchemes` or `fullExamPapers`).
+     * Checks both canonical doc IDs and the cached QuestionDetection catalog
+     * to safely detect existing manual entries (including those with custom/UUID docIds).
+     */
+    static async paperExistsInDatabase(
+        board?: string,
+        paperCode?: string,
+        examSeries?: string
+    ): Promise<boolean> {
+        try {
+            const rawCode = String(paperCode || '').trim();
+            if (!rawCode) return false;
+
+            const db = getFirestore();
+            const norm = (s: string) => String(s || '').trim().toUpperCase().replace(/[-_\s]+/g, '/');
+            const slug = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            const targetNormCode = norm(rawCode);
+            const targetSeriesYear = (examSeries || '').match(/\b(20\d{2})\b/)?.[1] || '';
+
+            // 1. Direct canonical doc ID check in Firestore
+            if (db && board && examSeries) {
+                const msDocId = `official_${slug(board)}_${slug(rawCode)}_${slug(examSeries)}`;
+                const msDoc = await db.collection('markingSchemes').doc(msDocId).get();
+                if (msDoc.exists) return true;
+
+                const qpDocId = `${slug(board)}_${slug(rawCode)}_${slug(examSeries)}`;
+                const qpDoc = await db.collection('fullExamPapers').doc(qpDocId).get();
+                if (qpDoc.exists) return true;
+            }
+
+            // 2. Search cached in-memory marking schemes list (catches UUID/custom docIds)
+            const schemes = await QuestionDetectionService.getInstance().getMarkingSchemesList();
+            const matchedScheme = (schemes || []).some((s: any) => {
+                const sCode = norm(s?.examDetails?.paperCode || s?.examDetails?.paper || s?.metadata?.exam_code || '');
+                if (!sCode || (sCode !== targetNormCode && !sCode.includes(targetNormCode) && !targetNormCode.includes(sCode))) {
+                    return false;
+                }
+                if (!targetSeriesYear) return true;
+                const sSeries = String(s?.examDetails?.exam_series || s?.examDetails?.date || s?.metadata?.exam_series || '');
+                return sSeries.includes(targetSeriesYear);
+            });
+            if (matchedScheme) return true;
+
+            // 3. Search cached in-memory full exam papers list
+            const papers = await QuestionDetectionService.getInstance().getExamPapersList();
+            const matchedPaper = (papers || []).some((p: any) => {
+                const pCode = norm(p?.metadata?.exam_code || p?.examDetails?.paperCode || p?.metadata?.paperCode || '');
+                if (!pCode || (pCode !== targetNormCode && !pCode.includes(targetNormCode) && !targetNormCode.includes(pCode))) {
+                    return false;
+                }
+                if (!targetSeriesYear) return true;
+                const pSeries = String(p?.metadata?.exam_series || p?.examDetails?.exam_series || p?.metadata?.date || '');
+                return pSeries.includes(targetSeriesYear);
+            });
+            if (matchedPaper) return true;
+
+            return false;
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -595,10 +669,29 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
     }): Promise<{ persisted: boolean; report?: CompletenessReport }> {
         const { parsedScheme, extractedQuestions, paperStatedTotal, auditContext } = params;
         try {
-            // Not an official non-Maths/English paper -> silently ignore (custom / teacher schemes are never cataloged)
+            // Not an official past paper -> silently ignore (custom / teacher schemes are never cataloged)
             if (!this.isOfficialPastPaperScheme(parsedScheme)) return { persisted: false };
 
             const label = `${parsedScheme.examDetails?.board || ''} ${parsedScheme.examDetails?.paperCode || ''} ${parsedScheme.examDetails?.exam_series || parsedScheme.examDetails?.date || ''}`.trim();
+
+            // 🛡️ MATHS & ENGLISH LANGUAGE EXISTENCE GATE:
+            // For Mathematics and English Language, auto-persistence is ONLY permitted if the official paper
+            // does NOT already exist in our database, strictly preserving all curated/manual data.
+            const isMathOrEnglish = this.isMathematicsOrEnglishLanguage(
+                parsedScheme.examDetails?.subject,
+                parsedScheme.examDetails?.paperCode
+            );
+            if (isMathOrEnglish) {
+                const board = parsedScheme.examDetails?.board;
+                const paperCode = parsedScheme.examDetails?.paperCode;
+                const examSeries = parsedScheme.examDetails?.exam_series || parsedScheme.examDetails?.date;
+                const existsInDb = await this.paperExistsInDatabase(board, paperCode, examSeries);
+                if (existsInDb) {
+                    console.log(`🛡️ [AUTO-CATALOG] Skipped Maths/English paper "${label}" — already exists in database. Curated data preserved.`);
+                    return { persisted: false };
+                }
+            }
+
             const schemeReport = this.assessSchemeCompleteness(parsedScheme, paperStatedTotal);
             const paperReport = this.assessQuestionPaperCompleteness(parsedScheme, extractedQuestions);
 
@@ -670,6 +763,10 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 const existingData = existingDoc.data();
                 // Never overwrite a manually curated scheme that happens to share this doc ID
                 if (!isAutoPersistedDoc(existingData)) {
+                    return docId;
+                }
+                // For Maths & English Language, never overwrite an existing document
+                if (this.isMathematicsOrEnglishLanguage(subject, paperCode)) {
                     return docId;
                 }
                 const existingQCount = Object.keys(existingData?.questions || {}).length;
@@ -921,6 +1018,10 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             if (existingSnap.exists) {
                 const existingData = existingSnap.data();
                 if (!isAutoPersistedDoc(existingData)) return;
+                // For Maths & English Language, never overwrite an existing document
+                if (this.isMathematicsOrEnglishLanguage(subject, paperCode)) {
+                    return;
+                }
                 const existingQuestions: any[] = Array.isArray(existingData?.questions)
                     ? existingData!.questions
                     : Object.values(existingData?.questions || {});

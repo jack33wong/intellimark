@@ -76,6 +76,37 @@ const formatDate = (dateString) => {
   }
 };
 
+/**
+ * Checks if an exam paper was newly created within 7 days plus the created day (0 to 7 calendar days old).
+ */
+const isRecentExamPaper = (entry) => {
+  if (!entry) return false;
+  const rawDate =
+    entry.createdAt ||
+    entry.uploadedAt ||
+    entry.persistenceAudit?.persistedAt ||
+    entry.data?.createdAt ||
+    entry.data?.uploadedAt ||
+    entry.metadata?.createdAt ||
+    entry.exam?.createdAt;
+  if (!rawDate) return false;
+
+  try {
+    const createdDate = new Date(rawDate);
+    if (isNaN(createdDate.getTime())) return false;
+
+    const now = new Date();
+    // Normalize to start of day (midnight) to evaluate calendar days: created day (day 0) + 7 days
+    const startOfCreatedDay = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate()).getTime();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const diffDays = Math.floor((startOfToday - startOfCreatedDay) / (1000 * 60 * 60 * 24));
+
+    return diffDays >= 0 && diffDays <= 7;
+  } catch (error) {
+    return false;
+  }
+};
+
 const formatMode = (mode) => {
   if (!mode) return 'Unknown';
   // Capitalize first letter and handle hyphenated modes
@@ -3344,13 +3375,23 @@ function AdminPage() {
                                   )}
                                 </td>
                                 <td className="admin-table__cell actions-cell">
-                                  <button
-                                    className="admin-btn admin-btn--icon btn-danger"
-                                    onClick={() => deleteJsonEntry(entry.id)}
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                  <div className="actions-cell-wrapper">
+                                    {isRecentExamPaper(entry) && (
+                                      <span
+                                        className="status-badge status-badge--new"
+                                        title={`Created: ${formatDate(entry.createdAt || entry.uploadedAt)}`}
+                                      >
+                                        New
+                                      </span>
+                                    )}
+                                    <button
+                                      className="admin-btn admin-btn--icon btn-danger"
+                                      onClick={() => deleteJsonEntry(entry.id)}
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
 

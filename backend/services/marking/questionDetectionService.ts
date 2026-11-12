@@ -155,6 +155,10 @@ export class QuestionDetectionService {
     return this.getAllMarkingSchemes();
   }
 
+  public async getExamPapersList(): Promise<any[]> {
+    return this.getAllExamPapers();
+  }
+
   public async detectQuestion(
     extractedQuestionText: string,
     questionNumberHint?: string | null,

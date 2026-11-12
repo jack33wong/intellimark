@@ -444,6 +444,31 @@
   border: 1px solid var(--function-warning);
 }
 
+.status-badge--new {
+  background: var(--function-error-tsp);
+  color: var(--function-error);
+  border: 1px solid var(--function-error);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+.actions-cell-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Engagement Reading & Pages Viewed Badges */
 .engagement-badge {
   display: inline-flex;
