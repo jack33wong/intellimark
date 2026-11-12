@@ -50,8 +50,9 @@ function toPositiveInt(v: any): number | null {
  *  - v3: canonical normalized keys in markingSchemes (stripped leading zeros: "1.1" not "01.1")
  *        and clean relative sub-part in fullExamPapers ("1" not ".1")
  *  - v4: strip qualification prefix (e.g. "GCSE", "A-Level") from subject field, ensuring clean separation of qualification & subject
+ *  - v5: standardize auto-persisted fullExamPapers & markingSchemes schemas to canonical Maths/English shapes (strip redundant exam, questionNumber, totalMarks, paper/date aliases, and boolean flags)
  */
-export const AUTO_PERSIST_SCHEMA_VERSION = 4;
+export const AUTO_PERSIST_SCHEMA_VERSION = 5;
 
 /** True when a Firestore doc was written by the auto-persistence pipeline (never overwrite manual docs). */
 function isAutoPersistedDoc(data: any): boolean {
@@ -658,7 +659,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const paperCode = String(details.paperCode || '').trim().toUpperCase();
             const examSeries = String(details.exam_series || details.date || 'Unknown').trim();
             const subject = cleanSubj;
-            const qualification = cleanQual || 'GCSE';
+            const qualification = (cleanQual || 'GCSE').replace(/\s*\(9-1\)\s*/gi, '').trim() || 'GCSE';
             const tier = String(details.tier || 'N/A').trim();
 
             const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -671,8 +672,6 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 if (!isAutoPersistedDoc(existingData)) {
                     return docId;
                 }
-                // If already saved with at least as many questions by the CURRENT auto-persist logic, skip redundant write.
-                // Older versions (pre-v2) lacked per-question totalMarks and are rewritten.
                 const existingQCount = Object.keys(existingData?.questions || {}).length;
                 const newQCount = Object.keys(parsedObj.questions || {}).length;
                 const existingVersion = Number(existingData?.autoPersistVersion || 0);
@@ -694,9 +693,8 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 }
             }
 
-            // Stamp totalMarks / maxMarks onto every individual question so consumers (Admin UI, detection)
-            // never fall back to `marks.length` (which counts a single "B2" item as 1 mark instead of 2).
-            // Also canonicalize question keys (e.g. "01.1" -> "1.1") without leading zeros.
+            // Canonicalize question keys (e.g. "01.1" -> "1.1") and strip redundant internal fields
+            // (questionNumber, totalMarks, maxMarks) while keeping subQuestionMaxScores as the single budget source.
             const questionsToSave: Record<string, any> = {};
             for (const [qKey, qVal] of Object.entries(parsedObj.questions || {})) {
                 const cleanKey = String(qKey).trim().replace(/^0+(?=\d)/, '');
@@ -704,20 +702,25 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                     questionsToSave[cleanKey] = qVal;
                     continue;
                 }
+                const qObj = qVal as any;
                 const fromScores = Number(subQuestionMaxScores[cleanKey]) || Number(rawSubScores[qKey]) || 0;
-                const qMarks = fromScores || sumMarkCodeWeights((qVal as any).marks);
-                if (qMarks > 0 && !subQuestionMaxScores[cleanKey]) subQuestionMaxScores[cleanKey] = qMarks;
-                questionsToSave[cleanKey] = qMarks > 0
-                    ? {
-                        ...(qVal as any),
-                        questionNumber: cleanKey,
-                        totalMarks: qMarks,
-                        maxMarks: qMarks
-                    }
-                    : {
-                        ...(qVal as any),
-                        questionNumber: cleanKey
-                    };
+                const qMarks = fromScores || sumMarkCodeWeights(qObj.marks);
+                if (qMarks > 0 && !subQuestionMaxScores[cleanKey]) {
+                    subQuestionMaxScores[cleanKey] = qMarks;
+                }
+
+                const cleanQuestionEntry: Record<string, any> = {
+                    answer: qObj.answer ?? '',
+                    marks: Array.isArray(qObj.marks) ? qObj.marks : []
+                };
+                if (qObj.paradigm) cleanQuestionEntry.paradigm = qObj.paradigm;
+                if (Array.isArray(qObj.levels) && qObj.levels.length > 0) cleanQuestionEntry.levels = qObj.levels;
+                if (Array.isArray(qObj.indicativeContent) && qObj.indicativeContent.length > 0) {
+                    cleanQuestionEntry.indicativeContent = qObj.indicativeContent;
+                }
+                if (qObj.guidance) cleanQuestionEntry.guidance = qObj.guidance;
+
+                questionsToSave[cleanKey] = cleanQuestionEntry;
             }
 
             const totalMarks = Object.values(subQuestionMaxScores).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
@@ -727,13 +730,11 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
             const normalizedExamDetails = {
                 board,
+                subject,
                 qualification,
                 paperCode,
                 tier,
-                paper: paperCode,
-                date: examSeries,
-                exam_series: examSeries,
-                subject
+                exam_series: examSeries
             };
 
             const nowIso = new Date().toISOString();
@@ -750,8 +751,6 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 totalMarks: totalMarks || 100,
                 autoPersistVersion: AUTO_PERSIST_SCHEMA_VERSION,
                 persistenceType: 'auto',
-                isAutoPersisted: true,
-                autoCataloged: true,
                 persistenceAudit: {
                     persistenceType: 'auto',
                     source: 'marking_pipeline',
@@ -773,8 +772,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                         : null
                 },
                 uploadedAt: existingUploadedAt || nowIso,
-                createdAt: existingCreatedAt || nowIso,
-                updatedAt: nowIso
+                createdAt: existingCreatedAt || nowIso
             });
 
             QuestionDetectionService.invalidateSchemesCache();
@@ -812,7 +810,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             const paperCode = String(details.paperCode || '').trim().toUpperCase();
             const examSeries = String(details.exam_series || details.date || 'Unknown').trim();
             const subject = cleanSubj;
-            const qualification = cleanQual || 'GCSE';
+            const qualification = (cleanQual || 'GCSE').replace(/\s*\(9-1\)\s*/gi, '').trim() || 'GCSE';
             const tier = String(details.tier || 'N/A').trim();
 
             const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -830,7 +828,6 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 schemeScores.set(nk, Number(v) || 0);
                 schemeDisplayKey.set(nk, String(k).trim().replace(/^0+(?=\d)/, ''));
             }
-            // Include question keys that exist in `questions` but are missing from subQuestionMaxScores
             for (const [k, v] of Object.entries(parsedScheme.questions || {})) {
                 const nk = normKey(k);
                 if (!nk || schemeScores.has(nk)) continue;
@@ -861,7 +858,6 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
             }
 
             // --- 3. Determine the set of base questions & sub-question keys ---
-            // When the scheme has keys, restrict to the scheme (drops mapper noise like phantom "Q12").
             const schemeHasKeys = schemeScores.size > 0;
             const allSubKeys = new Set<string>();
             schemeScores.forEach((_, nk) => allSubKeys.add(nk));
@@ -889,11 +885,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                     if (!text) missingTextKeys.push(displayKey);
                     const marks = schemeScores.get(nk);
                     return {
-                        part: relativePart,
                         question_part: relativePart,
-                        number: displayKey,
-                        question_number: displayKey,
-                        text,
                         question_text: text,
                         marks: marks || undefined,
                         ...(text ? {} : { text_missing: true })
@@ -911,9 +903,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 const parentMarks = sub_questions.length > 0 ? subSum : (schemeScores.get(baseNum) || 0);
 
                 questionsMap[baseNum] = {
-                    number: baseNum,
                     question_number: baseNum,
-                    text: stemText,
                     question_text: stemText,
                     marks: parentMarks || undefined,
                     sub_questions
@@ -956,22 +946,24 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
 
             const nowIso = new Date().toISOString();
             const existingCreatedAt = existingSnap.exists ? existingSnap.data()?.createdAt : null;
-            const existingUploadedAt = existingSnap.exists ? existingSnap.data()?.uploadedAt : null;
+
+            const paperPartMatch = paperCode.match(/\/(\d+)/);
+            const paperNumStr = paperPartMatch ? `Paper ${paperPartMatch[1]}` : paperCode;
+            const paperTitle = `${board} ${qualification} ${subject} ${paperNumStr}${tier && tier !== 'N/A' ? ` (${tier})` : ''}`.replace(/\s+/g, ' ').trim();
 
             const metadataBlock = {
                 exam_board: board,
-                board,
-                qualification,
-                exam_code: paperCode,
-                paper_code: paperCode,
-                exam_series: examSeries,
-                tier,
                 subject,
+                paper_title: paperTitle,
+                tier,
+                exam_code: paperCode,
+                qualification,
+                exam_series: examSeries,
+                total_questions: questionsArray.length,
                 total_marks: totalPaperMarks
             };
 
             await db.collection('fullExamPapers').doc(docId).set({
-                exam: metadataBlock,
                 metadata: metadataBlock,
                 questions: questionsArray,
                 totalQuestions: questionsArray.length,
@@ -979,8 +971,6 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                 totalMarks: totalPaperMarks,
                 autoPersistVersion: AUTO_PERSIST_SCHEMA_VERSION,
                 persistenceType: 'auto',
-                isAutoPersisted: true,
-                autoCataloged: true,
                 persistenceAudit: {
                     persistenceType: 'auto',
                     source: 'marking_pipeline',
@@ -1001,9 +991,7 @@ Do not include markdown blocks, just the raw JSON object. Ensure all max scores 
                         }
                         : null
                 },
-                uploadedAt: existingUploadedAt || nowIso,
-                createdAt: existingCreatedAt || nowIso,
-                updatedAt: nowIso
+                createdAt: existingCreatedAt || nowIso
             });
 
             QuestionDetectionService.invalidatePapersCache();

@@ -1165,14 +1165,18 @@ function AdminPage() {
   const handleMetadataChange = useCallback((field, value) => {
     setEditedExamData(prev => {
       const updated = { ...prev };
-      // Handle both nested and flat structures
-      if (updated.exam) {
-        updated.exam = { ...updated.exam, [field]: value };
-      } else if (updated.metadata) {
-        updated.metadata = { ...updated.metadata, [field]: value };
+      const applyField = (targetObj) => {
+        const next = { ...targetObj, [field]: value };
+        if (field === 'board') next.exam_board = value;
+        if (field === 'code') next.exam_code = value;
+        return next;
+      };
+      if (updated.metadata) {
+        updated.metadata = applyField(updated.metadata);
+      } else if (updated.exam) {
+        updated.exam = applyField(updated.exam);
       } else {
-        // Fallback or create metadata if missing (unlikely for valid entries)
-        updated.metadata = { [field]: value };
+        updated.metadata = applyField({});
       }
       return updated;
     });
@@ -1324,8 +1328,17 @@ function AdminPage() {
         if (subQs.length > 0) {
           subQs.forEach((sq, sIndex) => {
             const part = (sq.part || sq.question_part || sq.subQuestionNumber || String.fromCharCode(97 + sIndex)).toString().trim();
-            // Combine parent + part if it doesn't already include it (e.g. "1" + "a" = "1a")
-            const fullNum = (part.toLowerCase().startsWith(parentNum.toLowerCase())) ? part : `${parentNum}${part}`;
+            let fullNum;
+            if (/^\d+$/.test(part)) {
+              // Numeric sub-part (e.g. parent "1" + part "1" -> "1.1")
+              fullNum = `${parentNum}.${part}`;
+            } else if (part.startsWith('.')) {
+              fullNum = `${parentNum}${part}`;
+            } else if (part.toLowerCase().startsWith(`${parentNum.toLowerCase()}.`)) {
+              fullNum = part;
+            } else {
+              fullNum = `${parentNum}${part}`;
+            }
             list.push(fullNum);
           });
         } else {
@@ -4068,10 +4081,13 @@ function AdminPage() {
                                                         <strong>Qualification:</strong> {displayData.examDetails?.qualification || displayData.exam?.qualification || 'Unknown'}
                                                       </span>
                                                       <span className="admin-summary-item">
+                                                        <strong>Subject:</strong> {displayData.examDetails?.subject || displayData.exam?.subject || 'Unknown'}
+                                                      </span>
+                                                      <span className="admin-summary-item">
                                                         <strong>Paper Code:</strong> {displayData.examDetails?.paperCode || displayData.exam?.paperCode || displayData.exam?.code || 'Unknown'}
                                                       </span>
                                                       <span className="admin-summary-item">
-                                                        <strong>Paper:</strong> {displayData.examDetails?.paper || displayData.exam?.paper || 'Unknown'}
+                                                        <strong>Tier:</strong> {displayData.examDetails?.tier || displayData.exam?.tier || 'N/A'}
                                                       </span>
                                                       <span className="admin-summary-item">
                                                         <strong>Exam Series:</strong> {displayData.examDetails?.exam_series || displayData.exam?.exam_series || 'Unknown'}
@@ -4099,7 +4115,7 @@ function AdminPage() {
                                                   </div>
                                                 </div>
 
-                                                {/* General Marking Guidance (Level-of-Response Instructions) */}
+                                                {/* General Marking Guidance (String or Object) */}
                                                 {displayData.generalMarkingGuidance && (
                                                   <div className="admin-questions-content">
                                                     <h6 className="admin-questions-summary__title">General Marking Guidance</h6>
@@ -4111,17 +4127,25 @@ function AdminPage() {
                                                       fontSize: '0.85rem',
                                                       color: '#334155'
                                                     }}>
-                                                      {displayData.generalMarkingGuidance.overview && (
-                                                        <p style={{ margin: '0 0 8px 0', lineHeight: '1.5' }}>
-                                                          {displayData.generalMarkingGuidance.overview}
+                                                      {typeof displayData.generalMarkingGuidance === 'string' ? (
+                                                        <p style={{ margin: 0, lineHeight: '1.5' }}>
+                                                          {displayData.generalMarkingGuidance}
                                                         </p>
-                                                      )}
-                                                      {Array.isArray(displayData.generalMarkingGuidance.levelOfResponseInstructions) && (
-                                                        <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.5' }}>
-                                                          {displayData.generalMarkingGuidance.levelOfResponseInstructions.map((inst, idx) => (
-                                                            <li key={idx} style={{ marginBottom: '4px' }}>{inst}</li>
-                                                          ))}
-                                                        </ul>
+                                                      ) : (
+                                                        <>
+                                                          {displayData.generalMarkingGuidance.overview && (
+                                                            <p style={{ margin: '0 0 8px 0', lineHeight: '1.5' }}>
+                                                              {displayData.generalMarkingGuidance.overview}
+                                                            </p>
+                                                          )}
+                                                          {Array.isArray(displayData.generalMarkingGuidance.levelOfResponseInstructions) && (
+                                                            <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.5' }}>
+                                                              {displayData.generalMarkingGuidance.levelOfResponseInstructions.map((inst, idx) => (
+                                                                <li key={idx} style={{ marginBottom: '4px' }}>{inst}</li>
+                                                              ))}
+                                                            </ul>
+                                                          )}
+                                                        </>
                                                       )}
                                                     </div>
                                                   </div>
@@ -4337,16 +4361,22 @@ function AdminPage() {
                                                                             fontSize: '0.75rem',
                                                                             fontWeight: '600'
                                                                           }}>
-                                                                            {lvl.minMarks === lvl.maxMarks ? `${lvl.maxMarks} marks` : `${lvl.minMarks}–${lvl.maxMarks} marks`}
+                                                                            {lvl.markRange
+                                                                              ? `${lvl.markRange} marks`
+                                                                              : (lvl.minMarks === lvl.maxMarks ? `${lvl.maxMarks} marks` : `${lvl.minMarks}–${lvl.maxMarks} marks`)}
                                                                           </span>
                                                                         </div>
-                                                                        {Array.isArray(lvl.descriptors) && lvl.descriptors.length > 0 && (
+                                                                        {Array.isArray(lvl.descriptors) && lvl.descriptors.length > 0 ? (
                                                                           <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: '#475569', lineHeight: '1.45' }}>
                                                                             {lvl.descriptors.map((desc, dIdx) => (
                                                                               <li key={dIdx}>{desc}</li>
                                                                             ))}
                                                                           </ul>
-                                                                        )}
+                                                                        ) : lvl.descriptor ? (
+                                                                          <div style={{ fontSize: '0.82rem', color: '#475569', lineHeight: '1.45' }}>
+                                                                            {lvl.descriptor}
+                                                                          </div>
+                                                                        ) : null}
                                                                       </div>
                                                                     ))}
                                                                   </div>

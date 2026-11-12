@@ -96,7 +96,7 @@ export class AdminAlertService {
         this.markUserActive(userId);
       }
 
-      if (event === 'marking_engagement_summary' && metadata) {
+      if (process.env.LOG_FUNNEL === 'true' && event === 'marking_engagement_summary' && metadata) {
         console.log(
           `📖 [ENGAGEMENT] user=${userId || anonymousId || 'guest'} | session=${metadata.sessionId} | activeTime=${metadata.totalActiveSec}s | pagesViewed=${metadata.uniquePagesViewed}/${metadata.totalPages} (${metadata.coveragePct}%) | splitMode=${metadata.openedSplitMode} | navClicks=${metadata.questionNavClicks} | dwell=${JSON.stringify(metadata.pageDwellSec || {})}`
         );

@@ -208,9 +208,11 @@ router.post('/telemetry', express.json({ type: ['application/json', 'text/plain'
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const { event, userId, anonymousId, path, origin, timestamp, ...metadata } = body;
-    console.log(
-      `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
-    );
+    if (process.env.LOG_FUNNEL === 'true') {
+      console.log(
+        `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
+      );
+    }
     AdminAlertService.recordTelemetryEvent(anonymousId, userId, event, path, metadata);
 
     if (event === 'marking_engagement_summary' && metadata?.sessionId) {

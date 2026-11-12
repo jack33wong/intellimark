@@ -147,16 +147,20 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
               }
               delete data.questions;
             } else if (collectionName === 'markingSchemes') {
-              if (!data.totalMarks && data.questions && typeof data.questions === 'object') {
-                const qList = Array.isArray(data.questions) ? data.questions : Object.values(data.questions);
-                data.totalQuestions = data.totalQuestions || qList.length;
-                data.totalMarks = qList.reduce((sum: number, q: any) => {
-                  if (!q) return sum;
-                  const explicitMark = Number(q.totalMarks || q.maxMarks || (typeof q.marks === 'number' ? q.marks : 0));
-                  if (explicitMark > 0) return sum + explicitMark;
-                  if (Array.isArray(q.marks)) return sum + q.marks.length;
-                  return sum;
-                }, 0);
+              if (!data.totalMarks) {
+                if (data.subQuestionMaxScores && typeof data.subQuestionMaxScores === 'object') {
+                  data.totalMarks = Object.values(data.subQuestionMaxScores).reduce((sum: number, v: any) => sum + (Number(v) || 0), 0);
+                } else if (data.questions && typeof data.questions === 'object') {
+                  const qList = Array.isArray(data.questions) ? data.questions : Object.values(data.questions);
+                  data.totalQuestions = data.totalQuestions || qList.length;
+                  data.totalMarks = qList.reduce((sum: number, q: any) => {
+                    if (!q) return sum;
+                    const explicitMark = Number(q.totalMarks || q.maxMarks || (typeof q.marks === 'number' ? q.marks : 0));
+                    if (explicitMark > 0) return sum + explicitMark;
+                    if (Array.isArray(q.marks)) return sum + q.marks.length;
+                    return sum;
+                  }, 0);
+                }
               }
               delete data.questions; // markingSchemes has questions as an object or array depending on version
               delete data.markingSchemeData; // Also potentially large
@@ -185,7 +189,9 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
             normalizedSeries,
             uploadedAt: data.uploadedAt ?
               (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
-              new Date().toISOString()
+              (data.createdAt ?
+                (typeof data.createdAt === 'string' ? data.createdAt : data.createdAt.toDate().toISOString()) :
+                new Date().toISOString())
           };
 
           entries.push(entry);
@@ -260,7 +266,9 @@ router.get('/json/collections/:collectionName/:id', async (req: Request, res: Re
             normalizedSeries,
             uploadedAt: data?.uploadedAt ?
               (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
-              new Date().toISOString()
+              (data?.createdAt ?
+                (typeof data.createdAt === 'string' ? data.createdAt : data.createdAt.toDate().toISOString()) :
+                new Date().toISOString())
           }
         });
       } catch (err) {

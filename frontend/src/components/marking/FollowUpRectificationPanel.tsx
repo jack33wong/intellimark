@@ -243,7 +243,7 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
             }}
           >
             <Sparkles size={16} />
-            <span>Mark with AI (General Rubric)</span>
+            <span>Mark with AI (General Mark Scheme)</span>
           </button>
 
           {/* Button on RIGHT: Attach Marking Scheme */}
